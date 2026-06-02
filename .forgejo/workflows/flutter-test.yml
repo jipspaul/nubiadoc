@@ -1,0 +1,29 @@
+# Flutter test workflow — uses custom flutter-ci image baked with Flutter SDK
+# (arm64-friendly via Cirrus Labs build) + Node.js (required by Forgejo Actions
+# to run JS actions like actions/checkout@v4).
+#
+# Build & load the image into the runner DinD with:
+#   ./ci/flutter/load-into-runner.sh
+#
+# Image is local-only (loaded into DinD via docker load, not pushed to any
+# registry). The runner config has force_pull: false so it uses the local cache.
+on: [push, pull_request]
+jobs:
+  flutter-test:
+    runs-on: docker
+    container:
+      image: flutter-ci:stable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Flutter version
+        working-directory: flutter_demo
+        run: flutter --version
+      - name: Pub get
+        working-directory: flutter_demo
+        run: flutter pub get
+      - name: Analyze
+        working-directory: flutter_demo
+        run: flutter analyze --fatal-infos
+      - name: Test
+        working-directory: flutter_demo
+        run: flutter test
