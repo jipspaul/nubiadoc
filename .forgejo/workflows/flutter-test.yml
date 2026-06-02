@@ -1,0 +1,20 @@
+on: [push, pull_request]
+jobs:
+  flutter-test:
+    runs-on: docker
+    container:
+      image: ghcr.io/cirruslabs/flutter:stable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Flutter version
+        working-directory: flutter_demo
+        run: flutter --version
+      - name: Pub get
+        working-directory: flutter_demo
+        run: flutter pub get
+      - name: Analyze
+        working-directory: flutter_demo
+        run: flutter analyze --fatal-infos
+      - name: Test
+        working-directory: flutter_demo
+        run: flutter test
