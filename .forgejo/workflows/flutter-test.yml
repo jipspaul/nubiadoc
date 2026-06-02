@@ -17,7 +17,7 @@ jobs:
       - name: Install Flutter prerequisites
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends curl unzip xz-utils ca-certificates git
+          apt-get install -y --no-install-recommends curl unzip xz-utils ca-certificates git jq
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
