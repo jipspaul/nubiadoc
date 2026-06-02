@@ -1,27 +1,20 @@
-# Flutter test workflow.
+# Flutter test workflow — uses custom flutter-ci image baked with Flutter SDK
+# (arm64-friendly via Cirrus Labs build) + Node.js (required by Forgejo Actions
+# to run JS actions like actions/checkout@v4).
 #
-# Requires Forgejo Actions configured with FORGEJO__actions__DEFAULT_ACTIONS_URL=github
-# so non-mirrored third-party actions like subosito/flutter-action@v2 fall back to
-# github.com instead of data.forgejo.org (which only hosts a curated set).
+# Build & load the image into the runner DinD with:
+#   ./ci/flutter/load-into-runner.sh
 #
-# Container is node:22-bookworm (not the cirruslabs/flutter image) because Forgejo
-# Actions executes JS actions inside the container and needs node in PATH.
+# Image is local-only (loaded into DinD via docker load, not pushed to any
+# registry). The runner config has force_pull: false so it uses the local cache.
 on: [push, pull_request]
 jobs:
   flutter-test:
     runs-on: docker
     container:
-      image: node:22-bookworm
+      image: flutter-ci:stable
     steps:
       - uses: actions/checkout@v4
-      - name: Install Flutter prerequisites
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends curl unzip xz-utils ca-certificates git jq
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
       - name: Flutter version
         working-directory: flutter_demo
         run: flutter --version
