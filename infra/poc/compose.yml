@@ -1,0 +1,75 @@
+# POC mono-VPS — compatible podman-compose (docs/10).
+# Lancement : podman-compose -f infra/poc/compose.yml up -d
+# Alternative robuste : générer des unités Quadlet/systemd (docs/10 §4).
+services:
+  caddy:
+    image: docker.io/library/caddy:2
+    ports: ['80:80', '443:443']
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
+      - caddy_data:/data
+    depends_on: [api]
+    restart: unless-stopped
+
+  api:
+    image: ghcr.io/jipspaul/nubia-api:latest
+    environment:
+      MODE: api
+      PORT: '3000'
+      DATABASE_URL: postgresql://nubia_app:${PG_APP_PWD}@postgres:5432/nubia?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: minio
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: nubia-poc
+      S3_ACCESS_KEY: ${MINIO_USER}
+      S3_SECRET_KEY: ${MINIO_PWD}
+      MAIL_DRIVER: mailpit
+      SMS_DRIVER: log
+      SIGN_DRIVER: yousign_sandbox
+      KMS_DRIVER: local
+      KMS_MASTER_KEY: ${KMS_MASTER_KEY}
+      ANALYTICS_DRIVER: noop
+    depends_on: [postgres, redis, minio]
+    restart: unless-stopped
+
+  worker:
+    image: ghcr.io/jipspaul/nubia-api:latest
+    environment:
+      MODE: worker
+      DATABASE_URL: postgresql://nubia_app:${PG_APP_PWD}@postgres:5432/nubia?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on: [postgres, redis]
+    restart: unless-stopped
+
+  postgres:
+    image: docker.io/library/postgres:16
+    environment:
+      POSTGRES_DB: nubia
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PG_ROOT_PWD}
+    volumes: ['pg_data:/var/lib/postgresql/data:Z']
+    restart: unless-stopped
+
+  redis:
+    image: docker.io/library/redis:7
+    volumes: ['redis_data:/data:Z']
+    restart: unless-stopped
+
+  minio:
+    image: docker.io/minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PWD}
+    volumes: ['minio_data:/data:Z']
+    restart: unless-stopped
+
+  mailpit:
+    image: docker.io/axllent/mailpit
+    restart: unless-stopped
+
+volumes:
+  pg_data: {}
+  redis_data: {}
+  minio_data: {}
+  caddy_data: {}

@@ -1,0 +1,10 @@
+# POC — reverse proxy + TLS automatique (Let's Encrypt).
+# Remplace tondomaine.fr par ton domaine. En rootless, voir docs/10 §4 (ports 80/443).
+
+api.tondomaine.fr {
+    reverse_proxy api:3000
+}
+
+mail.tondomaine.fr {
+    reverse_proxy mailpit:8025
+}

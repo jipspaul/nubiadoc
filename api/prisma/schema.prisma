@@ -1,0 +1,78 @@
+// Nubia — schéma Prisma (Bloc A : multi-tenant + RLS).
+// Détail complet du modèle : docs/05-modele-de-donnees.md
+// La RLS est activée par migration SQL (voir prisma/migrations/0001_init).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cabinet {
+  id            String   @id @default(uuid()) @db.Uuid
+  raisonSociale String   @map("raison_sociale")
+  siret         String?  @db.Char(14)
+  finess        String?
+  specialite    String   @default("dentaire")
+  settings      Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  memberships CabinetMembership[]
+  patients    Patient[]
+
+  @@map("cabinet")
+}
+
+model AppUser {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String?  @map("password_hash")
+  mfaEnabled   Boolean  @default(false) @map("mfa_enabled")
+  rpps         String?
+  adeli        String?
+  status       String   @default("active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  memberships CabinetMembership[]
+
+  @@map("app_user")
+}
+
+model CabinetMembership {
+  id        String  @id @default(uuid()) @db.Uuid
+  cabinetId String  @map("cabinet_id") @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  role      String // practitioner | secretary | admin
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  user    AppUser @relation(fields: [userId], references: [id])
+
+  @@unique([cabinetId, userId])
+  @@map("cabinet_membership")
+}
+
+model Patient {
+  id        String   @id @default(uuid()) @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  birthDate DateTime? @map("birth_date") @db.Date
+  contact   Json     @default("{}")
+  mutuelle  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@index([cabinetId])
+  @@map("patient")
+}
