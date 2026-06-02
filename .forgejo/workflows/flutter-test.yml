@@ -1,3 +1,11 @@
+# Flutter test workflow.
+#
+# Requires Forgejo Actions configured with FORGEJO__actions__DEFAULT_ACTIONS_URL=github
+# so non-mirrored third-party actions like subosito/flutter-action@v2 fall back to
+# github.com instead of data.forgejo.org (which only hosts a curated set).
+#
+# Container is node:22-bookworm (not the cirruslabs/flutter image) because Forgejo
+# Actions executes JS actions inside the container and needs node in PATH.
 on: [push, pull_request]
 jobs:
   flutter-test:
