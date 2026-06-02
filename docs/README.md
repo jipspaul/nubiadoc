@@ -1,4 +1,4 @@
-# Documentation technique — Nubia (SaaS HealthTech dentaire)
+# Documentation technique — Nubia (plateforme santé / marketplace)
 
 Documentation de cadrage du projet. Elle part du brief existant
 (`../INSTRUCTIONS_PROJET.md` + `nubiaDoc.pdf`) pour le challenger et en tirer un
@@ -7,8 +7,9 @@ plan d'exécution réaliste.
 ## État réel du projet
 
 - **Stade** : pré-seed, exécution **solo / petite équipe**, sans financement levé.
-- **Front confirmé** : Flutter (app patient). Back : NestJS modular monolith. Infra souveraine managée Scaleway.
-- **Principe directeur** : le brief décrit une *vision* (plateforme tout-en-un, 7 piliers, équipe 10-15, 2,5 M€). La documentation ci-dessous la traduit en un *MVP exécutable* centré sur un wedge.
+- **Scope (révisé 02/06)** : **plateforme santé à deux faces** — marketplace patient (trouver/réserver n'importe quel praticien, toutes professions, recherche multi-axes + carte + salle d'attente virtuelle + téléconsult) **+** logiciel métier cabinet (B2B SaaS). Cf. `11`. C'est le positionnement « concurrent Doctolib ».
+- **Front** : Flutter + Bloc (patient + back-office). Back : NestJS modular monolith. Infra souveraine managée Scaleway.
+- **Principe directeur** : traduire la vision en *MVP exécutable*. La marketplace complète étant ambitieuse en solo, une amorce par profession/zone est à arbitrer (`11` §14).
 
 ## Sommaire
 
@@ -23,6 +24,10 @@ plan d'exécution réaliste.
 | [`07-conformite.md`](./07-conformite.md) | Checklist opérationnelle **HDS / RGPD / AIPD / eIDAS / AI Act / MDR / Ségur** avec statuts, et la **barrière minimale avant le pilote prod (G3)**. |
 | [`08-plan-action-deploiement.md`](./08-plan-action-deploiement.md) | Plan d'exécution **tâche par tâche** (T0→T24) ordonné par **dépendances** (DAG), **gate de validation testée** par tâche, **stratégie de tests near-100%** (RLS/sécurité, mutation, seuils CI), pipeline CI/CD et procédure de release staging→démo→prod. |
 | [`09-backlog-issues.md`](./09-backlog-issues.md) | **Backlog issue-ready** : chaque brique éclatée en issues `NUB-T<n>.<k>` avec micro-étapes cochables, dépendances, critères d'acceptation/tests, labels et estimations. Stack actée (NestJS+Prisma, pattern RLS détaillé). À copier directement dans tes issues. |
+| `10-deploiement-poc-vps.md` | ⚠️ **Perdu au reset git** (POC mono-VPS Podman). À recréer ; `infra/poc/` (compose + Caddyfile) est sauvé. |
+| [`11-marketplace-recherche.md`](./11-marketplace-recherche.md) | **Scope marketplace** : plateforme deux faces, compte patient global, recherche multi-axes (adresse/GPS/praticien/spécialité/besoin), taxonomie multi-profession, carte, salle d'attente virtuelle, téléconsult, avis, ranking, impacts archi/données (PostGIS, Meilisearch), conformité (RPPS, avis, géoloc). |
+
+> Design & UX : voir [`../design/`](../design/) — design system, user stories (dont marketplace), flux et **maquettes HTML** (`design/mockups/nubia-maquettes.html` + `nubia-marketplace.html`).
 
 ## Comment lire
 
@@ -34,7 +39,7 @@ plan d'exécution réaliste.
 ## Les 3 décisions structurantes retenues
 
 1. **Démo investisseurs vs pilote prod** = pour la levée, l'app patient montre **les 12 rubriques du PDF** (mocks autorisés 🎭, données fictives) ; pour la prod, on durcit un **wedge réel** plus étroit : RDV + dossier + devis/signature/acompte. Section 13 (avancé) exclue, sauf paiement.
-2. **Stack dégraissée** : **Flutter partout** (app patient + back-office) + NestJS + PostgreSQL + Redis + Object Storage, tout en **managé Scaleway** ; observabilité/analytics via **PostHog (EU Cloud)**. On reporte Temporal, NATS, microservices Python/IA, Meilisearch, TimescaleDB, Keycloak, Kubernetes et le self-hosted.
+2. **Stack** : **Flutter partout** (app patient + back-office) + NestJS + PostgreSQL + Redis + Object Storage, managé Scaleway ; analytics via **PostHog (EU Cloud)**. Pour la marketplace : **Meilisearch** (recherche) et **PostGIS** (géo) deviennent cœur (cf. `11`). On reporte Temporal, NATS, microservices Python/IA, Keycloak, Kubernetes et le self-hosted.
 3. **Conformité par le design** : on exclut du MVP toute fonction qui qualifierait en dispositif médical (interactions médicamenteuses, aide à la prescription/décision) et on reporte l'IA Scribe (chantier AI Act « haut risque »).
 
 ## Prochaines étapes de documentation (idées)

@@ -368,4 +368,18 @@ GET    /events/stream              # text/event-stream, scope cabinet
 - **Sauvegardes** : Postgres PITR managé + export chiffré Object Storage ; test de restauration documenté (cf. `07`).
 - **Bascule prod** : conditionnée au Go/No-Go G3 (conformité réelle prête) — aucune donnée patient réelle avant.
 
-> Détail des entités et politiques RLS : `05-modele-de-donnees.md`. Détail des règles métier par écran : `06-specs-fonctionnelles.md`. Checklist réglementaire : `07-conformite.md`.
+## 10. Extension marketplace (scope global — cf. `11`)
+La bascule en **marketplace santé** ajoute une face publique de découverte. Impacts архitecture :
+- **Nouveaux modules** dans le monolithe NestJS : `directory` (annuaire/profils publics), `search` (recherche multi-axes), `geo` (proximité), `booking` (réservation cross-provider), `reviews` (avis modérés), `teleconsult` (vidéo).
+- **Recherche** = **Meilisearch** réintégré (souverain) — indexe praticiens/spécialités/établissements/actes, facettes + typo-tolérance. (Révise `01` §3.3 : la recherche était reportée pour le mono-cabinet ; elle devient cœur produit.)
+- **Géo** = **PostGIS** (colonne `geography(Point)`, `ST_DWithin`, tri par distance) ; géocodage via service EU ; tuiles carte souveraines (IGN/MapTiler EU/OSM).
+- **Patient global** : `PatientAccount` au niveau plateforme (hors RLS cabinet) ; le dossier clinique reste tenant (RLS). Voir ADR-011 et `05`.
+- **Disponibilités publiques** : projection lecture-publique des créneaux réservables, séparée du planning interne.
+- **Téléconsultation** : brique WebRTC européenne, flux HDS.
+
+### ADR-011 — Patient au niveau plateforme + annuaire public
+- **Décision** : séparer l'**identité/compte patient** (plateforme, global) du **dossier médical** (tenant, RLS). Ajouter un annuaire public (lecture non authentifiée) alimenté par la recherche/géo.
+- **Conséquences** : un patient unique réserve chez tous les praticiens ; le secret médical reste cloisonné par cabinet ; surface publique à sécuriser (rate-limit, cache, anti-scraping) ; AIPD à étendre.
+- **Statut** : Accepté (révise le postulat « patient rattaché à un cabinet » de `05`).
+
+> Détail des entités et politiques RLS : `05-modele-de-donnees.md` (dont section marketplace). Règles métier par écran : `06-specs-fonctionnelles.md`. Scope marketplace : `11-marketplace-recherche.md`. Checklist réglementaire : `07-conformite.md`.

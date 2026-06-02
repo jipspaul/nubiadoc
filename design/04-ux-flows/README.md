@@ -1,12 +1,11 @@
 # UX Flows
 
-> Parcours utilisateurs. Dessiner ici (diagrammes + écrans clés), puis itérer avec la skill **`design-critique`**.
+> Parcours utilisateurs : flux (étapes, états, erreurs) + maquettes hi-fi, **story par story** depuis `../user-stories.md`. Itérer avec la skill `design-critique`.
 
-Flux prioritaires (cf. `../02-inventaire-ecrans.md`) :
-1. **Wedge** : devis → signature → acompte → alerte cabinet.
-2. **Onboarding patient** + 1re prise de RDV.
-3. **Tableau de bord** patient (agrégé) / secrétariat (opérationnel).
-4. **Messagerie** patient ↔ cabinet (triage visuel, conversion message→RDV).
-5. **Scénario démo investisseurs** (enchaînement des 12 rubriques).
+| Fichier | Parcours | Stories | Statut |
+|---|---|---|---|
+| [`01-wedge-devis-signature-acompte.md`](./01-wedge-devis-signature-acompte.md) | Devis → signature → acompte (patient + praticien + alerte cabinet) | US-D03→D05, US-P19, P21, P22 | flux ✅ · maquette patient ✅ · back-office praticien à faire |
 
-Pour chaque flux : objectif, acteur, étapes, écrans, points de friction, états d'erreur/vides.
+Ordre prévu : **wedge** (en cours) → onboarding + RDV (US-P01→P10) → tableaux de bord (US-P13, US-S02) → messagerie (US-P15→16, US-S06→07) → écrans démo mockés.
+
+Pour chaque parcours : objectif, acteurs, étapes, écrans, états (vide/chargement/erreur), accessibilité, microcopy clé.

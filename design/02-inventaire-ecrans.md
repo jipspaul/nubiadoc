@@ -34,6 +34,25 @@
 | Liste d'attente / combler un trou | S | E4.5 | 🎭 |
 | Salle d'attente live (SSE) | S + D | T16 | 🟧 |
 
+## Marketplace (face patient découverte — cf. `../docs/11`)
+
+| Écran | Rôle | Story | Démo |
+|---|---|---|---|
+| Recherche (barre multi-axes + lieu) | Patient | US-M01→M05 | 🟧 |
+| Résultats + filtres | Patient | US-M06, M07 | 🟧 |
+| Filtres (facettes) | Patient | US-M06 | 🟧 |
+| Carte (pins + « rechercher dans cette zone ») | Patient | US-M08 | 🟧 |
+| Profil praticien (dispos, prendre RDV) | Patient | US-M09, M10 | 🟧 |
+| Réservation (motif → créneau → confirm) | Patient | US-M11 | 🟧 |
+| Salle d'attente virtuelle (position file) | Patient | US-M14 | 🟧 |
+| Check-in (QR / « je suis arrivé ») | Patient | US-M16 | 🟧 |
+| Téléconsultation (salle d'attente + vidéo) | Patient | US-M17 | 🟧 |
+| Notif « bientôt à vous » | Patient | US-M15 | 🟧 |
+| Profil public + créneaux en ligne | Praticien | US-M18, M19 | 🟧 |
+| Pilotage file d'attente | Praticien/Secr. | US-M20 | 🟧 |
+
+> Maquettes : `mockups/nubia-marketplace.html`. Flux : `04-ux-flows/03-recherche-reservation.md`.
+
 ## Parcours critiques à dessiner en priorité
 1. **Le wedge** : Praticien crée un devis → patient le **signe** in-app → **paie l'acompte** → cabinet voit l'alerte. Doit être le flux le plus fluide (cf. `../docs/03`, `../docs/06` E5.x).
 2. **Onboarding patient** + première prise de RDV.

@@ -421,4 +421,88 @@ CREATE TABLE consent_record (
 - Recherche floue (noms patients) : `pg_trgm` (`GIN` sur champ non sensible) — pas de Meilisearch au MVP.
 - `pgvector`/TimescaleDB : **non installés** au MVP (cf. `01` §3.3).
 
-> Diagramme relationnel, contrats d'API et règles métier : voir `04` et `06`. Politiques de rétention détaillées et base légale : `07`.
+## 9. Extension marketplace (scope global — cf. `11`)
+> Ajouts pour la face découverte/réservation. **Révise le postulat** « `patient.cabinet_id` » : le patient devient **global** (plateforme).
+
+### 9.1 Compte patient global
+```sql
+CREATE TABLE patient_account (        -- niveau plateforme, HORS rls cabinet
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  app_user_id   uuid REFERENCES app_user(id),
+  ins_ciphertext bytea, ins_key_ref text,   -- INS chiffré
+  first_name text NOT NULL, last_name text NOT NULL,
+  birth_date date,
+  contact jsonb NOT NULL DEFAULT '{}',
+  mutuelle jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+-- Le dossier clinique reste tenant : "patient" (cf. §5.2) devient le lien
+-- cabinet <-> patient_account, et porte le contenu médical (cloisonné, RLS).
+ALTER TABLE patient ADD COLUMN patient_account_id uuid REFERENCES patient_account(id);
+```
+
+### 9.2 Annuaire (lecture publique)
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+CREATE TABLE profession (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), label text NOT NULL);
+CREATE TABLE specialty  (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), profession_id uuid REFERENCES profession(id), label text NOT NULL);
+CREATE TABLE medical_act (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), specialty_id uuid REFERENCES specialty(id), label text NOT NULL, motifs text[]);
+
+CREATE TABLE establishment (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL, address jsonb NOT NULL DEFAULT '{}',
+  geo geography(Point,4326)               -- PostGIS : "autour de moi"
+);
+
+CREATE TABLE provider (                   -- profil PUBLIC du praticien
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  practitioner_id uuid REFERENCES practitioner(id),
+  cabinet_id uuid REFERENCES cabinet(id),
+  establishment_id uuid REFERENCES establishment(id),
+  display_name text NOT NULL,
+  rpps text, adeli text, rpps_verified boolean NOT NULL DEFAULT false,
+  specialty_id uuid REFERENCES specialty(id),
+  sector text,                            -- conventionnement 1/2/3
+  languages text[], pmr boolean DEFAULT false,
+  teleconsult boolean DEFAULT false,
+  accepts_new_patients boolean DEFAULT true,
+  bio text, photo_key text,
+  geo geography(Point,4326),
+  rating_avg numeric(2,1), rating_count int DEFAULT 0,
+  is_listed boolean NOT NULL DEFAULT false -- listé seulement si rpps_verified
+);
+CREATE INDEX provider_geo_idx ON provider USING gist (geo);
+
+CREATE TABLE availability_slot (          -- projection publique des créneaux réservables
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_id uuid NOT NULL REFERENCES provider(id),
+  starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL,
+  motif text, status text NOT NULL DEFAULT 'open'  -- open|held|booked
+);
+CREATE INDEX slot_provider_time_idx ON availability_slot (provider_id, starts_at);
+
+CREATE TABLE review (                     -- avis, rattaché à un vrai RDV, modéré
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_id uuid NOT NULL REFERENCES provider(id),
+  patient_account_id uuid NOT NULL REFERENCES patient_account(id),
+  appointment_id uuid REFERENCES appointment(id),
+  rating int CHECK (rating BETWEEN 1 AND 5),
+  comment text, status text NOT NULL DEFAULT 'pending', -- moderation
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+### 9.3 RLS & visibilité
+- `provider`, `establishment`, `specialty`, `medical_act`, `availability_slot` (status `open`) : **lecture publique** (pas de RLS, ou policy `is_listed = true`).
+- `patient_account` : accès limité au titulaire (et au cabinet **lié** via `patient`).
+- `review` : lecture publique si `status='published'` ; écriture par le titulaire d'un RDV réel.
+- Le **contenu clinique** (`medical_record`, `clinical_note`, messages) reste **strictement tenant (RLS)** — la marketplace ne l'expose jamais.
+
+### 9.4 Recherche
+- **Meilisearch** indexe `provider` + `specialty` + `establishment` + `medical_act` (facettes : secteur, téléconsult, langues, dispo, distance bucket).
+- **Géo** : filtrage/tri via PostGIS (`ST_DWithin`, `ST_Distance`) en complément de l'index texte.
+- **Mapping besoin→spécialité** : table `medical_act.motifs` + synonymes (NLP plus tard) — **suggestion**, pas diagnostic (cf. `07` §8).
+
+> Diagramme relationnel, contrats d'API et règles métier : voir `04` et `06`. Scope marketplace : `11`. Politiques de rétention et base légale : `07`.

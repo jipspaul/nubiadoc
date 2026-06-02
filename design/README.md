@@ -13,8 +13,12 @@ Tout est ancré sur ce qui est déjà cadré côté produit/tech (voir `../docs/
 |---|---|---|
 | `01-personas.md` | 3 personas (patient, praticien, secrétariat) — amorcés | `user-research` / `research-synthesis` |
 | `02-inventaire-ecrans.md` | Inventaire des écrans & flux, priorité prod/démo — amorcé | — |
+| `user-stories.md` | **Backlog complet des user stories** (patient, secrétariat, praticien, transverse) = base du design story-by-story | — |
 | `03-design-system/` | Tokens (couleurs, typo, espacements), composants, états | `design-system` |
-| `04-ux-flows/` | Parcours clés (onboarding, RDV, devis→acompte, messagerie) | `design-critique` |
+| `04-ux-flows/` | Parcours clés : `01` wedge, `02` parcours restants, `03` **recherche/réservation marketplace** | `design-critique` |
+| `ia-navigation.md` | **Architecture d'information unifiée** : l'app patient = UN univers (marketplace + espace perso), navigation à 5 onglets, mapping nav→toutes les user stories | — |
+| `mockups/` | **Maquettes HTML** au navigateur. ⭐ `nubia-univers.html` = univers complet unifié · `nubia-hifi.html` = **hi-fi + écran annoté inspect** · vues détaillées `nubia-maquettes.html`, `nubia-marketplace.html` | — |
+| `07-handoff/` | **Package handoff dev** prêt à builder : `00` fondations · `01` 22 composants (props Flutter, états, mesures) · `02` specs écran + critères d'acceptation + edge cases | `design-handoff` |
 | `05-ux-copy/` | Microcopy, messages d'erreur, états vides, CTA | `ux-copy` |
 | `06-accessibilite/` | Audit RGAA / WCAG 2.1 AA | `accessibility-review` |
 | `07-handoff/` | Specs de handoff vers le dev Flutter | `design-handoff` |
@@ -23,7 +27,8 @@ Tout est ancré sur ce qui est déjà cadré côté produit/tech (voir `../docs/
 ## Méthode suggérée (ordre)
 1. **Cadrer les utilisateurs** : finaliser `01-personas.md` (idéalement avec de vrais entretiens cabinets, cf. `../docs/02` Étape 0).
 2. **Cartographier** : valider `02-inventaire-ecrans.md` et prioriser pour la **démo investisseurs** (parcours scénarisé).
-3. **Parcours** : dessiner les flux clés (`04-ux-flows/`), en commençant par le wedge.
+3. **Définir les user stories** : `user-stories.md` (fait) — la base du design story-by-story.
+4. **Parcours & écrans** : dérouler le design/UX **story par story** (flux dans `04-ux-flows/`, écrans), en commençant par le wedge.
 4. **Design system** : poser les tokens et composants (`03-design-system/`) — pensés « Flutter/Bloc ».
 5. **Copy** : écrire la microcopy (`05-ux-copy/`) en français, ton du produit.
 6. **Accessibilité** : auditer (`06-accessibilite/`) avant le handoff.
