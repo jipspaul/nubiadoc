@@ -35,8 +35,8 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const AppBar(
-        title: Text('Flutter Demo'),
+      appBar: AppBar(
+        title: const Text('Flutter Demo'),
       ),
       body: Column(
         children: [
