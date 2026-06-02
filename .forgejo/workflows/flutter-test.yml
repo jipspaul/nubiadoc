@@ -3,9 +3,17 @@ jobs:
   flutter-test:
     runs-on: docker
     container:
-      image: ghcr.io/cirruslabs/flutter:stable
+      image: node:22-bookworm
     steps:
       - uses: actions/checkout@v4
+      - name: Install Flutter prerequisites
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends curl unzip xz-utils ca-certificates git
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
       - name: Flutter version
         working-directory: flutter_demo
         run: flutter --version
