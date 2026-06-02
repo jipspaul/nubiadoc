@@ -1,0 +1,12 @@
+on: [push, pull_request]
+jobs:
+  web-e2e:
+    runs-on: docker
+    container:
+      image: mcr.microsoft.com/playwright:v1.49.1-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - working-directory: tests/e2e
+        run: npm install
+      - working-directory: tests/e2e
+        run: npx playwright test
