@@ -12,7 +12,7 @@
 - **Backend** : NestJS (TypeScript, strict) · **Prisma** (schéma + migrations) · `pg` natif pour les requêtes nécessitant le contexte RLS.
 - **RLS** : chaque requête métier passe par une **transaction interactive** qui exécute `SET LOCAL app.current_cabinet_id = $1` en premier (détaillé dans NUB-T1/T3). ⚠️ Avec un pooler en mode transaction, `SET LOCAL` n'est valable **que dans une transaction explicite** — d'où le pattern « tout passe par une transaction tenant-scoped ».
 - **Tests** : Jest + Supertest + **Testcontainers** (Postgres réel) · Stryker (mutation) · k6 (charge).
-- **Front** : Flutter + Riverpod + Dio · `flutter_test` / `integration_test` · Playwright (back-office web).
+- **Front** : Flutter + **Bloc (flutter_bloc)** + Dio · `flutter_test` / `bloc_test` / `integration_test` · Playwright (back-office web).
 - **Async** : BullMQ (Redis). **Temps réel** : SSE + FCM.
 - **Cloud** : Scaleway managé (Postgres/Redis/Object Storage/Secret Manager), conteneurs managés.
 

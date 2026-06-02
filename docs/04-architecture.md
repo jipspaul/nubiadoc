@@ -104,7 +104,7 @@ graph TB
 
 | Conteneur | Techno | Rôle |
 |---|---|---|
-| App Patient | Flutter + Riverpod + Dio | UI patient, push FCM, biométrie, signature in-app |
+| App Patient | Flutter + Bloc (flutter_bloc) + Dio | UI patient, push FCM, biométrie, signature in-app |
 | Back-office | Flutter Web/Desktop | Agenda, dossiers, devis, messagerie cabinet ; SSE pour le live |
 | API | NestJS | REST, auth, logique métier, émission d'events, RLS context |
 | Worker | NestJS (même codebase, process séparé) | Jobs BullMQ : emails, SMS, push, relances, appels externes, webhooks |

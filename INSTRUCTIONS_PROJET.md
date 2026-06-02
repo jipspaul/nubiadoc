@@ -111,7 +111,7 @@ Modèle tout-compris, plus simple et lisible que les offres à tiroirs de Doctol
 ## Stack technique
 
 ### Frontend
-- **Mobile patient** : Flutter 3.x + Riverpod + Dio (codebase unique iOS/Android)
+- **Mobile patient** : Flutter 3.x + Bloc (flutter_bloc) + Dio (codebase unique iOS/Android)
 - **Web patient (fallback QR sans app)** : Next.js 15 + PWA
 - **Interface Praticien** : Next.js 15 + TanStack Query + Zustand + shadcn/ui + Tailwind
 - **Interface Secrétariat** : Même stack que praticien (mutualisation maximale)

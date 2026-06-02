@@ -1,11 +1,14 @@
 # Design System
 
-> À construire avec la skill **`design-system`**. Objectif : des tokens et composants qui se traduisent proprement en **widgets Flutter** (thème + composants Bloc-friendly).
+> Direction retenue : **premium / esthétique** · primaire **vert santé (émeraude)** · **clair + sombre** · **angles arrondis doux**.
+> Construit avec la skill `design-system`. Pensé pour se traduire direct en **widgets Flutter**.
 
-À produire ici :
-- **Tokens** : couleurs (+ thème clair/sombre), typographie, échelle d'espacements, rayons, ombres, états.
-- **Composants** : boutons, champs, cartes, listes, badges (urgent/statut), tuiles de dashboard, fil de messagerie, ligne d'agenda, carte de devis.
-- **États** : default / hover / focus / disabled / loading / erreur / vide.
-- **Mapping Flutter** : nom du token → `ThemeData` / constantes ; un composant = un widget réutilisable.
+| Fichier | Contenu |
+|---|---|
+| [`01-tokens.md`](./01-tokens.md) | Couleurs (ramps marque/neutres/sémantiques, rôles light/dark, contrastes AA), typographie (Inter + Fraunces), espacements, rayons, ombres, motion. |
+| [`02-composants.md`](./02-composants.md) | Composants cœur (Button, Input, Card, Badge statut, Tuile dashboard, Message row, Agenda slot, Carte devis) : variantes, états, accessibilité. |
+| [`03-flutter-theme.md`](./03-flutter-theme.md) | Implémentation Flutter : `ColorScheme` + `ThemeData` clair/sombre + `ThemeExtension NubiaTokens` + constantes + `google_fonts`. |
 
-Contraintes : cohérent sur les 3 rôles (patient mobile + back-office desktop), accessible (contrastes AA), lisible en data-dense côté cabinet.
+Contraintes tenues : cohérent sur les 3 rôles (patient mobile + back-office desktop), **accessible AA** (contrastes vérifiés), lisible en data-dense côté cabinet, couleur jamais porteuse seule d'une information.
+
+Prochaines étapes design : appliquer ces composants aux **flux clés** (`../04-ux-flows/`, en commençant par le wedge), puis la **copy** (`../05-ux-copy/`) et l'**audit a11y** (`../06-accessibilite/`).
