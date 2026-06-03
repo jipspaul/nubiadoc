@@ -122,6 +122,10 @@ SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regi
 SELECT has_column('patient_account', 'tiers_payant', 'patient_account.tiers_payant');
 SELECT has_column('clinical_note', 'note_kind', 'clinical_note.note_kind (journal clinique)');
 
+-- ----- consent_record (0017, issue #180) -----
+SELECT col_not_null('consent_record', 'purpose', 'consent_record.purpose NOT NULL (RGPD)');
+SELECT col_not_null('consent_record', 'granted', 'consent_record.granted NOT NULL');
+
 -- ----- refresh_token (0016, issue #179) -----
 SELECT has_table('refresh_token');
 SELECT col_is_unique('refresh_token', 'token_hash', 'refresh_token.token_hash UNIQUE (hash SHA-256 uniquement)');
