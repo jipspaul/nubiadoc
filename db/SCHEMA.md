@@ -85,6 +85,13 @@ tx.commit().await?;
 policy `is_listed = true`). Le **clinique** (`medical_record`, `clinical_note`, `message`) reste
 **strictement tenant** : la marketplace ne l'expose jamais.
 
+> **Module 1 — `with_tenant` validé (2026-06-03)** : `nubia_app` peut poser
+> `SET LOCAL app.current_cabinet_id = $1` (GUC custom, aucun GRANT requis) ; dispose de
+> `SELECT, INSERT, UPDATE` sur `cabinet`, `app_user`, `cabinet_membership`, `practitioner` ;
+> RLS fail-closed (`FORCE ROW LEVEL SECURITY` + policy `nullif(current_setting(...,true),'')::uuid`)
+> active sur `cabinet_membership` et `practitioner` ; `audit_log` restreint à `INSERT` seul.
+> Vérifié : `make test` (120 tests pgTAP verts sous `nubia_app`), `make verify-rls`, `make lint`.
+
 ---
 
 ## 4. Conventions que l'API doit respecter
