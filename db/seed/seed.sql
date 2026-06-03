@@ -231,8 +231,8 @@ ON CONFLICT (id) DO NOTHING;
 -- =====================================================================
 -- Consentements + 1 avis publié
 -- =====================================================================
-INSERT INTO consent_record (id, cabinet_id, patient_id, purpose, granted, granted_at) VALUES
-  ('cc000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d1','soins', true,'2026-05-01 09:00+00')
+INSERT INTO consent_record (id, app_user_id, purpose, granted, cgu_version, granted_at) VALUES
+  ('cc000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a5','soins', true, '1.0','2026-05-01 09:00+00')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO review (id, provider_id, patient_account_id, appointment_id, rating, comment, status, created_at) VALUES
