@@ -112,5 +112,11 @@ SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regi
 SELECT has_column('patient_account', 'tiers_payant', 'patient_account.tiers_payant');
 SELECT has_column('clinical_note', 'note_kind', 'clinical_note.note_kind (journal clinique)');
 
+-- ----- app_metadata (0013) -----
+SELECT has_table('app_metadata');
+SELECT is(
+  (SELECT value FROM app_metadata WHERE key = 'version'),
+  '0.1.0', 'app_metadata version = 0.1.0');
+
 SELECT * FROM finish();
 ROLLBACK;
