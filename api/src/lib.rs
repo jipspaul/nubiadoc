@@ -5,8 +5,9 @@ use axum::{
     Json, Router,
 };
 use serde_json::{json, Value};
+use sqlx::PgPool;
 
-pub mod auth;
+mod auth;
 
 /// Trait d'envoi d'email — swappable (stub en test, Brevo/SMTP en prod).
 pub trait Mailer: Send + Sync {
@@ -25,11 +26,12 @@ impl Mailer for StubMailer {
 #[derive(Clone)]
 pub struct AppState {
     /// Pool runtime (rôle nubia_app, RLS active). Jamais le pool owner.
-    pub pool: sqlx::PgPool,
+    pub db: PgPool,
+    pub jwt_secret: String,
     pub mailer: Arc<dyn Mailer>,
 }
 
-/// Routeur santé/métriques sans état — utilisé directement dans les tests existants.
+/// Routeur sans état — conservé pour les tests des endpoints statiques existants.
 pub fn router() -> Router {
     Router::new()
         .route("/v1/health", get(health))
@@ -40,11 +42,14 @@ pub fn router() -> Router {
 
 /// Application complète : santé + auth. Utilisé en production et dans les tests d'intégration auth.
 pub fn app(state: AppState) -> Router {
-    let auth = Router::new()
+    Router::new()
+        .route("/v1/health", get(health))
+        .route("/v1/health/live", get(health_live))
+        .route("/v1/health/ready", get(health_ready))
+        .route("/v1/metrics", get(metrics))
+        .route("/v1/auth/mfa/verify", post(auth::mfa_verify))
         .route("/v1/auth/password/forgot", post(auth::forgot_password))
-        .with_state(state);
-
-    router().merge(auth)
+        .with_state(state)
 }
 
 async fn health() -> Json<Value> {

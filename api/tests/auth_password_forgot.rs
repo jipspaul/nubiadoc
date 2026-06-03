@@ -14,7 +14,8 @@ async fn test_state() -> Option<AppState> {
     let url = std::env::var("APP_DATABASE_URL").ok()?;
     let pool = PgPool::connect(&url).await.ok()?;
     Some(AppState {
-        pool,
+        db: pool,
+        jwt_secret: String::new(),
         mailer: Arc::new(StubMailer),
     })
 }
@@ -30,7 +31,7 @@ async fn forgot_password_known_email_returns_200_and_sets_token() {
         "INSERT INTO app_user (email, password_hash, kind) VALUES ($1, 'placeholder', 'patient')",
     )
     .bind(&email)
-    .execute(&state.pool)
+    .execute(&state.db)
     .await
     .expect("insert test user");
 
@@ -56,7 +57,7 @@ async fn forgot_password_known_email_returns_200_and_sets_token() {
 
     let row = sqlx::query("SELECT password_reset_token FROM app_user WHERE email = $1")
         .bind(&email)
-        .fetch_one(&state.pool)
+        .fetch_one(&state.db)
         .await
         .expect("fetch user after forgot");
 
@@ -68,7 +69,7 @@ async fn forgot_password_known_email_returns_200_and_sets_token() {
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
-        .execute(&state.pool)
+        .execute(&state.db)
         .await
         .unwrap();
 }

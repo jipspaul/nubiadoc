@@ -11,7 +11,8 @@ async fn main() {
             .expect("failed to connect to database");
 
     let state = AppState {
-        pool,
+        db: pool,
+        jwt_secret: std::env::var("JWT_SECRET").unwrap_or_default(),
         mailer: Arc::new(StubMailer),
     };
 
