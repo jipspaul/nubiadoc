@@ -47,11 +47,14 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 | Gestion DB | `db/` : migrations `0001→0012` + tests pgTAP + seed + Makefile + CI Forgejo + SCHEMA.md | ✅ (SQL exécutable ; `make test` vert from scratch — 118 tests) |
 | T0 | Repo + CI (Forgejo) + infra POC | 🟨 scaffold Rust/Axum à créer + CI `api/` Forgejo |
 | T1 | Multi-tenant + RLS | ⬜ à implémenter en Rust/SQLx |
-| T2 | Auth + RBAC | ⬜ |
+| T2 | Auth + RBAC | 🟨 (register ✅, login/refresh/logout ⬜) |
 | T3 | crypto + audit + tenancy | ⬜ (tenancy fait) |
 | T4-T24 | Domaines, wedge, démo, prod | ⬜ |
 
 ## Dernier point
+2026-06-03 (7) — **`POST /v1/auth/register` implémenté (issue #182).** Handler Axum public (sans JWT) : transaction atomique `app_user` + `patient_account` + `consent_record(purpose='soins')` + `refresh_token`. Mot de passe haché argon2 (Argon2::default). JWT patient émis (sub/kind/account_id, 15 min). Erreurs : `409 email_taken`, `422 cgu_required`, `422 password_policy`. 3 tests d'intégration verts (`cargo nextest`). `cargo clippy` + `cargo fmt --check` clean. **Bon moment pour committer.** Message suggéré : « Ajoute POST /v1/auth/register — création compte patient ».
+
+
 2026-06-03 (6) — **DB `db/` : SQL exécutable livré + `make test` vert from scratch.** Écrit le contrat complet de la couche données :
 - **Migrations `0001→0012`** (`db/migrations/`, SQLx, SQL pur, forward-only) : extensions+rôles · cabinet/identité · patient/clinique · documents · agenda (+**EXCLUDE** anti-double-booking) · wedge · messagerie · **audit partitionné** append-only · marketplace (PostGIS) · extensions hi-fi · **RLS (enable/force + policies fail-closed)** · index. S'appliquent **from scratch** en `nubia_owner`.
 - **Tests pgTAP** (`db/tests/`, **118 tests, tous verts** sous `nubia_app`) : structure/colonnes/types/défauts/FK, rejets CHECK/NOT NULL/UNIQUE, **EXCLUDE** (chevauchement rejeté), **audit append-only** (UPDATE/DELETE refusés), **RLS** (fail-closed, non-fuite A↔B, WITH CHECK cross-tenant, entités plateforme visibles), **garde-fou** « table `cabinet_id` sans policy ».
