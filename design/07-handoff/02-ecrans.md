@@ -174,7 +174,7 @@ Tous les RDV (tous praticiens), gestion, et **jour J** : check-in → file virtu
 |---|---|---|
 | RDV | confirmé/checked_in/in_progress/done/cancelled/no_show | StatusPill + actions contextuelles |
 | Annulation | dans délai / hors délai | autorisée / refusée (message) |
-| File virtuelle | position N | mise à jour **temps réel (SSE)** ; notif à ~5 min |
+| File virtuelle | position N | mise à jour **temps réel (WebSocket)** ; notif à ~5 min |
 | Appelé | « c'est à vous » | écran/notif « Salle 2 » (présentiel) ou démarrage appel (téléconsult) |
 | Téléconsult | attente/prêt/en cours/incident réseau | bouton rejoindre actif quand prêt ; reprise sur coupure |
 
@@ -227,19 +227,19 @@ Bulles avec auteur annoncé ; statut d'envoi annoncé ; le flag urgent ne décle
 Poste de pilotage du cabinet (desktop/tablette). Cloisonnement : pas de contenu clinique pour le secrétariat.
 
 ### Layout
-Sidebar (240) + contenu : MetricTiles (RDV du jour, urgents, devis en attente) + table « Salle d'attente » (heure, patient, statut live SSE).
+Sidebar (240) + contenu : MetricTiles (RDV du jour, urgents, devis en attente) + table « Salle d'attente » (heure, patient, statut live WebSocket).
 
 ### Responsive
 Desktop : sidebar fixe. Tablette : rail 72. Mobile pro : drawer + tables→cartes.
 
 ### Edge cases
-Aucune activité (EmptyState) ; perte de connexion SSE (bandeau + reconnexion) ; forte affluence (liste scrollable, virtualisation).
+Aucune activité (EmptyState) ; perte de connexion WebSocket (bandeau + reconnexion) ; forte affluence (liste scrollable, virtualisation).
 
 ### A11y
 Tables avec en-têtes ; mises à jour live annoncées discrètement ; navigation clavier complète ; cloisonnement des rôles respecté (RBAC).
 
 ### Critères d'acceptation
-- Étant donné des patients en salle, quand un patient se check-in, alors la table se met à jour en temps réel (SSE) sans rechargement.
+- Étant donné des patients en salle, quand un patient se check-in, alors la table se met à jour en temps réel (WebSocket) sans rechargement.
 - Étant donné le rôle secrétariat, quand j'ouvre une fiche patient, alors le contenu clinique n'est pas accessible (403 / masqué).
 
 > Les écrans secondaires (onboarding, profil/compte, suivi, plan de traitement, passeport, espace financier) suivent le **même gabarit** + la bibliothèque `01-composants.md`. À spécifier au fil de l'implémentation.

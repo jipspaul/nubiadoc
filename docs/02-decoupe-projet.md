@@ -4,7 +4,7 @@
 > - **La découpe idéale** (organisation, workstreams, épics) — telle qu'une équipe de 10 la mènerait, ce que tu as demandé.
 > - **Le chemin réaliste solo / pré-seed** — la même découpe re-séquencée pour une personne sans financement, en s'appuyant sur les conclusions de `01-critique-du-brief.md`.
 >
-> Front confirmé : **Flutter** (app patient). Back : **NestJS modular monolith**. Hébergement souverain managé Scaleway.
+> Front confirmé : **Flutter** (app patient). Back : **Rust / Axum modular monolith**. Hébergement souverain managé Scaleway.
 
 ---
 
@@ -32,7 +32,7 @@ Si tu avais 10 seniors demain, voici comment je découperais les responsabilité
 | # | Workstream | Owner (profil) | Responsabilité |
 |---|---|---|---|
 | WS1 | **Plateforme & Sécurité/HDS** | DevOps/SRE + appui sécurité | Infra Scaleway, CI/CD, secrets, RLS, chiffrement, audit log, conformité technique. |
-| WS2 | **Core backend & modèle de données** | Backend senior #1 | NestJS, modèle multi-tenant, API, auth, domaine métier. |
+| WS2 | **Core backend & modèle de données** | Backend senior #1 | Rust / Axum, modèle multi-tenant, API, auth, domaine métier. |
 | WS3 | **App patient (Flutter)** | Mobile senior | App iOS/Android : RDV, dossier, notifications, signature, paiement. |
 | WS4 | **Back-office praticien/secrétariat (Flutter Web/Desktop)** | Frontend senior | Agenda, fiche patient, gestion devis, messagerie côté cabinet. Même stack que WS3 → un seul écosystème Dart. |
 | WS5 | **Paiements & Signature** | Backend senior #2 | Devis, Stripe, GoCardless, Yousign, Alma, échéanciers, relances. |
@@ -108,7 +108,7 @@ Périmètre = **l'intégralité des rubriques 1-12 du `nubiaDoc.pdf`**, présent
 | E5.2 Signature électronique | Intégration Yousign (eIDAS avancé), signature consentements + devis, historique | 🟧 |
 | E5.3 Acompte & paiement | Stripe (CB), GoCardless (SEPA), encaissement acompte, statut de paiement | 🟧 |
 | E5.4 Financement fractionné | Alma 3x/4x/10x, parcours de souscription, rev-share | 🟦 |
-| E5.5 Échéancier & relances | PaymentSchedule multi-jalons, relances J+3/J+7/J+15 (BullMQ, pas Temporal) | 🟦 |
+| E5.5 Échéancier & relances | PaymentSchedule multi-jalons, relances J+3/J+7/J+15 (apalis, pas Temporal) | 🟦 |
 
 ### WS6 — IA (🟦 entièrement post-MVP, post-traction)
 
@@ -139,7 +139,7 @@ On abandonne le calendrier « 18 mois / 7 piliers ». Les étapes sont **séquen
 - WS7 : entretiens 5-10 cabinets dentaires → valider le wedge et le pricing.
 - WS8 : engager DPO externalisé + avocat santé, lancer l'AIPD, choisir l'hébergeur HDS.
 - WS1 : repo, CI/CD, environnements, Postgres managé, Object Storage, PostHog (EU Cloud).
-- WS2 : squelette NestJS modular monolith + modèle multi-tenant + RLS + auth email/MFA.
+- WS2 : squelette Rust/Axum modular monolith + modèle multi-tenant + RLS + auth email/MFA.
 - WS7 : design system minimal + maquettes des parcours MVP.
 - **Go/No-Go G0** : AIPD lancée, hébergeur HDS choisi, socle technique déployé en staging, wedge confirmé par ≥5 cabinets. ✅ → Étape 1.
 
@@ -159,7 +159,7 @@ On abandonne le calendrier « 18 mois / 7 piliers ». Les étapes sont **séquen
 - **Livrable L2** : premier devis dentaire signé en ligne avec acompte encaissé (env. test).
 - **Go/No-Go G2** : flux paiement/signature conforme et testé, CGU validées par l'avocat. ✅ → Étape 3.
 
-### 🎬 Jalon DÉMO INVESTISSEURS — app patient complète *(≈ 3-5 semaines, mocks)*
+### 🎬 Jalon DÉMO INVESTIWebSocketURS — app patient complète *(≈ 3-5 semaines, mocks)*
 **But : montrer l'app entière (rubriques 1-12 du PDF) à un investisseur, sur données fictives.**
 
 On empile sur le vrai socle des Étapes 1-2 les écrans manquants du PDF, en qualité **démo (🎭)** :

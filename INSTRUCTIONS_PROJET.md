@@ -110,17 +110,19 @@ Modèle tout-compris, plus simple et lisible que les offres à tiroirs de Doctol
 
 ## Stack technique
 
+> ⚠️ Section = **brief d'origine (maximaliste)**. La stack réellement retenue est dégraissée dans `docs/01-critique-du-brief.md` et figée dans `docs/04-architecture.md`. **Décision actée (06/2026)** : back en **Rust / Axum** (plus NestJS/Node), front **Flutter partout** (plus Next.js/React), temps réel **WebSockets** (plus Socket.IO).
+
 ### Frontend
 - **Mobile patient** : Flutter 3.x + Bloc (flutter_bloc) + Dio (codebase unique iOS/Android)
-- **Web patient (fallback QR sans app)** : Next.js 15 + PWA
-- **Interface Praticien** : Next.js 15 + TanStack Query + Zustand + shadcn/ui + Tailwind
-- **Interface Secrétariat** : Même stack que praticien (mutualisation maximale)
+- **Web patient (fallback QR sans app)** : Flutter Web embarqué + PWA (~~Next.js~~ abandonné)
+- **Interface Praticien** : Flutter Web/Desktop (~~Next.js + React~~ abandonné — un seul écosystème Dart)
+- **Interface Secrétariat** : Même stack Flutter que praticien (mutualisation maximale)
 
 ### Backend
-- **API principale** : NestJS (Node.js + TypeScript), architecture modular monolith
-- **Microservices IA** : Python (FastAPI) pour ML/Whisper/Mistral
-- **Orchestration workflows** : Temporal.io (no-show, relances, signatures, audit trail)
-- **Temps réel** : NestJS + Socket.IO au MVP, extraction en Go en Phase 2
+- **API principale** : **Rust / Axum**, architecture modular monolith (workspace de crates) ; accès données SQLx + RLS Postgres (~~NestJS/Node~~ abandonné)
+- **Microservices IA** : Python (FastAPI) pour ML/Whisper/Mistral — post-MVP uniquement
+- **Orchestration workflows** : jobs async **apalis** (Redis) au MVP ; Temporal.io reconsidéré post-traction si workflows longs
+- **Temps réel** : **WebSockets** natifs Axum/Tokio (fan-out pub/sub Redis), + FCM pour le push patient (~~Socket.IO / extraction Go~~ abandonné)
 
 ### Data
 - **Base principale** : PostgreSQL 16 (Scaleway Managed DB HDS) + pgvector + TimescaleDB + pg_trgm

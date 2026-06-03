@@ -1,13 +1,13 @@
 # 04 — Architecture technique
 
 > Architecture cible du MVP, alignée sur les décisions de `01-critique-du-brief.md`, `02-decoupe-projet.md` et `03-temps-reel-et-sync.md`.
-> Principe directeur rappelé : **managé par défaut, self-hosted seulement si la souveraineté l'exige et que tu peux l'opérer**. Un seul écosystème front (Flutter), un monolithe modulaire back (NestJS), tout en souverain managé Scaleway.
+> Principe directeur rappelé : **managé par défaut, self-hosted seulement si la souveraineté l'exige et que tu peux l'opérer**. Un seul écosystème front (Flutter), un monolithe modulaire back (Rust / Axum), tout en souverain managé Scaleway.
 
 ## Sommaire
 1. Vue d'ensemble & principes
 2. C4 niveau 1 — Contexte
 3. C4 niveau 2 — Conteneurs
-4. C4 niveau 3 — Composants (modules NestJS)
+4. C4 niveau 3 — Composants (modules Rust)
 5. Flux clés (séquences)
 6. Architecture Decision Records (ADR)
 7. Contrats d'API (conventions REST)
@@ -22,11 +22,12 @@
 |---|---|---|
 | Front patient | **Flutter** (iOS/Android) | Codebase unique, accès natif. ADR-001 |
 | Front cabinet | **Flutter Web/Desktop** | Un seul écosystème Dart. ADR-001 |
-| API | **NestJS** modular monolith (TypeScript) | Structure sans micro-complexité. ADR-002 |
+| API | **Rust / Axum** modular monolith (workspace de crates) | Sûreté mémoire + typage fort, faible empreinte, scale vers 1M users. ADR-002 |
 | Base | **PostgreSQL 16** (Scaleway Managed, HDS) | RLS multi-tenant, JSONB, partitioning. ADR-003 |
-| Cache / files | **Redis 7** + **BullMQ** | Cache, sessions, jobs async. ADR-004 |
+| Accès données | **SQLx** (requêtes vérifiées à la compilation) + **sqlx migrate** | Pas d'ORM magique sur un domaine santé sensible. ADR-003 |
+| Cache / files | **Redis 7** + **apalis** | Cache, sessions, jobs async (queue Rust sur Redis). ADR-004 |
 | Objets | **Scaleway Object Storage** (HDS) | Documents médicaux chiffrés. ADR-007 |
-| Temps réel | **SSE** (cabinet) + **FCM** (push patient) | Événementiel, pas de WebSocket au MVP. ADR-005 |
+| Temps réel | **WebSockets** (Axum/Tokio, cabinet) + **FCM** (push patient) | Full-duplex natif Tokio, pub/sub Redis pour le fan-out multi-instances. ADR-005 |
 | Observabilité | **PostHog** (EU Cloud) | Analytics + session replay + erreurs. ADR-006 |
 | Secrets | **Scaleway Secret Manager** | Pas de Vault à opérer. ADR-007 |
 | Paiement | **Stripe** + **GoCardless** | CB + SEPA. ADR-008 |
@@ -35,8 +36,8 @@
 **Principes d'architecture**
 - **Multi-tenant strict par RLS** : le cloisonnement vit dans la base, pas seulement dans le code (cf. `05`).
 - **Source de vérité unique = PostgreSQL.** Pas d'état « live » ailleurs.
-- **Async par défaut** pour tout ce qui est lent/externe (mails, SMS, push, relances, appels Stripe/Yousign) via BullMQ.
-- **Stateless API** : l'instance NestJS ne garde rien en mémoire, scalable horizontalement.
+- **Async par défaut** pour tout ce qui est lent/externe (mails, SMS, push, relances, appels Stripe/Yousign) via apalis (queue Redis).
+- **Stateless API** : l'instance Axum ne garde rien en mémoire (hors connexions WS, déportées sur pub/sub Redis), scalable horizontalement.
 - **Conformité par le design** : chiffrement colonne, audit append-only, soft-delete, zéro PII dans logs/push — intégrés dès J0 car non rétrofittables.
 - **Démo ≠ prod** : un drapeau d'environnement sépare les jeux de données fictifs (démo investisseurs) de la prod conforme HDS.
 
@@ -83,15 +84,15 @@ graph TB
       BO[Flutter Back-office]
     end
     subgraph Scaleway HDS
-      API[NestJS API<br/>modular monolith]
-      Worker[NestJS Worker<br/>BullMQ consumers]
+      API[Axum API<br/>modular monolith Rust]
+      Worker[Rust Worker<br/>apalis consumers]
       PG[(PostgreSQL 16<br/>RLS + chiffrement)]
-      REDIS[(Redis 7<br/>cache + queues)]
+      REDIS[(Redis 7<br/>cache + queues + pub/sub)]
       OBJ[(Object Storage<br/>documents chiffrés)]
     end
     AppP -->|REST/HTTPS + JWT| API
     BO -->|REST/HTTPS + JWT| API
-    BO -.->|SSE| API
+    BO -.->|WebSocket| API
     API --> PG
     API --> REDIS
     API --> OBJ
@@ -105,30 +106,31 @@ graph TB
 | Conteneur | Techno | Rôle |
 |---|---|---|
 | App Patient | Flutter + Bloc (flutter_bloc) + Dio | UI patient, push FCM, biométrie, signature in-app |
-| Back-office | Flutter Web/Desktop | Agenda, dossiers, devis, messagerie cabinet ; SSE pour le live |
-| API | NestJS | REST, auth, logique métier, émission d'events, RLS context |
-| Worker | NestJS (même codebase, process séparé) | Jobs BullMQ : emails, SMS, push, relances, appels externes, webhooks |
+| Back-office | Flutter Web/Desktop | Agenda, dossiers, devis, messagerie cabinet ; WebSocket pour le live |
+| API | Axum (Rust) | REST, auth, logique métier, émission d'events, WebSockets, RLS context |
+| Worker | Rust (même workspace, binaire en mode `worker`) | Jobs apalis : emails, SMS, push, relances, appels externes, webhooks |
 | PostgreSQL | Scaleway Managed DB HDS | Données, RLS, audit, partitioning |
-| Redis | Scaleway Managed | Cache, sessions, files BullMQ, pub/sub SSE |
+| Redis | Scaleway Managed | Cache, sessions, files apalis, pub/sub WebSocket |
 | Object Storage | Scaleway HDS | Documents (radios, devis PDF, photos), chiffrés côté serveur + URLs signées |
 
-> **Un seul déployable applicatif** (l'image NestJS) lancé en deux modes : `api` et `worker`. Simplicité d'ops maximale.
+> **Un seul déployable applicatif** (le binaire Rust unique) lancé en deux modes : `api` et `worker`. Simplicité d'ops maximale, image conteneur minimale.
 
 ---
 
-## 4. C4 niveau 3 — Composants (modules NestJS)
+## 4. C4 niveau 3 — Composants (modules Rust)
 
-Modular monolith : un module par domaine, frontières nettes, communication par services + events internes (EventEmitter → BullMQ pour l'async).
+Modular monolith : un crate (ou module) par domaine, frontières nettes, communication par services + events internes (canal interne → apalis pour l'async).
 
 ```
-src/
+crates/
 ├── core/                 # transverse
-│   ├── auth/             # JWT, gardes, refresh, MFA
-│   ├── tenancy/          # contexte cabinet, injection RLS (SET app.current_cabinet)
+│   ├── auth/             # JWT (jsonwebtoken), gardes (middleware tower), refresh, MFA, hash argon2
+│   ├── tenancy/          # contexte cabinet, injection RLS (SET LOCAL app.current_cabinet)
 │   ├── rbac/             # rôles & permissions (praticien/secrétariat/patient)
 │   ├── crypto/           # chiffrement colonne (KMS par cabinet)
-│   ├── audit/            # AuditLog append-only (intercepteur)
-│   ├── events/           # bus interne + pont BullMQ
+│   ├── audit/            # AuditLog append-only (couche tower / extractor)
+│   ├── events/           # bus interne + pont apalis
+│   ├── realtime/         # hub WebSocket, fan-out via pub/sub Redis
 │   └── files/            # Object Storage, URLs signées, antivirus
 ├── modules/
 │   ├── cabinet/          # Cabinet, CabinetMembership, paramètres
@@ -145,10 +147,10 @@ src/
 ```
 
 **Règles de dépendance**
-- `modules/*` peuvent dépendre de `core/*`, jamais l'inverse.
+- `modules/*` peuvent dépendre de `core/*`, jamais l'inverse (imposé par le graphe de crates du workspace).
 - Un module ne lit pas la table d'un autre module en direct : il passe par le service exposé.
-- Tout effet de bord externe (mail, push, appel API tiers) passe par un **job BullMQ** (idempotent, retry).
-- Toute écriture sur donnée de santé passe par `core/audit` (intercepteur) et `core/crypto`.
+- Tout effet de bord externe (mail, push, appel API tiers) passe par un **job apalis** (idempotent, retry).
+- Toute écriture sur donnée de santé passe par `core/audit` et `core/crypto`.
 
 ---
 
@@ -159,11 +161,11 @@ src/
 ```mermaid
 sequenceDiagram
     participant Pat as App Patient
-    participant API as NestJS API
-    participant Q as BullMQ Worker
+    participant API as Axum API
+    participant Q as apalis Worker
     participant YS as Yousign
     participant ST as Stripe
-    participant BO as Back-office (SSE)
+    participant BO as Back-office (WebSocket)
 
     Pat->>API: POST /quotes/{id}/sign (intent)
     API->>YS: créer procédure signature
@@ -176,7 +178,7 @@ sequenceDiagram
     Pat->>ST: paie (Apple/Google Pay)
     ST-->>API: webhook "payment_succeeded"
     API->>API: Payment -> PAID, génère facture
-    API-->>BO: event SSE "quote.paid" (badge cabinet)
+    API-->>BO: event WebSocket "quote.paid" (badge cabinet)
     API->>Q: job notifications (push patient + email reçu)
 ```
 
@@ -199,29 +201,31 @@ Format court : Contexte · Décision · Conséquences · Statut.
 
 ### ADR-001 — Flutter pour les deux fronts
 - **Contexte** : app patient mobile + back-office cabinet ; exécution solo ; SEO sans objet sur app métier authentifiée.
-- **Décision** : Flutter partout (mobile + Web/Desktop). Pas de Next.js.
+- **Décision** : Flutter partout (mobile + Web/Desktop). **Pas de Next.js / React** — aucune surface front justifiant un framework React, le fallback web QR reste un Flutter Web embarqué.
 - **Conséquences** : un seul langage (Dart), un pipeline. Risque résiduel : Flutter Web moins à l'aise sur UI très data-dense → mitigé par CanvasKit / option Flutter Desktop pour le back-office.
 - **Statut** : Accepté.
 
-### ADR-002 — Backend monolithe modulaire NestJS
-- **Décision** : NestJS modular monolith, un déployable lancé en modes `api`/`worker`. Pas de microservices au MVP (le seul service Python n'apparaît qu'avec l'IA, post-MVP).
-- **Conséquences** : simplicité de déploiement et de transaction ; frontières internes par modules. Découplage futur possible par extraction de module.
-- **Statut** : Accepté.
+### ADR-002 — Backend monolithe modulaire Rust (Axum)
+- **Contexte** : besoin de WebSockets, d'auth robuste et de forte concurrence (cap visé ~1M utilisateurs) sur un produit santé où la rigueur prime. L'équipe (solo) maîtrise déjà **Rust** et **Dart** — aucune nouvelle techno à apprendre vu que le front est Flutter.
+- **Décision** : **Rust / Axum** modular monolith (workspace de crates), un binaire unique lancé en modes `api`/`worker`. Pas de microservices au MVP (le seul service Python n'apparaît qu'avec l'IA, post-MVP). Accès données via **SQLx** (requêtes vérifiées à la compilation, contexte RLS par transaction), jobs async via **apalis** (Redis).
+- **Conséquences** : sûreté mémoire et typage fort de bout en bout, empreinte mémoire et coût serveur faibles, excellente concurrence Tokio pour les WebSockets et la montée en charge. Vélocité de dev un peu plus lente que TS et temps de compilation à surveiller, mais compensés par la maîtrise existante du langage. Découplage futur possible par extraction de crate.
+- **Statut** : Accepté. **Remplace l'ancien choix NestJS/TypeScript.** Alternatives écartées : Next.js (framework React, hors-sujet sur un front Flutter) ; Go (valable mais aucun avantage décisif face à Rust ici, et langage non maîtrisé).
 
 ### ADR-003 — Multi-tenant par Row-Level Security PostgreSQL
 - **Décision** : une seule base, `cabinet_id` sur chaque table, **RLS activée** ; l'API positionne `SET app.current_cabinet_id` par requête.
 - **Conséquences** : cloisonnement garanti au niveau base, même en cas de bug applicatif. Discipline requise : toujours ouvrir la transaction avec le bon contexte (cf. `core/tenancy`). Détail dans `05`.
 - **Statut** : Accepté. Alternative écartée : une base par cabinet (ops ingérable en solo).
 
-### ADR-004 — BullMQ (Redis) pour l'async, pas Temporal/NATS
-- **Décision** : files & workflows simples via BullMQ sur le Redis existant.
-- **Conséquences** : zéro infra supplémentaire ; retries/backoff/idempotence à la charge du dev. Temporal reconsidéré seulement si des workflows longs/complexes l'imposent (ré-évaluation post-traction).
-- **Statut** : Accepté.
+### ADR-004 — apalis (Redis) pour l'async, pas Temporal/NATS
+- **Décision** : files & workflows simples via **apalis** (queue Rust) sur le Redis existant.
+- **Conséquences** : zéro infra supplémentaire ; retries/backoff/idempotence gérés par apalis et la discipline du dev. Temporal reconsidéré seulement si des workflows longs/complexes l'imposent (ré-évaluation post-traction).
+- **Statut** : Accepté. Remplace apalis (lié à l'ancienne stack Node).
 
-### ADR-005 — Temps réel : SSE + FCM, pas de WebSocket au MVP
-- **Décision** : push patient via FCM (payload sans PII) ; mises à jour back-office via SSE (rafraîchissement ciblé). Socket.IO différé au besoin multi-postes collaboratif.
-- **Conséquences** : couvre 90 % du « ressenti temps réel » à coût faible. Référence `03`.
-- **Statut** : Accepté.
+### ADR-005 — Temps réel : WebSockets + FCM
+- **Contexte** : besoin confirmé de WebSockets (cf. échanges stack) ; Axum/Tokio les fournit nativement, sans surcoût de techno.
+- **Décision** : push patient via FCM (payload sans PII) ; mises à jour back-office via **WebSockets** (Axum, full-duplex). Le fan-out vers un user connecté sur une autre instance passe par **pub/sub Redis** (à câbler dès qu'il y a plusieurs instances ; inutile pour le POC mono-instance).
+- **Conséquences** : « ressenti temps réel » complet pour le collaboratif multi-postes. Vigilance : sur une connexion WS longue durée, réinjecter le contexte tenant/RLS à **chaque** opération DB, pas seulement à l'ouverture. Référence `03`.
+- **Statut** : Accepté. Remplace l'option WebSocket de l'ancienne stack.
 
 ### ADR-006 — Observabilité via PostHog EU Cloud
 - **Décision** : PostHog (EU) pour analytics produit + session replay + error tracking. Remplace Sentry. Logs/metrics infra via le managé Scaleway.
@@ -333,10 +337,11 @@ POST   /webhooks/gocardless
 POST   /webhooks/yousign
 ```
 
-### 7.4 SSE (back-office)
+### 7.4 WebSocket (back-office)
 ```
-GET    /events/stream              # text/event-stream, scope cabinet
-# events: appointment.updated, checkin.arrived, quote.paid, message.received
+GET    /ws                         # upgrade WebSocket (JWT en query/handshake), scope cabinet
+# events poussés: appointment.updated, checkin.arrived, quote.paid, message.received
+# fan-out multi-instances via pub/sub Redis
 ```
 
 ### 7.5 Versionnement & compat
@@ -363,14 +368,14 @@ GET    /events/stream              # text/event-stream, scope cabinet
 | `staging` | fictives | proche prod | recette, **build démo investisseurs 🎬** |
 | `prod` | réelles patients | **HDS/RGPD complète** | pilote cabinet 🚀 |
 
-- **CI/CD** : GitHub Actions (lint, tests, build image, scan deps + secrets) → déploiement conteneurs managés Scaleway. Terraform pour l'infra.
-- **Migrations** : versionnées (ex. Prisma Migrate / TypeORM migrations), jouées en déploiement, jamais à la main en prod.
+- **CI/CD** : Forgejo Actions (`cargo fmt --check`, `cargo clippy`, `cargo test`, build image, scan deps `cargo audit`/`cargo-deny` + secrets `gitleaks`) → déploiement conteneurs managés Scaleway. Terraform pour l'infra.
+- **Migrations** : versionnées via **sqlx migrate** (fichiers SQL), jouées en déploiement, jamais à la main en prod.
 - **Sauvegardes** : Postgres PITR managé + export chiffré Object Storage ; test de restauration documenté (cf. `07`).
 - **Bascule prod** : conditionnée au Go/No-Go G3 (conformité réelle prête) — aucune donnée patient réelle avant.
 
 ## 10. Extension marketplace (scope global — cf. `11`)
 La bascule en **marketplace santé** ajoute une face publique de découverte. Impacts архitecture :
-- **Nouveaux modules** dans le monolithe NestJS : `directory` (annuaire/profils publics), `search` (recherche multi-axes), `geo` (proximité), `booking` (réservation cross-provider), `reviews` (avis modérés), `teleconsult` (vidéo).
+- **Nouveaux modules** (crates) dans le monolithe Rust : `directory` (annuaire/profils publics), `search` (recherche multi-axes), `geo` (proximité), `booking` (réservation cross-provider), `reviews` (avis modérés), `teleconsult` (vidéo).
 - **Recherche** = **Meilisearch** réintégré (souverain) — indexe praticiens/spécialités/établissements/actes, facettes + typo-tolérance. (Révise `01` §3.3 : la recherche était reportée pour le mono-cabinet ; elle devient cœur produit.)
 - **Géo** = **PostGIS** (colonne `geography(Point)`, `ST_DWithin`, tri par distance) ; géocodage via service EU ; tuiles carte souveraines (IGN/MapTiler EU/OSM).
 - **Patient global** : `PatientAccount` au niveau plateforme (hors RLS cabinet) ; le dossier clinique reste tenant (RLS). Voir ADR-011 et `05`.

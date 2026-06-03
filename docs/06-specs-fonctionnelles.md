@@ -53,7 +53,7 @@ Critères : créneaux indisponibles non sélectionnables, contrainte anti-chevau
 **US-3.2.4 — Rappels automatiques**
 > Étant donné un RDV à J-1
 > Quand l'heure de rappel arrive
-> Alors un job BullMQ envoie un rappel (push + email/SMS fallback), une seule fois, idempotent.
+> Alors un job apalis envoie un rappel (push + email/SMS fallback), une seule fois, idempotent.
 
 **US-3.2.5 — Liste d'attente sur désistement 🎭**
 > Quand un créneau se libère et que des patients sont sur liste d'attente
@@ -148,7 +148,7 @@ Critères : opt-in notifications, regroupement, lien profond vers l'écran ; le 
 > Quand l'échéance arrive
 > Alors le patient reçoit un rappel ; les patients sans consultation depuis > 1 an sont relancés.
 
-Critères : moteur de rappels simple (planification BullMQ) en prod ; scénarios cliniques détaillés mockés pour la démo.
+Critères : moteur de rappels simple (planification apalis) en prod ; scénarios cliniques détaillés mockés pour la démo.
 
 ---
 
@@ -198,7 +198,7 @@ Téléconsultation vidéo, chat IA, traduction automatique, questionnaire pré-c
 **US-5.4.1** Alma 3x/4x/10x — câblé, activé post-MVP.
 
 ### E5.5 — Échéancier & relances 🟦
-**US-5.5.1** PaymentSchedule multi-jalons, relances J+3/J+7/J+15 via BullMQ (templates). Post-MVP.
+**US-5.5.1** PaymentSchedule multi-jalons, relances J+3/J+7/J+15 via apalis (templates). Post-MVP.
 
 ---
 

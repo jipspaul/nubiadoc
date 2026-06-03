@@ -8,7 +8,7 @@ plan d'exécution réaliste.
 
 - **Stade** : pré-seed, exécution **solo / petite équipe**, sans financement levé.
 - **Scope (révisé 02/06)** : **plateforme santé à deux faces** — marketplace patient (trouver/réserver n'importe quel praticien, toutes professions, recherche multi-axes + carte + salle d'attente virtuelle + téléconsult) **+** logiciel métier cabinet (B2B SaaS). Cf. `11`. C'est le positionnement « concurrent Doctolib ».
-- **Front** : Flutter + Bloc (patient + back-office). Back : NestJS modular monolith. Infra souveraine managée Scaleway.
+- **Front** : Flutter + Bloc (patient + back-office). Back : **Rust / Axum** modular monolith. Infra souveraine managée Scaleway.
 - **Principe directeur** : traduire la vision en *MVP exécutable*. La marketplace complète étant ambitieuse en solo, une amorce par profession/zone est à arbitrer (`11` §14).
 
 ## Sommaire
@@ -23,7 +23,7 @@ plan d'exécution réaliste.
 | [`06-specs-fonctionnelles.md`](./06-specs-fonctionnelles.md) | User stories par épic (E3.1→E5.5) en **Gherkin**, marquage prod/démo, critères d'acceptation transverses. |
 | [`07-conformite.md`](./07-conformite.md) | Checklist opérationnelle **HDS / RGPD / AIPD / eIDAS / AI Act / MDR / Ségur** avec statuts, et la **barrière minimale avant le pilote prod (G3)**. |
 | [`08-plan-action-deploiement.md`](./08-plan-action-deploiement.md) | Plan d'exécution **tâche par tâche** (T0→T24) ordonné par **dépendances** (DAG), **gate de validation testée** par tâche, **stratégie de tests near-100%** (RLS/sécurité, mutation, seuils CI), pipeline CI/CD et procédure de release staging→démo→prod. |
-| [`09-backlog-issues.md`](./09-backlog-issues.md) | **Backlog issue-ready** : chaque brique éclatée en issues `NUB-T<n>.<k>` avec micro-étapes cochables, dépendances, critères d'acceptation/tests, labels et estimations. Stack actée (NestJS+Prisma, pattern RLS détaillé). À copier directement dans tes issues. |
+| [`09-backlog-issues.md`](./09-backlog-issues.md) | **Backlog issue-ready** : chaque brique éclatée en issues `NUB-T<n>.<k>` avec micro-étapes cochables, dépendances, critères d'acceptation/tests, labels et estimations. Stack actée (Rust/Axum + SQLx, pattern RLS détaillé). À copier directement dans tes issues. |
 | `10-deploiement-poc-vps.md` | ⚠️ **Perdu au reset git** (POC mono-VPS Podman). À recréer ; `infra/poc/` (compose + Caddyfile) est sauvé. |
 | [`11-marketplace-recherche.md`](./11-marketplace-recherche.md) | **Scope marketplace** : plateforme deux faces, compte patient global, recherche multi-axes (adresse/GPS/praticien/spécialité/besoin), taxonomie multi-profession, carte, salle d'attente virtuelle, téléconsult, avis, ranking, impacts archi/données (PostGIS, Meilisearch), conformité (RPPS, avis, géoloc). |
 
@@ -39,7 +39,7 @@ plan d'exécution réaliste.
 ## Les 3 décisions structurantes retenues
 
 1. **Démo investisseurs vs pilote prod** = pour la levée, l'app patient montre **les 12 rubriques du PDF** (mocks autorisés 🎭, données fictives) ; pour la prod, on durcit un **wedge réel** plus étroit : RDV + dossier + devis/signature/acompte. Section 13 (avancé) exclue, sauf paiement.
-2. **Stack** : **Flutter partout** (app patient + back-office) + NestJS + PostgreSQL + Redis + Object Storage, managé Scaleway ; analytics via **PostHog (EU Cloud)**. Pour la marketplace : **Meilisearch** (recherche) et **PostGIS** (géo) deviennent cœur (cf. `11`). On reporte Temporal, NATS, microservices Python/IA, Keycloak, Kubernetes et le self-hosted.
+2. **Stack** : **Flutter partout** (app patient + back-office) + **Rust / Axum** + PostgreSQL + Redis + Object Storage, managé Scaleway ; analytics via **PostHog (EU Cloud)**. Pour la marketplace : **Meilisearch** (recherche) et **PostGIS** (géo) deviennent cœur (cf. `11`). On reporte Temporal, NATS, microservices Python/IA, Keycloak, Kubernetes et le self-hosted.
 3. **Conformité par le design** : on exclut du MVP toute fonction qui qualifierait en dispositif médical (interactions médicamenteuses, aide à la prescription/décision) et on reporte l'IA Scribe (chantier AI Act « haut risque »).
 
 ## Prochaines étapes de documentation (idées)
@@ -49,6 +49,6 @@ Le socle (01→09) est complet. Pistes pour la suite quand tu voudras :
 - `10-design-system.md` — tokens, composants Flutter, parcours UI.
 - `11-runbook-ops.md` — incidents, sauvegardes/restauration, astreinte (détaille `08` §7).
 - `pitch/` — deck investisseurs adossé au jalon démo 🎬.
-- **Scaffold du repo** : je peux générer la structure NestJS+Prisma avec T0.1→T1.2 (RLS + 1ère suite de tests d'isolation) prête à coder.
+- **Scaffold du repo** : je peux générer la structure Rust/Axum + SQLx avec T0.1→T1.2 (RLS + 1ère suite de tests d'isolation) prête à coder.
 
 > Dis-moi lequel tu veux attaquer.

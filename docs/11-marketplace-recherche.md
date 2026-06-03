@@ -81,7 +81,7 @@ Parcours : recherche → profil → **choisir motif** → **créneau** → (si n
 - **File virtuelle** le jour J : le patient voit sa **position dans la file** et un **temps d'attente estimé**, reçoit une **notif « c'est bientôt à vous »** (≈ 5-10 min avant).
 - **Check-in** à l'arrivée (QR / app / géofencing opt-in « je suis arrivé »).
 - Pour la **téléconsultation** : salle d'attente virtuelle = page d'attente jusqu'à ce que le praticien démarre l'appel.
-- Côté cabinet : la file alimente la vue **salle d'attente live** (SSE, déjà conçue back-office).
+- Côté cabinet : la file alimente la vue **salle d'attente live** (WebSocket, déjà conçue back-office).
 - Garde-fou médicolégal : la file **informe**, elle ne trie pas cliniquement (cf. `03` §2).
 
 ## 9. Téléconsultation
@@ -108,7 +108,7 @@ Parcours : recherche → profil → **choisir motif** → **créneau** → (si n
 - **Disponibilités publiques** : projection (lecture publique) des créneaux ouverts à la réservation en ligne, séparée du planning interne.
 - **Cache** : Redis pour les recherches chaudes + dispos.
 - **CDN/tuiles carte** : fournisseur EU.
-- Le **modular monolith NestJS** absorbe ces modules (`directory`, `search`, `geo`, `booking`, `reviews`, `teleconsult`) sans microservices (sauf besoin avéré).
+- Le **modular monolith Rust / Axum** absorbe ces modules/crates (`directory`, `search`, `geo`, `booking`, `reviews`, `teleconsult`) sans microservices (sauf besoin avéré).
 
 ## 13. Impacts conformité (en plus de `07`)
 - **Vérification d'identité praticien** : adossement au **référentiel RPPS/ADELI (ANS)** ; ne pas lister un praticien non vérifié ; éviter l'usurpation.

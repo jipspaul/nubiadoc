@@ -1,6 +1,6 @@
 # Flux — Wedge : devis → signature → acompte
 
-> Le parcours le plus structurant et le plus vendeur (démo). Couvre **US-D03, US-D04, US-D05** (praticien) et **US-P19, US-P21, US-P22** (patient), + alerte cabinet (SSE).
+> Le parcours le plus structurant et le plus vendeur (démo). Couvre **US-D03, US-D04, US-D05** (praticien) et **US-P19, US-P21, US-P22** (patient), + alerte cabinet (WebSocket).
 > Objectif UX : **zéro friction** entre « je vois mon devis » et « c'est signé et payé ».
 
 ## Acteurs & objectif
@@ -23,7 +23,7 @@
 8. **Confirmation** : « Devis signé et acompte payé », reçu disponible dans le coffre-fort, proposition de **prochain RDV**.
 
 ### Côté cabinet (temps réel)
-9. **Alerte SSE** au back-office : `quote.paid` → badge + **facture générée**. Le secrétariat voit l'acompte encaissé.
+9. **Alerte WebSocket** au back-office : `quote.paid` → badge + **facture générée**. Le secrétariat voit l'acompte encaissé.
 
 ## États & cas limites (à designer)
 - **Brouillon** : le praticien peut sauvegarder et reprendre ; modifier un devis `signed` est **impossible** (message clair, créer une nouvelle version).

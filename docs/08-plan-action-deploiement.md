@@ -49,7 +49,7 @@ graph TD
     T12 --> T13
     T6 --> T14[T14 Suivi & prévention rappels]
     T0 --> T15[T15 Infos cabinet settings]
-    T7 --> T16[T16 SSE temps réel back-office]
+    T7 --> T16[T16 WebSocket temps réel back-office]
     T9 --> T16
     T12 --> T16
     T7 --> D[Dashboard patient agrégé]
@@ -89,7 +89,7 @@ graph TD
 | T | Tâche | Bloquée par | Débloque |
 |---|---|---|---|
 | **T5** | Patient + MedicalRecord (chiffré) + consentements | T3 | T7,T8,T9,T10 |
-| **T6** | Notifications infra : FCM (push **sans PII**) + Brevo email + OctoPush SMS, jobs BullMQ | T2 | T7,T14 |
+| **T6** | Notifications infra : FCM (push **sans PII**) + Brevo email + OctoPush SMS, jobs apalis | T2 | T7,T14 |
 | **T7** | RDV + agenda + créneaux + **contrainte anti-double-booking** + rappels | T5,T6 | T16,D |
 | **T8** | Documents + coffre-fort patient | T4,T5 | D |
 | **T9** | Messagerie chiffrée + **triage par règles** (flag visuel, jamais décisionnel) | T5,T3 | T16,D |
@@ -107,7 +107,7 @@ graph TD
 | T | Tâche | Bloquée par | Débloque |
 |---|---|---|---|
 | **T14** | Suivi & prévention : moteur de rappels 🟧 (scénarios cliniques `[🎭]`) | T6 | démo |
-| **T16** | **SSE** back-office (appointment.updated, quote.paid, message.received) | T7,T9,T12 | démo |
+| **T16** | **WebSocket** back-office (appointment.updated, quote.paid, message.received) | T7,T9,T12 | démo |
 | **D / T17** | **Dashboard patient** agrégé (RDV, docs, messages, paiements, suivis, actions) | T7,T8,T9,T13 | démo |
 
 ### Bloc E — Démo investisseurs 🎬
@@ -167,14 +167,14 @@ GATE — T<n> <nom>
 Beaucoup d'unitaires rapides, une bonne couche d'intégration (où vivent les vrais bugs santé : RLS, transactions, webhooks), une fine couche E2E sur les parcours qui font vendre (RDV, devis→signature→acompte).
 
 ### 5.2 Outillage par couche
-| Couche | Back (NestJS) | Front patient (Flutter) | Back-office (Flutter Web) |
+| Couche | Back (Rust / Axum) | Front patient (Flutter) | Back-office (Flutter Web) |
 |---|---|---|---|
-| Unitaire | **Jest** | `flutter_test` | `flutter_test` |
-| Intégration | **Jest + Supertest + Testcontainers (Postgres réel)** | `integration_test` + mocks Dio | idem |
-| Contrat API | tests de schéma (zod/openapi) côté serveur + client généré | client typé vérifié | idem |
+| Unitaire | **`cargo test`** | `flutter_test` | `flutter_test` |
+| Intégration | **`cargo test` + `sqlx::test` / Testcontainers (Postgres réel)** | `integration_test` + mocks Dio | idem |
+| Contrat API | schéma OpenAPI (`utoipa`) côté serveur + client généré | client typé vérifié | idem |
 | E2E | scénario API bout-en-bout | `integration_test` sur device/emulateur | **Playwright** (web) |
 | Charge | **k6** sur endpoints chauds (agenda, RDV, webhooks) | — | — |
-| Mutation | **Stryker (StrykerJS)** | `mutation_test` (si dispo) ou ciblé | — |
+| Mutation | **`cargo-mutants`** | `mutation_test` (si dispo) ou ciblé | — |
 
 ### 5.3 Tests obligatoires spécifiques santé (non négociables)
 1. **Isolation tenant (RLS)** : pour chaque table multi-tenant, un test « cabinet A ne voit/écrit jamais les données de cabinet B ». C'est **le** test critique.

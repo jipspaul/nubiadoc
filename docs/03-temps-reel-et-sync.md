@@ -12,14 +12,14 @@
 
 La quasi-totalité des interactions proposées repose sur un **backbone de synchronisation bidirectionnelle temps réel** entre l'app mobile et le poste cabinet. C'est le **défi technique n°1** identifié dans la critique (race conditions agenda + check-in + salle d'attente). Construire ce backbone complet dès le départ, c'est transformer un MVP en système distribué — l'inverse de ce qu'on veut en solo.
 
-Conséquence : on distingue deux niveaux de « temps réel », et on n'utilise le plus cher que là où il crée vraiment de la valeur.
+Conséquence : on distingue deux niveaux de « temps réel ». Le **transport WebSocket est natif Axum/Tokio**, donc disponible dès le MVP sans surcoût ; ce qui coûte cher, c'est la **couche collaborative** (état partagé + résolution de conflits), pas le tuyau.
 
 | Niveau | Techno | Coût | Pour quoi |
 |---|---|---|---|
-| **Événementiel ponctuel** | Notification push (FCM) + invalidation de cache côté back-office (SSE léger) | Faible | « Un truc vient de se passer » : devis signé, document disponible, RDV pris. C'est 90 % du besoin perçu. |
-| **Flux continu live** | WebSocket / Socket.IO + gestion d'état partagé + résolution de conflits | Élevé | Vrai live collaboratif : tableau de salle d'attente qui bouge tout seul à plusieurs postes, agenda multi-utilisateurs concurrent. |
+| **Événementiel ponctuel** | Notification push (FCM) + événements ciblés au back-office via **WebSocket** | Faible | « Un truc vient de se passer » : devis signé, document disponible, RDV pris. C'est 90 % du besoin perçu. |
+| **Flux continu live collaboratif** | WebSocket **+ gestion d'état partagé + résolution de conflits** | Élevé (la logique, pas le transport) | Vrai live collaboratif : tableau de salle d'attente qui bouge tout seul à plusieurs postes, agenda multi-utilisateurs concurrent. |
 
-**Décision** : MVP = niveau événementiel uniquement. Le flux continu live arrive post-traction, quand un cabinet multi-postes le justifie.
+**Décision** : le **transport WebSocket est posé dès le MVP** (events ciblés). La **couche collaborative** (état partagé multi-postes, résolution de conflits) arrive post-traction, quand un cabinet multi-postes le justifie.
 
 ---
 
@@ -33,7 +33,7 @@ Notation : 🟧 MVP · 🟦 Post-traction · ❌ Écarté.
 |---|---|---|
 | **Devis signé + acompte (Apple/Google Pay) → alerte cabinet, facture générée, créneau bloqué** | 🟧 | C'est le **wedge**. Synchro = un seul événement, facile. Apple/Google Pay = juste Stripe, zéro surcoût. À faire en premier. |
 | **Glisser-déposer document → notif push patient « document disponible »** | 🟧 | Quasi gratuit une fois l'infra notif en place (déjà au MVP). Donne immédiatement la sensation « vivant ». |
-| **Check-in QR → statut « en salle d'attente »** | 🟧 *(version simple)* | Le patient marque son arrivée, le back-office le reflète au prochain rafraîchissement (SSE). **Sans** file d'attente virtuelle / promenade / géofencing. |
+| **Check-in QR → statut « en salle d'attente »** | 🟧 *(version simple)* | Le patient marque son arrivée, le back-office le reflète en direct (WebSocket). **Sans** file d'attente virtuelle / promenade / géofencing. |
 | **Géolocalisation d'approche (retard estimé)** | 🟦 | Gadget sympa, valeur marginale en cabinet dentaire. Opt-in RGPD à cadrer. Reporté (cf. critique §4, Pilier 1). |
 | **Triage : message patient → l'IA détecte l'urgence et contourne le secrétariat vers le médecin** | ❌ *(en l'état)* | Voir §2. L'app peut **signaler**, jamais **arbitrer** un triage clinique à la place d'un humain. Démarrer en règles mots-clés non décisionnelles. |
 | **Photo clinique par le patient (grain de beauté, plaie)** | ❌ | Dérive vers le triage dermato → terrain dispositif médical + responsabilité (cf. critique §6.3). Marginal en dentaire. Écarté. |
@@ -86,24 +86,26 @@ L'app Compagnon praticien est un **pari post-traction**, pas un choix de départ
 ```
 App patient (Flutter)                 Back-office (Flutter Web/Desktop, tablette)
         │                                          │
-        │  HTTPS REST (NestJS API)                 │  HTTPS REST + SSE (invalidation)
+        │  HTTPS REST (Axum API)                   │  HTTPS REST + WebSocket (live)
         ▼                                          ▼
                     ┌──────────────────────┐
-                    │   NestJS (monolith)  │
+                    │   Axum (monolith Rust)│
                     │  ├ émet des events    │
+                    │  ├ hub WebSocket      │
                     │  └ push via FCM       │
                     └──────────┬───────────┘
                                │
-                 Redis (pub/sub léger) + BullMQ (jobs)
+                 Redis (pub/sub fan-out WS) + apalis (jobs)
                                │
                         PostgreSQL (source de vérité, RLS)
 ```
 
 - **Source de vérité = PostgreSQL.** Pas d'état « live » qui vit ailleurs que la base.
-- **Patient → cabinet** : action mobile = appel REST → NestJS écrit en base + émet un événement → le back-office se met à jour via **SSE** (rafraîchissement ciblé, pas de WebSocket full duplex au début).
+- **Patient → cabinet** : action mobile = appel REST → Axum écrit en base + émet un événement → le back-office se met à jour en direct via **WebSocket** (full-duplex natif Tokio).
 - **Cabinet → patient** : action back-office = écriture base + **notification push FCM** (zéro PII dans le payload, cf. critique §7) → l'app va chercher la donnée par REST.
-- **Jobs/relances** : **BullMQ sur Redis** (pas Temporal, pas NATS — cf. critique §3.2).
-- **Quand passer au WebSocket/Socket.IO ?** Seulement quand un cabinet multi-postes a besoin d'un tableau de salle d'attente réellement collaboratif en simultané. C'est un trigger produit, pas une fondation.
+- **Jobs/relances** : **apalis sur Redis** (pas Temporal, pas NATS — cf. critique §3.2).
+- **Multi-instances** : une connexion WebSocket est collée à une instance ; le fan-out vers un user connecté ailleurs passe par le **pub/sub Redis**. À câbler dès qu'il y a plus d'une instance d'API ; inutile pour le POC mono-instance.
+- ⚠️ **RLS + WebSocket** : sur une connexion longue durée, réinjecter le contexte tenant/user à **chaque** opération DB, pas seulement à l'ouverture (cf. `04` ADR-005).
 
 ---
 

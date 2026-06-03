@@ -9,11 +9,11 @@
 - Labels suggérés : `area:infra` `area:backend` `area:flutter` `area:security` `area:payments` `area:compliance` · `type:feature` `type:test` `type:chore` · `prio:P0/P1/P2`.
 
 ## Stack actée (décisions pour ne pas hésiter demain)
-- **Backend** : NestJS (TypeScript, strict) · **Prisma** (schéma + migrations) · `pg` natif pour les requêtes nécessitant le contexte RLS.
-- **RLS** : chaque requête métier passe par une **transaction interactive** qui exécute `SET LOCAL app.current_cabinet_id = $1` en premier (détaillé dans NUB-T1/T3). ⚠️ Avec un pooler en mode transaction, `SET LOCAL` n'est valable **que dans une transaction explicite** — d'où le pattern « tout passe par une transaction tenant-scoped ».
-- **Tests** : Jest + Supertest + **Testcontainers** (Postgres réel) · Stryker (mutation) · k6 (charge).
+- **Backend** : **Rust / Axum** (modular monolith, workspace de crates) · **SQLx** (schéma + migrations `sqlx migrate`, requêtes vérifiées à la compilation) · pool SQLx pour les requêtes nécessitant le contexte RLS.
+- **RLS** : chaque requête métier passe par une **transaction** qui exécute `SET LOCAL app.current_cabinet_id = $1` en premier (détaillé dans NUB-T1/T3). ⚠️ Avec un pooler en mode transaction, `SET LOCAL` n'est valable **que dans une transaction explicite** — d'où le pattern « tout passe par une transaction tenant-scoped ».
+- **Tests** : `cargo test` (+ `sqlx::test` / Testcontainers sur Postgres réel) · `cargo-mutants` (mutation) · k6 (charge).
 - **Front** : Flutter + **Bloc (flutter_bloc)** + Dio · `flutter_test` / `bloc_test` / `integration_test` · Playwright (back-office web).
-- **Async** : BullMQ (Redis). **Temps réel** : SSE + FCM.
+- **Async** : apalis (Redis). **Temps réel** : WebSockets (Axum) + FCM.
 - **Cloud** : Scaleway managé (Postgres/Redis/Object Storage/Secret Manager), conteneurs managés.
 
 ## Template d'issue (à copier)
@@ -45,15 +45,15 @@
 **Objectif** : un repo propre, typé strict, prêt à recevoir du code testé.
 
 **Micro-étapes**
-- [ ] Créer le repo Git (mono-repo : `/api` NestJS, `/app` Flutter patient, `/backoffice` Flutter, `/infra` Terraform, `/docs`).
-- [ ] `api` : `nest new`, activer `strict: true` (tsconfig), `noImplicitAny`, `strictNullChecks`.
-- [ ] ESLint + Prettier + `eslint-plugin-security` ; commit hooks (lint-staged + husky).
+- [ ] Créer le repo Git (mono-repo : `/api` Rust (workspace Cargo), `/app` Flutter patient, `/backoffice` Flutter, `/infra` Terraform, `/docs`).
+- [ ] `api` : `cargo new` en workspace, lints stricts (`#![deny(warnings)]` en CI, `clippy::pedantic` ciblé), édition 2021.
+- [ ] `rustfmt` + `clippy` + `cargo-deny` ; commit hooks (pre-commit `cargo fmt --check` + `cargo clippy`).
 - [ ] Conventions de commit (Conventional Commits) + template de PR + CODEOWNERS.
 - [ ] `.env.example` ; **interdiction de secret commité** (ajouter `.gitignore` + scan).
 - [ ] README repo : comment lancer dev/test localement.
 
 **Critères d'acceptation (tests)**
-- [ ] `npm run lint`, `npm run typecheck`, `npm run test` existent et passent à vide.
+- [ ] `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test` existent et passent à vide.
 - [ ] Un secret factice commité fait **échouer** le scan (test du garde-fou).
 
 ---
@@ -62,8 +62,8 @@
 **Bloquée par** : T0.1 · **Labels** : `area:infra` `type:chore` `prio:P0` · **Estimate** : M
 
 **Micro-étapes**
-- [ ] GitHub Actions : jobs `lint`, `typecheck`, `test` (avec service Postgres ou Testcontainers), `build`.
-- [ ] **Scan dépendances** (npm audit / Trivy) + **scan secrets** (gitleaks).
+- [ ] Forgejo Actions : jobs `fmt` (`cargo fmt --check`), `clippy`, `test` (avec service Postgres ou Testcontainers), `build`.
+- [ ] **Scan dépendances** (`cargo audit` / `cargo-deny` / Trivy sur l'image) + **scan secrets** (gitleaks).
 - [ ] Calcul de **couverture** + publication ; **seuils bloquants** (voir T-tests) configurés mais permissifs au départ, durcis ensuite.
 - [ ] Cache des dépendances pour accélérer.
 - [ ] Branche `main` protégée : merge interdit si CI rouge ou sans PR.
@@ -92,16 +92,16 @@
 
 ---
 
-### NUB-T0.4 — Socle applicatif NestJS (config, health, erreurs)
+### NUB-T0.4 — Socle applicatif Rust/Axum (config, health, erreurs)
 **Bloquée par** : T0.1 · **Labels** : `area:backend` `type:feature` `prio:P0` · **Estimate** : M
 
 **Micro-étapes**
-- [ ] Module `core/config` (validation des env vars au boot, fail-fast).
+- [ ] Crate `core/config` (validation des env vars au boot via `figment`/`serde`, fail-fast).
 - [ ] `GET /health` (liveness/readiness : DB, Redis).
-- [ ] **Filtre d'exception global** → format d'erreur uniforme (`04` §7.2) avec `request_id`.
-- [ ] Logger structuré (JSON) + **middleware de scrubbing PII** (placeholder, complété en T3).
-- [ ] `ValidationPipe` global (DTO + class-validator), `whitelist: true`.
-- [ ] Mode `api` vs `worker` via variable d'environnement (un seul déployable).
+- [ ] **Gestion d'erreur centralisée** (type `AppError` + `IntoResponse`) → format d'erreur uniforme (`04` §7.2) avec `request_id`.
+- [ ] Logger structuré JSON (`tracing` + `tracing-subscriber`) + **couche de scrubbing PII** (placeholder, complété en T3).
+- [ ] Validation des payloads (extractor `Json` + `validator`), rejet des champs inconnus (`deny_unknown_fields`).
+- [ ] Mode `api` vs `worker` via variable d'environnement (un seul binaire).
 
 **Critères d'acceptation (tests)**
 - [ ] `/health` renvoie 200 avec dépendances OK, 503 si DB down (testé).
@@ -112,11 +112,11 @@
 
 ## T1 — Modèle multi-tenant + RLS
 
-### NUB-T1.1 — Schéma Prisma de base + migrations
+### NUB-T1.1 — Schéma SQL de base + migrations (SQLx)
 **Bloquée par** : T0.3, T0.4 · **Labels** : `area:backend` `type:feature` `prio:P0` · **Estimate** : M
 
 **Micro-étapes**
-- [ ] Modèles Prisma : `Cabinet`, `AppUser`, `CabinetMembership`, `Practitioner` (cf. `05` §5.1).
+- [ ] Migrations `sqlx migrate` (SQL) + structs Rust mappées : `Cabinet`, `AppUser`, `CabinetMembership`, `Practitioner` (cf. `05` §5.1).
 - [ ] Conventions : `id uuid`, `created_at/updated_at/deleted_at`, `cabinet_id` partout où requis.
 - [ ] Première migration + script de seed **dev** (données fictives).
 - [ ] Rôle Postgres applicatif **non-superuser** (créé via migration SQL).
@@ -135,14 +135,14 @@
 **Micro-étapes**
 - [ ] Migration SQL : `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` sur chaque table tenant.
 - [ ] Policy `tenant_isolation` (USING + WITH CHECK sur `cabinet_id = current_setting('app.current_cabinet_id')::uuid`).
-- [ ] Helper `withTenant(cabinetId, fn)` : ouvre une **transaction interactive**, exécute `SET LOCAL app.current_cabinet_id`, puis `fn`.
+- [ ] Helper `with_tenant(cabinetId, fn)` : ouvre une **transaction interactive**, exécute `SET LOCAL app.current_cabinet_id`, puis `fn`.
 - [ ] S'assurer que **toutes** les requêtes métier passent par ce helper (lint/architecture rule).
 - [ ] Vérifier le comportement avec le **pooler** (mode transaction) : `SET LOCAL` valide uniquement en transaction.
 
 **Critères d'acceptation (tests SÉCURITÉ — non négociables)**
 - [ ] Cabinet A **ne lit jamais** une ligne de cabinet B (test par table tenant).
 - [ ] Cabinet A **ne peut pas écrire** avec un `cabinet_id` de B (WITH CHECK).
-- [ ] Une requête **hors** `withTenant` (sans contexte) ne renvoie **aucune** ligne (échec sûr).
+- [ ] Une requête **hors** `with_tenant` (sans contexte) ne renvoie **aucune** ligne (échec sûr).
 - [ ] Le rôle applicatif **ne bypasse pas** la RLS (test explicite).
 
 ---
@@ -173,7 +173,7 @@
 
 **Micro-étapes**
 - [ ] `@Roles()` decorator + `RolesGuard` (praticien / secrétariat / admin / patient).
-- [ ] Interceptor **tenancy** : extrait `cabinet_id` du token → ouvre `withTenant` pour toute la requête.
+- [ ] Middleware/extractor **tenancy** (`tower`) : extrait `cabinet_id` du token → ouvre `with_tenant` pour toute la requête.
 - [ ] Matrice de permissions (`05`/`06`) : le secrétariat n'accède pas au contenu clinique.
 - [ ] 403 uniforme sur permission refusée.
 
@@ -192,8 +192,8 @@
 **Micro-étapes**
 - [ ] Service `core/crypto` : chiffrement **applicatif** (AES-GCM) avant écriture, déchiffrement à la lecture.
 - [ ] Clé **par cabinet** dérivée/enveloppée via Scaleway Key Manager (KMS) ; stocker `key_ref` (version), pas la clé.
-- [ ] Helpers `encryptField` / `decryptField` + type Prisma `bytea` (ciphertext) + `key_ref`.
-- [ ] Rotation de clé documentée (re-chiffrement par lot, job BullMQ).
+- [ ] Helpers `encrypt_field` / `decrypt_field` + colonne `bytea` (ciphertext) + `key_ref`.
+- [ ] Rotation de clé documentée (re-chiffrement par lot, job apalis).
 - [ ] Traitement **INS** comme PII critique (chiffré, hash de recherche séparé si besoin).
 
 **Critères d'acceptation (tests)**
@@ -208,7 +208,7 @@
 
 **Micro-étapes**
 - [ ] Table `audit_log` partitionnée par mois (cf. `05` §6) ; privilèges **INSERT seul** pour le rôle applicatif.
-- [ ] Interceptor `core/audit` : journalise accès/écriture sur donnée de santé (qui, quoi, quand) **sans PII**.
+- [ ] Couche `core/audit` (`tower`) : journalise accès/écriture sur donnée de santé (qui, quoi, quand) **sans PII**.
 - [ ] Helper `audit(action, entity, entityId, metadata)`.
 - [ ] Job de purge/archivage selon rétention (≥ 10 ans) journalisant chaque purge.
 
@@ -265,8 +265,8 @@
 **Bloquée par** : T3.1, T3.2 · **Labels** : `area:backend` `type:feature` `prio:P0` · **Estimate** : M
 
 **Micro-étapes**
-- [ ] Modèle Prisma `patient` (cf. `05` §5.2) : INS chiffré, `contact`/`mutuelle` JSONB, `is_minor` calculé.
-- [ ] Endpoints : `POST /patients`, `GET /patients/{id}`, `PATCH /patients/{id}` (tous via `withTenant`).
+- [ ] Struct/table `patient` (cf. `05` §5.2) : INS chiffré, `contact`/`mutuelle` JSONB, `is_minor` calculé.
+- [ ] Endpoints : `POST /patients`, `GET /patients/{id}`, `PATCH /patients/{id}` (tous via `with_tenant`).
 - [ ] DTO + validation (format tél, n° sécu, email) ; mapping camelCase↔snake_case.
 - [ ] Audit sur chaque accès/écriture ; INS jamais loggé.
 - [ ] Soft-delete (pas de suppression dure).
@@ -296,13 +296,13 @@
 
 ## T6 — Notifications infra (FCM / Brevo / OctoPush)
 
-### NUB-T6.1 — Canal push FCM (zéro PII) + jobs BullMQ
+### NUB-T6.1 — Canal push FCM (zéro PII) + jobs apalis
 **Bloquée par** : T2.2 · **Labels** : `area:backend` `type:feature` `prio:P0` · **Estimate** : M
 
 **Micro-étapes**
 - [ ] Intégration FCM ; enregistrement des device tokens patient.
 - [ ] Payload **sans PII** : `{type, ref}` ; le contenu se charge ensuite authentifié.
-- [ ] File BullMQ `notifications` (retry + backoff + idempotence par clé).
+- [ ] File apalis `notifications` (retry + backoff + idempotence par clé).
 - [ ] Opt-in notifications + gestion des tokens expirés.
 
 **Critères d'acceptation (tests)**
@@ -379,7 +379,7 @@
 **Bloquée par** : T7.2 · **Labels** : `area:backend` `type:feature` `prio:P1` · **Estimate** : M
 
 **Micro-étapes**
-- [ ] Job planifié BullMQ : sélection des RDV à rappeler, envoi push/email/SMS.
+- [ ] Job planifié apalis : sélection des RDV à rappeler, envoi push/email/SMS.
 - [ ] Idempotence : un RDV n'est rappelé qu'une fois par fenêtre.
 
 **Critères d'acceptation (tests)**
@@ -525,7 +525,7 @@
 **Micro-étapes**
 - [ ] États `pending/paid/failed/refunded` ; gestion des échecs et remboursements.
 - [ ] Job de réconciliation (vérifie cohérence Stripe ↔ base) + alerte sur écart.
-- [ ] Event SSE `quote.paid` vers back-office (badge cabinet).
+- [ ] Event WebSocket `quote.paid` vers back-office (badge cabinet).
 
 **Critères d'acceptation (tests)**
 - [ ] Échec de paiement géré (statut + retry éventuel).
@@ -582,9 +582,9 @@
 
 ---
 
-## T16 — SSE temps réel back-office
+## T16 — WebSocket temps réel back-office
 
-### NUB-T16.1 — Flux d'événements SSE (scope cabinet)
+### NUB-T16.1 — Flux d'événements WebSocket (scope cabinet)
 **Bloquée par** : T7.2, T9.1, T12.1 · **Labels** : `area:backend` `area:flutter` `type:feature` `prio:P1` · **Estimate** : M
 
 **Micro-étapes**

@@ -37,7 +37,7 @@ Permettre à un patient de **trouver le bon soignant** (par adresse, GPS, nom, s
 ## 6. Salle d'attente virtuelle (US-M14→M16)
 - **Avant le RDV** : rappel + pré-check-in (questionnaire, mutuelle).
 - **Jour J** : check-in (QR / app / « je suis arrivé » géofencing opt-in) → **file virtuelle** : position + **temps estimé** + notif « **c'est bientôt à vous** ».
-- Présentiel : la file alimente la **salle d'attente live** du cabinet (SSE).
+- Présentiel : la file alimente la **salle d'attente live** du cabinet (WebSocket).
 - **États** : retard signalé, appelé (« c'est à vous, salle 2 »), file qui avance.
 
 ## 7. Téléconsultation (US-M17)

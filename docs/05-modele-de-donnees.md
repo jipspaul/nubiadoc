@@ -84,7 +84,7 @@ content_key_ref    text  NOT NULL,   -- référence KMS (version de clé du cabi
 - **Rétention dossier patient** : 20 ans après dernière consultation ; **30 ans pour les mineurs** (compté à partir de la majorité selon la règle applicable).
 - **Audit log** : conservé **≥ 10 ans**, append-only.
 - **Audio Scribe** (post-MVP) : suppression sous **7 jours** sauf opt-in séparé.
-- **Purge** : un job planifié (BullMQ) marque/purge selon politique, en journalisant chaque purge dans l'audit.
+- **Purge** : un job planifié (apalis) marque/purge selon politique, en journalisant chaque purge dans l'audit.
 - Référence conformité : `07-conformite.md`.
 
 ---

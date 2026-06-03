@@ -66,14 +66,14 @@ Principe directeur : **chaque brique d'infra que tu ajoutes est une brique que t
 
 Le brief empile : **NestJS (monolithe modulaire) + microservices Python FastAPI + Temporal.io + NATS JetStream + Socket.IO + extraction Go en Phase 2**. Pour du pré-seed, c'est 4 paradigmes d'exécution distincts.
 
-- ✅ **NestJS modular monolith** : bon choix, garde-le. C'est *le* bon niveau de structure.
-- ❌ **Temporal.io dès le MVP** : non. Temporal est excellent mais c'est un serveur de plus à opérer. Les workflows (relances no-show, échéanciers, audit) tiennent parfaitement avec **BullMQ sur le Redis que tu as déjà**. Temporal devient pertinent quand les workflows deviennent vraiment longs/complexes — pas avant.
-- ❌ **NATS JetStream** : redondant avec Redis/BullMQ au début. Une file suffit. Supprime.
+- ✅ **Monolithe modulaire** : bon choix de structure, garde-le. **Langage retenu : Rust / Axum** (révision 06/2026, cf. `04` ADR-002), en remplacement de NestJS/Node — l'équipe maîtrise déjà Rust et Dart, et le besoin de WebSockets + forte concurrence (cap ~1M users) joue pour Tokio. C'est *le* bon niveau de structure, avec un langage déjà su.
+- ❌ **Temporal.io dès le MVP** : non. Temporal est excellent mais c'est un serveur de plus à opérer. Les workflows (relances no-show, échéanciers, audit) tiennent parfaitement avec **apalis sur le Redis que tu as déjà**. Temporal devient pertinent quand les workflows deviennent vraiment longs/complexes — pas avant.
+- ❌ **NATS JetStream** : redondant avec Redis/apalis au début. Une file suffit. Supprime.
 - ❌ **Microservices Python FastAPI** : seulement nécessaires pour l'IA (Scribe), qui est Phase 4 (M12+ dans le brief). Tant qu'il n'y a pas d'IA self-hosted, **pas de second runtime**. Quand l'IA arrive, un seul service Python suffit.
-- ⚠️ **Socket.IO temps réel** : utile pour l'agenda/salle d'attente live, mais ce n'est pas du MVP jour 1. Le polling ou le SSE couvrent les premiers besoins.
-- ❌ **Go en Phase 2** : réécrire le temps réel en Go est une optimisation de scale-up. À rayer du radar pré-seed.
+- ✅ **Temps réel WebSockets** : besoin confirmé, et Axum/Tokio les fournit nativement, sans serveur ni techno en plus. Pas besoin de Socket.IO. Fan-out multi-instances via pub/sub Redis quand il y aura plusieurs instances.
+- ❌ **Go en Phase 2** : l'idée d'extraire le temps réel en Go disparaît — avec Rust, le temps réel performant est déjà dans le monolithe. Rien à réécrire.
 
-> **Backend MVP réaliste** : NestJS + PostgreSQL + Redis (cache + BullMQ) + Object Storage. Point. Tout le reste se rajoute quand un besoin *prouvé* l'exige.
+> **Backend MVP réaliste** : Rust/Axum + PostgreSQL + Redis (cache + apalis) + Object Storage. Point. Tout le reste se rajoute quand un besoin *prouvé* l'exige.
 
 ### 3.3 Data — empilement prématuré
 
@@ -88,7 +88,7 @@ Le brief : **PostgreSQL 16 + pgvector + TimescaleDB + pg_trgm + Redis + Meilisea
 
 ### 3.4 Auth & identité — lourd pour du solo
 
-- ❌ **Keycloak self-hosted** : un serveur d'identité critique à opérer et patcher soi-même, sur une app santé, en solo = surface de risque énorme. Préfère une **auth managée** ou une lib intégrée (ex. auth dans NestJS + provider managé) au début.
+- ❌ **Keycloak self-hosted** : un serveur d'identité critique à opérer et patcher soi-même, sur une app santé, en solo = surface de risque énorme. Préfère une **auth managée** ou une lib intégrée (ex. auth dans l'API Axum via `jsonwebtoken` + `argon2`, ou provider managé) au début.
 - ⚠️ **Pro Santé Connect (e-CPS)** : *obligatoire pour Ségur*, mais Ségur est un chantier Phase 5. Homologation ANS = ~2 mois + dev. **Ne bloque pas le MVP dessus.** Tu peux authentifier les praticiens classiquement et brancher PSC quand tu vises le référencement Ségur.
 - ⚠️ **France Connect patient** : intégration non triviale et non indispensable au pilote. Email + MFA suffit pour démarrer.
 
@@ -194,7 +194,7 @@ Le brief n'est pas naïf, plusieurs instincts sont excellents :
 1. **Acter le décalage d'échelle** : le brief est une *vision*, pas un plan d'exécution solo. Séparer les deux explicitement.
 2. **Choisir le PDF (app patient dentaire) comme socle MVP**, le MD comme north star.
 3. **Trancher un wedge unique** : app patient + RDV + devis/signature/acompte.
-4. **Dégraisser la stack** : NestJS + Postgres + Redis + Object Storage + Flutter, tout en managé Scaleway. Reporter Temporal, NATS, Python/IA, Meilisearch, TimescaleDB, Keycloak, K8s, observabilité self-hosted.
+4. **Dégraisser la stack** : Rust/Axum + Postgres + Redis + Object Storage + Flutter, tout en managé Scaleway. Reporter Temporal, NATS, Python/IA, Meilisearch, TimescaleDB, Keycloak, K8s, observabilité self-hosted.
 5. **Reporter explicitement** : IA Scribe, check-in géofencé, analytics ML, parcours réseau, Mon Espace Santé, marketplace, Ségur/PSC.
 6. **Bannir du MVP tout ce qui qualifie en dispositif médical** (interactions médicamenteuses, aide à la prescription/décision).
 7. **Clarifier HDS** : hébergement certifié dès la 1re donnée réelle ; conformité applicative/Ségur plus tard ; dev sur données fictives jusqu'au pilote.

@@ -17,7 +17,7 @@
 
 ## 3. Tableau de bord (US-P13, US-S02)
 - **Patient** : prochain RDV, à signer, à régler, messages, questionnaires, actions — tuiles cliquables.
-- **Secrétariat** : RDV du jour, messages urgents, devis en attente, **salle d'attente live** (SSE).
+- **Secrétariat** : RDV du jour, messages urgents, devis en attente, **salle d'attente live** (WebSocket).
 - **États** : vide (« rien à faire, tout est à jour »), chargement (squelette), compteurs exacts.
 
 ## 4. Messagerie (US-P15→P16, US-S06→S07, US-D06)

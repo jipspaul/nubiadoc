@@ -32,7 +32,7 @@
 | Création / suivi de devis (lignes CCAM) | D | E4.3 / E5.1 | 🟧 |
 | File messagerie priorisée (triage visuel) | S + D | E4.4 | 🟧 |
 | Liste d'attente / combler un trou | S | E4.5 | 🎭 |
-| Salle d'attente live (SSE) | S + D | T16 | 🟧 |
+| Salle d'attente live (WebSocket) | S + D | T16 | 🟧 |
 
 ## Marketplace (face patient découverte — cf. `../docs/11`)
 
