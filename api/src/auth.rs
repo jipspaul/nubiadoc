@@ -1,7 +1,7 @@
 //! Handlers d'authentification (routes publiques `/v1/auth/*`).
 
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
 use async_trait::async_trait;
@@ -20,6 +20,23 @@ use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
 use crate::AppState;
+
+/// Corps de la requête `POST /v1/auth/login`.
+#[derive(Deserialize)]
+pub struct LoginBody {
+    email: String,
+    password: String,
+    mfa_code: Option<String>,
+}
+
+/// Réponse de `POST /v1/auth/login`.
+#[derive(Serialize)]
+pub struct LoginResponse {
+    access_token: String,
+    refresh_token: String,
+    token_type: String,
+    expires_in: u64,
+}
 
 /// Corps de la requête `POST /v1/auth/register`.
 #[derive(Deserialize)]
@@ -102,6 +119,8 @@ pub(crate) struct ProClaims {
 /// Erreur HTTP renvoyée au client.
 pub(crate) enum AppError {
     Unauthorized,
+    Unauthenticated,
+    MfaRequired,
     ValidationError,
     Internal,
     EmailTaken,
@@ -115,6 +134,16 @@ impl IntoResponse for AppError {
             AppError::Unauthorized => (
                 StatusCode::UNAUTHORIZED,
                 Json(json!({"code": "unauthorized"})),
+            )
+                .into_response(),
+            AppError::Unauthenticated => (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"code": "unauthenticated"})),
+            )
+                .into_response(),
+            AppError::MfaRequired => (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"code": "mfa_required"})),
             )
                 .into_response(),
             AppError::ValidationError => (
@@ -316,6 +345,120 @@ pub async fn register(
             refresh_token: raw_token,
         }),
     ))
+}
+
+/// `POST /v1/auth/login` — authentifie un patient ou un pro, émet access + refresh tokens.
+///
+/// Réponse neutre sur credentials incorrects (anti-énumération §1.8).
+/// Si le compte pro a `totp_enabled = true` et qu'aucun `mfa_code` n'est fourni → `401 mfa_required`.
+pub async fn login(
+    State(state): State<AppState>,
+    Json(body): Json<LoginBody>,
+) -> Result<Json<LoginResponse>, AppError> {
+    let row = sqlx::query(
+        "SELECT id, password_hash, kind, totp_enabled, totp_secret \
+         FROM app_user WHERE email = $1",
+    )
+    .bind(&body.email)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let row = row.ok_or(AppError::Unauthenticated)?;
+
+    let user_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let password_hash: String = row
+        .try_get("password_hash")
+        .map_err(|_| AppError::Internal)?;
+    let kind: String = row.try_get("kind").map_err(|_| AppError::Internal)?;
+    let totp_enabled: bool = row
+        .try_get("totp_enabled")
+        .map_err(|_| AppError::Internal)?;
+    let totp_secret: Option<String> = row.try_get("totp_secret").map_err(|_| AppError::Internal)?;
+
+    let parsed_hash = PasswordHash::new(&password_hash).map_err(|_| AppError::Internal)?;
+    Argon2::default()
+        .verify_password(body.password.as_bytes(), &parsed_hash)
+        .map_err(|_| AppError::Unauthenticated)?;
+
+    if kind == "pro" && totp_enabled {
+        match &body.mfa_code {
+            None => return Err(AppError::MfaRequired),
+            Some(code) => {
+                let secret = totp_secret.ok_or(AppError::Internal)?;
+                let secret_bytes = Secret::Encoded(secret)
+                    .to_bytes()
+                    .map_err(|_| AppError::Unauthenticated)?;
+                let totp = TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes)
+                    .map_err(|_| AppError::Unauthenticated)?;
+                if !totp.check_current(code).map_err(|_| AppError::Internal)? {
+                    return Err(AppError::Unauthenticated);
+                }
+            }
+        }
+    }
+
+    const EXPIRES_IN: u64 = 900;
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        + EXPIRES_IN;
+
+    let access_token = if kind == "patient" {
+        let acct_row = sqlx::query("SELECT id FROM patient_account WHERE app_user_id = $1")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let account_id: Uuid = acct_row
+            .map(|r| r.try_get("id"))
+            .transpose()
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::Internal)?;
+
+        encode(
+            &Header::default(),
+            &PatientClaims {
+                sub: user_id,
+                kind: "patient".to_string(),
+                account_id,
+                exp,
+            },
+            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+        )
+        .map_err(|_| AppError::Internal)?
+    } else {
+        encode(
+            &Header::default(),
+            &ProClaims {
+                sub: user_id,
+                kind: "pro".to_string(),
+                exp,
+            },
+            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+        )
+        .map_err(|_| AppError::Internal)?
+    };
+
+    let raw_token = Uuid::new_v4().to_string();
+    sqlx::query(
+        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
+           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
+    )
+    .bind(user_id)
+    .bind(&raw_token)
+    .execute(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    Ok(Json(LoginResponse {
+        access_token,
+        refresh_token: raw_token,
+        token_type: "Bearer".to_string(),
+        expires_in: EXPIRES_IN,
+    }))
 }
 
 fn is_unique_violation(e: &sqlx::Error) -> bool {
