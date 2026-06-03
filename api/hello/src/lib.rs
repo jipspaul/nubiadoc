@@ -1,5 +1,17 @@
 //! Minimal greeting library, PoC for the ci-rust stack.
 
+use axum::{routing::get, Json, Router};
+use serde_json::{json, Value};
+
+/// Returns the Axum router for the API.
+pub fn router() -> Router {
+    Router::new().route("/health", get(health))
+}
+
+async fn health() -> Json<Value> {
+    Json(json!({"status": "ok"}))
+}
+
 /// Returns the application version string.
 ///
 /// This value MUST match the `version` key in `app_metadata` (see #20).

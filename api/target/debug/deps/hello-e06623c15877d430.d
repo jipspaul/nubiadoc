@@ -1,0 +1,9 @@
+/workspace/jips__nubiadoc__agent_issue-29/api/target/debug/deps/libhello-e06623c15877d430.rmeta: hello/src/main.rs Cargo.toml
+
+/workspace/jips__nubiadoc__agent_issue-29/api/target/debug/deps/hello-e06623c15877d430.d: hello/src/main.rs Cargo.toml
+
+hello/src/main.rs:
+Cargo.toml:
+
+# env-dep:CLIPPY_ARGS=-D__CLIPPY_HACKERY__warnings__CLIPPY_HACKERY__
+# env-dep:CLIPPY_CONF_DIR
