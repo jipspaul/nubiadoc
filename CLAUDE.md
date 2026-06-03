@@ -33,7 +33,7 @@ Ce projet (Nubia, SaaS dentaire) est travaillé **depuis plusieurs Mac**. La con
 ## Repères du repo
 - `docs/` — cadrage : `01` critique · `02` découpe · `03` temps réel · `04` archi · `05` données · `06` specs · `07` conformité · `08` plan/tests · `09` backlog d'issues. (`10` POC Podman : à recréer, perdu au reset.)
 - `design/` — design/UX : `01` personas · `02` inventaire écrans · `03-design-system/` (tokens, composants, thème Flutter) · `04` flux · `05` copy · `06` a11y · `07` handoff.
-- `api/` — backend **Rust / Axum** (cible Bloc A : RLS, tenancy, /health, drivers). ⚠️ L'ancien scaffold NestJS/Prisma est obsolète depuis la décision stack Rust (06/2026) ; à remplacer par un workspace Cargo.
+- `api/` — backend **Rust / Axum** (workspace Cargo, cible Bloc A : RLS, tenancy, `/health`, drivers). SQLx + migrations. À scaffolder (NUB-T0.1→T1.2).
 - `flutter_demo/` — PoC Flutter (CI). `infra/poc/` — POC Podman (compose + Caddy). `tests/e2e/` — e2e web.
 
 ## Garde-fous produit

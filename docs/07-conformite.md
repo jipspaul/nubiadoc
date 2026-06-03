@@ -68,6 +68,9 @@
 | 4.3 | **Chiffrement colonne** des données médicales (clé par cabinet, KMS) | Dès le code | ◐ |
 | 4.4 | **Scrubbing des logs** (NER + regex) vérifié en CI | Dès le code | ☐ |
 | 4.5 | Cloisonnement de la **messagerie triadique** (scopes) | Étape 3 | ☐ |
+| 4.6 | **Proches / ayants droit** (US-P30) : autorité parentale tracée, accès révocable à la majorité, AIPD à étendre aux mineurs | Avant feature | ☐ |
+| 4.7 | **Vérification RPPS/ADELI** (annuaire ANS) avant de **lister** un `provider` — anti-usurpation (`05` §10.6, `11` §13) | Avant annuaire public | ☐ |
+| 4.8 | **Recherche unifiée back-office V2** : résultats filtrés par **RLS + RBAC** (un secrétaire n'atteint jamais le clinique via la recherche/l'assistant) | Avec V2 | ☐ |
 
 ---
 
@@ -122,6 +125,8 @@
 | 8.3 | **Exclure** le triage clinique automatisé ; le triage messagerie reste de la **priorisation visuelle par règles** | ☑ (décidé) |
 | 8.4 | Le Scribe (post-MVP) se limite à la **transcription/résumé descriptif** non décisionnel en phase 1 | ☐ |
 | 8.5 | Refaire une **analyse de qualification DM** (règle 11 MDR) avant toute feature à coloration décisionnelle | ☐ |
+| 8.6 | **Écran Ordonnance** (maquette hi-fi) : le **blocage automatique allergie/interactions** et la **suggestion d'alternative** sont **EXCLUS** du MVP. L'API **affiche** les allergies saisies (lecture passive), ne **contrôle** rien automatiquement, ne **suggère** aucune thérapeutique. La signature eIDAS + PDF restent OK (`05` §10.5, `06` E4.8) | ☑ (décidé) |
+| 8.7 | **Assistant « Demander à Nubia »** (back-office V2) : **organisationnel/administratif uniquement** (RDV, encaissements, relances) ; **aucune aide à la décision clinique ni diagnostic** ; **humain dans la boucle** ; IA **souveraine** ; **post-traction** (`05` §10.8, `06` E7.2, `../design/08`) | ☐ |
 
 > Rappel juridique : un logiciel qui alerte sur des interactions, suggère une posologie ou oriente une décision thérapeutique est qualifiable **dispositif médical** (MDR règle 11, classe IIa-III → marquage CE + ISO 13485).
 

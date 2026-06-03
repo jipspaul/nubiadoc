@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nubia Pro — Spotlight</title>
+<link rel="stylesheet" href="lib/tokens.css" />
+<style>
+  html, body, #root { margin: 0; padding: 0; height: 100%; }
+  * { box-sizing: border-box; }
+  .app {
+    height: 100vh; width: 100vw; overflow: hidden; position: relative;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wall { position: absolute; inset: 0; z-index: 0; transition: background .4s ease; }
+  .wall.light {
+    background:
+      radial-gradient(55% 45% at 16% 10%, rgba(5,150,105,0.16), transparent 70%),
+      radial-gradient(48% 48% at 88% 16%, rgba(176,137,79,0.14), transparent 70%),
+      radial-gradient(60% 55% at 72% 98%, rgba(5,150,105,0.12), transparent 70%),
+      linear-gradient(160deg, #F7F6F3, #ECEAE5);
+  }
+  .wall.dark {
+    background:
+      radial-gradient(55% 45% at 16% 10%, rgba(16,185,129,0.22), transparent 70%),
+      radial-gradient(48% 48% at 88% 16%, rgba(176,137,79,0.18), transparent 70%),
+      radial-gradient(60% 55% at 72% 98%, rgba(16,185,129,0.16), transparent 70%),
+      linear-gradient(160deg, #1A1613, #0E0C0A);
+  }
+  /* glass recipe */
+  .glass { backdrop-filter: blur(34px) saturate(180%); -webkit-backdrop-filter: blur(34px) saturate(180%); }
+  .app .glass-bar { background: rgba(255,255,255,0.72); border: 1px solid rgba(255,255,255,0.7); box-shadow: 0 24px 70px rgba(28,25,23,0.22), 0 2px 8px rgba(28,25,23,0.08); }
+  .app.dark .glass-bar { background: rgba(38,35,33,0.66); border: 1px solid rgba(255,255,255,0.10); box-shadow: 0 24px 80px rgba(0,0,0,0.55); }
+  .app .glass-dock { background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.6); box-shadow: 0 12px 40px rgba(28,25,23,0.18); }
+  .app.dark .glass-dock { background: rgba(40,37,35,0.5); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 12px 50px rgba(0,0,0,0.5); }
+  .app .winchrome { background: var(--bg-surface); box-shadow: 0 40px 120px rgba(28,25,23,0.4), 0 0 0 1px rgba(0,0,0,0.06); }
+  .app.dark .winchrome { box-shadow: 0 40px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08); }
+
+  @keyframes spotIn { from { opacity: 0; transform: translateY(-8px) scale(0.97); } to { opacity: 1; transform: none; } }
+  @keyframes winIn  { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .spot-anim { animation: spotIn .2s cubic-bezier(0.2,0.7,0.3,1); }
+  .win-anim  { animation: winIn .22s cubic-bezier(0.2,0.7,0.3,1); }
+  .back-anim { animation: fadeIn .2s ease; }
+
+  .res-row { transition: background .1s; cursor: pointer; }
+  .dock-tile { transition: transform .18s cubic-bezier(0.2,0.8,0.3,1); transform-origin: bottom center; }
+  .winctl:hover { background: var(--primary-subtle-bg) !important; color: var(--primary) !important; }
+  .winctl-x:hover { background: var(--danger-bg) !important; color: var(--danger-fg) !important; }
+  .theme-toggle { position: fixed; top: 18px; right: 18px; z-index: 60; }
+  input, textarea { font-family: inherit; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="lib/components.jsx"></script>
+<script type="text/babel" src="lib/bo-components.jsx"></script>
+<script type="text/babel" src="lib/bo-secr-dash.jsx"></script>
+<script type="text/babel" src="lib/bo-secr-screens.jsx"></script>
+<script type="text/babel" src="lib/bo-praticien.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const CATALOG = [
+  { id: 'dash', icon: 'dashboard', title: 'Tableau de bord', desc: 'Activité du jour', kw: 'tableau bord dashboard activite accueil pilotage', screen: 'ScreenSecrDashA' },
+  { id: 'agenda', icon: 'calendar', title: 'Agenda', desc: 'Planning du cabinet', kw: 'agenda rdv rendez vous planning calendrier jour', screen: 'ScreenSecrAgenda' },
+  { id: 'salle', icon: 'clock', title: "Salle d'attente", desc: 'File des patients en temps réel', kw: 'salle attente file patients live temps reel', screen: 'ScreenPratSalle' },
+  { id: 'devis', icon: 'creditCard', title: 'Devis & paiements', desc: 'Suivi & relances', kw: 'devis paiements acompte facture reste a charge relance', screen: 'ScreenSecrDevis' },
+  { id: 'fiche', icon: 'user', title: 'Fiche patient', desc: 'Dossier clinique', kw: 'fiche patient dossier clinique camille dubois coordonnees', screen: 'ScreenPratFiche' },
+  { id: 'msg', icon: 'message', title: 'Messagerie', desc: 'File priorisée', kw: 'messagerie messages urgent conversation patient', screen: 'ScreenPratMessagerie' },
+];
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// ─────────────────────────────────────────────────────────────
+// Spotlight search overlay
+// ─────────────────────────────────────────────────────────────
+function Spotlight({ onPick, onAsk, onClose }) {
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState(0);
+  const inputRef = useRef(null);
+  useEffect(() => { const t = setTimeout(() => inputRef.current && inputRef.current.focus(), 30); return () => clearTimeout(t); }, []);
+
+  const nq = norm(q.trim());
+  const matches = nq ? CATALOG.filter(c => norm(c.title + ' ' + c.kw).includes(nq)) : CATALOG;
+  // "Demander à Nubia" is always first — asking a question directly is the point
+  const ask = { type: 'ask', icon: 'message', title: 'Demander à Nubia', desc: q.trim() ? `« ${q.trim()} »` : 'Posez une question — résumé, relances, chiffres du jour' };
+  const rows = [ask, ...matches.map(m => ({ type: 'comp', ...m }))];
+  const chips = ['Résume ma journée', 'Quels devis relancer ?', "Combien encaissé aujourd'hui ?"];
+  useEffect(() => { setSel(0); }, [q]);
+
+  const choose = (r) => { if (!r) return; r.type === 'ask' ? onAsk(q.trim() || 'Résume ma journée') : onPick(r.id); };
+  const onKey = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSel(s => Math.min(rows.length - 1, s + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSel(s => Math.max(0, s - 1)); }
+    else if (e.key === 'Enter') { e.preventDefault(); choose(rows[sel]); }
+    else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+  };
+
+  return (
+    <div className="back-anim" onMouseDown={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(20,16,12,0.28)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '14vh' }}>
+      <div className="glass glass-bar spot-anim" onMouseDown={e => e.stopPropagation()}
+        style={{ width: 'min(92vw, 640px)', borderRadius: 18, overflow: 'hidden' }}>
+        {/* search field */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '18px 22px' }}>
+          <span style={{ color: 'var(--text-tertiary)' }}><Icon name="search" size={24} stroke={2} /></span>
+          <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} onKeyDown={onKey}
+            placeholder="Posez votre question, ou cherchez une vue…"
+            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', font: '400 22px/1.2 inherit', color: 'var(--text-primary)' }} />
+          <kbd style={{ font: '600 11px/1 inherit', color: 'var(--text-tertiary)', border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 7px' }}>esc</kbd>
+        </div>
+        {/* results */}
+        <div style={{ borderTop: '1px solid var(--border-subtle)', padding: 8, maxHeight: 380, overflowY: 'auto' }}>
+          {rows.map((r, i) => (
+            <div key={i} className="res-row" onMouseEnter={() => setSel(i)} onMouseDown={() => choose(r)}
+              style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 12px', borderRadius: 11,
+                background: i === sel ? 'var(--primary-subtle-bg)' : 'transparent' }}>
+              <span style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: r.type === 'ask' ? 'var(--primary)' : (i === sel ? 'var(--bg-surface)' : 'var(--bg-page)'),
+                color: r.type === 'ask' ? 'var(--text-on-primary)' : 'var(--primary)' }}>
+                <Icon name={r.icon} size={20} stroke={2} /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ font: '600 15px/1.3 inherit', color: 'var(--text-primary)' }}>{r.title}
+                  {r.type === 'ask' && <span style={{ marginLeft: 8, font: '600 10px/1 inherit', letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--primary)', background: 'var(--primary-subtle-bg)', padding: '3px 7px', borderRadius: 999 }}>IA</span>}</div>
+                <div style={{ font: '400 13px/1.3 inherit', color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.desc}</div>
+              </div>
+              {i === sel && <kbd style={{ font: '600 11px/1 inherit', color: 'var(--text-tertiary)' }}>↵</kbd>}
+            </div>
+          ))}
+          {!q.trim() && (
+            <div style={{ display: 'flex', gap: 7, padding: '6px 12px 8px', flexWrap: 'wrap' }}>
+              {chips.map((c, i) => (
+                <span key={i} onMouseDown={(e) => { e.stopPropagation(); onAsk(c); }}
+                  style={{ font: '500 12px/1 inherit', color: 'var(--text-secondary)', background: 'var(--bg-page)', border: '1px solid var(--border-subtle)', padding: '7px 11px', borderRadius: 999, cursor: 'pointer' }}>{c}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Assistant (window.claude.complete with graceful fallback)
+// ─────────────────────────────────────────────────────────────
+function Assistant({ thread, onSend, loading }) {
+  const [v, setV] = useState('');
+  const endRef = useRef(null);
+  useEffect(() => { endRef.current && endRef.current.scrollIntoView && endRef.current.parentElement.scrollTo(0, 1e6); }, [thread, loading]);
+  const send = () => { if (v.trim()) { onSend(v.trim()); setV(''); } };
+  const suggestions = ['Résume ma journée', 'Quels devis sont en attente ?', 'Génère une vue des paiements à relancer'];
+  return (
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 360 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        {thread.length === 0 && (
+          <div style={{ paddingTop: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--primary-subtle-bg)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+              <Icon name="message" size={24} stroke={2} /></div>
+            <div style={{ font: '600 18px/1.3 inherit', color: 'var(--text-primary)' }}>Demandez à Nubia</div>
+            <div style={{ font: '400 14px/1.5 inherit', color: 'var(--text-secondary)', marginTop: 6 }}>
+              Posez une question en langage naturel sur le cabinet, ou demandez une synthèse / une vue personnalisée.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
+              {suggestions.map((s, i) => (
+                <button key={i} onClick={() => onSend(s)} style={{ textAlign: 'left', cursor: 'pointer', padding: '11px 14px', borderRadius: 10,
+                  border: '1px solid var(--border-subtle)', background: 'var(--bg-page)', color: 'var(--text-primary)', font: '500 13px/1.3 inherit' }}>{s}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {thread.map((m, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
+            <div style={{ maxWidth: '82%', padding: '10px 14px', borderRadius: 14,
+              borderBottomRightRadius: m.role === 'user' ? 4 : 14, borderBottomLeftRadius: m.role === 'user' ? 14 : 4,
+              background: m.role === 'user' ? 'var(--primary)' : 'var(--bg-page)',
+              color: m.role === 'user' ? 'var(--text-on-primary)' : 'var(--text-primary)',
+              border: m.role === 'user' ? 'none' : '1px solid var(--border-subtle)',
+              font: '400 14px/1.55 inherit', whiteSpace: 'pre-wrap' }}>{m.content}</div>
+          </div>
+        ))}
+        {loading && <div style={{ font: '400 13px/1 inherit', color: 'var(--text-tertiary)', padding: '4px 2px' }}>Nubia réfléchit…</div>}
+        <div ref={endRef} />
+      </div>
+      <div style={{ padding: 14, borderTop: '1px solid var(--border-subtle)', display: 'flex', gap: 10, alignItems: 'center' }}>
+        <input value={v} onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send(); }}
+          placeholder="Votre question…" style={{ flex: 1, height: 40, borderRadius: 999, border: '1px solid var(--border-default)', background: 'var(--bg-page)',
+            padding: '0 16px', outline: 'none', font: '400 14px/1 inherit', color: 'var(--text-primary)' }} />
+        <button onClick={send} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'var(--primary)', color: 'var(--text-on-primary)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Icon name="send" size={18} stroke={2} /></button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Window chrome — full-screen by default, restore to a draggable window.
+// Original controls (NOT macOS traffic lights). Content = a real BO screen.
+// ─────────────────────────────────────────────────────────────
+function WinFrame({ win, isMax, onClose, onToggleMax, onTitleDown, children }) {
+  const assistant = win.kind === 'assistant';
+  return (
+    <div className="winchrome win-anim"
+      style={{ display: 'flex', flexDirection: 'column', height: isMax ? '100%' : (assistant ? 560 : 580),
+        borderRadius: isMax ? 16 : 14, overflow: 'hidden' }}>
+      <div onMouseDown={isMax ? undefined : onTitleDown}
+        style={{ height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9, padding: '0 8px 0 14px',
+          borderBottom: '1px solid var(--border-subtle)', cursor: isMax ? 'default' : 'grab' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, font: '600 13px/1 inherit', color: 'var(--text-primary)' }}>
+          <span style={{ color: 'var(--primary)' }}><Icon name={win.icon} size={15} stroke={2} /></span>{win.title}</span>
+        <span style={{ flex: 1 }} />
+        <WinControls isMax={isMax} onToggle={onToggleMax} onClose={onClose} />
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>{children}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Dock (macOS) — hover magnify, active state, close
+// ─────────────────────────────────────────────────────────────
+function Dock({ wins, activeId, onOpenSearch, onActivate, onClose }) {
+  const [hover, setHover] = useState(-1);
+  const empty = wins.length === 0;
+  const tiles = [{ id: '__search', icon: 'search', title: 'Recherche', search: true }, ...wins];
+  const scaleFor = (i) => hover < 0 ? 1 : (i === hover ? 1.42 : Math.abs(i - hover) === 1 ? 1.18 : 1);
+  return (
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 16, zIndex: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9, pointerEvents: 'none' }}>
+      {empty && (
+        <div style={{ font: '500 12px/1 -apple-system', color: 'var(--text-secondary)', background: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)', padding: '6px 13px', borderRadius: 999, boxShadow: 'var(--shadow-sm)' }}>
+          Le dock est vide — il se remplit des vues que vous ouvrez
+        </div>
+      )}
+      <div className="glass glass-dock" onMouseLeave={() => setHover(-1)}
+        style={{ display: 'flex', alignItems: 'flex-end', gap: 10, padding: '10px 12px', borderRadius: 20, pointerEvents: 'auto' }}>
+        {tiles.map((t, i) => {
+          const active = !t.search && t.id === activeId;
+          const sc = scaleFor(i);
+          return (
+            <div key={t.id} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {/* tooltip */}
+              {hover === i && (
+                <div style={{ position: 'absolute', bottom: '100%', marginBottom: 10, whiteSpace: 'nowrap', background: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)', font: '600 12px/1 inherit', padding: '6px 10px', borderRadius: 7, boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-subtle)' }}>{t.title}</div>
+              )}
+              <div className="dock-tile" onMouseEnter={() => setHover(i)}
+                onMouseDown={() => t.search ? onOpenSearch() : onActivate(t.id)}
+                onContextMenu={(e) => { if (!t.search) { e.preventDefault(); onClose(t.id); } }}
+                style={{ width: 52, height: 52, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  transform: `scale(${sc}) translateY(${-(sc - 1) * 26}px)`,
+                  background: t.search ? 'linear-gradient(160deg, var(--primary), var(--brand-800))' : 'var(--bg-surface)',
+                  color: t.search ? 'var(--text-on-primary)' : 'var(--primary)',
+                  border: t.search ? 'none' : '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-md)', position: 'relative' }}>
+                <Icon name={t.icon} size={24} stroke={2} />
+                {!t.search && (
+                  <button onClick={(e) => { e.stopPropagation(); onClose(t.id); }} title="Fermer"
+                    style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', border: '1.5px solid var(--bg-page)',
+                      background: 'var(--text-tertiary)', color: 'var(--bg-surface)', cursor: 'pointer', display: hover === i ? 'flex' : 'none',
+                      alignItems: 'center', justifyContent: 'center', padding: 0 }}><Icon name="x" size={11} stroke={3} /></button>
+                )}
+              </div>
+              {/* active dot */}
+              <span style={{ width: 4, height: 4, borderRadius: '50%', marginTop: 5, background: active ? 'var(--primary)' : 'transparent' }} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// window sizing
+const natW = (w) => w.kind === 'assistant' ? 480 : 900;
+
+// ─────────────────────────────────────────────────────────────
+// App
+// ─────────────────────────────────────────────────────────────
+function App() {
+  const [dark, setDark] = useState(false);
+  const [spot, setSpot] = useState(true);          // spotlight open on load (autofocus)
+  const [wins, setWins] = useState([]);            // open windows (last = front)
+  const [activeId, setActiveId] = useState(null);
+  const [thread, setThread] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const dragRef = useRef(null);
+
+  const focusWin = (id) => { setWins(w => { const t = w.find(x => x.id === id); return t ? [...w.filter(x => x.id !== id), t] : w; }); setActiveId(id); setSpot(false); };
+  const openComp = (id) => {
+    const c = CATALOG.find(x => x.id === id); const wid = 'c:' + id;
+    setWins(w => {
+      if (w.some(x => x.id === wid)) { const t = w.find(x => x.id === wid); return [...w.filter(x => x.id !== wid), t]; }
+      const n = w.length;
+      return [...w, { id: wid, kind: 'comp', compId: id, icon: c.icon, title: c.title.split(' — ')[0], max: true, x: 120 + n * 36, y: 88 + n * 32 }];
+    });
+    setActiveId(wid); setSpot(false);
+  };
+  const ensureAssistant = () => {
+    setWins(w => {
+      if (w.some(x => x.id === 'assistant')) { const t = w.find(x => x.id === 'assistant'); return [...w.filter(x => x.id !== 'assistant'), t]; }
+      const n = w.length;
+      return [...w, { id: 'assistant', kind: 'assistant', icon: 'message', title: 'Nubia', max: true, x: 140 + n * 36, y: 96 + n * 32 }];
+    });
+    setActiveId('assistant'); setSpot(false);
+  };
+  const toggleMax = (id) => setWins(w => w.map((x, i) => x.id === id ? { ...x, max: !x.max, x: x.x ?? (120 + i * 36), y: x.y ?? (88 + i * 32) } : x));
+  const startDrag = (id, e) => {
+    const w = wins.find(x => x.id === id); if (!w) return;
+    e.preventDefault();
+    dragRef.current = { id, sx: e.clientX, sy: e.clientY, ox: w.x, oy: w.y };
+    const move = (ev) => { const d = dragRef.current; if (!d) return; setWins(ws => ws.map(x => x.id === d.id ? { ...x, x: Math.max(0, d.ox + ev.clientX - d.sx), y: Math.max(0, d.oy + ev.clientY - d.sy) } : x)); };
+    const up = () => { dragRef.current = null; document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
+    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+  };
+
+  const ask = async (text) => {
+    ensureAssistant();
+    setThread(t => [...t, { role: 'user', content: text }]);
+    setLoading(true);
+    const preamble = "Tu es l'assistant de Nubia Pro, le logiciel de gestion d'un cabinet dentaire (agenda, patients, devis, paiements, salle d'attente, messagerie). Réponds en français, de façon concise et professionnelle, en TEXTE SIMPLE sans markdown (pas de #, pas de **, pas d'emoji). Pour les listes, utilise des puces « • » en début de ligne. N'établis jamais de diagnostic ni de conseil clinique. Si on te demande une « vue » ou un « résumé », réponds par une synthèse claire en puces. Données fictives de démonstration : 24 RDV aujourd'hui, 6 devis en attente, 2 acomptes à relancer (Camille Rousseau 465 €, Nadia Klein), 1 240 € encaissés aujourd'hui.";
+    let reply;
+    try {
+      if (window.claude && window.claude.complete) {
+        reply = await window.claude.complete({ messages: [{ role: 'user', content: preamble + '\n\nDemande : ' + text }] });
+      } else { throw new Error('offline'); }
+    } catch (e) {
+      reply = "Démo hors-ligne : je suis l'assistant Nubia. Aujourd'hui — 24 RDV, 6 devis en attente, 1 240 € encaissés. À relancer : acompte de Camille Rousseau (465 €) et devis de Nadia Klein. (La réponse en langage naturel s'active dans l'environnement connecté.)";
+    }
+    setThread(t => [...t, { role: 'assistant', content: (reply || '').trim() }]);
+    setLoading(false);
+  };
+  const closeWin = (id) => { setWins(w => w.filter(x => x.id !== id)); setActiveId(a => a === id ? null : a); if (id === 'assistant') setThread([]); };
+
+  // global keyboard
+  useEffect(() => {
+    const onKey = (e) => {
+      const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName);
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSpot(s => !s); }
+      else if (e.key === '/' && !typing && !spot) { e.preventDefault(); setSpot(true); }
+      else if (e.key === 'Escape') { if (spot) setSpot(false); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [spot]);
+
+  const renderBody = (w) => w.kind === 'assistant'
+    ? <Assistant thread={thread} loading={loading} onSend={ask} />
+    : (() => { const c = CATALOG.find(x => x.id === w.compId); const S = c && window[c.screen]; return S ? <S dark={dark} chrome="window" /> : null; })();
+
+  const floating = wins.filter(w => !w.max);
+  const activeWin = wins.find(w => w.id === activeId);
+  const fs = activeWin && activeWin.max ? activeWin : null;
+
+  return (
+    <div className={`app nubia${dark ? ' nubia-dark' : ''}${dark ? ' dark' : ''}`}>
+      <div className={`wall ${dark ? 'dark' : 'light'}`} />
+
+      {/* theme toggle */}
+      <div className="theme-toggle glass glass-dock" style={{ display: 'flex', gap: 2, padding: 4, borderRadius: 999 }}>
+        {['Clair', 'Sombre'].map((l, i) => (
+          <button key={l} onClick={() => setDark(i === 1)} style={{ border: 'none', cursor: 'pointer', borderRadius: 999, padding: '6px 13px',
+            font: '600 12px/1 inherit', background: (dark ? i === 1 : i === 0) ? 'var(--bg-surface)' : 'transparent',
+            color: (dark ? i === 1 : i === 0) ? 'var(--text-primary)' : 'var(--text-tertiary)', boxShadow: (dark ? i === 1 : i === 0) ? 'var(--shadow-sm)' : 'none' }}>{l}</button>
+        ))}
+      </div>
+
+      {/* idle hero (no windows, no spotlight) */}
+      {wins.length === 0 && !spot && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, pointerEvents: 'none' }}>
+          <div style={{ width: 60, height: 60, borderRadius: 17, background: 'linear-gradient(160deg, var(--primary), var(--brand-800))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: 'var(--shadow-lg)' }}>
+            <Icon name="plus" size={32} stroke={2.6} /></div>
+          <div style={{ font: '600 26px/1.2 -apple-system', color: 'var(--text-primary)', marginTop: 18, letterSpacing: -0.5 }}>Nubia Pro</div>
+          <div style={{ font: '400 15px/1.4 -apple-system', color: 'var(--text-secondary)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 7 }}>
+            Appuyez sur <kbd style={{ font: '600 12px/1 inherit', border: '1px solid var(--border-default)', borderRadius: 6, padding: '3px 7px', color: 'var(--text-primary)', background: 'var(--bg-surface)' }}>⌘ K</kbd> ou <kbd style={{ font: '600 12px/1 inherit', border: '1px solid var(--border-default)', borderRadius: 6, padding: '3px 7px', color: 'var(--text-primary)', background: 'var(--bg-surface)' }}>/</kbd> pour rechercher
+          </div>
+        </div>
+      )}
+
+      {/* floating (restored) windows */}
+      {floating.map((w) => (
+        <div key={w.id} onMouseDown={() => focusWin(w.id)}
+          style={{ position: 'absolute', left: w.x, top: w.y, width: natW(w), zIndex: 20 + wins.indexOf(w) }}>
+          <WinFrame win={w} isMax={false} onClose={() => closeWin(w.id)} onToggleMax={() => toggleMax(w.id)}
+            onTitleDown={(e) => startDrag(w.id, e)}>{renderBody(w)}</WinFrame>
+        </div>
+      ))}
+
+      {/* full-screen active window (default) */}
+      {fs && (
+        <div className="back-anim" style={{ position: 'absolute', top: 14, left: 14, right: 14, bottom: 90, zIndex: 30 }}>
+          <WinFrame win={fs} isMax onClose={() => closeWin(fs.id)} onToggleMax={() => toggleMax(fs.id)}>{renderBody(fs)}</WinFrame>
+        </div>
+      )}
+
+      {spot && <Spotlight onPick={openComp} onAsk={ask} onClose={() => setSpot(false)} />}
+
+      <Dock wins={wins} activeId={activeId} onOpenSearch={() => setSpot(true)}
+        onActivate={focusWin} onClose={closeWin} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

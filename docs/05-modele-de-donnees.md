@@ -506,3 +506,150 @@ CREATE TABLE review (                     -- avis, rattaché à un vrai RDV, mod
 - **Mapping besoin→spécialité** : table `medical_act.motifs` + synonymes (NLP plus tard) — **suggestion**, pas diagnostic (cf. `07` §8).
 
 > Diagramme relationnel, contrats d'API et règles métier : voir `04` et `06`. Scope marketplace : `11`. Politiques de rétention et base légale : `07`.
+
+---
+
+## 10. Extensions issues des maquettes hi-fi (06/2026)
+> Deltas pour que l'API serve les écrans des maquettes `../design/mockups/` (app patient enrichie + cœur praticien + back-office V2). Détail produit : `../design/02-inventaire-ecrans.md`, `../design/user-stories.md`, `../design/08-back-office-v2-spotlight.md`. Conformité associée : `07` §4, §5, §8.
+
+### 10.1 Couverture santé patient (US-P29)
+La couverture vit au niveau **plateforme** (`patient_account`) car portable entre cabinets ; le cabinet en lit une projection via `patient`.
+```sql
+ALTER TABLE patient_account
+  ADD COLUMN regime_obligatoire text          -- 'regime_general' | 'ame' | 'css'  (css = ex-CMU-C)
+    CHECK (regime_obligatoire IN ('regime_general','ame','css')),
+  ADD COLUMN nss_ciphertext bytea,             -- n° de sécurité sociale (PII critique, chiffré)
+  ADD COLUMN nss_key_ref text,
+  ADD COLUMN tiers_payant boolean NOT NULL DEFAULT false;
+-- mutuelle (déjà JSONB) : { amc, numero_adherent, plateforme }
+```
+- **Carte de mutuelle (recto/verso)** : pas de colonne dédiée → `document(category='carte_mutuelle')` (chiffré, Object Storage). Idem pièces d'identité éventuelles.
+- ⚠️ **n° de sécu / INS = PII critique** : chiffré, jamais en clair dans les logs (cf. `07` §2.7, §4.3).
+
+### 10.2 Proches / ayants droit (US-P30)
+Un proche (enfant) est **lui-même un `patient_account`** (il a sa propre couverture), rattaché à un titulaire via un lien de responsabilité.
+```sql
+CREATE TABLE account_guardianship (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  guardian_account_id  uuid NOT NULL REFERENCES patient_account(id),  -- le titulaire qui gère
+  dependent_account_id uuid NOT NULL REFERENCES patient_account(id),  -- le proche géré
+  relationship  text NOT NULL,            -- 'enfant' | 'conjoint' | 'parent' | 'autre'
+  authority     text NOT NULL DEFAULT 'legal_guardian', -- autorité parentale / mandat
+  active        boolean NOT NULL DEFAULT true,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  deleted_at    timestamptz,
+  UNIQUE (guardian_account_id, dependent_account_id)
+);
+```
+- Le titulaire peut **prendre RDV / gérer les documents** du proche. Conformité : autorité parentale (mineurs), révocation à la majorité, traçabilité (cf. `07` §4, à étendre AIPD).
+
+### 10.3 Journal clinique — notes globales & liées à un acte (US-D12)
+`clinical_note` existe déjà (chiffré, `ccam_codes`, `validated_at`). On précise le **type** et le **rattachement**.
+```sql
+ALTER TABLE clinical_note
+  ADD COLUMN note_kind text NOT NULL DEFAULT 'session'   -- 'observation'(globale) | 'act'(liée acte/dent) | 'session'
+    CHECK (note_kind IN ('observation','act','session')),
+  ADD COLUMN tooth text,                                  -- FDI (ex. '26') si note_kind='act'
+  ADD COLUMN act_ref jsonb NOT NULL DEFAULT '{}';         -- { label, ccam, quote_item_id? }
+-- timeline = SELECT ... WHERE patient_id=$1 ORDER BY created_at DESC ; chaque note horodatée + signée (author_id)
+```
+> Contenu **chiffré** (secret médical), visible **praticien uniquement** (RBAC, cf. `07` §4.1).
+
+### 10.4 Plan de traitement & devis (US-D10, E4.3)
+Structure les **phases** au-dessus du devis (`quote`/`quote_item` existants).
+```sql
+CREATE TABLE treatment_plan (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cabinet_id   uuid NOT NULL REFERENCES cabinet(id),
+  patient_id   uuid NOT NULL REFERENCES patient(id),
+  practitioner_id uuid REFERENCES practitioner(id),
+  title        text NOT NULL,
+  status       text NOT NULL DEFAULT 'draft',    -- draft | proposed | accepted | in_progress | done
+  quote_id     uuid REFERENCES quote(id),        -- devis chiffré rattaché
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  deleted_at   timestamptz
+);
+CREATE TABLE treatment_phase (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cabinet_id   uuid NOT NULL REFERENCES cabinet(id),
+  plan_id      uuid NOT NULL REFERENCES treatment_plan(id),
+  position     int  NOT NULL,
+  title        text NOT NULL,                     -- 'Phase 2 · Chirurgie implantaire'
+  status       text NOT NULL DEFAULT 'requested'  -- requested | confirmed | in_progress | done
+);
+-- les actes d'une phase = quote_item (déjà : label, ccam_code, tooth, amo_part, amc_part) + ADD COLUMN phase_id
+ALTER TABLE quote_item ADD COLUMN phase_id uuid REFERENCES treatment_phase(id);
+```
+- Récap financier (total soins, base remboursement Sécu, estimation mutuelle, **reste à charge**, acompte %) = **calculé** depuis `quote_item` (`amo_part`/`amc_part`), pas stocké en double.
+
+### 10.5 Ordonnance / prescription (US-D11) — ⚠️ périmètre encadré
+```sql
+CREATE TABLE prescription (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cabinet_id    uuid NOT NULL REFERENCES cabinet(id),
+  patient_id    uuid NOT NULL REFERENCES patient(id),
+  practitioner_id uuid NOT NULL REFERENCES practitioner(id),
+  status        text NOT NULL DEFAULT 'draft',   -- draft | signed | sent
+  signature_id  uuid REFERENCES signature(id),   -- signature eIDAS (réutilise la brique wedge)
+  document_id   uuid REFERENCES document(id),    -- PDF généré → coffre-fort patient (category='ordonnance')
+  signed_at     timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  deleted_at    timestamptz
+);
+CREATE TABLE prescription_item (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cabinet_id    uuid NOT NULL REFERENCES cabinet(id),
+  prescription_id uuid NOT NULL REFERENCES prescription(id),
+  label         text NOT NULL,            -- 'Paracétamol 1 g'
+  form          text,                     -- comprimé, solution…
+  posology      text,                     -- '1 cp × 3 / jour si douleur'
+  duration      text,                     -- '5 jours'
+  quantity      text                      -- QSP '15 cp'
+);
+```
+> 🚨 **Hors dispositif médical (MDR, cf. `07` §8).** La maquette montre un **blocage automatique allergie / interactions**. **Cette logique décisionnelle est EXCLUE du MVP** (règle 11 MDR). L'API : (a) **affiche** les allergies que le praticien a saisies dans `medical_record` (lecture passive), (b) **n'effectue aucun contrôle automatique** d'interactions/contre-indications, (c) ne suggère **aucune** alternative thérapeutique. Le praticien reste seul décideur. La signature eIDAS et la génération PDF sont, elles, dans le périmètre.
+
+### 10.6 Onboarding praticien self-service + vérification RPPS (US-D07, E4.9)
+Le pro **crée son compte et son cabinet** ; le `provider` n'est **listé** que `rpps_verified=true` (déjà en `9.2`). On trace la vérification.
+```sql
+CREATE TABLE provider_verification (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_id   uuid NOT NULL REFERENCES provider(id),
+  identifier    text NOT NULL,            -- RPPS ou ADELI soumis
+  id_type       text NOT NULL CHECK (id_type IN ('rpps','adeli')),
+  status        text NOT NULL DEFAULT 'pending', -- pending | verified | rejected
+  source        text,                     -- référentiel ANS (annuaire santé)
+  checked_at    timestamptz,
+  evidence      jsonb NOT NULL DEFAULT '{}',
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+```
+- Vérification adossée au **référentiel RPPS/ADELI (ANS)** (cf. `11` §13). Tant que `pending`/`rejected` → profil **non listé** dans l'annuaire (anti-usurpation).
+- Création de comptes depuis le back-office : réutilise `app_user` + `cabinet_membership(role IN ('practitioner','secretary','admin'))`.
+
+### 10.7 Préparation du RDV — adresse, itinéraire, à apporter (US-P32)
+- **Adresse + géo** : déjà sur `establishment(address jsonb, geo geography)`. L'app affiche le plan + un **deep-link itinéraire**.
+- **Temps de trajet** (voiture/transports/à pied) : **calculé à la volée** via un **service de routing EU** (driver interchangeable, cf. `04`), **non stocké** (minimisation, pas de stockage de trajets — `11` §13).
+- **« À apporter »** : liste **dérivée** (Carte Vitale, carte mutuelle si `tiers_payant`, ordonnances/radios en cours) — pas de table dédiée.
+- **Infos pratiques** (code d'entrée, parking, PMR) : `cabinet.settings`/`establishment.address` (JSONB).
+
+### 10.8 Back-office V2 — recherche unifiée & assistant (US-V01/V02, proposition)
+> **Post-MVP / à arbitrer** (cf. `../design/08-back-office-v2-spotlight.md`). Pas de schéma lourd au MVP.
+- **Recherche unifiée cabinet** : pas de nouvelle table — agrège `patient`, `appointment`, `quote`, `document` via `pg_trgm` (déjà en §8) ou Meilisearch index **cabinet-scoped** (réutilise la brique `11`). **Toujours sous RLS + RBAC** (un secrétaire ne voit pas le clinique).
+- **Assistant « Demander à Nubia »** : requêtes en lecture sur données **organisationnelles** (RDV, encaissements, relances) ; **journalisé**.
+```sql
+CREATE TABLE assistant_query (        -- post-MVP, audit/observabilité de l'assistant
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cabinet_id   uuid NOT NULL REFERENCES cabinet(id),
+  actor_id     uuid NOT NULL REFERENCES app_user(id),
+  actor_role   text NOT NULL,
+  prompt_redacted text,              -- sans PII
+  tools_used   jsonb NOT NULL DEFAULT '[]',  -- requêtes/outils déclenchés (traçabilité)
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+```
+> 🚨 Garde-fous (cf. `07` §8 item 8.6) : IA **souveraine** (Mistral/Scaleway, hors UE interdit), **pas d'aide à la décision clinique ni de diagnostic**, **humain dans la boucle** (actions suggérées, jamais auto-exécutées), chiffres issus de **requêtes réelles** (l'IA met en forme, n'invente pas). Activation **post-traction**.
+
+### 10.9 Catégories de documents (ajouts)
+`document.category` accueille : `carte_mutuelle`, `ordonnance` (déjà), `passeport_implantaire`, `consentement`. (Énum applicative, pas de migration de type.)

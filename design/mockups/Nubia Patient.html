@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nubia — App patient · maquettes hi-fi</title>
+<link rel="stylesheet" href="lib/tokens.css" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #f0eee9; }
+  /* theme toolbar */
+  #theme-bar {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 300; display: flex; align-items: center; gap: 14px;
+    background: rgba(255,255,255,0.9); backdrop-filter: blur(12px);
+    border: 1px solid rgba(0,0,0,0.07); border-radius: 999px;
+    padding: 7px 8px 7px 16px; box-shadow: 0 4px 20px rgba(28,25,23,0.10);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  #theme-bar .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; color: #1C1917; letter-spacing: -0.2px; }
+  #theme-bar .dot { width: 18px; height: 18px; border-radius: 50%; background: #047857; display: inline-flex; align-items: center; justify-content: center; }
+  #theme-bar .seg { display: flex; gap: 2px; background: #F5F5F4; border-radius: 999px; padding: 3px; }
+  #theme-bar .seg button {
+    border: none; background: transparent; cursor: pointer; font-family: inherit;
+    font-size: 13px; font-weight: 500; color: #78716C; padding: 6px 14px; border-radius: 999px; transition: all .15s;
+  }
+  #theme-bar .seg button.on { background: #fff; color: #1C1917; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="lib/components.jsx"></script>
+<script type="text/babel" src="lib/screens-1.jsx"></script>
+<script type="text/babel" src="lib/screens-2.jsx"></script>
+<script type="text/babel" src="lib/screens-wedge.jsx"></script>
+<script type="text/babel" src="lib/screens-3.jsx"></script>
+<script type="text/babel" src="lib/screens-4.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+
+// device artboard: a centered iPhone bezel with breathing room for its shadow
+const AW = 462, AH = 936;
+function Device({ dark, children }) {
+  return (
+    <div style={{ width: AW, height: AH, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <IOSDevice dark={dark}>{children}</IOSDevice>
+    </div>
+  );
+}
+const board = (id, label, dark, Comp) => (
+  <DCArtboard id={id} label={label} width={AW} height={AH} style={{ background: 'transparent', boxShadow: 'none' }}>
+    <Device dark={dark}><Comp dark={dark} /></Device>
+  </DCArtboard>
+);
+
+// ── Opening brief panel (always light) ──
+function Brief() {
+  const Sw = ({ c, label }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }}>
+      <div style={{ width: 38, height: 38, borderRadius: 10, background: c, border: '1px solid rgba(0,0,0,0.08)' }} />
+      <span style={{ font: '500 10px/1 ui-monospace, monospace', color: '#78716C' }}>{label}</span>
+    </div>
+  );
+  const H = ({ children }) => <div style={{ font: "600 13px/1 'Inter',sans-serif", letterSpacing: 1.4, textTransform: 'uppercase', color: '#A8A29E', margin: '28px 0 12px' }}>{children}</div>;
+  return (
+    <div className="nubia" style={{ width: 620, height: AH, background: '#fff', padding: '48px 44px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#047857', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+          <Icon name="plus" size={18} stroke={2.5} />
+        </span>
+        <span style={{ font: "600 20px/1 'Inter',sans-serif", color: '#1C1917' }}>Nubia</span>
+        <span className="t-caption" style={{ color: '#A8A29E', marginLeft: 'auto' }}>App patient · maquettes hi-fi v1</span>
+      </div>
+      <div className="t-display" style={{ fontSize: 30, lineHeight: '38px', color: '#1C1917', marginTop: 18, textWrap: 'balance' }}>
+        Un seul univers&nbsp;: découvrir, réserver, vivre le RDV, garder ses documents.
+      </div>
+      <p className="t-body" style={{ color: '#57534E', marginTop: 14, textWrap: 'pretty' }}>
+        Maquettes ancrées sur votre design system (émeraude « vert santé », neutres stone chauds, angles doux,
+        Inter + Fraunces, WCAG AA). Cibles&nbsp;: les 5 onglets patient. Le <b>wedge</b> (devis → signature → acompte)
+        est exploré en 3 directions. Basculez <b>clair / sombre</b> en haut.
+      </p>
+
+      <H>Palette — rôles consommés par l'UI</H>
+      <div style={{ display: 'flex', gap: 18 }}>
+        <Sw c="#047857" label="primary" /><Sw c="#ECFDF5" label="subtle" /><Sw c="#B0894F" label="sable" />
+        <Sw c="#FAFAF9" label="page" /><Sw c="#1C1917" label="text" /><Sw c="#E7E5E4" label="border" />
+      </div>
+
+      <H>Système typographique</H>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+        <span style={{ font: "600 30px/1 'Fraunces',serif", color: '#1C1917' }}>Fraunces</span>
+        <span className="t-caption" style={{ color: '#78716C' }}>display · titres premium, écrans vides</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginTop: 8 }}>
+        <span style={{ font: "600 24px/1 'Inter',sans-serif", color: '#1C1917' }}>Inter</span>
+        <span className="t-caption" style={{ color: '#78716C' }}>UI · corps, interface, back-office</span>
+      </div>
+
+      <H>Dans ces maquettes</H>
+      <div className="t-body" style={{ color: '#57534E', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px' }}>
+        <span>· Accueil / Rechercher</span><span>· Mes RDV + salle d'attente</span>
+        <span>· Profil praticien & résa</span><span>· Téléconsultation</span>
+        <span>· Messagerie + conversation</span><span>· Documents / coffre-fort</span>
+        <span style={{ color: '#047857', fontWeight: 600 }}>★ Le wedge — 3 variations</span><span></span>
+      </div>
+
+      <div style={{ marginTop: 'auto', paddingTop: 20, borderTop: '1px solid #E7E5E4', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ color: '#A8A29E' }}><Icon name="info" size={16} stroke={2} /></span>
+        <span className="t-caption" style={{ color: '#A8A29E' }}>Données fictives crédibles · faites glisser, réorganisez et ouvrez chaque écran en plein écran.</span>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [dark, setDark] = useState(false);
+  return (
+    <React.Fragment>
+      <div id="theme-bar">
+        <span className="brand"><span className="dot" style={{ color: '#fff' }}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg></span>Nubia</span>
+        <div className="seg">
+          <button className={!dark ? 'on' : ''} onClick={() => setDark(false)}>Clair</button>
+          <button className={dark ? 'on' : ''} onClick={() => setDark(true)}>Sombre</button>
+        </div>
+      </div>
+
+      <DesignCanvas>
+        <DCSection id="brief" title="Brief" subtitle="Contexte, système & périmètre — lisez d'abord ceci">
+          <DCArtboard id="intro" label="Lecture du système" width={620} height={AH} style={{ background: 'transparent', boxShadow: 'none' }}>
+            <Brief />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="accueil" title="Accueil & découverte" subtitle="Porte d'entrée marketplace + mini-dashboard, puis profil praticien">
+          {board('accueil', 'Accueil / Rechercher', dark, ScreenAccueil)}
+          {board('profil', 'Profil praticien & réservation', dark, ScreenProfilPraticien)}
+        </DCSection>
+
+        <DCSection id="rdv" title="Mes RDV · le jour J" subtitle="Tous praticiens · check-in → salle d'attente → présentiel ou téléconsult">
+          {board('mesrdv', 'Mes rendez-vous', dark, ScreenMesRDV)}
+          {board('salle', "Salle d'attente virtuelle", dark, ScreenSalleAttente)}
+          {board('tele', 'Téléconsultation', dark, ScreenTeleconsult)}
+        </DCSection>
+
+        <DCSection id="trouver" title="Trouver & préparer un RDV" subtitle="Recherche par disponibilité, puis préparation : adresse, temps de trajet, à apporter">
+          {board('recherche-rdv', 'Recherche de RDV', dark, ScreenRechercheRDV)}
+          {board('prepa-rdv', 'Préparer mon RDV', dark, ScreenPreparationRDV)}
+        </DCSection>
+
+        <DCSection id="msg" title="Messagerie" subtitle="Fil cabinet ↔ patient · priorisation visuelle de l'urgence">
+          {board('msglist', 'Liste des conversations', dark, ScreenMessagerie)}
+          {board('convo', 'Conversation', dark, ScreenConversation)}
+        </DCSection>
+
+        <DCSection id="docs" title="Documents / coffre-fort" subtitle="Devis, factures, ordonnances, radios — agrégés">
+          {board('documents', 'Documents', dark, ScreenDocuments)}
+        </DCSection>
+
+        <DCSection id="wedge" title="★ Le wedge — devis · signature · acompte" subtitle="Le parcours monétisable. 3 directions : sobre, premium sable, reste-à-charge d'abord">
+          {board('wedgeA', 'A · Sobre & clair', dark, ScreenWedgeA)}
+          {board('wedgeB', 'B · Premium sable', dark, ScreenWedgeB)}
+          {board('wedgeC', 'C · Reste-à-charge + paiement', dark, ScreenWedgeC)}
+        </DCSection>
+
+        <DCSection id="wedge-suite" title="Le wedge — suite : signer → payer → reçu" subtitle="La continuité du parcours monétisable, sans friction">
+          {board('signature', 'Signature (eIDAS)', dark, ScreenSignature)}
+          {board('paiement', 'Paiement de l\'acompte', dark, ScreenPaiement)}
+          {board('recu', 'Reçu & confirmation', dark, ScreenRecu)}
+        </DCSection>
+
+        <DCSection id="resa" title="Réservation" subtitle="Depuis le profil praticien : motif → créneau → confirmation">
+          {board('resa', 'Motif & créneau', dark, ScreenReservation)}
+          {board('resa-confirm', 'Confirmation', dark, ScreenReservationConfirm)}
+        </DCSection>
+
+        <DCSection id="onboarding" title="Onboarding & compte" subtitle="Connexion, l'onglet Profil, et la modification de la couverture & des proches">
+          {board('connexion', 'Connexion', dark, ScreenConnexion)}
+          {board('profil-compte', 'Profil', dark, ScreenProfil)}
+          {board('couverture', 'Couverture santé (modifier)', dark, ScreenCouverture)}
+          {board('proches', 'Mes proches / enfants', dark, ScreenProches)}
+          {board('notifs', 'Centre de notifications', dark, ScreenNotifications)}
+        </DCSection>
+
+        <DCSection id="soins" title="Parcours de soins" subtitle="Plan de traitement, passeport implantaire (premium), suivi & prévention">
+          {board('plan', 'Plan de traitement', dark, ScreenPlanTraitement)}
+          {board('passeport', 'Passeport implantaire', dark, ScreenPasseport)}
+          {board('suivi', 'Suivi & prévention', dark, ScreenSuivi)}
+        </DCSection>
+      </DesignCanvas>
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

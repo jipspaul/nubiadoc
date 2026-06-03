@@ -58,15 +58,15 @@ Principe directeur : **chaque brique d'infra que tu ajoutes est une brique que t
 
 - Flutter pour l'**app patient mobile** : **bon choix**, validé. Codebase unique iOS/Android, accès natif (push, QR, géoloc, biométrie) — exactement le profil du PDF.
 - Flutter pour le **back-office praticien/secrétariat** (Flutter Web, ou Flutter Desktop si besoin) : **le SEO est sans objet** sur une app métier authentifiée — l'argument SEO contre Flutter Web ne s'applique donc pas ici. Unifier sur Dart évite de maintenir **deux écosystèmes en parallèle**, ce qui est le bon arbitrage en solo.
-- Le brief proposait Next.js pour le back-office : abandonné. La PWA web patient de fallback (QR sans app) peut rester un petit Flutter Web embarqué, pas une stack séparée.
-- ⚠️ **Le seul vrai arbitrage qui demeure** (et il n'a rien à voir avec le SEO) : Flutter Web est moins à l'aise que React/Next sur les **UI très data-dense** (tableaux/agendas multi-colonnes, sélection de texte, impression) et son **poids de chargement initial** est plus lourd. Mitigations : rendu **CanvasKit**, lazy-loading, et — si le back-office devient un vrai tableur lourd — l'option **Flutter Desktop** (app installée au cabinet) qui efface le souci de perf web.
+- Back-office en **Flutter Web/Desktop** (même écosystème Dart) : pas de stack front séparée. La PWA web patient de fallback (QR sans app) reste un petit Flutter Web embarqué.
+- ⚠️ **Le seul vrai arbitrage qui demeure** (et il n'a rien à voir avec le SEO) : Flutter Web est moins à l'aise que les frameworks web classiques sur les **UI très data-dense** (tableaux/agendas multi-colonnes, sélection de texte, impression) et son **poids de chargement initial** est plus lourd. Mitigations : rendu **CanvasKit**, lazy-loading, et — si le back-office devient un vrai tableur lourd — l'option **Flutter Desktop** (app installée au cabinet) qui efface le souci de perf web.
 - 💡 **Arbitrage MVP** : commence par **une seule cible** (l'app patient), le back-office Flutter peut démarrer minimaliste (voire un admin générique au tout début) et se polir ensuite. Tu n'as pas besoin des deux fronts finis simultanément.
 
 ### 3.2 Backend — la sur-ingénierie est ici
 
-Le brief empile : **NestJS (monolithe modulaire) + microservices Python FastAPI + Temporal.io + NATS JetStream + Socket.IO + extraction Go en Phase 2**. Pour du pré-seed, c'est 4 paradigmes d'exécution distincts.
+Le brief d'origine empilait : **monolithe modulaire + microservices Python FastAPI + Temporal.io + NATS JetStream + temps réel dédié + extraction Go en Phase 2**. Pour du pré-seed, c'est trop de paradigmes d'exécution distincts.
 
-- ✅ **Monolithe modulaire** : bon choix de structure, garde-le. **Langage retenu : Rust / Axum** (révision 06/2026, cf. `04` ADR-002), en remplacement de NestJS/Node — l'équipe maîtrise déjà Rust et Dart, et le besoin de WebSockets + forte concurrence (cap ~1M users) joue pour Tokio. C'est *le* bon niveau de structure, avec un langage déjà su.
+- ✅ **Monolithe modulaire** : bon choix de structure, garde-le. **Langage : Rust / Axum** (cf. `04` ADR-002) — l'équipe maîtrise déjà Rust et Dart, et le besoin de WebSockets + forte concurrence (cap ~1M users) joue pour Tokio. C'est *le* bon niveau de structure, avec un langage déjà su.
 - ❌ **Temporal.io dès le MVP** : non. Temporal est excellent mais c'est un serveur de plus à opérer. Les workflows (relances no-show, échéanciers, audit) tiennent parfaitement avec **apalis sur le Redis que tu as déjà**. Temporal devient pertinent quand les workflows deviennent vraiment longs/complexes — pas avant.
 - ❌ **NATS JetStream** : redondant avec Redis/apalis au début. Une file suffit. Supprime.
 - ❌ **Microservices Python FastAPI** : seulement nécessaires pour l'IA (Scribe), qui est Phase 4 (M12+ dans le brief). Tant qu'il n'y a pas d'IA self-hosted, **pas de second runtime**. Quand l'IA arrive, un seul service Python suffit.

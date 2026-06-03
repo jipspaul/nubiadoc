@@ -110,19 +110,19 @@ Modèle tout-compris, plus simple et lisible que les offres à tiroirs de Doctol
 
 ## Stack technique
 
-> ⚠️ Section = **brief d'origine (maximaliste)**. La stack réellement retenue est dégraissée dans `docs/01-critique-du-brief.md` et figée dans `docs/04-architecture.md`. **Décision actée (06/2026)** : back en **Rust / Axum** (plus NestJS/Node), front **Flutter partout** (plus Next.js/React), temps réel **WebSockets** (plus Socket.IO).
+> ⚠️ Section = **brief d'origine (maximaliste)**. La stack réellement retenue est dégraissée dans `docs/01-critique-du-brief.md` et figée dans `docs/04-architecture.md`. **Stack actée** : back **Rust / Axum**, front **Flutter partout** (un seul écosystème Dart), temps réel **WebSockets**.
 
 ### Frontend
 - **Mobile patient** : Flutter 3.x + Bloc (flutter_bloc) + Dio (codebase unique iOS/Android)
-- **Web patient (fallback QR sans app)** : Flutter Web embarqué + PWA (~~Next.js~~ abandonné)
-- **Interface Praticien** : Flutter Web/Desktop (~~Next.js + React~~ abandonné — un seul écosystème Dart)
+- **Web patient (fallback QR sans app)** : Flutter Web embarqué + PWA
+- **Interface Praticien** : Flutter Web/Desktop — un seul écosystème Dart
 - **Interface Secrétariat** : Même stack Flutter que praticien (mutualisation maximale)
 
 ### Backend
-- **API principale** : **Rust / Axum**, architecture modular monolith (workspace de crates) ; accès données SQLx + RLS Postgres (~~NestJS/Node~~ abandonné)
+- **API principale** : **Rust / Axum**, architecture modular monolith (workspace de crates) ; accès données SQLx + RLS Postgres
 - **Microservices IA** : Python (FastAPI) pour ML/Whisper/Mistral — post-MVP uniquement
 - **Orchestration workflows** : jobs async **apalis** (Redis) au MVP ; Temporal.io reconsidéré post-traction si workflows longs
-- **Temps réel** : **WebSockets** natifs Axum/Tokio (fan-out pub/sub Redis), + FCM pour le push patient (~~Socket.IO / extraction Go~~ abandonné)
+- **Temps réel** : **WebSockets** natifs Axum/Tokio (fan-out pub/sub Redis), + FCM pour le push patient
 
 ### Data
 - **Base principale** : PostgreSQL 16 (Scaleway Managed DB HDS) + pgvector + TimescaleDB + pg_trgm

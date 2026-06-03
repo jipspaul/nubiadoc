@@ -32,6 +32,20 @@ Critères : validation format (tél, n° sécu), pas de PII en clair dans les lo
 > Quand il le complète
 > Alors les réponses alimentent le `medical_record` (chiffré) et le statut « questionnaire à compléter » disparaît du tableau de bord.
 
+**US-3.1.4 — Couverture santé 🟧 (US-P29)**
+> Étant donné un patient connecté
+> Quand il renseigne son **régime obligatoire** (`regime_general`/`ame`/`css`), son n° de sécu, sa mutuelle + n° d'adhérent, **photographie sa carte de mutuelle (recto/verso)** et active le **tiers payant**
+> Alors les données sont enregistrées au niveau `patient_account` (n° sécu **chiffré**), la carte stockée en `document(category='carte_mutuelle')` chiffré, et l'événement est audité.
+
+Critères : n° sécu jamais en clair dans les logs ; OCR carte optionnel (suggestion, jamais bloquant) ; champs portables entre cabinets (niveau plateforme).
+
+**US-3.1.5 — Proches / ayants droit 🟧 (US-P30)**
+> Étant donné un patient titulaire
+> Quand il ajoute un proche (enfant) avec sa propre couverture
+> Alors un `patient_account` lié par `account_guardianship` est créé, et le titulaire peut prendre RDV / gérer les documents du proche.
+
+Critères : autorité parentale tracée ; révocation possible (passage à la majorité) ; chaque proche a **sa propre** couverture (Vitale/AME/mutuelle). Conformité mineurs : `07` §4 + AIPD à étendre.
+
 ---
 
 ### E3.2 — Rendez-vous 🟧 *(liste d'attente 🎭)* (rubrique 1)
@@ -59,6 +73,20 @@ Critères : créneaux indisponibles non sélectionnables, contrainte anti-chevau
 > Quand un créneau se libère et que des patients sont sur liste d'attente
 > Alors une notification est envoyée selon le score ; le premier à confirmer prend la place.
 > *(Démo : flux mocké ; la gestion réelle des races est post-traction, cf. `02` E4.5.)*
+
+**US-3.2.6 — Recherche de RDV slot-centrée 🟧 (US-P31)**
+> Étant donné un patient cherchant un créneau (motif + lieu)
+> Quand il consulte les résultats
+> Alors il voit les praticiens **triés par 1re disponibilité**, avec un bandeau de jours et les **créneaux directement réservables** (projection `availability_slot`, statut `open`).
+
+Critères : tri par prochaine dispo ; réservation en 1 tap depuis un créneau ; cohérent avec la recherche marketplace (`11` §3, `availability_slot`).
+
+**US-3.2.7 — Préparer mon RDV 🟧 (US-P32)**
+> Étant donné un RDV confirmé
+> Quand le patient ouvre l'écran de préparation
+> Alors il voit l'**adresse + plan**, l'**itinéraire et un temps de trajet estimé** (voiture/transports/à pied), la liste **« à apporter »** (dérivée : Vitale, carte mutuelle si `tiers_payant`, ordonnances/radios) et les **infos pratiques** (code, parking, PMR).
+
+Critères : temps de trajet **calculé à la volée** (service routing EU, **non stocké** — minimisation, `11` §13) ; itinéraire = deep-link ; rappel automatique avant RDV.
 
 ---
 
@@ -181,6 +209,23 @@ Téléconsultation vidéo, chat IA, traduction automatique, questionnaire pré-c
 ### E4.5 — Liste d'attente 🎭/🟦
 **US-4.5.1** Inscription désistement, proposition de créneau libéré. *(Démo mockée ; prod post-traction avec gestion des races.)*
 
+### E4.6 — Cœur praticien : tableau de bord & mes patients 🟧 (US-D… / hi-fi)
+**US-4.6.1 — Tableau de bord praticien** Journée clinique : RDV du jour, **patient suivant** + alertes (allergies issues de `medical_record`, **affichage passif**), « à valider » (devis/CR/ordonnance), production du jour/semaine, messages urgents. Cloisonnement clinique (RBAC).
+**US-4.6.2 — Mes patients** Index des dossiers suivis (dernier acte, plan en cours, prochain RDV, solde, alertes), recherche + filtres. Accès audité (`read_record`).
+
+### E4.7 — Consultation au fauteuil 🟧
+**US-4.7.1** Pendant la séance, le praticien voit le contexte clinique, **saisit les actes (codes CCAM)** réalisés (alimente `clinical_note.ccam_codes` + le devis/plan), rédige la **note de séance** (chiffrée), puis enchaîne : prescrire, joindre une radio, **étape suivante du plan**, **terminer & facturer**. Tout accès/écriture audité.
+
+### E4.8 — Ordonnance / prescription 🟧 *(périmètre encadré)*
+**US-4.8.1** Le praticien rédige une **ordonnance** (lignes : médicament, forme, posologie, durée, QSP), la **signe électroniquement** (eIDAS, brique wedge), la génère en **PDF** vers le coffre-fort patient (`document.category='ordonnance'`), l'imprime ou l'envoie.
+> 🚨 **Hors MDR (`07` §8).** Le **blocage automatique allergie/interactions** vu en maquette est **EXCLU** : l'API **affiche** les allergies saisies (lecture passive de `medical_record`), n'effectue **aucun** contrôle automatique d'interactions/contre-indications, ne propose **aucune** alternative thérapeutique. Le praticien décide seul.
+
+### E4.9 — Onboarding praticien self-service + RPPS 🟧 (US-D07)
+**US-4.9.1** Un professionnel **crée son compte et inscrit son cabinet** ; il fournit son **RPPS/ADELI**, vérifié auprès du **référentiel ANS** (`provider_verification`). Son **profil public** n'est **listé** dans l'annuaire qu'une fois `verified` (anti-usurpation, `11` §13). Depuis le back-office, un compte peut **créer d'autres comptes** (rôles Praticien/Secrétariat via `cabinet_membership`). Il gère son **profil public** et **ouvre des créneaux** à la réservation (cf. US-M18/M19).
+
+### E4.10 — Journal clinique 🟧 (US-D12)
+**US-4.10.1** Le praticien ajoute des **notes manuelles** : **observation générale** (`note_kind='observation'`) ou **note liée à un acte/une dent** (`note_kind='act'`, `tooth`). Chaque note est **chiffrée**, **horodatée**, **signée** (`author_id`), visible **praticien uniquement** (RBAC), listée en timeline anté-chronologique.
+
 ---
 
 ## WS5 — Paiements & signature (le wedge)
@@ -199,6 +244,21 @@ Téléconsultation vidéo, chat IA, traduction automatique, questionnaire pré-c
 
 ### E5.5 — Échéancier & relances 🟦
 **US-5.5.1** PaymentSchedule multi-jalons, relances J+3/J+7/J+15 via apalis (templates). Post-MVP.
+
+---
+
+## WS7 — Back-office V2 « Spotlight » & assistant 🟦 *(proposition à arbitrer — post-MVP)*
+> Alternative de navigation au sidebar V1. Détail/garde-fous : `../design/08-back-office-v2-spotlight.md`. Modèle : `05` §10.8.
+
+### E7.1 — Recherche unifiée cabinet (US-V01)
+**US-7.1.1** Une **barre de recherche centrale** ouvre des **vues** et trouve des **entités** (patients, RDV, devis, documents), au clavier. Résultats **filtrés par RLS + RBAC** (le secrétariat ne voit jamais le clinique). Implémentation : `pg_trgm`/Meilisearch **cabinet-scoped**. Accès audité.
+
+### E7.2 — Assistant « Demander à Nubia » (US-V02)
+**US-7.2.1** L'utilisateur pose une question en langage naturel ; l'assistant répond (résumé de journée, devis à relancer, encaissements) et **suggère des actions**.
+> 🚨 **Garde-fous obligatoires** (`07` §8.6) : IA **souveraine** (Mistral/Scaleway, hors UE interdit) ; **lecture organisationnelle uniquement** (pas de clinique pour un secrétaire, jamais d'aide à la décision/diagnostic — MDR) ; **chiffres issus de requêtes réelles** (mise en forme, pas d'invention) ; **humain dans la boucle** (actions proposées, jamais auto-exécutées) ; chaque requête **journalisée** sans PII (`assistant_query`). **Activation post-traction.**
+
+### E7.3 — Fenêtres & dock (US-V03)
+**US-7.3.1** Vues ouvertes en **plein écran par défaut**, **réductibles**, **multi-fenêtres**, regroupées dans un **dock**. = **état client (Bloc)**, **pas d'API**.
 
 ---
 

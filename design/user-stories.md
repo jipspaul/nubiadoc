@@ -20,6 +20,8 @@
 | US-P04 | Mettre à jour mes infos administratives (coordonnées, sécu, mutuelle). | 🟧 | Profil | 🎨 |
 | US-P05 | Remplir le questionnaire médical, afin que le praticien ait mes antécédents. | 🟧 | Questionnaire | 🎨 |
 | US-P06 | Gérer mes préférences de notifications. | 🟧 | Réglages | 🎨 |
+| US-P29 | Renseigner ma **couverture santé** : régime obligatoire (**Régime général / AME / Complémentaire santé solidaire (CSS, ex-CMU-C)**), n° de sécu, mutuelle + n° d'adhérent, **photo de la carte de mutuelle (recto/verso)**, **tiers payant**. | 🟧 | Couverture santé | ✅ |
+| US-P30 | Gérer **mes proches / ayants droit** (enfants), chacun avec sa **propre couverture** (Vitale, AME, mutuelle), afin de prendre RDV pour eux. | 🟧 | Mes proches | ✅ |
 
 ## B. Patient — Rendez-vous
 
@@ -31,6 +33,8 @@
 | US-P10 | Recevoir des rappels automatiques avant mon RDV. | 🟧 | Notifications | 🎨 |
 | US-P11 | Demander à être rappelé par le cabinet. | 🟧 | RDV | 🎨 |
 | US-P12 | M'inscrire sur liste d'attente pour un créneau libéré. | 🎭 | Liste d'attente | 🎨 |
+| US-P31 | **Rechercher un RDV par disponibilité** (vue slot-centrée : « 1re dispo », bandeau de jours, créneaux directs), afin de réserver au plus vite. | 🟧 | Recherche de RDV | ✅ |
+| US-P32 | **Préparer mon RDV** : voir l'**adresse + plan**, l'**itinéraire et le temps de trajet** (voiture / transports / à pied), la liste **« à apporter »** et les **infos pratiques** (code d'entrée, parking, PMR). | 🟧 | Préparer mon RDV | ✅ |
 
 ## C. Patient — Tableau de bord & notifications
 
@@ -105,6 +109,23 @@
 | US-D04 | Envoyer le devis au patient pour signature. | 🟧 | Devis | ✅ |
 | US-D05 | Voir le statut signature/paiement d'un devis. | 🟧 | Suivi devis | ✅ |
 | US-D06 | Traiter les messages escaladés (niveau 3). | 🟧 | Messagerie | 🎨 |
+| US-D07 | **Créer mon compte et inscrire mon cabinet au service**, avec **vérification RPPS/ADELI** (référentiel ANS), afin de rejoindre Nubia en self-service. Le tableau de bord permet aussi de **créer des comptes** (rôle Praticien/Secrétariat). | 🟧 | Onboarding praticien | ✅ |
+| US-D08 | **Gérer mon profil public et ouvrir des créneaux** à la réservation en ligne (cf. US-M18/M19). | 🟧 | Profil public & créneaux | ✅ |
+| US-D09 | **Soigner au fauteuil** : voir le contexte clinique, **saisir les actes (CCAM)** de la séance, rédiger la note, enchaîner (prescrire, étape suivante, terminer & facturer). | 🟧 | Consultation au fauteuil | ✅ |
+| US-D10 | **Construire un plan de traitement & devis** (phases, actes, chiffrage, base Sécu/mutuelle, reste à charge, acompte) et l'envoyer au patient. | 🟧 | Plan & devis | ✅ |
+| US-D11 | **Prescrire une ordonnance** (document, signature électronique, envoi/impression). ⚠️ Le **blocage automatique allergie/interactions** vu en maquette est **hors scope** (dispositif médical, cf. `../docs/07` §8) : on **affiche** les allergies saisies, on ne **décide** pas. | 🟧 | Ordonnance | ✅ (display) |
+| US-D12 | **Tenir un journal clinique** : ajouter des **notes manuelles globales** (observations sur le patient) **et des notes liées à un acte/une dent**, horodatées et signées (secret médical). | 🟧 | Journal clinique | ✅ |
+
+---
+
+## P. Back-office V2 — paradigme « Spotlight » + assistant (proposition à arbitrer)
+> Alternative à la navigation sidebar (V1). Détail : `08-back-office-v2-spotlight.md`. Maquettes : `mockups/Nubia Spotlight.html` (vivant), `mockups/Nubia Comparatif.html` (V1⟷V2).
+
+| ID | User story | Prio | Écran | Design |
+|---|---|---|---|---|
+| US-V01 | En tant que pro, je veux une **barre de recherche centrale** (façon Spotlight) pour **ouvrir n'importe quelle vue ET trouver une entité** (patient, RDV, devis, document) au clavier, afin de naviguer sans sidebar. | 🟦 | Spotlight | ✅ |
+| US-V02 | …**« Demander à Nubia »** en langage naturel (résumé de journée, devis à relancer, chiffres du jour, vues personnalisées), afin d'obtenir une synthèse sans cliquer partout. **Post-traction · IA souveraine · pas d'aide à la décision clinique.** | 🟦 | Assistant Nubia | ✅ |
+| US-V03 | …ouvrir les vues **en plein écran par défaut**, les **réduire en fenêtre**, en avoir **plusieurs ouvertes** et les retrouver dans un **dock**, afin de travailler en multitâche. (État client — pas d'API.) | 🟦 | Fenêtres/dock | ✅ |
 
 ---
 
@@ -165,8 +186,9 @@
 ---
 
 ## Vue d'ensemble
-- **Maquettes hi-fi livrées** (`mockups/nubia-maquettes.html`) : ~15 écrans patient + 4 écrans back-office, design system émeraude appliqué.
-- **Flux écrits** : wedge (`04-ux-flows/01`) + parcours restants (`04-ux-flows/02`).
-- **Reste à affiner (🎨)** : écrans secondaires (consentements, questionnaire, réglages, historique signatures, financement, fiche patient détaillée), microcopy (`05-ux-copy/`), audit a11y (`06-accessibilite/`), handoff (`07-handoff/`).
+- **Maquettes hi-fi livrées** (4 fichiers, `mockups/` — index `mockups/README.md`) : app patient complète (5 onglets + wedge bout-en-bout + recherche/préparation RDV + couverture santé + proches + parcours de soins), back-office **V1 sidebar** (secrétariat ×3 + praticien : dashboard, mes patients, consultation au fauteuil, plan & devis, ordonnance, journal clinique, salle d'attente, onboarding RPPS) **et V2 Spotlight** (command-palette + assistant), plus un **comparatif V1⟷V2 par user story**. Design system émeraude clair/sombre appliqué.
+- **Flux écrits** : wedge (`04-ux-flows/01`) + parcours restants (`04-ux-flows/02`) + recherche/réservation (`04-ux-flows/03`).
+- **Nouveau** : `08-back-office-v2-spotlight.md` (paradigme Spotlight + garde-fous assistant).
+- **Reste à affiner (🎨)** : microcopy (`05-ux-copy/`), audit a11y (`06-accessibilite/` — la nav clavier Spotlight est à auditer), handoff (`07-handoff/`) à étendre aux nouveaux écrans praticien.
 
 > Prochaine itération : critique design (`design-critique`), microcopy FR, audit accessibilité, puis handoff dev Flutter.

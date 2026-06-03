@@ -17,7 +17,8 @@ Tout est ancré sur ce qui est déjà cadré côté produit/tech (voir `../docs/
 | `03-design-system/` | Tokens (couleurs, typo, espacements), composants, états | `design-system` |
 | `04-ux-flows/` | Parcours clés : `01` wedge, `02` parcours restants, `03` **recherche/réservation marketplace** | `design-critique` |
 | `ia-navigation.md` | **Architecture d'information unifiée** : l'app patient = UN univers (marketplace + espace perso), navigation à 5 onglets, mapping nav→toutes les user stories | — |
-| `mockups/` | **Maquettes HTML** au navigateur. ⭐ `nubia-univers.html` = univers complet unifié · `nubia-hifi.html` = **hi-fi + écran annoté inspect** · vues détaillées `nubia-maquettes.html`, `nubia-marketplace.html` | — |
+| `mockups/` | **Maquettes hi-fi HTML** (index : `mockups/README.md`). ⭐ `Nubia Patient.html` (app patient complète) · `Nubia Back-office.html` (V1 sidebar : secrétariat + praticien) · `Nubia Spotlight.html` (**V2 command-palette + assistant**) · `Nubia Comparatif.html` (V1⟷V2 par user story). Provenance (transcripts) dans `mockups/_provenance/`. | — |
+| `08-back-office-v2-spotlight.md` | **Paradigme back-office V2** (Spotlight + assistant « Demander à Nubia ») — proposition à arbitrer + garde-fous | `design-critique` |
 | `07-handoff/` | **Package handoff dev** prêt à builder : `00` fondations · `01` 22 composants (props Flutter, états, mesures) · `02` specs écran + critères d'acceptation + edge cases | `design-handoff` |
 | `05-ux-copy/` | Microcopy, messages d'erreur, états vides, CTA | `ux-copy` |
 | `06-accessibilite/` | Audit RGAA / WCAG 2.1 AA | `accessibility-review` |

@@ -109,6 +109,7 @@ Parcours : recherche → profil → **choisir motif** → **créneau** → (si n
 - **Cache** : Redis pour les recherches chaudes + dispos.
 - **CDN/tuiles carte** : fournisseur EU.
 - Le **modular monolith Rust / Axum** absorbe ces modules/crates (`directory`, `search`, `geo`, `booking`, `reviews`, `teleconsult`) sans microservices (sauf besoin avéré).
+- **Modules supplémentaires** issus des maquettes hi-fi (cf. `05` §10, `06` WS4/WS7) : `clinical` (consultation au fauteuil, journal clinique, plan de traitement), `prescription` (ordonnance — **sans moteur d'interactions**, cf. `07` §8.6), `onboarding-pro` (inscription + vérification RPPS/ADELI ANS), `assistant` (« Demander à Nubia » — **post-traction**, IA souveraine, organisationnel uniquement, `07` §8.7), recherche **back-office** cabinet-scoped (réutilise `search`). **Routing/itinéraire** : driver EU interchangeable, temps de trajet calculé à la volée, non stocké.
 
 ## 13. Impacts conformité (en plus de `07`)
 - **Vérification d'identité praticien** : adossement au **référentiel RPPS/ADELI (ANS)** ; ne pas lister un praticien non vérifié ; éviter l'usurpation.

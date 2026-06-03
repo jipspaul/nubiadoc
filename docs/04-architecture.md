@@ -201,7 +201,7 @@ Format court : Contexte · Décision · Conséquences · Statut.
 
 ### ADR-001 — Flutter pour les deux fronts
 - **Contexte** : app patient mobile + back-office cabinet ; exécution solo ; SEO sans objet sur app métier authentifiée.
-- **Décision** : Flutter partout (mobile + Web/Desktop). **Pas de Next.js / React** — aucune surface front justifiant un framework React, le fallback web QR reste un Flutter Web embarqué.
+- **Décision** : Flutter partout (mobile + Web/Desktop) — un seul écosystème Dart. Le fallback web QR (sans app) reste un petit Flutter Web embarqué, pas une stack front séparée.
 - **Conséquences** : un seul langage (Dart), un pipeline. Risque résiduel : Flutter Web moins à l'aise sur UI très data-dense → mitigé par CanvasKit / option Flutter Desktop pour le back-office.
 - **Statut** : Accepté.
 
@@ -209,7 +209,7 @@ Format court : Contexte · Décision · Conséquences · Statut.
 - **Contexte** : besoin de WebSockets, d'auth robuste et de forte concurrence (cap visé ~1M utilisateurs) sur un produit santé où la rigueur prime. L'équipe (solo) maîtrise déjà **Rust** et **Dart** — aucune nouvelle techno à apprendre vu que le front est Flutter.
 - **Décision** : **Rust / Axum** modular monolith (workspace de crates), un binaire unique lancé en modes `api`/`worker`. Pas de microservices au MVP (le seul service Python n'apparaît qu'avec l'IA, post-MVP). Accès données via **SQLx** (requêtes vérifiées à la compilation, contexte RLS par transaction), jobs async via **apalis** (Redis).
 - **Conséquences** : sûreté mémoire et typage fort de bout en bout, empreinte mémoire et coût serveur faibles, excellente concurrence Tokio pour les WebSockets et la montée en charge. Vélocité de dev un peu plus lente que TS et temps de compilation à surveiller, mais compensés par la maîtrise existante du langage. Découplage futur possible par extraction de crate.
-- **Statut** : Accepté. **Remplace l'ancien choix NestJS/TypeScript.** Alternatives écartées : Next.js (framework React, hors-sujet sur un front Flutter) ; Go (valable mais aucun avantage décisif face à Rust ici, et langage non maîtrisé).
+- **Statut** : Accepté. Alternative écartée : Go (valable mais aucun avantage décisif face à Rust ici, et langage non maîtrisé par l'équipe).
 
 ### ADR-003 — Multi-tenant par Row-Level Security PostgreSQL
 - **Décision** : une seule base, `cabinet_id` sur chaque table, **RLS activée** ; l'API positionne `SET app.current_cabinet_id` par requête.
@@ -219,13 +219,13 @@ Format court : Contexte · Décision · Conséquences · Statut.
 ### ADR-004 — apalis (Redis) pour l'async, pas Temporal/NATS
 - **Décision** : files & workflows simples via **apalis** (queue Rust) sur le Redis existant.
 - **Conséquences** : zéro infra supplémentaire ; retries/backoff/idempotence gérés par apalis et la discipline du dev. Temporal reconsidéré seulement si des workflows longs/complexes l'imposent (ré-évaluation post-traction).
-- **Statut** : Accepté. Remplace apalis (lié à l'ancienne stack Node).
+- **Statut** : Accepté.
 
 ### ADR-005 — Temps réel : WebSockets + FCM
 - **Contexte** : besoin confirmé de WebSockets (cf. échanges stack) ; Axum/Tokio les fournit nativement, sans surcoût de techno.
 - **Décision** : push patient via FCM (payload sans PII) ; mises à jour back-office via **WebSockets** (Axum, full-duplex). Le fan-out vers un user connecté sur une autre instance passe par **pub/sub Redis** (à câbler dès qu'il y a plusieurs instances ; inutile pour le POC mono-instance).
 - **Conséquences** : « ressenti temps réel » complet pour le collaboratif multi-postes. Vigilance : sur une connexion WS longue durée, réinjecter le contexte tenant/RLS à **chaque** opération DB, pas seulement à l'ouverture. Référence `03`.
-- **Statut** : Accepté. Remplace l'option WebSocket de l'ancienne stack.
+- **Statut** : Accepté.
 
 ### ADR-006 — Observabilité via PostHog EU Cloud
 - **Décision** : PostHog (EU) pour analytics produit + session replay + error tracking. Remplace Sentry. Logs/metrics infra via le managé Scaleway.

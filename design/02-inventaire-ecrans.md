@@ -19,9 +19,14 @@
 | Échéancier / financement | 6 | E3.8 | 🎭 |
 | Plan de traitement | 7 | E3.9 | 🎭 |
 | Passeport implantaire (+ export PDF) | 8 | E3.10 | 🎭 |
-| Suivi & prévention (rappels) | 9 | E3.11 | 🟧/🎭 |
+| Suivi & prévention (rappels) | 9 | E3.11 | 🟧 |
 | Infos pratiques du cabinet | 12 | E3.12 | 🟧 |
-| **(exclu)** téléconsult, chat IA, traduction, questionnaire intelligent, satisfaction | 13 | — | ❌ |
+| **Couverture santé** (régime oblig. : Régime général / AME / CSS ex-CMU-C ; n° sécu ; mutuelle + n° adhérent ; photo carte recto/verso ; tiers payant) | 3 | E3.1 | 🟧 |
+| **Mes proches / ayants droit** (enfants : chacun sa propre couverture) | 3 | E3.1 | 🟧 |
+| **Recherche de RDV** (slot-centré : « 1re dispo », bandeau de jours, créneaux) | 1 | E3.2 / E5(marketplace) | 🟧 |
+| **Préparer mon RDV** (adresse + plan, **itinéraire & temps de trajet** voiture/transports/à pied, à apporter, infos pratiques, check-in) | 1 | E3.2 | 🟧 |
+| Wedge **complet** : signature → paiement/acompte → reçu (3 variations) | 4, 6 | E3.6 / E5.x | 🟧 (hi-fi ✅) |
+| **(exclu MVP, réintégrés marketplace)** téléconsult ✅ marketplace · chat IA ❌ · traduction ❌ · questionnaire intelligent ❌ · satisfaction ❌ | 13 | — | ❌/marketplace |
 
 ## Back-office (Flutter Web/Desktop) — praticien & secrétariat
 
@@ -33,6 +38,15 @@
 | File messagerie priorisée (triage visuel) | S + D | E4.4 | 🟧 |
 | Liste d'attente / combler un trou | S | E4.5 | 🎭 |
 | Salle d'attente live (WebSocket) | S + D | T16 | 🟧 |
+| **Tableau de bord praticien** (journée clinique : agenda, patient suivant + alertes, à valider, production) | D | E4.6 | 🟧 (hi-fi ✅) |
+| **Mes patients** (index des dossiers suivis : plan en cours, prochain RDV, solde, alertes) | D | E4.6 | 🟧 |
+| **Consultation au fauteuil** (cœur clinique : contexte, **saisie d'actes CCAM**, note de séance, enchaînements) | D | E4.7 | 🟧 |
+| **Plan de traitement & devis** (phases, chiffrage, base Sécu/mutuelle, **reste à charge**, acompte, envoi) | D | E4.3 / E5.1 | 🟧 |
+| **Ordonnance / prescription** (document, signature électronique, envoi pharmacie) ⚠️ blocage allergie/interactions = **hors scope MDR** (cf. `../docs/07` §8) | D | E4.8 | 🟧 (display only) |
+| **Journal clinique** (notes manuelles **globales** + **liées à un acte/dent**, horodatées, secret médical) | D | E4.2 | 🟧 (hi-fi ✅) |
+| **App praticien — onboarding** : création de compte (rôle Praticien/Secrétariat), **inscription au service + vérification RPPS**, profil public & ouverture de créneaux | D/S | E4.9 | 🟧 |
+
+> **Deux paradigmes de back-office** : V1 sidebar (`mockups/Nubia Back-office.html`) et V2 « Spotlight » command-palette + assistant (`mockups/Nubia Spotlight.html`). Voir `08-back-office-v2-spotlight.md`. À trancher.
 
 ## Marketplace (face patient découverte — cf. `../docs/11`)
 
@@ -51,7 +65,7 @@
 | Profil public + créneaux en ligne | Praticien | US-M18, M19 | 🟧 |
 | Pilotage file d'attente | Praticien/Secr. | US-M20 | 🟧 |
 
-> Maquettes : `mockups/nubia-marketplace.html`. Flux : `04-ux-flows/03-recherche-reservation.md`.
+> Maquettes hi-fi : `mockups/Nubia Patient.html`, `mockups/Nubia Back-office.html`, `mockups/Nubia Spotlight.html`, `mockups/Nubia Comparatif.html` (index : `mockups/README.md`). Flux : `04-ux-flows/03-recherche-reservation.md`.
 
 ## Parcours critiques à dessiner en priorité
 1. **Le wedge** : Praticien crée un devis → patient le **signe** in-app → **paie l'acompte** → cabinet voit l'alerte. Doit être le flux le plus fluide (cf. `../docs/03`, `../docs/06` E5.x).
