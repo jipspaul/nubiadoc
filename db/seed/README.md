@@ -1,7 +1,7 @@
 # `db/seed/` — Jeu de données démo (à écrire)
 
 > Données **fictives uniquement**. ⚠️ **Aucune donnée patient réelle avant la barrière G3** (`../../docs/07` §11). Chargé par le rôle `nubia_seed`, jamais en prod sur données réelles.
-> **Statut : spécification** — le SQL/script de seed est à écrire après les migrations.
+> **Statut : implémenté** — `seed.sql` existe (idempotent, RLS-aware, chargé par `make seed`). Les champs sensibles y sont en **PLACEHOLDER** (`key_ref='SEED_PLACEHOLDER'`) ; le seed chiffré réel passera par le binaire `nubia` (cf. § « Règles »).
 
 ## Objectif
 Alimenter la **démo investisseurs** (les 12 rubriques du PDF, mockées 🎭) et les **tests e2e** avec un cabinet crédible. Idempotent (rejouable).

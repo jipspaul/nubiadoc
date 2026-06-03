@@ -1,7 +1,7 @@
 # `db/migrations/` — Plan des migrations (à écrire)
 
 > Migrations **SQLx** (SQL pur, forward-only, numérotées `NNNN_description.sql`). **Source unique** : l'API applique via `sqlx migrate run --source db/migrations`.
-> **Statut : spécification.** Le SQL n'est pas encore écrit — ce fichier fixe l'ordre, le contenu et les règles de chaque migration. DDL de référence = `../../docs/05-modele-de-donnees.md`.
+> **Statut : implémenté.** Les fichiers `0001→0012` existent et s'appliquent from scratch (`make test`). Ce fichier fixe l'ordre, le contenu et les règles ; DDL de référence = `../../docs/05-modele-de-donnees.md`. Les fichiers mergés sont **immuables** (toute correction = nouvelle migration).
 
 ## Règles
 - **Forward-only**, fichiers **immuables une fois mergés** (correction = nouvelle migration).

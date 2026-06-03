@@ -1,0 +1,43 @@
+# CI base de données (db/) — applique les migrations FROM SCRATCH puis lance les
+# tests pgTAP (le contrat) sous le rôle nubia_app. Aligné sur flutter-test.yml /
+# rust-ci.yml : runs-on docker + image locale baked (db-ci:stable).
+#
+# Image construite/chargée dans le runner avec : ./ci/db/load-into-runner.sh
+# La MÊME image sert de service Postgres 16/PostGIS/pgTAP ET de conteneur de job
+# (outils make/psql/sqlx/pg_prove). force_pull: false côté runner.
+on: [push, pull_request]
+jobs:
+  db-test:
+    runs-on: docker
+    container:
+      image: db-ci:stable
+    services:
+      postgres:
+        image: db-ci:stable
+        env:
+          POSTGRES_PASSWORD: postgres
+          # trust : pas de secret en CI (identique au modèle local, db/README §3)
+          POSTGRES_HOST_AUTH_METHOD: trust
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      # le service est joignable sous son nom de job "postgres"
+      PGHOST: postgres
+      PGPORT: "5432"
+      ADMIN_USER: postgres
+      DATABASE_URL: postgres://nubia_owner@postgres:5432/nubia
+      APP_DATABASE_URL: postgres://nubia_app@postgres:5432/nubia
+      SEED_DATABASE_URL: postgres://nubia_seed@postgres:5432/nubia
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versions
+        run: psql --version && sqlx --version && pg_prove --version
+      - name: Tests (reset → migrate → pgTAP sous nubia_app)
+        working-directory: db
+        run: make test
+      - name: Seed déterministe + garde-fous RLS
+        working-directory: db
+        run: make seed verify-rls lint

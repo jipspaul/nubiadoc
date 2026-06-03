@@ -1,0 +1,25 @@
+# db-ci:stable — image unique pour la CI de la base (db/).
+# Sert à la fois :
+#   - de SERVICE PostgreSQL 16 + PostGIS + pgTAP (extension côté serveur), et
+#   - de CONTENEUR DE JOB outillé (make, psql, sqlx-cli, pg_prove).
+# Construire & charger dans le runner DinD : ./ci/db/load-into-runner.sh
+# (image locale, force_pull: false côté runner — comme flutter-ci / rust-ci).
+
+# Plateforme fixée à amd64 : runners Forgejo amd64 + image PostGIS amd64 (cohérence
+# d'architecture entre l'étape de build sqlx et l'image finale ; cf. notes ci-dessous).
+#
+# --- étape build : sqlx-cli (même arch + même glibc bullseye que l'image finale) ---
+FROM --platform=linux/amd64 rust:1-bullseye AS sqlx
+RUN cargo install sqlx-cli --version ^0.8 --no-default-features --features postgres,rustls --root /out
+
+# --- image finale : PostGIS 16 + outils de test ---
+FROM --platform=linux/amd64 postgis/postgis:16-3.4
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      make \
+      postgresql-16-pgtap \
+      libtap-parser-sourcehandler-pgtap-perl \
+      ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=sqlx /out/bin/sqlx /usr/local/bin/sqlx
+RUN sqlx --version && pg_prove --version && make --version | head -1

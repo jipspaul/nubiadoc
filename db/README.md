@@ -1,7 +1,7 @@
 # `db/` — Gestion de la base PostgreSQL (référence)
 
 > **Source unique** de la couche données Nubia : migrations, rôles, policies RLS, seed démo. PostgreSQL 16 (Scaleway Managed **HDS** en prod, Podman en POC).
-> **Statut : spécification** — ce dossier décrit *comment* la DB est gérée et *quelles* migrations existeront. Le SQL exécutable n'est pas encore écrit (à produire au scaffolding, cf. `migrations/README.md`).
+> **Statut : implémenté** — le SQL exécutable est écrit (`migrations/0001→0012`, `tests/` pgTAP, `seed/seed.sql`, `Makefile`, `SCHEMA.md`). `make test` passe **from scratch** (118 tests pgTAP sous `nubia_app`). Ce README porte la gouvernance ; le *quoi* reste `../docs/05`.
 > **Modèle de données = `../docs/05-modele-de-donnees.md`** (entités, DDL de référence). Ce README porte la **gouvernance** : rôles, RLS, chiffrement, rétention, audit, runbook. Conformité : `../docs/07`. Archi/ADR : `../docs/04`.
 
 ## 1. Rôle du dossier & articulation
