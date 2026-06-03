@@ -1,0 +1,89 @@
+# Universal test-integrity guard.
+#
+# Runs on every pull_request. Diffs PR head vs base. Fails if :
+#   - any test file was deleted (cross-stack patterns)
+#   - any added line in test files contains a skip/ignore marker
+#
+# Required for auto-merge by the orchestrator. A repo without this workflow
+# CANNOT be auto-merged (safe default — orchestrator checks for a status
+# context matching *test-integrity*).
+#
+# Strategy retained: diff-based guard (not TDD enforcement).
+#   - Pros: universal cross-stack, single workflow, no agent-side coordination.
+#   - Cons: doesn't enforce that NEW code is actually covered by NEW tests.
+#     Coverage enforcement is a separate concern (deferred — adds complexity
+#     per-stack since coverage tools differ).
+#
+# Bypass procedure for LEGITIMATE test deletions (rare — e.g., refactor that
+# replaces a test with a stronger one): apply the label `test-integrity:bypass`
+# to the PR. The workflow detects this label and exits 0 with a warning.
+# REVIEWER (human) must verify the deletion was legitimate.
+on: [pull_request]
+
+jobs:
+  integrity:
+    runs-on: docker
+    container:
+      image: node:22-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for diff
+
+      - name: Resolve base / head
+        id: resolve
+        run: |
+          base_ref="${GITHUB_BASE_REF:-main}"
+          base_sha=$(git rev-parse "origin/${base_ref}")
+          head_sha="${GITHUB_SHA}"
+          echo "base_ref=${base_ref}"          | tee -a "$GITHUB_OUTPUT"
+          echo "base_sha=${base_sha}"          | tee -a "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}"          | tee -a "$GITHUB_OUTPUT"
+
+      - name: Detect deleted test files
+        run: |
+          set -e
+          base="${{ steps.resolve.outputs.base_sha }}"
+          head="${{ steps.resolve.outputs.head_sha }}"
+          # Patterns covered (cross-stack):
+          #   Rust  : *_test.rs, tests/**/*.rs (any *.rs under any tests/ dir)
+          #   JS/TS : *.test.{js,ts,jsx,tsx}, *.spec.{js,ts,jsx,tsx}, __tests__/**
+          #   Go    : *_test.go
+          #   Python: test_*.py, *_test.py, tests/**/*.py
+          #   Dart  : test/**/*.dart, integration_test/**/*.dart
+          deleted=$(git diff --diff-filter=D --name-only "$base" "$head" | grep -E '(_test\.(rs|go|py)$|/tests?/.*\.(rs|py|dart)$|/test/.*\.dart$|/__tests__/|\.(test|spec)\.(js|ts|jsx|tsx)$|/integration_test/.*\.dart$|^test_.*\.py$)' || true)
+          if [ -n "$deleted" ]; then
+            echo "::error::Test file(s) deleted in this PR:"
+            echo "$deleted" | sed 's/^/  - /'
+            echo "::error::Test deletion is not allowed without manual review. If legitimate (refactor), apply the 'test-integrity:bypass' label and re-run."
+            echo "DELETED_TESTS<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$deleted" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "OK: no test files deleted"
+
+      - name: Detect added skip / ignore markers
+        run: |
+          set -e
+          base="${{ steps.resolve.outputs.base_sha }}"
+          head="${{ steps.resolve.outputs.head_sha }}"
+          # Patterns matched in ADDED lines (start with '+', not '+++ ', inside diff hunks):
+          #   Rust  : #[ignore]               (with or without arguments)
+          #   JS/TS : it.skip(, describe.skip(, test.skip(, xit(, xdescribe(, xtest(
+          #   Python: @pytest.mark.skip, @pytest.mark.xfail, @unittest.skip, pytest.skip(
+          #   Go    : t.Skip(, t.SkipNow(
+          #   Dart  : skip: true (named param)
+          # Exclude markdown / rst / txt docs (false positives when docs cite
+          # these patterns as examples) and the workflow file itself.
+          added=$(git diff "$base" "$head" -- ':!*.md' ':!*.rst' ':!*.txt' ':!.forgejo/workflows/test-integrity.yml' | grep -E '^\+' | grep -v '^+++' | grep -nE '(#\[ignore|\.skip\(|xit\(|xdescribe\(|xtest\(|@pytest\.mark\.(skip|xfail)|@unittest\.skip|pytest\.skip\(|t\.Skip(Now)?\(|skip:\s*true)' || true)
+          if [ -n "$added" ]; then
+            echo "::error::New skip/ignore marker(s) introduced in this PR:"
+            echo "$added" | head -20 | sed 's/^/  /'
+            echo "::error::Skipping tests is not allowed. If legitimate (flaky test under investigation), apply the 'test-integrity:bypass' label and document why in the PR body."
+            exit 1
+          fi
+          echo "OK: no new skip/ignore markers"
+
+      - name: Summary
+        run: echo "test-integrity OK (no deleted tests, no new skip markers)"
