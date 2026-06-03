@@ -31,11 +31,11 @@ ON CONFLICT (id) DO NOTHING;
 -- =====================================================================
 -- Identité & membres (RPPS fictifs)
 -- =====================================================================
-INSERT INTO app_user (id, email, rpps, status) VALUES
-  ('a0000000-0000-0000-0000-0000000000a1', 'hugo.marin@cabinet-lyon.test',   '10100000001', 'active'),
-  ('a0000000-0000-0000-0000-0000000000a2', 'claire.lefevre@cabinet-lyon.test','10100000002', 'active'),
-  ('a0000000-0000-0000-0000-0000000000a3', 'sonia.accueil@cabinet-lyon.test', NULL,          'active'),
-  ('a0000000-0000-0000-0000-0000000000a4', 'admin@cabinet-lyon.test',         NULL,          'active')
+INSERT INTO app_user (id, email, password_hash, kind, rpps, status) VALUES
+  ('a0000000-0000-0000-0000-0000000000a1', 'hugo.marin@cabinet-lyon.test',   'SEED_PLACEHOLDER', 'pro', '10100000001', 'active'),
+  ('a0000000-0000-0000-0000-0000000000a2', 'claire.lefevre@cabinet-lyon.test','SEED_PLACEHOLDER', 'pro', '10100000002', 'active'),
+  ('a0000000-0000-0000-0000-0000000000a3', 'sonia.accueil@cabinet-lyon.test', 'SEED_PLACEHOLDER', 'pro', NULL,          'active'),
+  ('a0000000-0000-0000-0000-0000000000a4', 'admin@cabinet-lyon.test',         'SEED_PLACEHOLDER', 'pro', NULL,          'active')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO cabinet_membership (id, cabinet_id, user_id, role) VALUES
