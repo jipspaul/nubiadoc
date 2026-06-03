@@ -5,12 +5,17 @@ use serde_json::{json, Value};
 pub fn router() -> Router {
     Router::new()
         .route("/v1/health", get(health))
+        .route("/v1/health/live", get(health_live))
         .route("/v1/health/ready", get(health_ready))
         .route("/v1/metrics", get(metrics))
 }
 
 async fn health() -> Json<Value> {
     Json(json!({"status": "ok"}))
+}
+
+async fn health_live() -> Json<Value> {
+    Json(json!({"status": "alive"}))
 }
 
 async fn health_ready() -> Json<Value> {
