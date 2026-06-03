@@ -6,6 +6,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/health/ready", get(health_ready))
+        .route("/v1/metrics", get(metrics))
 }
 
 async fn health() -> Json<Value> {
@@ -14,4 +15,8 @@ async fn health() -> Json<Value> {
 
 async fn health_ready() -> Json<Value> {
     Json(json!({"status": "ready", "deps": {}}))
+}
+
+async fn metrics() -> &'static str {
+    "# HELP api_up 1\n# TYPE api_up gauge\napi_up 1\n"
 }
