@@ -1,38 +1,48 @@
 # CI base de données (db/) — applique les migrations FROM SCRATCH puis lance les
-# tests pgTAP (le contrat) sous le rôle nubia_app. Aligné sur flutter-test.yml /
-# rust-ci.yml : runs-on docker + image locale baked (db-ci:stable).
+# tests pgTAP (le contrat) sous le rôle nubia_app.
 #
-# Image construite/chargée dans le runner avec : ./ci/db/load-into-runner.sh
-# La MÊME image sert de service Postgres 16/PostGIS/pgTAP ET de conteneur de job
-# (outils make/psql/sqlx/pg_prove). force_pull: false côté runner.
+# IMPORTANT — Postgres inline (vs services:):
+# Le bloc `services:` de Forgejo Actions n'expose pas correctement le DNS du
+# service container sur notre act_runner (host 'postgres' = NXDOMAIN). On
+# démarre donc Postgres INLINE dans le job container (db-ci:stable contient
+# déjà tout le binaire postgres + extensions). Avantage bonus : un seul
+# container = pas de problème de réseau, identique au sidecar du
+# postgres-agent (cf. agentInfra/agents/templates/postgres-agent.yaml).
+#
+# Pré-requis : image db-ci:stable construite/chargée dans le runner DinD via
+# ./ci/db/load-into-runner.sh (force_pull: false côté runner — image locale).
 on: [push, pull_request]
 jobs:
   db-test:
     runs-on: docker
     container:
       image: db-ci:stable
-    services:
-      postgres:
-        image: db-ci:stable
-        env:
-          POSTGRES_PASSWORD: postgres
-          # trust : pas de secret en CI (identique au modèle local, db/README §3)
-          POSTGRES_HOST_AUTH_METHOD: trust
-        options: >-
-          --health-cmd="pg_isready -U postgres"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=20
     env:
-      # le service est joignable sous son nom de job "postgres"
-      PGHOST: postgres
+      PGHOST: localhost
       PGPORT: "5432"
       ADMIN_USER: postgres
-      DATABASE_URL: postgres://nubia_owner@postgres:5432/nubia
-      APP_DATABASE_URL: postgres://nubia_app@postgres:5432/nubia
-      SEED_DATABASE_URL: postgres://nubia_seed@postgres:5432/nubia
+      DB_NAME: nubia
+      DATABASE_URL: postgres://nubia_owner@localhost:5432/nubia
+      APP_DATABASE_URL: postgres://nubia_app@localhost:5432/nubia
+      SEED_DATABASE_URL: postgres://nubia_seed@localhost:5432/nubia
+      PGDATA: /tmp/pgdata
     steps:
       - uses: actions/checkout@v4
+      - name: Init + start Postgres inline (trust auth, listen sur localhost)
+        run: |
+          set -e
+          rm -rf $PGDATA && mkdir -p $PGDATA
+          chown -R postgres:postgres $PGDATA 2>/dev/null || true
+          gosu postgres initdb -D $PGDATA --auth-host=trust --auth-local=trust --username=postgres 2>&1 | tail -3
+          gosu postgres pg_ctl -D $PGDATA -l /tmp/pg.log -o "-c listen_addresses='localhost'" start
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -U postgres -q; then
+              echo "[ok] postgres ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          psql -h localhost -U postgres -d postgres -c "SELECT version();" | head -3
       - name: Versions
         run: psql --version && sqlx --version && pg_prove --version
       - name: Tests (reset → migrate → pgTAP sous nubia_app)
