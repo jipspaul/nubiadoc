@@ -6,7 +6,8 @@ SELECT * FROM no_plan();
 -- Fixtures minimales dans le cabinet A (RLS : on pose le contexte tenant).
 SET LOCAL app.current_cabinet_id = 'a0000000-0000-0000-0000-000000000001';
 INSERT INTO cabinet (id, raison_sociale) VALUES ('a0000000-0000-0000-0000-000000000001','Cabinet A');
-INSERT INTO app_user (id, email) VALUES ('a0000000-0000-0000-0000-0000000000a1','prat.a@example.test');
+INSERT INTO app_user (id, email, password_hash, kind)
+  VALUES ('a0000000-0000-0000-0000-0000000000a1','prat.a@example.test','$argon2id$fixture','pro');
 INSERT INTO practitioner (id, cabinet_id, user_id)
   VALUES ('a0000000-0000-0000-0000-0000000000c1','a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a1');
 INSERT INTO patient (id, cabinet_id, first_name, last_name)
@@ -52,12 +53,12 @@ SELECT throws_ok(
 
 -- ----- UNIQUE : email app_user -----
 SELECT throws_ok(
-  $$ INSERT INTO app_user (email) VALUES ('prat.a@example.test') $$,
+  $$ INSERT INTO app_user (email, password_hash, kind) VALUES ('prat.a@example.test','$h$','pro') $$,
   '23505', NULL, 'app_user.email dupliqué rejeté (UNIQUE, citext)');
 
 -- citext : insensible à la casse -> collision sur la casse différente
 SELECT throws_ok(
-  $$ INSERT INTO app_user (email) VALUES ('PRAT.A@EXAMPLE.TEST') $$,
+  $$ INSERT INTO app_user (email, password_hash, kind) VALUES ('PRAT.A@EXAMPLE.TEST','$h$','pro') $$,
   '23505', NULL, 'app_user.email collision casse (citext)');
 
 -- ----- ⭐ EXCLUDE : anti-double-booking praticien -----
