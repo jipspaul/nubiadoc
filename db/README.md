@@ -122,3 +122,4 @@ Reprend `../docs/07` §11 côté données : **HDS** contractualisé · **chiffre
 > Modèle complet : `../docs/05`. Contrats d'API consommateurs : `../docs/12`. Conformité : `../docs/07`. Plan de tests (dont RLS) : `../docs/08`.
 
 <!-- trigger CI to verify db-ci:stable now available in DinD -->
+# retrigger after db-ci rebuild with Node 22
