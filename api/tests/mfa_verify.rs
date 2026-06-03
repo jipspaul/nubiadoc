@@ -80,6 +80,7 @@ async fn mfa_verify_valid_totp_returns_200_and_activates_mfa() {
     let state = nubia_api::AppState {
         db: app_pool().await,
         jwt_secret: JWT_SECRET.into(),
+        mailer: std::sync::Arc::new(nubia_api::StubMailer),
     };
     let response = nubia_api::app(state)
         .oneshot(
@@ -120,6 +121,7 @@ async fn mfa_verify_invalid_totp_returns_422() {
     let state = nubia_api::AppState {
         db: app_pool().await,
         jwt_secret: JWT_SECRET.into(),
+        mailer: std::sync::Arc::new(nubia_api::StubMailer),
     };
     let response = nubia_api::app(state)
         .oneshot(
@@ -152,6 +154,7 @@ async fn mfa_verify_without_jwt_returns_401() {
     let state = nubia_api::AppState {
         db: app_pool().await,
         jwt_secret: JWT_SECRET.into(),
+        mailer: std::sync::Arc::new(nubia_api::StubMailer),
     };
     let response = nubia_api::app(state)
         .oneshot(

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     routing::{get, post},
     Json, Router,
@@ -7,22 +9,26 @@ use sqlx::PgPool;
 
 mod auth;
 
-/// État partagé entre les handlers qui ont besoin de la DB et du secret JWT.
-#[derive(Clone)]
-pub struct AppState {
-    pub db: PgPool,
-    pub jwt_secret: String,
+/// Trait d'envoi d'email — swappable (stub en test, Brevo/SMTP en prod).
+pub trait Mailer: Send + Sync {
+    /// Envoie le lien de reset. Ne doit jamais bloquer ni paniquer.
+    fn send_password_reset(&self, to: &str, token: &str);
 }
 
-/// Routeur complet avec état (DB + JWT) — utilisé en production et dans les tests d'intégration.
-pub fn app(state: AppState) -> Router {
-    Router::new()
-        .route("/v1/health", get(health))
-        .route("/v1/health/live", get(health_live))
-        .route("/v1/health/ready", get(health_ready))
-        .route("/v1/metrics", get(metrics))
-        .route("/v1/auth/mfa/verify", post(auth::mfa_verify))
-        .with_state(state)
+/// Implémentation no-op pour les tests et le dev local.
+pub struct StubMailer;
+
+impl Mailer for StubMailer {
+    fn send_password_reset(&self, _to: &str, _token: &str) {}
+}
+
+/// État partagé injecté dans les handlers via `State<AppState>`.
+#[derive(Clone)]
+pub struct AppState {
+    /// Pool runtime (rôle nubia_app, RLS active). Jamais le pool owner.
+    pub db: PgPool,
+    pub jwt_secret: String,
+    pub mailer: Arc<dyn Mailer>,
 }
 
 /// Routeur sans état — conservé pour les tests des endpoints statiques existants.
@@ -32,6 +38,18 @@ pub fn router() -> Router {
         .route("/v1/health/live", get(health_live))
         .route("/v1/health/ready", get(health_ready))
         .route("/v1/metrics", get(metrics))
+}
+
+/// Application complète : santé + auth. Utilisé en production et dans les tests d'intégration auth.
+pub fn app(state: AppState) -> Router {
+    Router::new()
+        .route("/v1/health", get(health))
+        .route("/v1/health/live", get(health_live))
+        .route("/v1/health/ready", get(health_ready))
+        .route("/v1/metrics", get(metrics))
+        .route("/v1/auth/mfa/verify", post(auth::mfa_verify))
+        .route("/v1/auth/password/forgot", post(auth::forgot_password))
+        .with_state(state)
 }
 
 async fn health() -> Json<Value> {
