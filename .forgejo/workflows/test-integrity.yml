@@ -18,6 +18,11 @@
 # replaces a test with a stronger one): apply the label `test-integrity:bypass`
 # to the PR. The workflow detects this label and exits 0 with a warning.
 # REVIEWER (human) must verify the deletion was legitimate.
+#
+# `name` is set explicitly so the commit status context becomes
+# `test-integrity / integrity (<event>)`, used by the orchestrator's
+# AUTO_MERGE_REQUIRE_STATUS substring match.
+name: test-integrity
 on: [pull_request]
 
 jobs:
