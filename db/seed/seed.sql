@@ -38,6 +38,15 @@ INSERT INTO app_user (id, email, password_hash, kind, rpps, status) VALUES
   ('a0000000-0000-0000-0000-0000000000a4', 'admin@cabinet-lyon.test',         'SEED_PLACEHOLDER', 'pro', NULL,          'active')
 ON CONFLICT (id) DO NOTHING;
 
+-- Comptes patient (portail patient, kind='patient') — 1 par patient_account.
+INSERT INTO app_user (id, email, password_hash, kind) VALUES
+  ('a0000000-0000-0000-0000-0000000000a5', 'marc.dubois@patient.test',     'SEED_PLACEHOLDER', 'patient'),
+  ('a0000000-0000-0000-0000-0000000000a6', 'leo.dubois@patient.test',      'SEED_PLACEHOLDER', 'patient'),
+  ('a0000000-0000-0000-0000-0000000000a7', 'jade.dubois@patient.test',     'SEED_PLACEHOLDER', 'patient'),
+  ('a0000000-0000-0000-0000-0000000000a8', 'camille.rousseau@patient.test','SEED_PLACEHOLDER', 'patient'),
+  ('a0000000-0000-0000-0000-0000000000a9', 'karim.saidi@patient.test',     'SEED_PLACEHOLDER', 'patient')
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO cabinet_membership (id, cabinet_id, user_id, role) VALUES
   ('b0000000-0000-0000-0000-0000000000b1','11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-0000000000a1','practitioner'),
   ('b0000000-0000-0000-0000-0000000000b2','11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-0000000000a2','practitioner'),
@@ -93,14 +102,14 @@ ON CONFLICT (id) DO NOTHING;
 -- =====================================================================
 -- Comptes patient (plateforme) + proches + couverture santé
 -- =====================================================================
-INSERT INTO patient_account (id, first_name, last_name, birth_date, contact,
+INSERT INTO patient_account (id, app_user_id, first_name, last_name, birth_date, contact,
                              regime_obligatoire, tiers_payant, mutuelle) VALUES
-  ('e0000000-0000-0000-0000-0000000000e1','Marc','Dubois','1979-03-14','{"tel":"+33600000001"}','regime_general', true,
+  ('e0000000-0000-0000-0000-0000000000e1','a0000000-0000-0000-0000-0000000000a5','Marc','Dubois','1979-03-14','{"tel":"+33600000001"}','regime_general', true,
    '{"amc":"MGEN","numero_adherent":"MGEN-001"}'),
-  ('e0000000-0000-0000-0000-0000000000e2','Léo','Dubois','2015-09-01','{}','regime_general', true, '{"amc":"MGEN"}'),
-  ('e0000000-0000-0000-0000-0000000000e3','Jade','Dubois','2018-11-20','{}','regime_general', true, '{"amc":"MGEN"}'),
-  ('e0000000-0000-0000-0000-0000000000e4','Camille','Rousseau','1990-07-22','{"tel":"+33600000004"}','regime_general', false, '{}'),
-  ('e0000000-0000-0000-0000-0000000000e5','Karim','Saïdi','1985-01-30','{"tel":"+33600000005"}','ame', true, '{}')
+  ('e0000000-0000-0000-0000-0000000000e2','a0000000-0000-0000-0000-0000000000a6','Léo','Dubois','2015-09-01','{}','regime_general', true, '{"amc":"MGEN"}'),
+  ('e0000000-0000-0000-0000-0000000000e3','a0000000-0000-0000-0000-0000000000a7','Jade','Dubois','2018-11-20','{}','regime_general', true, '{"amc":"MGEN"}'),
+  ('e0000000-0000-0000-0000-0000000000e4','a0000000-0000-0000-0000-0000000000a8','Camille','Rousseau','1990-07-22','{"tel":"+33600000004"}','regime_general', false, '{}'),
+  ('e0000000-0000-0000-0000-0000000000e5','a0000000-0000-0000-0000-0000000000a9','Karim','Saïdi','1985-01-30','{"tel":"+33600000005"}','ame', true, '{}')
 ON CONFLICT (id) DO NOTHING;
 
 -- Marc est titulaire (autorité parentale) de Léo et Jade

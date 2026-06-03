@@ -113,6 +113,8 @@ SELECT fk_ok('patient', 'cabinet_id', 'cabinet', 'id');
 SELECT fk_ok('appointment', 'practitioner_id', 'practitioner', 'id');
 SELECT fk_ok('quote_item', 'quote_id', 'quote', 'id');
 SELECT fk_ok('patient', 'patient_account_id', 'patient_account', 'id');  -- lien plateforme (0009)
+SELECT fk_ok('patient_account', 'app_user_id', 'app_user', 'id');        -- FK + CASCADE (0015, #178)
+SELECT col_not_null('patient_account', 'app_user_id', 'patient_account.app_user_id NOT NULL (0015)');
 SELECT fk_ok('quote_item', 'phase_id', 'treatment_phase', 'id');         -- plan de traitement (0010)
 
 -- ----- Lien clinique <-> compte plateforme & couverture (0010) -----

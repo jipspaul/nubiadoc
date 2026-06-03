@@ -75,8 +75,11 @@ SELECT throws_ok(
 -- 4. ENTITÉS PLATEFORME : visibles HORS contexte cabinet.
 -- ===========================================================================
 -- patient_account (hors RLS cabinet) : créé puis visible sans GUC
-INSERT INTO patient_account (id, first_name, last_name)
-  VALUES ('a0000000-0000-0000-0000-0000000000e1','Compte','Global');
+-- app_user 'patient' requis depuis 0015 (app_user_id NOT NULL). UUID ff évite le conflit seed.
+INSERT INTO app_user (id, email, password_hash, kind)
+  VALUES ('a0000000-0000-0000-0000-0000000000ff','patient.rls@example.test','$argon2id$fixture','patient');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+  VALUES ('a0000000-0000-0000-0000-0000000000e1','a0000000-0000-0000-0000-0000000000ff','Compte','Global');
 -- annuaire public : provider listé (créé sous contexte A car write = cabinet)
 INSERT INTO provider (id, cabinet_id, display_name, is_listed)
   VALUES ('a0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001','Dr Public', true);
