@@ -7,22 +7,23 @@ Ce dossier est **vierge** (hors ce README) : le workspace Cargo décrit ci-desso
 ## Démarrage local
 ```bash
 cd api
-cp .env.example .env          # ajuste DATABASE_URL / REDIS_URL si besoin
+# Crée un .env (DATABASE_URL runtime = nubia_app ; URL owner séparée pour les migrations)
 
 # DB + Redis + MinIO + Mailpit en local via Podman (depuis la racine du repo) :
 podman-compose -f ../infra/poc/compose.yml up -d postgres redis minio mailpit
 
-# Applique le schéma + la RLS :
+# Applique le schéma + la RLS — migrations gérées dans ../db/ (source unique) :
 cargo install sqlx-cli --no-default-features --features postgres   # une fois
-sqlx migrate run
+sqlx migrate run --source ../db/migrations                         # avec l'URL owner (nubia_owner)
 
 cargo run --bin nubia-api     # API sur http://localhost:3000  (GET /health)
 # Worker (même binaire/workspace, autre mode) :
 APP_MODE=worker cargo run --bin nubia-api
 ```
 
-> ⚠️ Pour que la RLS s'applique vraiment, l'app doit se connecter avec un rôle **NON-superuser** (`nubia_app`),
-> pas avec `postgres`. Voir la CI Forgejo (`.forgejo/workflows/`) qui crée ce rôle.
+> ⚠️ Pour que la RLS s'applique vraiment, **le runtime** se connecte avec le rôle **NON-superuser** `nubia_app`
+> (`NOBYPASSRLS`), pas `postgres` ni l'owner. Les **migrations** s'appliquent avec `nubia_owner`. Voir `../db/README.md` §3
+> et la CI Forgejo (`.forgejo/workflows/`) qui crée ces rôles.
 
 ## Commandes
 | Commande | Effet |
@@ -46,10 +47,10 @@ crates/
 │   ├── realtime/                 # hub WebSocket + fan-out pub/sub Redis
 │   └── drivers/storage/          # driver interchangeable POC(MinIO)/prod(Scaleway)
 └── modules/                      # cabinet, identity, scheduling, … (cf. docs/04 §4)
-migrations/                       # sqlx migrate (SQL) : tables + RLS policies
 tests/
 └── rls_isolation.rs             # ⭐ test sécurité : aucune fuite inter-cabinet
 ```
+> Les **migrations SQL** ne vivent pas ici : elles sont dans **`../db/migrations/`** (source unique, cf. `../db/README.md`). L'API les applique via `sqlx migrate run --source ../db/migrations`.
 
 ## Conventions clés
 - **Toute** lecture/écriture tenant passe par `with_tenant(cabinet_id, |tx| ...)` → `SET LOCAL app.current_cabinet_id`.

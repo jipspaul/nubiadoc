@@ -31,9 +31,10 @@ Ce projet (Nubia, SaaS dentaire) est travaillé **depuis plusieurs Mac**. La con
 - Exception : un gros chantier multi-sessions peut avoir un `docs/progress/T<xx>.md` dédié, pointé depuis `PROGRESS.md`.
 
 ## Repères du repo
-- `docs/` — cadrage : `01` critique · `02` découpe · `03` temps réel · `04` archi · `05` données · `06` specs · `07` conformité · `08` plan/tests · `09` backlog d'issues. (`10` POC Podman : à recréer, perdu au reset.)
+- `docs/` — cadrage : `01` critique · `02` découpe · `03` temps réel · `04` archi · `05` données · `06` specs · `07` conformité · `08` plan/tests · `09` backlog d'issues · `11` marketplace · `12` **référence API (toutes les routes/contrats)**. (`10` POC Podman : à recréer, perdu au reset.)
 - `design/` — design/UX : `01` personas · `02` inventaire écrans · `03-design-system/` (tokens, composants, thème Flutter) · `04` flux · `05` copy · `06` a11y · `07` handoff.
 - `api/` — backend **Rust / Axum** (workspace Cargo, cible Bloc A : RLS, tenancy, `/health`, drivers). SQLx + migrations. À scaffolder (NUB-T0.1→T1.2).
+- `db/` — **gestion PostgreSQL** (source unique) : `README` (rôles, RLS, chiffrement, rétention, audit, runbook), `migrations/` (plan + futurs SQL, l'API pointe dessus via `--source ../db/migrations`), `seed/` (démo fictive). Modèle = `docs/05`.
 - `flutter_demo/` — PoC Flutter (CI). `infra/poc/` — POC Podman (compose + Caddy). `tests/e2e/` — e2e web.
 
 ## Garde-fous produit

@@ -2,6 +2,7 @@
 
 > Schéma de la base PostgreSQL 16 (Scaleway Managed HDS) : entités, relations, multi-tenant par RLS, chiffrement colonne, rétention/soft-delete, champs JSONB. Aligné sur `04-architecture.md`.
 > Les DDL sont des **esquisses de référence** (pas le schéma final exécutable) : types et contraintes y sont indicatifs.
+> 🛠️ **Gestion de la base** (rôles, RLS opérationnelle, runbook migrations, seed, environnements) : **`../db/README.md`** ; plan des fichiers de migration : `../db/migrations/README.md`. `db/` est la **source unique** des migrations.
 
 ## Sommaire
 1. Conventions

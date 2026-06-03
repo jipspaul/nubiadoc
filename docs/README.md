@@ -19,13 +19,14 @@ plan d'exécution réaliste.
 | [`02-decoupe-projet.md`](./02-decoupe-projet.md) | Découpe step-by-step : organisation cible « équipe de 10 » (workstreams), épics → user stories, **roadmap réaliste solo** avec jalons Go/No-Go, backlog MoSCoW, conventions de delivery (DoR/DoD). |
 | [`03-temps-reel-et-sync.md`](./03-temps-reel-et-sync.md) | Synchro mobile ↔ cabinet : tri des interactions « écosystème vivant » (MVP / post-traction / écarté), garde-fous médicolégaux, architecture de synchro retenue, décision app Compagnon praticien. |
 | [`04-architecture.md`](./04-architecture.md) | Architecture cible : schémas C4 (contexte/conteneurs/composants), flux clés, **10 ADRs**, contrats d'API REST, sécurité transverse, environnements. |
-| [`05-modele-de-donnees.md`](./05-modele-de-donnees.md) | Schéma PostgreSQL : entités par domaine (DDL de référence), **RLS multi-tenant**, chiffrement colonne, rétention/soft-delete, JSONB, index. |
+| [`05-modele-de-donnees.md`](./05-modele-de-donnees.md) | Schéma PostgreSQL : entités par domaine (DDL de référence), **RLS multi-tenant**, chiffrement colonne, rétention/soft-delete, JSONB, index. **Gestion/migrations** : `../db/`. |
 | [`06-specs-fonctionnelles.md`](./06-specs-fonctionnelles.md) | User stories par épic (E3.1→E5.5) en **Gherkin**, marquage prod/démo, critères d'acceptation transverses. |
 | [`07-conformite.md`](./07-conformite.md) | Checklist opérationnelle **HDS / RGPD / AIPD / eIDAS / AI Act / MDR / Ségur** avec statuts, et la **barrière minimale avant le pilote prod (G3)**. |
 | [`08-plan-action-deploiement.md`](./08-plan-action-deploiement.md) | Plan d'exécution **tâche par tâche** (T0→T24) ordonné par **dépendances** (DAG), **gate de validation testée** par tâche, **stratégie de tests near-100%** (RLS/sécurité, mutation, seuils CI), pipeline CI/CD et procédure de release staging→démo→prod. |
 | [`09-backlog-issues.md`](./09-backlog-issues.md) | **Backlog issue-ready** : chaque brique éclatée en issues `NUB-T<n>.<k>` avec micro-étapes cochables, dépendances, critères d'acceptation/tests, labels et estimations. Stack actée (Rust/Axum + SQLx, pattern RLS détaillé). À copier directement dans tes issues. |
 | `10-deploiement-poc-vps.md` | ⚠️ **Perdu au reset git** (POC mono-VPS Podman). À recréer ; `infra/poc/` (compose + Caddyfile) est sauvé. |
 | [`11-marketplace-recherche.md`](./11-marketplace-recherche.md) | **Scope marketplace** : plateforme deux faces, compte patient global, recherche multi-axes (adresse/GPS/praticien/spécialité/besoin), taxonomie multi-profession, carte, salle d'attente virtuelle, téléconsult, avis, ranking, impacts archi/données (PostGIS, Meilisearch), conformité (RPPS, avis, géoloc). |
+| [`12-api-reference.md`](./12-api-reference.md) | **Référence API complète** (contrats) prête à développer : conventions transverses (auth JWT, RBAC, RLS, idempotence, erreurs RFC 9457, pagination), **toutes les routes** par module (auth/onboarding RPPS, cabinet, compte/couverture/proches, RDV/préparation, docs, messagerie, **wedge**, marketplace, back-office clinique/devis/ordonnance, notifications, **WebSocket**, webhooks), + annexes (V2 assistant, codes d'erreur, matrice rôles, ordre d'implémentation). |
 
 > Design & UX : voir [`../design/`](../design/) — design system, user stories (dont marketplace), flux et **maquettes HTML** (`design/mockups/nubia-maquettes.html` + `nubia-marketplace.html`).
 
@@ -34,7 +35,7 @@ plan d'exécution réaliste.
 1. Commence par la **critique** (`01`) — elle pose le diagnostic et les arbitrages.
 2. Enchaîne sur la **découpe** (`02`) — elle traduit ces arbitrages en plan d'action.
 3. `03` à `07` détaillent la mise en œuvre : synchro, architecture, données, specs, conformité.
-4. **Pour démarrer le dev : `08`** (l'ordre des tâches, dépendances, tests) puis **`09`** (les issues prêtes à créer, une par une).
+4. **Pour démarrer le dev : `08`** (l'ordre des tâches, dépendances, tests) puis **`09`** (les issues prêtes à créer, une par une) et **`12`** (le contrat de toutes les routes API à implémenter).
 
 ## Les 3 décisions structurantes retenues
 
