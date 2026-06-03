@@ -2,8 +2,7 @@
 
 Backend **Rust / Axum** (modular monolith, workspace de crates) — multi-tenant par **Row-Level Security** PostgreSQL.
 Scaffold des briques **T0/T1** (cf. `../docs/08`, `../docs/09`). Runtime conteneurs : **Podman** (cf. `../docs/10`).
-
-> ⚠️ **Migration en cours (03/06/2026)** : l'ancien scaffold **NestJS + Prisma** est **obsolète** (décision stack Rust, cf. `../PROGRESS.md` et `../docs/04` ADR-002). Les fichiers Node/TS encore présents dans ce dossier sont à supprimer et à remplacer par le workspace Cargo décrit ci-dessous. Ce README décrit la **cible Rust**.
+Ce dossier est **vierge** (hors ce README) : le workspace Cargo décrit ci-dessous est **à créer**.
 
 ## Démarrage local
 ```bash
