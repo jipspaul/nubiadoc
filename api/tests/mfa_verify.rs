@@ -47,7 +47,7 @@ async fn app_pool() -> PgPool {
 async fn insert_test_user(pool: &PgPool) -> Uuid {
     let id = Uuid::new_v4();
     sqlx::query!(
-        "INSERT INTO app_user (id, email, password_hash) VALUES ($1, $2, 'hash')",
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
         id,
         format!("mfa-test+{}@nubia.test", id),
     )
