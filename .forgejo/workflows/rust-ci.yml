@@ -1,0 +1,17 @@
+on: [push, pull_request]
+jobs:
+  rust:
+    runs-on: docker
+    container:
+      image: rust-ci:stable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Format
+        working-directory: api
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        working-directory: api
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Test
+        working-directory: api
+        run: cargo nextest run --workspace --all-features
