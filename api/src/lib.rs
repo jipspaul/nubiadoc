@@ -47,6 +47,7 @@ pub fn app(state: AppState) -> Router {
         .route("/v1/health/live", get(health_live))
         .route("/v1/health/ready", get(health_ready))
         .route("/v1/metrics", get(metrics))
+        .route("/v1/auth/register", post(auth::register))
         .route("/v1/auth/mfa/verify", post(auth::mfa_verify))
         .route("/v1/auth/password/forgot", post(auth::forgot_password))
         .with_state(state)
