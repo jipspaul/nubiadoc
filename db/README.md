@@ -120,3 +120,5 @@ Ordre prévu des fichiers (le SQL est à écrire ; ancré sur `../docs/05`) — 
 Reprend `../docs/07` §11 côté données : **HDS** contractualisé · **chiffrement colonne + RLS + audit append-only** effectifs et **testés** · rôle `nubia_app` non-superuser vérifié · **sauvegardes + test de restauration** · scrubbing des logs (zéro PII). Tant que rouge : démo (données fictives) OK, **prod NON**.
 
 > Modèle complet : `../docs/05`. Contrats d'API consommateurs : `../docs/12`. Conformité : `../docs/07`. Plan de tests (dont RLS) : `../docs/08`.
+
+<!-- trigger CI to verify db-ci:stable now available in DinD -->
