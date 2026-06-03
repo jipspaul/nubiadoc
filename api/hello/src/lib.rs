@@ -1,6 +1,8 @@
 //! Minimal greeting library, PoC for the ci-rust stack.
 
 /// Returns a greeting for the given name.
+///
+/// Used by the rust-ci proof-of-concept.
 pub fn greet(name: &str) -> String {
     format!("Hello, {name}!")
 }
