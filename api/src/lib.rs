@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use axum::{
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde_json::{json, Value};
 use sqlx::PgPool;
+use uuid::Uuid;
 
 mod auth;
 
@@ -20,6 +21,19 @@ pub struct StubMailer;
 
 impl Mailer for StubMailer {
     fn send_password_reset(&self, _to: &str, _token: &str) {}
+}
+
+/// Trait d'enqueue de jobs apalis — swappable (stub en test, apalis en prod).
+pub trait JobDispatcher: Send + Sync {
+    /// Enfile un job de vérification ANS. Fire-and-forget : ne bloque pas.
+    fn enqueue_verify_provider(&self, verification_id: Uuid);
+}
+
+/// Implémentation no-op pour les tests et le dev local.
+pub struct StubJobDispatcher;
+
+impl JobDispatcher for StubJobDispatcher {
+    fn enqueue_verify_provider(&self, _verification_id: Uuid) {}
 }
 
 /// État partagé injecté dans les handlers via `State<AppState>`.
@@ -41,7 +55,15 @@ pub fn router() -> Router {
 }
 
 /// Application complète : santé + auth. Utilisé en production et dans les tests d'intégration auth.
+///
+/// Le `JobDispatcher` est injecté comme `Extension` (stub no-op par défaut).
+/// Pour la production avec un dispatcher réel, utiliser [`app_with_dispatcher`].
 pub fn app(state: AppState) -> Router {
+    app_with_dispatcher(state, Arc::new(StubJobDispatcher))
+}
+
+/// Variante de [`app`] permettant d'injecter un dispatcher personnalisé (prod, tests avancés).
+pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) -> Router {
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/health/live", get(health_live))
@@ -57,6 +79,8 @@ pub fn app(state: AppState) -> Router {
         .route("/v1/auth/password/reset", post(auth::reset_password))
         .route("/v1/me", get(auth::me))
         .route("/v1/pro/register", post(auth::pro_register))
+        .route("/v1/pro/verification", post(auth::pro_verification))
+        .layer(Extension(dispatcher))
         .with_state(state)
 }
 

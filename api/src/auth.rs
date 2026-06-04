@@ -6,7 +6,7 @@ use argon2::{
 };
 use async_trait::async_trait;
 use axum::{
-    extract::{FromRequestParts, State},
+    extract::{Extension, FromRequestParts, State},
     http::{request::Parts, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -15,11 +15,12 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::Row;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
-use crate::AppState;
+use crate::{AppState, JobDispatcher};
 
 /// Corps de la requête `POST /v1/auth/login`.
 #[derive(Deserialize)]
@@ -187,6 +188,7 @@ pub(crate) enum AppError {
     PasswordPolicy,
     Forbidden,
     InvalidToken,
+    Conflict,
 }
 
 impl IntoResponse for AppError {
@@ -236,6 +238,11 @@ impl IntoResponse for AppError {
             AppError::InvalidToken => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(json!({"code": "validation_error", "detail": "Token invalide ou expiré."})),
+            )
+                .into_response(),
+            AppError::Conflict => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "verification_pending"})),
             )
                 .into_response(),
         }
@@ -984,4 +991,148 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
         e,
         sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505")
     )
+}
+
+/// Claims JWT pro avec rôle admin — extrait du token émis par `POST /v1/pro/register`.
+///
+/// `exp` absent du struct : validé par jsonwebtoken sur le JSON brut (`validate_exp = true`).
+#[derive(Debug, Deserialize)]
+pub(crate) struct ProAdminClaims {
+    sub: Uuid,
+    kind: String,
+    /// `cabinet_id` porté par le token (jamais du body/query — invariant tenancy).
+    cabinet_id: Uuid,
+    role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for ProAdminClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        let claims = decode::<ProAdminClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if claims.kind != "pro" {
+            return Err(AppError::Forbidden);
+        }
+        if claims.role != "admin" {
+            return Err(AppError::Forbidden);
+        }
+
+        Ok(claims)
+    }
+}
+
+/// Corps de la requête `POST /v1/pro/verification`.
+#[derive(Deserialize)]
+pub struct ProVerificationBody {
+    id_type: String,
+    identifier: String,
+}
+
+/// Réponse de `POST /v1/pro/verification`.
+#[derive(Serialize)]
+pub struct ProVerificationResponse {
+    verification_id: Uuid,
+    status: String,
+}
+
+/// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
+///
+/// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
+/// Un seul enregistrement `pending` autorisé par provider (`07` §4.7) : renvoie
+/// `409 verification_pending` si un enregistrement pending existe déjà.
+pub async fn pro_verification(
+    State(state): State<AppState>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
+    claims: ProAdminClaims,
+    Json(body): Json<ProVerificationBody>,
+) -> Result<(StatusCode, Json<ProVerificationResponse>), AppError> {
+    if body.id_type != "rpps" && body.id_type != "adeli" {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Pose le contexte tenant (SET LOCAL) pour que les policies RLS provider s'appliquent.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let provider_row =
+        sqlx::query("SELECT id FROM provider WHERE cabinet_id = $1 AND user_id = $2")
+            .bind(claims.cabinet_id)
+            .bind(claims.sub)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::Internal)?;
+    let provider_id: Uuid = provider_row.try_get(0).map_err(|_| AppError::Internal)?;
+
+    // Règle métier : un seul pending par provider (§07 §4.7).
+    let pending_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM provider_verification \
+         WHERE provider_id = $1 AND status = 'pending'",
+    )
+    .bind(provider_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if pending_count > 0 {
+        return Err(AppError::Conflict);
+    }
+
+    let verification_row = sqlx::query(
+        "INSERT INTO provider_verification (provider_id, identifier, id_type) \
+         VALUES ($1, $2, $3) RETURNING id",
+    )
+    .bind(provider_id)
+    .bind(&body.identifier)
+    .bind(&body.id_type)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let verification_id: Uuid = verification_row
+        .try_get(0)
+        .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Enfile le job de vérification ANS (worker hors scope de cette issue).
+    dispatcher.enqueue_verify_provider(verification_id);
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        provider_id = %provider_id,
+        verification_id = %verification_id,
+        "provider verification submitted"
+    );
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(ProVerificationResponse {
+            verification_id,
+            status: "pending".to_string(),
+        }),
+    ))
 }
