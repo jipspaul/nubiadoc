@@ -47,11 +47,13 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 | Gestion DB | `db/` : migrations `0001→0012` + tests pgTAP + seed + Makefile + CI Forgejo + SCHEMA.md | ✅ (SQL exécutable ; `make test` vert from scratch — 118 tests) |
 | T0 | Repo + CI (Forgejo) + infra POC | 🟨 scaffold Rust/Axum à créer + CI `api/` Forgejo |
 | T1 | Multi-tenant + RLS | ⬜ à implémenter en Rust/SQLx |
-| T2 | Auth + RBAC | 🟨 (register ✅, login/refresh/logout ⬜) |
+| T2 | Auth + RBAC | 🟨 (register ✅, login ✅, refresh ✅, logout ✅, forgot/reset password ✅, MFA verify ✅) |
 | T3 | crypto + audit + tenancy | ⬜ (tenancy fait) |
 | T4-T24 | Domaines, wedge, démo, prod | ⬜ |
 
 ## Dernier point
+2026-06-04 — **`POST /v1/auth/password/reset` implémenté (issue #187).** Handler Axum public (sans JWT) : vérifie le token SHA-256 (non expiré), valide la politique mot de passe (≥8 chars, ≥1 chiffre), met à jour `password_hash` via argon2, invalide le token (`NULL`). Token inexistant ou expiré → `422 {"code":"validation_error","detail":"Token invalide ou expiré."}`. 3 tests d'intégration verts (`cargo nextest`). `cargo clippy` + `cargo fmt --check` clean. **Bon moment pour committer.** Message suggéré : « Ajoute POST /v1/auth/password/reset — reset du mot de passe via token ».
+
 2026-06-03 (7) — **`POST /v1/auth/register` implémenté (issue #182).** Handler Axum public (sans JWT) : transaction atomique `app_user` + `patient_account` + `consent_record(purpose='soins')` + `refresh_token`. Mot de passe haché argon2 (Argon2::default). JWT patient émis (sub/kind/account_id, 15 min). Erreurs : `409 email_taken`, `422 cgu_required`, `422 password_policy`. 3 tests d'intégration verts (`cargo nextest`). `cargo clippy` + `cargo fmt --check` clean. **Bon moment pour committer.** Message suggéré : « Ajoute POST /v1/auth/register — création compte patient ».
 
 
