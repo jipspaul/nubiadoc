@@ -1,30 +1,23 @@
 ---
-import Default from '../layouts/Default.astro';
+import PublicLayout from '../layouts/PublicLayout.astro';
 ---
-<Default title="Nubia Web Console — Accueil">
-  <h1 style="margin-bottom:0.75rem;">Nubia Web Console</h1>
-  <p style="color:var(--muted);margin-bottom:2rem;">
-    Console de test pour les endpoints de l'API Nubia. Usage développement uniquement.
+<PublicLayout title="Bienvenue sur Nubia">
+  <h1>Bienvenue sur Nubia</h1>
+  <div id="cta-guest" style="display:flex;gap:1rem;margin-top:1.5rem;">
+    <a href="/login">Se connecter</a>
+    <a href="/register">Créer un compte</a>
+  </div>
+  <p id="cta-auth" hidden style="margin-top:1.5rem;">
+    Vous êtes connecté → <a href="/app">Mon espace</a>
   </p>
-  <nav aria-label="Features à tester">
-    <h2 style="font-size:1rem;margin-bottom:0.75rem;">Features testables</h2>
-    <ul style="list-style:none;display:flex;flex-direction:column;gap:0.5rem;">
-      <li>
-        <a href="/login">Login test</a>
-        <span style="color:var(--muted);font-size:0.875rem;"> — POST /v1/auth/login</span>
-      </li>
-      <li>
-        <a href="/account/dependent-detail">Dependent Detail</a>
-        <span style="color:var(--muted);font-size:0.875rem;"> — GET /v1/account/dependents/:id</span>
-      </li>
-      <li>
-        <a href="/account/dependent-patch">Dependent Patch</a>
-        <span style="color:var(--muted);font-size:0.875rem;"> — PATCH /v1/account/dependents/:id</span>
-      </li>
-      <li>
-        <a href="/account/dependent-delete">Dependent Delete</a>
-        <span style="color:var(--muted);font-size:0.875rem;"> — DELETE /v1/account/dependents/:id</span>
-      </li>
-    </ul>
-  </nav>
-</Default>
+</PublicLayout>
+
+<script>
+  import { isAuthenticated } from '../lib/session.ts';
+  const guest = document.getElementById('cta-guest');
+  const auth = document.getElementById('cta-auth');
+  if (isAuthenticated()) {
+    if (guest) guest.hidden = true;
+    if (auth) auth.hidden = false;
+  }
+</script>
