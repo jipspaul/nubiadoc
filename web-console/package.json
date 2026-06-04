@@ -10,7 +10,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "astro": "^5.0.0"
+    "astro": "^6.4.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0"
