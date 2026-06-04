@@ -6,7 +6,7 @@ use argon2::{
 };
 use async_trait::async_trait;
 use axum::{
-    extract::{Extension, FromRequestParts, Path, State},
+    extract::{Extension, FromRequestParts, Multipart, Path, State},
     http::{request::Parts, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -2517,6 +2517,122 @@ pub async fn patch_account_coverage(
         plateforme,
         tiers_payant,
     }))
+}
+
+/// Réponse de `POST /v1/account/coverage/card`.
+#[derive(Serialize)]
+pub struct CoverageCardResponse {
+    document_id: Uuid,
+}
+
+/// `POST /v1/account/coverage/card` — upload de la carte mutuelle (multipart).
+///
+/// Champs multipart attendus :
+/// - `side` : `"recto"` ou `"verso"` (enum strict → `422` sinon).
+/// - `file` : JPEG / PNG / PDF ≤ 5 Mo (`image/jpeg`, `image/png`, `application/pdf`).
+///
+/// Le fichier est scanné (stub → `scan_status = 'pending'`) et inséré dans
+/// `document` (`category = 'carte_mutuelle'`).
+/// Chiffrement au repos : stub UTF-8 en dev — AES-256-GCM KMS à NUB-T3 (ADR-009).
+/// Réponse : `201 { document_id }`.
+pub async fn post_coverage_card(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<CoverageCardResponse>), AppError> {
+    const MAX_SIZE: usize = 5 * 1024 * 1024;
+    const ALLOWED_MIMES: &[&str] = &["image/jpeg", "image/png", "application/pdf"];
+
+    let mut side: Option<String> = None;
+    let mut filename: Option<String> = None;
+    let mut file_mime: Option<String> = None;
+    let mut file_bytes: Option<Vec<u8>> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::ValidationError)?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "side" => {
+                let val = field.text().await.map_err(|_| AppError::ValidationError)?;
+                if val != "recto" && val != "verso" {
+                    return Err(AppError::ValidationError);
+                }
+                side = Some(val);
+            }
+            "file" => {
+                let ct = field
+                    .content_type()
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                // Extraire le base MIME (avant un éventuel "; charset=…")
+                let base_ct = ct.split(';').next().unwrap_or("").trim().to_string();
+                if !ALLOWED_MIMES.contains(&base_ct.as_str()) {
+                    return Err(AppError::ValidationError);
+                }
+                file_mime = Some(base_ct);
+                filename = field.file_name().map(|s| s.to_string());
+                let bytes = field.bytes().await.map_err(|_| AppError::ValidationError)?;
+                if bytes.len() > MAX_SIZE {
+                    return Err(AppError::ValidationError);
+                }
+                file_bytes = Some(bytes.to_vec());
+            }
+            _ => {}
+        }
+    }
+
+    let side = side.ok_or(AppError::ValidationError)?;
+    let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
+    let file_mime = file_mime.ok_or(AppError::ValidationError)?;
+    let fname = filename.unwrap_or_else(|| format!("carte_mutuelle_{}.bin", side));
+    // Stub : clé Object Storage (chiffrement AES-256-GCM KMS à NUB-T3 — ADR-009).
+    let storage_key = Uuid::new_v4().to_string();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO document \
+         (patient_account_id, category, storage_key, filename, mime_type, \
+          sha256, scan_status, side, uploaded_by) \
+         VALUES ($1, 'carte_mutuelle', $2, $3, $4, \
+                 encode(digest($5, 'sha256'), 'hex'), 'pending', $6, $7) \
+         RETURNING id",
+    )
+    .bind(claims.account_id)
+    .bind(&storage_key)
+    .bind(&fname)
+    .bind(&file_mime)
+    .bind(&file_bytes)
+    .bind(&side)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let document_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        document_id = %document_id,
+        side = %side,
+        "carte mutuelle uploaded"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CoverageCardResponse { document_id }),
+    ))
 }
 
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
