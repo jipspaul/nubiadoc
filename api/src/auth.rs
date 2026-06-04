@@ -1233,6 +1233,141 @@ impl FromRequestParts<AppState> for ProAdminClaims {
     }
 }
 
+/// Claims JWT pro avec rôle praticien (`practitioner` ou `admin`) — rejette `secretary`.
+///
+/// Permet l'accès aux endpoints cliniques non accessibles au secrétariat (§07 §4.1).
+#[derive(Debug, Deserialize)]
+pub(crate) struct ProPractitionerClaims {
+    sub: Uuid,
+    kind: String,
+    cabinet_id: Uuid,
+    role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for ProPractitionerClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        let claims = decode::<ProPractitionerClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if claims.kind != "pro" {
+            return Err(AppError::Forbidden);
+        }
+        if claims.role == "secretary" {
+            return Err(AppError::Forbidden);
+        }
+
+        Ok(claims)
+    }
+}
+
+/// Corps de la requête `PATCH /v1/cabinet/provider`.
+#[derive(Deserialize)]
+pub struct PatchProviderBody {
+    bio: Option<String>,
+    specialite: Option<String>,
+    langues: Option<Vec<String>>,
+    pmr: Option<bool>,
+}
+
+/// Réponse de `PATCH /v1/cabinet/provider`.
+#[derive(Serialize)]
+pub struct ProviderProfileResponse {
+    id: Uuid,
+    bio: Option<String>,
+    specialite: Option<String>,
+    langues: Option<Vec<String>>,
+    pmr: Option<bool>,
+    is_listed: bool,
+    rpps_verified: bool,
+}
+
+/// `PATCH /v1/cabinet/provider` — met à jour le profil public du praticien.
+///
+/// Champs absents du body = non modifiés (COALESCE SQL). `is_listed` et
+/// `rpps_verified` ne sont pas modifiables ici (§07 §4.7). Rôle `secretary` → 403.
+pub async fn patch_cabinet_provider(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Json(body): Json<PatchProviderBody>,
+) -> Result<Json<ProviderProfileResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE provider
+         SET
+             bio        = COALESCE($1, bio),
+             specialite = COALESCE($2, specialite),
+             languages  = COALESCE($3::text[], languages),
+             pmr        = COALESCE($4, pmr)
+         WHERE cabinet_id = $5 AND user_id = $6
+         RETURNING id, bio, specialite, languages, pmr, is_listed, rpps_verified",
+    )
+    .bind(&body.bio)
+    .bind(&body.specialite)
+    .bind(&body.langues)
+    .bind(body.pmr)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let bio: Option<String> = row.try_get("bio").map_err(|_| AppError::Internal)?;
+    let specialite: Option<String> = row.try_get("specialite").map_err(|_| AppError::Internal)?;
+    let langues: Option<Vec<String>> = row.try_get("languages").map_err(|_| AppError::Internal)?;
+    let pmr: Option<bool> = row.try_get("pmr").map_err(|_| AppError::Internal)?;
+    let is_listed: bool = row.try_get("is_listed").map_err(|_| AppError::Internal)?;
+    let rpps_verified: bool = row
+        .try_get("rpps_verified")
+        .map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        provider_id = %id,
+        "provider profile updated"
+    );
+
+    Ok(Json(ProviderProfileResponse {
+        id,
+        bio,
+        specialite,
+        langues,
+        pmr,
+        is_listed,
+        rpps_verified,
+    }))
+}
+
 /// Corps de la requête `POST /v1/pro/verification`.
 #[derive(Deserialize)]
 pub struct ProVerificationBody {

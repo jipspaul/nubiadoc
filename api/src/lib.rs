@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    routing::{get, post},
+    routing::{get, patch, post},
     Extension, Json, Router,
 };
 use serde_json::{json, Value};
@@ -84,6 +84,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             get(auth::get_pro_verification).post(auth::pro_verification),
         )
         .route("/v1/cabinet", get(auth::get_cabinet))
+        .route("/v1/cabinet/provider", patch(auth::patch_cabinet_provider))
         .layer(Extension(dispatcher))
         .with_state(state)
 }
