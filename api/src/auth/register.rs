@@ -18,7 +18,6 @@ use crate::AppState;
 
 use super::{is_unique_violation, AppError, PatientClaims};
 
-
 /// Corps de la requête `POST /v1/auth/register`.
 #[derive(Deserialize)]
 pub struct RegisterBody {
