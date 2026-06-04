@@ -1512,6 +1512,78 @@ pub async fn patch_cabinet_provider(
     }))
 }
 
+/// Un membre du cabinet tel que retourné par `GET /v1/cabinet/members`.
+#[derive(Serialize)]
+pub struct CabinetMemberItem {
+    user_id: Uuid,
+    email: String,
+    first_name: Option<String>,
+    last_name: Option<String>,
+    role: String,
+    active: bool,
+    joined_at: String,
+}
+
+/// `GET /v1/cabinet/members` — liste tous les membres (y compris inactifs) du cabinet courant.
+///
+/// Rôle `admin` requis. `cabinet_id` toujours extrait du JWT. RLS scoped via `SET LOCAL`.
+pub async fn get_cabinet_members(
+    State(state): State<AppState>,
+    claims: ProAdminClaims,
+) -> Result<Json<Vec<CabinetMemberItem>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT cm.user_id, au.email, cm.role, cm.active, cm.created_at AS joined_at \
+         FROM cabinet_membership cm \
+         JOIN app_user au ON au.id = cm.user_id \
+         WHERE cm.cabinet_id = $1 \
+         ORDER BY cm.created_at ASC",
+    )
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let members = rows
+        .into_iter()
+        .map(|row| {
+            let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
+            let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
+            let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
+            let active: bool = row.try_get("active").map_err(|_| AppError::Internal)?;
+            let joined_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("joined_at").map_err(|_| AppError::Internal)?;
+            Ok(CabinetMemberItem {
+                user_id,
+                email,
+                first_name: None,
+                last_name: None,
+                role,
+                active,
+                joined_at: joined_at.to_rfc3339(),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        count = members.len(),
+        "cabinet members listed"
+    );
+
+    Ok(Json(members))
+}
+
 /// Corps de la requête `PUT /v1/cabinet/provider/listing`.
 #[derive(Deserialize)]
 pub struct PutListingBody {
