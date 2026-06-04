@@ -1,9 +1,12 @@
 //! Handlers d'authentification (routes publiques `/v1/auth/*`).
 
+pub mod login;
+pub mod logout;
+pub mod refresh;
 pub mod register;
 
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
 };
 use async_trait::async_trait;
@@ -23,14 +26,6 @@ use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
 use crate::{AppState, JobDispatcher};
-
-/// Corps de la requête `POST /v1/auth/login`.
-#[derive(Deserialize)]
-pub struct LoginBody {
-    email: String,
-    password: String,
-    mfa_code: Option<String>,
-}
 
 /// Réponse de `POST /v1/auth/login`.
 #[derive(Serialize)]
@@ -283,12 +278,6 @@ impl FromRequestParts<AppState> for ProClaims {
     }
 }
 
-/// Claims JWT génériques — valides pour les tokens patient et pro.
-#[derive(Debug, Deserialize)]
-pub(crate) struct UserClaims {
-    pub(crate) sub: Uuid,
-}
-
 /// Claims JWT pour `GET /v1/me` — accepte patient et pro, extrait `kind` et `account_id`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MeClaims {
@@ -368,188 +357,6 @@ impl FromRequestParts<AppState> for MeClaims {
     }
 }
 
-/// Lit le JWT dans `Authorization: Bearer <token>`, vérifie la signature.
-/// Accepte les tokens patient et pro.
-#[async_trait]
-impl FromRequestParts<AppState> for UserClaims {
-    type Rejection = AppError;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        let auth = parts
-            .headers
-            .get("Authorization")
-            .and_then(|v| v.to_str().ok())
-            .ok_or(AppError::Unauthorized)?;
-
-        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
-
-        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
-        let mut validation = Validation::default();
-        validation.validate_exp = true;
-
-        decode::<UserClaims>(token, &key, &validation)
-            .map(|d| d.claims)
-            .map_err(|_| AppError::Unauthorized)
-    }
-}
-
-/// Corps de la requête `POST /v1/auth/refresh`.
-#[derive(Deserialize)]
-pub struct RefreshBody {
-    refresh_token: String,
-}
-
-/// `POST /v1/auth/refresh` — rotation du refresh token.
-///
-/// Échange un refresh token valide contre un nouveau access token + nouveau refresh token.
-/// L'ancien token est révoqué atomiquement dans la même transaction (rotation).
-/// Token inconnu, révoqué ou expiré → `401`.
-pub async fn refresh(
-    State(state): State<AppState>,
-    Json(body): Json<RefreshBody>,
-) -> Result<Json<LoginResponse>, AppError> {
-    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-
-    let row = sqlx::query(
-        "SELECT app_user_id FROM refresh_token \
-         WHERE token_hash = encode(digest($1, 'sha256'), 'hex') \
-           AND revoked_at IS NULL \
-           AND expires_at > now()",
-    )
-    .bind(&body.refresh_token)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    let row = row.ok_or(AppError::Unauthenticated)?;
-    let user_id: Uuid = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
-
-    sqlx::query(
-        "UPDATE refresh_token SET revoked_at = now() \
-         WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
-    )
-    .bind(&body.refresh_token)
-    .execute(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    let user_row = sqlx::query("SELECT kind FROM app_user WHERE id = $1")
-        .bind(user_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-    let kind: String = user_row.try_get("kind").map_err(|_| AppError::Internal)?;
-
-    let new_raw_token = Uuid::new_v4().to_string();
-    sqlx::query(
-        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
-           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
-    )
-    .bind(user_id)
-    .bind(&new_raw_token)
-    .execute(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    tx.commit().await.map_err(|_| AppError::Internal)?;
-
-    const EXPIRES_IN: u64 = 900;
-    let exp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        + EXPIRES_IN;
-
-    let access_token = if kind == "patient" {
-        let acct_row = sqlx::query("SELECT id FROM patient_account WHERE app_user_id = $1")
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|_| AppError::Internal)?;
-        let account_id: Uuid = acct_row
-            .map(|r| r.try_get("id"))
-            .transpose()
-            .map_err(|_| AppError::Internal)?
-            .ok_or(AppError::Internal)?;
-        encode(
-            &Header::default(),
-            &PatientClaims {
-                sub: user_id,
-                kind: "patient".to_string(),
-                account_id,
-                exp,
-            },
-            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-        )
-        .map_err(|_| AppError::Internal)?
-    } else {
-        encode(
-            &Header::default(),
-            &ProClaims {
-                sub: user_id,
-                kind: "pro".to_string(),
-                exp,
-            },
-            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-        )
-        .map_err(|_| AppError::Internal)?
-    };
-
-    Ok(Json(LoginResponse {
-        access_token,
-        refresh_token: new_raw_token,
-        token_type: "Bearer".to_string(),
-        expires_in: EXPIRES_IN,
-    }))
-}
-
-/// Corps de la requête `POST /v1/auth/logout`.
-#[derive(Deserialize)]
-pub struct LogoutBody {
-    refresh_token: String,
-}
-
-/// `POST /v1/auth/logout` — révoque le refresh token de l'utilisateur authentifié.
-///
-/// Soft-delete : SET `revoked_at = NOW()`. Vérifie que `refresh_token.app_user_id == claims.sub`
-/// pour interdire la révocation cross-user (`403`). Idempotent si le token est
-/// inconnu ou déjà révoqué (`204` dans les deux cas).
-pub async fn logout(
-    State(state): State<AppState>,
-    claims: UserClaims,
-    Json(body): Json<LogoutBody>,
-) -> Result<StatusCode, AppError> {
-    let row = sqlx::query(
-        "SELECT app_user_id FROM refresh_token \
-         WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
-    )
-    .bind(&body.refresh_token)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    if let Some(r) = row {
-        let owner_id: Uuid = r.try_get("app_user_id").map_err(|_| AppError::Internal)?;
-        if owner_id != claims.sub {
-            return Err(AppError::Forbidden);
-        }
-        sqlx::query(
-            "UPDATE refresh_token SET revoked_at = now() \
-             WHERE token_hash = encode(digest($1, 'sha256'), 'hex') \
-               AND revoked_at IS NULL",
-        )
-        .bind(&body.refresh_token)
-        .execute(&state.db)
-        .await
-        .map_err(|_| AppError::Internal)?;
-    }
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
 /// `POST /v1/auth/mfa/enroll` — démarre l'enrôlement TOTP (pro uniquement).
 ///
 /// Génère un secret TOTP aléatoire et retourne l'URL `otpauth://` pour affichage QR.
@@ -610,120 +417,6 @@ pub async fn mfa_verify(
     .map_err(|_| AppError::Internal)?;
 
     Ok(Json(json!({"message": "MFA activée."})))
-}
-
-/// `POST /v1/auth/login` — authentifie un patient ou un pro, émet access + refresh tokens.
-///
-/// Réponse neutre sur credentials incorrects (anti-énumération §1.8).
-/// Si le compte pro a `totp_enabled = true` et qu'aucun `mfa_code` n'est fourni → `401 mfa_required`.
-pub async fn login(
-    State(state): State<AppState>,
-    Json(body): Json<LoginBody>,
-) -> Result<Json<LoginResponse>, AppError> {
-    let row = sqlx::query(
-        "SELECT id, password_hash, kind, totp_enabled, totp_secret \
-         FROM app_user WHERE email = $1",
-    )
-    .bind(&body.email)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    let row = row.ok_or(AppError::Unauthenticated)?;
-
-    let user_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-    let password_hash: String = row
-        .try_get("password_hash")
-        .map_err(|_| AppError::Internal)?;
-    let kind: String = row.try_get("kind").map_err(|_| AppError::Internal)?;
-    let totp_enabled: bool = row
-        .try_get("totp_enabled")
-        .map_err(|_| AppError::Internal)?;
-    let totp_secret: Option<String> = row.try_get("totp_secret").map_err(|_| AppError::Internal)?;
-
-    let parsed_hash = PasswordHash::new(&password_hash).map_err(|_| AppError::Internal)?;
-    Argon2::default()
-        .verify_password(body.password.as_bytes(), &parsed_hash)
-        .map_err(|_| AppError::Unauthenticated)?;
-
-    if kind == "pro" && totp_enabled {
-        match &body.mfa_code {
-            None => return Err(AppError::MfaRequired),
-            Some(code) => {
-                let secret = totp_secret.ok_or(AppError::Internal)?;
-                let secret_bytes = Secret::Encoded(secret)
-                    .to_bytes()
-                    .map_err(|_| AppError::Unauthenticated)?;
-                let totp = TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes)
-                    .map_err(|_| AppError::Unauthenticated)?;
-                if !totp.check_current(code).map_err(|_| AppError::Internal)? {
-                    return Err(AppError::Unauthenticated);
-                }
-            }
-        }
-    }
-
-    const EXPIRES_IN: u64 = 900;
-    let exp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        + EXPIRES_IN;
-
-    let access_token = if kind == "patient" {
-        let acct_row = sqlx::query("SELECT id FROM patient_account WHERE app_user_id = $1")
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|_| AppError::Internal)?;
-
-        let account_id: Uuid = acct_row
-            .map(|r| r.try_get("id"))
-            .transpose()
-            .map_err(|_| AppError::Internal)?
-            .ok_or(AppError::Internal)?;
-
-        encode(
-            &Header::default(),
-            &PatientClaims {
-                sub: user_id,
-                kind: "patient".to_string(),
-                account_id,
-                exp,
-            },
-            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-        )
-        .map_err(|_| AppError::Internal)?
-    } else {
-        encode(
-            &Header::default(),
-            &ProClaims {
-                sub: user_id,
-                kind: "pro".to_string(),
-                exp,
-            },
-            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-        )
-        .map_err(|_| AppError::Internal)?
-    };
-
-    let raw_token = Uuid::new_v4().to_string();
-    sqlx::query(
-        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
-           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
-    )
-    .bind(user_id)
-    .bind(&raw_token)
-    .execute(&state.db)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    Ok(Json(LoginResponse {
-        access_token,
-        refresh_token: raw_token,
-        token_type: "Bearer".to_string(),
-        expires_in: EXPIRES_IN,
-    }))
 }
 
 /// `POST /v1/auth/password/reset` — finalise le reset via un token à usage unique.
