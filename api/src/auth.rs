@@ -2381,6 +2381,144 @@ pub async fn get_account_coverage(
     }))
 }
 
+/// Sous-corps mutuelle pour `PATCH /v1/account/coverage`.
+#[derive(Deserialize)]
+pub struct PatchCoverageMutuelle {
+    amc: String,
+    numero_adherent: String,
+    plateforme: Option<String>,
+}
+
+/// Corps de la requête `PATCH /v1/account/coverage`.
+#[derive(Deserialize)]
+pub struct PatchCoverageBody {
+    regime_obligatoire: Option<String>,
+    nss: Option<String>,
+    mutuelle: Option<PatchCoverageMutuelle>,
+    tiers_payant: Option<bool>,
+}
+
+/// `PATCH /v1/account/coverage` — met à jour la couverture santé du patient (partiel, audité).
+///
+/// `nss` est converti en `Vec<u8>` avant stockage (`nss_encrypted` BYTEA) — jamais de NSS
+/// en clair en base (`05` §10.1). Note KMS : chiffrement AES-256-GCM réel à partir de NUB-T3 ;
+/// en dev/test les octets UTF-8 sont stockés directement.
+/// Upsert `ON CONFLICT (patient_account_id)` : création ou mise à jour atomique.
+/// Champs absents du body = valeurs existantes conservées (COALESCE / CASE).
+/// Réponse `200` avec coverage mise à jour (nss masqué via `mask_nss`).
+pub async fn patch_account_coverage(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Json(body): Json<PatchCoverageBody>,
+) -> Result<Json<CoverageResponse>, AppError> {
+    if let Some(ref regime) = body.regime_obligatoire {
+        if !["regime_general", "ame", "css"].contains(&regime.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    // dev/test : bytes UTF-8 du NSS plaintext (KMS AES-256-GCM à partir de NUB-T3).
+    let nss_encrypted: Option<Vec<u8>> = body.nss.as_deref().map(|s| s.as_bytes().to_vec());
+
+    let (mutuelle_amc, mutuelle_numero, mutuelle_plateforme) = match body.mutuelle {
+        Some(m) => (Some(m.amc), Some(m.numero_adherent), m.plateforme),
+        None => (None, None, None),
+    };
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO patient_coverage \
+           (patient_account_id, regime_obligatoire, nss_encrypted, \
+            amc, numero_adherent, plateforme, tiers_payant) \
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, false)) \
+         ON CONFLICT (patient_account_id) DO UPDATE SET \
+           regime_obligatoire = COALESCE($2, patient_coverage.regime_obligatoire), \
+           nss_encrypted      = COALESCE($3, patient_coverage.nss_encrypted), \
+           amc                = COALESCE($4, patient_coverage.amc), \
+           numero_adherent    = COALESCE($5, patient_coverage.numero_adherent), \
+           plateforme         = COALESCE($6, patient_coverage.plateforme), \
+           tiers_payant       = CASE WHEN $7 IS NOT NULL \
+                                     THEN $7 \
+                                     ELSE patient_coverage.tiers_payant END, \
+           updated_at         = now() \
+         RETURNING regime_obligatoire, nss_encrypted, amc, numero_adherent, plateforme, tiers_payant",
+    )
+    .bind(claims.account_id)
+    .bind(&body.regime_obligatoire)
+    .bind(&nss_encrypted)
+    .bind(&mutuelle_amc)
+    .bind(&mutuelle_numero)
+    .bind(&mutuelle_plateforme)
+    .bind(body.tiers_payant)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Audit log : entité plateforme → nil UUID comme sentinel cabinet_id.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'patient', 'update_coverage', 'patient_coverage', $3, $4)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(claims.account_id)
+    .bind(json!({"regime_obligatoire": body.regime_obligatoire}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let regime_obligatoire: Option<String> = row
+        .try_get("regime_obligatoire")
+        .map_err(|_| AppError::Internal)?;
+    let nss_bytes: Option<Vec<u8>> = row
+        .try_get("nss_encrypted")
+        .map_err(|_| AppError::Internal)?;
+    let amc: Option<String> = row.try_get("amc").map_err(|_| AppError::Internal)?;
+    let numero_adherent: Option<String> = row
+        .try_get("numero_adherent")
+        .map_err(|_| AppError::Internal)?;
+    let plateforme: Option<String> = row.try_get("plateforme").map_err(|_| AppError::Internal)?;
+    let tiers_payant: bool = row
+        .try_get("tiers_payant")
+        .map_err(|_| AppError::Internal)?;
+
+    let nss_masked = nss_bytes
+        .as_deref()
+        .and_then(|b| std::str::from_utf8(b).ok())
+        .and_then(mask_nss);
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        user_id = %claims.sub,
+        "patient coverage updated"
+    );
+
+    Ok(Json(CoverageResponse {
+        regime_obligatoire,
+        nss_masked,
+        amc,
+        numero_adherent,
+        plateforme,
+        tiers_payant,
+    }))
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
