@@ -2958,6 +2958,79 @@ pub async fn patch_account_dependent(
     }))
 }
 
+/// `DELETE /v1/account/dependents/{id}` — révoque la tutelle sur un proche (soft-delete).
+///
+/// Met `account_guardianship.active = false` + `updated_at = now()`.
+/// Tutelle inexistante ou déjà révoquée → `404` (anti-énumération §07 §2.9).
+/// Audité : `action:'revoke_guardianship'` (§07 §10).
+pub async fn delete_account_dependent(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(dependent_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // 404 si tutelle introuvable ou déjà révoquée — double DELETE idempotent côté état.
+    sqlx::query(
+        "SELECT 1 FROM account_guardianship \
+         WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+    )
+    .bind(claims.account_id)
+    .bind(dependent_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    // Soft-delete uniquement — jamais de DELETE SQL (§07 §10).
+    sqlx::query(
+        "UPDATE account_guardianship \
+         SET active = false, updated_at = now() \
+         WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+    )
+    .bind(claims.account_id)
+    .bind(dependent_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Audit log — nil UUID comme sentinel cabinet_id (entité plateforme).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'patient', 'revoke_guardianship', 'account_guardianship', $3, $4)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(dependent_id)
+    .bind(json!({}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        guardian_account_id = %claims.account_id,
+        dependent_account_id = %dependent_id,
+        "guardianship revoked"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.

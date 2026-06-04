@@ -129,7 +129,9 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
         )
         .route(
             "/v1/account/dependents/:id",
-            get(auth::get_account_dependent_by_id).patch(auth::patch_account_dependent),
+            get(auth::get_account_dependent_by_id)
+                .patch(auth::patch_account_dependent)
+                .delete(auth::delete_account_dependent),
         )
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
