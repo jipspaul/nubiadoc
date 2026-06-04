@@ -2949,6 +2949,80 @@ pub async fn get_account_consents(
     Ok(Json(consents))
 }
 
+/// Un proche/ayant droit tel que retourné par `GET /v1/account/dependents`.
+#[derive(Serialize)]
+pub struct DependentItem {
+    dependent_account_id: Uuid,
+    first_name: String,
+    last_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    birth_date: Option<String>,
+    relationship: String,
+}
+
+/// `GET /v1/account/dependents` — liste les proches/ayants droit actifs du patient.
+///
+/// Retourne les lignes `account_guardianship` actives où `guardian_account_id = moi`.
+/// RLS scoped par `app.current_account_id` (migration 0025).
+pub async fn get_account_dependents(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<Vec<DependentItem>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT ag.dependent_account_id, pa.first_name, pa.last_name, pa.birth_date, \
+                ag.relationship \
+         FROM account_guardianship ag \
+         JOIN patient_account pa ON pa.id = ag.dependent_account_id \
+         WHERE ag.guardian_account_id = $1 AND ag.active = true \
+         ORDER BY pa.last_name ASC, pa.first_name ASC",
+    )
+    .bind(claims.account_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let dependents = rows
+        .into_iter()
+        .map(|row| {
+            let dependent_account_id: Uuid = row
+                .try_get("dependent_account_id")
+                .map_err(|_| AppError::Internal)?;
+            let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+            let birth_date: Option<chrono::NaiveDate> =
+                row.try_get("birth_date").map_err(|_| AppError::Internal)?;
+            let relationship: String = row
+                .try_get("relationship")
+                .map_err(|_| AppError::Internal)?;
+            Ok(DependentItem {
+                dependent_account_id,
+                first_name,
+                last_name,
+                birth_date: birth_date.map(|d| d.to_string()),
+                relationship,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        count = dependents.len(),
+        "patient dependents listed"
+    );
+
+    Ok(Json(dependents))
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
