@@ -4,15 +4,20 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
 };
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{Json, State},
+    http::StatusCode,
+};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-use super::{is_unique_violation, AppError, PatientClaims};
 use crate::AppState;
+
+use super::{is_unique_violation, AppError, PatientClaims};
+
 
 /// Corps de la requête `POST /v1/auth/register`.
 #[derive(Deserialize)]

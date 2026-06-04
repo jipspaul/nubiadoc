@@ -1,7 +1,6 @@
 //! Handlers d'authentification (routes publiques `/v1/auth/*`).
 
 pub mod register;
-pub use register::register;
 
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
