@@ -2718,6 +2718,246 @@ pub async fn post_account_dependents(
     ))
 }
 
+/// Corps de la couverture pour `PATCH /v1/account/dependents/{id}`.
+#[derive(Deserialize)]
+pub struct PatchDependentCoverageBody {
+    regime_obligatoire: Option<String>,
+    nss: Option<String>,
+    amc: Option<String>,
+    numero_adherent: Option<String>,
+    plateforme: Option<String>,
+    tiers_payant: Option<bool>,
+}
+
+/// Corps de la requête `PATCH /v1/account/dependents/{id}`.
+#[derive(Deserialize)]
+pub struct PatchDependentBody {
+    first_name: Option<String>,
+    last_name: Option<String>,
+    birth_date: Option<String>,
+    relationship: Option<String>,
+    coverage: Option<PatchDependentCoverageBody>,
+}
+
+/// `PATCH /v1/account/dependents/{id}` — met à jour les données d'un proche (partiel, audité).
+///
+/// Vérifie la tutelle active (`account_guardianship`). Champs absents → non modifiés.
+/// Si `coverage` présent : upsert `patient_coverage` lié au proche.
+/// Champs inconnus dans le body → ignorés (pas de 422, §spec issue #321).
+/// Modification auditée : `action:'update_dependent'` (§07 §4.6).
+pub async fn patch_account_dependent(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(dependent_id): Path<Uuid>,
+    Json(body): Json<PatchDependentBody>,
+) -> Result<Json<DependentDetailResponse>, AppError> {
+    let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
+        Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
+        None => None,
+    };
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie la tutelle active → 404 si introuvable ou inactive (anti-énumération §07 §2.9).
+    sqlx::query(
+        "SELECT 1 FROM account_guardianship \
+         WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+    )
+    .bind(claims.account_id)
+    .bind(dependent_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    // Mise à jour des champs identité du proche (COALESCE = non modifié si absent).
+    sqlx::query(
+        "UPDATE patient_account \
+         SET \
+           first_name = COALESCE($1, first_name), \
+           last_name  = COALESCE($2, last_name), \
+           birth_date = COALESCE($3, birth_date), \
+           updated_at = now() \
+         WHERE id = $4",
+    )
+    .bind(body.first_name.as_deref())
+    .bind(body.last_name.as_deref())
+    .bind(birth_date)
+    .bind(dependent_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Mise à jour de la relation si fournie.
+    if let Some(ref rel) = body.relationship {
+        sqlx::query(
+            "UPDATE account_guardianship \
+             SET relationship = $1, updated_at = now() \
+             WHERE guardian_account_id = $2 AND dependent_account_id = $3 AND active = true",
+        )
+        .bind(rel)
+        .bind(claims.account_id)
+        .bind(dependent_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    // Upsert de la couverture si présente (RLS scoped par app.patient_account_id).
+    if let Some(cov) = body.coverage {
+        sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+            .bind(dependent_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        // dev/test : bytes UTF-8 du NSS plaintext (KMS AES-256-GCM à partir de NUB-T3).
+        let nss_encrypted: Option<Vec<u8>> = cov.nss.as_deref().map(|s| s.as_bytes().to_vec());
+
+        sqlx::query(
+            "INSERT INTO patient_coverage \
+               (patient_account_id, regime_obligatoire, nss_encrypted, \
+                amc, numero_adherent, plateforme, tiers_payant) \
+             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, false)) \
+             ON CONFLICT (patient_account_id) DO UPDATE SET \
+               regime_obligatoire = COALESCE($2, patient_coverage.regime_obligatoire), \
+               nss_encrypted      = COALESCE($3, patient_coverage.nss_encrypted), \
+               amc                = COALESCE($4, patient_coverage.amc), \
+               numero_adherent    = COALESCE($5, patient_coverage.numero_adherent), \
+               plateforme         = COALESCE($6, patient_coverage.plateforme), \
+               tiers_payant       = CASE WHEN $7 IS NOT NULL \
+                                         THEN $7 \
+                                         ELSE patient_coverage.tiers_payant END, \
+               updated_at         = now()",
+        )
+        .bind(dependent_id)
+        .bind(&cov.regime_obligatoire)
+        .bind(&nss_encrypted)
+        .bind(&cov.amc)
+        .bind(&cov.numero_adherent)
+        .bind(&cov.plateforme)
+        .bind(cov.tiers_payant)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    // Re-lecture des données mises à jour (app.current_account_id encore actif depuis le début).
+    let row = sqlx::query(
+        "SELECT ag.dependent_account_id, pa.first_name, pa.last_name, pa.birth_date, \
+                ag.relationship \
+         FROM account_guardianship ag \
+         JOIN patient_account pa ON pa.id = ag.dependent_account_id \
+         WHERE ag.guardian_account_id = $1 AND ag.dependent_account_id = $2 AND ag.active = true",
+    )
+    .bind(claims.account_id)
+    .bind(dependent_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let dependent_account_id: Uuid = row
+        .try_get("dependent_account_id")
+        .map_err(|_| AppError::Internal)?;
+    let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+    let birth_date_out: Option<chrono::NaiveDate> =
+        row.try_get("birth_date").map_err(|_| AppError::Internal)?;
+    let relationship: String = row
+        .try_get("relationship")
+        .map_err(|_| AppError::Internal)?;
+
+    // Couverture mise à jour — RLS scoped par app.patient_account_id (migration 0023).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(dependent_account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let cov_row = sqlx::query(
+        "SELECT regime_obligatoire, nss_encrypted, amc, numero_adherent, plateforme, tiers_payant \
+         FROM patient_coverage \
+         WHERE patient_account_id = $1",
+    )
+    .bind(dependent_account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let coverage = cov_row
+        .map(|r| -> Result<CoverageResponse, AppError> {
+            let regime_obligatoire: Option<String> = r
+                .try_get("regime_obligatoire")
+                .map_err(|_| AppError::Internal)?;
+            let nss_encrypted: Option<Vec<u8>> =
+                r.try_get("nss_encrypted").map_err(|_| AppError::Internal)?;
+            let amc: Option<String> = r.try_get("amc").map_err(|_| AppError::Internal)?;
+            let numero_adherent: Option<String> = r
+                .try_get("numero_adherent")
+                .map_err(|_| AppError::Internal)?;
+            let plateforme: Option<String> =
+                r.try_get("plateforme").map_err(|_| AppError::Internal)?;
+            let tiers_payant: bool = r.try_get("tiers_payant").map_err(|_| AppError::Internal)?;
+            let nss_masked = nss_encrypted
+                .as_deref()
+                .and_then(|b| std::str::from_utf8(b).ok())
+                .and_then(mask_nss);
+            Ok(CoverageResponse {
+                regime_obligatoire,
+                nss_masked,
+                amc,
+                numero_adherent,
+                plateforme,
+                tiers_payant,
+            })
+        })
+        .transpose()?;
+
+    // Audit log (§07 §4.6) — nil UUID comme sentinel cabinet_id (entité plateforme).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'patient', 'update_dependent', 'patient_account', $3, $4)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(dependent_account_id)
+    .bind(json!({}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        dependent_account_id = %dependent_account_id,
+        "patient dependent updated"
+    );
+
+    Ok(Json(DependentDetailResponse {
+        dependent_account_id,
+        first_name,
+        last_name,
+        birth_date: birth_date_out.map(|d| d.to_string()),
+        relationship,
+        coverage,
+    }))
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
