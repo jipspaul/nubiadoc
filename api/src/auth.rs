@@ -191,6 +191,7 @@ pub(crate) enum AppError {
     Conflict,
     NotFound,
     ProviderNotVerified,
+    MemberAlreadyExists,
 }
 
 impl IntoResponse for AppError {
@@ -253,6 +254,11 @@ impl IntoResponse for AppError {
             AppError::ProviderNotVerified => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "provider_not_verified"})),
+            )
+                .into_response(),
+            AppError::MemberAlreadyExists => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "member_already_exists"})),
             )
                 .into_response(),
         }
@@ -1657,6 +1663,143 @@ pub async fn put_cabinet_provider_listing(
     );
 
     Ok(Json(ListingResponse { is_listed }))
+}
+
+/// Corps de la requête `POST /v1/cabinet/members`.
+#[derive(Deserialize)]
+pub struct PostCabinetMemberBody {
+    email: String,
+    role: String,
+    first_name: String,
+    last_name: String,
+    rpps: Option<String>,
+}
+
+/// `POST /v1/cabinet/members` — crée un compte collaborateur et l'invite par email.
+///
+/// Si l'email est inconnu : crée `app_user` (password_hash NULL) + token invite 72 h
+/// stocké dans `password_reset_token`. Si l'email est déjà membre du même cabinet → `409`.
+/// Si `rpps` est fourni et `role=practitioner` → crée une entrée `provider`. Rôle `admin` requis.
+pub async fn post_cabinet_members(
+    State(state): State<AppState>,
+    claims: ProAdminClaims,
+    Json(body): Json<PostCabinetMemberBody>,
+) -> Result<(StatusCode, Json<CabinetMemberItem>), AppError> {
+    if !["practitioner", "secretary", "admin"].contains(&body.role.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // app_user n'a pas de RLS — lookup direct par email.
+    let existing = sqlx::query("SELECT id FROM app_user WHERE email = $1")
+        .bind(&body.email)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Token brut conservé pour l'email d'invite (uniquement si nouveau compte).
+    let mut raw_invite_token: Option<String> = None;
+
+    let user_id: Uuid = if let Some(row) = existing {
+        row.try_get("id").map_err(|_| AppError::Internal)?
+    } else {
+        let token = Uuid::new_v4().to_string();
+        let row = sqlx::query(
+            "INSERT INTO app_user \
+             (email, password_hash, kind, first_name, last_name, \
+              password_reset_token, password_reset_expires_at) \
+             VALUES ($1, NULL, 'pro', $2, $3, \
+                     encode(digest($4, 'sha256'), 'hex'), now() + interval '72 hours') \
+             RETURNING id",
+        )
+        .bind(&body.email)
+        .bind(&body.first_name)
+        .bind(&body.last_name)
+        .bind(&token)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| {
+            if is_unique_violation(&e) {
+                AppError::EmailTaken
+            } else {
+                AppError::Internal
+            }
+        })?;
+        raw_invite_token = Some(token);
+        row.try_get(0).map_err(|_| AppError::Internal)?
+    };
+
+    // Crée le membership — UNIQUE (cabinet_id, user_id) → 409 si doublon.
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
+         VALUES ($1, $2, $3, true)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(user_id)
+    .bind(&body.role)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        if is_unique_violation(&e) {
+            AppError::MemberAlreadyExists
+        } else {
+            AppError::Internal
+        }
+    })?;
+
+    // Si rpps fourni et role=practitioner → crée l'entrée provider (RLS scoped via GUC).
+    if body.role == "practitioner" {
+        if let Some(ref rpps) = body.rpps {
+            let display_name = format!("{} {}", body.first_name, body.last_name);
+            sqlx::query(
+                "INSERT INTO provider (cabinet_id, user_id, display_name, rpps) \
+                 VALUES ($1, $2, $3, $4)",
+            )
+            .bind(claims.cabinet_id)
+            .bind(user_id)
+            .bind(&display_name)
+            .bind(rpps)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Email d'invite envoyé après commit (fire-and-forget, nouveau compte uniquement).
+    if let Some(ref token) = raw_invite_token {
+        state.mailer.send_invite(&body.email, token);
+    }
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %user_id,
+        role = %body.role,
+        new_account = raw_invite_token.is_some(),
+        "cabinet member created"
+    );
+
+    let joined_at = chrono::Utc::now().to_rfc3339();
+    Ok((
+        StatusCode::CREATED,
+        Json(CabinetMemberItem {
+            user_id,
+            email: body.email,
+            first_name: Some(body.first_name),
+            last_name: Some(body.last_name),
+            role: body.role,
+            active: true,
+            joined_at,
+        }),
+    ))
 }
 
 /// Corps de la requête `POST /v1/pro/verification`.
