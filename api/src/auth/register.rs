@@ -1,3 +1,5 @@
+//! Handler `POST /v1/auth/register`.
+
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
