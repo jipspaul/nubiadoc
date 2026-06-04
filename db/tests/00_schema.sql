@@ -57,6 +57,9 @@ SELECT has_table('treatment_phase');
 SELECT has_table('prescription');
 SELECT has_table('prescription_item');
 SELECT has_table('provider_verification');
+-- provider_verification : colonnes clés (issue #209)
+SELECT col_default_is('provider_verification', 'status', 'pending', 'provider_verification.status défaut pending');
+SELECT has_column('provider_verification', 'resolved_at', 'provider_verification.resolved_at présent (0020)');
 SELECT has_table('assistant_query');
 
 -- ----- Clés primaires -----
