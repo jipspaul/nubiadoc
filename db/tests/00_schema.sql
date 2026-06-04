@@ -56,6 +56,18 @@ SELECT has_pk('quote');
 SELECT has_pk('audit_log');     -- PK composite (id, occurred_at)
 
 -- ----- Colonnes & types : tenant + horodatage (échantillon représentatif) -----
+
+-- cabinet : colonnes clés (issue #206)
+SELECT has_column('cabinet', 'id',             'cabinet.id présent');
+SELECT col_type_is('cabinet', 'id', 'uuid',    'cabinet.id uuid');
+SELECT has_column('cabinet', 'raison_sociale', 'cabinet.raison_sociale présent');
+SELECT col_not_null('cabinet', 'raison_sociale', 'cabinet.raison_sociale NOT NULL');
+SELECT has_column('cabinet', 'siret',          'cabinet.siret présent');
+SELECT has_column('cabinet', 'specialite',     'cabinet.specialite présent');
+SELECT col_not_null('cabinet', 'specialite',   'cabinet.specialite NOT NULL');
+SELECT has_column('cabinet', 'created_at',     'cabinet.created_at présent');
+SELECT col_type_is('cabinet', 'created_at', 'timestamp with time zone', 'cabinet.created_at timestamptz');
+
 SELECT col_type_is('patient', 'id', 'uuid', 'patient.id uuid');
 SELECT col_has_default('patient', 'id', 'patient.id a un défaut (gen_random_uuid)');
 SELECT col_type_is('patient', 'cabinet_id', 'uuid', 'patient.cabinet_id uuid');
