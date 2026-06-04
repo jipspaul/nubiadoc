@@ -2270,6 +2270,117 @@ pub async fn patch_account(
     }))
 }
 
+/// Réponse de `GET /v1/account/coverage`.
+#[derive(Serialize)]
+pub struct CoverageResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub regime_obligatoire: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nss_masked: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amc: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub numero_adherent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plateforme: Option<String>,
+    pub tiers_payant: bool,
+}
+
+/// Masque un NSS : conserve sexe, année, mois + 2 derniers chiffres.
+/// Entrée : chaîne quelconque (espaces tolérés). Retourne `None` si < 13 chiffres.
+/// Exemple : "291037511607805" → "2 91 03 …05"
+fn mask_nss(raw: &str) -> Option<String> {
+    let digits: String = raw.chars().filter(|c| c.is_ascii_digit()).collect();
+    if digits.len() < 13 {
+        return None;
+    }
+    let last2 = &digits[digits.len() - 2..];
+    Some(format!(
+        "{} {} {} …{}",
+        &digits[0..1],
+        &digits[1..3],
+        &digits[3..5],
+        last2
+    ))
+}
+
+/// `GET /v1/account/coverage` — retourne la couverture santé du patient.
+///
+/// `nss_encrypted` est déchiffré en mémoire et masqué avant sérialisation (`05` §10.1) :
+/// le numéro de sécurité sociale n'apparaît jamais en clair dans la réponse.
+/// Si aucune ligne dans `patient_coverage` → `200 { tiers_payant: false }`.
+/// RLS scoped par `app.patient_account_id` (migration 0023).
+///
+/// Note KMS : le déchiffrement réel arrive avec NUB-T3. En attendant, les bytes sont
+/// lus comme UTF-8 plaintext (dev / seed uniquement).
+pub async fn get_account_coverage(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<CoverageResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT regime_obligatoire, nss_encrypted, amc, numero_adherent, plateforme, tiers_payant \
+         FROM patient_coverage \
+         WHERE patient_account_id = $1",
+    )
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        tracing::info!(account_id = %claims.account_id, "patient coverage: no row");
+        return Ok(Json(CoverageResponse {
+            regime_obligatoire: None,
+            nss_masked: None,
+            amc: None,
+            numero_adherent: None,
+            plateforme: None,
+            tiers_payant: false,
+        }));
+    };
+
+    let regime_obligatoire: Option<String> = row
+        .try_get("regime_obligatoire")
+        .map_err(|_| AppError::Internal)?;
+    let nss_encrypted: Option<Vec<u8>> = row
+        .try_get("nss_encrypted")
+        .map_err(|_| AppError::Internal)?;
+    let amc: Option<String> = row.try_get("amc").map_err(|_| AppError::Internal)?;
+    let numero_adherent: Option<String> = row
+        .try_get("numero_adherent")
+        .map_err(|_| AppError::Internal)?;
+    let plateforme: Option<String> = row.try_get("plateforme").map_err(|_| AppError::Internal)?;
+    let tiers_payant: bool = row
+        .try_get("tiers_payant")
+        .map_err(|_| AppError::Internal)?;
+
+    let nss_masked = nss_encrypted
+        .as_deref()
+        .and_then(|b| std::str::from_utf8(b).ok())
+        .and_then(mask_nss);
+
+    tracing::info!(account_id = %claims.account_id, "patient coverage queried");
+
+    Ok(Json(CoverageResponse {
+        regime_obligatoire,
+        nss_masked,
+        amc,
+        numero_adherent,
+        plateforme,
+        tiers_payant,
+    }))
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.

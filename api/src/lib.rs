@@ -107,6 +107,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/account",
             get(auth::get_account).patch(auth::patch_account),
         )
+        .route("/v1/account/coverage", get(auth::get_account_coverage))
         .layer(Extension(dispatcher))
         .with_state(state)
 }
