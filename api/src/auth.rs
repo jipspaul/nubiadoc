@@ -235,6 +235,85 @@ pub(crate) struct UserClaims {
     pub(crate) sub: Uuid,
 }
 
+/// Claims JWT pour `GET /v1/me` — accepte patient et pro, extrait `kind` et `account_id`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct MeClaims {
+    pub(crate) sub: Uuid,
+    pub(crate) kind: String,
+    /// Présent uniquement dans les tokens patient.
+    pub(crate) account_id: Option<Uuid>,
+}
+
+/// Appartenance à un cabinet.
+#[derive(Serialize)]
+pub struct CabinetMembership {
+    cabinet_id: Uuid,
+    role: String,
+}
+
+/// Réponse de `GET /v1/me`.
+#[derive(Serialize)]
+pub struct MeResponse {
+    user_id: Uuid,
+    email: String,
+    kind: String,
+    account_id: Option<Uuid>,
+    memberships: Vec<CabinetMembership>,
+}
+
+/// `GET /v1/me` — retourne le profil du porteur du token (patient ou pro).
+///
+/// L'`account_id` est extrait directement du JWT pour les patients (pas de requête supplémentaire).
+/// `memberships` est vide en MVP (table `cabinet_membership` non encore créée).
+pub async fn me(
+    State(state): State<AppState>,
+    claims: MeClaims,
+) -> Result<Json<MeResponse>, AppError> {
+    let row = sqlx::query("SELECT email FROM app_user WHERE id = $1")
+        .bind(claims.sub)
+        .fetch_one(&state.db)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
+
+    Ok(Json(MeResponse {
+        user_id: claims.sub,
+        email,
+        kind: claims.kind,
+        account_id: claims.account_id,
+        memberships: vec![],
+    }))
+}
+
+/// Lit le JWT dans `Authorization: Bearer <token>`, vérifie la signature.
+/// Accepte les tokens patient et pro, extrait `kind` et `account_id`.
+#[async_trait]
+impl FromRequestParts<AppState> for MeClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        decode::<MeClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)
+    }
+}
+
 /// Lit le JWT dans `Authorization: Bearer <token>`, vérifie la signature.
 /// Accepte les tokens patient et pro.
 #[async_trait]
