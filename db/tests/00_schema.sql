@@ -91,14 +91,16 @@ SELECT col_type_is('patient', 'deleted_at', 'timestamp with time zone', 'patient
 
 -- email citext + unique (app_user)
 SELECT col_type_is('app_user', 'email', 'citext', 'app_user.email citext');
--- colonnes d'identité/auth (0014, issue #177)
+-- colonnes d'identité/auth (0014, issue #177 ; 0021, issue #224)
 SELECT col_is_unique('app_user', 'email', 'app_user.email UNIQUE');
-SELECT col_not_null('app_user', 'password_hash', 'app_user.password_hash NOT NULL');
+SELECT has_column('app_user', 'password_hash', 'app_user.password_hash présent (nullable depuis 0021 — comptes invités)');
 SELECT col_not_null('app_user', 'kind', 'app_user.kind NOT NULL');
 SELECT has_column('app_user', 'totp_secret', 'app_user.totp_secret présent');
 SELECT col_not_null('app_user', 'totp_enabled', 'app_user.totp_enabled NOT NULL');
 SELECT has_column('app_user', 'password_reset_token', 'app_user.password_reset_token présent');
 SELECT has_column('app_user', 'password_reset_expires_at', 'app_user.password_reset_expires_at présent');
+SELECT has_column('app_user', 'first_name', 'app_user.first_name présent (0021, identité civile)');
+SELECT has_column('app_user', 'last_name', 'app_user.last_name présent (0021, identité civile)');
 
 -- chiffrement colonne : bytea + key_ref (jamais chiffré en SQL)
 SELECT col_type_is('clinical_note', 'content_ciphertext', 'bytea', 'clinical_note chiffré en bytea');
