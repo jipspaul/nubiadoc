@@ -1,0 +1,61 @@
+---
+interface Props {
+  title?: string;
+}
+const { title = 'Nubia' } = Astro.props;
+---
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <style is:global>
+      :root {
+        --bg: #0f0f0f;
+        --surface: #1a1a1a;
+        --border: #2a2a2a;
+        --text: #e0e0e0;
+        --muted: #888;
+        --accent: #4a90d9;
+      }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        line-height: 1.5;
+      }
+      a { color: var(--accent); }
+      a:hover { text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <header style="background:var(--surface);border-bottom:1px solid var(--border);padding:0.5rem 2rem;display:flex;align-items:center;gap:1rem;">
+      <a href="/" style="font-weight:bold;text-decoration:none;color:var(--text);">Nubia</a>
+      <nav id="public-nav" aria-label="Navigation principale"></nav>
+    </header>
+    <main style="flex:1;padding:2rem;max-width:960px;width:100%;margin:0 auto;">
+      <slot />
+    </main>
+    <footer style="padding:0.5rem 2rem;text-align:center;font-size:0.75rem;color:var(--muted);border-top:1px solid var(--border);">
+      Nubia dev console — données fictives uniquement
+    </footer>
+  </body>
+</html>
+
+<script>
+  import { isAuthenticated } from '../lib/session.ts';
+
+  const nav = document.getElementById('public-nav');
+  if (nav) {
+    if (isAuthenticated()) {
+      nav.innerHTML = '<a href="/app">Mon espace</a>';
+    } else {
+      nav.innerHTML = '<a href="/login">Se connecter</a> <a href="/register">Créer un compte</a>';
+    }
+  }
+</script>
