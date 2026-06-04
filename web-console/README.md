@@ -2,6 +2,21 @@
 
 Console de test pour les endpoints de l'API Nubia. Usage développement uniquement.
 
+## Quickstart
+
+```bash
+cd web-console
+./scripts/dev.sh
+```
+
+Le script installe les dépendances si besoin, vérifie que l'API Nubia tourne sur `:3000`, et lance le serveur sur http://localhost:4321.
+
+Depuis la racine du repo :
+
+```bash
+./scripts/dev-web.sh
+```
+
 ## Lancer
 
 ```bash
