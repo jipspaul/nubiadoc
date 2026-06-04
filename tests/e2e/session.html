@@ -2,16 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Nubiadoc Session</title>
+  <title>Session Test</title>
 </head>
 <body>
-  <script>
-    window.isAuthenticated = function () {
-      return localStorage.getItem("nubia_jwt") !== null;
-    };
-    window.logout = function () {
-      localStorage.removeItem("nubia_jwt");
-    };
-  </script>
+<script>
+  const JWT_KEY = 'nubia_jwt';
+  window.login = function(token) {
+    localStorage.setItem(JWT_KEY, token);
+  };
+  window.logout = function() {
+    localStorage.removeItem(JWT_KEY);
+  };
+  window.isAuthenticated = function() {
+    return localStorage.getItem(JWT_KEY) !== null;
+  };
+  window.getCurrentUser = function() {
+    const token = localStorage.getItem(JWT_KEY);
+    if (!token) return null;
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return null;
+      const p = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return p.email || null;
+    } catch (e) { return null; }
+  };
+</script>
 </body>
 </html>

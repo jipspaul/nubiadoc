@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Nubiadoc App</title>
-  <script>
-    if (!localStorage.getItem("nubia_jwt")) {
-      window.location.href = "/login";
-    }
-  </script>
+  <title>App</title>
 </head>
 <body>
+<script>
+  if (!localStorage.getItem('nubia_jwt')) {
+    window.location.replace('login.html');
+  }
+</script>
   <h1>App</h1>
 </body>
 </html>
