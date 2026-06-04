@@ -3023,6 +3023,144 @@ pub async fn get_account_dependents(
     Ok(Json(dependents))
 }
 
+/// Corps de la couverture pour `POST /v1/account/dependents`.
+#[derive(Deserialize)]
+pub struct PostDependentCoverageBody {
+    regime_obligatoire: Option<String>,
+    nss: Option<String>,
+    amc: Option<String>,
+    numero_adherent: Option<String>,
+}
+
+/// Corps de la requête `POST /v1/account/dependents`.
+#[derive(Deserialize)]
+pub struct PostDependentBody {
+    first_name: String,
+    last_name: String,
+    birth_date: Option<String>,
+    relationship: String,
+    coverage: Option<PostDependentCoverageBody>,
+}
+
+/// Réponse de `POST /v1/account/dependents`.
+#[derive(Serialize)]
+pub struct PostDependentResponse {
+    dependent_account_id: Uuid,
+}
+
+/// `POST /v1/account/dependents` — ajoute un proche/ayant droit.
+///
+/// Transaction atomique : crée un `app_user` géré (sans mot de passe), un `patient_account`
+/// pour le proche, et une ligne `account_guardianship` liant le tuteur.
+/// §07 §4.6 : `authority='full'` si `birth_date` < 18 ans (conforme mineurs).
+/// Si `coverage` fourni → crée/upsert `patient_coverage` pour le proche.
+pub async fn post_account_dependents(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Json(body): Json<PostDependentBody>,
+) -> Result<(StatusCode, Json<PostDependentResponse>), AppError> {
+    if !["enfant", "conjoint", "parent", "autre"].contains(&body.relationship.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
+        Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
+        None => None,
+    };
+
+    // §07 §4.6 : 'full' est imposé pour les mineurs ; c'est aussi la valeur par défaut
+    // à la création pour tous les proches (le tuteur a pleine autorité sur le compte géré).
+    let authority = "full";
+
+    // Email synthétique unique — le compte géré ne peut pas se connecter directement.
+    let managed_email = format!("managed-{}@nubia.internal", Uuid::new_v4());
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // app_user géré : password_hash NULL = aucun accès direct possible.
+    let user_row =
+        sqlx::query("INSERT INTO app_user (email, kind) VALUES ($1, 'patient') RETURNING id")
+            .bind(&managed_email)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    let managed_user_id: Uuid = user_row.try_get(0).map_err(|_| AppError::Internal)?;
+
+    let acct_row = sqlx::query(
+        "INSERT INTO patient_account (app_user_id, first_name, last_name, birth_date) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
+    )
+    .bind(managed_user_id)
+    .bind(&body.first_name)
+    .bind(&body.last_name)
+    .bind(birth_date)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let dependent_account_id: Uuid = acct_row.try_get(0).map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO account_guardianship \
+         (guardian_account_id, dependent_account_id, relationship, authority, active) \
+         VALUES ($1, $2, $3, $4, true)",
+    )
+    .bind(claims.account_id)
+    .bind(dependent_account_id)
+    .bind(&body.relationship)
+    .bind(authority)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(cov) = body.coverage {
+        // patient_coverage est scopée par app.patient_account_id (migration 0023).
+        sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+            .bind(dependent_account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        // dev/test : bytes UTF-8 du NSS plaintext (KMS AES-256-GCM à partir de NUB-T3).
+        let nss_encrypted: Option<Vec<u8>> = cov.nss.as_deref().map(|s| s.as_bytes().to_vec());
+
+        sqlx::query(
+            "INSERT INTO patient_coverage \
+               (patient_account_id, regime_obligatoire, nss_encrypted, amc, numero_adherent) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (patient_account_id) DO UPDATE SET \
+               regime_obligatoire = COALESCE($2, patient_coverage.regime_obligatoire), \
+               nss_encrypted      = COALESCE($3, patient_coverage.nss_encrypted), \
+               amc                = COALESCE($4, patient_coverage.amc), \
+               numero_adherent    = COALESCE($5, patient_coverage.numero_adherent), \
+               updated_at         = now()",
+        )
+        .bind(dependent_account_id)
+        .bind(&cov.regime_obligatoire)
+        .bind(&nss_encrypted)
+        .bind(&cov.amc)
+        .bind(&cov.numero_adherent)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        guardian_account_id = %claims.account_id,
+        dependent_account_id = %dependent_account_id,
+        relationship = %body.relationship,
+        "dependent account created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(PostDependentResponse {
+            dependent_account_id,
+        }),
+    ))
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
