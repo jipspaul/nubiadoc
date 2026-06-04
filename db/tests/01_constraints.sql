@@ -101,8 +101,9 @@ INSERT INTO app_user (id, email, password_hash, kind)
   VALUES ('a0000000-0000-0000-0000-0000000000a2','patient.a@example.test','$argon2id$fixture','patient');
 INSERT INTO patient_account (id, app_user_id, first_name, last_name)
   VALUES ('a0000000-0000-0000-0000-0000000000e1','a0000000-0000-0000-0000-0000000000a2','Marc','Dubois');
-INSERT INTO provider (id, cabinet_id, display_name, is_listed)
-  VALUES ('a0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001','Dr A', true);
+INSERT INTO provider (id, cabinet_id, user_id, display_name, is_listed)
+  VALUES ('a0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001',
+          'a0000000-0000-0000-0000-0000000000a1','Dr A', true);
 SELECT throws_ok(
   $$ INSERT INTO review (provider_id, patient_account_id, rating)
      VALUES ('a0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-0000000000e1', 9) $$,

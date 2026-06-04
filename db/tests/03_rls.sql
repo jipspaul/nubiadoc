@@ -81,8 +81,9 @@ INSERT INTO app_user (id, email, password_hash, kind)
 INSERT INTO patient_account (id, app_user_id, first_name, last_name)
   VALUES ('a0000000-0000-0000-0000-0000000000e1','a0000000-0000-0000-0000-0000000000ff','Compte','Global');
 -- annuaire public : provider listé (créé sous contexte A car write = cabinet)
-INSERT INTO provider (id, cabinet_id, display_name, is_listed)
-  VALUES ('a0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001','Dr Public', true);
+INSERT INTO provider (id, cabinet_id, user_id, display_name, is_listed)
+  VALUES ('a0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001',
+          'a0000000-0000-0000-0000-0000000000ff','Dr Public', true);
 INSERT INTO profession (id, label) VALUES ('a0000000-0000-0000-0000-0000000000b1','Chirurgien-dentiste');
 
 RESET app.current_cabinet_id;
@@ -96,8 +97,9 @@ SELECT is( (SELECT count(*) FROM provider WHERE id = 'a0000000-0000-0000-0000-00
 
 -- un provider NON listé ne doit pas fuiter dans l'annuaire public
 SET LOCAL app.current_cabinet_id = 'a0000000-0000-0000-0000-000000000001';
-INSERT INTO provider (id, cabinet_id, display_name, is_listed)
-  VALUES ('a0000000-0000-0000-0000-0000000000f2','a0000000-0000-0000-0000-000000000001','Dr Cache', false);
+INSERT INTO provider (id, cabinet_id, user_id, display_name, is_listed)
+  VALUES ('a0000000-0000-0000-0000-0000000000f2','a0000000-0000-0000-0000-000000000001',
+          'a0000000-0000-0000-0000-0000000000ff','Dr Cache', false);
 RESET app.current_cabinet_id;
 SELECT is( (SELECT count(*) FROM provider WHERE id = 'a0000000-0000-0000-0000-0000000000f2')::int, 0,
   'provider non listé invisible dans l''annuaire public (is_listed=false)');
