@@ -2646,6 +2646,93 @@ pub struct ConsentItem {
     revoked_at: Option<String>,
 }
 
+/// Corps de la requête `PUT /v1/account/consents/{purpose}`.
+#[derive(Deserialize)]
+pub struct PutConsentBody {
+    granted: bool,
+}
+
+/// Réponse de `PUT /v1/account/consents/{purpose}`.
+#[derive(Serialize)]
+pub struct ConsentUpdateResponse {
+    purpose: String,
+    granted: bool,
+    updated_at: String,
+}
+
+/// `PUT /v1/account/consents/{purpose}` — donne ou révoque un consentement RGPD.
+///
+/// Upsert idempotent : `granted_at` posé si accordé, `revoked_at` si révoqué.
+/// Chaque changement est audité dans `audit_log` (§07 §3.2).
+pub async fn put_account_consent(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(purpose): Path<String>,
+    Json(body): Json<PutConsentBody>,
+) -> Result<Json<ConsentUpdateResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO consent_record (app_user_id, purpose, granted, granted_at, revoked_at)
+         VALUES ($1, $2, $3,
+                 CASE WHEN $3 THEN now() ELSE NULL END,
+                 CASE WHEN NOT $3 THEN now() ELSE NULL END)
+         ON CONFLICT (app_user_id, purpose) DO UPDATE SET
+           granted    = EXCLUDED.granted,
+           granted_at = CASE WHEN EXCLUDED.granted THEN now()
+                              ELSE consent_record.granted_at END,
+           revoked_at = CASE WHEN NOT EXCLUDED.granted THEN now() ELSE NULL END
+         RETURNING purpose, granted,
+                   COALESCE(revoked_at, granted_at, created_at) AS updated_at",
+    )
+    .bind(claims.sub)
+    .bind(&purpose)
+    .bind(body.granted)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Audit log (§07 §3.2) — nil UUID comme sentinel cabinet_id (entité plateforme).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'patient', 'update_consent', 'consent_record', $3, $4)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(claims.account_id)
+    .bind(json!({"purpose": purpose, "granted": body.granted}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let purpose_out: String = row.try_get("purpose").map_err(|_| AppError::Internal)?;
+    let granted_out: bool = row.try_get("granted").map_err(|_| AppError::Internal)?;
+    let updated_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("updated_at").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        user_id = %claims.sub,
+        purpose = %purpose_out,
+        granted = granted_out,
+        "patient consent updated"
+    );
+
+    Ok(Json(ConsentUpdateResponse {
+        purpose: purpose_out,
+        granted: granted_out,
+        updated_at: updated_at.to_rfc3339(),
+    }))
+}
+
 /// `GET /v1/account/consents` — liste les consentements RGPD du patient courant.
 ///
 /// Lecture seule. Scoped par `app_user_id = claims.sub` (pas de RLS cabinet —
