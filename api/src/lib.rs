@@ -117,6 +117,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             get(auth::get_account_notification_preferences)
                 .patch(auth::patch_account_notification_preferences),
         )
+        .route("/v1/account/dependents", get(auth::get_account_dependents))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
             "/v1/account/consents/:purpose",
