@@ -2440,6 +2440,146 @@ pub async fn get_account_dependents(
     Ok(Json(dependents))
 }
 
+/// Réponse de `GET /v1/account/dependents/{id}`.
+#[derive(Serialize)]
+pub struct DependentDetailResponse {
+    dependent_account_id: Uuid,
+    first_name: String,
+    last_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    birth_date: Option<String>,
+    relationship: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    coverage: Option<CoverageResponse>,
+}
+
+/// `GET /v1/account/dependents/{id}` — profil détaillé d'un proche.
+///
+/// Vérifie que `account_guardianship.guardian_account_id = claims.account_id AND active = true`.
+/// Proche inconnu ou hors tutelle → `404` (anti-énumération, §07 §2.9).
+/// Accès audité : `action:'read_dependent', entity:'patient_account'`.
+pub async fn get_account_dependent_by_id(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(dependent_id): Path<Uuid>,
+) -> Result<Json<DependentDetailResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT ag.dependent_account_id, pa.first_name, pa.last_name, pa.birth_date, \
+                ag.relationship \
+         FROM account_guardianship ag \
+         JOIN patient_account pa ON pa.id = ag.dependent_account_id \
+         WHERE ag.guardian_account_id = $1 AND ag.dependent_account_id = $2 AND ag.active = true",
+    )
+    .bind(claims.account_id)
+    .bind(dependent_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let dependent_account_id: Uuid = row
+        .try_get("dependent_account_id")
+        .map_err(|_| AppError::Internal)?;
+    let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+    let birth_date: Option<chrono::NaiveDate> =
+        row.try_get("birth_date").map_err(|_| AppError::Internal)?;
+    let relationship: String = row
+        .try_get("relationship")
+        .map_err(|_| AppError::Internal)?;
+
+    // Couverture du proche — RLS scoped par app.patient_account_id (migration 0023).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(dependent_account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let cov_row = sqlx::query(
+        "SELECT regime_obligatoire, nss_encrypted, amc, numero_adherent, plateforme, tiers_payant \
+         FROM patient_coverage \
+         WHERE patient_account_id = $1",
+    )
+    .bind(dependent_account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let coverage = cov_row
+        .map(|r| -> Result<CoverageResponse, AppError> {
+            let regime_obligatoire: Option<String> = r
+                .try_get("regime_obligatoire")
+                .map_err(|_| AppError::Internal)?;
+            let nss_encrypted: Option<Vec<u8>> =
+                r.try_get("nss_encrypted").map_err(|_| AppError::Internal)?;
+            let amc: Option<String> = r.try_get("amc").map_err(|_| AppError::Internal)?;
+            let numero_adherent: Option<String> = r
+                .try_get("numero_adherent")
+                .map_err(|_| AppError::Internal)?;
+            let plateforme: Option<String> =
+                r.try_get("plateforme").map_err(|_| AppError::Internal)?;
+            let tiers_payant: bool = r.try_get("tiers_payant").map_err(|_| AppError::Internal)?;
+            let nss_masked = nss_encrypted
+                .as_deref()
+                .and_then(|b| std::str::from_utf8(b).ok())
+                .and_then(mask_nss);
+            Ok(CoverageResponse {
+                regime_obligatoire,
+                nss_masked,
+                amc,
+                numero_adherent,
+                plateforme,
+                tiers_payant,
+            })
+        })
+        .transpose()?;
+
+    // Audit log (§07 §2.9) — nil UUID comme sentinel cabinet_id (entité plateforme).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'patient', 'read_dependent', 'patient_account', $3, $4)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(dependent_account_id)
+    .bind(json!({}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        dependent_account_id = %dependent_account_id,
+        "patient dependent detail queried"
+    );
+
+    Ok(Json(DependentDetailResponse {
+        dependent_account_id,
+        first_name,
+        last_name,
+        birth_date: birth_date.map(|d| d.to_string()),
+        relationship,
+        coverage,
+    }))
+}
+
 /// Corps de la couverture pour `POST /v1/account/dependents`.
 #[derive(Deserialize)]
 pub struct PostDependentCoverageBody {

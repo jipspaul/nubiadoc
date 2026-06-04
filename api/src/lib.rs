@@ -127,6 +127,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/account/dependents",
             get(auth::get_account_dependents).post(auth::post_account_dependents),
         )
+        .route(
+            "/v1/account/dependents/:id",
+            get(auth::get_account_dependent_by_id),
+        )
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
             "/v1/account/consents/:purpose",
