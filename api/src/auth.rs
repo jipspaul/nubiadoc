@@ -1100,6 +1100,144 @@ pub async fn get_cabinet(
     }))
 }
 
+/// Corps de la requête `PATCH /v1/cabinet`.
+#[derive(Deserialize)]
+pub struct PatchCabinetBody {
+    pub name: Option<String>,
+    pub address: Option<String>,
+    pub phone: Option<String>,
+    pub siret: Option<String>,
+    pub settings: Option<Value>,
+}
+
+/// `PATCH /v1/cabinet` — édite les réglages/infos pratiques du cabinet (admin uniquement).
+///
+/// Merge patch : les champs absents du body restent inchangés. `address` et `phone`
+/// sont fusionnés dans le JSONB `settings`. Toute modification est auditée dans `audit_log`.
+pub async fn patch_cabinet(
+    State(state): State<AppState>,
+    claims: ProAdminClaims,
+    Json(body): Json<PatchCabinetBody>,
+) -> Result<Json<CabinetResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Snapshot avant modification pour l'audit log.
+    let old = sqlx::query("SELECT raison_sociale, siret, settings FROM cabinet WHERE id = $1")
+        .bind(claims.cabinet_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::NotFound)?;
+    let old_name: String = old
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let old_siret: Option<String> = old.try_get("siret").map_err(|_| AppError::Internal)?;
+    let old_settings: Value = old.try_get("settings").map_err(|_| AppError::Internal)?;
+
+    // Construit le delta settings : address, phone et settings explicites fusionnés.
+    let mut settings_delta = serde_json::Map::new();
+    if let Some(addr) = &body.address {
+        settings_delta.insert("address".to_string(), Value::String(addr.clone()));
+    }
+    if let Some(phone) = &body.phone {
+        settings_delta.insert("phone".to_string(), Value::String(phone.clone()));
+    }
+    if let Some(s) = &body.settings {
+        if let Some(obj) = s.as_object() {
+            for (k, v) in obj {
+                settings_delta.insert(k.clone(), v.clone());
+            }
+        }
+    }
+    let settings_delta = Value::Object(settings_delta);
+
+    let row = sqlx::query(
+        "UPDATE cabinet
+         SET
+             raison_sociale = COALESCE($1, raison_sociale),
+             siret          = COALESCE($2, siret),
+             settings       = settings || $3,
+             updated_at     = now()
+         WHERE id = $4
+         RETURNING id, raison_sociale, siret, settings",
+    )
+    .bind(body.name.as_deref())
+    .bind(body.siret.as_deref())
+    .bind(&settings_delta)
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let new_name: String = row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let new_siret: Option<String> = row
+        .try_get::<Option<String>, _>("siret")
+        .map_err(|_| AppError::Internal)?;
+    let new_settings: Value = row.try_get("settings").map_err(|_| AppError::Internal)?;
+
+    // Construit les métadonnées d'audit : un objet {champ: {old, new}} par champ modifié.
+    let mut changes = serde_json::Map::new();
+    if body.name.is_some() && new_name != old_name {
+        changes.insert(
+            "name".to_string(),
+            json!({"old": old_name, "new": new_name}),
+        );
+    }
+    if body.siret.is_some() && new_siret != old_siret {
+        changes.insert(
+            "siret".to_string(),
+            json!({"old": old_siret, "new": new_siret}),
+        );
+    }
+    let settings_changed = settings_delta.as_object().is_some_and(|m| !m.is_empty());
+    if settings_changed {
+        changes.insert(
+            "settings".to_string(),
+            json!({"old": old_settings, "new": new_settings}),
+        );
+    }
+
+    if !changes.is_empty() {
+        sqlx::query(
+            "INSERT INTO audit_log \
+             (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+             VALUES ($1, $2, 'admin', 'update_cabinet', 'cabinet', $3, $4)",
+        )
+        .bind(claims.cabinet_id)
+        .bind(claims.sub)
+        .bind(claims.cabinet_id)
+        .bind(Value::Object(changes))
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let siret = new_siret.map(|s| s.trim().to_string());
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        "cabinet updated"
+    );
+
+    Ok(Json(CabinetResponse {
+        id,
+        name: new_name,
+        siret,
+        settings: new_settings,
+    }))
+}
+
 /// Réponse de `GET /v1/pro/verification`.
 #[derive(Serialize)]
 pub struct ProVerificationStatusResponse {
