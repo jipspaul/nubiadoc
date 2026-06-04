@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+mod appointments;
 mod auth;
 mod dashboard;
 
@@ -134,6 +135,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
                 .patch(auth::patch_account_dependent)
                 .delete(auth::delete_account_dependent),
         )
+        .route("/v1/appointments", get(appointments::list_appointments))
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
