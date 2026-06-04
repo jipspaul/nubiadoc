@@ -136,6 +136,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
                 .delete(auth::delete_account_dependent),
         )
         .route("/v1/appointments", get(appointments::list_appointments))
+        .route("/v1/appointments/:id", get(appointments::get_appointment))
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
