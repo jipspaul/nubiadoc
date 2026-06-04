@@ -78,7 +78,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
         .route("/v1/auth/logout", post(auth::logout::logout))
         .route("/v1/auth/mfa/enroll", post(auth::mfa_enroll))
         .route("/v1/auth/mfa/verify", post(auth::mfa_verify))
-        .route("/v1/auth/password/forgot", post(auth::forgot_password))
+        .route(
+            "/v1/auth/password/forgot",
+            post(auth::forgot_password::forgot_password),
+        )
         .route("/v1/auth/password/reset", post(auth::reset_password))
         .route("/v1/me", get(auth::me))
         .route("/v1/pro/register", post(auth::pro_register))
