@@ -47,6 +47,51 @@ pub struct RegisterBody {
     cgu_version: String,
 }
 
+/// Sous-corps cabinet pour `POST /v1/pro/register`.
+#[derive(Deserialize)]
+pub struct ProRegisterCabinetBody {
+    raison_sociale: String,
+    siret: Option<String>,
+    specialite: String,
+}
+
+/// Sous-corps praticien pour `POST /v1/pro/register`.
+#[derive(Deserialize)]
+pub struct ProRegisterPractitionerBody {
+    first_name: String,
+    last_name: String,
+    rpps: Option<String>,
+    adeli: Option<String>,
+}
+
+/// Corps de la requête `POST /v1/pro/register`.
+#[derive(Deserialize)]
+pub struct ProRegisterBody {
+    email: String,
+    password: String,
+    cabinet: ProRegisterCabinetBody,
+    practitioner: ProRegisterPractitionerBody,
+}
+
+/// Réponse de `POST /v1/pro/register`.
+#[derive(Serialize)]
+pub struct ProRegisterResponse {
+    account_id: Uuid,
+    cabinet_id: Uuid,
+    provider_id: Uuid,
+    access_token: String,
+}
+
+/// Claims JWT émis par `POST /v1/pro/register` — porte `cabinet_id` + `role`.
+#[derive(Serialize, Deserialize)]
+struct ProRegisterClaims {
+    sub: Uuid,
+    kind: String,
+    cabinet_id: Uuid,
+    role: String,
+    exp: u64,
+}
+
 #[derive(Serialize)]
 pub(crate) struct RegisterResponse {
     account_id: Uuid,
@@ -815,6 +860,123 @@ pub async fn reset_password(
     .map_err(|_| AppError::Internal)?;
 
     Ok(Json(json!({"message": "Mot de passe réinitialisé."})))
+}
+
+/// `POST /v1/pro/register` — crée un compte pro + cabinet + membership admin + provider
+/// en une transaction atomique. Émet un JWT portant `cabinet_id` et `role:"admin"`.
+pub async fn pro_register(
+    State(state): State<AppState>,
+    Json(body): Json<ProRegisterBody>,
+) -> Result<(StatusCode, Json<ProRegisterResponse>), AppError> {
+    if body.password.len() < 8 || !body.password.chars().any(|c| c.is_ascii_digit()) {
+        return Err(AppError::PasswordPolicy);
+    }
+
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = Argon2::default()
+        .hash_password(body.password.as_bytes(), &salt)
+        .map_err(|_| AppError::Internal)?
+        .to_string();
+
+    // Pre-generate cabinet UUID so we can SET LOCAL app.current_cabinet_id before the insert.
+    // cabinet has FORCE RLS: WITH CHECK requires id = current_setting('app.current_cabinet_id').
+    let cabinet_id = Uuid::new_v4();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // app_user has no RLS — insert before setting the tenant GUC.
+    let user_row = sqlx::query(
+        "INSERT INTO app_user (email, password_hash, kind) VALUES ($1, $2, 'pro') RETURNING id",
+    )
+    .bind(&body.email)
+    .bind(&password_hash)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        if is_unique_violation(&e) {
+            AppError::EmailTaken
+        } else {
+            AppError::Internal
+        }
+    })?;
+    let user_id: Uuid = user_row.try_get(0).map_err(|_| AppError::Internal)?;
+
+    // Scope the tenant GUC to this transaction (SET LOCAL) so subsequent inserts
+    // pass the cabinet / cabinet_membership / provider RLS WITH CHECK.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, siret, specialite) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(cabinet_id)
+    .bind(&body.cabinet.raison_sociale)
+    .bind(&body.cabinet.siret)
+    .bind(&body.cabinet.specialite)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role) VALUES ($1, $2, 'admin')",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let display_name = format!(
+        "{} {}",
+        body.practitioner.first_name, body.practitioner.last_name
+    );
+    let provider_row = sqlx::query(
+        "INSERT INTO provider (cabinet_id, user_id, display_name, rpps, adeli) \
+         VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .bind(&display_name)
+    .bind(&body.practitioner.rpps)
+    .bind(&body.practitioner.adeli)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let provider_id: Uuid = provider_row.try_get(0).map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        + 900;
+    let claims = ProRegisterClaims {
+        sub: user_id,
+        kind: "pro".to_string(),
+        cabinet_id,
+        role: "admin".to_string(),
+        exp,
+    };
+    let access_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+    )
+    .map_err(|_| AppError::Internal)?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(ProRegisterResponse {
+            account_id: user_id,
+            cabinet_id,
+            provider_id,
+            access_token,
+        }),
+    ))
 }
 
 fn is_unique_violation(e: &sqlx::Error) -> bool {
