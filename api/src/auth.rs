@@ -190,6 +190,7 @@ pub(crate) enum AppError {
     InvalidToken,
     Conflict,
     NotFound,
+    ProviderNotVerified,
 }
 
 impl IntoResponse for AppError {
@@ -249,6 +250,11 @@ impl IntoResponse for AppError {
             AppError::NotFound => {
                 (StatusCode::NOT_FOUND, Json(json!({"code": "not_found"}))).into_response()
             }
+            AppError::ProviderNotVerified => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "provider_not_verified"})),
+            )
+                .into_response(),
         }
     }
 }
@@ -1504,6 +1510,81 @@ pub async fn patch_cabinet_provider(
         is_listed,
         rpps_verified,
     }))
+}
+
+/// Corps de la requête `PUT /v1/cabinet/provider/listing`.
+#[derive(Deserialize)]
+pub struct PutListingBody {
+    pub online: bool,
+}
+
+/// Réponse de `PUT /v1/cabinet/provider/listing`.
+#[derive(Serialize)]
+pub struct ListingResponse {
+    pub is_listed: bool,
+}
+
+/// `PUT /v1/cabinet/provider/listing` — active ou désactive la mise en ligne du praticien.
+///
+/// Règle métier (§07 §4.7, §05 §9.3) : `is_listed=true` uniquement si `rpps_verified=true`.
+/// Sinon → `409 provider_not_verified`. Rôle `admin` requis.
+pub async fn put_cabinet_provider_listing(
+    State(state): State<AppState>,
+    claims: ProAdminClaims,
+    Json(body): Json<PutListingBody>,
+) -> Result<Json<ListingResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    if body.online {
+        let row = sqlx::query(
+            "SELECT rpps_verified FROM provider WHERE cabinet_id = $1 AND user_id = $2",
+        )
+        .bind(claims.cabinet_id)
+        .bind(claims.sub)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+
+        let rpps_verified: bool = row
+            .try_get("rpps_verified")
+            .map_err(|_| AppError::Internal)?;
+        if !rpps_verified {
+            return Err(AppError::ProviderNotVerified);
+        }
+    }
+
+    let row = sqlx::query(
+        "UPDATE provider SET is_listed = $1 \
+         WHERE cabinet_id = $2 AND user_id = $3 \
+         RETURNING is_listed",
+    )
+    .bind(body.online)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let is_listed: bool = row.try_get("is_listed").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        is_listed,
+        "provider listing updated"
+    );
+
+    Ok(Json(ListingResponse { is_listed }))
 }
 
 /// Corps de la requête `POST /v1/pro/verification`.
