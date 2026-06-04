@@ -1,12 +1,12 @@
 ---
-import Default from '../../layouts/Default.astro';
+import Default from '../../../layouts/Default.astro';
 ---
-<Default title="Mot de passe oublié — Nubia Console">
-  <h1 style="margin-bottom:1.5rem;">POST /v1/auth/password/forgot</h1>
-  <form id="forgot-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+<Default title="Refresh — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">POST /v1/auth/refresh</h1>
+  <form id="refresh-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
-      Email
-      <input type="email" name="email" required
+      Refresh token
+      <input type="text" name="refresh_token" required
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
     <button type="submit"
@@ -23,27 +23,27 @@ import Default from '../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../lib/api.ts';
+  import { apiFetch } from '../../../lib/api.ts';
 
-  const form = document.getElementById('forgot-form') as HTMLFormElement;
+  const form = document.getElementById('refresh-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
-    const email = fd.get('email') as string;
+    const refresh_token = fd.get('refresh_token') as string;
 
     result.className = '';
     result.textContent = 'Chargement…';
 
     try {
-      const { status, data } = await apiFetch('/v1/auth/password/forgot', {
+      const { status, data } = await apiFetch('/v1/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ refresh_token }),
       });
       result.className = status === 200 ? 'success' : 'error';
-      result.textContent = `HTTP ${status}\n${JSON.stringify(data, null, 2)}`;
+      result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
     } catch (err) {
       result.className = 'error';
       result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;

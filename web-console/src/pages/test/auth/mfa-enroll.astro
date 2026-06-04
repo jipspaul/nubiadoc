@@ -1,17 +1,17 @@
 ---
-import Default from '../../layouts/Default.astro';
+import Default from '../../../layouts/Default.astro';
 ---
-<Default title="Consents — Nubia Console">
-  <h1 style="margin-bottom:1.5rem;">GET /v1/account/consents</h1>
-  <form id="consents-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+<Default title="MFA Enroll — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">POST /v1/auth/mfa/enroll</h1>
+  <form id="mfa-enroll-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
-      Access token (Bearer)
+      Access token (Bearer — pro)
       <input type="text" name="access_token" required
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
     <button type="submit"
       style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-      GET
+      POST
     </button>
   </form>
   <pre id="result" style="margin-top:1.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
@@ -23,9 +23,9 @@ import Default from '../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../lib/api.ts';
+  import { apiFetch } from '../../../lib/api.ts';
 
-  const form = document.getElementById('consents-form') as HTMLFormElement;
+  const form = document.getElementById('mfa-enroll-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
 
   form.addEventListener('submit', async (e) => {
@@ -37,9 +37,11 @@ import Default from '../../layouts/Default.astro';
     result.textContent = 'Chargement…';
 
     try {
-      const { status, data } = await apiFetch('/v1/account/consents', {
+      const { status, data } = await apiFetch('/v1/auth/mfa/enroll', {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
         },
       });
       result.className = status < 300 ? 'success' : 'error';

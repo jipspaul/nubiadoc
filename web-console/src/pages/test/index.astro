@@ -1,0 +1,32 @@
+---
+import Default from '../../layouts/Default.astro';
+
+const pages = [
+  { href: '/test/auth/logout',          label: 'POST /v1/auth/logout' },
+  { href: '/test/auth/me',              label: 'GET /v1/me' },
+  { href: '/test/auth/mfa-enroll',      label: 'POST /v1/auth/mfa/enroll' },
+  { href: '/test/auth/mfa-verify',      label: 'POST /v1/auth/mfa/verify' },
+  { href: '/test/auth/password-forgot', label: 'POST /v1/auth/password/forgot' },
+  { href: '/test/auth/password-reset',  label: 'POST /v1/auth/password/reset' },
+  { href: '/test/auth/refresh',         label: 'POST /v1/auth/refresh' },
+  { href: '/test/auth/register',        label: 'POST /v1/auth/register' },
+  { href: '/test/account/consents',     label: 'GET /v1/account/consents' },
+  { href: '/test/account/consents-update', label: 'PATCH /v1/account/consents' },
+  { href: '/test/account/coverage',     label: 'GET /v1/account/coverage' },
+  { href: '/test/account/coverage-card', label: 'GET /v1/account/coverage/card' },
+  { href: '/test/account/coverage-update', label: 'PATCH /v1/account/coverage' },
+  { href: '/test/account/dependent-delete', label: 'DELETE /v1/account/dependents/:id' },
+  { href: '/test/account/dependent-detail', label: 'GET /v1/account/dependents/:id' },
+  { href: '/test/account/dependent-patch', label: 'PATCH /v1/account/dependents/:id' },
+  { href: '/test/account/profile',      label: 'GET /v1/account' },
+  { href: '/test/account/update',       label: 'PATCH /v1/account' },
+];
+---
+<Default title="API Test Pages — Nubia Console">
+  <h1>Pages de test API</h1>
+  <ul>
+    {pages.map(p => (
+      <li><a href={p.href}>{p.label}</a></li>
+    ))}
+  </ul>
+</Default>

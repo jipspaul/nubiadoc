@@ -1,5 +1,5 @@
 ---
-import Default from '../../layouts/Default.astro';
+import Default from '../../../layouts/Default.astro';
 ---
 <Default title="Coverage Update — Nubia Console">
   <h1 style="margin-bottom:1.5rem;">PATCH /v1/account/coverage</h1>
@@ -72,7 +72,7 @@ import Default from '../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../lib/api.ts';
+  import { apiFetch } from '../../../lib/api.ts';
 
   const form = document.getElementById('coverage-update-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;

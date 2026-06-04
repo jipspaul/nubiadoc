@@ -1,21 +1,14 @@
 ---
-import Default from '../../layouts/Default.astro';
+import Default from '../../../layouts/Default.astro';
 ---
-<Default title="Dependent Detail — Nubia Console">
-  <h1 style="margin-bottom:1.5rem;">GET /v1/account/dependents/:id</h1>
-  <form id="dependent-detail-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+<Default title="Profile — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/account</h1>
+  <form id="profile-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
       Access token (Bearer)
       <input type="text" name="access_token" required
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
-
-    <label>
-      ID du proche (UUID)
-      <input type="text" name="dependent_id" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-    </label>
-
     <button type="submit"
       style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
       GET
@@ -30,22 +23,21 @@ import Default from '../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../lib/api.ts';
+  import { apiFetch } from '../../../lib/api.ts';
 
-  const form = document.getElementById('dependent-detail-form') as HTMLFormElement;
+  const form = document.getElementById('profile-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
     const access_token = fd.get('access_token') as string;
-    const dependent_id = fd.get('dependent_id') as string;
 
     result.className = '';
     result.textContent = 'Chargement…';
 
     try {
-      const { status, data } = await apiFetch(`/v1/account/dependents/${dependent_id}`, {
+      const { status, data } = await apiFetch('/v1/account', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${access_token}`,
