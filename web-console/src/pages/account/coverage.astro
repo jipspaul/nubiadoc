@@ -1,0 +1,53 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Coverage — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/account/coverage</h1>
+  <form id="coverage-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      GET
+    </button>
+  </form>
+  <pre id="result" style="margin-top:1.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const form = document.getElementById('coverage-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/account/coverage', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+        },
+      });
+      result.className = status < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
