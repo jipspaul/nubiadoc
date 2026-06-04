@@ -14,6 +14,17 @@ SELECT ok( EXISTS(SELECT 1 FROM pg_extension WHERE extname='btree_gist'),'extens
 SELECT has_table('cabinet');
 SELECT has_table('app_user');
 SELECT has_table('cabinet_membership');
+-- cabinet_membership : colonnes clés (issue #207)
+SELECT has_column('cabinet_membership', 'id',         'cabinet_membership.id présent');
+SELECT has_column('cabinet_membership', 'cabinet_id', 'cabinet_membership.cabinet_id présent');
+SELECT col_not_null('cabinet_membership', 'cabinet_id', 'cabinet_membership.cabinet_id NOT NULL (tenant)');
+SELECT has_column('cabinet_membership', 'user_id',    'cabinet_membership.user_id présent');
+SELECT col_not_null('cabinet_membership', 'user_id',   'cabinet_membership.user_id NOT NULL');
+SELECT has_column('cabinet_membership', 'role',       'cabinet_membership.role présent');
+SELECT has_column('cabinet_membership', 'active',     'cabinet_membership.active présent (0018)');
+SELECT col_type_is('cabinet_membership', 'active', 'boolean', 'cabinet_membership.active boolean');
+SELECT col_not_null('cabinet_membership', 'active',   'cabinet_membership.active NOT NULL');
+SELECT col_has_default('cabinet_membership', 'active', 'cabinet_membership.active défaut true');
 SELECT has_table('practitioner');
 SELECT has_table('patient');
 SELECT has_table('medical_record');
