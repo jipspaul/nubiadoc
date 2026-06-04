@@ -1,7 +1,7 @@
-//! Handler `GET /v1/appointments` — liste paginée des RDV du patient.
+//! Handlers `GET /v1/appointments` et `GET /v1/appointments/:id` — RDV patient.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -190,5 +190,156 @@ pub async fn list_appointments(
     Ok(Json(AppointmentsResponse {
         data,
         page: PageInfo { next_cursor, limit },
+    }))
+}
+
+#[derive(Serialize)]
+pub struct ProviderDetail {
+    pub id: Option<Uuid>,
+    pub display_name: Option<String>,
+    pub specialty: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct CabinetInfo {
+    pub name: String,
+    pub address: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct AppointmentDetail {
+    pub id: Uuid,
+    pub starts_at: String,
+    pub ends_at: String,
+    pub status: String,
+    pub motif: Option<String>,
+    pub provider: ProviderDetail,
+    pub cabinet: CabinetInfo,
+}
+
+/// `GET /v1/appointments/:id` — détail d'un RDV du patient connecté.
+///
+/// Token `kind:"patient"` requis. Ownership vérifié par RLS (policy 0029) :
+/// si le RDV n'appartient pas au patient ou n'existe pas → `404` (anti-énumération).
+/// Après fetch, le GUC `app.current_cabinet_id` est positionné pour lire le cabinet
+/// et écrire l'entrée d'audit (§07 §2.9).
+pub async fn get_appointment(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(appt_id): Path<Uuid>,
+) -> Result<Json<AppointmentDetail>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient pour appointment_patient_read (policy 0029).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Fetch appointment — RLS garantit l'ownership (404 si autre patient ou inexistant).
+    let row = sqlx::query(
+        "SELECT id, starts_at, ends_at, status, motif, cabinet_id, practitioner_id \
+         FROM appointment \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let ends_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let motif: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet pour provider_cabinet_manage + tenant_isolation (cabinet) + audit_log.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Fetch provider (inclut les non-listés via provider_cabinet_manage).
+    let provider_row = sqlx::query(
+        "SELECT id, display_name, specialite FROM provider \
+         WHERE practitioner_id = $1 \
+         LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let (provider_id, provider_display_name, provider_specialty) = match provider_row {
+        Some(r) => {
+            let pid: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
+            let dn: String = r.try_get("display_name").map_err(|_| AppError::Internal)?;
+            let sp: Option<String> = r.try_get("specialite").map_err(|_| AppError::Internal)?;
+            (Some(pid), Some(dn), sp)
+        }
+        None => (None, None, None),
+    };
+
+    // Fetch cabinet (accessible via tenant_isolation après SET LOCAL cabinet GUC).
+    let cab_row = sqlx::query(
+        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    let cabinet_name: String = cab_row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let cabinet_address: Option<String> =
+        cab_row.try_get("address").map_err(|_| AppError::Internal)?;
+
+    // Audit (§07 §2.9) — cabinet_id correspond au GUC positionné ci-dessus.
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'read_appointment', 'appointment', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %id,
+        "appointment detail queried"
+    );
+
+    Ok(Json(AppointmentDetail {
+        id,
+        starts_at: starts_at.to_rfc3339(),
+        ends_at: ends_at.to_rfc3339(),
+        status,
+        motif,
+        provider: ProviderDetail {
+            id: provider_id,
+            display_name: provider_display_name,
+            specialty: provider_specialty,
+        },
+        cabinet: CabinetInfo {
+            name: cabinet_name,
+            address: cabinet_address,
+        },
     }))
 }
