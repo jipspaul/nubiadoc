@@ -1,7 +1,8 @@
-//! Handlers `GET /v1/appointments` et `GET /v1/appointments/:id` — RDV patient.
+//! Handlers `GET /v1/appointments`, `GET /v1/appointments/:id`, `POST /v1/appointments` — RDV patient.
 
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -342,4 +343,179 @@ pub async fn get_appointment(
             address: cabinet_address,
         },
     }))
+}
+
+/// Corps de la requête `POST /v1/appointments`.
+#[derive(Deserialize)]
+pub struct CreateAppointmentBody {
+    pub provider_id: Uuid,
+    pub slot_id: Option<Uuid>,
+    /// ISO 8601 UTC (ex. "2026-06-10T09:00:00Z"). Ignoré si `slot_id` est fourni.
+    pub starts_at: Option<String>,
+    pub motif: String,
+    pub on_behalf_of: Option<Uuid>,
+}
+
+/// Réponse de `POST /v1/appointments`.
+#[derive(Serialize)]
+pub struct CreateAppointmentResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
+fn is_exclusion_violation(e: &sqlx::Error) -> bool {
+    matches!(
+        e,
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23P01")
+    )
+}
+
+/// `POST /v1/appointments` — création d'un RDV par le patient.
+///
+/// Token `kind:"patient"` requis. Le `cabinet_id` est déduit du praticien (jamais du body).
+/// La contrainte d'exclusion DB `appointment_no_overlap` (erreur PG `23P01`) est mappée en
+/// `409 slot_taken`. Si `on_behalf_of` est fourni, la tutelle active est vérifiée contre
+/// `account_guardianship` — sinon `422 guardianship_required`.
+/// Le statut initial est toujours `"requested"` (confirmation asynchrone par le cabinet).
+pub async fn create_appointment(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Json(body): Json<CreateAppointmentBody>,
+) -> Result<(StatusCode, Json<CreateAppointmentResponse>), AppError> {
+    if body.slot_id.is_none() && body.starts_at.is_none() {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Vérifie la tutelle si on agit pour un proche.
+    if let Some(dependent_id) = body.on_behalf_of {
+        sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+            .bind(claims.account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let guardianship = sqlx::query(
+            "SELECT id FROM account_guardianship \
+             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+        )
+        .bind(claims.account_id)
+        .bind(dependent_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if guardianship.is_none() {
+            return Err(AppError::GuardianshipRequired);
+        }
+    }
+
+    let effective_account_id = body.on_behalf_of.unwrap_or(claims.account_id);
+
+    // Le praticien est récupéré via la policy `provider_public_read` (is_listed = true).
+    let provider_row =
+        sqlx::query("SELECT cabinet_id, practitioner_id FROM provider WHERE id = $1")
+            .bind(body.provider_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+
+    let cabinet_id: Uuid = provider_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    let practitioner_id_opt: Option<Uuid> = provider_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let practitioner_id = practitioner_id_opt.ok_or(AppError::NotFound)?;
+
+    // Scope cabinet pour les INSERTs soumis à la RLS tenant_isolation.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Résout le dossier patient dans ce cabinet (RLS via GUC cabinet).
+    let patient_row = sqlx::query(
+        "SELECT id FROM patient \
+         WHERE patient_account_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(effective_account_id)
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Résout starts_at / ends_at selon slot_id ou starts_at fourni.
+    let (starts_at, ends_at) = if let Some(slot_id) = body.slot_id {
+        let slot_row =
+            sqlx::query("SELECT starts_at, ends_at FROM availability_slot WHERE id = $1")
+                .bind(slot_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .ok_or(AppError::NotFound)?;
+
+        let sa: chrono::DateTime<chrono::Utc> = slot_row
+            .try_get("starts_at")
+            .map_err(|_| AppError::Internal)?;
+        let ea: chrono::DateTime<chrono::Utc> = slot_row
+            .try_get("ends_at")
+            .map_err(|_| AppError::Internal)?;
+        (sa, ea)
+    } else {
+        let sa = body
+            .starts_at
+            .as_deref()
+            .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())
+            .ok_or(AppError::ValidationError)?;
+        let ea = sa + chrono::Duration::minutes(30);
+        (sa, ea)
+    };
+
+    // INSERT — 23P01 (appointment_no_overlap) → 409 slot_taken.
+    let result = sqlx::query(
+        "INSERT INTO appointment \
+         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, $5, 'requested', $6) \
+         RETURNING id, status",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .bind(starts_at)
+    .bind(ends_at)
+    .bind(&body.motif)
+    .fetch_one(&mut *tx)
+    .await;
+
+    let row = match result {
+        Ok(row) => row,
+        Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
+        Err(_) => return Err(AppError::Internal),
+    };
+
+    let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %appointment_id,
+        "appointment created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateAppointmentResponse {
+            appointment_id,
+            status,
+        }),
+    ))
 }

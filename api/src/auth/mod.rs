@@ -118,6 +118,8 @@ pub(crate) enum AppError {
     NotFound,
     ProviderNotVerified,
     MemberAlreadyExists,
+    SlotTaken,
+    GuardianshipRequired,
 }
 
 impl IntoResponse for AppError {
@@ -185,6 +187,14 @@ impl IntoResponse for AppError {
             AppError::MemberAlreadyExists => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "member_already_exists"})),
+            )
+                .into_response(),
+            AppError::SlotTaken => {
+                (StatusCode::CONFLICT, Json(json!({"code": "slot_taken"}))).into_response()
+            }
+            AppError::GuardianshipRequired => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "guardianship_required"})),
             )
                 .into_response(),
         }
