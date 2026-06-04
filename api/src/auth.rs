@@ -1802,6 +1802,111 @@ pub async fn post_cabinet_members(
     ))
 }
 
+/// Claims JWT d'un patient — extrait `account_id` et `sub` depuis le token.
+///
+/// Renvoie `401` si le token est absent/invalide, `403` si `kind != "patient"`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct PatientAccountClaims {
+    pub(crate) sub: Uuid,
+    pub(crate) account_id: Uuid,
+    kind: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for PatientAccountClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        let claims = decode::<PatientAccountClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if claims.kind != "patient" {
+            return Err(AppError::Forbidden);
+        }
+
+        Ok(claims)
+    }
+}
+
+/// Réponse de `GET /v1/account`.
+#[derive(Serialize)]
+pub struct AccountResponse {
+    id: Uuid,
+    first_name: String,
+    last_name: String,
+    email: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    phone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    birth_date: Option<String>,
+    created_at: String,
+}
+
+/// `GET /v1/account` — retourne l'identité et les coordonnées du compte patient.
+///
+/// Données de niveau plateforme (portables entre cabinets). `nss` et colonnes chiffrées
+/// ne sont jamais renvoyés (`05` §10.1). Auth JWT patient obligatoire.
+pub async fn get_account(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<AccountResponse>, AppError> {
+    let row = sqlx::query(
+        "SELECT pa.id, pa.first_name, pa.last_name, pa.phone, pa.birth_date, pa.created_at, \
+                au.email \
+         FROM patient_account pa \
+         JOIN app_user au ON au.id = pa.app_user_id \
+         WHERE pa.id = $1 AND pa.app_user_id = $2 AND pa.deleted_at IS NULL",
+    )
+    .bind(claims.account_id)
+    .bind(claims.sub)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+    let phone: Option<String> = row.try_get("phone").map_err(|_| AppError::Internal)?;
+    let birth_date: Option<chrono::NaiveDate> =
+        row.try_get("birth_date").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        user_id = %claims.sub,
+        "patient account queried"
+    );
+
+    Ok(Json(AccountResponse {
+        id,
+        first_name,
+        last_name,
+        email,
+        phone,
+        birth_date: birth_date.map(|d| d.to_string()),
+        created_at: created_at.to_rfc3339(),
+    }))
+}
+
 /// Corps de la requête `POST /v1/pro/verification`.
 #[derive(Deserialize)]
 pub struct ProVerificationBody {
