@@ -54,6 +54,13 @@ pub(crate) struct RegisterResponse {
     refresh_token: String,
 }
 
+/// Réponse de `POST /v1/auth/mfa/enroll`.
+#[derive(Serialize)]
+pub struct MfaEnrollResponse {
+    totp_secret: String,
+    otpauth_url: String,
+}
+
 #[derive(Serialize)]
 struct PatientClaims {
     sub: Uuid,
@@ -215,7 +222,7 @@ impl FromRequestParts<AppState> for ProClaims {
             decode::<ProClaims>(token, &key, &validation).map_err(|_| AppError::Unauthorized)?;
 
         if data.claims.kind != "pro" {
-            return Err(AppError::Unauthorized);
+            return Err(AppError::Forbidden);
         }
 
         Ok(data.claims)
@@ -408,6 +415,23 @@ pub async fn logout(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /v1/auth/mfa/enroll` — démarre l'enrôlement TOTP (pro uniquement).
+///
+/// Génère un secret TOTP aléatoire et retourne l'URL `otpauth://` pour affichage QR.
+/// Le secret n'est PAS persisté ici — il le sera lors de la vérification via `/mfa/verify`.
+pub async fn mfa_enroll(_claims: ProClaims) -> Result<Json<MfaEnrollResponse>, AppError> {
+    let secret = Secret::generate_secret();
+    let totp_secret = secret.to_encoded().to_string();
+    let otpauth_url = format!(
+        "otpauth://totp/Nubia%20Health?secret={}&issuer=Nubia%20Health&algorithm=SHA1&digits=6&period=30",
+        totp_secret
+    );
+    Ok(Json(MfaEnrollResponse {
+        totp_secret,
+        otpauth_url,
+    }))
 }
 
 /// Corps de la requête `POST /v1/auth/mfa/verify`.
