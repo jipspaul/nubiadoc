@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Nubiadoc Session</title>
+</head>
+<body>
+  <script>
+    window.isAuthenticated = function () {
+      return localStorage.getItem("nubia_jwt") !== null;
+    };
+    window.logout = function () {
+      localStorage.removeItem("nubia_jwt");
+    };
+  </script>
+</body>
+</html>

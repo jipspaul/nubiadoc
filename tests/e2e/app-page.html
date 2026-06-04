@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Nubiadoc App</title>
+  <script>
+    if (!localStorage.getItem("nubia_jwt")) {
+      window.location.href = "/login";
+    }
+  </script>
+</head>
+<body>
+  <h1>App</h1>
+</body>
+</html>
