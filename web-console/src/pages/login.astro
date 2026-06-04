@@ -1,7 +1,7 @@
 ---
-import Default from '../layouts/Default.astro';
+import PublicLayout from '../layouts/PublicLayout.astro';
 ---
-<Default title="Login — Nubia Console">
+<PublicLayout title="Login — Nubia Console">
   <h1 style="margin-bottom:1rem;">POST /v1/auth/login</h1>
   <p style="margin-bottom:1.5rem;color:var(--muted);">
     Pas encore de compte ? <a href="/register">Créer un compte</a>
@@ -23,7 +23,7 @@ import Default from '../layouts/Default.astro';
     </button>
   </form>
   <pre id="result" style="margin-top:1.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
-</Default>
+</PublicLayout>
 
 <style>
   pre.success { border-left: 4px solid green; }
