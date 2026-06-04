@@ -189,6 +189,7 @@ pub(crate) enum AppError {
     Forbidden,
     InvalidToken,
     Conflict,
+    NotFound,
 }
 
 impl IntoResponse for AppError {
@@ -245,6 +246,9 @@ impl IntoResponse for AppError {
                 Json(json!({"code": "verification_pending"})),
             )
                 .into_response(),
+            AppError::NotFound => {
+                (StatusCode::NOT_FOUND, Json(json!({"code": "not_found"}))).into_response()
+            }
         }
     }
 }
@@ -984,6 +988,85 @@ pub async fn pro_register(
             access_token,
         }),
     ))
+}
+
+/// Réponse de `GET /v1/pro/verification`.
+#[derive(Serialize)]
+pub struct ProVerificationStatusResponse {
+    verification_id: Uuid,
+    id_type: String,
+    identifier: String,
+    status: String,
+    created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resolved_at: Option<String>,
+}
+
+/// `GET /v1/pro/verification` — retourne le statut de la dernière vérification ANS du praticien.
+///
+/// Renvoie `200` avec le dernier enregistrement `provider_verification` (ORDER BY created_at DESC).
+/// Aucun enregistrement → `404`.
+pub async fn get_pro_verification(
+    State(state): State<AppState>,
+    claims: ProAdminClaims,
+) -> Result<Json<ProVerificationStatusResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let provider_row =
+        sqlx::query("SELECT id FROM provider WHERE cabinet_id = $1 AND user_id = $2")
+            .bind(claims.cabinet_id)
+            .bind(claims.sub)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::Internal)?;
+    let provider_id: Uuid = provider_row.try_get(0).map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, id_type, identifier, status, created_at, resolved_at \
+         FROM provider_verification \
+         WHERE provider_id = $1 \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(provider_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let row = row.ok_or(AppError::NotFound)?;
+
+    let verification_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let id_type: String = row.try_get("id_type").map_err(|_| AppError::Internal)?;
+    let identifier: String = row.try_get("identifier").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let resolved_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("resolved_at").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        provider_id = %provider_id,
+        verification_id = %verification_id,
+        "provider verification status queried"
+    );
+
+    Ok(Json(ProVerificationStatusResponse {
+        verification_id,
+        id_type,
+        identifier,
+        status,
+        created_at: created_at.to_rfc3339(),
+        resolved_at: resolved_at.map(|t| t.to_rfc3339()),
+    }))
 }
 
 fn is_unique_violation(e: &sqlx::Error) -> bool {

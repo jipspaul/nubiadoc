@@ -79,7 +79,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
         .route("/v1/auth/password/reset", post(auth::reset_password))
         .route("/v1/me", get(auth::me))
         .route("/v1/pro/register", post(auth::pro_register))
-        .route("/v1/pro/verification", post(auth::pro_verification))
+        .route(
+            "/v1/pro/verification",
+            get(auth::get_pro_verification).post(auth::pro_verification),
+        )
         .layer(Extension(dispatcher))
         .with_state(state)
 }
