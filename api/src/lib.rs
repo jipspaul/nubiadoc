@@ -83,6 +83,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/pro/verification",
             get(auth::get_pro_verification).post(auth::pro_verification),
         )
+        .route("/v1/cabinet", get(auth::get_cabinet))
         .layer(Extension(dispatcher))
         .with_state(state)
 }

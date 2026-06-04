@@ -990,6 +990,116 @@ pub async fn pro_register(
     ))
 }
 
+/// Réponse de `GET /v1/cabinet`.
+#[derive(Serialize)]
+pub struct CabinetResponse {
+    id: Uuid,
+    name: String,
+    siret: Option<String>,
+    settings: Value,
+}
+
+/// Forme interne : extrait `kind` et `cabinet_id` optionnel pour le double-décodage.
+#[derive(Deserialize)]
+struct KindClaims {
+    kind: String,
+    cabinet_id: Option<Uuid>,
+    sub: Uuid,
+}
+
+/// Claims JWT pro (tous rôles) — extrait du token portant `cabinet_id`.
+///
+/// Renvoie `401` si le token est absent ou invalide, `403` si `kind != "pro"`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct ProMemberClaims {
+    pub(crate) sub: Uuid,
+    pub(crate) cabinet_id: Uuid,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for ProMemberClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        let basic = decode::<KindClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if basic.kind != "pro" {
+            return Err(AppError::Forbidden);
+        }
+
+        let cabinet_id = basic.cabinet_id.ok_or(AppError::Unauthorized)?;
+
+        Ok(ProMemberClaims {
+            sub: basic.sub,
+            cabinet_id,
+        })
+    }
+}
+
+/// `GET /v1/cabinet` — retourne le cabinet courant du porteur du token pro.
+///
+/// `cabinet_id` extrait du JWT (jamais du body/query). RLS-scoped via `set_config`.
+pub async fn get_cabinet(
+    State(state): State<AppState>,
+    claims: ProMemberClaims,
+) -> Result<Json<CabinetResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query("SELECT id, raison_sociale, siret, settings FROM cabinet WHERE id = $1")
+        .bind(claims.cabinet_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let name: String = row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let siret: Option<String> = row
+        .try_get::<Option<String>, _>("siret")
+        .map_err(|_| AppError::Internal)?
+        .map(|s| s.trim().to_string());
+    let settings: Value = row.try_get("settings").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        "cabinet settings queried"
+    );
+
+    Ok(Json(CabinetResponse {
+        id,
+        name,
+        siret,
+        settings,
+    }))
+}
+
 /// Réponse de `GET /v1/pro/verification`.
 #[derive(Serialize)]
 pub struct ProVerificationStatusResponse {
