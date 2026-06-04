@@ -14,7 +14,7 @@ use crate::{
 pub struct NextAppointment {
     pub appointment_id: Uuid,
     pub starts_at: String,
-    pub cabinet_id: Uuid,
+    pub status: String,
 }
 
 #[derive(Serialize)]
@@ -57,7 +57,7 @@ pub async fn get_dashboard(
 
     // Prochain RDV futur confirmé — index appointment_patient_idx (0012)
     let appt = sqlx::query(
-        "SELECT id, starts_at, cabinet_id FROM appointment \
+        "SELECT id, starts_at, status FROM appointment \
          WHERE status IN ('confirmed','checked_in') AND starts_at > now() \
          ORDER BY starts_at LIMIT 1",
     )
@@ -101,11 +101,11 @@ pub async fn get_dashboard(
             let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
             let starts_at: chrono::DateTime<chrono::Utc> =
                 row.try_get("starts_at").map_err(|_| AppError::Internal)?;
-            let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             Ok(NextAppointment {
                 appointment_id,
                 starts_at: starts_at.to_rfc3339(),
-                cabinet_id,
+                status,
             })
         })
         .transpose()?;
