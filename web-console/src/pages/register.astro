@@ -1,12 +1,12 @@
 ---
 import Default from '../layouts/Default.astro';
 ---
-<Default title="Login — Nubia Console">
-  <h1 style="margin-bottom:1rem;">POST /v1/auth/login</h1>
+<Default title="Créer un compte — Nubia Console">
+  <h1 style="margin-bottom:1rem;">Créer un compte</h1>
   <p style="margin-bottom:1.5rem;color:var(--muted);">
-    Pas encore de compte ? <a href="/register">Créer un compte</a>
+    Déjà un compte ? <a href="/login">Se connecter</a>
   </p>
-  <form id="login-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+  <form id="register-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
       Email
       <input type="email" name="email" required
@@ -17,9 +17,17 @@ import Default from '../layouts/Default.astro';
       <input type="password" name="password" required
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
+    <label>
+      Confirmer le mot de passe
+      <input type="password" name="confirm_password" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <p id="pw-error" role="alert" style="color:red;font-size:0.875rem;display:none;">
+      Les mots de passe ne correspondent pas.
+    </p>
     <button type="submit"
       style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-      Envoyer
+      Créer le compte
     </button>
   </form>
   <pre id="result" style="margin-top:1.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
@@ -33,26 +41,39 @@ import Default from '../layouts/Default.astro';
 <script>
   import { apiFetch } from '../lib/api.ts';
 
-  const form = document.getElementById('login-form') as HTMLFormElement;
+  const form = document.getElementById('register-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
+  const pwError = document.getElementById('pw-error') as HTMLParagraphElement;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
     const email = fd.get('email') as string;
     const password = fd.get('password') as string;
+    const confirmPassword = fd.get('confirm_password') as string;
 
+    if (password !== confirmPassword) {
+      pwError.style.display = 'block';
+      return;
+    }
+    pwError.style.display = 'none';
     result.className = '';
     result.textContent = 'Chargement…';
 
     try {
-      const { status, data } = await apiFetch('/v1/auth/login', {
+      const { status, data } = await apiFetch('/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, accept_cgu: true, cgu_version: '1.0' }),
       });
-      result.className = status === 200 ? 'success' : 'error';
-      result.textContent = `HTTP ${status}\n${JSON.stringify(data, null, 2)}`;
+      if (status === 200 || status === 201) {
+        result.className = 'success';
+        result.textContent = `HTTP ${status} — Compte créé ! Redirection vers /login dans 2 s…\n${JSON.stringify(data, null, 2)}`;
+        setTimeout(() => { window.location.href = '/login'; }, 2000);
+      } else {
+        result.className = 'error';
+        result.textContent = `HTTP ${status}\n${JSON.stringify(data, null, 2)}`;
+      }
     } catch (err) {
       result.className = 'error';
       result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
