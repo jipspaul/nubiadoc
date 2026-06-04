@@ -3,6 +3,7 @@
 pub mod forgot_password;
 pub mod login;
 pub mod logout;
+pub mod mfa_enroll;
 pub mod mfa_verify;
 pub mod refresh;
 pub mod register;
@@ -24,7 +25,6 @@ use serde_json::{json, Value};
 use sqlx::Row;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use totp_rs::Secret;
 use uuid::Uuid;
 
 use crate::{AppState, JobDispatcher};
@@ -81,13 +81,6 @@ struct ProRegisterClaims {
     cabinet_id: Uuid,
     role: String,
     exp: u64,
-}
-
-/// Réponse de `POST /v1/auth/mfa/enroll`.
-#[derive(Serialize)]
-pub struct MfaEnrollResponse {
-    totp_secret: String,
-    otpauth_url: String,
 }
 
 #[derive(Serialize)]
@@ -313,23 +306,6 @@ impl FromRequestParts<AppState> for MeClaims {
             .map(|d| d.claims)
             .map_err(|_| AppError::Unauthorized)
     }
-}
-
-/// `POST /v1/auth/mfa/enroll` — démarre l'enrôlement TOTP (pro uniquement).
-///
-/// Génère un secret TOTP aléatoire et retourne l'URL `otpauth://` pour affichage QR.
-/// Le secret n'est PAS persisté ici — il le sera lors de la vérification via `/mfa/verify`.
-pub async fn mfa_enroll(_claims: ProClaims) -> Result<Json<MfaEnrollResponse>, AppError> {
-    let secret = Secret::generate_secret();
-    let totp_secret = secret.to_encoded().to_string();
-    let otpauth_url = format!(
-        "otpauth://totp/Nubia%20Health?secret={}&issuer=Nubia%20Health&algorithm=SHA1&digits=6&period=30",
-        totp_secret
-    );
-    Ok(Json(MfaEnrollResponse {
-        totp_secret,
-        otpauth_url,
-    }))
 }
 
 /// `POST /v1/auth/password/reset` — finalise le reset via un token à usage unique.
