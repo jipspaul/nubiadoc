@@ -188,5 +188,12 @@ SELECT has_table('notification_preference');
 SELECT col_is_unique('notification_preference', 'patient_account_id',
   'notification_preference.patient_account_id UNIQUE (une ligne par compte)');
 
+-- ----- account_guardianship (0025, issue #239) -----
+SELECT has_table('account_guardianship');
+SELECT has_column('account_guardianship', 'active',     'account_guardianship.active présent');
+SELECT col_type_is('account_guardianship', 'active', 'boolean', 'account_guardianship.active boolean');
+SELECT col_not_null('account_guardianship', 'active',   'account_guardianship.active NOT NULL');
+SELECT col_has_default('account_guardianship', 'active','account_guardianship.active défaut true');
+
 SELECT * FROM finish();
 ROLLBACK;
