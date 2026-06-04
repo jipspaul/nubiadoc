@@ -55,6 +55,7 @@ pub fn app(state: AppState) -> Router {
         .route("/v1/auth/mfa/verify", post(auth::mfa_verify))
         .route("/v1/auth/password/forgot", post(auth::forgot_password))
         .route("/v1/auth/password/reset", post(auth::reset_password))
+        .route("/v1/me", get(auth::me))
         .with_state(state)
 }
 
