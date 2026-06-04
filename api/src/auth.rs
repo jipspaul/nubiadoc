@@ -2635,6 +2635,63 @@ pub async fn post_coverage_card(
     ))
 }
 
+/// Un consentement RGPD tel que retourné par `GET /v1/account/consents`.
+#[derive(Serialize)]
+pub struct ConsentItem {
+    purpose: String,
+    granted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    granted_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revoked_at: Option<String>,
+}
+
+/// `GET /v1/account/consents` — liste les consentements RGPD du patient courant.
+///
+/// Lecture seule. Scoped par `app_user_id = claims.sub` (pas de RLS cabinet —
+/// `consent_record` est plateforme-level depuis la migration 0017).
+pub async fn get_account_consents(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<Vec<ConsentItem>>, AppError> {
+    let rows = sqlx::query(
+        "SELECT purpose, granted, granted_at, revoked_at \
+         FROM consent_record \
+         WHERE app_user_id = $1 \
+         ORDER BY created_at ASC",
+    )
+    .bind(claims.sub)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let consents = rows
+        .into_iter()
+        .map(|row| {
+            let purpose: String = row.try_get("purpose").map_err(|_| AppError::Internal)?;
+            let granted: bool = row.try_get("granted").map_err(|_| AppError::Internal)?;
+            let granted_at: Option<chrono::DateTime<chrono::Utc>> =
+                row.try_get("granted_at").map_err(|_| AppError::Internal)?;
+            let revoked_at: Option<chrono::DateTime<chrono::Utc>> =
+                row.try_get("revoked_at").map_err(|_| AppError::Internal)?;
+            Ok(ConsentItem {
+                purpose,
+                granted,
+                granted_at: granted_at.map(|t| t.to_rfc3339()),
+                revoked_at: revoked_at.map(|t| t.to_rfc3339()),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        user_id = %claims.sub,
+        count = consents.len(),
+        "patient consents listed"
+    );
+
+    Ok(Json(consents))
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
