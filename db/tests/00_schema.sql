@@ -183,5 +183,10 @@ SELECT has_table('patient_coverage');
 SELECT has_column('patient_coverage', 'nss_encrypted', 'bytea');
 SELECT col_is_null('patient_coverage', 'nss_encrypted');
 
+-- ----- notification_preference (0024, issue #238) -----
+SELECT has_table('notification_preference');
+SELECT col_is_unique('notification_preference', 'patient_account_id',
+  'notification_preference.patient_account_id UNIQUE (une ligne par compte)');
+
 SELECT * FROM finish();
 ROLLBACK;
