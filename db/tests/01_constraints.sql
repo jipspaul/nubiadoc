@@ -31,6 +31,15 @@ SELECT throws_ok(
      VALUES ('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a1','root') $$,
   '23514', NULL, 'cabinet_membership.role invalide rejeté (CHECK)');
 
+-- ----- UNIQUE : (cabinet_id, user_id) — un user ne peut être membre qu'une fois par cabinet -----
+INSERT INTO cabinet_membership (cabinet_id, user_id, role)
+  VALUES ('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a1','admin');
+
+SELECT throws_ok(
+  $$ INSERT INTO cabinet_membership (cabinet_id, user_id, role)
+     VALUES ('a0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a1','secretary') $$,
+  '23505', NULL, 'cabinet_membership (cabinet_id, user_id) dupliqué rejeté (UNIQUE)');
+
 -- ----- CHECK : ordre temporel du RDV -----
 SELECT throws_ok(
   $$ INSERT INTO appointment (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status)
