@@ -75,15 +75,15 @@ INSERT INTO medical_act (id, specialty_id, label, motifs) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- Profils provider (listés car RPPS vérifié) + créneaux ouverts + vérification
-INSERT INTO provider (id, practitioner_id, cabinet_id, establishment_id, display_name,
+INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, establishment_id, display_name,
                       rpps, rpps_verified, specialty_id, sector, languages, pmr,
                       teleconsult, accepts_new_patients, geo, rating_avg, rating_count, is_listed) VALUES
   ('f0000000-0000-0000-0000-0000000000f1','c0000000-0000-0000-0000-0000000000c1','11111111-1111-1111-1111-111111111111',
-   '22222222-2222-2222-2222-222222222222','Dr Hugo Marin','10100000001', true,
+   'a0000000-0000-0000-0000-0000000000a1','22222222-2222-2222-2222-222222222222','Dr Hugo Marin','10100000001', true,
    'd2000000-0000-0000-0000-000000000002','1', ARRAY['fr','en'], true, true, true,
    ST_SetSRID(ST_MakePoint(4.8320,45.7600),4326)::geography, 4.8, 124, true),
   ('f0000000-0000-0000-0000-0000000000f2','c0000000-0000-0000-0000-0000000000c2','11111111-1111-1111-1111-111111111111',
-   '22222222-2222-2222-2222-222222222222','Dr Claire Lefèvre','10100000002', true,
+   'a0000000-0000-0000-0000-0000000000a2','22222222-2222-2222-2222-222222222222','Dr Claire Lefèvre','10100000002', true,
    'd2000000-0000-0000-0000-000000000001','2', ARRAY['fr'], true, false, true,
    ST_SetSRID(ST_MakePoint(4.8322,45.7602),4326)::geography, 4.9, 88, true)
 ON CONFLICT (id) DO NOTHING;

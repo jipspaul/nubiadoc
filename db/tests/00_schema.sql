@@ -110,6 +110,18 @@ SELECT col_type_is('quote', 'total_amount', 'numeric(12,2)', 'quote.total_amount
 SELECT col_type_is('quote', 'currency', 'character(3)', 'quote.currency char(3)');
 SELECT col_type_is('payment', 'amount', 'numeric(12,2)', 'payment.amount numeric(12,2)');
 
+-- provider : colonnes et index (issue #208)
+SELECT has_column('provider',  'cabinet_id',  'provider.cabinet_id présent');
+SELECT col_not_null('provider', 'cabinet_id', 'provider.cabinet_id NOT NULL (tenant)');
+SELECT has_column('provider',  'user_id',     'provider.user_id présent (0019)');
+SELECT col_not_null('provider', 'user_id',    'provider.user_id NOT NULL (0019)');
+SELECT has_column('provider',  'specialite',  'provider.specialite présent (0019)');
+SELECT has_column('provider',  'created_at',  'provider.created_at présent (0019)');
+SELECT col_type_is('provider', 'created_at', 'timestamp with time zone', 'provider.created_at timestamptz');
+SELECT has_index('provider', 'provider_listed_rpps_verified_idx',
+  ARRAY['is_listed', 'rpps_verified'],
+  'provider : index (is_listed, rpps_verified) présent (0019)');
+
 -- géo PostGIS
 SELECT col_type_is('provider', 'geo', 'geography(Point,4326)', 'provider.geo geography Point 4326');
 SELECT col_type_is('establishment', 'geo', 'geography(Point,4326)', 'establishment.geo geography Point 4326');
