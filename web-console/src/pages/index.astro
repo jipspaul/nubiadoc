@@ -1,0 +1,18 @@
+---
+import Default from '../layouts/Default.astro';
+---
+<Default title="Nubia Web Console — Accueil">
+  <h1 style="margin-bottom:0.75rem;">Nubia Web Console</h1>
+  <p style="color:var(--muted);margin-bottom:2rem;">
+    Console de test pour les endpoints de l'API Nubia. Usage développement uniquement.
+  </p>
+  <nav aria-label="Features à tester">
+    <h2 style="font-size:1rem;margin-bottom:0.75rem;">Features testables</h2>
+    <ul style="list-style:none;display:flex;flex-direction:column;gap:0.5rem;">
+      <li>
+        <a href="/auth/login-test">Login test</a>
+        <span style="color:var(--muted);font-size:0.875rem;"> — POST /v1/auth/login</span>
+      </li>
+    </ul>
+  </nav>
+</Default>
