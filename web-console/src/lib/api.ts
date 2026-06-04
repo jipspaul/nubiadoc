@@ -6,6 +6,7 @@ export async function apiFetch(
   options: RequestInit = {},
 ): Promise<{ status: number; data: unknown }> {
   const res = await fetch(`${API_BASE}${path}`, options);
-  const data: unknown = await res.json();
+  const text = await res.text();
+  const data: unknown = text ? JSON.parse(text) : null;
   return { status: res.status, data };
 }
