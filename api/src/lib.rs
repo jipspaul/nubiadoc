@@ -92,6 +92,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/cabinet/provider/listing",
             put(auth::put_cabinet_provider_listing),
         )
+        .route("/v1/cabinet/members", get(auth::get_cabinet_members))
         .layer(Extension(dispatcher))
         .with_state(state)
 }
