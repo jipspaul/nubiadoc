@@ -2733,6 +2733,81 @@ pub async fn put_account_consent(
     }))
 }
 
+/// Réponse de `GET /v1/account/notification-preferences`.
+#[derive(Serialize)]
+pub struct NotificationPreferenceResponse {
+    email_rdv: bool,
+    sms_rdv: bool,
+    push_rdv: bool,
+    email_messagerie: bool,
+    push_messagerie: bool,
+    email_rappels: bool,
+    push_rappels: bool,
+}
+
+/// `GET /v1/account/notification-preferences` — retourne les préférences de notification du patient.
+///
+/// Si aucune ligne dans `notification_preference` → retourne les défauts (tous `true`).
+/// RLS scoped par `app.patient_account_id` (migration 0024).
+pub async fn get_account_notification_preferences(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<NotificationPreferenceResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT email_rdv, sms_rdv, push_rdv, \
+                email_messagerie, push_messagerie, \
+                email_rappels, push_rappels \
+         FROM notification_preference \
+         WHERE patient_account_id = $1",
+    )
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let prefs = match row {
+        None => NotificationPreferenceResponse {
+            email_rdv: true,
+            sms_rdv: true,
+            push_rdv: true,
+            email_messagerie: true,
+            push_messagerie: true,
+            email_rappels: true,
+            push_rappels: true,
+        },
+        Some(r) => NotificationPreferenceResponse {
+            email_rdv: r.try_get("email_rdv").map_err(|_| AppError::Internal)?,
+            sms_rdv: r.try_get("sms_rdv").map_err(|_| AppError::Internal)?,
+            push_rdv: r.try_get("push_rdv").map_err(|_| AppError::Internal)?,
+            email_messagerie: r
+                .try_get("email_messagerie")
+                .map_err(|_| AppError::Internal)?,
+            push_messagerie: r
+                .try_get("push_messagerie")
+                .map_err(|_| AppError::Internal)?,
+            email_rappels: r.try_get("email_rappels").map_err(|_| AppError::Internal)?,
+            push_rappels: r.try_get("push_rappels").map_err(|_| AppError::Internal)?,
+        },
+    };
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        "notification preferences queried"
+    );
+
+    Ok(Json(prefs))
+}
+
 /// `GET /v1/account/consents` — liste les consentements RGPD du patient courant.
 ///
 /// Lecture seule. Scoped par `app_user_id = claims.sub` (pas de RLS cabinet —
