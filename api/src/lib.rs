@@ -14,6 +14,8 @@ mod auth;
 pub trait Mailer: Send + Sync {
     /// Envoie le lien de reset. Ne doit jamais bloquer ni paniquer.
     fn send_password_reset(&self, to: &str, token: &str);
+    /// Envoie le lien d'invitation (set-password) à un nouveau collaborateur.
+    fn send_invite(&self, to: &str, token: &str);
 }
 
 /// Implémentation no-op pour les tests et le dev local.
@@ -21,6 +23,7 @@ pub struct StubMailer;
 
 impl Mailer for StubMailer {
     fn send_password_reset(&self, _to: &str, _token: &str) {}
+    fn send_invite(&self, _to: &str, _token: &str) {}
 }
 
 /// Trait d'enqueue de jobs apalis — swappable (stub en test, apalis en prod).
@@ -92,7 +95,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/cabinet/provider/listing",
             put(auth::put_cabinet_provider_listing),
         )
-        .route("/v1/cabinet/members", get(auth::get_cabinet_members))
+        .route(
+            "/v1/cabinet/members",
+            get(auth::get_cabinet_members).post(auth::post_cabinet_members),
+        )
         .layer(Extension(dispatcher))
         .with_state(state)
 }
