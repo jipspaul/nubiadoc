@@ -101,7 +101,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
         )
         .route(
             "/v1/cabinet/members/:user_id",
-            patch(auth::patch_cabinet_member),
+            patch(auth::patch_cabinet_member).delete(auth::delete_cabinet_member),
         )
         .layer(Extension(dispatcher))
         .with_state(state)

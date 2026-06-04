@@ -1918,6 +1918,73 @@ pub async fn patch_cabinet_member(
     }))
 }
 
+/// `DELETE /v1/cabinet/members/{user_id}` — révoque l'accès d'un collaborateur (soft-delete).
+///
+/// Met `cabinet_membership.active = false` et `left_at = now()`. Invalide également
+/// tous les refresh tokens actifs du membre. Admin ne peut pas se supprimer lui-même → `403`.
+/// `user_id` absent ou déjà inactif dans le cabinet → `404`.
+pub async fn delete_cabinet_member(
+    State(state): State<AppState>,
+    claims: ProAdminClaims,
+    Path(target_user_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    if target_user_id == claims.sub {
+        return Err(AppError::Forbidden);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le membre existe et est actif dans ce cabinet.
+    sqlx::query(
+        "SELECT id FROM cabinet_membership \
+         WHERE cabinet_id = $1 AND user_id = $2 AND active = true",
+    )
+    .bind(claims.cabinet_id)
+    .bind(target_user_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    sqlx::query(
+        "UPDATE cabinet_membership \
+         SET active = false, left_at = now() \
+         WHERE cabinet_id = $1 AND user_id = $2",
+    )
+    .bind(claims.cabinet_id)
+    .bind(target_user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Révoque toutes les sessions actives du membre (refresh_token sans cabinet_id → révocation globale).
+    sqlx::query(
+        "UPDATE refresh_token SET revoked_at = now() \
+         WHERE app_user_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(target_user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        actor_id = %claims.sub,
+        target_user_id = %target_user_id,
+        "cabinet member deactivated"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
