@@ -2090,6 +2090,186 @@ pub async fn delete_cabinet_member(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Sous-corps adresse pour `PATCH /v1/account`.
+#[derive(Deserialize)]
+pub struct PatchAccountAddress {
+    line1: Option<String>,
+    city: Option<String>,
+    zip: Option<String>,
+    country: Option<String>,
+}
+
+/// Corps de la requête `PATCH /v1/account`.
+#[derive(Deserialize)]
+pub struct PatchAccountBody {
+    first_name: Option<String>,
+    last_name: Option<String>,
+    phone: Option<String>,
+    address: Option<PatchAccountAddress>,
+    /// Présence → `422` : non modifiable via cette route.
+    email: Option<Value>,
+    /// Présence → `422` : non modifiable via cette route.
+    birth_date: Option<Value>,
+}
+
+/// Construit le delta JSONB à fusionner dans `contact` à partir de l'adresse fournie.
+fn contact_delta(address: Option<&PatchAccountAddress>) -> Value {
+    let mut map = serde_json::Map::new();
+    if let Some(addr) = address {
+        let mut obj = serde_json::Map::new();
+        if let Some(v) = &addr.line1 {
+            obj.insert("line1".into(), Value::String(v.clone()));
+        }
+        if let Some(v) = &addr.city {
+            obj.insert("city".into(), Value::String(v.clone()));
+        }
+        if let Some(v) = &addr.zip {
+            obj.insert("zip".into(), Value::String(v.clone()));
+        }
+        if let Some(v) = &addr.country {
+            obj.insert("country".into(), Value::String(v.clone()));
+        }
+        if !obj.is_empty() {
+            map.insert("address".into(), Value::Object(obj));
+        }
+    }
+    Value::Object(map)
+}
+
+/// `PATCH /v1/account` — met à jour les coordonnées du compte patient (partiel, audité).
+///
+/// Champs absents = non modifiés (COALESCE). `email` et `birth_date` ne sont pas
+/// modifiables ici → `422`. Chaque PATCH génère un log d'audit (`06` E3.1.2).
+/// `patient_account` est hors RLS cabinet : audit_log utilise le nil UUID comme
+/// sentinel cabinet_id de niveau plateforme.
+pub async fn patch_account(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Json(body): Json<PatchAccountBody>,
+) -> Result<Json<AccountResponse>, AppError> {
+    if body.email.is_some() || body.birth_date.is_some() {
+        return Err(AppError::ValidationError);
+    }
+
+    let delta = contact_delta(body.address.as_ref());
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Snapshot avant modification (diff d'audit).
+    let old = sqlx::query(
+        "SELECT first_name, last_name, phone FROM patient_account \
+         WHERE id = $1 AND app_user_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(claims.account_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let old_first_name: String = old.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let old_last_name: String = old.try_get("last_name").map_err(|_| AppError::Internal)?;
+    let old_phone: Option<String> = old.try_get("phone").map_err(|_| AppError::Internal)?;
+
+    // Mise à jour + récupération du profil mis à jour (CTE pour inclure email).
+    let row = sqlx::query(
+        "WITH upd AS ( \
+           UPDATE patient_account \
+           SET \
+             first_name = COALESCE($1, first_name), \
+             last_name  = COALESCE($2, last_name), \
+             phone      = COALESCE($3, phone), \
+             contact    = contact || $4, \
+             updated_at = now() \
+           WHERE id = $5 AND app_user_id = $6 AND deleted_at IS NULL \
+           RETURNING id, first_name, last_name, phone, birth_date, created_at, app_user_id \
+         ) \
+         SELECT u.id, u.first_name, u.last_name, u.phone, u.birth_date, u.created_at, \
+                au.email \
+         FROM upd u JOIN app_user au ON au.id = u.app_user_id",
+    )
+    .bind(body.first_name.as_deref())
+    .bind(body.last_name.as_deref())
+    .bind(body.phone.as_deref())
+    .bind(&delta)
+    .bind(claims.account_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let new_first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let new_last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+    let new_phone: Option<String> = row.try_get("phone").map_err(|_| AppError::Internal)?;
+
+    let mut diff = serde_json::Map::new();
+    if body.first_name.is_some() && new_first_name != old_first_name {
+        diff.insert(
+            "first_name".into(),
+            json!({"old": old_first_name, "new": new_first_name}),
+        );
+    }
+    if body.last_name.is_some() && new_last_name != old_last_name {
+        diff.insert(
+            "last_name".into(),
+            json!({"old": old_last_name, "new": new_last_name}),
+        );
+    }
+    if body.phone.is_some() && new_phone != old_phone {
+        diff.insert("phone".into(), json!({"old": old_phone, "new": new_phone}));
+    }
+    if body.address.is_some() {
+        diff.insert("address".into(), json!("updated"));
+    }
+
+    // Audit log : entité plateforme → nil UUID comme sentinel cabinet_id.
+    // SET LOCAL scoped à la transaction (requis par la policy RLS WITH CHECK d'audit_log).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'patient', 'update', 'patient_account', $3, $4)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(claims.account_id)
+    .bind(Value::Object(diff))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let birth_date: Option<chrono::NaiveDate> =
+        row.try_get("birth_date").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        user_id = %claims.sub,
+        "patient account updated"
+    );
+
+    Ok(Json(AccountResponse {
+        id,
+        first_name: new_first_name,
+        last_name: new_last_name,
+        email,
+        phone: new_phone,
+        birth_date: birth_date.map(|d| d.to_string()),
+        created_at: created_at.to_rfc3339(),
+    }))
+}
+
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
 ///
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
