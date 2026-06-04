@@ -114,7 +114,8 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
         .route("/v1/account/coverage/card", post(auth::post_coverage_card))
         .route(
             "/v1/account/notification-preferences",
-            get(auth::get_account_notification_preferences),
+            get(auth::get_account_notification_preferences)
+                .patch(auth::patch_account_notification_preferences),
         )
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(

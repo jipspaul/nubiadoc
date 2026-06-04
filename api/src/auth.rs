@@ -2733,6 +2733,18 @@ pub async fn put_account_consent(
     }))
 }
 
+/// Corps de la requête `PATCH /v1/account/notification-preferences`.
+#[derive(Deserialize)]
+pub struct PatchNotificationPreferencesBody {
+    email_rdv: Option<bool>,
+    sms_rdv: Option<bool>,
+    push_rdv: Option<bool>,
+    email_messagerie: Option<bool>,
+    push_messagerie: Option<bool>,
+    email_rappels: Option<bool>,
+    push_rappels: Option<bool>,
+}
+
 /// Réponse de `GET /v1/account/notification-preferences`.
 #[derive(Serialize)]
 pub struct NotificationPreferenceResponse {
@@ -2806,6 +2818,89 @@ pub async fn get_account_notification_preferences(
     );
 
     Ok(Json(prefs))
+}
+
+/// `PATCH /v1/account/notification-preferences` — met à jour partiellement les opt-in de notification.
+///
+/// Upsert idempotent : seuls les champs présents dans le body sont modifiés.
+/// Champs absents → valeur existante conservée (CASE WHEN) ; défaut `true` à la création.
+/// RLS scoped par `app.patient_account_id` (migration 0024).
+pub async fn patch_account_notification_preferences(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Json(body): Json<PatchNotificationPreferencesBody>,
+) -> Result<Json<NotificationPreferenceResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO notification_preference \
+           (patient_account_id, email_rdv, sms_rdv, push_rdv, \
+            email_messagerie, push_messagerie, email_rappels, push_rappels) \
+         VALUES ($1, \
+           COALESCE($2, true), COALESCE($3, true), COALESCE($4, true), \
+           COALESCE($5, true), COALESCE($6, true), COALESCE($7, true), COALESCE($8, true)) \
+         ON CONFLICT (patient_account_id) DO UPDATE SET \
+           email_rdv        = CASE WHEN $2 IS NOT NULL THEN $2 \
+                                   ELSE notification_preference.email_rdv END, \
+           sms_rdv          = CASE WHEN $3 IS NOT NULL THEN $3 \
+                                   ELSE notification_preference.sms_rdv END, \
+           push_rdv         = CASE WHEN $4 IS NOT NULL THEN $4 \
+                                   ELSE notification_preference.push_rdv END, \
+           email_messagerie = CASE WHEN $5 IS NOT NULL THEN $5 \
+                                   ELSE notification_preference.email_messagerie END, \
+           push_messagerie  = CASE WHEN $6 IS NOT NULL THEN $6 \
+                                   ELSE notification_preference.push_messagerie END, \
+           email_rappels    = CASE WHEN $7 IS NOT NULL THEN $7 \
+                                   ELSE notification_preference.email_rappels END, \
+           push_rappels     = CASE WHEN $8 IS NOT NULL THEN $8 \
+                                   ELSE notification_preference.push_rappels END, \
+           updated_at       = now() \
+         RETURNING email_rdv, sms_rdv, push_rdv, \
+                   email_messagerie, push_messagerie, \
+                   email_rappels, push_rappels",
+    )
+    .bind(claims.account_id)
+    .bind(body.email_rdv)
+    .bind(body.sms_rdv)
+    .bind(body.push_rdv)
+    .bind(body.email_messagerie)
+    .bind(body.push_messagerie)
+    .bind(body.email_rappels)
+    .bind(body.push_rappels)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        "notification preferences updated"
+    );
+
+    Ok(Json(NotificationPreferenceResponse {
+        email_rdv: row.try_get("email_rdv").map_err(|_| AppError::Internal)?,
+        sms_rdv: row.try_get("sms_rdv").map_err(|_| AppError::Internal)?,
+        push_rdv: row.try_get("push_rdv").map_err(|_| AppError::Internal)?,
+        email_messagerie: row
+            .try_get("email_messagerie")
+            .map_err(|_| AppError::Internal)?,
+        push_messagerie: row
+            .try_get("push_messagerie")
+            .map_err(|_| AppError::Internal)?,
+        email_rappels: row
+            .try_get("email_rappels")
+            .map_err(|_| AppError::Internal)?,
+        push_rappels: row
+            .try_get("push_rappels")
+            .map_err(|_| AppError::Internal)?,
+    }))
 }
 
 /// `GET /v1/account/consents` — liste les consentements RGPD du patient courant.
