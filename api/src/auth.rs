@@ -6,7 +6,7 @@ use argon2::{
 };
 use async_trait::async_trait;
 use axum::{
-    extract::{Extension, FromRequestParts, State},
+    extract::{Extension, FromRequestParts, Path, State},
     http::{request::Parts, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -1814,6 +1814,108 @@ pub struct ProVerificationBody {
 pub struct ProVerificationResponse {
     verification_id: Uuid,
     status: String,
+}
+
+/// Corps de la requête `PATCH /v1/cabinet/members/{user_id}`.
+#[derive(Deserialize)]
+pub struct PatchCabinetMemberBody {
+    role: Option<String>,
+}
+
+/// Réponse de `PATCH /v1/cabinet/members/{user_id}`.
+#[derive(Serialize)]
+pub struct PatchCabinetMemberResponse {
+    user_id: Uuid,
+    role: String,
+}
+
+/// `PATCH /v1/cabinet/members/{user_id}` — change le rôle d'un collaborateur (admin uniquement).
+///
+/// Merge patch : seul `role` est modifiable ici. Admin ne peut pas changer son propre rôle → `403`.
+/// `user_id` absent du cabinet courant → `404`. Chaque changement de rôle est audité.
+pub async fn patch_cabinet_member(
+    State(state): State<AppState>,
+    claims: ProAdminClaims,
+    Path(target_user_id): Path<Uuid>,
+    Json(body): Json<PatchCabinetMemberBody>,
+) -> Result<Json<PatchCabinetMemberResponse>, AppError> {
+    if target_user_id == claims.sub {
+        return Err(AppError::Forbidden);
+    }
+
+    if let Some(ref role) = body.role {
+        if !["practitioner", "secretary", "admin"].contains(&role.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let current = sqlx::query(
+        "SELECT role FROM cabinet_membership \
+         WHERE cabinet_id = $1 AND user_id = $2",
+    )
+    .bind(claims.cabinet_id)
+    .bind(target_user_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let old_role: String = current.try_get("role").map_err(|_| AppError::Internal)?;
+    let new_role = body.role.unwrap_or_else(|| old_role.clone());
+
+    let row = sqlx::query(
+        "UPDATE cabinet_membership \
+         SET role = $1 \
+         WHERE cabinet_id = $2 AND user_id = $3 \
+         RETURNING role",
+    )
+    .bind(&new_role)
+    .bind(claims.cabinet_id)
+    .bind(target_user_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let updated_role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
+
+    if new_role != old_role {
+        sqlx::query(
+            "INSERT INTO audit_log \
+             (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+             VALUES ($1, $2, 'admin', 'update_member_role', 'cabinet_membership', $3, $4)",
+        )
+        .bind(claims.cabinet_id)
+        .bind(claims.sub)
+        .bind(target_user_id)
+        .bind(json!({"old_role": old_role, "new_role": updated_role}))
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        actor_id = %claims.sub,
+        target_user_id = %target_user_id,
+        old_role = %old_role,
+        new_role = %updated_role,
+        "cabinet member role updated"
+    );
+
+    Ok(Json(PatchCabinetMemberResponse {
+        user_id: target_user_id,
+        role: updated_role,
+    }))
 }
 
 /// `POST /v1/pro/verification` — soumet un RPPS ou ADELI à la vérification ANS.
