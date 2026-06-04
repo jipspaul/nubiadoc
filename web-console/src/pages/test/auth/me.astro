@@ -1,9 +1,9 @@
 ---
-import Default from '../../layouts/Default.astro';
+import Default from '../../../layouts/Default.astro';
 ---
-<Default title="Coverage — Nubia Console">
-  <h1 style="margin-bottom:1.5rem;">GET /v1/account/coverage</h1>
-  <form id="coverage-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+<Default title="Me — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/me</h1>
+  <form id="me-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
       Access token (Bearer)
       <input type="text" name="access_token" required
@@ -23,9 +23,9 @@ import Default from '../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../lib/api.ts';
+  import { apiFetch } from '../../../lib/api.ts';
 
-  const form = document.getElementById('coverage-form') as HTMLFormElement;
+  const form = document.getElementById('me-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
 
   form.addEventListener('submit', async (e) => {
@@ -37,7 +37,7 @@ import Default from '../../layouts/Default.astro';
     result.textContent = 'Chargement…';
 
     try {
-      const { status, data } = await apiFetch('/v1/account/coverage', {
+      const { status, data } = await apiFetch('/v1/me', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${access_token}`,

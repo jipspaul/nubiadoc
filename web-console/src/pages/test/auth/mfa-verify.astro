@@ -1,22 +1,27 @@
 ---
-import Default from '../../layouts/Default.astro';
+import Default from '../../../layouts/Default.astro';
 ---
-<Default title="Logout — Nubia Console">
-  <h1 style="margin-bottom:1.5rem;">POST /v1/auth/logout</h1>
-  <form id="logout-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+<Default title="MFA Verify — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">POST /v1/auth/mfa/verify</h1>
+  <form id="mfa-verify-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
-      Access token (Bearer)
+      Access token (Bearer — pro)
       <input type="text" name="access_token" required
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
     <label>
-      Refresh token
-      <input type="text" name="refresh_token" required
+      TOTP secret (Base32, retourné par /mfa/enroll)
+      <input type="text" name="totp_secret" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      TOTP code (6 chiffres)
+      <input type="text" name="totp_code" required inputmode="numeric" maxlength="6" pattern="\d{6}"
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
     <button type="submit"
       style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-      Envoyer
+      POST
     </button>
   </form>
   <pre id="result" style="margin-top:1.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
@@ -28,30 +33,31 @@ import Default from '../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../lib/api.ts';
+  import { apiFetch } from '../../../lib/api.ts';
 
-  const form = document.getElementById('logout-form') as HTMLFormElement;
+  const form = document.getElementById('mfa-verify-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
     const access_token = fd.get('access_token') as string;
-    const refresh_token = fd.get('refresh_token') as string;
+    const totp_secret = fd.get('totp_secret') as string;
+    const totp_code = fd.get('totp_code') as string;
 
     result.className = '';
     result.textContent = 'Chargement…';
 
     try {
-      const { status, data } = await apiFetch('/v1/auth/logout', {
+      const { status, data } = await apiFetch('/v1/auth/mfa/verify', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refresh_token }),
+        body: JSON.stringify({ totp_secret, totp_code }),
       });
-      result.className = status === 204 ? 'success' : 'error';
+      result.className = status < 300 ? 'success' : 'error';
       result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
     } catch (err) {
       result.className = 'error';

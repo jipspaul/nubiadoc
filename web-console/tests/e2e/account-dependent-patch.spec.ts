@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('le formulaire /account/dependent-patch est visible avec les champs requis', async ({ page }) => {
-  await page.goto('/account/dependent-patch');
+  await page.goto('/test/account/dependent-patch');
   await expect(page.locator('input[name="access_token"]')).toBeVisible();
   await expect(page.locator('input[name="dependent_id"]')).toBeVisible();
   await expect(page.locator('input[name="first_name"]')).toBeVisible();
@@ -12,7 +12,7 @@ test('le formulaire /account/dependent-patch est visible avec les champs requis'
 });
 
 test('PATCH valide — submit avec ID existant affiche un résultat (status visible)', async ({ page }) => {
-  await page.goto('/account/dependent-patch');
+  await page.goto('/test/account/dependent-patch');
   await page.locator('input[name="access_token"]').fill('fake-access-token');
   await page.locator('input[name="dependent_id"]').fill('11111111-1111-1111-1111-111111111111');
   await page.locator('input[name="first_name"]').fill('Bobby');
@@ -21,14 +21,14 @@ test('PATCH valide — submit avec ID existant affiche un résultat (status visi
   await page.locator('select[name="relationship"]').selectOption('enfant');
   await page.getByRole('button', { name: /envoyer/i }).click();
   await expect(page.locator('#result')).toContainText(/Erreur réseau|HTTP/, { timeout: 5000 });
-  await expect(page).toHaveURL('/account/dependent-patch');
+  await expect(page).toHaveURL('/test/account/dependent-patch');
 });
 
 test('ID inconnu — submit avec UUID aléatoire affiche un résultat (status visible)', async ({ page }) => {
-  await page.goto('/account/dependent-patch');
+  await page.goto('/test/account/dependent-patch');
   await page.locator('input[name="access_token"]').fill('fake-access-token');
   await page.locator('input[name="dependent_id"]').fill('00000000-0000-0000-0000-000000000000');
   await page.getByRole('button', { name: /envoyer/i }).click();
   await expect(page.locator('#result')).toContainText(/Erreur réseau|HTTP/, { timeout: 5000 });
-  await expect(page).toHaveURL('/account/dependent-patch');
+  await expect(page).toHaveURL('/test/account/dependent-patch');
 });
