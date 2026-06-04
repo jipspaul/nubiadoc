@@ -178,5 +178,10 @@ SELECT is(
   (SELECT value FROM app_metadata WHERE key = 'version'),
   '0.1.0', 'app_metadata version = 0.1.0');
 
+-- ----- patient_coverage (0023, issue #237) -----
+SELECT has_table('patient_coverage');
+SELECT has_column('patient_coverage', 'nss_encrypted', 'bytea');
+SELECT col_is_null('patient_coverage', 'nss_encrypted');
+
 SELECT * FROM finish();
 ROLLBACK;
