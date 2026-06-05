@@ -171,6 +171,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/appointments/:id/preparation",
             get(appointments::get_appointment_preparation),
         )
+        .route(
+            "/v1/appointments/:id/directions",
+            get(appointments::get_appointment_directions),
+        )
         .route("/v1/documents", get(documents::list_documents))
         .route("/v1/documents/:id", get(documents::get_document))
         .route("/v1/dashboard", get(dashboard::get_dashboard))

@@ -936,6 +936,94 @@ pub struct CreateAppointmentResponse {
     pub status: String,
 }
 
+// ── Directions ──────────────────────────────────────────────────────────────
+
+/// Query params for `GET /v1/appointments/:id/directions`.
+#[derive(Deserialize)]
+pub struct DirectionsQuery {
+    pub mode: Option<String>,
+}
+
+/// Réponse de `GET /v1/appointments/:id/directions`.
+#[derive(Serialize)]
+pub struct DirectionsResponse {
+    pub mode: String,
+    pub duration_min: Option<i32>,
+    pub distance_m: Option<i32>,
+    pub deeplink: String,
+}
+
+/// `GET /v1/appointments/:id/directions?mode=car` — deeplink navigation vers le cabinet.
+///
+/// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
+/// MVP stub : `duration_min` et `distance_m` sont toujours null.
+pub async fn get_appointment_directions(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(appt_id): Path<Uuid>,
+    Query(params): Query<DirectionsQuery>,
+) -> Result<Json<DirectionsResponse>, AppError> {
+    let mode = params.mode.unwrap_or_else(|| "car".to_string());
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row =
+        sqlx::query("SELECT cabinet_id FROM appointment WHERE id = $1 AND deleted_at IS NULL")
+            .bind(appt_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let cab_row = sqlx::query("SELECT settings->>'address' AS address FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::Internal)?;
+
+    let address: Option<String> = cab_row.try_get("address").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let destination = address
+        .as_deref()
+        .map(|a| a.replace(' ', "+"))
+        .unwrap_or_default();
+    let deeplink = format!(
+        "https://www.google.com/maps/dir/?api=1&destination={}",
+        destination
+    );
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %appt_id,
+        mode = %mode,
+        "appointment directions requested"
+    );
+
+    Ok(Json(DirectionsResponse {
+        mode,
+        duration_min: None,
+        distance_m: None,
+        deeplink,
+    }))
+}
+
 fn is_exclusion_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
