@@ -13,6 +13,7 @@ mod appointments;
 mod auth;
 mod dashboard;
 mod documents;
+mod marketplace;
 mod messaging;
 mod treatment_plans;
 
@@ -223,6 +224,7 @@ pub fn app_with_dispatcher(
             "/v1/treatment-plans",
             get(treatment_plans::list_treatment_plans),
         )
+        .route("/v1/professions", get(marketplace::list_professions))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
             "/v1/account/consents/:purpose",
