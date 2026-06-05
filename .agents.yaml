@@ -1,0 +1,20 @@
+# .agents.yaml — per-agent sparse-checkout scope for the cloud agents
+# (read by agents/templates/*.yaml in jips/agentInfra at clone time).
+#
+# Format: strict (no multi-line lists). Use inline arrays or scalars.
+#   scopes:
+#     <agent-name>: [path1/, path2/]
+#     default: full   # or an inline list
+#
+# Cone mode: all root files (README, CLAUDE.md, AGENTS.md, .agents.yaml,
+# etc.) are included automatically. Only sub-directories are scoped.
+
+scopes:
+  rust-agent:     [api/, db/migrations, ci/, scripts/, tests/]
+  flutter-agent:  [app/, flutter_demo/, ci/, docs/]
+  web-agent:      [web-console/, ci/, docs/]
+  postgres-agent: [db/, scripts/, ci/]
+  design:         [design/, docs/]
+  # Agents not listed -> default (full clone).
+  # Includes: agent-planner, agent-planner-oc, agent-dev, claude-agent.
+  default: full
