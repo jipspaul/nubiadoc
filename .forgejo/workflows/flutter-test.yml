@@ -7,7 +7,7 @@
 #
 # Image is local-only (loaded into DinD via docker load, not pushed to any
 # registry). The runner config has force_pull: false so it uses the local cache.
-on: [push, pull_request]
+on: [pull_request]
 jobs:
   flutter-test:
     runs-on: docker
