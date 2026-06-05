@@ -14,6 +14,7 @@ mod auth;
 mod dashboard;
 mod documents;
 mod messaging;
+mod treatment_plans;
 
 /// Trait de génération d'URL signées Object Storage — swappable (stub en test, MinIO/Scaleway en prod).
 pub trait StorageClient: Send + Sync {
@@ -218,6 +219,10 @@ pub fn app_with_dispatcher(
             get(messaging::list_conversations).post(messaging::create_conversation),
         )
         .route("/v1/dashboard", get(dashboard::get_dashboard))
+        .route(
+            "/v1/treatment-plans",
+            get(treatment_plans::list_treatment_plans),
+        )
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
             "/v1/account/consents/:purpose",
