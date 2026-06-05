@@ -14,6 +14,137 @@ use crate::{
     AppState,
 };
 
+// ── Patch ────────────────────────────────────────────────────────────────────
+
+/// Corps de la requête `PATCH /v1/appointments/:id`.
+#[derive(Deserialize)]
+pub struct PatchAppointmentBody {
+    pub starts_at: Option<String>,
+    pub motif: Option<String>,
+}
+
+/// Réponse de `PATCH /v1/appointments/:id`.
+#[derive(Serialize)]
+pub struct PatchAppointmentResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
+/// `PATCH /v1/appointments/:id` — patient modifie son RDV (créneau ou motif).
+///
+/// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
+/// Hors délai (≥ 24 h avant starts_at courant) → `409 too_late`.
+/// Conflit créneau (contrainte PG `23P01`) → `409 slot_taken`.
+/// Audité (`update_appointment`) dans `audit_log`.
+pub async fn patch_appointment(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(appt_id): Path<Uuid>,
+    Json(body): Json<PatchAppointmentBody>,
+) -> Result<Json<PatchAppointmentResponse>, AppError> {
+    let new_starts_at: Option<chrono::DateTime<chrono::Utc>> = body
+        .starts_at
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, starts_at, status, cabinet_id \
+         FROM appointment \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+
+    if status != "requested" && status != "confirmed" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    // Délai configurable, défaut 24 h avant le starts_at courant.
+    if chrono::Utc::now() >= starts_at - chrono::Duration::hours(24) {
+        return Err(AppError::TooLate);
+    }
+
+    // Scope cabinet pour UPDATE (tenant_isolation) + audit.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Préserve la durée si starts_at change. 23P01 → slot_taken.
+    let result = sqlx::query(
+        "UPDATE appointment \
+         SET \
+           starts_at  = COALESCE($1, starts_at), \
+           ends_at    = CASE WHEN $1 IS NOT NULL \
+                             THEN $1 + (ends_at - starts_at) \
+                             ELSE ends_at END, \
+           motif      = COALESCE($2, motif), \
+           updated_at = now() \
+         WHERE id = $3 \
+         RETURNING id, status",
+    )
+    .bind(new_starts_at)
+    .bind(body.motif.as_deref())
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await;
+
+    let updated = match result {
+        Ok(row) => row,
+        Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
+        Err(_) => return Err(AppError::Internal),
+    };
+
+    let appointment_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
+    let new_status: String = updated.try_get("status").map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'update_appointment', 'appointment', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %id,
+        "appointment patched"
+    );
+
+    Ok(Json(PatchAppointmentResponse {
+        appointment_id,
+        status: new_status,
+    }))
+}
+
 // ── Cancel ──────────────────────────────────────────────────────────────────
 
 /// Réponse de `POST /v1/appointments/:id/cancel`.
