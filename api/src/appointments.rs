@@ -830,12 +830,11 @@ pub async fn get_appointment_preparation(
         provider_row.and_then(|r| r.try_get::<String, _>("display_name").ok());
 
     let cab_row = sqlx::query(
-        "SELECT settings->>'address'     AS address, \
-                settings->>'door_code'   AS door_code, \
-                settings->>'parking'     AS parking, \
-                settings->>'pmr'         AS pmr, \
-                settings->>'tiers_payant' AS tiers_payant, \
-                settings->'geo'          AS geo \
+        "SELECT settings->>'address'   AS address, \
+                settings->>'door_code' AS door_code, \
+                settings->>'parking'   AS parking, \
+                settings->>'pmr'       AS pmr, \
+                settings->'geo'        AS geo \
          FROM cabinet WHERE id = $1",
     )
     .bind(cabinet_id)
@@ -850,16 +849,25 @@ pub async fn get_appointment_preparation(
         .map_err(|_| AppError::Internal)?;
     let parking: Option<String> = cab_row.try_get("parking").map_err(|_| AppError::Internal)?;
     let pmr_str: Option<String> = cab_row.try_get("pmr").map_err(|_| AppError::Internal)?;
-    let tiers_payant_str: Option<String> = cab_row
-        .try_get("tiers_payant")
-        .map_err(|_| AppError::Internal)?;
     let geo_val: Option<serde_json::Value> =
         cab_row.try_get("geo").map_err(|_| AppError::Internal)?;
+
+    // Tiers-payant depuis patient_coverage (app.patient_account_id GUC déjà positionné).
+    let coverage_row = sqlx::query(
+        "SELECT tiers_payant FROM patient_coverage WHERE patient_account_id = $1 LIMIT 1",
+    )
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let tiers_payant: bool = coverage_row
+        .and_then(|r| r.try_get::<bool, _>("tiers_payant").ok())
+        .unwrap_or(false);
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let pmr = pmr_str.as_deref() == Some("true");
-    let tiers_payant = tiers_payant_str.as_deref() == Some("true");
 
     let geo = geo_val.and_then(|v| {
         let lat = v["lat"].as_f64()?;
