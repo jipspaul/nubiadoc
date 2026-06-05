@@ -1,0 +1,169 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Search Providers — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/search/providers</h1>
+  <form id="search-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+    <label>
+      q (recherche libre)
+      <input type="text" name="q" placeholder="ex : cardiologue"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      specialty
+      <input type="text" name="specialty" placeholder="ex : cardiologie"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      near (lat,lng)
+      <input type="text" name="near" placeholder="ex : 48.8566,2.3522"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      radius_km
+      <input type="number" name="radius_km" placeholder="ex : 10" min="1"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      sort
+      <select name="sort"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+        <option value="">— aucun —</option>
+        <option value="relevance">relevance</option>
+        <option value="distance">distance</option>
+        <option value="next_slot">next_slot</option>
+        <option value="rating">rating</option>
+      </select>
+    </label>
+    <label>
+      available
+      <select name="available"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+        <option value="">— aucun —</option>
+        <option value="today">today</option>
+        <option value="week">week</option>
+      </select>
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Rechercher
+    </button>
+  </form>
+
+  <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+  <p id="error-msg" role="alert" style="display:none;color:#fca5a5;margin-top:0.5rem;"></p>
+
+  <section id="results-section" style="margin-top:1.5rem;">
+    <table id="providers-table" style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">provider_id</th>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">display_name</th>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">specialty</th>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">distance_m</th>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">next_slot_at</th>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">rating_avg</th>
+        </tr>
+      </thead>
+      <tbody id="providers-tbody">
+        <tr><td colspan="6" style="padding:0.5rem;color:var(--muted);">—</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="facets-section" style="margin-top:1.5rem;display:none;">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">facets</h2>
+    <pre id="facets-pre" style="padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.8rem;"></pre>
+  </section>
+
+  <section id="page-section" style="margin-top:1rem;display:none;">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">page</h2>
+    <pre id="page-pre" style="padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.8rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  #providers-tbody td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const form = document.getElementById('search-form') as HTMLFormElement;
+  const tbody = document.getElementById('providers-tbody') as HTMLTableSectionElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+  const facetsSection = document.getElementById('facets-section') as HTMLElement;
+  const facetsPre = document.getElementById('facets-pre') as HTMLPreElement;
+  const pageSection = document.getElementById('page-section') as HTMLElement;
+  const pagePre = document.getElementById('page-pre') as HTMLPreElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const params = new URLSearchParams();
+    for (const [key, val] of fd.entries()) {
+      if (val && String(val).trim()) params.set(key, String(val).trim());
+    }
+    const path = `/v1/search/providers${params.toString() ? '?' + params.toString() : ''}`;
+
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:0.5rem;color:var(--muted);">Chargement…</td></tr>';
+    badge.style.display = 'none';
+    errorMsg.style.display = 'none';
+    facetsSection.style.display = 'none';
+    pageSection.style.display = 'none';
+
+    try {
+      const { status, data } = await apiFetch(path);
+      badge.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
+      badge.style.display = 'block';
+
+      if (status >= 300) {
+        tbody.innerHTML = `<tr><td colspan="6" style="padding:0.5rem;color:#fca5a5;">Erreur HTTP ${status}</td></tr>`;
+        errorMsg.textContent = JSON.stringify(data, null, 2);
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      const result = data as {
+        data?: Array<Record<string, unknown>>;
+        facets?: unknown;
+        page?: unknown;
+      };
+      const providers = result.data ?? [];
+      tbody.innerHTML = '';
+      if (providers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="padding:0.5rem;color:var(--muted);">Aucun praticien.</td></tr>';
+      } else {
+        for (const p of providers) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = [
+            p.provider_id ?? '',
+            p.display_name ?? '',
+            p.specialty ?? '',
+            p.distance_m != null ? String(p.distance_m) : '—',
+            p.next_slot_at ?? '—',
+            p.rating_avg != null ? String(p.rating_avg) : '—',
+          ].map(v => `<td>${v}</td>`).join('');
+          tbody.appendChild(tr);
+        }
+      }
+
+      if (result.facets != null) {
+        facetsPre.textContent = JSON.stringify(result.facets, null, 2);
+        facetsSection.style.display = 'block';
+      }
+      if (result.page != null) {
+        pagePre.textContent = JSON.stringify(result.page, null, 2);
+        pageSection.style.display = 'block';
+      }
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:0.5rem;color:#fca5a5;">Erreur réseau</td></tr>';
+      errorMsg.textContent = err instanceof Error ? err.message : String(err);
+      errorMsg.style.display = 'block';
+    }
+  });
+</script>
