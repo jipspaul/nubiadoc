@@ -11,6 +11,7 @@ use uuid::Uuid;
 mod appointments;
 mod auth;
 mod dashboard;
+mod documents;
 
 /// Trait d'envoi d'email — swappable (stub en test, Brevo/SMTP en prod).
 pub trait Mailer: Send + Sync {
@@ -155,6 +156,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/appointments/:id/preparation",
             get(appointments::get_appointment_preparation),
         )
+        .route("/v1/documents", get(documents::list_documents))
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
