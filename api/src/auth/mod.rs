@@ -206,7 +206,7 @@ impl IntoResponse for AppError {
             )
                 .into_response(),
             AppError::OutOfWindow => (
-                StatusCode::CONFLICT,
+                StatusCode::UNPROCESSABLE_ENTITY,
                 Json(json!({"error": "out_of_window"})),
             )
                 .into_response(),
