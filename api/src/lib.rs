@@ -141,6 +141,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
         )
         .route("/v1/appointments/:id", get(appointments::get_appointment))
         .route(
+            "/v1/appointments/:id/cancel",
+            post(appointments::cancel_appointment),
+        )
+        .route(
             "/v1/appointments/:id/checkin",
             post(appointments::checkin_appointment),
         )

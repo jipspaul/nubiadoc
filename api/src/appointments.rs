@@ -14,6 +14,112 @@ use crate::{
     AppState,
 };
 
+// ── Cancel ──────────────────────────────────────────────────────────────────
+
+/// Réponse de `POST /v1/appointments/:id/cancel`.
+#[derive(Serialize)]
+pub struct CancelResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
+/// `POST /v1/appointments/:id/cancel` — patient annule son RDV, libère le créneau.
+///
+/// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
+/// Vérifie status IN ('requested','confirmed') → sinon `409 {"error":"invalid_status"}`.
+/// Vérifie starts_at > now() + 2h → sinon `409 {"error":"too_late"}`.
+pub async fn cancel_appointment(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(appt_id): Path<Uuid>,
+) -> Result<Json<CancelResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, starts_at, status, cabinet_id, slot_id \
+         FROM appointment \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
+
+    if status != "requested" && status != "confirmed" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    // Annulation refusée si le RDV démarre dans moins de 2 heures.
+    if chrono::Utc::now() >= starts_at - chrono::Duration::hours(2) {
+        return Err(AppError::TooLate);
+    }
+
+    // Scope cabinet pour UPDATE (tenant_isolation) + audit.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "UPDATE appointment \
+         SET status = 'cancelled', cancelled_at = now(), updated_at = now() \
+         WHERE id = $1",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(sid) = slot_id {
+        sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+            .bind(sid)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'cancel_appointment', 'appointment', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %id,
+        "appointment cancelled"
+    );
+
+    Ok(Json(CancelResponse {
+        appointment_id: id,
+        status: "cancelled".to_string(),
+    }))
+}
+
 // ── Check-in ────────────────────────────────────────────────────────────────
 
 /// Corps optionnel de `POST /v1/appointments/:id/checkin`.
