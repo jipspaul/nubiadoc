@@ -1,11 +1,9 @@
-//! Handlers pour le coffre-fort patient :
-//! GET /v1/documents, GET /v1/documents/:id, POST /v1/documents.
+//! Handlers pour le coffre-fort patient : GET /v1/documents, GET /v1/documents/:id.
 
 use std::sync::Arc;
 
 use axum::{
     extract::{Extension, Multipart, Path, Query, State},
-    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -300,6 +298,80 @@ pub async fn get_document(
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope patient — RLS document_patient_read (migration 0034) → 0 ligne si hors tenant.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.sha256, \
+         d.created_at, d.storage_key, d.cabinet_id \
+         FROM document d \
+         WHERE d.id = $1 AND d.deleted_at IS NULL",
+    )
+    .bind(doc_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let category: String = row.try_get("category").map_err(|_| AppError::Internal)?;
+    let filename: String = row.try_get("filename").map_err(|_| AppError::Internal)?;
+    let mime_type: String = row.try_get("mime_type").map_err(|_| AppError::Internal)?;
+    let size_bytes: i64 = row.try_get("size_bytes").map_err(|_| AppError::Internal)?;
+    let sha256: String = row.try_get("sha256").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let storage_key: String = row.try_get("storage_key").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+
+    // URL signée valable 15 minutes.
+    let signed_url = storage.sign_url(&storage_key, 900);
+    let signed_url_expires_at = chrono::Utc::now() + chrono::Duration::seconds(900);
+
+    // Audit — uniquement si le document appartient à un cabinet.
+    if let Some(cab_id) = cabinet_id {
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cab_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        sqlx::query(
+            "INSERT INTO audit_log \
+             (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+             VALUES ($1, $2, 'patient', 'read_document', 'document', $3)",
+        )
+        .bind(cab_id)
+        .bind(claims.sub)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        document_id = %id,
+        "document fetched"
+    );
+
+    Ok(Json(DocumentDetail {
+        id,
+        category,
+        filename,
+        mime_type,
+        size_bytes,
+        sha256,
+        created_at: created_at.to_rfc3339(),
+        signed_url,
+        signed_url_expires_at: signed_url_expires_at.to_rfc3339(),
+    }))
+}
 
 const MAX_UPLOAD_SIZE: usize = 20 * 1024 * 1024;
 const ALLOWED_UPLOAD_MIMES: &[&str] = &["application/pdf", "image/jpeg", "image/png"];
@@ -393,52 +465,6 @@ pub async fn upload_document(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.sha256, \
-         d.created_at, d.storage_key, d.cabinet_id \
-         FROM document d \
-         WHERE d.id = $1 AND d.deleted_at IS NULL",
-    )
-    .bind(doc_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::NotFound)?;
-
-    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-    let category: String = row.try_get("category").map_err(|_| AppError::Internal)?;
-    let filename: String = row.try_get("filename").map_err(|_| AppError::Internal)?;
-    let mime_type: String = row.try_get("mime_type").map_err(|_| AppError::Internal)?;
-    let size_bytes: i64 = row.try_get("size_bytes").map_err(|_| AppError::Internal)?;
-    let sha256: String = row.try_get("sha256").map_err(|_| AppError::Internal)?;
-    let created_at: chrono::DateTime<chrono::Utc> =
-        row.try_get("created_at").map_err(|_| AppError::Internal)?;
-    let storage_key: String = row.try_get("storage_key").map_err(|_| AppError::Internal)?;
-    let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-
-    // URL signée valable 15 minutes.
-    let signed_url = storage.sign_url(&storage_key, 900);
-    let signed_url_expires_at = chrono::Utc::now() + chrono::Duration::seconds(900);
-
-    // Audit — uniquement si le document appartient à un cabinet.
-    if let Some(cab_id) = cabinet_id {
-        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-            .bind(cab_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-
-        sqlx::query(
-            "INSERT INTO audit_log \
-             (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
-             VALUES ($1, $2, 'patient', 'read_document', 'document', $3)",
-        )
-        .bind(cab_id)
-        .bind(claims.sub)
-        .bind(id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-    }
         "INSERT INTO document \
          (patient_account_id, category, storage_key, filename, mime_type, \
           sha256, scan_status, uploaded_by) \
@@ -483,21 +509,6 @@ pub async fn upload_document(
 
     tracing::info!(
         account_id = %claims.account_id,
-        document_id = %id,
-        "document fetched"
-    );
-
-    Ok(Json(DocumentDetail {
-        id,
-        category,
-        filename,
-        mime_type,
-        size_bytes,
-        sha256,
-        created_at: created_at.to_rfc3339(),
-        signed_url,
-        signed_url_expires_at: signed_url_expires_at.to_rfc3339(),
-    }))
         document_id = %document_id,
         category = %category,
         size_bytes,
