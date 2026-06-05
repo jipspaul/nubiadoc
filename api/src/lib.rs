@@ -12,6 +12,7 @@ mod appointments;
 mod auth;
 mod dashboard;
 mod documents;
+mod messaging;
 
 /// Trait d'envoi d'email — swappable (stub en test, Brevo/SMTP en prod).
 pub trait Mailer: Send + Sync {
@@ -158,6 +159,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
         )
         .route("/v1/documents", get(documents::list_documents))
         .route("/v1/dashboard", get(dashboard::get_dashboard))
+        .route("/v1/conversations", get(messaging::list_conversations))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
             "/v1/account/consents/:purpose",
