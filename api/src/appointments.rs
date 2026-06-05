@@ -344,10 +344,21 @@ pub async fn checkin_appointment(
         .try_get("checkin_at")
         .map_err(|_| AppError::Internal)?;
 
+    // Trace the check-in event (table 0005). mode='qr_app' pour tout check-in patient.
+    sqlx::query(
+        "INSERT INTO checkin_event (cabinet_id, appointment_id, mode) \
+         VALUES ($1, $2, 'qr_app')",
+    )
+    .bind(cabinet_id)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     sqlx::query(
         "INSERT INTO audit_log \
          (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
-         VALUES ($1, $2, 'patient', 'checkin_appointment', 'appointment', $3)",
+         VALUES ($1, $2, 'patient', 'checkin', 'appointment', $3)",
     )
     .bind(cabinet_id)
     .bind(claims.sub)
