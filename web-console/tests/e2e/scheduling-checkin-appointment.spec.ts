@@ -25,7 +25,7 @@ test('happy path => POST checkin retourne 200 { status: "checked_in" }', async (
   await expect(page.locator('#result')).toContainText('checked_in');
 });
 
-test('erreur => double check-in retourne 409 already_checked_in visible dans l\'UI', async ({ page }) => {
+test('double check-in => 409 visible dans l\'UI', async ({ page }) => {
   await page.route('**/v1/appointments/*/checkin', (route) => {
     route.fulfill({
       status: 409,
