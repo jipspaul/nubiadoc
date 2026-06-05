@@ -1,0 +1,116 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Préparation RDV — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/appointments/:id/preparation</h1>
+  <form id="prep-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      Appointment ID
+      <input type="text" name="appointment_id" required placeholder="uuid"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Charger préparation
+    </button>
+  </form>
+
+  <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+  <p id="error-message" style="margin-top:1rem;display:none;color:#f87171;font-weight:600;"></p>
+
+  <section id="prep-details" style="margin-top:1rem;display:none;">
+    <dl style="margin:0 0 1rem;">
+      <dt style="font-weight:600;margin-bottom:0.25rem;">Prestataire</dt>
+      <dd id="provider-name" style="margin:0 0 0.75rem;padding-left:1rem;"></dd>
+      <dt style="font-weight:600;margin-bottom:0.25rem;">Adresse</dt>
+      <dd id="establishment-address" style="margin:0 0 0.75rem;padding-left:1rem;"></dd>
+      <dt style="font-weight:600;margin-bottom:0.25rem;">Rappel prévu</dt>
+      <dd id="reminder-at" style="margin:0;padding-left:1rem;"></dd>
+    </dl>
+    <h2 style="font-size:1rem;margin:1rem 0 0.5rem;">À apporter</h2>
+    <ul id="bring-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem;"></ul>
+  </section>
+
+  <pre id="result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge-status { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+  .badge-bring { display:inline-block;padding:0.125rem 0.5rem;border-radius:4px;font-size:0.75rem;font-weight:600;margin-left:0.5rem; }
+  .badge-required { background:#7f1d1d;color:#fecaca; }
+  .badge-optional { background:#1e3a5f;color:#bae6fd; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const form = document.getElementById('prep-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const errorMsg = document.getElementById('error-message') as HTMLParagraphElement;
+  const prepDetails = document.getElementById('prep-details') as HTMLElement;
+  const providerName = document.getElementById('provider-name') as HTMLElement;
+  const establishmentAddress = document.getElementById('establishment-address') as HTMLElement;
+  const reminderAt = document.getElementById('reminder-at') as HTMLElement;
+  const bringList = document.getElementById('bring-list') as HTMLUListElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+    const appointment_id = fd.get('appointment_id') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+    errorMsg.style.display = 'none';
+    prepDetails.style.display = 'none';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch(
+        `/v1/appointments/${encodeURIComponent(appointment_id)}/preparation`,
+        { headers: { Authorization: `Bearer ${access_token}` } },
+      );
+
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge-status ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+
+      if (httpStatus === 200 && data && typeof data === 'object') {
+        const d = data as Record<string, unknown>;
+        const provider = d.provider as Record<string, unknown> | undefined;
+        const establishment = d.establishment as Record<string, unknown> | undefined;
+        const bring = d.bring as Array<{ label: string; required: boolean }> | undefined;
+
+        providerName.textContent = String(provider?.name ?? '—');
+        establishmentAddress.textContent = String(establishment?.address ?? '—');
+        reminderAt.textContent = d.reminder_at ? String(d.reminder_at) : '—';
+
+        bringList.innerHTML = '';
+        (bring ?? []).forEach(({ label, required }) => {
+          const li = document.createElement('li');
+          li.innerHTML = `${label}<span class="badge-bring ${required ? 'badge-required' : 'badge-optional'}">${required ? 'requis' : 'optionnel'}</span>`;
+          bringList.appendChild(li);
+        });
+
+        prepDetails.style.display = 'block';
+      } else if (httpStatus === 404) {
+        errorMsg.textContent = 'RDV introuvable (404) — vérifiez l\'UUID.';
+        errorMsg.style.display = 'block';
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
