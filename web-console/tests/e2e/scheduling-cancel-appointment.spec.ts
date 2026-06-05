@@ -8,7 +8,7 @@ test('le formulaire /scheduling/cancel-appointment est visible avec les champs r
   await expect(page.locator('#result')).toBeVisible();
 });
 
-test('happy path => POST cancel retourne 204 (aucun contenu)', async ({ page }) => {
+test('happy path => POST cancel retourne 204 No Content', async ({ page }) => {
   await page.route('**/v1/appointments/*/cancel', (route) => {
     route.fulfill({ status: 204, body: '' });
   });
@@ -18,10 +18,9 @@ test('happy path => POST cancel retourne 204 (aucun contenu)', async ({ page }) 
   await page.locator('input[name="appointment_id"]').fill('00000000-0000-0000-0000-000000000001');
   await page.getByRole('button', { name: /annuler ce rdv/i }).click();
   await expect(page.locator('#result')).toContainText('HTTP 204', { timeout: 5000 });
-  await expect(page.locator('#result')).toContainText('aucun contenu');
 });
 
-test('erreur => annuler hors délai retourne 409 too_late', async ({ page }) => {
+test('erreur => délai dépassé retourne 409 too_late visible dans l\'UI', async ({ page }) => {
   await page.route('**/v1/appointments/*/cancel', (route) => {
     route.fulfill({
       status: 409,

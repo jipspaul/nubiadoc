@@ -1,9 +1,9 @@
 ---
 import Default from '../../layouts/Default.astro';
 ---
-<Default title="Cancel Appointment — Nubia Console">
+<Default title="Annuler RDV — Nubia Console">
   <h1 style="margin-bottom:1.5rem;">POST /v1/appointments/:id/cancel</h1>
-  <form id="cancel-appointment-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+  <form id="cancel-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
       Access token (Bearer)
       <input type="text" name="access_token" required
@@ -34,7 +34,7 @@ import Default from '../../layouts/Default.astro';
 <script>
   import { apiFetch } from '../../lib/api.ts';
 
-  const form = document.getElementById('cancel-appointment-form') as HTMLFormElement;
+  const form = document.getElementById('cancel-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
   const badge = document.getElementById('status-badge') as HTMLParagraphElement;
 
@@ -49,10 +49,10 @@ import Default from '../../layouts/Default.astro';
     badge.style.display = 'none';
 
     try {
-      const { status: httpStatus, data } = await apiFetch(`/v1/appointments/${encodeURIComponent(appointment_id)}/cancel`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${access_token}` },
-      });
+      const { status: httpStatus, data } = await apiFetch(
+        `/v1/appointments/${encodeURIComponent(appointment_id)}/cancel`,
+        { method: 'POST', headers: { Authorization: `Bearer ${access_token}` } },
+      );
       result.className = httpStatus < 300 ? 'success' : 'error';
       result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
       badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
