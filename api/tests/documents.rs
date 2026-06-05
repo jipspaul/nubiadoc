@@ -202,6 +202,194 @@ async fn documents_happy_path_returns_document() {
         .ok();
 }
 
+// ── Test pour POST /v1/documents ─────────────────────────────────────────────
+
+/// Construit un corps multipart minimal pour POST /v1/documents.
+fn make_upload_multipart(
+    boundary: &str,
+    category: &str,
+    file_bytes: &[u8],
+    file_name: &str,
+    mime: &str,
+) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+
+    // Champ "category"
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"category\"\r\n");
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(category.as_bytes());
+    body.extend_from_slice(b"\r\n");
+
+    // Champ "file"
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{file_name}\"\r\n")
+            .as_bytes(),
+    );
+    body.extend_from_slice(format!("Content-Type: {mime}\r\n").as_bytes());
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(file_bytes);
+    body.extend_from_slice(b"\r\n");
+
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    body
+}
+
+// ── Test : upload PDF valide + catégorie valide → 201 avec document_id UUID ───
+
+#[tokio::test]
+async fn documents_upload_pdf_happy_path() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("upload+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Upload')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(user_id, account_id);
+
+    // PDF minimal (magic bytes %PDF-)
+    let pdf_stub = b"%PDF-1.4\n%%EOF\n";
+    let boundary = "testboundaryupload001";
+    let body = make_upload_multipart(
+        boundary,
+        "ordonnance",
+        pdf_stub,
+        "ordonnance.pdf",
+        "application/pdf",
+    );
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/documents")
+                .header("Authorization", format!("Bearer {jwt}"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let resp_body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&resp_body).unwrap();
+
+    let doc_id_str = v["document_id"]
+        .as_str()
+        .expect("document_id doit être présent");
+    let doc_id = Uuid::parse_str(doc_id_str).expect("document_id doit être un UUID valide");
+    assert_eq!(v["category"], "ordonnance");
+    assert_eq!(v["filename"], "ordonnance.pdf");
+    assert!(v["size_bytes"].as_i64().unwrap_or(0) > 0);
+    let sha = v["sha256"].as_str().expect("sha256 doit être présent");
+    assert_eq!(
+        sha.len(),
+        64,
+        "sha256 doit être une chaîne hex de 64 caractères"
+    );
+
+    // Cleanup — supprimer le document avant le compte (pas de cascade patient_account→document)
+    sqlx::query("DELETE FROM document WHERE id = $1")
+        .bind(doc_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test : catégorie invalide → 422 validation_error ─────────────────────────
+
+#[tokio::test]
+async fn documents_upload_invalid_category_returns_422() {
+    // Pas de requête DB : la validation de catégorie précède tout accès base.
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let boundary = "testboundaryinvalidcat";
+    let body = make_upload_multipart(
+        boundary,
+        "categorie_inexistante",
+        b"%PDF-1.4\n%%EOF\n",
+        "test.pdf",
+        "application/pdf",
+    );
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/documents")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(Uuid::new_v4(), Uuid::new_v4())
+                    ),
+                )
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let resp_body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&resp_body).unwrap();
+    assert_eq!(v["code"], "validation_error");
+}
+
 // ── Test 2 : catégorie inconnue → 200 liste vide ───────────────────────────────
 
 #[tokio::test]
