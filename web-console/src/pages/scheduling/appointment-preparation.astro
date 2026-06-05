@@ -28,7 +28,9 @@ import Default from '../../layouts/Default.astro';
       <dt style="font-weight:600;margin-bottom:0.25rem;">Prestataire</dt>
       <dd id="provider-name" style="margin:0 0 0.75rem;padding-left:1rem;"></dd>
       <dt style="font-weight:600;margin-bottom:0.25rem;">Adresse</dt>
-      <dd id="establishment-address" style="margin:0;padding-left:1rem;"></dd>
+      <dd id="establishment-address" style="margin:0 0 0.75rem;padding-left:1rem;"></dd>
+      <dt style="font-weight:600;margin-bottom:0.25rem;">Rappel prévu</dt>
+      <dd id="reminder-at" style="margin:0;padding-left:1rem;"></dd>
     </dl>
     <h2 style="font-size:1rem;margin:1rem 0 0.5rem;">À apporter</h2>
     <ul id="bring-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem;"></ul>
@@ -58,6 +60,7 @@ import Default from '../../layouts/Default.astro';
   const prepDetails = document.getElementById('prep-details') as HTMLElement;
   const providerName = document.getElementById('provider-name') as HTMLElement;
   const establishmentAddress = document.getElementById('establishment-address') as HTMLElement;
+  const reminderAt = document.getElementById('reminder-at') as HTMLElement;
   const bringList = document.getElementById('bring-list') as HTMLUListElement;
 
   form.addEventListener('submit', async (e) => {
@@ -91,6 +94,7 @@ import Default from '../../layouts/Default.astro';
 
         providerName.textContent = String(provider?.name ?? '—');
         establishmentAddress.textContent = String(establishment?.address ?? '—');
+        reminderAt.textContent = d.reminder_at ? String(d.reminder_at) : '—';
 
         bringList.innerHTML = '';
         (bring ?? []).forEach(({ label, required }) => {
