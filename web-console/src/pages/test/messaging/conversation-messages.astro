@@ -3,7 +3,7 @@ import Default from '../../../layouts/Default.astro';
 ---
 <Default title="GET /v1/conversations/{id}/messages — Nubia Console">
   <h1 style="margin-bottom:1.5rem;">GET /v1/conversations/{id}/messages</h1>
-  <form id="conv-messages-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+  <form id="conversation-messages-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
       Access token (Bearer)
       <input type="text" name="access_token" required
@@ -11,12 +11,7 @@ import Default from '../../../layouts/Default.astro';
     </label>
     <label>
       Conversation ID
-      <input type="text" name="conversation_id" required placeholder="uuid"
-        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-    </label>
-    <label>
-      Page (optionnel)
-      <input type="text" name="page" placeholder="1"
+      <input type="text" name="conversation_id" required
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
     <button type="submit"
@@ -27,7 +22,7 @@ import Default from '../../../layouts/Default.astro';
 
   <p id="status-badge" style="margin-top:1rem;display:none;"></p>
 
-  <section id="messages-list" style="display:none;margin-top:1.5rem;">
+  <section id="conversation-messages-list" style="display:none;margin-top:1.5rem;">
     <h2 style="font-size:1rem;margin-bottom:0.75rem;">Messages</h2>
     <ul id="list-items" style="list-style:none;display:flex;flex-direction:column;gap:0.75rem;"></ul>
   </section>
@@ -58,10 +53,10 @@ import Default from '../../../layouts/Default.astro';
 <script>
   import { apiFetch } from '../../../lib/api.ts';
 
-  const form = document.getElementById('conv-messages-form') as HTMLFormElement;
+  const form = document.getElementById('conversation-messages-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
   const badge = document.getElementById('status-badge') as HTMLParagraphElement;
-  const listSection = document.getElementById('messages-list') as HTMLElement;
+  const listSection = document.getElementById('conversation-messages-list') as HTMLElement;
   const listItems = document.getElementById('list-items') as HTMLUListElement;
 
   const params = new URLSearchParams(window.location.search);
@@ -75,7 +70,6 @@ import Default from '../../../layouts/Default.astro';
     const fd = new FormData(form);
     const access_token = fd.get('access_token') as string;
     const conversation_id = fd.get('conversation_id') as string;
-    const page = (fd.get('page') as string).trim();
 
     result.className = '';
     result.textContent = 'Chargement…';
@@ -83,16 +77,11 @@ import Default from '../../../layouts/Default.astro';
     listSection.style.display = 'none';
     listItems.innerHTML = '';
 
-    const qs = page ? `?page=${encodeURIComponent(page)}` : '';
-
     try {
-      const { status: httpStatus, data } = await apiFetch(
-        `/v1/conversations/${encodeURIComponent(conversation_id)}/messages${qs}`,
-        {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${access_token}` },
-        },
-      );
+      const { status: httpStatus, data } = await apiFetch(`/v1/conversations/${encodeURIComponent(conversation_id)}/messages`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
 
       const ok = httpStatus < 300;
       result.className = ok ? 'success' : 'error';
