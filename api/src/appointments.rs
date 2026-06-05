@@ -344,10 +344,31 @@ pub async fn checkin_appointment(
         .try_get("checkin_at")
         .map_err(|_| AppError::Internal)?;
 
+    // Insérer l'événement check-in (UNIQUE sur appointment_id → 409 si double check-in concurrent).
+    let mode = match method.as_str() {
+        "qr_web" => "qr_web",
+        "borne" => "borne",
+        "sms" => "sms",
+        _ => "qr_app",
+    };
+    let ce_result = sqlx::query(
+        "INSERT INTO checkin_event (cabinet_id, appointment_id, mode) VALUES ($1, $2, $3)",
+    )
+    .bind(cabinet_id)
+    .bind(id)
+    .bind(mode)
+    .execute(&mut *tx)
+    .await;
+    match ce_result {
+        Ok(_) => {}
+        Err(e) if is_unique_violation(&e) => return Err(AppError::InvalidStatus),
+        Err(_) => return Err(AppError::Internal),
+    }
+
     sqlx::query(
         "INSERT INTO audit_log \
          (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
-         VALUES ($1, $2, 'patient', 'checkin_appointment', 'appointment', $3)",
+         VALUES ($1, $2, 'patient', 'checkin', 'appointment', $3)",
     )
     .bind(cabinet_id)
     .bind(claims.sub)
@@ -911,6 +932,13 @@ fn is_exclusion_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
         sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23P01")
+    )
+}
+
+fn is_unique_violation(e: &sqlx::Error) -> bool {
+    matches!(
+        e,
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505")
     )
 }
 
