@@ -1,17 +1,25 @@
 ---
-import Default from '../../layouts/Default.astro';
+import Default from '../../../layouts/Default.astro';
 ---
-<Default title="Dashboard — Nubia Console">
-  <h1 style="margin-bottom:1.5rem;">GET /v1/dashboard</h1>
-  <form id="dashboard-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+<Default title="Appointments List — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/appointments</h1>
+  <form id="appointments-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
     <label>
       Access token (Bearer)
       <input type="text" name="access_token" required
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
+    <label>
+      Status
+      <select name="status"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+        <option value="upcoming">upcoming</option>
+        <option value="past">past</option>
+      </select>
+    </label>
     <button type="submit"
       style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-      Load dashboard
+      GET
     </button>
   </form>
   <p id="status-badge" style="margin-top:1rem;display:none;"></p>
@@ -27,9 +35,9 @@ import Default from '../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../lib/api.ts';
+  import { apiFetch } from '../../../lib/api.ts';
 
-  const form = document.getElementById('dashboard-form') as HTMLFormElement;
+  const form = document.getElementById('appointments-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
   const badge = document.getElementById('status-badge') as HTMLParagraphElement;
 
@@ -37,19 +45,20 @@ import Default from '../../layouts/Default.astro';
     e.preventDefault();
     const fd = new FormData(form);
     const access_token = fd.get('access_token') as string;
+    const status = fd.get('status') as string;
 
     result.className = '';
     result.textContent = 'Chargement…';
     badge.style.display = 'none';
 
     try {
-      const { status, data } = await apiFetch('/v1/dashboard', {
+      const { status: httpStatus, data } = await apiFetch(`/v1/appointments?status=${encodeURIComponent(status)}`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${access_token}` },
       });
-      result.className = status < 300 ? 'success' : 'error';
-      result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
-      badge.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
       badge.style.display = 'block';
     } catch (err) {
       result.className = 'error';
