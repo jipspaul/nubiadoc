@@ -703,6 +703,192 @@ pub async fn get_appointment(
     }))
 }
 
+// ── Preparation ─────────────────────────────────────────────────────────────
+
+/// Provider summary for `GET /v1/appointments/:id/preparation`.
+#[derive(Serialize)]
+pub struct PreparationProvider {
+    pub name: Option<String>,
+}
+
+/// Geo coordinates from cabinet settings.
+#[derive(Serialize)]
+pub struct GeoCoord {
+    pub lat: f64,
+    pub lon: f64,
+}
+
+/// Physical access info from cabinet settings.
+#[derive(Serialize)]
+pub struct AccessInfo {
+    pub door_code: Option<String>,
+    pub parking: Option<String>,
+    pub pmr: bool,
+}
+
+/// Establishment info for preparation response.
+#[derive(Serialize)]
+pub struct PreparationEstablishment {
+    pub address: Option<String>,
+    pub geo: Option<GeoCoord>,
+    pub access: AccessInfo,
+}
+
+/// Item in the bring list.
+#[derive(Serialize)]
+pub struct BringItem {
+    pub label: String,
+    pub required: bool,
+}
+
+/// Réponse de `GET /v1/appointments/:id/preparation`.
+#[derive(Serialize)]
+pub struct PreparationResponse {
+    pub provider: PreparationProvider,
+    pub establishment: PreparationEstablishment,
+    pub bring: Vec<BringItem>,
+    pub reminder_at: String,
+}
+
+/// `GET /v1/appointments/:id/preparation` — infos pratiques du RDV pour le patient.
+///
+/// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
+/// Dérive `bring` : Carte Vitale (toujours), mutuelle si `tiers_payant`, documents si
+/// `documents_hint` non null. `reminder_at = starts_at - 1 h`.
+pub async fn get_appointment_preparation(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(appt_id): Path<Uuid>,
+) -> Result<Json<PreparationResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, starts_at, cabinet_id, practitioner_id, documents_hint \
+         FROM appointment \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let documents_hint: Option<String> = row
+        .try_get("documents_hint")
+        .map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet pour accès provider + cabinet.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let provider_row =
+        sqlx::query("SELECT display_name FROM provider WHERE practitioner_id = $1 LIMIT 1")
+            .bind(practitioner_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+    let provider_name: Option<String> =
+        provider_row.and_then(|r| r.try_get::<String, _>("display_name").ok());
+
+    let cab_row = sqlx::query(
+        "SELECT settings->>'address'     AS address, \
+                settings->>'door_code'   AS door_code, \
+                settings->>'parking'     AS parking, \
+                settings->>'pmr'         AS pmr, \
+                settings->>'tiers_payant' AS tiers_payant, \
+                settings->'geo'          AS geo \
+         FROM cabinet WHERE id = $1",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    let address: Option<String> = cab_row.try_get("address").map_err(|_| AppError::Internal)?;
+    let door_code: Option<String> = cab_row
+        .try_get("door_code")
+        .map_err(|_| AppError::Internal)?;
+    let parking: Option<String> = cab_row.try_get("parking").map_err(|_| AppError::Internal)?;
+    let pmr_str: Option<String> = cab_row.try_get("pmr").map_err(|_| AppError::Internal)?;
+    let tiers_payant_str: Option<String> = cab_row
+        .try_get("tiers_payant")
+        .map_err(|_| AppError::Internal)?;
+    let geo_val: Option<serde_json::Value> =
+        cab_row.try_get("geo").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let pmr = pmr_str.as_deref() == Some("true");
+    let tiers_payant = tiers_payant_str.as_deref() == Some("true");
+
+    let geo = geo_val.and_then(|v| {
+        let lat = v["lat"].as_f64()?;
+        let lon = v["lon"].as_f64()?;
+        Some(GeoCoord { lat, lon })
+    });
+
+    let mut bring = vec![BringItem {
+        label: "Carte Vitale".to_string(),
+        required: true,
+    }];
+    if tiers_payant {
+        bring.push(BringItem {
+            label: "Carte mutuelle".to_string(),
+            required: true,
+        });
+    }
+    if documents_hint.is_some() {
+        bring.push(BringItem {
+            label: "Ordonnances et radios".to_string(),
+            required: false,
+        });
+    }
+
+    let reminder_at = (starts_at - chrono::Duration::hours(1)).to_rfc3339();
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %id,
+        "appointment preparation queried"
+    );
+
+    Ok(Json(PreparationResponse {
+        provider: PreparationProvider {
+            name: provider_name,
+        },
+        establishment: PreparationEstablishment {
+            address,
+            geo,
+            access: AccessInfo {
+                door_code,
+                parking,
+                pmr,
+            },
+        },
+        bring,
+        reminder_at,
+    }))
+}
+
 /// Corps de la requête `POST /v1/appointments`.
 #[derive(Deserialize)]
 pub struct CreateAppointmentBody {

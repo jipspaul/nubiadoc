@@ -151,6 +151,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/appointments/:id/checkin",
             post(appointments::checkin_appointment),
         )
+        .route(
+            "/v1/appointments/:id/preparation",
+            get(appointments::get_appointment_preparation),
+        )
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
