@@ -12,6 +12,12 @@
 # Pré-requis : image db-ci:stable construite/chargée dans le runner DinD via
 # ./ci/db/load-into-runner.sh (force_pull: false côté runner — image locale).
 on: [pull_request]
+
+# Cancel old in-progress runs when new commits push to the same PR/branch.
+# Saves runner time on auto-rebase + force-push cycles.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   db-test:
     runs-on: docker
