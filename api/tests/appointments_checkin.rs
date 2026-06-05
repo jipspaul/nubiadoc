@@ -120,7 +120,7 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid, prac_id: Uuid)
         .execute(&mut *tx)
         .await
         .ok();
-    // checkin_event référence appointment via FK — doit être supprimé en premier.
+    // checkin_event FK → appointment : supprimer d'abord.
     sqlx::query("DELETE FROM checkin_event WHERE cabinet_id = $1")
         .bind(cabinet_id)
         .execute(&mut *tx)
@@ -341,7 +341,7 @@ async fn post_checkin_invalid_status_returns_409() {
         .ok();
 }
 
-// ── Test 3 : RDV demain → 422 {"error":"out_of_window"} ──────────────────────
+// ── Test 3 : RDV demain (hors fenêtre) → 422 {"error":"out_of_window"} ──────
 
 #[tokio::test]
 async fn post_checkin_tomorrow_returns_422() {
@@ -381,13 +381,13 @@ async fn post_checkin_tomorrow_returns_422() {
     .await
     .unwrap();
 
-    // starts_at = demain → hors fenêtre (> 30 min avant starts_at).
+    // starts_at = demain → hors fenêtre check-in (> now() + 30 min).
     let (cabinet_id, prac_id, patient_id, appt_id) = insert_fixture(
         &db,
         prac_user_id,
         patient_account_id,
         "confirmed",
-        "now() + interval '1 day'",
+        "now() + INTERVAL '1 day'",
     )
     .await;
 
@@ -409,7 +409,10 @@ async fn post_checkin_tomorrow_returns_422() {
                         make_patient_jwt(patient_user_id, patient_account_id)
                     ),
                 )
-                .body(Body::empty())
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"method": "manual"})).unwrap(),
+                ))
                 .unwrap(),
         )
         .await
