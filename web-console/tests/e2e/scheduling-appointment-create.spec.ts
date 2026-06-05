@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-test('le formulaire /scheduling/appointment-create est visible avec les champs requis', async ({ page }) => {
-  await page.goto('/scheduling/appointment-create');
+test('le formulaire /test/scheduling/appointment-create est visible avec les champs requis', async ({ page }) => {
+  await page.goto('/test/scheduling/appointment-create');
   await expect(page.locator('input[name="access_token"]')).toBeVisible();
   await expect(page.locator('input[name="provider_id"]')).toBeVisible();
   await expect(page.locator('input[name="starts_at"]')).toBeVisible();
@@ -19,7 +19,7 @@ test('happy path => POST valide retourne 201 { appointment_id }', async ({ page 
     });
   });
 
-  await page.goto('/scheduling/appointment-create');
+  await page.goto('/test/scheduling/appointment-create');
   await page.locator('input[name="access_token"]').fill('fake-access-token');
   await page.locator('input[name="provider_id"]').fill('00000000-0000-0000-0000-000000000002');
   await page.locator('input[name="starts_at"]').fill('2026-07-01T10:00');
@@ -38,7 +38,7 @@ test('double-booking => POST retourne 409 { code: "slot_taken" }', async ({ page
     });
   });
 
-  await page.goto('/scheduling/appointment-create');
+  await page.goto('/test/scheduling/appointment-create');
   await page.locator('input[name="access_token"]').fill('fake-access-token');
   await page.locator('input[name="provider_id"]').fill('00000000-0000-0000-0000-000000000002');
   await page.locator('input[name="starts_at"]').fill('2026-07-01T10:00');
