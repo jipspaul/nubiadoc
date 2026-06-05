@@ -170,7 +170,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
         )
         .route(
             "/v1/appointments/:id/directions",
-            get(appointments::get_directions),
+            get(appointments::get_appointment_directions),
         )
         .route(
             "/v1/appointments/:id/preparation",
