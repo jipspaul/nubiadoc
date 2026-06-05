@@ -1,4 +1,4 @@
--- 0035_conversation_patient_account.sql
+-- 0036_conversation_patient_account.sql
 -- Ajoute patient_account_id à conversation pour le lien plateforme et la contrainte
 -- d'unicité par couple (patient_account × cabinet). Issue #450 : POST /v1/conversations.
 -- patient_id devient nullable : la liaison clinique peut arriver après la prise de contact.
