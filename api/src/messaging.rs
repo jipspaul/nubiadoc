@@ -1,8 +1,9 @@
 //! Handlers pour la messagerie patient :
-//! GET /v1/conversations, POST /v1/conversations.
+//! GET /v1/conversations, POST /v1/conversations,
+//! GET /v1/conversations/:id/messages.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -181,6 +182,183 @@ pub async fn list_conversations(
     );
 
     Ok(Json(ConversationsResponse {
+        data,
+        page: PageInfo { next_cursor, limit },
+    }))
+}
+
+/// Paramètres de `GET /v1/conversations/:id/messages`.
+#[derive(Deserialize)]
+pub struct ListMessagesQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+/// Un message dans un fil de messagerie.
+#[derive(Serialize)]
+pub struct MessageItem {
+    pub id: Uuid,
+    /// Contenu chiffré (base64 de `body_ciphertext`). Déchiffrement côté client via `body_key_ref`.
+    pub body: String,
+    pub body_key_ref: String,
+    pub sender_kind: String,
+    pub created_at: String,
+    pub read_at: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct MessagesResponse {
+    pub data: Vec<MessageItem>,
+    pub page: PageInfo,
+}
+
+/// `GET /v1/conversations/:id/messages` — liste paginée des messages d'un fil.
+///
+/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` :
+/// - `message_patient_read` (migration 0029) : filtre les messages des fils du patient.
+/// - `conversation_patient_read` (migration 0029) : vérif que le fil appartient au patient.
+///
+/// Trié par `created_at DESC, id DESC`. Conversation hors tenant → 404.
+/// Audit `read_message` (zéro PII) — `cabinet_id` extrait de la conversation.
+pub async fn get_conversation_messages(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(conversation_id): Path<Uuid>,
+    Query(params): Query<ListMessagesQuery>,
+) -> Result<Json<MessagesResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
+    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope RLS patient — policies message_patient_read + conversation_patient_read.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que la conversation est accessible (RLS filtre si hors tenant → None = 404).
+    let conv_row = sqlx::query("SELECT cabinet_id FROM conversation WHERE id = $1")
+        .bind(conversation_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let conv_row = conv_row.ok_or(AppError::NotFound)?;
+    let cabinet_id: Uuid = conv_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+
+    let cursor_clause = if cursor.is_some() {
+        " AND (created_at < $3 OR (created_at = $3 AND id < $4))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "SELECT id, encode(body_ciphertext, 'base64') AS body, body_key_ref, \
+                sender_kind, created_at, read_at \
+         FROM message \
+         WHERE conversation_id = $1 \
+         {cursor_clause} \
+         ORDER BY created_at DESC, id DESC \
+         LIMIT $2"
+    );
+
+    let fetch_limit = limit + 1;
+
+    let rows = match cursor {
+        Some((cursor_ts, cursor_id)) => sqlx::query(&sql)
+            .bind(conversation_id)
+            .bind(fetch_limit)
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(conversation_id)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
+
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut data: Vec<MessageItem> = Vec::with_capacity(visible.len());
+    let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+
+    for row in visible {
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let body: String = row.try_get("body").map_err(|_| AppError::Internal)?;
+        let body_key_ref: String = row
+            .try_get("body_key_ref")
+            .map_err(|_| AppError::Internal)?;
+        let sender_kind: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
+        let created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let read_at: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("read_at").map_err(|_| AppError::Internal)?;
+
+        last_created_at = Some(created_at);
+        last_id = Some(id);
+
+        data.push(MessageItem {
+            id,
+            body,
+            body_key_ref,
+            sender_kind,
+            created_at: created_at.to_rfc3339(),
+            read_at: read_at.map(|dt| dt.to_rfc3339()),
+        });
+    }
+
+    // Audit read_message — app.current_cabinet_id requis par la policy RLS WITH CHECK.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'read_message', 'conversation', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(conversation_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let next_cursor = if has_more {
+        last_created_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_cursor(dt, id))
+    } else {
+        None
+    };
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        conversation_id = %conversation_id,
+        count = data.len(),
+        has_more,
+        "messages listed"
+    );
+
+    Ok(Json(MessagesResponse {
         data,
         page: PageInfo { next_cursor, limit },
     }))
