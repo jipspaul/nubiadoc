@@ -69,7 +69,7 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   build_runner: ^2.4.15
   injectable_generator: ^2.7.0
-  retrofit_generator: ^9.1.6
+  retrofit_generator: ^10.2.6
   json_serializable: ^6.9.5
   mocktail: ^1.0.4
   bloc_test: ^10.0.0
