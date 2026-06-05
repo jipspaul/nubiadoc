@@ -1,9 +1,11 @@
-//! Handlers pour le coffre-fort patient : GET /v1/documents, GET /v1/documents/:id.
+//! Handlers pour le coffre-fort patient :
+//! GET /v1/documents, POST /v1/documents, GET /v1/documents/:id.
 
 use std::sync::Arc;
 
 use axum::{
     extract::{Extension, Multipart, Path, Query, State},
+    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
