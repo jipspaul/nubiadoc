@@ -221,7 +221,7 @@ pub fn app_with_dispatcher(
         )
         .route(
             "/v1/conversations/:id/messages",
-            get(messaging::get_conversation_messages),
+            get(messaging::get_conversation_messages).post(messaging::send_message),
         )
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route(
