@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, specialty_id, label, COALESCE(motifs, '{}') AS \"motifs!\" FROM medical_act WHERE ($1::uuid IS NULL OR specialty_id = $1) ORDER BY label",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "specialty_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "motifs!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "ae34a08adc82bf79feb6c53e5d25d28d6f27ef5a2d3d609149b13c0059354cc3"
+}
