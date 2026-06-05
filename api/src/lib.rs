@@ -177,10 +177,6 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             get(appointments::get_appointment_preparation),
         )
         .route(
-            "/v1/appointments/:id/directions",
-            get(appointments::get_appointment_directions),
-        )
-        .route(
             "/v1/documents",
             get(documents::list_documents).post(documents::upload_document),
         )
