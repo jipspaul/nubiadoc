@@ -1,7 +1,8 @@
-//! Handlers pour le coffre-fort patient : GET /v1/documents.
+//! Handlers pour le coffre-fort patient : GET /v1/documents, POST /v1/documents.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Multipart, Query, State},
+    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -266,4 +267,158 @@ pub async fn list_documents(
         data,
         page: PageInfo { next_cursor, limit },
     }))
+}
+
+const MAX_UPLOAD_SIZE: usize = 20 * 1024 * 1024;
+const ALLOWED_UPLOAD_MIMES: &[&str] = &["application/pdf", "image/jpeg", "image/png"];
+
+/// Réponse de `POST /v1/documents`.
+#[derive(Serialize)]
+pub struct UploadDocumentResponse {
+    pub document_id: Uuid,
+    pub category: String,
+    pub filename: String,
+    pub size_bytes: i64,
+    pub sha256: String,
+}
+
+/// `POST /v1/documents` — coffre-fort patient : upload d'une pièce jointe / justificatif.
+///
+/// Champs multipart :
+/// - `file` : binaire requis (PDF / JPEG / PNG ≤ 20 Mo). MIME déclaré vérifié → `422` sinon.
+/// - `category` : enum strict requis → `422` si absent ou invalide.
+/// - `filename` : optionnel ; remplace le nom issu du champ `file` si fourni.
+///
+/// Chiffrement au repos : stub UTF-8 en dev — AES-256-GCM KMS à NUB-T3 (ADR-009).
+/// Antivirus : stub, `scan_status = 'pending'`.
+/// Audit : action `upload_document` journalisée (`cabinet_id` = nil UUID, zéro PII).
+/// Retour : `201 { document_id, category, filename, size_bytes, sha256 }`.
+pub async fn upload_document(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<UploadDocumentResponse>), AppError> {
+    let mut category_raw: Option<String> = None;
+    let mut filename_field: Option<String> = None;
+    let mut file_mime: Option<String> = None;
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_filename: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::ValidationError)?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "category" => {
+                category_raw = Some(field.text().await.map_err(|_| AppError::ValidationError)?);
+            }
+            "filename" => {
+                filename_field = Some(field.text().await.map_err(|_| AppError::ValidationError)?);
+            }
+            "file" => {
+                file_mime = field
+                    .content_type()
+                    .map(|s| s.split(';').next().unwrap_or("").trim().to_string());
+                file_filename = field.file_name().map(|s| s.to_string());
+                let bytes = field.bytes().await.map_err(|_| AppError::ValidationError)?;
+                if bytes.len() > MAX_UPLOAD_SIZE {
+                    return Err(AppError::ValidationError);
+                }
+                file_bytes = Some(bytes.to_vec());
+            }
+            _ => {}
+        }
+    }
+
+    let category = category_raw.ok_or(AppError::ValidationError)?;
+    if !VALID_CATEGORIES.contains(&category.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
+    let file_mime = file_mime.ok_or(AppError::ValidationError)?;
+    if !ALLOWED_UPLOAD_MIMES.contains(&file_mime.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let size_bytes = file_bytes.len() as i64;
+    let fname = filename_field
+        .or(file_filename)
+        .unwrap_or_else(|| "document.bin".to_string());
+
+    // Stub : clé Object Storage (chiffrement AES-256-GCM KMS à NUB-T3 — ADR-009).
+    let storage_key = Uuid::new_v4().to_string();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // RLS document_patient_owner (migration 0026) : scoped par patient_account_id.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO document \
+         (patient_account_id, category, storage_key, filename, mime_type, \
+          sha256, scan_status, uploaded_by) \
+         VALUES ($1, $2, $3, $4, $5, \
+                 encode(digest($6, 'sha256'), 'hex'), 'pending', $7) \
+         RETURNING id, sha256",
+    )
+    .bind(claims.account_id)
+    .bind(&category)
+    .bind(&storage_key)
+    .bind(&fname)
+    .bind(&file_mime)
+    .bind(&file_bytes)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let document_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let sha256: String = row.try_get("sha256").map_err(|_| AppError::Internal)?;
+
+    // Audit — zéro PII ; cabinet_id = nil UUID (entité plateforme, pas de cabinet).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'upload_document', 'document', $3)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(document_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        document_id = %document_id,
+        category = %category,
+        size_bytes,
+        "document uploaded"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(UploadDocumentResponse {
+            document_id,
+            category,
+            filename: fname,
+            size_bytes,
+            sha256,
+        }),
+    ))
 }
