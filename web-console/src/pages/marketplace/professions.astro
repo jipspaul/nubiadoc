@@ -1,67 +1,61 @@
 ---
-import Default from '../../layouts/Default.astro';
+import PublicLayout from '../../layouts/PublicLayout.astro';
 ---
-<Default title="Professions — Nubia Console">
-  <h1 style="margin-bottom:1.5rem;">GET /v1/professions</h1>
-  <p id="status-badge" style="display:none;margin-bottom:1rem;"></p>
-  <section id="professions-section">
-    <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">id</th>
-          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">label</th>
-        </tr>
-      </thead>
-      <tbody id="professions-tbody">
-        <tr><td colspan="2" style="padding:0.5rem;color:var(--muted);">Chargement…</td></tr>
-      </tbody>
-    </table>
-  </section>
-  <p id="error-msg" style="display:none;color:#fca5a5;margin-top:1rem;"></p>
-</Default>
+<PublicLayout title="Professions — Nubia Marketplace">
+  <h1 style="margin-bottom:1rem;">GET /v1/professions</h1>
+  <p id="error-msg" role="alert" style="display:none;color:#fca5a5;margin-bottom:1rem;"></p>
+  <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+    <thead>
+      <tr>
+        <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">id</th>
+        <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">label</th>
+      </tr>
+    </thead>
+    <tbody id="professions-tbody">
+      <tr id="loading-row">
+        <td colspan="2" style="padding:0.5rem;color:var(--muted);">Chargement…</td>
+      </tr>
+    </tbody>
+  </table>
+</PublicLayout>
 
 <style>
-  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
-  .badge-ok  { background:#166534;color:#bbf7d0; }
-  .badge-err { background:#7f1d1d;color:#fecaca; }
-  td { padding:0.5rem;border-bottom:1px solid var(--border); }
+  td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
 </style>
 
 <script>
   import { apiFetch } from '../../lib/api.ts';
 
   const tbody = document.getElementById('professions-tbody') as HTMLTableSectionElement;
-  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const loadingRow = document.getElementById('loading-row') as HTMLTableRowElement;
   const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
 
-  async function loadProfessions() {
+  async function load() {
     try {
-      const { status: httpStatus, data } = await apiFetch('/v1/professions');
-      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
-      badge.style.display = 'block';
-
-      if (httpStatus < 300 && Array.isArray(data)) {
-        tbody.innerHTML = '';
-        if ((data as unknown[]).length === 0) {
-          tbody.innerHTML = '<tr><td colspan="2" style="padding:0.5rem;color:var(--muted);">Aucune profession.</td></tr>';
-        } else {
-          for (const p of data as Array<Record<string, unknown>>) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${p.id ?? ''}</td><td>${p.label ?? ''}</td>`;
-            tbody.appendChild(tr);
-          }
+      const { status, data } = await apiFetch('/v1/professions');
+      loadingRow.remove();
+      if (status >= 300) {
+        errorMsg.textContent = `Erreur HTTP ${status} : ${JSON.stringify(data)}`;
+        errorMsg.style.display = 'block';
+        return;
+      }
+      if (Array.isArray(data) && data.length > 0) {
+        for (const p of data as Array<Record<string, unknown>>) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${p.id ?? ''}</td><td>${p.label ?? ''}</td>`;
+          tbody.appendChild(tr);
         }
       } else {
-        tbody.innerHTML = `<tr><td colspan="2" style="padding:0.5rem;color:var(--muted);">Erreur HTTP ${httpStatus}.</td></tr>`;
-        errorMsg.textContent = `Erreur HTTP ${httpStatus}`;
-        errorMsg.style.display = 'block';
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="2" style="color:var(--muted);">Aucune profession.</td>';
+        tbody.appendChild(tr);
       }
     } catch (err) {
-      tbody.innerHTML = '';
+      loadingRow.remove();
       errorMsg.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
       errorMsg.style.display = 'block';
     }
   }
 
-  loadProfessions();
+  load();
 </script>
