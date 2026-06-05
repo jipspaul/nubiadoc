@@ -1,0 +1,201 @@
+---
+/**
+ * Navigation latérale partagée entre Default.astro (/test/*) et DefaultAuth.astro (/app/*).
+ * Liste toutes les pages réelles, groupées par module API.
+ * Active link déduit de Astro.url.pathname.
+ *
+ * Pas de mock : chaque lien pointe vers une page qui appelle une route API
+ * actuellement implémentée dans api/src/lib.rs.
+ */
+
+interface Item {
+  href: string;
+  label: string;
+  hint?: string;
+}
+interface Group {
+  title: string;
+  items: Item[];
+}
+
+const groups: Group[] = [
+  {
+    title: 'App patient',
+    items: [
+      { href: '/app',          label: 'Espace patient', hint: 'index' },
+      { href: '/app/account',  label: 'Compte',         hint: 'GET/PATCH /v1/account/me' },
+      { href: '/app/coverage', label: 'Mutuelle',       hint: 'GET /v1/account/coverage' },
+    ],
+  },
+  {
+    title: 'Workflows RDV',
+    items: [
+      { href: '/scheduling/appointment-preparation', label: 'Préparation RDV',  hint: 'GET /v1/appointments/:id/preparation' },
+      { href: '/scheduling/checkin-appointment',     label: 'Check-in RDV',     hint: 'POST /v1/appointments/:id/checkin' },
+      { href: '/scheduling/patch-appointment',       label: 'Modifier un RDV',  hint: 'PATCH /v1/appointments/:id' },
+      { href: '/scheduling/cancel-appointment',      label: 'Annuler un RDV',   hint: 'POST /v1/appointments/:id/cancel' },
+      { href: '/appointments/checkin',               label: 'Check-in (alt)',   hint: 'POST /v1/appointments/:id/checkin' },
+      { href: '/appointments/preparation',           label: 'Préparation (alt)',hint: 'GET /v1/appointments/:id/preparation' },
+      { href: '/appointments/patch-id',              label: 'Patch (alt)',      hint: 'PATCH /v1/appointments/:id' },
+    ],
+  },
+  {
+    title: 'Auth — /test',
+    items: [
+      { href: '/test/auth/register',        label: 'Register',           hint: 'POST /v1/auth/register' },
+      { href: '/login',                     label: 'Login',              hint: 'POST /v1/auth/login' },
+      { href: '/test/auth/refresh',         label: 'Refresh',            hint: 'POST /v1/auth/refresh' },
+      { href: '/test/auth/logout',          label: 'Logout',             hint: 'POST /v1/auth/logout' },
+      { href: '/test/auth/me',              label: 'Me',                 hint: 'GET /v1/me' },
+      { href: '/test/auth/mfa-enroll',      label: 'MFA enroll',         hint: 'POST /v1/auth/mfa/enroll' },
+      { href: '/test/auth/mfa-verify',      label: 'MFA verify',         hint: 'POST /v1/auth/mfa/verify' },
+      { href: '/test/auth/password-forgot', label: 'Password forgot',    hint: 'POST /v1/auth/password/forgot' },
+      { href: '/test/auth/password-reset',  label: 'Password reset',     hint: 'POST /v1/auth/password/reset' },
+    ],
+  },
+  {
+    title: 'Compte — /test',
+    items: [
+      { href: '/test/account/profile',          label: 'Profil',           hint: 'GET /v1/account' },
+      { href: '/test/account/update',           label: 'Update profil',    hint: 'PATCH /v1/account' },
+      { href: '/test/account/consents',         label: 'Consentements',    hint: 'GET /v1/account/consents' },
+      { href: '/test/account/consents-update',  label: 'MAJ consentement', hint: 'PUT /v1/account/consents/:purpose' },
+      { href: '/test/account/coverage',         label: 'Couverture',       hint: 'GET /v1/account/coverage' },
+      { href: '/test/account/coverage-update',  label: 'MAJ couverture',   hint: 'PATCH /v1/account/coverage' },
+      { href: '/test/account/coverage-card',    label: 'Carte mutuelle',   hint: 'POST /v1/account/coverage/card' },
+      { href: '/test/account/dependent-detail', label: 'Dépendant — get',  hint: 'GET /v1/account/dependents/:id' },
+      { href: '/test/account/dependent-patch',  label: 'Dépendant — patch',hint: 'PATCH /v1/account/dependents/:id' },
+      { href: '/test/account/dependent-delete', label: 'Dépendant — del',  hint: 'DELETE /v1/account/dependents/:id' },
+    ],
+  },
+  {
+    title: 'RDV — /test',
+    items: [
+      { href: '/test/scheduling/dashboard',          label: 'Dashboard',       hint: 'GET /v1/dashboard' },
+      { href: '/test/scheduling/appointments-list',  label: 'Liste RDV',       hint: 'GET /v1/appointments' },
+      { href: '/test/scheduling/appointment-detail', label: 'Détail RDV',      hint: 'GET /v1/appointments/:id' },
+      { href: '/test/scheduling/appointment-create', label: 'Créer un RDV',    hint: 'POST /v1/appointments' },
+      { href: '/test/scheduling/appointments-cancel',label: 'Annuler un RDV',  hint: 'POST /v1/appointments/:id/cancel' },
+    ],
+  },
+  {
+    title: 'Documents — /test',
+    items: [
+      { href: '/test/documents/list',     label: 'Liste documents', hint: 'GET /v1/documents' },
+      { href: '/test/documents/download', label: 'Télécharger',     hint: 'GET /v1/documents/:id/download' },
+      { href: '/test/documents/upload',   label: 'Upload',          hint: 'POST /v1/documents' },
+    ],
+  },
+  {
+    title: 'Messagerie — /test',
+    items: [
+      { href: '/test/messaging/conversations',        label: 'Conversations',    hint: 'GET /v1/conversations' },
+      { href: '/test/messaging/create-conversation',  label: 'Créer une conv.',  hint: 'POST /v1/conversations' },
+    ],
+  },
+  {
+    title: 'Index',
+    items: [
+      { href: '/',     label: 'Accueil' },
+      { href: '/app',  label: 'Index app' },
+      { href: '/test', label: 'Index test' },
+    ],
+  },
+];
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isActive = (href: string) => {
+  const h = href.replace(/\/$/, '') || '/';
+  return h === currentPath;
+};
+---
+
+<aside class="nav-menu" aria-label="Navigation des pages">
+  <details class="nav-mobile" open>
+    <summary>Menu</summary>
+    <nav>
+      {groups.map(g => (
+        <div class="group">
+          <h3>{g.title}</h3>
+          <div class="links">
+            {g.items.map(it => (
+              <a href={it.href} class:list={[{ active: isActive(it.href) }]}
+                 aria-current={isActive(it.href) ? 'page' : undefined}>
+                <span class="label">{it.label}</span>
+                {it.hint && <span class="hint">{it.hint}</span>}
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
+  </details>
+</aside>
+
+<style>
+  .nav-menu {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    font-size: 0.85rem;
+    width: 260px;
+    max-width: 100%;
+    overflow-y: auto;
+  }
+  .nav-menu nav { padding: 0.75rem; }
+  .nav-menu .group + .group { margin-top: 1rem; }
+  .nav-menu h3 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0 0 0.4rem 0.25rem;
+    font-weight: 600;
+  }
+  .nav-menu .links { display: flex; flex-direction: column; gap: 1px; }
+  .nav-menu a {
+    display: flex;
+    flex-direction: column;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+    line-height: 1.3;
+  }
+  .nav-menu a:hover { background: var(--border); text-decoration: none; }
+  .nav-menu a.active {
+    background: var(--accent);
+    color: #fff;
+  }
+  .nav-menu a.active .hint { color: rgba(255,255,255,0.85); }
+  .nav-menu .label { font-weight: 500; }
+  .nav-menu .hint {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: ui-monospace, monospace;
+    margin-top: 1px;
+  }
+
+  /* Desktop : sidebar toujours ouverte, summary masqué */
+  @media (min-width: 900px) {
+    .nav-mobile > summary { display: none; }
+  }
+  /* Mobile : sidebar pleine largeur, repliable */
+  @media (max-width: 899px) {
+    .nav-menu {
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-mobile > summary {
+      cursor: pointer;
+      padding: 0.6rem 0.75rem;
+      font-weight: 600;
+      list-style: none;
+    }
+    .nav-mobile > summary::before {
+      content: '☰ ';
+      margin-right: 0.4rem;
+    }
+    .nav-mobile[open] > summary::before { content: '✕ '; }
+  }
+</style>

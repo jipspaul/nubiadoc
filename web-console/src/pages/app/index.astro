@@ -1,35 +1,70 @@
 ---
 import DefaultAuth from '../../layouts/DefaultAuth.astro';
+
+interface Card {
+  href: string;
+  icon: string;
+  title: string;
+  desc: string;
+}
+interface Section {
+  title: string;
+  cards: Card[];
+}
+
+const sections: Section[] = [
+  {
+    title: 'Mon espace',
+    cards: [
+      { href: '/app/account',  icon: '👤', title: 'Mon compte',  desc: 'GET / PATCH /v1/account/me — identité, téléphone.' },
+      { href: '/app/coverage', icon: '🏥', title: 'Ma mutuelle', desc: 'GET /v1/account/coverage — statut couverture.' },
+    ],
+  },
+  {
+    title: 'Workflows RDV',
+    cards: [
+      { href: '/scheduling/appointment-preparation', icon: '🧾', title: 'Préparation RDV', desc: 'GET /v1/appointments/:id/preparation — adresse, à apporter.' },
+      { href: '/scheduling/checkin-appointment',     icon: '✅', title: 'Check-in RDV',    desc: 'POST /v1/appointments/:id/checkin — je suis arrivé.' },
+      { href: '/scheduling/patch-appointment',       icon: '✏️', title: 'Modifier un RDV', desc: 'PATCH /v1/appointments/:id — changer motif/horaire.' },
+      { href: '/scheduling/cancel-appointment',      icon: '❌', title: 'Annuler un RDV',  desc: 'POST /v1/appointments/:id/cancel.' },
+      { href: '/appointments/preparation',           icon: '🧾', title: 'Préparation (alt)', desc: 'Variante /appointments/preparation.' },
+      { href: '/appointments/checkin',               icon: '✅', title: 'Check-in (alt)',   desc: 'Variante /appointments/checkin.' },
+      { href: '/appointments/patch-id',              icon: '✏️', title: 'Patch (alt)',      desc: 'Variante /appointments/patch-id.' },
+    ],
+  },
+  {
+    title: 'Outils dev',
+    cards: [
+      { href: '/test', icon: '🛠️', title: 'Console de test API', desc: 'Une page par endpoint, pour appeler chaque route brute.' },
+    ],
+  },
+];
+
+const cardStyle =
+  'display:flex;flex-direction:column;gap:0.5rem;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);';
 ---
 <DefaultAuth title="Mon espace — Nubia">
   <h1>Mon espace</h1>
-  <nav aria-label="Navigation" style="margin-top:1.5rem;">
-    <ul style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;list-style:none;">
-      <li>
-        <a href="/app/account"
-          style="display:flex;flex-direction:column;gap:0.5rem;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);">
-          <span aria-hidden="true" style="font-size:2rem;">👤</span>
-          <h2 style="font-size:1rem;font-weight:600;">Mon compte</h2>
-          <p style="font-size:0.875rem;color:var(--muted);">Gérez vos informations personnelles et votre profil.</p>
-        </a>
-      </li>
-      <li>
-        <a href="/app/coverage"
-          style="display:flex;flex-direction:column;gap:0.5rem;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);">
-          <span aria-hidden="true" style="font-size:2rem;">🏥</span>
-          <h2 style="font-size:1rem;font-weight:600;">Ma mutuelle</h2>
-          <p style="font-size:0.875rem;color:var(--muted);">Consultez vos informations de couverture mutuelle.</p>
-        </a>
-      </li>
-      <li>
-        <a href="#" aria-disabled="true" tabindex="-1"
-          style="display:flex;flex-direction:column;gap:0.5rem;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--muted);opacity:0.5;cursor:not-allowed;"
-          onclick="return false;">
-          <span aria-hidden="true" style="font-size:2rem;">📋</span>
-          <h2 style="font-size:1rem;font-weight:600;">Mes consentements</h2>
-          <p style="font-size:0.875rem;">Bientôt disponible.</p>
-        </a>
-      </li>
-    </ul>
-  </nav>
+  <p style="color:var(--muted);margin:0.5rem 0 1.5rem;">
+    Pages branchées sur l'API réelle. Sidebar à gauche pour passer à n'importe quelle autre page.
+  </p>
+
+  {sections.map(s => (
+    <section style="margin-top:1.5rem;">
+      <h2 style="font-size:1rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:0.75rem;">
+        {s.title}
+      </h2>
+      <ul style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;list-style:none;padding:0;margin:0;">
+        {s.cards.map(c => (
+          <li>
+            <a href={c.href} style={cardStyle}>
+              <span aria-hidden="true" style="font-size:1.75rem;">{c.icon}</span>
+              <h3 style="font-size:1rem;font-weight:600;margin:0;">{c.title}</h3>
+              <span style="font-size:0.8rem;color:var(--muted);">{c.desc}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
 </DefaultAuth>
