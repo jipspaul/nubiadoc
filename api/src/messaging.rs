@@ -198,10 +198,9 @@ pub struct ListMessagesQuery {
 #[derive(Serialize)]
 pub struct MessageItem {
     pub id: Uuid,
-    /// Contenu chiffré (base64 de `body_ciphertext`). Déchiffrement côté client via `body_key_ref`.
+    /// Contenu déchiffré côté handler (UTF-8 ; KMS réel à NUB-T3).
     pub body: String,
-    pub body_key_ref: String,
-    pub sender_kind: String,
+    pub sender: String,
     pub created_at: String,
     pub read_at: Option<String>,
 }
@@ -257,8 +256,7 @@ pub async fn get_conversation_messages(
     };
 
     let sql = format!(
-        "SELECT id, encode(body_ciphertext, 'base64') AS body, body_key_ref, \
-                sender_kind, created_at, read_at \
+        "SELECT id, body_ciphertext, sender_kind, created_at, read_at \
          FROM message \
          WHERE conversation_id = $1 \
          {cursor_clause} \
@@ -298,11 +296,11 @@ pub async fn get_conversation_messages(
 
     for row in visible {
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-        let body: String = row.try_get("body").map_err(|_| AppError::Internal)?;
-        let body_key_ref: String = row
-            .try_get("body_key_ref")
+        let body_bytes: Vec<u8> = row
+            .try_get("body_ciphertext")
             .map_err(|_| AppError::Internal)?;
-        let sender_kind: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
+        let body = String::from_utf8(body_bytes).map_err(|_| AppError::Internal)?;
+        let sender: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
         let read_at: Option<chrono::DateTime<chrono::Utc>> =
@@ -314,8 +312,7 @@ pub async fn get_conversation_messages(
         data.push(MessageItem {
             id,
             body,
-            body_key_ref,
-            sender_kind,
+            sender,
             created_at: created_at.to_rfc3339(),
             read_at: read_at.map(|dt| dt.to_rfc3339()),
         });
