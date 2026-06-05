@@ -122,6 +122,7 @@ pub(crate) enum AppError {
     GuardianshipRequired,
     InvalidStatus,
     OutOfWindow,
+    TooLate,
 }
 
 impl IntoResponse for AppError {
@@ -209,6 +210,9 @@ impl IntoResponse for AppError {
                 Json(json!({"error": "out_of_window"})),
             )
                 .into_response(),
+            AppError::TooLate => {
+                (StatusCode::CONFLICT, Json(json!({"error": "too_late"}))).into_response()
+            }
         }
     }
 }
