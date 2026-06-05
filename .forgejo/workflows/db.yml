@@ -11,7 +11,7 @@
 #
 # Pré-requis : image db-ci:stable construite/chargée dans le runner DinD via
 # ./ci/db/load-into-runner.sh (force_pull: false côté runner — image locale).
-on: [push, pull_request]
+on: [pull_request]
 jobs:
   db-test:
     runs-on: docker

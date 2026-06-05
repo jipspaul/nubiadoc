@@ -106,8 +106,7 @@ import Default from '../../../layouts/Default.astro';
             <span class="conv-meta">id : ${escapeHtml(id)}</span>
             <span class="conv-meta">dernier message : ${escapeHtml(last_message_at)}</span>
             <a href="/test/messaging/messages?id=${encodeURIComponent(id)}"
-               aria-disabled="true"
-               style="pointer-events:none;opacity:0.4;align-self:flex-start;font-size:0.85rem;margin-top:0.25rem;">
+               style="align-self:flex-start;font-size:0.85rem;margin-top:0.25rem;">
               Voir fil →
             </a>`;
           listItems.appendChild(li);
