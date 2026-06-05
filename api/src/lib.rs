@@ -154,6 +154,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             post(appointments::checkin_appointment),
         )
         .route(
+            "/v1/appointments/:id/directions",
+            get(appointments::get_directions),
+        )
+        .route(
             "/v1/appointments/:id/preparation",
             get(appointments::get_appointment_preparation),
         )
@@ -161,8 +165,11 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             "/v1/documents",
             get(documents::list_documents).post(documents::upload_document),
         )
+        .route(
+            "/v1/conversations",
+            get(messaging::list_conversations).post(messaging::create_conversation),
+        )
         .route("/v1/dashboard", get(dashboard::get_dashboard))
-        .route("/v1/conversations", get(messaging::list_conversations))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
             "/v1/account/consents/:purpose",
