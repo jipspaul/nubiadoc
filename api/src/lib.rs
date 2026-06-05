@@ -92,7 +92,7 @@ pub fn app(state: AppState) -> Router {
     )
 }
 
-/// Variante de [`app`] permettant d'injecter un dispatcher et un signer personnalisés.
+/// Variante de [`app`] permettant d'injecter un dispatcher personnalisé (prod, tests avancés).
 pub fn app_with_dispatcher(
     state: AppState,
     dispatcher: Arc<dyn JobDispatcher>,
@@ -184,16 +184,13 @@ pub fn app_with_dispatcher(
             "/v1/appointments/:id/preparation",
             get(appointments::get_appointment_preparation),
         )
-<<<<<<< HEAD
-        .route("/v1/documents", get(documents::list_documents))
-        .route(
-            "/v1/documents/:id/download",
-            get(documents::download_document),
-=======
         .route(
             "/v1/documents",
             get(documents::list_documents).post(documents::upload_document),
->>>>>>> origin/main
+        )
+        .route(
+            "/v1/documents/:id/download",
+            get(documents::download_document),
         )
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route("/v1/conversations", get(messaging::list_conversations))
