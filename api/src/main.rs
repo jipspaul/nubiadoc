@@ -16,6 +16,12 @@ async fn main() {
         mailer: Arc::new(StubMailer),
     };
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let port: u16 = std::env::var("APP_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3000);
+    let bind = format!("0.0.0.0:{port}");
+    let listener = tokio::net::TcpListener::bind(&bind).await.unwrap();
+    println!("nubia-api listening on {bind}");
     axum::serve(listener, app(state)).await.unwrap();
 }

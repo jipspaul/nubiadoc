@@ -6,3 +6,4 @@ target/
 web-console/node_modules/
 web-console/.astro/
 web-console/dist/
+/.dev-stack-logs/

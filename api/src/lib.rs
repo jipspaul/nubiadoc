@@ -6,6 +6,7 @@ use axum::{
 };
 use serde_json::{json, Value};
 use sqlx::PgPool;
+use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
 mod appointments;
@@ -227,7 +228,17 @@ pub fn app_with_dispatcher(
         ))
         .layer(Extension(dispatcher))
         .layer(Extension(signer))
+        .layer(dev_cors_layer())
         .with_state(state)
+}
+
+/// CORS permissif — strictement réservé au dev/POC local (web-console sur :4321,
+/// API sur :3000). En prod, restreindre à l'origine exacte du front (NUB-T2).
+fn dev_cors_layer() -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any)
 }
 
 async fn health() -> Json<Value> {

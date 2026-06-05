@@ -5,16 +5,18 @@ Console de test pour les endpoints de l'API Nubia. Usage développement uniqueme
 ## Quickstart
 
 ```bash
-cd web-console
-./scripts/dev.sh
+# Lance toute la stack en une commande (Postgres + API + web-console)
+./scripts/dev-stack.sh
 ```
 
-Le script installe les dépendances si besoin, vérifie que l'API Nubia tourne sur `:3000`, et lance le serveur sur http://localhost:4321.
+Cette commande (depuis la racine du repo) démarre Postgres dans un conteneur Podman,
+applique les migrations, lance l'API Rust sur `:3000` et la web-console Astro sur `:4321`.
 
-Depuis la racine du repo :
+### Lancer la web-console seule (si l'API tourne déjà)
 
 ```bash
-./scripts/dev-web.sh
+cd web-console
+./scripts/dev.sh
 ```
 
 ## Lancer
