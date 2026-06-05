@@ -60,7 +60,6 @@ pub struct ListActsQuery {
     pub specialty_id: Option<Uuid>,
 }
 
-
 #[derive(Serialize)]
 pub struct ActItem {
     pub id: Uuid,
