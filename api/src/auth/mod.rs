@@ -120,6 +120,8 @@ pub(crate) enum AppError {
     MemberAlreadyExists,
     SlotTaken,
     GuardianshipRequired,
+    InvalidStatus,
+    OutOfWindow,
 }
 
 impl IntoResponse for AppError {
@@ -195,6 +197,16 @@ impl IntoResponse for AppError {
             AppError::GuardianshipRequired => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(json!({"code": "guardianship_required"})),
+            )
+                .into_response(),
+            AppError::InvalidStatus => (
+                StatusCode::CONFLICT,
+                Json(json!({"error": "invalid_status"})),
+            )
+                .into_response(),
+            AppError::OutOfWindow => (
+                StatusCode::CONFLICT,
+                Json(json!({"error": "out_of_window"})),
             )
                 .into_response(),
         }

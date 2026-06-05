@@ -1,4 +1,4 @@
-//! Handlers `GET /v1/appointments`, `GET /v1/appointments/:id`, `POST /v1/appointments` — RDV patient.
+//! Handlers pour les RDV patient : liste, détail, création et check-in.
 
 use axum::{
     extract::{Path, Query, State},
@@ -13,6 +13,127 @@ use crate::{
     auth::{AppError, PatientAccountClaims},
     AppState,
 };
+
+// ── Check-in ────────────────────────────────────────────────────────────────
+
+/// Corps optionnel de `POST /v1/appointments/:id/checkin`.
+#[derive(Deserialize, Default)]
+pub struct CheckinBody {
+    pub method: Option<String>,
+}
+
+/// Réponse de `POST /v1/appointments/:id/checkin`.
+#[derive(Serialize)]
+pub struct CheckinResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+    pub checkin_at: String,
+}
+
+/// `POST /v1/appointments/:id/checkin` — patient signale son arrivée.
+///
+/// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
+/// Vérifie status = 'confirmed' → sinon `409 {"error":"invalid_status"}`.
+/// Vérifie la fenêtre starts_at ± 30 min / + 60 min → sinon `409 {"error":"out_of_window"}`.
+pub async fn checkin_appointment(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(appt_id): Path<Uuid>,
+    body: Option<Json<CheckinBody>>,
+) -> Result<Json<CheckinResponse>, AppError> {
+    let method = body
+        .as_ref()
+        .and_then(|b| b.method.as_deref())
+        .unwrap_or("manual")
+        .to_string();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, starts_at, status, cabinet_id \
+         FROM appointment \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+
+    if status != "confirmed" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let now = chrono::Utc::now();
+    if now < starts_at - chrono::Duration::minutes(30)
+        || now > starts_at + chrono::Duration::minutes(60)
+    {
+        return Err(AppError::OutOfWindow);
+    }
+
+    // Scope cabinet pour UPDATE (tenant_isolation) + audit.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let updated = sqlx::query(
+        "UPDATE appointment \
+         SET status = 'checked_in', checkin_at = now(), checkin_method = $2, updated_at = now() \
+         WHERE id = $1 \
+         RETURNING checkin_at",
+    )
+    .bind(id)
+    .bind(&method)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let checkin_at: chrono::DateTime<chrono::Utc> = updated
+        .try_get("checkin_at")
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'checkin_appointment', 'appointment', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %id,
+        method = %method,
+        "appointment checked in"
+    );
+
+    Ok(Json(CheckinResponse {
+        appointment_id: id,
+        status: "checked_in".to_string(),
+        checkin_at: checkin_at.to_rfc3339(),
+    }))
+}
 
 #[derive(Deserialize)]
 pub struct AppointmentsQuery {
