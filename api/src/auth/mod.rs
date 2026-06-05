@@ -123,6 +123,7 @@ pub(crate) enum AppError {
     InvalidStatus,
     OutOfWindow,
     TooLate,
+    LinkExpired,
 }
 
 impl IntoResponse for AppError {
@@ -212,6 +213,9 @@ impl IntoResponse for AppError {
                 .into_response(),
             AppError::TooLate => {
                 (StatusCode::CONFLICT, Json(json!({"error": "too_late"}))).into_response()
+            }
+            AppError::LinkExpired => {
+                (StatusCode::GONE, Json(json!({"code": "link_expired"}))).into_response()
             }
         }
     }
