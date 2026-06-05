@@ -1,8 +1,13 @@
-//! Handlers pour le coffre-fort patient : GET /v1/documents, POST /v1/documents.
+//! Handlers pour le coffre-fort patient :
+//! GET /v1/documents, POST /v1/documents, GET /v1/documents/{id}/download.
+
+use std::sync::Arc;
 
 use axum::{
-    extract::{Multipart, Query, State},
-    http::StatusCode,
+    body::Body,
+    extract::{Extension, Multipart, Path, Query, State},
+    http::{header, StatusCode},
+    response::Response,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -11,7 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState,
+    AppState, StorageSigner,
 };
 
 const VALID_CATEGORIES: &[&str] = &[
@@ -267,6 +272,79 @@ pub async fn list_documents(
         data,
         page: PageInfo { next_cursor, limit },
     }))
+}
+
+/// `GET /v1/documents/{id}/download` — redirection 302 vers l'URL signée expirante.
+///
+/// Génère une URL fraîche à chaque appel (ne réutilise pas celle du GET /{id}).
+/// `Cache-Control: no-store` obligatoire dans la réponse 302.
+/// Doc inexistant → `404`. Signer inaccessible → `410 link_expired`.
+/// Audit : action `read_document` (zéro PII).
+pub async fn download_document(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Extension(signer): Extension<Arc<dyn StorageSigner>>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — RLS document_patient_read (migration 0034).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT d.storage_key, d.cabinet_id \
+         FROM document d \
+         WHERE d.id = $1 AND d.deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let storage_key: String = row.try_get("storage_key").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+
+    // Génère une URL signée fraîche — 410 si le signer ne peut pas produire de lien.
+    let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
+
+    // Audit — action read_document, zéro PII.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'read_document', 'document', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        doc_id = %id,
+        "document download redirected"
+    );
+
+    Response::builder()
+        .status(StatusCode::FOUND)
+        .header(header::LOCATION, &signed_url)
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(Body::empty())
+        .map_err(|_| AppError::Internal)
 }
 
 const MAX_UPLOAD_SIZE: usize = 20 * 1024 * 1024;

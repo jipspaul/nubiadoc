@@ -43,6 +43,25 @@ impl JobDispatcher for StubJobDispatcher {
     fn enqueue_verify_provider(&self, _verification_id: Uuid) {}
 }
 
+/// Trait de signature d'URL Object Storage — swappable (stub en test, Scaleway en prod).
+pub trait StorageSigner: Send + Sync {
+    /// Génère une URL signée fraîche pour la clé de stockage donnée.
+    /// Retourne `None` si le lien est expiré ou inaccessible (`→ 410`).
+    fn sign(&self, storage_key: &str) -> Option<String>;
+}
+
+/// Implémentation stub : URL fixe, pour les tests et le dev local.
+pub struct StubStorageSigner;
+
+impl StorageSigner for StubStorageSigner {
+    fn sign(&self, storage_key: &str) -> Option<String> {
+        Some(format!(
+            "https://storage.example.com/{}?token=stub",
+            storage_key
+        ))
+    }
+}
+
 /// État partagé injecté dans les handlers via `State<AppState>`.
 #[derive(Clone)]
 pub struct AppState {
@@ -66,11 +85,19 @@ pub fn router() -> Router {
 /// Le `JobDispatcher` est injecté comme `Extension` (stub no-op par défaut).
 /// Pour la production avec un dispatcher réel, utiliser [`app_with_dispatcher`].
 pub fn app(state: AppState) -> Router {
-    app_with_dispatcher(state, Arc::new(StubJobDispatcher))
+    app_with_dispatcher(
+        state,
+        Arc::new(StubJobDispatcher),
+        Arc::new(StubStorageSigner),
+    )
 }
 
 /// Variante de [`app`] permettant d'injecter un dispatcher personnalisé (prod, tests avancés).
-pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) -> Router {
+pub fn app_with_dispatcher(
+    state: AppState,
+    dispatcher: Arc<dyn JobDispatcher>,
+    signer: Arc<dyn StorageSigner>,
+) -> Router {
     Router::new()
         .route("/v1/health", get(health))
         .route("/v1/health/live", get(health_live))
@@ -166,6 +193,10 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             get(documents::list_documents).post(documents::upload_document),
         )
         .route(
+            "/v1/documents/:id/download",
+            get(documents::download_document),
+        )
+        .route(
             "/v1/conversations",
             get(messaging::list_conversations).post(messaging::create_conversation),
         )
@@ -176,6 +207,7 @@ pub fn app_with_dispatcher(state: AppState, dispatcher: Arc<dyn JobDispatcher>) 
             put(auth::put_account_consent),
         )
         .layer(Extension(dispatcher))
+        .layer(Extension(signer))
         .with_state(state)
 }
 
