@@ -3,5 +3,33 @@ import DefaultAuth from '../../layouts/DefaultAuth.astro';
 ---
 <DefaultAuth title="Mon espace — Nubia">
   <h1>Mon espace</h1>
-  <p style="margin-top:1rem;color:var(--muted);">Bienvenue dans l'interface Nubia.</p>
+  <nav aria-label="Navigation" style="margin-top:1.5rem;">
+    <ul style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;list-style:none;">
+      <li>
+        <a href="/app/account"
+          style="display:flex;flex-direction:column;gap:0.5rem;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);">
+          <span aria-hidden="true" style="font-size:2rem;">👤</span>
+          <h2 style="font-size:1rem;font-weight:600;">Mon compte</h2>
+          <p style="font-size:0.875rem;color:var(--muted);">Gérez vos informations personnelles et votre profil.</p>
+        </a>
+      </li>
+      <li>
+        <a href="/app/coverage"
+          style="display:flex;flex-direction:column;gap:0.5rem;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);">
+          <span aria-hidden="true" style="font-size:2rem;">🏥</span>
+          <h2 style="font-size:1rem;font-weight:600;">Ma mutuelle</h2>
+          <p style="font-size:0.875rem;color:var(--muted);">Consultez vos informations de couverture mutuelle.</p>
+        </a>
+      </li>
+      <li>
+        <a href="#" aria-disabled="true" tabindex="-1"
+          style="display:flex;flex-direction:column;gap:0.5rem;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--muted);opacity:0.5;cursor:not-allowed;"
+          onclick="return false;">
+          <span aria-hidden="true" style="font-size:2rem;">📋</span>
+          <h2 style="font-size:1rem;font-weight:600;">Mes consentements</h2>
+          <p style="font-size:0.875rem;">Bientôt disponible.</p>
+        </a>
+      </li>
+    </ul>
+  </nav>
 </DefaultAuth>
