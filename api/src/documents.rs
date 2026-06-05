@@ -292,8 +292,8 @@ pub struct DocumentDetail {
 /// URL signée valable 15 min maximum. Accès audité (`read_document`).
 pub async fn get_document(
     State(state): State<AppState>,
-    Extension(signer): Extension<Arc<dyn StorageSigner>>,
     claims: PatientAccountClaims,
+    Extension(signer): Extension<Arc<dyn StorageSigner>>,
     Path(doc_id): Path<Uuid>,
 ) -> Result<Json<DocumentDetail>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
