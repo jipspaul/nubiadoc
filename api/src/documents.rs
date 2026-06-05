@@ -375,8 +375,6 @@ pub async fn get_document(
     }))
 }
 
-
-
 /// `GET /v1/documents/{id}/download` — redirection 302 vers l'URL signée expirante.
 ///
 /// Génère une URL fraîche à chaque appel (ne réutilise pas celle du GET /{id}).
