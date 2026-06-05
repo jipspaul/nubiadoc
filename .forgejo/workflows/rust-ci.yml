@@ -1,4 +1,10 @@
 on: [pull_request]
+
+# Cancel old in-progress runs when new commits push to the same PR/branch.
+# Saves runner time on auto-rebase + force-push cycles.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   rust:
     runs-on: docker
