@@ -16,7 +16,7 @@ import Default from '../../../layouts/Default.astro';
     </label>
     <label>
       TOTP code (6 chiffres)
-      <input type="text" name="totp_code" required inputmode="numeric" maxlength="6" pattern="\d{6}"
+      <input type="text" name="totp_code" required inputmode="numeric" maxlength="6" pattern="\\d{6}"
         style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
     </label>
     <button type="submit"

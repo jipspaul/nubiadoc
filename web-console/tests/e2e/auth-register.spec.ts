@@ -6,7 +6,7 @@ test('la page /register se rend avec le formulaire et le lien retour login', asy
   await expect(page.locator('input[name="password"]')).toBeVisible();
   await expect(page.locator('input[name="confirm_password"]')).toBeVisible();
   await expect(page.getByRole('button', { name: /créer le compte/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: /se connecter/i })).toBeVisible();
+  await expect(page.getByRole('paragraph').getByRole('link', { name: /se connecter/i })).toBeVisible();
 });
 
 test('submit avec un email aléatoire affiche un résultat (status visible)', async ({ page }) => {

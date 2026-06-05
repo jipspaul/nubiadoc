@@ -1,4 +1,6 @@
 ---
+import NavMenu from '../components/NavMenu.astro';
+
 interface Props {
   title?: string;
 }
@@ -40,9 +42,12 @@ const { title = 'Nubia Web Console' } = Astro.props;
         <a href="/">← Accueil</a>
       </nav>
     </header>
-    <main style="flex:1;padding:2rem;max-width:960px;width:100%;margin:0 auto;">
-      <slot />
-    </main>
+    <div style="flex:1;display:flex;min-height:0;">
+      <NavMenu />
+      <main style="flex:1;padding:2rem;max-width:960px;width:100%;margin:0 auto;overflow-x:auto;">
+        <slot />
+      </main>
+    </div>
     <footer style="padding:0.5rem 2rem;text-align:center;font-size:0.75rem;color:var(--muted);border-top:1px solid var(--border);">
       Nubia dev console — données fictives uniquement
     </footer>
