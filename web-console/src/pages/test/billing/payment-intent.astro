@@ -1,0 +1,103 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Payment Intent — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">POST /v1/payments/intent</h1>
+  <form id="payment-intent-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      Quote ID
+      <input type="text" name="quote_id" required placeholder="uuid"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      Kind
+      <select name="kind" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+        <option value="deposit">deposit</option>
+        <option value="installment">installment</option>
+        <option value="full">full</option>
+      </select>
+    </label>
+    <label>
+      Amount (cents)
+      <input type="number" name="amount_cents" required min="1" placeholder="ex : 5000"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      Method
+      <select name="method" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+        <option value="card">card</option>
+        <option value="apple_pay">apple_pay</option>
+        <option value="google_pay">google_pay</option>
+        <option value="sepa">sepa</option>
+      </select>
+    </label>
+    <label>
+      Idempotency Key
+      <input type="text" name="idempotency_key" required placeholder="uuid ou clé unique"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Créer l'intent
+    </button>
+  </form>
+  <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+  <pre id="result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const form = document.getElementById('payment-intent-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+    const quote_id = fd.get('quote_id') as string;
+    const kind = fd.get('kind') as string;
+    const amount_cents = Number(fd.get('amount_cents'));
+    const method = fd.get('method') as string;
+    const idempotency_key = fd.get('idempotency_key') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch('/v1/payments/intent', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotency_key,
+        },
+        body: JSON.stringify({ quote_id, kind, amount_cents, method }),
+      });
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
