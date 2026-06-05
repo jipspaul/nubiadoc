@@ -1,0 +1,61 @@
+---
+import PublicLayout from '../../layouts/PublicLayout.astro';
+---
+<PublicLayout title="Professions — Nubia Marketplace">
+  <h1 style="margin-bottom:1rem;">GET /v1/professions</h1>
+  <p id="error-msg" role="alert" style="display:none;color:#fca5a5;margin-bottom:1rem;"></p>
+  <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+    <thead>
+      <tr>
+        <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">id</th>
+        <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">label</th>
+      </tr>
+    </thead>
+    <tbody id="professions-tbody">
+      <tr id="loading-row">
+        <td colspan="2" style="padding:0.5rem;color:var(--muted);">Chargement…</td>
+      </tr>
+    </tbody>
+  </table>
+</PublicLayout>
+
+<style>
+  td { padding: 0.5rem; border-bottom: 1px solid var(--border); }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const tbody = document.getElementById('professions-tbody') as HTMLTableSectionElement;
+  const loadingRow = document.getElementById('loading-row') as HTMLTableRowElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+
+  async function load() {
+    try {
+      const { status, data } = await apiFetch('/v1/professions');
+      loadingRow.remove();
+      if (status >= 300) {
+        errorMsg.textContent = `Erreur HTTP ${status} : ${JSON.stringify(data)}`;
+        errorMsg.style.display = 'block';
+        return;
+      }
+      if (Array.isArray(data) && data.length > 0) {
+        for (const p of data as Array<Record<string, unknown>>) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${p.id ?? ''}</td><td>${p.label ?? ''}</td>`;
+          tbody.appendChild(tr);
+        }
+      } else {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="2" style="color:var(--muted);">Aucune profession.</td>';
+        tbody.appendChild(tr);
+      }
+    } catch (err) {
+      loadingRow.remove();
+      errorMsg.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      errorMsg.style.display = 'block';
+    }
+  }
+
+  load();
+</script>
