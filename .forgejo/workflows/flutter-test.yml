@@ -8,6 +8,12 @@
 # Image is local-only (loaded into DinD via docker load, not pushed to any
 # registry). The runner config has force_pull: false so it uses the local cache.
 on: [pull_request]
+
+# Cancel old in-progress runs when new commits push to the same PR/branch.
+# Saves runner time on auto-rebase + force-push cycles.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 jobs:
   flutter-test:
     runs-on: docker
