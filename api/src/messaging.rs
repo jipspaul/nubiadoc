@@ -361,6 +361,127 @@ pub async fn get_conversation_messages(
     }))
 }
 
+/// Corps de la requête `POST /v1/conversations/:id/messages`.
+#[derive(Deserialize)]
+pub struct SendMessageBody {
+    pub body: String,
+}
+
+/// Réponse de `POST /v1/conversations/:id/messages`.
+#[derive(Serialize)]
+pub struct SendMessageResponse {
+    pub message_id: Uuid,
+}
+
+const URGENT_KEYWORDS: &[&str] = &[
+    "urgent",
+    "urgence",
+    "urgences",
+    "douleur intense",
+    "très douloureux",
+    "très douloureuse",
+    "saignement",
+    "saigne",
+    "gonflement",
+    "fracture",
+    "fièvre",
+];
+
+fn triage(body: &str) -> (&'static str, Option<String>) {
+    let lower = body.to_lowercase();
+    let matched: Vec<&str> = URGENT_KEYWORDS
+        .iter()
+        .filter(|&&kw| lower.contains(kw))
+        .copied()
+        .collect();
+    if matched.is_empty() {
+        ("normal", None)
+    } else {
+        ("urgent", Some(matched.join(", ")))
+    }
+}
+
+/// `POST /v1/conversations/:id/messages` — envoie un message dans un fil existant.
+///
+/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (vérif conversation)
+/// puis `app.current_cabinet_id` (INSERT message — policy `tenant_isolation`).
+/// Conversation hors tenant → 404.
+/// Chiffrement POC : `body_ciphertext` = UTF-8 brut, `body_key_ref` = `"poc-stub"`.
+/// Chiffrement réel KMS prévu avec NUB-T3 (`core/crypto`).
+/// `triage_flag` calculé par mots-clés — priorisation visuelle uniquement (§07 §8.3).
+pub async fn send_message(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(conversation_id): Path<Uuid>,
+    Json(body): Json<SendMessageBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let (triage_flag, triage_reason) = triage(&body.body);
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope RLS patient — policies conversation_patient_read + message_patient_read.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que la conversation est accessible (RLS filtre si hors tenant → None = 404).
+    let conv_row = sqlx::query("SELECT cabinet_id FROM conversation WHERE id = $1")
+        .bind(conversation_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let conv_row = conv_row.ok_or(AppError::NotFound)?;
+    let cabinet_id: Uuid = conv_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Scope RLS cabinet pour INSERT message (policy tenant_isolation WITH CHECK).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO message \
+         (cabinet_id, conversation_id, sender_kind, sender_id, \
+          body_ciphertext, body_key_ref, triage_flag, triage_reason) \
+         VALUES ($1, $2, 'patient', $3, $4, $5, $6, $7) \
+         RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(conversation_id)
+    .bind(claims.sub)
+    .bind(body.body.as_bytes())
+    .bind("poc-stub")
+    .bind(triage_flag)
+    .bind(triage_reason.as_deref())
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let message_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Stub notification au cabinet — implémentation réelle avec NUB-T4.
+    tracing::info!(
+        account_id = %claims.account_id,
+        conversation_id = %conversation_id,
+        message_id = %message_id,
+        triage_flag,
+        "message envoyé — notification cabinet stub"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(SendMessageResponse { message_id }),
+    ))
+}
+
 /// Corps de la requête `POST /v1/conversations`.
 #[derive(Deserialize)]
 pub struct CreateConversationBody {
