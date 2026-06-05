@@ -1,0 +1,14 @@
+# Build & tooling
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+pubspec.lock
+
+# Generated code (build_runner: injectable, retrofit, json_serializable)
+*.config.dart
+*.g.dart
+*.freezed.dart
