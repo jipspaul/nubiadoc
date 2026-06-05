@@ -1,0 +1,121 @@
+---
+import DefaultAuth from '../../layouts/DefaultAuth.astro';
+---
+<DefaultAuth title="Mon compte — Nubia">
+  <h1>Mon compte</h1>
+
+  <section style="margin-top:1.5rem;">
+    <p id="loading-msg">Chargement…</p>
+
+    <form id="profile-form" hidden novalidate
+      style="display:flex;flex-direction:column;gap:1.25rem;max-width:480px;">
+
+      <label>
+        Email
+        <input type="email" name="email" id="field-email" required
+          style="display:block;width:100%;margin-top:0.25rem;padding:0.5rem 0.75rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;" />
+        <span id="err-email" style="display:none;color:#e05555;font-size:0.875rem;margin-top:0.25rem;"></span>
+      </label>
+
+      <label>
+        Nom
+        <input type="text" name="nom" id="field-nom"
+          style="display:block;width:100%;margin-top:0.25rem;padding:0.5rem 0.75rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;" />
+        <span id="err-nom" style="display:none;color:#e05555;font-size:0.875rem;margin-top:0.25rem;"></span>
+      </label>
+
+      <label>
+        Téléphone
+        <input type="tel" name="telephone" id="field-telephone"
+          style="display:block;width:100%;margin-top:0.25rem;padding:0.5rem 0.75rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;" />
+        <span id="err-telephone" style="display:none;color:#e05555;font-size:0.875rem;margin-top:0.25rem;"></span>
+      </label>
+
+      <button type="submit"
+        style="align-self:flex-start;padding:0.5rem 1.25rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+        Enregistrer
+      </button>
+    </form>
+
+    <p id="auth-error" hidden style="color:#e05555;">JWT manquant — veuillez vous connecter.</p>
+  </section>
+
+  <div id="toast" role="status" aria-live="polite"
+    style="display:none;position:fixed;bottom:1.5rem;right:1.5rem;background:#2a7a2a;color:#fff;padding:0.75rem 1.25rem;border-radius:6px;font-size:0.9rem;z-index:100;">
+    Informations mises à jour
+  </div>
+</DefaultAuth>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const loadingMsg = document.getElementById('loading-msg') as HTMLParagraphElement;
+  const form       = document.getElementById('profile-form') as HTMLFormElement;
+  const authError  = document.getElementById('auth-error') as HTMLParagraphElement;
+  const toast      = document.getElementById('toast') as HTMLDivElement;
+
+  const jwt = localStorage.getItem('nubia_jwt');
+
+  if (!jwt) {
+    loadingMsg.hidden = true;
+    authError.hidden  = false;
+  } else {
+    apiFetch('/v1/account/me', {
+      headers: { 'Authorization': `Bearer ${jwt}` },
+    }).then(({ data }) => {
+      const me = (data ?? {}) as Record<string, unknown>;
+      (document.getElementById('field-email') as HTMLInputElement).value     = String(me.email          ?? '');
+      (document.getElementById('field-nom') as HTMLInputElement).value       = String(me.nom            ?? '');
+      (document.getElementById('field-telephone') as HTMLInputElement).value = String(me.telephone ?? me.téléphone ?? '');
+      loadingMsg.hidden = true;
+      form.hidden       = false;
+    }).catch(() => {
+      loadingMsg.hidden = true;
+      form.hidden       = false;
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!jwt) return;
+
+    ['err-email', 'err-nom', 'err-telephone'].forEach((id) => {
+      const el = document.getElementById(id) as HTMLSpanElement;
+      el.style.display = 'none';
+      el.textContent   = '';
+    });
+
+    const body = {
+      email:     (document.getElementById('field-email') as HTMLInputElement).value,
+      nom:       (document.getElementById('field-nom') as HTMLInputElement).value,
+      telephone: (document.getElementById('field-telephone') as HTMLInputElement).value,
+    };
+
+    const { status, data } = await apiFetch('/v1/account/me', {
+      method:  'PATCH',
+      headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+
+    if (status === 200) {
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    } else if (status === 422) {
+      const errors = ((data as { errors?: Record<string, string> })?.errors) ?? {};
+      const fieldMap: Record<string, string> = {
+        email: 'err-email',
+        nom: 'err-nom',
+        telephone: 'err-telephone',
+        téléphone: 'err-telephone',
+      };
+      for (const [field, msg] of Object.entries(errors)) {
+        const errId = fieldMap[field];
+        if (errId) {
+          const el = document.getElementById(errId) as HTMLSpanElement;
+          el.textContent   = String(msg);
+          el.style.display = 'block';
+        }
+      }
+    }
+  });
+</script>
