@@ -1,6 +1,6 @@
 //! Handlers pour la messagerie patient :
 //! GET /v1/conversations, POST /v1/conversations,
-//! GET /v1/conversations/{id}/messages.
+//! GET /v1/conversations/:id/messages.
 
 use axum::{
     extract::{Path, Query, State},
@@ -187,20 +187,23 @@ pub async fn list_conversations(
     }))
 }
 
+/// Paramètres de `GET /v1/conversations/:id/messages`.
 #[derive(Deserialize)]
 pub struct ListMessagesQuery {
     pub limit: Option<i64>,
     pub cursor: Option<String>,
 }
 
+/// Un message dans un fil de messagerie.
 #[derive(Serialize)]
 pub struct MessageItem {
     pub id: Uuid,
+    /// Contenu chiffré (base64 de `body_ciphertext`). Déchiffrement côté client via `body_key_ref`.
     pub body: String,
-    pub sender: String,
+    pub body_key_ref: String,
+    pub sender_kind: String,
     pub created_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attachment_ids: Option<Vec<Uuid>>,
+    pub read_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -212,12 +215,12 @@ pub struct MessagesResponse {
 /// `GET /v1/conversations/:id/messages` — liste paginée des messages d'un fil.
 ///
 /// Token `kind:"patient"` requis. RLS via `app.patient_account_id` :
-/// - `conversation_patient_read` (migration 0029) : vérifie que le fil appartient au patient.
-/// - `message_patient_read` (migration 0029) : filtre les messages du fil.
+/// - `message_patient_read` (migration 0029) : filtre les messages des fils du patient.
+/// - `conversation_patient_read` (migration 0029) : vérif que le fil appartient au patient.
 ///
-/// Triée par `created_at DESC, id DESC`. Retourne 404 si la conversation
-/// n'existe pas ou n'appartient pas au patient.
-pub async fn list_messages(
+/// Trié par `created_at DESC, id DESC`. Conversation hors tenant → 404.
+/// Audit `read_message` (zéro PII) — `cabinet_id` extrait de la conversation.
+pub async fn get_conversation_messages(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(conversation_id): Path<Uuid>,
@@ -228,57 +231,59 @@ pub async fn list_messages(
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Scope patient — RLS policies 0029 : conversation + message filtrés par patient_account_id.
+    // Scope RLS patient — policies message_patient_read + conversation_patient_read.
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // 404 si la conversation n'existe pas ou est hors tenant (RLS).
-    let conv = sqlx::query("SELECT 1 FROM conversation WHERE id = $1")
+    // Vérifie que la conversation est accessible (RLS filtre si hors tenant → None = 404).
+    let conv_row = sqlx::query("SELECT cabinet_id FROM conversation WHERE id = $1")
         .bind(conversation_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
-    if conv.is_none() {
-        return Err(AppError::NotFound);
-    }
+    let conv_row = conv_row.ok_or(AppError::NotFound)?;
+    let cabinet_id: Uuid = conv_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+
+    let cursor_clause = if cursor.is_some() {
+        " AND (created_at < $3 OR (created_at = $3 AND id < $4))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "SELECT id, encode(body_ciphertext, 'base64') AS body, body_key_ref, \
+                sender_kind, created_at, read_at \
+         FROM message \
+         WHERE conversation_id = $1 \
+         {cursor_clause} \
+         ORDER BY created_at DESC, id DESC \
+         LIMIT $2"
+    );
 
     let fetch_limit = limit + 1;
 
     let rows = match cursor {
-        Some((cursor_ts, cursor_id)) => sqlx::query(
-            "SELECT id, sender_kind, body_ciphertext, created_at \
-             FROM message \
-             WHERE conversation_id = $1 \
-               AND (created_at < $3 OR (created_at = $3 AND id < $4)) \
-             ORDER BY created_at DESC, id DESC \
-             LIMIT $2",
-        )
-        .bind(conversation_id)
-        .bind(fetch_limit)
-        .bind(cursor_ts)
-        .bind(cursor_id)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?,
-        None => sqlx::query(
-            "SELECT id, sender_kind, body_ciphertext, created_at \
-             FROM message \
-             WHERE conversation_id = $1 \
-             ORDER BY created_at DESC, id DESC \
-             LIMIT $2",
-        )
-        .bind(conversation_id)
-        .bind(fetch_limit)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?,
+        Some((cursor_ts, cursor_id)) => sqlx::query(&sql)
+            .bind(conversation_id)
+            .bind(fetch_limit)
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(conversation_id)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
     };
-
-    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let has_more = rows.len() > limit as usize;
     let visible = if has_more {
@@ -288,42 +293,66 @@ pub async fn list_messages(
     };
 
     let mut data: Vec<MessageItem> = Vec::with_capacity(visible.len());
-    let mut last_ts: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
     let mut last_id: Option<Uuid> = None;
 
     for row in visible {
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-        let sender: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
-        let body_bytes: Vec<u8> = row
-            .try_get("body_ciphertext")
+        let body: String = row.try_get("body").map_err(|_| AppError::Internal)?;
+        let body_key_ref: String = row
+            .try_get("body_key_ref")
             .map_err(|_| AppError::Internal)?;
+        let sender_kind: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let read_at: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("read_at").map_err(|_| AppError::Internal)?;
 
-        // Scaffold POC : body_ciphertext traité comme UTF-8 (chiffrement NUB-T3).
-        let body = String::from_utf8_lossy(&body_bytes).into_owned();
-
-        last_ts = Some(created_at);
+        last_created_at = Some(created_at);
         last_id = Some(id);
 
         data.push(MessageItem {
             id,
             body,
-            sender,
+            body_key_ref,
+            sender_kind,
             created_at: created_at.to_rfc3339(),
-            attachment_ids: None,
+            read_at: read_at.map(|dt| dt.to_rfc3339()),
         });
     }
 
+    // Audit read_message — app.current_cabinet_id requis par la policy RLS WITH CHECK.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'read_message', 'conversation', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(conversation_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
     let next_cursor = if has_more {
-        last_ts.zip(last_id).map(|(dt, id)| encode_cursor(dt, id))
+        last_created_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_cursor(dt, id))
     } else {
         None
     };
 
     tracing::info!(
         account_id = %claims.account_id,
-        %conversation_id,
+        conversation_id = %conversation_id,
         count = data.len(),
         has_more,
         "messages listed"
