@@ -1,5 +1,5 @@
 //! Handlers pour le coffre-fort patient :
-//! GET /v1/documents, POST /v1/documents, GET /v1/documents/{id}/download.
+//! GET /v1/documents, GET /v1/documents/:id, GET /v1/documents/:id/download, POST /v1/documents.
 
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState, StorageSigner,
+    AppState, StorageClient, StorageSigner,
 };
 
 const VALID_CATEGORIES: &[&str] = &[
@@ -271,6 +271,107 @@ pub async fn list_documents(
     Ok(Json(ListDocumentsResponse {
         data,
         page: PageInfo { next_cursor, limit },
+    }))
+}
+#[derive(Serialize)]
+pub struct DocumentDetail {
+    pub id: Uuid,
+    pub category: String,
+    pub filename: String,
+    pub mime_type: String,
+    pub size_bytes: i64,
+    pub sha256: String,
+    pub created_at: String,
+    pub signed_url: String,
+    pub signed_url_expires_at: String,
+}
+
+/// `GET /v1/documents/:id` — métadonnées complètes + URL signée expirante.
+///
+/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (migration 0034) :
+/// document hors tenant → `404` (jamais `403`, anti-énumération).
+/// URL signée valable 15 min maximum. Accès audité (`read_document`).
+pub async fn get_document(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Extension(storage): Extension<Arc<dyn StorageClient>>,
+    Path(doc_id): Path<Uuid>,
+) -> Result<Json<DocumentDetail>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — RLS document_patient_read (migration 0034) → 0 ligne si hors tenant.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.sha256, \
+         d.created_at, d.storage_key, d.cabinet_id \
+         FROM document d \
+         WHERE d.id = $1 AND d.deleted_at IS NULL",
+    )
+    .bind(doc_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let category: String = row.try_get("category").map_err(|_| AppError::Internal)?;
+    let filename: String = row.try_get("filename").map_err(|_| AppError::Internal)?;
+    let mime_type: String = row.try_get("mime_type").map_err(|_| AppError::Internal)?;
+    let size_bytes: i64 = row.try_get("size_bytes").map_err(|_| AppError::Internal)?;
+    let sha256: String = row.try_get("sha256").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let storage_key: String = row.try_get("storage_key").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+
+    // URL signée valable 15 minutes.
+    let signed_url = storage.sign_url(&storage_key, 900);
+    let signed_url_expires_at = chrono::Utc::now() + chrono::Duration::seconds(900);
+
+    // Audit — uniquement si le document appartient à un cabinet.
+    if let Some(cab_id) = cabinet_id {
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cab_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        sqlx::query(
+            "INSERT INTO audit_log \
+             (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+             VALUES ($1, $2, 'patient', 'read_document', 'document', $3)",
+        )
+        .bind(cab_id)
+        .bind(claims.sub)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        document_id = %id,
+        "document fetched"
+    );
+
+    Ok(Json(DocumentDetail {
+        id,
+        category,
+        filename,
+        mime_type,
+        size_bytes,
+        sha256,
+        created_at: created_at.to_rfc3339(),
+        signed_url,
+        signed_url_expires_at: signed_url_expires_at.to_rfc3339(),
     }))
 }
 

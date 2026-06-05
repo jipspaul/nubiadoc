@@ -14,6 +14,21 @@ mod dashboard;
 mod documents;
 mod messaging;
 
+/// Trait de génération d'URL signées Object Storage — swappable (stub en test, MinIO/Scaleway en prod).
+pub trait StorageClient: Send + Sync {
+    /// Retourne une URL signée valable `expires_in_secs` secondes.
+    fn sign_url(&self, key: &str, expires_in_secs: u64) -> String;
+}
+
+/// Implémentation no-op pour les tests et le dev local.
+pub struct StubStorageClient;
+
+impl StorageClient for StubStorageClient {
+    fn sign_url(&self, key: &str, expires_in_secs: u64) -> String {
+        format!("https://storage.stub/{key}?expires={expires_in_secs}")
+    }
+}
+
 /// Trait d'envoi d'email — swappable (stub en test, Brevo/SMTP en prod).
 pub trait Mailer: Send + Sync {
     /// Envoie le lien de reset. Ne doit jamais bloquer ni paniquer.
@@ -182,7 +197,7 @@ pub fn app_with_dispatcher(
         )
         .route(
             "/v1/appointments/:id/directions",
-            get(appointments::get_directions),
+            get(appointments::get_appointment_directions),
         )
         .route(
             "/v1/appointments/:id/preparation",
@@ -192,6 +207,7 @@ pub fn app_with_dispatcher(
             "/v1/documents",
             get(documents::list_documents).post(documents::upload_document),
         )
+        .route("/v1/documents/:id", get(documents::get_document))
         .route(
             "/v1/documents/:id/download",
             get(documents::download_document),
@@ -206,6 +222,9 @@ pub fn app_with_dispatcher(
             "/v1/account/consents/:purpose",
             put(auth::put_account_consent),
         )
+        .layer(Extension(
+            Arc::new(StubStorageClient) as Arc<dyn StorageClient>
+        ))
         .layer(Extension(dispatcher))
         .layer(Extension(signer))
         .with_state(state)

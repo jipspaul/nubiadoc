@@ -918,39 +918,52 @@ pub async fn get_appointment_preparation(
     }))
 }
 
+/// Corps de la requête `POST /v1/appointments`.
+#[derive(Deserialize)]
+pub struct CreateAppointmentBody {
+    pub provider_id: Uuid,
+    pub slot_id: Option<Uuid>,
+    /// ISO 8601 UTC (ex. "2026-06-10T09:00:00Z"). Ignoré si `slot_id` est fourni.
+    pub starts_at: Option<String>,
+    pub motif: String,
+    pub on_behalf_of: Option<Uuid>,
+}
+
+/// Réponse de `POST /v1/appointments`.
+#[derive(Serialize)]
+pub struct CreateAppointmentResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
 // ── Directions ──────────────────────────────────────────────────────────────
 
+/// Query params for `GET /v1/appointments/:id/directions`.
 #[derive(Deserialize)]
 pub struct DirectionsQuery {
     pub mode: Option<String>,
 }
 
+/// Réponse de `GET /v1/appointments/:id/directions`.
 #[derive(Serialize)]
 pub struct DirectionsResponse {
     pub mode: String,
-    pub duration_min: Option<i64>,
-    pub distance_m: Option<i64>,
+    pub duration_min: Option<i32>,
+    pub distance_m: Option<i32>,
     pub deeplink: String,
 }
 
-/// `GET /v1/appointments/:id/directions` — itinéraire vers le cabinet du RDV.
+/// `GET /v1/appointments/:id/directions?mode=car` — deeplink navigation vers le cabinet.
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
-/// MVP stub : `duration_min` et `distance_m` sont `null` (service routing non intégré).
-/// `deeplink` → Google Maps avec l'adresse du cabinet et le mode de transport.
-pub async fn get_directions(
+/// MVP stub : `duration_min` et `distance_m` sont toujours null.
+pub async fn get_appointment_directions(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
     Query(params): Query<DirectionsQuery>,
 ) -> Result<Json<DirectionsResponse>, AppError> {
-    let mode = params.mode.as_deref().unwrap_or("car").to_string();
-
-    let travelmode = match mode.as_str() {
-        "transit" => "transit",
-        "walk" => "walking",
-        _ => "driving",
-    };
+    let mode = params.mode.unwrap_or_else(|| "car".to_string());
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -987,16 +1000,20 @@ pub async fn get_directions(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let destination = address.as_deref().unwrap_or("").replace(' ', "+");
+    let destination = address
+        .as_deref()
+        .map(|a| a.replace(' ', "+"))
+        .unwrap_or_default();
     let deeplink = format!(
-        "https://www.google.com/maps/dir/?api=1&destination={destination}&travelmode={travelmode}",
+        "https://www.google.com/maps/dir/?api=1&destination={}",
+        destination
     );
 
     tracing::info!(
         account_id = %claims.account_id,
         appointment_id = %appt_id,
         mode = %mode,
-        "directions queried"
+        "appointment directions requested"
     );
 
     Ok(Json(DirectionsResponse {
@@ -1005,24 +1022,6 @@ pub async fn get_directions(
         distance_m: None,
         deeplink,
     }))
-}
-
-/// Corps de la requête `POST /v1/appointments`.
-#[derive(Deserialize)]
-pub struct CreateAppointmentBody {
-    pub provider_id: Uuid,
-    pub slot_id: Option<Uuid>,
-    /// ISO 8601 UTC (ex. "2026-06-10T09:00:00Z"). Ignoré si `slot_id` est fourni.
-    pub starts_at: Option<String>,
-    pub motif: String,
-    pub on_behalf_of: Option<Uuid>,
-}
-
-/// Réponse de `POST /v1/appointments`.
-#[derive(Serialize)]
-pub struct CreateAppointmentResponse {
-    pub appointment_id: Uuid,
-    pub status: String,
 }
 
 fn is_exclusion_violation(e: &sqlx::Error) -> bool {
