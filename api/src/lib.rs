@@ -219,6 +219,10 @@ pub fn app_with_dispatcher(
             "/v1/conversations",
             get(messaging::list_conversations).post(messaging::create_conversation),
         )
+        .route(
+            "/v1/conversations/:id/messages",
+            get(messaging::list_messages),
+        )
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route(
             "/v1/treatment-plans",

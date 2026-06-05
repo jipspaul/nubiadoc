@@ -1,8 +1,9 @@
 //! Handlers pour la messagerie patient :
-//! GET /v1/conversations, POST /v1/conversations.
+//! GET /v1/conversations, POST /v1/conversations,
+//! GET /v1/conversations/{id}/messages.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -181,6 +182,154 @@ pub async fn list_conversations(
     );
 
     Ok(Json(ConversationsResponse {
+        data,
+        page: PageInfo { next_cursor, limit },
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct ListMessagesQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct MessageItem {
+    pub id: Uuid,
+    pub body: String,
+    pub sender: String,
+    pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment_ids: Option<Vec<Uuid>>,
+}
+
+#[derive(Serialize)]
+pub struct MessagesResponse {
+    pub data: Vec<MessageItem>,
+    pub page: PageInfo,
+}
+
+/// `GET /v1/conversations/:id/messages` — liste paginée des messages d'un fil.
+///
+/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` :
+/// - `conversation_patient_read` (migration 0029) : vérifie que le fil appartient au patient.
+/// - `message_patient_read` (migration 0029) : filtre les messages du fil.
+///
+/// Triée par `created_at DESC, id DESC`. Retourne 404 si la conversation
+/// n'existe pas ou n'appartient pas au patient.
+pub async fn list_messages(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(conversation_id): Path<Uuid>,
+    Query(params): Query<ListMessagesQuery>,
+) -> Result<Json<MessagesResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
+    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — RLS policies 0029 : conversation + message filtrés par patient_account_id.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // 404 si la conversation n'existe pas ou est hors tenant (RLS).
+    let conv = sqlx::query("SELECT 1 FROM conversation WHERE id = $1")
+        .bind(conversation_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    if conv.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let fetch_limit = limit + 1;
+
+    let rows = match cursor {
+        Some((cursor_ts, cursor_id)) => sqlx::query(
+            "SELECT id, sender_kind, body_ciphertext, created_at \
+             FROM message \
+             WHERE conversation_id = $1 \
+               AND (created_at < $3 OR (created_at = $3 AND id < $4)) \
+             ORDER BY created_at DESC, id DESC \
+             LIMIT $2",
+        )
+        .bind(conversation_id)
+        .bind(fetch_limit)
+        .bind(cursor_ts)
+        .bind(cursor_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(
+            "SELECT id, sender_kind, body_ciphertext, created_at \
+             FROM message \
+             WHERE conversation_id = $1 \
+             ORDER BY created_at DESC, id DESC \
+             LIMIT $2",
+        )
+        .bind(conversation_id)
+        .bind(fetch_limit)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut data: Vec<MessageItem> = Vec::with_capacity(visible.len());
+    let mut last_ts: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+
+    for row in visible {
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let sender: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
+        let body_bytes: Vec<u8> = row
+            .try_get("body_ciphertext")
+            .map_err(|_| AppError::Internal)?;
+        let created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
+
+        // Scaffold POC : body_ciphertext traité comme UTF-8 (chiffrement NUB-T3).
+        let body = String::from_utf8_lossy(&body_bytes).into_owned();
+
+        last_ts = Some(created_at);
+        last_id = Some(id);
+
+        data.push(MessageItem {
+            id,
+            body,
+            sender,
+            created_at: created_at.to_rfc3339(),
+            attachment_ids: None,
+        });
+    }
+
+    let next_cursor = if has_more {
+        last_ts.zip(last_id).map(|(dt, id)| encode_cursor(dt, id))
+    } else {
+        None
+    };
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        %conversation_id,
+        count = data.len(),
+        has_more,
+        "messages listed"
+    );
+
+    Ok(Json(MessagesResponse {
         data,
         page: PageInfo { next_cursor, limit },
     }))
