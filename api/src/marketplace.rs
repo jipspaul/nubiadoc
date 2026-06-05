@@ -111,57 +111,64 @@ pub struct SuggestResponse {
     pub acts: Vec<SuggestItem>,
 }
 
+struct SuggestRow {
+    id: Uuid,
+    label: String,
+}
+
 /// `GET /v1/search/suggest` — autocomplete spécialités + actes (docs/12 §12.1).
 ///
-/// Route publique, pas de JWT. `q` ≥ 2 chars requis (→ 422 sinon).
-/// MVP : ILIKE PostgreSQL, pas Meilisearch. Score fixe à 1.0.
-/// Jamais de diagnostic — labels de référentiels uniquement (07 §8).
-pub async fn search_suggest(
+/// Route publique, pas de JWT. `q` min 2 chars → 422. Score fixé à 1.0 au MVP.
+/// Garde-fou réglementaire : labels d'orientation uniquement, jamais de diagnostic (07 §8).
+pub async fn suggest_search(
     State(state): State<AppState>,
     Query(params): Query<SuggestQuery>,
 ) -> Result<Json<SuggestResponse>, AppError> {
     if params.q.chars().count() < 2 {
         return Err(AppError::ValidationError);
     }
-    let q = &params.q;
 
-    let specialty_rows = sqlx::query!(
-        "SELECT id, label FROM specialty WHERE label ILIKE '%' || $1 || '%' LIMIT 5",
-        q
+    let specialty_rows = sqlx::query_as!(
+        SuggestRow,
+        "SELECT id, label FROM specialty \
+         WHERE label ILIKE '%' || $1 || '%' \
+         ORDER BY label LIMIT 5",
+        params.q
     )
     .fetch_all(&state.db)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let act_rows = sqlx::query!(
+    let act_rows = sqlx::query_as!(
+        SuggestRow,
         "SELECT id, label FROM medical_act \
          WHERE label ILIKE '%' || $1 || '%' \
-            OR EXISTS (SELECT 1 FROM unnest(motifs) m WHERE m ILIKE '%' || $1 || '%') \
-         LIMIT 5",
-        q
+            OR EXISTS (SELECT 1 FROM unnest(motifs) AS m WHERE m ILIKE '%' || $1 || '%') \
+         ORDER BY label LIMIT 5",
+        params.q
     )
     .fetch_all(&state.db)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    Ok(Json(SuggestResponse {
-        specialties: specialty_rows
-            .into_iter()
-            .map(|r| SuggestItem {
-                id: r.id,
-                label: r.label,
-                score: 1.0,
-            })
-            .collect(),
-        acts: act_rows
-            .into_iter()
-            .map(|r| SuggestItem {
-                id: r.id,
-                label: r.label,
-                score: 1.0,
-            })
-            .collect(),
-    }))
+    let specialties = specialty_rows
+        .into_iter()
+        .map(|r| SuggestItem {
+            id: r.id,
+            label: r.label,
+            score: 1.0,
+        })
+        .collect();
+    let acts = act_rows
+        .into_iter()
+        .map(|r| SuggestItem {
+            id: r.id,
+            label: r.label,
+            score: 1.0,
+        })
+        .collect();
+
+    Ok(Json(SuggestResponse { specialties, acts }))
 }
 
 /// `GET /v1/professions` — liste exhaustive des professions de santé (docs/12 §12.1).

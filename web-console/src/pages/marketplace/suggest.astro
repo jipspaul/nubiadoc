@@ -1,0 +1,112 @@
+---
+import PublicLayout from '../../layouts/PublicLayout.astro';
+---
+<PublicLayout title="Suggest — Nubia Marketplace">
+  <h1 style="margin-bottom:1rem;">GET /v1/search/suggest</h1>
+  <p style="font-size:0.875rem;color:var(--muted);margin-bottom:1rem;">
+    Saisissez au moins 2 caractères pour obtenir des suggestions.
+  </p>
+  <input
+    id="suggest-input"
+    type="search"
+    placeholder="ex : mal de dent"
+    autocomplete="off"
+    style="width:100%;max-width:400px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.5rem 0.75rem;border-radius:4px;font-size:0.875rem;margin-bottom:1.5rem;"
+  />
+  <p id="error-msg" role="alert" style="display:none;color:#fca5a5;margin-bottom:1rem;"></p>
+
+  <section id="specialties-section" aria-label="Spécialités suggérées" style="margin-bottom:1.5rem;">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">Spécialités suggérées</h2>
+    <ul id="specialties-list" style="list-style:none;padding:0;margin:0;">
+      <li id="specialties-empty" style="color:var(--muted);font-size:0.875rem;">—</li>
+    </ul>
+  </section>
+
+  <section id="acts-section" aria-label="Actes suggérés">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">Actes suggérés</h2>
+    <ul id="acts-list" style="list-style:none;padding:0;margin:0;">
+      <li id="acts-empty" style="color:var(--muted);font-size:0.875rem;">—</li>
+    </ul>
+  </section>
+</PublicLayout>
+
+<style>
+  #specialties-list li,
+  #acts-list li {
+    padding: 0.375rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+  }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const input = document.getElementById('suggest-input') as HTMLInputElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+  const specialtiesList = document.getElementById('specialties-list') as HTMLUListElement;
+  const actsList = document.getElementById('acts-list') as HTMLUListElement;
+
+  function renderEmpty(list: HTMLUListElement) {
+    list.innerHTML = '<li style="color:var(--muted);font-size:0.875rem;">Aucun résultat.</li>';
+  }
+
+  function renderPlaceholder(list: HTMLUListElement) {
+    list.innerHTML = '<li style="color:var(--muted);font-size:0.875rem;">—</li>';
+  }
+
+  async function suggest(q: string) {
+    errorMsg.style.display = 'none';
+    if (q.length < 2) {
+      renderPlaceholder(specialtiesList);
+      renderPlaceholder(actsList);
+      return;
+    }
+    try {
+      const { status, data } = await apiFetch(`/v1/search/suggest?q=${encodeURIComponent(q)}`);
+      if (status >= 300) {
+        errorMsg.textContent = `Erreur HTTP ${status} : ${JSON.stringify(data)}`;
+        errorMsg.style.display = 'block';
+        renderPlaceholder(specialtiesList);
+        renderPlaceholder(actsList);
+        return;
+      }
+      const result = data as { specialties?: Array<{ id: unknown; label: unknown; score?: unknown }>; acts?: Array<{ id: unknown; label: unknown }> };
+
+      const specialties = result.specialties ?? [];
+      if (specialties.length > 0) {
+        specialtiesList.innerHTML = '';
+        for (const s of specialties) {
+          const li = document.createElement('li');
+          li.textContent = `${s.label ?? s.id}`;
+          specialtiesList.appendChild(li);
+        }
+      } else {
+        renderEmpty(specialtiesList);
+      }
+
+      const acts = result.acts ?? [];
+      if (acts.length > 0) {
+        actsList.innerHTML = '';
+        for (const a of acts) {
+          const li = document.createElement('li');
+          li.textContent = `${a.label ?? a.id}`;
+          actsList.appendChild(li);
+        }
+      } else {
+        renderEmpty(actsList);
+      }
+    } catch (err) {
+      errorMsg.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      errorMsg.style.display = 'block';
+      renderPlaceholder(specialtiesList);
+      renderPlaceholder(actsList);
+    }
+  }
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => suggest(input.value.trim()), 300);
+  });
+</script>

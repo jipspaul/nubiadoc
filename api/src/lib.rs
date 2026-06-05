@@ -227,7 +227,7 @@ pub fn app_with_dispatcher(
         .route("/v1/professions", get(marketplace::list_professions))
         .route("/v1/specialties", get(marketplace::list_specialties))
         .route("/v1/acts", get(marketplace::list_acts))
-        .route("/v1/search/suggest", get(marketplace::search_suggest))
+        .route("/v1/search/suggest", get(marketplace::suggest_search))
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
             "/v1/account/consents/:purpose",

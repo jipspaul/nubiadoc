@@ -20,9 +20,9 @@ fn db_available() -> bool {
     std::env::var("APP_DATABASE_URL").is_ok()
 }
 
-/// Happy path : "dent" matche au moins un acte via motif "dent manquante".
+/// Happy path : "dent" correspond au motif "dent manquante" de l'acte "Pose d'implant".
 #[tokio::test]
-async fn suggest_dent_returns_results() {
+async fn suggest_match_dent_returns_results() {
     if !db_available() {
         return;
     }
@@ -48,15 +48,24 @@ async fn suggest_dent_returns_results() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert!(v["specialties"].is_array());
-    assert!(v["acts"].is_array());
+    assert!(
+        v["specialties"].is_array(),
+        "specialties doit être un tableau"
+    );
+    assert!(v["acts"].is_array(), "acts doit être un tableau");
+
     let total = v["specialties"].as_array().unwrap().len() + v["acts"].as_array().unwrap().len();
-    assert!(total >= 1, "au moins un résultat pour 'dent'");
+    assert!(total >= 1, "au moins 1 résultat attendu pour 'dent'");
+
+    // score fixé à 1.0
+    if let Some(item) = v["acts"].as_array().unwrap().first() {
+        assert_eq!(item["score"].as_f64().unwrap(), 1.0);
+    }
 }
 
-/// `q` trop courte (1 char) → 422.
+/// Requête trop courte (1 char) → 422 Unprocessable Entity.
 #[tokio::test]
-async fn suggest_short_query_returns_422() {
+async fn suggest_too_short_returns_422() {
     if !db_available() {
         return;
     }
@@ -81,7 +90,7 @@ async fn suggest_short_query_returns_422() {
 
 /// Terme inconnu → 200 avec listes vides.
 #[tokio::test]
-async fn suggest_unknown_term_returns_empty_lists() {
+async fn suggest_unknown_term_returns_empty() {
     if !db_available() {
         return;
     }
