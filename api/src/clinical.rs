@@ -1,7 +1,10 @@
-//! Handler `GET /v1/cabinet/patients` — liste paginée des dossiers patients du cabinet.
+//! Handlers `GET /v1/cabinet/patients` et `POST /v1/cabinet/patients`.
 
-use axum::extract::{Query, State};
-use axum::Json;
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
@@ -186,4 +189,133 @@ pub async fn list_cabinet_patients(
         data,
         page: PageInfo { next_cursor, limit },
     }))
+}
+
+// ── POST /v1/cabinet/patients ─────────────────────────────────────────────────
+
+/// Corps de la requête `POST /v1/cabinet/patients`.
+#[derive(Deserialize)]
+pub struct AttachPatientBody {
+    /// Identifiant du compte patient plateforme à rattacher au cabinet.
+    pub patient_account_id: Uuid,
+    /// Note administrative optionnelle stockée dans `contact->>'note'`.
+    pub note: Option<String>,
+}
+
+/// Réponse de `POST /v1/cabinet/patients`.
+#[derive(Serialize)]
+pub struct AttachPatientResponse {
+    pub patient_id: Uuid,
+}
+
+/// `POST /v1/cabinet/patients` — crée ou rattache un dossier patient au cabinet.
+///
+/// Token pro requis (secretary, practitioner, admin) — patient → 403.
+/// `cabinet_id` extrait du JWT, `patient_account_id` depuis le body.
+/// Idempotent : si un dossier existe déjà pour ce `patient_account_id` dans ce cabinet,
+/// retourne le `patient_id` existant avec `201`.
+/// `first_name`/`last_name` copiés depuis `patient_account` (accessible via
+/// `app.current_account_id` temporaire dans la transaction).
+/// `patient_account_id` inexistant ou inaccessible → `404`.
+pub async fn create_cabinet_patient(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Json(body): Json<AttachPatientBody>,
+) -> Result<(StatusCode, Json<AttachPatientResponse>), AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet pour la RLS tenant_isolation sur patient.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Idempotence : si un dossier existe déjà pour ce patient_account dans ce cabinet,
+    // on retourne l'id existant sans insérer de doublon.
+    let existing = sqlx::query(
+        "SELECT id FROM patient \
+         WHERE patient_account_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(body.patient_account_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(row) = existing {
+        let patient_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        tracing::info!(
+            cabinet_id = %claims.cabinet_id,
+            patient_account_id = %body.patient_account_id,
+            patient_id = %patient_id,
+            "cabinet patient already attached (idempotent)"
+        );
+        return Ok((
+            StatusCode::CREATED,
+            Json(AttachPatientResponse { patient_id }),
+        ));
+    }
+
+    // Lecture de patient_account via app.current_account_id (policy account_self_select).
+    // On pose temporairement le GUC au patient_account_id fourni pour lire first/last name.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(body.patient_account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let account_row =
+        sqlx::query("SELECT first_name, last_name FROM patient_account WHERE id = $1")
+            .bind(body.patient_account_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+
+    let first_name: String = account_row
+        .try_get("first_name")
+        .map_err(|_| AppError::Internal)?;
+    let last_name: String = account_row
+        .try_get("last_name")
+        .map_err(|_| AppError::Internal)?;
+
+    // contact JSONB : { note? }
+    let contact: serde_json::Value = match body.note.as_deref() {
+        Some(n) => serde_json::json!({ "note": n }),
+        None => serde_json::json!({}),
+    };
+
+    // INSERT patient — RLS tenant_isolation (current_cabinet_id déjà positionné).
+    let row = sqlx::query(
+        "INSERT INTO patient (cabinet_id, patient_account_id, first_name, last_name, contact) \
+         VALUES ($1, $2, $3, $4, $5) \
+         RETURNING id",
+    )
+    .bind(claims.cabinet_id)
+    .bind(body.patient_account_id)
+    .bind(&first_name)
+    .bind(&last_name)
+    .bind(&contact)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let patient_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        patient_account_id = %body.patient_account_id,
+        patient_id = %patient_id,
+        "cabinet patient created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(AttachPatientResponse { patient_id }),
+    ))
 }
