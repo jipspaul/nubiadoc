@@ -124,23 +124,35 @@ class _DocumentsLoaded extends StatelessWidget {
               : ListView.separated(
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    return DocumentListTile(
-                      document: doc,
-                      onTap: () => context.push(
-                        RouteNames.documentDetail.replaceFirst(':id', doc.id),
-                        extra: doc,
-                      ),
-                      onDownload: () => context.read<DocumentBloc>().add(
-                            DocumentSignedUrlRequested(doc.id),
-                          ),
-                    );
-                  },
+                      itemBuilder: (context, index) {
+                                    final doc = docs[index];
+                                    return DocumentListTile(
+                                      document: doc,
+                                      onTap: () => context.push(
+                                        _viewerRouteFor(doc),
+                                        extra: doc,
+                                      ),
+                                      onDownload: () => context.read<DocumentBloc>().add(
+                                            DocumentSignedUrlRequested(doc.id),
+                                          ),
+                                    );
+                                  },
                 ),
         ),
       ],
     );
+  }
+
+  /// Returns the viewer route for [doc].
+  ///
+  /// PDF and image files open in the in-app [DocumentViewerScreen].
+  /// Other types fall back to [DocumentDetailScreen] (metadata + external open).
+  static String _viewerRouteFor(Document doc) {
+    if (doc.mimeType == 'application/pdf' ||
+        doc.mimeType.startsWith('image/')) {
+      return RouteNames.documentViewer.replaceFirst(':id', doc.id);
+    }
+    return RouteNames.documentDetail.replaceFirst(':id', doc.id);
   }
 }
 
