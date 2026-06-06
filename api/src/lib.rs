@@ -231,7 +231,10 @@ pub fn app_with_dispatcher(
             "/v1/conversations/:id/messages",
             get(messaging::get_conversation_messages).post(messaging::send_message),
         )
-        .route("/v1/cabinet/patients", get(clinical::list_cabinet_patients))
+        .route(
+            "/v1/cabinet/patients",
+            get(clinical::list_cabinet_patients).post(clinical::create_cabinet_patient),
+        )
         .route(
             "/v1/cabinet/conversations",
             get(cabinet_messaging::list_cabinet_conversations),
