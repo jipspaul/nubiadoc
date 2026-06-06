@@ -6,7 +6,7 @@
       "name": "LiteLLM",
       "options": {
         "baseURL": "http://litellm.litellm.svc.cluster.local:4000/v1",
-        "apiKey": "sk-AU74NY3TKR2GJAufB4RHMQ"
+        "apiKey": "sk-9ylkZ-ZqobAmdvFhvQsunw"
       },
       "models": {
         "claude-sonnet-4.6": {
