@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'bloc/prescription_bloc.dart';
 import 'bloc/prescription_event.dart';
 import 'bloc/prescription_state.dart';
-import 'models/prescription.dart';
 import 'widgets/prescription_recap_card.dart';
 import 'widgets/prescription_form.dart';
 

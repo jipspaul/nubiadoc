@@ -128,7 +128,7 @@ class _PatientDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       key: const Key('dropdown_patient'),
-      value: value,
+      initialValue: value,
       decoration: const InputDecoration(
         labelText: 'Patient',
         border: OutlineInputBorder(),

@@ -21,11 +21,11 @@ final _patients = <PatientSummary>[
   const PatientSummary(id: 'pat-001', name: 'Alice Dupont'),
 ];
 
-final _mockPrescription = Prescription(
+const _mockPrescription = Prescription(
   id: 'rx-001',
   patientId: 'pat-001',
   patientName: 'Alice Dupont',
-  items: const [
+  items: [
     PrescriptionItem(
       label: 'Amoxicilline',
       posology: '1 cp 3x/j',
@@ -72,7 +72,7 @@ void main() {
 
     testWidgets('shows form when list loaded', (tester) async {
       when(() => mockBloc.state).thenReturn(
-        PrescriptionListLoaded(prescriptions: [], patients: _patients),
+        PrescriptionListLoaded(prescriptions: const [], patients: _patients),
       );
       await tester.pumpWidget(_wrap(const PrescriptionScreen(), mockBloc));
       expect(find.byType(PrescriptionForm), findsOneWidget);
@@ -175,7 +175,7 @@ void main() {
     testWidgets('submit dispatches PrescriptionCreateRequested via bloc',
         (tester) async {
       when(() => mockBloc.state).thenReturn(
-        PrescriptionListLoaded(prescriptions: [], patients: _patients),
+        PrescriptionListLoaded(prescriptions: const [], patients: _patients),
       );
       await tester.pumpWidget(_wrap(const PrescriptionScreen(), mockBloc));
 
