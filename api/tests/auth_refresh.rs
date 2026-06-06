@@ -213,7 +213,73 @@ async fn refresh_replay_of_old_token_returns_401() {
         .ok();
 }
 
-// ── Test 4 : replay → 401 + chaîne de tokens révoquée ────────────────────────
+// ── Test 4 : token expiré → 401 ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn refresh_expired_token_returns_401() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let raw_token = Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("refresh-expired+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (app_user_id, first_name, last_name) VALUES ($1, '', '')",
+    )
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Token avec expires_at dans le passé.
+    sqlx::query(
+        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
+           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() - interval '1 day')"#,
+    )
+    .bind(user_id)
+    .bind(&raw_token)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret-refresh".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/refresh")
+                .header("Content-Type", "application/json")
+                .body(Body::from(json!({"refresh_token": raw_token}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 5 : replay → 401 + chaîne de tokens révoquée ────────────────────────
 
 #[tokio::test]
 async fn refresh_replay_revokes_entire_chain() {
