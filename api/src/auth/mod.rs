@@ -2464,7 +2464,7 @@ pub async fn patch_account_notification_preferences(
          VALUES ($1, \
            COALESCE($2, true), COALESCE($3, true), COALESCE($4, true), \
            COALESCE($5, true), COALESCE($6, true), COALESCE($7, true), COALESCE($8, true)) \
-         ON CONFLICT (patient_account_id) DO UPDATE SET \
+         ON CONFLICT (patient_account_id, channel, type) DO UPDATE SET \
            email_rdv        = CASE WHEN $2 IS NOT NULL THEN $2 \
                                    ELSE notification_preference.email_rdv END, \
            sms_rdv          = CASE WHEN $3 IS NOT NULL THEN $3 \

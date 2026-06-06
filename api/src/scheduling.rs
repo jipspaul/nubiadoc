@@ -284,3 +284,242 @@ pub async fn call_next_patient(
         patient_display_name: Some(patient_display_name),
     }))
 }
+
+// ── Waiting room (file du jour) ───────────────────────────────────────────────
+
+/// Un poste dans la file d'attente temps-réel (patients checked_in ou in_progress aujourd'hui).
+#[derive(Serialize)]
+pub struct WaitingRoomEntry {
+    pub appointment_id: Uuid,
+    pub patient_id: Uuid,
+    pub status: String,
+    /// Horodatage du check-in (null si non encore renseigné).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checkin_at: Option<String>,
+}
+
+/// Réponse de `GET /v1/cabinet/waiting-room`.
+#[derive(Serialize)]
+pub struct WaitingRoomResponse {
+    pub entries: Vec<WaitingRoomEntry>,
+}
+
+/// `GET /v1/cabinet/waiting-room` — file d'attente temps-réel du cabinet (§13).
+///
+/// Retourne les rendez-vous du jour en statut `checked_in` ou `in_progress`,
+/// triés FIFO (checkin_at ASC NULLS LAST, starts_at ASC).
+/// Token pro requis (secretary, practitioner, admin) — patient → 403.
+/// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
+/// Pas de PII dans le payload (patient_id uniquement, pas de nom).
+pub async fn get_waiting_room(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+) -> Result<Json<WaitingRoomResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT id, patient_id, status, checkin_at \
+         FROM appointment \
+         WHERE deleted_at IS NULL \
+           AND status IN ('checked_in', 'in_progress') \
+           AND starts_at >= date_trunc('day', now()) \
+           AND starts_at < date_trunc('day', now()) + interval '1 day' \
+         ORDER BY checkin_at ASC NULLS LAST, starts_at ASC",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let entries = rows
+        .into_iter()
+        .map(|row| -> Result<WaitingRoomEntry, AppError> {
+            let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
+                row.try_get("checkin_at").map_err(|_| AppError::Internal)?;
+            Ok(WaitingRoomEntry {
+                appointment_id,
+                patient_id,
+                status,
+                checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        count = entries.len(),
+        "waiting room queried"
+    );
+
+    Ok(Json(WaitingRoomResponse { entries }))
+}
+
+// ── Waiting list (liste d'attente) ────────────────────────────────────────────
+
+/// Entrée de liste d'attente (waiting_list_entry) exposée au secrétariat+.
+#[derive(Serialize)]
+pub struct WaitingListItem {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    /// Fenêtre souhaitée (JSON libre — desired_window).
+    pub desired_window: serde_json::Value,
+    pub score: f64,
+    pub status: String,
+    pub created_at: String,
+}
+
+/// Réponse de `GET /v1/cabinet/waiting-list`.
+#[derive(Serialize)]
+pub struct WaitingListResponse {
+    pub data: Vec<WaitingListItem>,
+}
+
+/// `GET /v1/cabinet/waiting-list` — liste d'attente du cabinet (§13).
+///
+/// Retourne les entrées actives (`status = 'active'`) triées par score DESC puis created_at ASC.
+/// RBAC : `secretary+` (`ProSecretaryPlusClaims`) — praticien seul → pas de restriction
+/// supplémentaire (both roles are covered by ProSecretaryPlusClaims).
+/// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
+pub async fn get_waiting_list(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+) -> Result<Json<WaitingListResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT id, patient_id, desired_window, score::float8 AS score, status, created_at \
+         FROM waiting_list_entry \
+         WHERE status = 'active' \
+         ORDER BY score DESC, created_at ASC",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .into_iter()
+        .map(|row| -> Result<WaitingListItem, AppError> {
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+            let desired_window: serde_json::Value = row
+                .try_get("desired_window")
+                .map_err(|_| AppError::Internal)?;
+            let score: f64 = row.try_get("score").map_err(|_| AppError::Internal)?;
+            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let created_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("created_at").map_err(|_| AppError::Internal)?;
+            Ok(WaitingListItem {
+                id,
+                patient_id,
+                desired_window,
+                score,
+                status,
+                created_at: created_at.to_rfc3339(),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        count = data.len(),
+        "waiting list queried"
+    );
+
+    Ok(Json(WaitingListResponse { data }))
+}
+
+// ── Offer (proposer un créneau libéré) ───────────────────────────────────────
+
+/// Corps de `POST /v1/cabinet/waiting-list/:id/offer`.
+#[derive(Deserialize)]
+pub struct OfferSlotBody {
+    /// Créneau proposé (ISO 8601 UTC).
+    pub proposed_at: String,
+}
+
+/// Réponse de `POST /v1/cabinet/waiting-list/:id/offer`.
+#[derive(Serialize)]
+pub struct OfferSlotResponse {
+    pub waiting_list_entry_id: Uuid,
+    pub notified: bool,
+}
+
+/// `POST /v1/cabinet/waiting-list/:id/offer` — propose un créneau libéré (§13).
+///
+/// Vérifie que l'entrée est `active` et appartient au cabinet (RLS fail-closed).
+/// Passe le statut → `fulfilled`. Notification stub (NUB-T3) — aucun PII dans le payload.
+/// RBAC : `secretary+`. `cabinet_id` extrait du JWT.
+pub async fn offer_waiting_list_slot(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    axum::extract::Path(entry_id): axum::extract::Path<Uuid>,
+    Json(body): Json<OfferSlotBody>,
+) -> Result<Json<OfferSlotResponse>, AppError> {
+    // Valide le format de la date proposée avant toute requête DB.
+    body.proposed_at
+        .parse::<chrono::DateTime<chrono::Utc>>()
+        .map_err(|_| AppError::ValidationError)?;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie existence + statut actif (RLS garantit l'appartenance au cabinet).
+    let row = sqlx::query("SELECT id, status FROM waiting_list_entry WHERE id = $1")
+        .bind(entry_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    if status != "active" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    sqlx::query("UPDATE waiting_list_entry SET status = 'fulfilled' WHERE id = $1")
+        .bind(entry_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Stub : notification push au patient (NUB-T3) — pas de PII dans le payload.
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        entry_id = %entry_id,
+        "waiting list: slot offered"
+    );
+
+    Ok(Json(OfferSlotResponse {
+        waiting_list_entry_id: entry_id,
+        notified: true,
+    }))
+}
