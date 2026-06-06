@@ -20,6 +20,9 @@ import 'package:nubia_patient/presentation/features/auth/pages/register_screen.d
 import 'package:nubia_patient/presentation/features/documents/pages/document_sign_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/documents_screen.dart';
 import 'package:nubia_patient/presentation/features/home/pages/home_screen.dart';
+import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_bloc.dart';
+import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_event.dart';
+import 'package:nubia_patient/presentation/features/messaging/pages/message_thread_screen.dart';
 import 'package:nubia_patient/presentation/features/messaging/pages/messages_screen.dart';
 import 'package:nubia_patient/presentation/features/profile/pages/profile_screen.dart';
 
@@ -169,6 +172,22 @@ class AppRouter {
             return BlocProvider(
               create: (_) => getIt<AppointmentCancelBloc>(),
               child: AppointmentCancelScreen(appointment: appointment),
+            );
+          },
+        ),
+        GoRoute(
+          path: RouteNames.messageThread,
+          name: 'message-thread',
+          builder: (_, state) {
+            final id = state.pathParameters['id']!;
+            final cabinetName = state.extra as String? ?? '';
+            return BlocProvider(
+              create: (_) => getIt<MessagingBloc>()
+                ..add(MessagingThreadOpened(id)),
+              child: MessageThreadScreen(
+                conversationId: id,
+                cabinetName: cabinetName,
+              ),
             );
           },
         ),
