@@ -101,8 +101,11 @@ SELECT is( (SELECT count(*) FROM app_user)::int, 1,
 SELECT is( (SELECT count(*) FROM app_user WHERE id = 'a0000000-0000-0000-0000-00000000010f')::int, 0,
   '⭐ non-fuite app_user : user ff ne voit PAS user 10f');
 
--- 4.3 patient_account : fail-closed (sans GUC → 0 ligne visible)
+-- 4.3 patient_account : fail-closed (sans GUC → 0 ligne visible).
+-- On reset aussi current_user_id : la policy account_auth_select (login flow)
+-- rendrait la ligne du user visible si current_user_id est encore positionné.
 RESET app.current_account_id;
+RESET app.current_user_id;
 SELECT is( (SELECT count(*) FROM patient_account)::int, 0,
   '⭐ fail-closed patient_account : aucun compte sans app.current_account_id');
 
