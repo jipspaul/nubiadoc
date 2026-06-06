@@ -20,6 +20,11 @@ class NotificationSettingsCubit extends Cubit<NotificationSettingsState> {
   }
 
   Future<void> toggle({
+    // Channels
+    bool? pushEnabled,
+    bool? emailEnabled,
+    bool? smsEnabled,
+    // Event types
     bool? appointments,
     bool? documents,
     bool? messages,
@@ -30,6 +35,9 @@ class NotificationSettingsCubit extends Cubit<NotificationSettingsState> {
     if (current is! NotificationSettingsLoaded) return;
 
     final updated = current.preferences.copyWith(
+      pushEnabled: pushEnabled,
+      emailEnabled: emailEnabled,
+      smsEnabled: smsEnabled,
       appointments: appointments,
       documents: documents,
       messages: messages,

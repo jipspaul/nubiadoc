@@ -14,6 +14,9 @@ class MockNotificationSettingsCubit
     implements NotificationSettingsCubit {}
 
 const _prefs = NotificationPreferences(
+  pushEnabled: true,
+  emailEnabled: false,
+  smsEnabled: true,
   appointments: true,
   documents: false,
   messages: true,
@@ -60,14 +63,18 @@ void main() {
     expect(find.text('Réessayer'), findsOneWidget);
   });
 
-  testWidgets('affiche les toggles de préférences en état Loaded',
+  testWidgets('affiche les toggles de canaux et de types en état Loaded',
       (tester) async {
     when(() => cubit.state)
         .thenReturn(const NotificationSettingsLoaded(_prefs));
 
     await tester.pumpWidget(_wrap(cubit));
 
-    expect(find.byType(NotificationSettingsTile), findsNWidgets(5));
+    // 3 channel tiles + 5 type tiles = 8 total
+    expect(find.byType(NotificationSettingsTile), findsNWidgets(8));
+    expect(find.text('Notifications push'), findsOneWidget);
+    expect(find.text('E-mail'), findsOneWidget);
+    expect(find.text('SMS'), findsOneWidget);
     expect(find.text('Rendez-vous'), findsOneWidget);
     expect(find.text('Documents'), findsOneWidget);
     expect(find.text('Messages'), findsOneWidget);
@@ -92,5 +99,24 @@ void main() {
     await tester.pump();
 
     verify(() => cubit.toggle(appointments: false)).called(1);
+  });
+
+  testWidgets('appelle toggle(pushEnabled:) quand on tape sur le switch push',
+      (tester) async {
+    when(() => cubit.state)
+        .thenReturn(const NotificationSettingsLoaded(_prefs));
+    when(() => cubit.toggle(pushEnabled: false)).thenAnswer((_) async {});
+
+    await tester.pumpWidget(_wrap(cubit));
+
+    // Push switch is ON; tap to disable.
+    final pushSwitch = find.descendant(
+      of: find.widgetWithText(SwitchListTile, 'Notifications push'),
+      matching: find.byType(Switch),
+    );
+    await tester.tap(pushSwitch);
+    await tester.pump();
+
+    verify(() => cubit.toggle(pushEnabled: false)).called(1);
   });
 }
