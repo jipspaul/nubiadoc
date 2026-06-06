@@ -43,3 +43,7 @@ CREATE POLICY appointment_completion ON appointment
   FOR ALL
   USING  (cabinet_id = nullif(current_setting('app.current_cabinet_id', true), '')::uuid)
   WITH CHECK (cabinet_id = nullif(current_setting('app.current_cabinet_id', true), '')::uuid);
+
+-- Grants
+GRANT SELECT, INSERT, UPDATE, DELETE ON consultation_act TO nubia_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON consultation_act TO nubia_seed;
