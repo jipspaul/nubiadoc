@@ -123,8 +123,8 @@ async fn get_directions_car_returns_200_with_deeplink() {
 
     sqlx::query(
         "INSERT INTO provider \
-         (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
-         VALUES ($1, $2, $3, 'Dr. Directions', 'dentaire', true)",
+         (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, 'Dr. Directions', 'dentaire', true, true)",
     )
     .bind(cabinet_id)
     .bind(prac_id)

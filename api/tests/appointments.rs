@@ -206,8 +206,8 @@ async fn appointments_upcoming_returns_future_confirmed() {
 
         // provider.display_name visible en contexte patient car is_listed = true
         sqlx::query(
-            "INSERT INTO provider (cabinet_id, practitioner_id, user_id, display_name, is_listed) \
-             VALUES ($1, $2, $3, 'Dr. Test', true)",
+            "INSERT INTO provider (cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, 'Dr. Test', true, true)",
         )
         .bind(cabinet_id)
         .bind(prac_id)

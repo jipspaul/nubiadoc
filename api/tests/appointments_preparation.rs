@@ -121,8 +121,8 @@ async fn appointment_preparation_returns_200_with_carte_vitale() {
 
     sqlx::query(
         "INSERT INTO provider \
-         (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
-         VALUES ($1, $2, $3, 'Dr. Préparation', 'dentaire', true)",
+         (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, 'Dr. Préparation', 'dentaire', true, true)",
     )
     .bind(cabinet_id)
     .bind(prac_id)
@@ -322,8 +322,8 @@ async fn appointment_preparation_tiers_payant_includes_mutuelle() {
 
     sqlx::query(
         "INSERT INTO provider \
-         (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
-         VALUES ($1, $2, $3, 'Dr. TiersPayant', 'dentaire', true)",
+         (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, 'Dr. TiersPayant', 'dentaire', true, true)",
     )
     .bind(cabinet_id)
     .bind(prac_id)
@@ -539,8 +539,8 @@ async fn appointment_preparation_wrong_patient_returns_404() {
 
     sqlx::query(
         "INSERT INTO provider \
-         (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
-         VALUES ($1, $2, $3, 'Dr. 404', 'dentaire', true)",
+         (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, 'Dr. 404', 'dentaire', true, true)",
     )
     .bind(cabinet_id)
     .bind(prac_id)
