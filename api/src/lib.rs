@@ -243,7 +243,10 @@ pub fn app_with_dispatcher(
             get(treatment_plans::list_treatment_plans),
         )
         .route("/v1/quotes", get(billing::list_quotes))
-        .route("/v1/payments/intent", axum::routing::post(billing::create_payment_intent))
+        .route(
+            "/v1/payments/intent",
+            axum::routing::post(billing::create_payment_intent),
+        )
         .route("/v1/professions", get(marketplace::list_professions))
         .route("/v1/specialties", get(marketplace::list_specialties))
         .route("/v1/acts", get(marketplace::list_acts))
