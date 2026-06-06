@@ -28,7 +28,7 @@ class _CabinetInfoBody extends StatelessWidget {
           title: Text('Infos cabinet'),
           floating: true,
         ),
-        const SliverPadding(
+        SliverPadding(
           padding: EdgeInsets.all(16),
           sliver: SliverList(
             delegate: SliverChildListDelegate.fixed([
