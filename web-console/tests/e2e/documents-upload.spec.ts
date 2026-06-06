@@ -21,3 +21,26 @@ test('submit avec credentials bidon affiche un résultat (status visible)', asyn
   await expect(page.locator('#result')).toContainText(/Erreur réseau|HTTP/, { timeout: 5000 });
   await expect(page).toHaveURL('/test/documents/upload');
 });
+
+test('/documents/upload — render : formulaire upload visible avec champs requis', async ({ page }) => {
+  await page.goto('/documents/upload');
+  await expect(page.locator('input[name="access_token"]')).toBeVisible();
+  await expect(page.locator('select[name="category"]')).toBeVisible();
+  await expect(page.locator('input[name="file"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: /uploader/i })).toBeVisible();
+  await expect(page.locator('#upload-result')).toBeVisible();
+});
+
+test('/documents/upload — error path : submit fichier + token bidon affiche résultat HTTP ou réseau', async ({ page }) => {
+  await page.goto('/documents/upload');
+  await page.locator('input[name="access_token"]').fill('fake-access-token');
+  await page.locator('select[name="category"]').selectOption('ordonnance');
+  await page.locator('input[name="file"]').setInputFiles({
+    name: 'test.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 fake'),
+  });
+  await page.getByRole('button', { name: /uploader/i }).click();
+  await expect(page.locator('#upload-result')).toContainText(/Erreur réseau|HTTP/, { timeout: 5000 });
+  await expect(page).toHaveURL('/documents/upload');
+});
