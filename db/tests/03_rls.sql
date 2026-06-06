@@ -115,9 +115,9 @@ SELECT is( (SELECT count(*) FROM patient_account WHERE id = 'a0000000-0000-0000-
 
 -- Annuaire public : provider listé (créé sous contexte cabinet A — app.current_cabinet_id = A
 -- est encore actif depuis section 3, aucun RESET depuis).
-INSERT INTO provider (id, cabinet_id, user_id, display_name, is_listed)
+INSERT INTO provider (id, cabinet_id, user_id, display_name, rpps_verified, is_listed)
   VALUES ('a0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001',
-          'a0000000-0000-0000-0000-0000000000ff','Dr Public', true);
+          'a0000000-0000-0000-0000-0000000000ff','Dr Public', true, true);
 INSERT INTO profession (id, label) VALUES ('a0000000-0000-0000-0000-0000000000b1','Chirurgien-dentiste');
 
 RESET app.current_cabinet_id;
