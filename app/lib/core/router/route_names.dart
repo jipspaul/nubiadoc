@@ -16,6 +16,7 @@ class RouteNames {
   static const String profileDependents = '/profile/dependents';
   static const String profileCabinetInfo = '/profile/cabinet-info';
   static const String notifications = '/notifications';  // Notifications
+  static const String notificationSettings = '/notifications/settings';  // Préférences
 
   // Nested
   static const String appointmentDetail = '/appointments/:id';

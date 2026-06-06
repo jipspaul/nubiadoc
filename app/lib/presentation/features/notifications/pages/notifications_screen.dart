@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_patient/core/router/route_names.dart';
 import 'package:nubia_patient/presentation/features/notifications/bloc/notification_bloc.dart';
 import 'package:nubia_patient/presentation/features/notifications/bloc/notification_event.dart';
 import 'package:nubia_patient/presentation/features/notifications/bloc/notification_state.dart';
@@ -30,6 +31,11 @@ class _NotificationsBody extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.tune_outlined),
+            tooltip: 'Préférences',
+            onPressed: () => context.push(RouteNames.notificationSettings),
+          ),
           BlocBuilder<NotificationBloc, NotificationState>(
             builder: (context, state) {
               if (state is NotificationLoaded && state.unreadCount > 0) {

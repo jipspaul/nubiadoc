@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_patient/core/error/failure.dart';
 import 'package:nubia_patient/domain/entities/app_notification.dart';
+import 'package:nubia_patient/domain/entities/notification_preferences.dart';
 
 abstract class NotificationRepository {
   /// Returns notifications sorted by [AppNotification.createdAt] descending.
@@ -14,4 +15,12 @@ abstract class NotificationRepository {
 
   /// Registers the device FCM token on the backend.
   Future<Either<Failure, void>> registerFcmToken(String token);
+
+  /// Returns the user's notification opt-in preferences.
+  Future<Either<Failure, NotificationPreferences>> getPreferences();
+
+  /// Persists updated notification preferences.
+  Future<Either<Failure, void>> updatePreferences(
+    NotificationPreferences preferences,
+  );
 }
