@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use axum::{
     routing::{get, patch, post, put},
-    Extension, Json, Router,
+    Extension, Router,
 };
-use serde_json::{json, Value};
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
@@ -16,6 +15,7 @@ mod cabinet_messaging;
 mod clinical;
 mod dashboard;
 mod documents;
+mod health;
 mod marketplace;
 mod messaging;
 mod scheduling;
@@ -96,10 +96,10 @@ pub struct AppState {
 /// Routeur sans état — conservé pour les tests des endpoints statiques existants.
 pub fn router() -> Router {
     Router::new()
-        .route("/v1/health", get(health))
-        .route("/v1/health/live", get(health_live))
-        .route("/v1/health/ready", get(health_ready))
-        .route("/v1/metrics", get(metrics))
+        .route("/v1/health", get(health::health))
+        .route("/v1/health/live", get(health::health_live))
+        .route("/v1/health/ready", get(health::health_ready))
+        .route("/v1/metrics", get(health::metrics))
 }
 
 /// Application complète : santé + auth. Utilisé en production et dans les tests d'intégration auth.
@@ -121,10 +121,10 @@ pub fn app_with_dispatcher(
     signer: Arc<dyn StorageSigner>,
 ) -> Router {
     Router::new()
-        .route("/v1/health", get(health))
-        .route("/v1/health/live", get(health_live))
-        .route("/v1/health/ready", get(health_ready))
-        .route("/v1/metrics", get(metrics))
+        .route("/v1/health", get(health::health))
+        .route("/v1/health/live", get(health::health_live))
+        .route("/v1/health/ready", get(health::health_ready_db))
+        .route("/v1/metrics", get(health::metrics))
         .route("/v1/auth/register", post(auth::register::register))
         .route("/v1/auth/login", post(auth::login::login))
         .route("/v1/auth/refresh", post(auth::refresh::refresh))
@@ -289,20 +289,4 @@ fn dev_cors_layer() -> CorsLayer {
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any)
-}
-
-async fn health() -> Json<Value> {
-    Json(json!({"status": "ok"}))
-}
-
-async fn health_live() -> Json<Value> {
-    Json(json!({"status": "alive"}))
-}
-
-async fn health_ready() -> Json<Value> {
-    Json(json!({"status": "ready", "deps": {}}))
-}
-
-async fn metrics() -> &'static str {
-    "# HELP api_up 1\n# TYPE api_up gauge\napi_up 1\n"
 }
