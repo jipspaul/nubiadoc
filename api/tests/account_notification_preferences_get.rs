@@ -142,16 +142,28 @@ async fn notification_preferences_with_row_returns_stored_values() {
     .await
     .unwrap();
 
-    sqlx::query(
-        "INSERT INTO notification_preference \
-         (patient_account_id, email_rdv, sms_rdv, push_rdv, \
-          email_messagerie, push_messagerie, email_rappels, push_rappels) \
-         VALUES ($1, false, true, false, true, false, true, false)",
-    )
-    .bind(account_id)
-    .execute(&db)
-    .await
-    .unwrap();
+    // notification_preference has FORCE ROW LEVEL SECURITY (policy TO nubia_app only).
+    // Insert via nubia_app pool with app.patient_account_id GUC set in a transaction.
+    {
+        let seed_db = app_pool().await;
+        let mut tx = seed_db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+            .bind(account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO notification_preference \
+             (patient_account_id, email_rdv, sms_rdv, push_rdv, \
+              email_messagerie, push_messagerie, email_rappels, push_rappels) \
+             VALUES ($1, false, true, false, true, false, true, false)",
+        )
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
 
     let state = AppState {
         db: app_pool().await,
