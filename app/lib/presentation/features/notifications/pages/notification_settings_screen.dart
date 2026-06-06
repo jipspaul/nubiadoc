@@ -46,67 +46,69 @@ class _NotificationSettingsList extends StatelessWidget {
     final cubit = context.read<NotificationSettingsCubit>();
     final prefs = state.preferences;
 
-    return ListView(
-      children: [
-        const _SectionHeader(title: 'Canaux'),
-        NotificationSettingsTile(
-          icon: Icons.notifications_outlined,
-          label: 'Notifications push',
-          subtitle: 'Alertes instantanées sur votre appareil.',
-          value: prefs.pushEnabled,
-          onChanged: (v) => cubit.toggle(pushEnabled: v),
-        ),
-        NotificationSettingsTile(
-          icon: Icons.email_outlined,
-          label: 'E-mail',
-          subtitle: 'Récapitulatifs et rappels par e-mail.',
-          value: prefs.emailEnabled,
-          onChanged: (v) => cubit.toggle(emailEnabled: v),
-        ),
-        NotificationSettingsTile(
-          icon: Icons.sms_outlined,
-          label: 'SMS',
-          subtitle: 'Rappels de rendez-vous par SMS.',
-          value: prefs.smsEnabled,
-          onChanged: (v) => cubit.toggle(smsEnabled: v),
-        ),
-        const _SectionHeader(title: 'Types d\'événement'),
-        NotificationSettingsTile(
-          icon: Icons.calendar_today_outlined,
-          label: 'Rendez-vous',
-          subtitle: 'Rappels, modifications, annulations.',
-          value: prefs.appointments,
-          onChanged: (v) => cubit.toggle(appointments: v),
-        ),
-        NotificationSettingsTile(
-          icon: Icons.folder_outlined,
-          label: 'Documents',
-          subtitle: 'Devis à signer, nouvelles ordonnances.',
-          value: prefs.documents,
-          onChanged: (v) => cubit.toggle(documents: v),
-        ),
-        NotificationSettingsTile(
-          icon: Icons.chat_bubble_outline,
-          label: 'Messages',
-          subtitle: 'Nouveaux messages de votre cabinet.',
-          value: prefs.messages,
-          onChanged: (v) => cubit.toggle(messages: v),
-        ),
-        NotificationSettingsTile(
-          icon: Icons.receipt_outlined,
-          label: 'Paiements',
-          subtitle: 'Factures, acomptes, rappels de règlement.',
-          value: prefs.payments,
-          onChanged: (v) => cubit.toggle(payments: v),
-        ),
-        NotificationSettingsTile(
-          icon: Icons.health_and_safety_outlined,
-          label: 'Prévention',
-          subtitle: 'Rappels de contrôle annuel, détartrage.',
-          value: prefs.prevention,
-          onChanged: (v) => cubit.toggle(prevention: v),
-        ),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const _SectionHeader(title: 'Canaux'),
+          NotificationSettingsTile(
+            icon: Icons.notifications_outlined,
+            label: 'Notifications push',
+            subtitle: 'Alertes instantanées sur votre appareil.',
+            value: prefs.pushEnabled,
+            onChanged: (v) => cubit.toggle(pushEnabled: v),
+          ),
+          NotificationSettingsTile(
+            icon: Icons.email_outlined,
+            label: 'E-mail',
+            subtitle: 'Récapitulatifs et rappels par e-mail.',
+            value: prefs.emailEnabled,
+            onChanged: (v) => cubit.toggle(emailEnabled: v),
+          ),
+          NotificationSettingsTile(
+            icon: Icons.sms_outlined,
+            label: 'SMS',
+            subtitle: 'Rappels de rendez-vous par SMS.',
+            value: prefs.smsEnabled,
+            onChanged: (v) => cubit.toggle(smsEnabled: v),
+          ),
+          const _SectionHeader(title: 'Types d\'événement'),
+          NotificationSettingsTile(
+            icon: Icons.calendar_today_outlined,
+            label: 'Rendez-vous',
+            subtitle: 'Rappels, modifications, annulations.',
+            value: prefs.appointments,
+            onChanged: (v) => cubit.toggle(appointments: v),
+          ),
+          NotificationSettingsTile(
+            icon: Icons.folder_outlined,
+            label: 'Documents',
+            subtitle: 'Devis à signer, nouvelles ordonnances.',
+            value: prefs.documents,
+            onChanged: (v) => cubit.toggle(documents: v),
+          ),
+          NotificationSettingsTile(
+            icon: Icons.chat_bubble_outline,
+            label: 'Messages',
+            subtitle: 'Nouveaux messages de votre cabinet.',
+            value: prefs.messages,
+            onChanged: (v) => cubit.toggle(messages: v),
+          ),
+          NotificationSettingsTile(
+            icon: Icons.receipt_outlined,
+            label: 'Paiements',
+            subtitle: 'Factures, acomptes, rappels de règlement.',
+            value: prefs.payments,
+            onChanged: (v) => cubit.toggle(payments: v),
+          ),
+          NotificationSettingsTile(
+            icon: Icons.health_and_safety_outlined,
+            label: 'Prévention',
+            subtitle: 'Rappels de contrôle annuel, détartrage.',
+            value: prefs.prevention,
+            onChanged: (v) => cubit.toggle(prevention: v),
+          ),
+        ],
+      ),
     );
   }
 }
