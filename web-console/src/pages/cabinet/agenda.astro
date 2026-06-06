@@ -1,0 +1,88 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Agenda cabinet — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">Agenda — GET /v1/cabinet/agenda</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;">Rôle requis : <code>pro</code></p>
+
+  <section aria-labelledby="agenda-heading">
+    <h2 id="agenda-heading" style="margin-bottom:1rem;">Consulter l'agenda</h2>
+    <form id="agenda-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Date (YYYY-MM-DD)
+        <input type="date" name="date" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Vue
+        <select name="view"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+          <option value="day">day</option>
+          <option value="week">week</option>
+        </select>
+      </label>
+      <label>
+        Practitioner ID (optionnel)
+        <input type="text" name="practitioner_id" placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        GET
+      </button>
+    </form>
+    <p id="agenda-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="agenda-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const form = document.getElementById('agenda-form') as HTMLFormElement;
+  const result = document.getElementById('agenda-result') as HTMLPreElement;
+  const badge = document.getElementById('agenda-badge') as HTMLParagraphElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+    const date = fd.get('date') as string;
+    const view = fd.get('view') as string;
+    const practitioner_id = fd.get('practitioner_id') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+
+    const params = new URLSearchParams({ date, view });
+    if (practitioner_id) params.set('practitioner_id', practitioner_id);
+
+    try {
+      const { status: httpStatus, data } = await apiFetch(`/v1/cabinet/agenda?${params.toString()}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
