@@ -31,4 +31,7 @@ class RouteNames {
   static const String documentUpload = '/documents/upload';
   static const String signatureFlow = '/documents/:id/sign';
   static const String paymentFlow = '/billing/quotes/:id/pay';
+
+  // Reviews
+  static const String providerReviews = '/providers/:id/reviews';
 }

@@ -39,6 +39,7 @@ import 'package:nubia_patient/presentation/features/profile/pages/cabinet_info_s
 import 'package:nubia_patient/presentation/features/profile/pages/dependents_screen.dart';
 import 'package:nubia_patient/presentation/features/profile/pages/health_coverage_screen.dart';
 import 'package:nubia_patient/presentation/features/profile/pages/profile_screen.dart';
+import 'package:nubia_patient/presentation/features/reviews/pages/reviews_screen.dart';
 
 /// Top-level router.
 ///
@@ -274,6 +275,19 @@ class AppRouter {
             create: (_) => getIt<NotificationSettingsCubit>()..load(),
             child: const NotificationSettingsScreen(),
           ),
+        ),
+        GoRoute(
+          path: RouteNames.providerReviews,
+          name: 'provider-reviews',
+          builder: (_, state) {
+            final providerId = state.pathParameters['id']!;
+            final honoredAppointments =
+                state.extra as List<Appointment>? ?? const [];
+            return ReviewsScreen(
+              providerId: providerId,
+              honoredAppointments: honoredAppointments,
+            );
+          },
         ),
       ],
     );
