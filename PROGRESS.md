@@ -47,11 +47,13 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 | Gestion DB | `db/` : migrations `0001→0047` + tests pgTAP + seed + Makefile + CI Forgejo + SCHEMA.md | ✅ (SQL exécutable ; `make test` vert from scratch — 263 tests) |
 | T0 | Repo + CI (Forgejo) + infra POC | 🟨 scaffold Rust/Axum à créer + CI `api/` Forgejo |
 | T1 | Multi-tenant + RLS | ⬜ à implémenter en Rust/SQLx |
-| T2 | Auth + RBAC | 🟨 (register ✅, login ✅, refresh ✅, logout ✅, forgot/reset password ✅, MFA verify ✅) |
+| T2 | Auth + RBAC | 🟨 (register ✅, login ✅, refresh ✅, logout ✅, forgot ✅ 204, reset ✅ 204/404/410 + logout, MFA verify ✅) |
 | T3 | crypto + audit + tenancy | ⬜ (tenancy fait) |
 | T4-T24 | Domaines, wedge, démo, prod | ⬜ |
 
 ## Dernier point
+
+2026-06-06 — **`POST /v1/auth/password/forgot` + `POST /v1/auth/password/reset` alignés (issue #726).** `forgot` renvoie désormais `204` (anti-énumération, plus de corps JSON). `reset` distingue token inconnu → `404`, token expiré → `410 link_expired` ; révoque tous les refresh tokens de l'utilisateur après reset (forcé logout) ; renvoie `204`. `AppError::InvalidToken` (devenu mort) supprimé. Tests mis à jour : 5 tests forgot/reset + 129/129 tous verts. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo sqlx prepare --check` clean.
 
 2026-06-06 — **DB `db/` : migrations `refresh_token` RLS + `mfa_enrollment` + pgTAP (issue #719).** Migration `0046` : table `mfa_enrollment` (id uuid PK, app_user_id FK, secret_ciphertext bytea, secret_key_ref text, method totp, verified bool, enrolled_at ; index `idx_mfa_enrollment_app_user_id` ; GRANT nubia_app/seed). Migration `0047` : ENABLE + FORCE ROW LEVEL SECURITY sur `refresh_token` (existant, sans RLS) et `mfa_enrollment` ; policies user-scoped (`app.current_user_id`, fail-closed via `nullif(..., true)`) ; seed policies pour nubia_seed. Tests pgTAP : 15 tests schéma + RLS dans `00_schema.sql` ; 18 tests isolation dans `09_refresh_mfa_rls.sql` (fail-closed ×2, non-fuite ×4, unicité token_hash, FK ×2). 263/263 tests verts. `make seed verify-rls lint` verts.
 
