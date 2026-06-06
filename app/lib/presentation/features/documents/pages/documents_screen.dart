@@ -32,7 +32,7 @@ class DocumentsScreen extends StatelessWidget {
     return BlocProvider(
       create: (_) =>
           getIt<DocumentBloc>()..add(const DocumentLoadRequested()),
-      child: _DocumentsBody(categories: _categories),
+      child: const _DocumentsBody(categories: _categories),
     );
   }
 }
