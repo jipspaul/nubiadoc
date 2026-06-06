@@ -67,7 +67,11 @@ SELECT is(
 -- ===========================================================================
 -- 3. patient_account : FAIL-CLOSED + isolation READ
 -- ===========================================================================
+-- On reset les deux GUC : la policy account_auth_select (login flow) rendrait
+-- la ligne du user visible si current_user_id reste positionné depuis la
+-- section précédente.
 RESET app.current_account_id;
+RESET app.current_user_id;
 SELECT is(
   (SELECT count(*) FROM patient_account
    WHERE id IN ('12000000-0000-0000-0000-0000000000e1',
