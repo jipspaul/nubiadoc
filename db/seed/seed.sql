@@ -140,6 +140,14 @@ INSERT INTO dental_chart (id, cabinet_id, patient_id, teeth_status) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
+-- Passeports implantaires (issue #699)
+-- =====================================================================
+INSERT INTO implant_passport (id, cabinet_id, patient_id, implant_ref, brand, lot_number, placement_date, tooth_position, notes) VALUES
+  ('bb000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d1','STR-BL-4.1-10','Straumann','LOT-2024-0012','2026-06-03','26','Pose implant 26 après extraction — cicatrisation en cours'),
+  ('bb000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d4','NOB-3.5-12','Nobel Biocare','LOT-2023-0478','2025-11-15','11','Implant antérieur 11 — prothèse posée')
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
 -- Plan de traitement (3 phases) + devis lié pour Marc
 -- =====================================================================
 INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) VALUES
