@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'features/appointments/bloc/appointment_bloc.dart';
+import 'features/appointments/data/appointment_repository.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/auth/bloc/auth_event.dart';
 import 'features/auth/bloc/auth_state.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/data/token_storage.dart';
 import 'features/auth/login_screen.dart';
+import 'features/dashboard/bloc/dashboard_bloc.dart';
+import 'features/dashboard/data/dashboard_repository.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'theme/nubia_theme.dart';
 
@@ -19,11 +23,25 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => AuthBloc(
-        repository: FakeAuthRepository(),
-        tokenStorage: InMemoryTokenStorage(),
-      )..add(const AuthCheckRequested()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => AuthBloc(
+            repository: FakeAuthRepository(),
+            tokenStorage: InMemoryTokenStorage(),
+          )..add(const AuthCheckRequested()),
+        ),
+        BlocProvider(
+          create: (_) => DashboardBloc(
+            repository: FakeDashboardRepository(),
+          ),
+        ),
+        BlocProvider(
+          create: (_) => AppointmentBloc(
+            repository: FakeAppointmentRepository(),
+          ),
+        ),
+      ],
       child: MaterialApp(
         title: 'Nubia',
         theme: NubiaTheme.light,
