@@ -1,0 +1,117 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Stripe Webhook — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">POST /v1/webhooks/stripe</h1>
+  <p style="margin-bottom:1.5rem;color:var(--muted);">
+    Simulate a Stripe webhook event (PaymentIntent succeeded/failed).
+    No JWT required — verified by <code>Stripe-Signature</code> header.
+  </p>
+
+  <section style="margin-bottom:2rem;">
+    <h2 style="margin-bottom:0.75rem;font-size:1rem;">Config</h2>
+    <dl style="display:grid;grid-template-columns:max-content 1fr;gap:0.25rem 1rem;font-size:0.875rem;">
+      <dt style="color:var(--muted);">Endpoint</dt>
+      <dd><code>POST /v1/webhooks/stripe</code></dd>
+      <dt style="color:var(--muted);">Auth</dt>
+      <dd>Signature HMAC-SHA256 via <code>Stripe-Signature</code></dd>
+      <dt style="color:var(--muted);">Idempotency</dt>
+      <dd>Clé = <code>event.id</code> Stripe (dédupliqué)</dd>
+      <dt style="color:var(--muted);">Réponse OK</dt>
+      <dd><code>200</code> — traitement lourd délégué en job async</dd>
+      <dt style="color:var(--muted);">Signature invalide</dt>
+      <dd><code>400</code> — rejet immédiat</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 style="margin-bottom:0.75rem;font-size:1rem;">Simuler un appel</h2>
+    <form id="stripe-webhook-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Stripe-Signature
+        <input type="text" name="stripe_signature" required
+          placeholder="t=1234567890,v1=abc123…"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Event type
+        <select name="event_type" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+          <option value="payment_intent.succeeded">payment_intent.succeeded</option>
+          <option value="payment_intent.payment_failed">payment_intent.payment_failed</option>
+        </select>
+      </label>
+      <label>
+        Event ID (idempotency key)
+        <input type="text" name="event_id" required
+          placeholder="evt_00000000000000"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        PaymentIntent ID
+        <input type="text" name="payment_intent_id" required
+          placeholder="pi_00000000000000"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Envoyer le webhook
+      </button>
+    </form>
+    <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const form = document.getElementById('stripe-webhook-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const stripe_signature = fd.get('stripe_signature') as string;
+    const event_type = fd.get('event_type') as string;
+    const event_id = fd.get('event_id') as string;
+    const payment_intent_id = fd.get('payment_intent_id') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+
+    const payload = JSON.stringify({
+      id: event_id,
+      type: event_type,
+      data: { object: { id: payment_intent_id, object: 'payment_intent' } },
+    });
+
+    try {
+      const { status: httpStatus, data } = await apiFetch('/v1/webhooks/stripe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Stripe-Signature': stripe_signature,
+        },
+        body: payload,
+      });
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
