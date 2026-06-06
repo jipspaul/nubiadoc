@@ -227,5 +227,37 @@ SELECT col_type_is('account_guardianship', 'active', 'boolean', 'account_guardia
 SELECT col_not_null('account_guardianship', 'active',   'account_guardianship.active NOT NULL');
 SELECT col_has_default('account_guardianship', 'active','account_guardianship.active défaut true');
 
+-- ----- mfa_enrollment (0046, issue #719) -----
+SELECT has_table('mfa_enrollment');
+SELECT col_not_null('mfa_enrollment', 'app_user_id',       'mfa_enrollment.app_user_id NOT NULL');
+SELECT col_not_null('mfa_enrollment', 'secret_ciphertext', 'mfa_enrollment.secret_ciphertext NOT NULL');
+SELECT col_not_null('mfa_enrollment', 'method',            'mfa_enrollment.method NOT NULL');
+SELECT col_not_null('mfa_enrollment', 'verified',          'mfa_enrollment.verified NOT NULL');
+SELECT col_not_null('mfa_enrollment', 'enrolled_at',       'mfa_enrollment.enrolled_at NOT NULL');
+SELECT col_type_is('mfa_enrollment', 'secret_ciphertext', 'bytea',
+  'mfa_enrollment.secret_ciphertext bytea (chiffré KMS)');
+SELECT fk_ok('mfa_enrollment', 'app_user_id', 'app_user', 'id',
+  'mfa_enrollment.app_user_id FK → app_user.id');
+SELECT ok(
+  EXISTS(SELECT 1 FROM pg_indexes WHERE tablename = 'mfa_enrollment'
+    AND indexname = 'idx_mfa_enrollment_app_user_id'),
+  'mfa_enrollment : index sur app_user_id présent (0046)');
+
+-- ----- RLS : refresh_token + mfa_enrollment (0047, issue #719) -----
+SELECT ok( (SELECT relrowsecurity FROM pg_class WHERE relname = 'refresh_token'),
+  'refresh_token : ROW LEVEL SECURITY activée (0047)');
+SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'refresh_token'),
+  'refresh_token : FORCE ROW LEVEL SECURITY (0047)');
+SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'refresh_token'
+    AND policyname = 'token_user_select'),
+  'refresh_token : policy token_user_select présente (0047)');
+SELECT ok( (SELECT relrowsecurity FROM pg_class WHERE relname = 'mfa_enrollment'),
+  'mfa_enrollment : ROW LEVEL SECURITY activée (0047)');
+SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'mfa_enrollment'),
+  'mfa_enrollment : FORCE ROW LEVEL SECURITY (0047)');
+SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'mfa_enrollment'
+    AND policyname = 'mfa_user_select'),
+  'mfa_enrollment : policy mfa_user_select présente (0047)');
+
 SELECT * FROM finish();
 ROLLBACK;
