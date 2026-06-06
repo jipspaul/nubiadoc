@@ -2,7 +2,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -1152,15 +1152,24 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 /// La contrainte d'exclusion DB `appointment_no_overlap` (erreur PG `23P01`) est mappée en
 /// `409 slot_taken`. Si `on_behalf_of` est fourni, la tutelle active est vérifiée contre
 /// `account_guardianship` — sinon `422 guardianship_required`.
+/// `Idempotency-Key` optionnel : si fourni, un second appel avec la même clé retourne le RDV
+/// existant (`201`) sans insérer de doublon.
 /// Le statut initial est toujours `"requested"` (confirmation asynchrone par le cabinet).
 pub async fn create_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
+    headers: HeaderMap,
     Json(body): Json<CreateAppointmentBody>,
 ) -> Result<(StatusCode, Json<CreateAppointmentResponse>), AppError> {
     if body.slot_id.is_none() && body.starts_at.is_none() {
         return Err(AppError::ValidationError);
     }
+
+    let idempotency_key: Option<String> = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_owned());
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -1213,6 +1222,38 @@ pub async fn create_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Idempotence : si une Idempotency-Key est fournie et qu'un RDV existe déjà pour ce
+    // cabinet + clé, on retourne le RDV existant sans insérer de doublon.
+    if let Some(ref key) = idempotency_key {
+        let existing = sqlx::query(
+            "SELECT id, status FROM appointment \
+             WHERE cabinet_id = $1 AND idempotency_key = $2",
+        )
+        .bind(cabinet_id)
+        .bind(key)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if let Some(row) = existing {
+            let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            tx.commit().await.map_err(|_| AppError::Internal)?;
+            tracing::info!(
+                account_id = %claims.account_id,
+                appointment_id = %appointment_id,
+                "appointment create idempotent hit"
+            );
+            return Ok((
+                StatusCode::CREATED,
+                Json(CreateAppointmentResponse {
+                    appointment_id,
+                    status,
+                }),
+            ));
+        }
+    }
+
     // Résout le dossier patient dans ce cabinet (RLS via GUC cabinet).
     let patient_row = sqlx::query(
         "SELECT id FROM patient \
@@ -1257,8 +1298,8 @@ pub async fn create_appointment(
     // INSERT — 23P01 (appointment_no_overlap) → 409 slot_taken.
     let result = sqlx::query(
         "INSERT INTO appointment \
-         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
-         VALUES ($1, $2, $3, $4, $5, 'requested', $6) \
+         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, idempotency_key) \
+         VALUES ($1, $2, $3, $4, $5, 'requested', $6, $7) \
          RETURNING id, status",
     )
     .bind(cabinet_id)
@@ -1267,6 +1308,7 @@ pub async fn create_appointment(
     .bind(starts_at)
     .bind(ends_at)
     .bind(&body.motif)
+    .bind(&idempotency_key)
     .fetch_one(&mut *tx)
     .await;
 

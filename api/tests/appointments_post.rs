@@ -453,7 +453,232 @@ async fn post_appointment_double_booking_returns_409() {
         .ok();
 }
 
-// ── Test 3 : on_behalf_of sans tutelle active → 422 ──────────────────────────
+// ── Test 4 : Idempotency-Key — second appel retourne le même RDV ──────────────
+
+#[tokio::test]
+async fn post_appointment_idempotency_key_returns_same_appointment() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("post-appt-idem+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Idem', 'Patient')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("post-appt-idem-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Idem {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed) \
+             VALUES ($1, $2, $3, $4, 'Dr. Idem', true)",
+        )
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Idem', 'Patient', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(patient_account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let idempotency_key = Uuid::new_v4().to_string();
+    let body_json = serde_json::to_string(&json!({
+        "provider_id": provider_id,
+        "starts_at": "2031-05-20T10:00:00Z",
+        "motif": "bilan"
+    }))
+    .unwrap();
+
+    let make_state = || AppState {
+        db: {
+            let url = std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+            PgPool::connect_lazy(&url).unwrap()
+        },
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Premier appel → 201 avec appointment_id.
+    let r1 = app(make_state())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", &idempotency_key)
+                .body(Body::from(body_json.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        r1.status(),
+        StatusCode::CREATED,
+        "premier appel doit être 201"
+    );
+    let b1 = axum::body::to_bytes(r1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&b1).unwrap();
+    let appt_id = v1["appointment_id"].as_str().unwrap().to_owned();
+
+    // Second appel avec la même Idempotency-Key → 201 avec le même appointment_id.
+    let r2 = app(make_state())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", &idempotency_key)
+                .body(Body::from(body_json))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        r2.status(),
+        StatusCode::CREATED,
+        "second appel doit être 201"
+    );
+    let b2 = axum::body::to_bytes(r2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&b2).unwrap();
+    assert_eq!(
+        v2["appointment_id"].as_str().unwrap(),
+        appt_id,
+        "le second appel doit retourner le même appointment_id"
+    );
+
+    // Cleanup.
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
 
 #[tokio::test]
 async fn post_appointment_invalid_guardianship_returns_422() {

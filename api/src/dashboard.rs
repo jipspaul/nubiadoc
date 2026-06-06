@@ -35,6 +35,7 @@ pub struct DashboardResponse {
     pub to_sign: Vec<ToSignItem>,
     pub to_pay: Vec<ToPayItem>,
     pub unread_messages: i64,
+    pub reminders: i64,
 }
 
 /// `GET /v1/dashboard` — vue agrégée patient (US-P13).
@@ -42,7 +43,7 @@ pub struct DashboardResponse {
 /// Token `kind:"patient"` requis — les tokens pro reçoivent 403.
 /// RLS scoped via `app.patient_account_id` (migration 0029) : le patient ne voit
 /// que ses propres données, tous cabinets confondus.
-/// 4 requêtes dans une seule transaction (pas de N+1).
+/// 5 requêtes dans une seule transaction (pas de N+1).
 pub async fn get_dashboard(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -51,6 +52,13 @@ pub async fn get_dashboard(
 
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Scope utilisateur pour la lecture des notifications (policy notification_owner_select).
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -90,6 +98,16 @@ pub async fn get_dashboard(
         "SELECT COUNT(*) AS cnt FROM message \
          WHERE sender_kind IN ('practitioner','secretary') AND read_at IS NULL",
     )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Rappels non lus (notifications de kind 'appointment_reminder')
+    let reminder_row = sqlx::query(
+        "SELECT COUNT(*) AS cnt FROM notification \
+         WHERE app_user_id = $1 AND kind = 'appointment_reminder' AND is_read = false",
+    )
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -139,10 +157,14 @@ pub async fn get_dashboard(
         .collect::<Result<Vec<_>, _>>()?;
 
     let unread_messages: i64 = msg_row.try_get("cnt").map_err(|_| AppError::Internal)?;
+    let reminders: i64 = reminder_row
+        .try_get("cnt")
+        .map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         account_id = %claims.account_id,
         unread_messages,
+        reminders,
         "dashboard aggregated"
     );
 
@@ -151,5 +173,6 @@ pub async fn get_dashboard(
         to_sign,
         to_pay,
         unread_messages,
+        reminders,
     }))
 }
