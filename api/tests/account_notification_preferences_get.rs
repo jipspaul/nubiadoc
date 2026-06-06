@@ -143,11 +143,11 @@ async fn notification_preferences_with_row_returns_stored_values() {
     .unwrap();
 
     // notification_preference has FORCE ROW LEVEL SECURITY (policy TO nubia_app only).
-    // Insert via nubia_app pool with app.patient_account_id GUC set in a transaction.
+    // Insert via nubia_app pool with app.current_account_id GUC set in a transaction.
     {
         let seed_db = app_pool().await;
         let mut tx = seed_db.begin().await.unwrap();
-        sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
             .bind(account_id.to_string())
             .execute(&mut *tx)
             .await

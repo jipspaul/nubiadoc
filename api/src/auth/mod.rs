@@ -1426,6 +1426,20 @@ pub async fn get_account(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
 ) -> Result<Json<AccountResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
         "SELECT pa.id, pa.first_name, pa.last_name, pa.phone, pa.birth_date, pa.created_at, \
                 au.email \
@@ -1435,10 +1449,12 @@ pub async fn get_account(
     )
     .bind(claims.account_id)
     .bind(claims.sub)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
@@ -1714,6 +1730,18 @@ pub async fn patch_account(
     let delta = contact_delta(body.address.as_ref());
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     // Snapshot avant modification (diff d'audit).
     let old = sqlx::query(
@@ -2232,12 +2260,18 @@ pub async fn put_account_consent(
 ) -> Result<Json<ConsentUpdateResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
-        "INSERT INTO consent_record (app_user_id, purpose, granted, granted_at, revoked_at)
-         VALUES ($1, $2, $3,
-                 CASE WHEN $3 THEN now() ELSE NULL END,
-                 CASE WHEN NOT $3 THEN now() ELSE NULL END)
-         ON CONFLICT (app_user_id, purpose) DO UPDATE SET
+        "INSERT INTO consent_record (patient_account_id, app_user_id, purpose, granted, granted_at, revoked_at)
+         VALUES ($1, $2, $3, $4,
+                 CASE WHEN $4 THEN now() ELSE NULL END,
+                 CASE WHEN NOT $4 THEN now() ELSE NULL END)
+         ON CONFLICT (patient_account_id, purpose) DO UPDATE SET
            granted    = EXCLUDED.granted,
            granted_at = CASE WHEN EXCLUDED.granted THEN now()
                               ELSE consent_record.granted_at END,
@@ -2245,6 +2279,7 @@ pub async fn put_account_consent(
          RETURNING purpose, granted,
                    COALESCE(revoked_at, granted_at, created_at) AS updated_at",
     )
+    .bind(claims.account_id)
     .bind(claims.sub)
     .bind(&purpose)
     .bind(body.granted)
@@ -2320,14 +2355,14 @@ pub struct NotificationPreferenceResponse {
 /// `GET /v1/account/notification-preferences` — retourne les préférences de notification du patient.
 ///
 /// Si aucune ligne dans `notification_preference` → retourne les défauts (tous `true`).
-/// RLS scoped par `app.patient_account_id` (migration 0024).
+/// RLS scoped par `app.current_account_id` (migration 0049).
 pub async fn get_account_notification_preferences(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
 ) -> Result<Json<NotificationPreferenceResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
@@ -2384,7 +2419,7 @@ pub async fn get_account_notification_preferences(
 ///
 /// Upsert idempotent : seuls les champs présents dans le body sont modifiés.
 /// Champs absents → valeur existante conservée (CASE WHEN) ; défaut `true` à la création.
-/// RLS scoped par `app.patient_account_id` (migration 0024).
+/// RLS scoped par `app.current_account_id` (migration 0049).
 pub async fn patch_account_notification_preferences(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -2392,7 +2427,7 @@ pub async fn patch_account_notification_preferences(
 ) -> Result<Json<NotificationPreferenceResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
@@ -2465,22 +2500,32 @@ pub async fn patch_account_notification_preferences(
 
 /// `GET /v1/account/consents` — liste les consentements RGPD du patient courant.
 ///
-/// Lecture seule. Scoped par `app_user_id = claims.sub` (pas de RLS cabinet —
-/// `consent_record` est plateforme-level depuis la migration 0017).
+/// Lecture seule. Scoped par `patient_account_id = claims.account_id`.
+/// RLS scoped par `app.current_account_id` (migration 0048).
 pub async fn get_account_consents(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
 ) -> Result<Json<Vec<ConsentItem>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let rows = sqlx::query(
         "SELECT purpose, granted, granted_at, revoked_at \
          FROM consent_record \
-         WHERE app_user_id = $1 \
+         WHERE patient_account_id = $1 \
          ORDER BY created_at ASC",
     )
-    .bind(claims.sub)
-    .fetch_all(&state.db)
+    .bind(claims.account_id)
+    .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let consents = rows
         .into_iter()
