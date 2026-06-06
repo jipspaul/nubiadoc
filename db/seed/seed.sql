@@ -88,9 +88,9 @@ INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, establishment_id
    ST_SetSRID(ST_MakePoint(4.8322,45.7602),4326)::geography, 4.9, 88, true)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO provider_verification (id, provider_id, identifier, id_type, status, source, checked_at) VALUES
-  ('f1000000-0000-0000-0000-000000000001','f0000000-0000-0000-0000-0000000000f1','10100000001','rpps','verified','ANS','2026-05-02 10:00+00'),
-  ('f1000000-0000-0000-0000-000000000002','f0000000-0000-0000-0000-0000000000f2','10100000002','rpps','verified','ANS','2026-05-02 10:05+00')
+INSERT INTO provider_verification (id, provider_id, cabinet_id, identifier, id_type, status, source, checked_at) VALUES
+  ('f1000000-0000-0000-0000-000000000001','f0000000-0000-0000-0000-0000000000f1','11111111-1111-1111-1111-111111111111','10100000001','rpps','verified','ANS','2026-05-02 10:00+00'),
+  ('f1000000-0000-0000-0000-000000000002','f0000000-0000-0000-0000-0000000000f2','11111111-1111-1111-1111-111111111111','10100000002','rpps','verified','ANS','2026-05-02 10:05+00')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, motif, status) VALUES
