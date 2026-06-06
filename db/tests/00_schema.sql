@@ -172,6 +172,38 @@ SELECT col_is_unique('refresh_token', 'token_hash', 'refresh_token.token_hash UN
 SELECT col_not_null('refresh_token', 'expires_at', 'refresh_token.expires_at NOT NULL');
 SELECT col_not_null('refresh_token', 'app_user_id', 'refresh_token.app_user_id NOT NULL');
 
+-- ----- app_user : cgu_accepted_at (0043, issue #718) -----
+SELECT has_column('app_user', 'cgu_accepted_at', 'app_user.cgu_accepted_at présent (0043)');
+SELECT col_type_is('app_user', 'cgu_accepted_at', 'timestamp with time zone',
+  'app_user.cgu_accepted_at timestamptz');
+SELECT col_is_null('app_user', 'cgu_accepted_at', 'app_user.cgu_accepted_at nullable (CGU non encore acceptées OK)');
+
+-- ----- patient_account : colonnes chiffrées prénom/nom (0044, issue #718) -----
+SELECT has_column('patient_account', 'first_name_ciphertext',
+  'patient_account.first_name_ciphertext présent (0044)');
+SELECT col_type_is('patient_account', 'first_name_ciphertext', 'bytea',
+  'patient_account.first_name_ciphertext bytea');
+SELECT has_column('patient_account', 'first_name_key_ref',
+  'patient_account.first_name_key_ref présent (0044)');
+SELECT has_column('patient_account', 'last_name_ciphertext',
+  'patient_account.last_name_ciphertext présent (0044)');
+SELECT has_column('patient_account', 'last_name_key_ref',
+  'patient_account.last_name_key_ref présent (0044)');
+
+-- ----- RLS plateforme : app_user et patient_account (0045, issue #718) -----
+SELECT ok( (SELECT relrowsecurity FROM pg_class WHERE relname = 'app_user'),
+  'app_user : ROW LEVEL SECURITY activée (0045)');
+SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'app_user'),
+  'app_user : FORCE ROW LEVEL SECURITY (0045)');
+SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'app_user' AND policyname = 'user_self_select'),
+  'app_user : policy user_self_select présente (0045)');
+SELECT ok( (SELECT relrowsecurity FROM pg_class WHERE relname = 'patient_account'),
+  'patient_account : ROW LEVEL SECURITY activée (0045)');
+SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'patient_account'),
+  'patient_account : FORCE ROW LEVEL SECURITY (0045)');
+SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'patient_account' AND policyname = 'account_self_select'),
+  'patient_account : policy account_self_select présente (0045)');
+
 -- ----- app_metadata (0013) -----
 SELECT has_table('app_metadata');
 SELECT is(
