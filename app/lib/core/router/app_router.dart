@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_patient/core/di/injection.dart';
 import 'package:nubia_patient/core/router/main_shell.dart';
 import 'package:nubia_patient/core/router/route_names.dart';
 import 'package:nubia_patient/core/router/router_notifier.dart';
+import 'package:nubia_patient/domain/entities/appointment.dart';
+import 'package:nubia_patient/presentation/features/appointments/bloc/appointment_cancel_bloc.dart';
+import 'package:nubia_patient/presentation/features/appointments/bloc/appointment_modify_bloc.dart';
+import 'package:nubia_patient/presentation/features/appointments/bloc/booking_bloc.dart';
+import 'package:nubia_patient/presentation/features/appointments/pages/appointment_cancel_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_detail_screen.dart';
+import 'package:nubia_patient/presentation/features/appointments/pages/appointment_modify_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointments_screen.dart';
+import 'package:nubia_patient/presentation/features/appointments/pages/booking_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/login_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/register_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_sign_screen.dart';
@@ -126,6 +135,38 @@ class AppRouter {
           builder: (_, state) => DocumentSignScreen(
             id: state.pathParameters['id']!,
           ),
+        ),
+        GoRoute(
+          path: RouteNames.bookingFlow,
+          name: 'booking',
+          builder: (_, __) => BlocProvider(
+            create: (_) =>
+                getIt<BookingBloc>()..add(const BookingLoadRequested()),
+            child: const BookingScreen(),
+          ),
+        ),
+        GoRoute(
+          path: RouteNames.appointmentModify,
+          name: 'appointment-modify',
+          builder: (_, state) {
+            final appointment = state.extra! as Appointment;
+            return BlocProvider(
+              create: (_) => getIt<AppointmentModifyBloc>()
+                ..add(AppointmentModifyStarted(appointment)),
+              child: AppointmentModifyScreen(appointment: appointment),
+            );
+          },
+        ),
+        GoRoute(
+          path: RouteNames.appointmentCancel,
+          name: 'appointment-cancel',
+          builder: (_, state) {
+            final appointment = state.extra! as Appointment;
+            return BlocProvider(
+              create: (_) => getIt<AppointmentCancelBloc>(),
+              child: AppointmentCancelScreen(appointment: appointment),
+            );
+          },
         ),
       ],
     );
