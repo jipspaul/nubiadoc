@@ -9,6 +9,7 @@ import 'package:nubia_patient/domain/entities/appointment.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/appointment_cancel_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/appointment_modify_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/booking_bloc.dart';
+import 'package:nubia_patient/presentation/features/signature/bloc/signature_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_cancel_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_detail_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_modify_screen.dart';
@@ -132,8 +133,11 @@ class AppRouter {
         GoRoute(
           path: RouteNames.signatureFlow,
           name: 'document-sign',
-          builder: (_, state) => DocumentSignScreen(
-            id: state.pathParameters['id']!,
+          builder: (_, state) => BlocProvider(
+            create: (_) => getIt<SignatureBloc>(),
+            child: DocumentSignScreen(
+              id: state.pathParameters['id']!,
+            ),
           ),
         ),
         GoRoute(
