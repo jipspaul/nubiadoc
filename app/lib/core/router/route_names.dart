@@ -24,6 +24,7 @@ class RouteNames {
   static const String bookingFlow = '/booking';
   static const String appointmentModify = '/appointments/:id/modify';
   static const String appointmentCancel = '/appointments/:id/cancel';
+  static const String appointmentCheckin = '/appointments/:id/checkin';
   static const String messageThread = '/messages/:id';
   static const String documentDetail = '/documents/:id';
   static const String documentViewer = '/documents/:id/view';
