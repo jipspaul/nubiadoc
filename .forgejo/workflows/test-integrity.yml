@@ -41,17 +41,34 @@ jobs:
         with:
           fetch-depth: 0   # full history for diff
 
+      - name: Check bypass label
+        id: bypass
+        run: |
+          labels='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+          if echo "$labels" | grep -q '"test-integrity:bypass"'; then
+            echo "bypass=true" | tee -a "$GITHUB_OUTPUT"
+            echo "::warning::test-integrity bypass label present — skipping checks. Reviewer must verify the deletion/skip is legitimate."
+          else
+            echo "bypass=false" | tee -a "$GITHUB_OUTPUT"
+          fi
+
       - name: Resolve base / head
         id: resolve
         run: |
           base_ref="${GITHUB_BASE_REF:-main}"
-          base_sha=$(git rev-parse "origin/${base_ref}")
           head_sha="${GITHUB_SHA}"
+          # Use merge-base, NOT origin/<base>. A branch behind main shows
+          # files added on main as "deletions" in `git diff main..head`,
+          # which is wrong — those files were never in the branch. Only the
+          # commits this branch actually contributed (`merge-base..head`)
+          # are the PR's true diff.
+          base_sha=$(git merge-base "origin/${base_ref}" "$head_sha")
           echo "base_ref=${base_ref}"          | tee -a "$GITHUB_OUTPUT"
           echo "base_sha=${base_sha}"          | tee -a "$GITHUB_OUTPUT"
           echo "head_sha=${head_sha}"          | tee -a "$GITHUB_OUTPUT"
 
       - name: Detect deleted test files
+        if: steps.bypass.outputs.bypass != 'true'
         run: |
           set -e
           base="${{ steps.resolve.outputs.base_sha }}"
@@ -75,6 +92,7 @@ jobs:
           echo "OK: no test files deleted"
 
       - name: Detect added skip / ignore markers
+        if: steps.bypass.outputs.bypass != 'true'
         run: |
           set -e
           base="${{ steps.resolve.outputs.base_sha }}"
