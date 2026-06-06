@@ -166,9 +166,9 @@ async fn consent_put_granted_false_sets_revoked_at() {
 
     // Vérifie que revoked_at est bien peuplé en base.
     let row = sqlx::query(
-        "SELECT revoked_at FROM consent_record WHERE app_user_id = $1 AND purpose = 'marketing'",
+        "SELECT revoked_at FROM consent_record WHERE patient_account_id = $1 AND purpose = 'marketing'",
     )
-    .bind(user_id)
+    .bind(account_id)
     .fetch_one(&db)
     .await
     .unwrap();
@@ -219,9 +219,9 @@ async fn consent_put_idempotent_double_grant() {
 
     // Un seul enregistrement en base (upsert).
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM consent_record WHERE app_user_id = $1 AND purpose = 'soins'",
+        "SELECT COUNT(*) FROM consent_record WHERE patient_account_id = $1 AND purpose = 'soins'",
     )
-    .bind(user_id)
+    .bind(account_id)
     .fetch_one(&db)
     .await
     .unwrap();
