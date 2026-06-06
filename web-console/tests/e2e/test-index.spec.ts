@@ -8,7 +8,8 @@ test('GET /test/ retourne 200 et contient une liste avec au moins 5 liens', asyn
   expect(await links.count()).toBeGreaterThanOrEqual(5);
 });
 
-test('ancienne URL /auth/me retourne 404', async ({ page }) => {
-  const response = await page.goto('/auth/me');
-  expect(response?.status()).toBe(404);
+test('/auth/me affiche le formulaire GET /v1/me', async ({ page }) => {
+  await page.goto('/auth/me');
+  await expect(page.locator('h1')).toContainText('GET /v1/me');
+  await expect(page.locator('#result')).toBeVisible();
 });
