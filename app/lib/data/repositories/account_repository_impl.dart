@@ -117,6 +117,25 @@ class AccountRepositoryImpl implements AccountRepository {
     }
   }
 
+  @override
+  Future<Either<Failure, String>> uploadCoverageCard({
+    required String filePath,
+    required String mimeType,
+    required CoverageCardSide side,
+  }) async {
+    try {
+      final sideString = side == CoverageCardSide.recto ? 'recto' : 'verso';
+      final documentId = await _api.uploadCoverageCard(
+        filePath: filePath,
+        mimeType: mimeType,
+        side: sideString,
+      );
+      return Right(documentId);
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    }
+  }
+
   Failure _mapError(DioException e) {
     final statusCode = e.response?.statusCode;
     if (statusCode == 401) return const UnauthorizedFailure();

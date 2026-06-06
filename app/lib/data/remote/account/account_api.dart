@@ -30,6 +30,25 @@ class AccountApi {
     return HealthCoverageDto.fromJson(response.data!);
   }
 
+  /// Upload a coverage card image (recto/verso) as multipart/form-data.
+  ///
+  /// Returns the `document_id` from the server response.
+  Future<String> uploadCoverageCard({
+    required String filePath,
+    required String mimeType,
+    required String side,
+  }) async {
+    final formData = FormData.fromMap({
+      'side': side,
+      'file': await MultipartFile.fromFile(filePath, contentType: DioMediaType.parse(mimeType)),
+    });
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/account/coverage/card',
+      data: formData,
+    );
+    return response.data!['document_id'] as String;
+  }
+
   Future<List<DependentDto>> getDependents() async {
     final response =
         await _dio.get<List<dynamic>>('/account/dependents');

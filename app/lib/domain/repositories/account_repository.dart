@@ -31,4 +31,15 @@ abstract class AccountRepository {
   });
 
   Future<Either<Failure, void>> deleteDependent(String id);
+
+  /// Upload a coverage card image (recto or verso).
+  ///
+  /// Returns the created document id on success.
+  Future<Either<Failure, String>> uploadCoverageCard({
+    required String filePath,
+    required String mimeType,
+    required CoverageCardSide side,
+  });
 }
+
+enum CoverageCardSide { recto, verso }
