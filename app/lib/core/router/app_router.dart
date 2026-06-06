@@ -17,6 +17,8 @@ import 'package:nubia_patient/presentation/features/appointments/pages/appointme
 import 'package:nubia_patient/presentation/features/appointments/pages/booking_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/login_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/register_screen.dart';
+import 'package:nubia_patient/domain/entities/document.dart';
+import 'package:nubia_patient/presentation/features/documents/pages/document_detail_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_sign_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/documents_screen.dart';
 import 'package:nubia_patient/presentation/features/home/pages/home_screen.dart';
@@ -163,6 +165,14 @@ class AppRouter {
           builder: (_, state) => AppointmentDetailScreen(
             id: state.pathParameters['id']!,
           ),
+        ),
+        GoRoute(
+          path: RouteNames.documentDetail,
+          name: 'document-detail',
+          builder: (_, state) {
+            final document = state.extra! as Document;
+            return DocumentDetailScreen(document: document);
+          },
         ),
         GoRoute(
           path: RouteNames.signatureFlow,
