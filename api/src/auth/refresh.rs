@@ -48,6 +48,13 @@ pub async fn refresh(
     let expires_at: chrono::DateTime<Utc> =
         row.try_get("expires_at").map_err(|_| AppError::Internal)?;
 
+    // refresh_token a FORCE RLS : token_user_update exige app.current_user_id.
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     if revoked_at.is_some() {
         // Replay détecté : révoque toute la chaîne active (vol de token présumé).
         sqlx::query(
@@ -105,11 +112,21 @@ pub async fn refresh(
         + EXPIRES_IN;
 
     let access_token = if kind == "patient" {
-        let acct_row = sqlx::query("SELECT id FROM patient_account WHERE app_user_id = $1")
-            .bind(user_id)
-            .fetch_optional(&state.db)
+        // patient_account FORCE RLS : account_auth_select exige app.current_user_id.
+        // Le GUC est déjà posé dans tx, mais on est sorti de la tx au commit().
+        // On ouvre une nouvelle tx courte pour poser le GUC et lire patient_account.
+        let mut tx2 = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(user_id.to_string())
+            .execute(&mut *tx2)
             .await
             .map_err(|_| AppError::Internal)?;
+        let acct_row = sqlx::query("SELECT id FROM patient_account WHERE app_user_id = $1")
+            .bind(user_id)
+            .fetch_optional(&mut *tx2)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx2.commit().await.map_err(|_| AppError::Internal)?;
         let account_id: Uuid = acct_row
             .map(|r| r.try_get("id"))
             .transpose()

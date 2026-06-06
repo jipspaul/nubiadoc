@@ -108,11 +108,20 @@ pub async fn login(
         + EXPIRES_IN;
 
     let access_token = if kind == "patient" {
-        let acct_row = sqlx::query("SELECT id FROM patient_account WHERE app_user_id = $1")
-            .bind(user_id)
-            .fetch_optional(&state.db)
+        // patient_account a FORCE RLS avec account_auth_select (app.current_user_id = app_user_id).
+        // Il faut poser le GUC dans une transaction locale avant de lire la ligne.
+        let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(user_id.to_string())
+            .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
+        let acct_row = sqlx::query("SELECT id FROM patient_account WHERE app_user_id = $1")
+            .bind(user_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
 
         let account_id: Uuid = acct_row
             .map(|r| r.try_get("id"))

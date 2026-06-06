@@ -72,13 +72,22 @@ pub async fn logout(
         .map(|v| v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
+    // refresh_token a FORCE RLS : token_user_update exige app.current_user_id.
+    // On ouvre une transaction et on pose le GUC avant tout DML.
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     if revoke_all {
         sqlx::query(
             "UPDATE refresh_token SET revoked_at = now() \
              WHERE app_user_id = $1 AND revoked_at IS NULL",
         )
         .bind(claims.sub)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
@@ -89,13 +98,14 @@ pub async fn logout(
              WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
         )
         .bind(&token)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
         if let Some(r) = row {
             let owner_id: Uuid = r.try_get("app_user_id").map_err(|_| AppError::Internal)?;
             if owner_id != claims.sub {
+                tx.rollback().await.map_err(|_| AppError::Internal)?;
                 return Err(AppError::Forbidden);
             }
             sqlx::query(
@@ -104,7 +114,7 @@ pub async fn logout(
                    AND revoked_at IS NULL",
             )
             .bind(&token)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -112,5 +122,6 @@ pub async fn logout(
         }
     }
 
+    tx.commit().await.map_err(|_| AppError::Internal)?;
     Ok(StatusCode::NO_CONTENT)
 }
