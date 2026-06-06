@@ -1,0 +1,68 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Health — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">Système &amp; santé</h1>
+
+  <section style="display:flex;flex-direction:column;gap:2rem;max-width:480px;">
+    <article>
+      <h2 style="font-size:1rem;margin-bottom:0.5rem;">GET /health <span style="font-size:0.8rem;color:var(--muted);">(liveness)</span></h2>
+      <button id="btn-liveness" type="button"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+        Tester
+      </button>
+      <p id="badge-liveness" style="margin-top:0.75rem;display:none;"></p>
+      <pre id="result-liveness"
+        style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+    </article>
+
+    <article>
+      <h2 style="font-size:1rem;margin-bottom:0.5rem;">GET /health/ready <span style="font-size:0.8rem;color:var(--muted);">(readiness)</span></h2>
+      <button id="btn-ready" type="button"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+        Tester
+      </button>
+      <p id="badge-ready" style="margin-top:0.75rem;display:none;"></p>
+      <pre id="result-ready"
+        style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+    </article>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  async function callHealth(path: string, resultId: string, badgeId: string): Promise<void> {
+    const result = document.getElementById(resultId) as HTMLPreElement;
+    const badge  = document.getElementById(badgeId)  as HTMLParagraphElement;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+
+    try {
+      const { status, data } = await apiFetch(path);
+      result.className = status < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
+      badge.style.display = 'block';
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  document.getElementById('btn-liveness')!.addEventListener('click', () =>
+    callHealth('/health', 'result-liveness', 'badge-liveness'));
+
+  document.getElementById('btn-ready')!.addEventListener('click', () =>
+    callHealth('/health/ready', 'result-ready', 'badge-ready'));
+</script>
