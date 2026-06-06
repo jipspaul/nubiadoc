@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use axum::{
     extract::{FromRequestParts, State},
-    http::{request::Parts, StatusCode},
+    http::{request::Parts, HeaderMap, StatusCode},
     Json,
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
@@ -52,42 +52,64 @@ impl FromRequestParts<AppState> for UserClaims {
 /// Corps de la requête `POST /v1/auth/logout`.
 #[derive(Deserialize)]
 pub struct LogoutBody {
-    refresh_token: String,
+    refresh_token: Option<String>,
 }
 
-/// `POST /v1/auth/logout` — révoque le refresh token de l'utilisateur authentifié.
+/// `POST /v1/auth/logout` — révoque le(s) refresh token(s) de l'utilisateur authentifié.
 ///
-/// Soft-delete : SET `revoked_at = NOW()`. Vérifie que `refresh_token.app_user_id == claims.sub`
-/// pour interdire la révocation cross-user (`403`). Idempotent si le token est
-/// inconnu ou déjà révoqué (`204` dans les deux cas).
+/// - `refresh_token` dans le body → soft-delete de ce token (403 si cross-user, 204 si inconnu/déjà révoqué).
+/// - Header `X-Revoke-All: true` → révoque tous les tokens actifs de l'utilisateur (force logout partout).
+/// - Toujours `204 No Content` (pas d'énumération).
 pub async fn logout(
     State(state): State<AppState>,
     claims: UserClaims,
-    Json(body): Json<LogoutBody>,
+    headers: HeaderMap,
+    body: Option<Json<LogoutBody>>,
 ) -> Result<StatusCode, AppError> {
-    let row = sqlx::query(
-        "SELECT app_user_id FROM refresh_token \
-         WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
-    )
-    .bind(&body.refresh_token)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let revoke_all = headers
+        .get("X-Revoke-All")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
 
-    if let Some(r) = row {
-        let owner_id: Uuid = r.try_get("app_user_id").map_err(|_| AppError::Internal)?;
-        if owner_id != claims.sub {
-            return Err(AppError::Forbidden);
-        }
+    if revoke_all {
         sqlx::query(
             "UPDATE refresh_token SET revoked_at = now() \
-             WHERE token_hash = encode(digest($1, 'sha256'), 'hex') \
-               AND revoked_at IS NULL",
+             WHERE app_user_id = $1 AND revoked_at IS NULL",
         )
-        .bind(&body.refresh_token)
+        .bind(claims.sub)
         .execute(&state.db)
         .await
         .map_err(|_| AppError::Internal)?;
+
+        tracing::info!(user_id = %claims.sub, action = "logout_revoke_all");
+    } else if let Some(token) = body.and_then(|b| b.0.refresh_token) {
+        let row = sqlx::query(
+            "SELECT app_user_id FROM refresh_token \
+             WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
+        )
+        .bind(&token)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if let Some(r) = row {
+            let owner_id: Uuid = r.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+            if owner_id != claims.sub {
+                return Err(AppError::Forbidden);
+            }
+            sqlx::query(
+                "UPDATE refresh_token SET revoked_at = now() \
+                 WHERE token_hash = encode(digest($1, 'sha256'), 'hex') \
+                   AND revoked_at IS NULL",
+            )
+            .bind(&token)
+            .execute(&state.db)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+            tracing::info!(user_id = %claims.sub, action = "logout_token_revoked");
+        }
     }
 
     Ok(StatusCode::NO_CONTENT)

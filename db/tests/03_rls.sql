@@ -72,23 +72,55 @@ SELECT throws_ok(
   '42501', NULL, '⭐ WITH CHECK : exfiltrer une ligne de A vers B refusé');
 
 -- ===========================================================================
--- 4. ENTITÉS PLATEFORME : visibles HORS contexte cabinet.
+-- 4. ENTITÉS PLATEFORME : app_user et patient_account ont une RLS propre (0045).
+--    Isolation par identifiant propre, pas par cabinet_id.
+--    Annuaire public (profession, provider listé) : pas de RLS cabinet.
 -- ===========================================================================
--- patient_account (hors RLS cabinet) : créé puis visible sans GUC
--- app_user 'patient' requis depuis 0015 (app_user_id NOT NULL). UUID ff évite le conflit seed.
+
+-- Fixtures : deux app_user (UUID ff et 10f) et deux patient_account (UUID e1 et e2).
+-- INSERT ouvert (policy user_app_insert / account_app_insert) : pas de GUC requis.
 INSERT INTO app_user (id, email, password_hash, kind)
   VALUES ('a0000000-0000-0000-0000-0000000000ff','patient.rls@example.test','$argon2id$fixture','patient');
+INSERT INTO app_user (id, email, password_hash, kind)
+  VALUES ('a0000000-0000-0000-0000-00000000010f','patient.b@example.test','$argon2id$fixture','patient');
+
 INSERT INTO patient_account (id, app_user_id, first_name, last_name)
-  VALUES ('a0000000-0000-0000-0000-0000000000e1','a0000000-0000-0000-0000-0000000000ff','Compte','Global');
--- annuaire public : provider listé (créé sous contexte A car write = cabinet)
+  VALUES ('a0000000-0000-0000-0000-0000000000e1','a0000000-0000-0000-0000-0000000000ff','Compte','A');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+  VALUES ('a0000000-0000-0000-0000-0000000000e2','a0000000-0000-0000-0000-00000000010f','Compte','B');
+
+-- 4.1 app_user : fail-closed (sans GUC → 0 ligne visible)
+RESET app.current_user_id;
+SELECT is( (SELECT count(*) FROM app_user)::int, 0,
+  '⭐ fail-closed app_user : aucun user visible sans app.current_user_id');
+
+-- 4.2 app_user : accès borné à sa propre ligne + isolation inter-user
+SET LOCAL app.current_user_id = 'a0000000-0000-0000-0000-0000000000ff';
+SELECT is( (SELECT count(*) FROM app_user)::int, 1,
+  'app_user context ff : 1 ligne visible (la sienne)');
+SELECT is( (SELECT count(*) FROM app_user WHERE id = 'a0000000-0000-0000-0000-00000000010f')::int, 0,
+  '⭐ non-fuite app_user : user ff ne voit PAS user 10f');
+
+-- 4.3 patient_account : fail-closed (sans GUC → 0 ligne visible)
+RESET app.current_account_id;
+SELECT is( (SELECT count(*) FROM patient_account)::int, 0,
+  '⭐ fail-closed patient_account : aucun compte sans app.current_account_id');
+
+-- 4.4 patient_account : accès borné au compte courant + isolation inter-compte
+SET LOCAL app.current_account_id = 'a0000000-0000-0000-0000-0000000000e1';
+SELECT is( (SELECT count(*) FROM patient_account)::int, 1,
+  'patient_account context e1 : 1 compte visible (le sien)');
+SELECT is( (SELECT count(*) FROM patient_account WHERE id = 'a0000000-0000-0000-0000-0000000000e2')::int, 0,
+  '⭐ non-fuite patient_account : account e1 ne voit PAS account e2');
+
+-- Annuaire public : provider listé (créé sous contexte cabinet A — app.current_cabinet_id = A
+-- est encore actif depuis section 3, aucun RESET depuis).
 INSERT INTO provider (id, cabinet_id, user_id, display_name, is_listed)
   VALUES ('a0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001',
           'a0000000-0000-0000-0000-0000000000ff','Dr Public', true);
 INSERT INTO profession (id, label) VALUES ('a0000000-0000-0000-0000-0000000000b1','Chirurgien-dentiste');
 
 RESET app.current_cabinet_id;
-SELECT ok( (SELECT count(*) FROM patient_account) >= 1,
-  'patient_account visible hors contexte cabinet (entité plateforme)');
 SELECT ok( (SELECT count(*) FROM profession) >= 1,
   'annuaire profession visible hors contexte cabinet');
 -- (scopé sur la fixture : robuste même si du seed a déjà chargé des providers listés)
