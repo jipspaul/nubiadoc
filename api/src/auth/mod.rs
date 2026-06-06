@@ -2841,32 +2841,37 @@ pub async fn post_account_dependents(
     // à la création pour tous les proches (le tuteur a pleine autorité sur le compte géré).
     let authority = "full";
 
+    // Pré-génère les UUIDs pour éviter RETURNING sur tables avec FORCE RLS.
+    // app_user (migration 0045) et patient_account ont FORCE RLS : RETURNING id serait
+    // bloqué par les policies SELECT (user_self_select / account_self_select).
+    let managed_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+
     // Email synthétique unique — le compte géré ne peut pas se connecter directement.
-    let managed_email = format!("managed-{}@nubia.internal", Uuid::new_v4());
+    let managed_email = format!("managed-{}@nubia.internal", managed_user_id);
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // app_user géré : password_hash NULL = aucun accès direct possible.
-    let user_row =
-        sqlx::query("INSERT INTO app_user (email, kind) VALUES ($1, 'patient') RETURNING id")
-            .bind(&managed_email)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-    let managed_user_id: Uuid = user_row.try_get(0).map_err(|_| AppError::Internal)?;
+    sqlx::query("INSERT INTO app_user (id, email, kind) VALUES ($1, $2, 'patient')")
+        .bind(managed_user_id)
+        .bind(&managed_email)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
-    let acct_row = sqlx::query(
-        "INSERT INTO patient_account (app_user_id, first_name, last_name, birth_date) \
-         VALUES ($1, $2, $3, $4) RETURNING id",
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name, birth_date) \
+         VALUES ($1, $2, $3, $4, $5)",
     )
+    .bind(dependent_account_id)
     .bind(managed_user_id)
     .bind(&body.first_name)
     .bind(&body.last_name)
     .bind(birth_date)
-    .fetch_one(&mut *tx)
+    .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
-    let dependent_account_id: Uuid = acct_row.try_get(0).map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO account_guardianship \

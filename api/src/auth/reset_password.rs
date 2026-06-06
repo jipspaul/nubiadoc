@@ -63,6 +63,13 @@ pub async fn reset_password(
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    // app_user et refresh_token ont FORCE RLS user-scoped : pose le GUC avant tout DML.
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     sqlx::query(
         "UPDATE app_user \
          SET password_hash = $1, \

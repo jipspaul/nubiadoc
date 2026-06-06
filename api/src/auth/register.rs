@@ -10,7 +10,6 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -79,12 +78,19 @@ pub async fn register(
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(
-        "INSERT INTO app_user (email, password_hash, kind) VALUES ($1, $2, 'patient') RETURNING id",
+    // Pré-génère les UUIDs pour éviter RETURNING sur tables avec FORCE RLS.
+    // app_user et patient_account ont FORCE RLS : RETURNING id serait bloqué
+    // par user_self_select / account_self_select (GUC non encore positionné).
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'patient')",
     )
+    .bind(user_id)
     .bind(&body.email)
     .bind(&password_hash)
-    .fetch_one(&mut *tx)
+    .execute(&mut *tx)
     .await
     .map_err(|e| {
         if is_unique_violation(&e) {
@@ -93,16 +99,15 @@ pub async fn register(
             AppError::Internal
         }
     })?;
-    let user_id: Uuid = row.try_get(0).map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(
-        "INSERT INTO patient_account (app_user_id, first_name, last_name) VALUES ($1, '', '') RETURNING id",
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, '', '')",
     )
+    .bind(account_id)
     .bind(user_id)
-    .fetch_one(&mut *tx)
+    .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
-    let account_id: Uuid = row.try_get(0).map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO consent_record (app_user_id, purpose, granted, granted_at, cgu_version) \
