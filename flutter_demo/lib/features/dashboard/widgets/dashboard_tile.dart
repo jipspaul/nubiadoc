@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../widgets/nubia_badge.dart';
+
 /// Tuile cliquable du dashboard : icône, titre, compteur optionnel, onTap.
 ///
 /// Utilisée pour chaque section du tableau de bord patient
@@ -59,37 +61,12 @@ class DashboardTile extends StatelessWidget {
                 ),
               ),
               if (count != null && count! > 0)
-                _CountBadge(count: count!, color: scheme.primary),
+                NubiaBadge(count: count!, color: scheme.primary),
               const SizedBox(width: 4),
               Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.count, required this.color});
-
-  final int count;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        '$count',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onPrimary,
-              fontWeight: FontWeight.w600,
-            ),
       ),
     );
   }
