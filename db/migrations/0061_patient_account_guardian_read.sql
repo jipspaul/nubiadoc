@@ -1,4 +1,4 @@
--- 0058_patient_account_guardian_read.sql
+-- 0061_patient_account_guardian_read.sql
 -- Policy RLS : patient_account lisible par le tuteur légal (guardian).
 -- Permet au tuteur (guardian_account_id = app.current_account_id) de voir
 -- les comptes de ses dépendants.

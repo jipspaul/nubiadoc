@@ -57,14 +57,23 @@ pub async fn login(
         return Err(AppError::TooManyRequests);
     }
 
+    let mut auth_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_login_email', $1, true)")
+        .bind(&body.email)
+        .execute(&mut *auth_tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
         "SELECT id, password_hash, kind, totp_enabled, totp_secret \
          FROM app_user WHERE email = $1",
     )
     .bind(&body.email)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *auth_tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    auth_tx.rollback().await.map_err(|_| AppError::Internal)?;
 
     let row = row.ok_or(AppError::Unauthenticated)?;
 

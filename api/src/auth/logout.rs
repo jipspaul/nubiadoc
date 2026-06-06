@@ -82,6 +82,12 @@ pub async fn logout(
         .map_err(|_| AppError::Internal)?;
 
     if revoke_all {
+        let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(claims.sub.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
         sqlx::query(
             "UPDATE refresh_token SET revoked_at = now() \
              WHERE app_user_id = $1 AND revoked_at IS NULL",
@@ -90,9 +96,16 @@ pub async fn logout(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
 
         tracing::info!(user_id = %claims.sub, action = "logout_revoke_all");
     } else if let Some(token) = body.and_then(|b| b.0.refresh_token) {
+        let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(claims.sub.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
         let row = sqlx::query(
             "SELECT app_user_id FROM refresh_token \
              WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
@@ -120,6 +133,7 @@ pub async fn logout(
 
             tracing::info!(user_id = %claims.sub, action = "logout_token_revoked");
         }
+        tx.commit().await.map_err(|_| AppError::Internal)?;
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
