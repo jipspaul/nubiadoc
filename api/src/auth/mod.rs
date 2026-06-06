@@ -291,11 +291,19 @@ pub async fn me(
     State(state): State<AppState>,
     claims: MeClaims,
 ) -> Result<Json<MeResponse>, AppError> {
-    let row = sqlx::query("SELECT email FROM app_user WHERE id = $1")
-        .bind(claims.sub)
-        .fetch_one(&state.db)
+    // user_self_select exige app.current_user_id : on le pose en SET LOCAL.
+    let mut etx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *etx)
         .await
         .map_err(|_| AppError::Internal)?;
+    let row = sqlx::query("SELECT email FROM app_user WHERE id = $1")
+        .bind(claims.sub)
+        .fetch_one(&mut *etx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    etx.commit().await.map_err(|_| AppError::Internal)?;
 
     let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
 

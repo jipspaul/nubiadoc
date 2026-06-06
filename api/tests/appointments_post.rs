@@ -119,8 +119,8 @@ async fn post_appointment_happy_path_returns_201() {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed) \
-             VALUES ($1, $2, $3, $4, 'Dr. Happy', true)",
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, $4, 'Dr. Happy', true, true)",
         )
         .bind(provider_id)
         .bind(cabinet_id)
@@ -307,8 +307,8 @@ async fn post_appointment_double_booking_returns_409() {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed) \
-             VALUES ($1, $2, $3, $4, 'Dr. Dup', true)",
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, $4, 'Dr. Dup', true, true)",
         )
         .bind(provider_id)
         .bind(cabinet_id)
@@ -749,8 +749,8 @@ async fn post_appointment_invalid_guardianship_returns_422() {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed) \
-             VALUES ($1, $2, $3, $4, 'Dr. Guard', true)",
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, $4, 'Dr. Guard', true, true)",
         )
         .bind(provider_id)
         .bind(cabinet_id)

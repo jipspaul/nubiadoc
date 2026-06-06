@@ -81,8 +81,8 @@ async fn insert_appointment_fixture(
         .unwrap();
 
     sqlx::query(
-        "INSERT INTO provider (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
-         VALUES ($1, $2, $3, 'Dr. Detail', 'dentaire', true)",
+        "INSERT INTO provider (cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, 'Dr. Detail', 'dentaire', true, true)",
     )
     .bind(cabinet_id)
     .bind(prac_id)
