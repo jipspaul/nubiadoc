@@ -105,6 +105,7 @@ void main() {
           home: Scaffold(
             body: DashboardBody(
               summary: _mockSummary,
+              onRefresh: () async {},
               onAppointmentTap: () {},
               onDocumentsTap: () {},
               onPaymentsTap: () {},
@@ -124,6 +125,7 @@ void main() {
           home: Scaffold(
             body: DashboardBody(
               summary: _mockSummary,
+              onRefresh: () async {},
               onAppointmentTap: () {},
               onDocumentsTap: () {},
               onPaymentsTap: () {},
