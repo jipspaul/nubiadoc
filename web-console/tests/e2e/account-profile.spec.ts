@@ -39,3 +39,10 @@ test('/account/profile — PATCH avec credentials bidon affiche un résultat', a
   await expect(page.locator('#result-patch')).toContainText(/Erreur réseau|HTTP/, { timeout: 5000 });
   await expect(page).toHaveURL('/account/profile');
 });
+
+test('/account/profile — GET sans JWT affiche HTTP 401 ou erreur réseau', async ({ page }) => {
+  await page.goto('/account/profile');
+  await page.locator('input[name="access_token_get"]').fill('no-token');
+  await page.getByRole('button', { name: /get/i }).click();
+  await expect(page.locator('#result-get')).toContainText(/Erreur réseau|HTTP/, { timeout: 5000 });
+});
