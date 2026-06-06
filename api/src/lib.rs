@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 mod appointments;
 mod auth;
+mod cabinet_messaging;
 mod clinical;
 mod dashboard;
 mod documents;
@@ -226,6 +227,10 @@ pub fn app_with_dispatcher(
             get(messaging::get_conversation_messages).post(messaging::send_message),
         )
         .route("/v1/cabinet/patients", get(clinical::list_cabinet_patients))
+        .route(
+            "/v1/cabinet/conversations",
+            get(cabinet_messaging::list_cabinet_conversations),
+        )
         .route("/v1/cabinet/agenda", get(scheduling::get_cabinet_agenda))
         .route(
             "/v1/cabinet/waiting-room/call-next",
