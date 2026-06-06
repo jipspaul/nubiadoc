@@ -835,9 +835,9 @@ impl FromRequestParts<AppState> for ProAdminClaims {
 /// Permet l'accès aux endpoints cliniques non accessibles au secrétariat (§07 §4.1).
 #[derive(Debug, Deserialize)]
 pub(crate) struct ProPractitionerClaims {
-    sub: Uuid,
+    pub(crate) sub: Uuid,
     kind: String,
-    cabinet_id: Uuid,
+    pub(crate) cabinet_id: Uuid,
     role: String,
 }
 
