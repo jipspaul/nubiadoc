@@ -44,7 +44,7 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 | Design (flux/copy/a11y/handoff) | Reste du dossier `design/` ; handoff à étendre aux écrans praticien | 🟨 |
 | Specs API vs maquettes | `docs/05` §10, `06` E4.6-E4.10/WS7, `07` §8.6-8.7 alignés | ✅ |
 | Référence API | `docs/12-api-reference.md` (toutes les routes/contrats) | ✅ |
-| Gestion DB | `db/` : migrations `0001→0012` + tests pgTAP + seed + Makefile + CI Forgejo + SCHEMA.md | ✅ (SQL exécutable ; `make test` vert from scratch — 118 tests) |
+| Gestion DB | `db/` : migrations `0001→0047` + tests pgTAP + seed + Makefile + CI Forgejo + SCHEMA.md | ✅ (SQL exécutable ; `make test` vert from scratch — 263 tests) |
 | T0 | Repo + CI (Forgejo) + infra POC | 🟨 scaffold Rust/Axum à créer + CI `api/` Forgejo |
 | T1 | Multi-tenant + RLS | ⬜ à implémenter en Rust/SQLx |
 | T2 | Auth + RBAC | 🟨 (register ✅, login ✅, refresh ✅, logout ✅, forgot/reset password ✅, MFA verify ✅) |
@@ -52,6 +52,8 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 | T4-T24 | Domaines, wedge, démo, prod | ⬜ |
 
 ## Dernier point
+
+2026-06-06 — **DB `db/` : migrations `refresh_token` RLS + `mfa_enrollment` + pgTAP (issue #719).** Migration `0046` : table `mfa_enrollment` (id uuid PK, app_user_id FK, secret_ciphertext bytea, secret_key_ref text, method totp, verified bool, enrolled_at ; index `idx_mfa_enrollment_app_user_id` ; GRANT nubia_app/seed). Migration `0047` : ENABLE + FORCE ROW LEVEL SECURITY sur `refresh_token` (existant, sans RLS) et `mfa_enrollment` ; policies user-scoped (`app.current_user_id`, fail-closed via `nullif(..., true)`) ; seed policies pour nubia_seed. Tests pgTAP : 15 tests schéma + RLS dans `00_schema.sql` ; 18 tests isolation dans `09_refresh_mfa_rls.sql` (fail-closed ×2, non-fuite ×4, unicité token_hash, FK ×2). 263/263 tests verts. `make seed verify-rls lint` verts.
 
 2026-06-06 — **`POST /v1/auth/refresh` — rotation de refresh token (issue #723).** Handler existant dans `api/src/auth/refresh.rs` (logique complète). Ajout du test manquant `refresh_expired_token_returns_401` (token expiré → 401) dans `api/tests/auth_refresh.rs` pour couvrir tous les critères "Done when" de l'issue. Couverture totale : happy path (200 + nouveaux tokens), token expiré (401), token révoqué (401), replay (401 + chaîne entière révoquée). 129/129 tests verts. `cargo fmt --check` + `cargo clippy -D warnings` clean.
 
