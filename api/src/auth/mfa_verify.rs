@@ -42,14 +42,21 @@ pub async fn mfa_verify(
         return Err(AppError::ValidationError);
     }
 
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
     sqlx::query!(
         "UPDATE app_user SET mfa_secret = $1, mfa_enabled = true, updated_at = now() WHERE id = $2",
         body.totp_secret,
         claims.sub,
     )
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     Ok(Json(json!({"message": "MFA activée."})))
 }
