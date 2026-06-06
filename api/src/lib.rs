@@ -268,6 +268,15 @@ pub fn app_with_dispatcher(
             "/v1/cabinet/waiting-list/:id/offer",
             post(scheduling::offer_waiting_list_slot),
         )
+        .route("/v1/cabinet/slots", post(scheduling::create_cabinet_slot))
+        .route(
+            "/v1/cabinet/slots/:id",
+            patch(scheduling::patch_cabinet_slot).delete(scheduling::delete_cabinet_slot),
+        )
+        .route(
+            "/v1/cabinet/slots/:id/online",
+            put(scheduling::put_cabinet_slot_online),
+        )
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route(
             "/v1/treatment-plans",

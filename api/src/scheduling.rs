@@ -2,6 +2,7 @@
 
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     Json,
 };
 use chrono::TimeZone;
@@ -887,4 +888,394 @@ pub async fn patch_cabinet_appointment(
         appointment_id,
         status: new_status,
     }))
+}
+
+// ── BO slot management (§13) ──────────────────────────────────────────────────
+
+/// Réponse d'un créneau cabinet.
+#[derive(Serialize)]
+pub struct CabinetSlotResponse {
+    pub id: Uuid,
+    pub practitioner_id: Uuid,
+    pub starts_at: String,
+    pub ends_at: String,
+    pub status: String,
+    pub online_booking: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub motif: Option<String>,
+}
+
+/// Corps de `POST /v1/cabinet/slots`.
+#[derive(Deserialize)]
+pub struct CreateSlotBody {
+    pub practitioner_id: Uuid,
+    pub starts_at: String,
+    pub ends_at: String,
+    pub status: Option<String>,
+    pub motif: Option<String>,
+}
+
+/// `POST /v1/cabinet/slots` — ouvre ou bloque un créneau cabinet (§13).
+///
+/// Statuts autorisés : `open` (par défaut) ou `blocked`.
+/// Contrainte d'exclusion praticien (23P01) → 409 slot_taken.
+/// `cabinet_id` extrait du JWT. RBAC : secretary+.
+pub async fn create_cabinet_slot(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Json(body): Json<CreateSlotBody>,
+) -> Result<(StatusCode, Json<CabinetSlotResponse>), AppError> {
+    let starts_at = body
+        .starts_at
+        .parse::<chrono::DateTime<chrono::Utc>>()
+        .map_err(|_| AppError::ValidationError)?;
+    let ends_at = body
+        .ends_at
+        .parse::<chrono::DateTime<chrono::Utc>>()
+        .map_err(|_| AppError::ValidationError)?;
+    if ends_at <= starts_at {
+        return Err(AppError::ValidationError);
+    }
+
+    let status = body.status.as_deref().unwrap_or("open").to_string();
+    if status != "open" && status != "blocked" {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le praticien appartient au cabinet (RLS garantit l'isolation).
+    let pract = sqlx::query("SELECT id FROM practitioner WHERE id = $1 AND cabinet_id = $2")
+        .bind(body.practitioner_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+    let practitioner_id: Uuid = pract.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Trouve le provider associé au praticien pour le lien marketplace.
+    let maybe_provider = sqlx::query(
+        "SELECT id FROM provider WHERE practitioner_id = $1 AND cabinet_id = $2 LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let provider_id: Option<Uuid> = if let Some(row) = maybe_provider {
+        Some(row.try_get("id").map_err(|_| AppError::Internal)?)
+    } else {
+        None
+    };
+
+    let slot_id = Uuid::new_v4();
+
+    let result = sqlx::query(
+        "INSERT INTO availability_slot \
+         (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, motif, online_booking) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false) \
+         RETURNING id, practitioner_id, starts_at, ends_at, status, motif, online_booking",
+    )
+    .bind(slot_id)
+    .bind(provider_id)
+    .bind(claims.cabinet_id)
+    .bind(practitioner_id)
+    .bind(starts_at)
+    .bind(ends_at)
+    .bind(&status)
+    .bind(body.motif.as_deref())
+    .fetch_one(&mut *tx)
+    .await;
+
+    let row = match result {
+        Ok(r) => r,
+        Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
+        Err(_) => return Err(AppError::Internal),
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let pid: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let sa: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let ea: chrono::DateTime<chrono::Utc> =
+        row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+    let st: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let motif: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
+    let online_booking: bool = row
+        .try_get("online_booking")
+        .map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        slot_id = %id,
+        "cabinet slot created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CabinetSlotResponse {
+            id,
+            practitioner_id: pid,
+            starts_at: sa.to_rfc3339(),
+            ends_at: ea.to_rfc3339(),
+            status: st,
+            online_booking,
+            motif,
+        }),
+    ))
+}
+
+/// Corps de `PATCH /v1/cabinet/slots/:id`.
+#[derive(Deserialize)]
+pub struct PatchSlotBody {
+    pub starts_at: Option<String>,
+    pub ends_at: Option<String>,
+    pub status: Option<String>,
+    pub motif: Option<String>,
+}
+
+/// `PATCH /v1/cabinet/slots/:id` — édite un créneau cabinet (§13).
+///
+/// Un créneau `booked` ne peut pas être modifié (409 invalid_status).
+/// Conflit d'exclusion (23P01) → 409 slot_taken.
+/// RBAC : secretary+. `cabinet_id` extrait du JWT.
+pub async fn patch_cabinet_slot(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(slot_id): Path<Uuid>,
+    Json(body): Json<PatchSlotBody>,
+) -> Result<Json<CabinetSlotResponse>, AppError> {
+    let new_starts_at: Option<chrono::DateTime<chrono::Utc>> = body
+        .starts_at
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+    let new_ends_at: Option<chrono::DateTime<chrono::Utc>> = body
+        .ends_at
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+
+    if let (Some(sa), Some(ea)) = (new_starts_at, new_ends_at) {
+        if ea <= sa {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    if let Some(s) = &body.status {
+        if s != "open" && s != "blocked" {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let existing = sqlx::query(
+        "SELECT id, status FROM availability_slot \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(slot_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let current_status: String = existing.try_get("status").map_err(|_| AppError::Internal)?;
+    if current_status == "booked" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let result = sqlx::query(
+        "UPDATE availability_slot \
+         SET starts_at     = COALESCE($1, starts_at), \
+             ends_at       = COALESCE($2, ends_at), \
+             status        = COALESCE($3, status), \
+             motif         = COALESCE($4, motif), \
+             updated_at    = now() \
+         WHERE id = $5 \
+         RETURNING id, practitioner_id, starts_at, ends_at, status, motif, online_booking",
+    )
+    .bind(new_starts_at)
+    .bind(new_ends_at)
+    .bind(body.status.as_deref())
+    .bind(body.motif.as_deref())
+    .bind(slot_id)
+    .fetch_one(&mut *tx)
+    .await;
+
+    let row = match result {
+        Ok(r) => r,
+        Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
+        Err(_) => return Err(AppError::Internal),
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let sa: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let ea: chrono::DateTime<chrono::Utc> =
+        row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+    let st: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let motif: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
+    let online_booking: bool = row
+        .try_get("online_booking")
+        .map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        slot_id = %id,
+        "cabinet slot patched"
+    );
+
+    Ok(Json(CabinetSlotResponse {
+        id,
+        practitioner_id,
+        starts_at: sa.to_rfc3339(),
+        ends_at: ea.to_rfc3339(),
+        status: st,
+        online_booking,
+        motif,
+    }))
+}
+
+/// `DELETE /v1/cabinet/slots/:id` — supprime un créneau cabinet (§13).
+///
+/// Un créneau `booked` ne peut pas être supprimé (409 invalid_status).
+/// Soft-delete via `deleted_at`. RBAC : secretary+. `cabinet_id` extrait du JWT.
+pub async fn delete_cabinet_slot(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(slot_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, status FROM availability_slot \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(slot_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    if current_status == "booked" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    sqlx::query(
+        "UPDATE availability_slot SET deleted_at = now(), updated_at = now() WHERE id = $1",
+    )
+    .bind(slot_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        slot_id = %slot_id,
+        "cabinet slot deleted"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Réponse de `PUT /v1/cabinet/slots/:id/online`.
+#[derive(Serialize)]
+pub struct SlotOnlineResponse {
+    pub id: Uuid,
+    pub online_booking: bool,
+}
+
+/// `PUT /v1/cabinet/slots/:id/online` — bascule le flag `online_booking` (§13).
+///
+/// Corps : `{ "online_booking": true|false }`. RBAC : secretary+.
+/// `cabinet_id` extrait du JWT.
+#[derive(Deserialize)]
+pub struct PutSlotOnlineBody {
+    pub online_booking: bool,
+}
+
+pub async fn put_cabinet_slot_online(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(slot_id): Path<Uuid>,
+    Json(body): Json<PutSlotOnlineBody>,
+) -> Result<Json<SlotOnlineResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE availability_slot \
+         SET online_booking = $1, updated_at = now() \
+         WHERE id = $2 AND cabinet_id = $3 AND deleted_at IS NULL \
+         RETURNING id, online_booking",
+    )
+    .bind(body.online_booking)
+    .bind(slot_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let online_booking: bool = row
+        .try_get("online_booking")
+        .map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        slot_id = %id,
+        online_booking = %online_booking,
+        "cabinet slot online flag toggled"
+    );
+
+    Ok(Json(SlotOnlineResponse { id, online_booking }))
 }
