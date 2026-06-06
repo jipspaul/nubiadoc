@@ -15,6 +15,7 @@ mod dashboard;
 mod documents;
 mod marketplace;
 mod messaging;
+mod scheduling;
 mod treatment_plans;
 
 /// Trait de génération d'URL signées Object Storage — swappable (stub en test, MinIO/Scaleway en prod).
@@ -223,6 +224,7 @@ pub fn app_with_dispatcher(
             "/v1/conversations/:id/messages",
             get(messaging::get_conversation_messages).post(messaging::send_message),
         )
+        .route("/v1/cabinet/agenda", get(scheduling::get_cabinet_agenda))
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route(
             "/v1/treatment-plans",
