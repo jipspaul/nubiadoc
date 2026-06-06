@@ -1,6 +1,7 @@
 //! Handler `POST /v1/auth/refresh`.
 
 use axum::extract::{Json, State};
+use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Deserialize;
 use sqlx::Row;
@@ -21,18 +22,18 @@ pub struct RefreshBody {
 ///
 /// Échange un refresh token valide contre un nouveau access token + nouveau refresh token.
 /// L'ancien token est révoqué atomiquement dans la même transaction (rotation).
-/// Token inconnu, révoqué ou expiré → `401`.
+/// Token inconnu ou expiré → `401`.
+/// Token révoqué (replay) → `401` + révocation de toute la chaîne de l'utilisateur.
 pub async fn refresh(
     State(state): State<AppState>,
     Json(body): Json<RefreshBody>,
 ) -> Result<Json<LoginResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    // Cherche le token sans filtrer sur revoked_at/expires_at pour distinguer les cas.
     let row = sqlx::query(
-        "SELECT app_user_id FROM refresh_token \
-         WHERE token_hash = encode(digest($1, 'sha256'), 'hex') \
-           AND revoked_at IS NULL \
-           AND expires_at > now()",
+        "SELECT app_user_id, revoked_at, expires_at FROM refresh_token \
+         WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
     )
     .bind(&body.refresh_token)
     .fetch_optional(&mut *tx)
@@ -40,8 +41,33 @@ pub async fn refresh(
     .map_err(|_| AppError::Internal)?;
 
     let row = row.ok_or(AppError::Unauthenticated)?;
-    let user_id: Uuid = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
 
+    let user_id: Uuid = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+    let revoked_at: Option<chrono::DateTime<Utc>> =
+        row.try_get("revoked_at").map_err(|_| AppError::Internal)?;
+    let expires_at: chrono::DateTime<Utc> =
+        row.try_get("expires_at").map_err(|_| AppError::Internal)?;
+
+    if revoked_at.is_some() {
+        // Replay détecté : révoque toute la chaîne active (vol de token présumé).
+        sqlx::query(
+            "UPDATE refresh_token SET revoked_at = now() \
+             WHERE app_user_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Err(AppError::Unauthenticated);
+    }
+
+    if expires_at <= Utc::now() {
+        tx.rollback().await.ok();
+        return Err(AppError::Unauthenticated);
+    }
+
+    // Token valide : révoque l'ancien, émet le nouveau.
     sqlx::query(
         "UPDATE refresh_token SET revoked_at = now() \
          WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",

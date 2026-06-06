@@ -6,10 +6,13 @@ import 'package:nubia_patient/core/router/app_router.dart';
 import 'package:nubia_patient/core/router/router_notifier.dart';
 import 'package:nubia_patient/core/storage/token_storage.dart';
 import 'package:nubia_patient/presentation/features/auth/bloc/auth_bloc.dart';
+import 'package:nubia_patient/presentation/features/notifications/bloc/notification_bloc.dart';
 import 'package:nubia_patient/presentation/theme/nubia_theme.dart';
 
 class NubiaApp extends StatefulWidget {
-  const NubiaApp({super.key});
+  const NubiaApp({super.key, required this.notificationBloc});
+
+  final NotificationBloc notificationBloc;
 
   @override
   State<NubiaApp> createState() => _NubiaAppState();
@@ -38,8 +41,11 @@ class _NubiaAppState extends State<NubiaApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AuthBloc>.value(
-      value: _authBloc,
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthBloc>.value(value: _authBloc),
+        BlocProvider<NotificationBloc>.value(value: widget.notificationBloc),
+      ],
       child: MaterialApp.router(
         title: 'Nubia',
         theme: NubiaTheme.light,

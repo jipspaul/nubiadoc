@@ -32,7 +32,7 @@ class DocumentsScreen extends StatelessWidget {
     return BlocProvider(
       create: (_) =>
           getIt<DocumentBloc>()..add(const DocumentLoadRequested()),
-      child: _DocumentsBody(categories: _categories),
+      child: const _DocumentsBody(categories: _categories),
     );
   }
 }
@@ -66,6 +66,12 @@ class _DocumentsBody extends StatelessWidget {
       },
       child: Scaffold(
         appBar: AppBar(title: const Text('Mes documents')),
+        floatingActionButton: FloatingActionButton(
+          key: const Key('upload_fab'),
+          onPressed: () => context.push(RouteNames.documentUpload),
+          tooltip: 'Envoyer un document',
+          child: const Icon(Icons.upload_file_outlined),
+        ),
         body: BlocBuilder<DocumentBloc, DocumentState>(
           builder: (context, state) {
             if (state is DocumentLoading || state is DocumentInitial) {
