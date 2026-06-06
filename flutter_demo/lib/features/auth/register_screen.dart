@@ -78,8 +78,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(labelText: 'E-mail'),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Champ requis';
+                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                            .hasMatch(v.trim())) {
+                          return 'E-mail invalide';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -90,6 +96,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Champ requis';
                         if (v.length < 8) return '8 caractères minimum';
+                        if (!RegExp(r'[A-Z]').hasMatch(v)) {
+                          return '1 majuscule requise';
+                        }
+                        if (!RegExp(r'[0-9]').hasMatch(v)) {
+                          return '1 chiffre requis';
+                        }
                         return null;
                       },
                     ),
