@@ -212,3 +212,80 @@ async fn refresh_replay_of_old_token_returns_401() {
         .await
         .ok();
 }
+
+// ── Test 4 : replay → 401 + chaîne de tokens révoquée ────────────────────────
+
+#[tokio::test]
+async fn refresh_replay_revokes_entire_chain() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, token_a) = insert_user_with_token(&db).await;
+
+    // Deuxième token actif pour le même utilisateur.
+    let token_b = Uuid::new_v4().to_string();
+    sqlx::query(
+        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
+           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
+    )
+    .bind(user_id)
+    .bind(&token_b)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Révoque token_a manuellement (simule une rotation préalable ou un logout partiel).
+    sqlx::query(
+        "UPDATE refresh_token SET revoked_at = now() \
+         WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
+    )
+    .bind(&token_a)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret-refresh".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Replay de token_a (déjà révoqué) → 401.
+    let replay = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/refresh")
+                .header("Content-Type", "application/json")
+                .body(Body::from(json!({"refresh_token": token_a}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(replay.status(), StatusCode::UNAUTHORIZED);
+
+    // token_b doit maintenant être révoqué (chaîne entière révoquée).
+    let after_chain = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/refresh")
+                .header("Content-Type", "application/json")
+                .body(Body::from(json!({"refresh_token": token_b}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        after_chain.status(),
+        StatusCode::UNAUTHORIZED,
+        "token_b doit être révoqué par la détection de replay"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
