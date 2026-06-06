@@ -1,0 +1,243 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Pro Onboarding — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">Onboarding pro</h1>
+  <p style="color:var(--muted);margin-bottom:2rem;font-size:0.9rem;">
+    POST /v1/pro/register · POST /v1/pro/verification · GET /v1/pro/verification
+  </p>
+
+  <!-- Section 1 : Register -->
+  <section aria-labelledby="register-heading">
+    <h2 id="register-heading" style="margin-bottom:1rem;font-size:1.1rem;">1. POST /v1/pro/register</h2>
+    <form id="register-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <fieldset style="border:1px solid var(--border);border-radius:4px;padding:0.75rem;display:flex;flex-direction:column;gap:0.75rem;">
+        <legend style="padding:0 0.4rem;font-size:0.875rem;color:var(--muted);">Compte</legend>
+        <label>
+          Email
+          <input type="email" name="email" required
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+        <label>
+          Mot de passe
+          <input type="password" name="password" required
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--border);border-radius:4px;padding:0.75rem;display:flex;flex-direction:column;gap:0.75rem;">
+        <legend style="padding:0 0.4rem;font-size:0.875rem;color:var(--muted);">Cabinet</legend>
+        <label>
+          Raison sociale
+          <input type="text" name="cabinet_raison_sociale" required placeholder="ex : Cabinet Dr Dupont"
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+        <label>
+          Spécialité
+          <input type="text" name="cabinet_specialite" required placeholder="ex : medecine_generale"
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+        <label>
+          SIRET (optionnel)
+          <input type="text" name="cabinet_siret" placeholder="14 chiffres"
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--border);border-radius:4px;padding:0.75rem;display:flex;flex-direction:column;gap:0.75rem;">
+        <legend style="padding:0 0.4rem;font-size:0.875rem;color:var(--muted);">Praticien</legend>
+        <label>
+          Prénom
+          <input type="text" name="first_name" required
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+        <label>
+          Nom
+          <input type="text" name="last_name" required
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+        <label>
+          RPPS (optionnel)
+          <input type="text" name="rpps" placeholder="11 chiffres"
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+        <label>
+          ADELI (optionnel)
+          <input type="text" name="adeli" placeholder="9 chiffres"
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+      </fieldset>
+
+      <label style="display:flex;align-items:center;gap:0.5rem;">
+        <input type="checkbox" name="accept_cgu" id="accept_cgu" />
+        J'accepte les CGU (version 1.0)
+      </label>
+
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Créer le compte pro
+      </button>
+    </form>
+    <pre id="register-result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- Section 2 : Vérification RPPS/ADELI -->
+  <section aria-labelledby="verification-heading" style="margin-top:2.5rem;">
+    <h2 id="verification-heading" style="margin-bottom:1rem;font-size:1.1rem;">2. POST /v1/pro/verification</h2>
+    <form id="verification-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Type d'identifiant
+        <select name="id_type" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+          <option value="rpps">RPPS</option>
+          <option value="adeli">ADELI</option>
+        </select>
+      </label>
+      <label>
+        Identifiant
+        <input type="text" name="identifier" required placeholder="Numéro RPPS ou ADELI"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Soumettre la vérification
+      </button>
+    </form>
+    <pre id="verification-result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- Section 3 : Statut vérification -->
+  <section aria-labelledby="status-heading" style="margin-top:2.5rem;">
+    <h2 id="status-heading" style="margin-bottom:1rem;font-size:1.1rem;">3. GET /v1/pro/verification</h2>
+    <form id="status-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Vérifier le statut
+      </button>
+    </form>
+    <pre id="status-result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  // --- Register ---
+  const registerForm = document.getElementById('register-form') as HTMLFormElement;
+  const registerResult = document.getElementById('register-result') as HTMLPreElement;
+
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(registerForm);
+    const accept_cgu = (document.getElementById('accept_cgu') as HTMLInputElement).checked;
+    const siret = (fd.get('cabinet_siret') as string).trim() || undefined;
+    const rpps = (fd.get('rpps') as string).trim() || undefined;
+    const adeli = (fd.get('adeli') as string).trim() || undefined;
+
+    const body = {
+      email: fd.get('email') as string,
+      password: fd.get('password') as string,
+      accept_cgu,
+      cgu_version: '1.0',
+      cabinet: {
+        raison_sociale: fd.get('cabinet_raison_sociale') as string,
+        specialite: fd.get('cabinet_specialite') as string,
+        ...(siret ? { siret } : {}),
+      },
+      practitioner: {
+        first_name: fd.get('first_name') as string,
+        last_name: fd.get('last_name') as string,
+        ...(rpps ? { rpps } : {}),
+        ...(adeli ? { adeli } : {}),
+      },
+    };
+
+    registerResult.className = '';
+    registerResult.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/pro/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      registerResult.className = status < 300 ? 'success' : 'error';
+      registerResult.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    } catch (err) {
+      registerResult.className = 'error';
+      registerResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // --- Vérification POST ---
+  const verificationForm = document.getElementById('verification-form') as HTMLFormElement;
+  const verificationResult = document.getElementById('verification-result') as HTMLPreElement;
+
+  verificationForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(verificationForm);
+    const access_token = (fd.get('access_token') as string).trim();
+
+    verificationResult.className = '';
+    verificationResult.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/pro/verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${access_token}`,
+        },
+        body: JSON.stringify({
+          id_type: fd.get('id_type') as string,
+          identifier: fd.get('identifier') as string,
+        }),
+      });
+      verificationResult.className = status < 300 ? 'success' : 'error';
+      verificationResult.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    } catch (err) {
+      verificationResult.className = 'error';
+      verificationResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // --- Statut GET ---
+  const statusForm = document.getElementById('status-form') as HTMLFormElement;
+  const statusResult = document.getElementById('status-result') as HTMLPreElement;
+
+  statusForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(statusForm);
+    const access_token = (fd.get('access_token') as string).trim();
+
+    statusResult.className = '';
+    statusResult.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/pro/verification', {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
+      statusResult.className = status < 300 ? 'success' : 'error';
+      statusResult.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    } catch (err) {
+      statusResult.className = 'error';
+      statusResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
