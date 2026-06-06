@@ -1,0 +1,279 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Cabinet Slots — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">Créneaux cabinet — §13 Back-office</h1>
+  <p style="color:var(--muted);margin-bottom:2rem;">
+    POST /v1/cabinet/slots · PATCH/DELETE /v1/cabinet/slots/{"{id}"} · PUT /v1/cabinet/slots/{"{id}"}/online
+    — Rôle requis : <code>pro</code>
+  </p>
+
+  <section aria-labelledby="create-heading">
+    <h2 id="create-heading" style="margin-bottom:1rem;">Ouvrir un créneau — POST /v1/cabinet/slots</h2>
+    <form id="slots-create-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Practitioner ID
+        <input type="text" name="practitioner_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Début
+        <input type="datetime-local" name="starts_at" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Fin
+        <input type="datetime-local" name="ends_at" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Statut
+        <select name="status"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+          <option value="open">open</option>
+          <option value="blocked">blocked</option>
+        </select>
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        POST
+      </button>
+    </form>
+    <p id="create-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="create-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <section aria-labelledby="patch-heading" style="margin-top:2.5rem;">
+    <h2 id="patch-heading" style="margin-bottom:1rem;">Modifier un créneau — PATCH /v1/cabinet/slots/{"{id}"}</h2>
+    <form id="slots-patch-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Slot ID
+        <input type="text" name="slot_id" required placeholder="uuid du créneau"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Début (optionnel)
+        <input type="datetime-local" name="starts_at"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Fin (optionnel)
+        <input type="datetime-local" name="ends_at"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Motif (optionnel)
+        <input type="text" name="motif" placeholder="consultation, urgence…"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        PATCH
+      </button>
+    </form>
+    <p id="patch-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="patch-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <section aria-labelledby="delete-heading" style="margin-top:2.5rem;">
+    <h2 id="delete-heading" style="margin-bottom:1rem;">Supprimer un créneau — DELETE /v1/cabinet/slots/{"{id}"}</h2>
+    <form id="slots-delete-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Slot ID
+        <input type="text" name="slot_id" required placeholder="uuid du créneau"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:#991b1b;color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        DELETE
+      </button>
+    </form>
+    <p id="delete-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="delete-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <section aria-labelledby="online-heading" style="margin-top:2.5rem;">
+    <h2 id="online-heading" style="margin-bottom:1rem;">Exposer en ligne — PUT /v1/cabinet/slots/{"{id}"}/online</h2>
+    <form id="slots-online-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Slot ID
+        <input type="text" name="slot_id" required placeholder="uuid du créneau"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Exposé en ligne
+        <select name="online" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+          <option value="true">Oui (true)</option>
+          <option value="false">Non (false)</option>
+        </select>
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        PUT
+      </button>
+    </form>
+    <p id="online-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="online-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  function showResult(
+    resultEl: HTMLPreElement,
+    badgeEl: HTMLParagraphElement,
+    httpStatus: number,
+    data: unknown,
+  ): void {
+    resultEl.className = httpStatus < 300 ? 'success' : 'error';
+    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+    badgeEl.style.display = 'block';
+  }
+
+  // POST /v1/cabinet/slots
+  const createForm = document.getElementById('slots-create-form') as HTMLFormElement;
+  const createResult = document.getElementById('create-result') as HTMLPreElement;
+  const createBadge = document.getElementById('create-badge') as HTMLParagraphElement;
+
+  createForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(createForm);
+    const access_token = fd.get('access_token') as string;
+    const body: Record<string, unknown> = {
+      practitioner_id: fd.get('practitioner_id') as string,
+      starts_at: new Date(fd.get('starts_at') as string).toISOString(),
+      ends_at: new Date(fd.get('ends_at') as string).toISOString(),
+      status: fd.get('status') as string,
+    };
+    createResult.className = '';
+    createResult.textContent = 'Chargement…';
+    createBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch('/v1/cabinet/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+        body: JSON.stringify(body),
+      });
+      showResult(createResult, createBadge, status, data);
+    } catch (err) {
+      createResult.className = 'error';
+      createResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // PATCH /v1/cabinet/slots/{id}
+  const patchForm = document.getElementById('slots-patch-form') as HTMLFormElement;
+  const patchResult = document.getElementById('patch-result') as HTMLPreElement;
+  const patchBadge = document.getElementById('patch-badge') as HTMLParagraphElement;
+
+  patchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(patchForm);
+    const access_token = fd.get('access_token') as string;
+    const slot_id = fd.get('slot_id') as string;
+    const body: Record<string, unknown> = {};
+    const starts_at = fd.get('starts_at') as string;
+    const ends_at = fd.get('ends_at') as string;
+    const motif = fd.get('motif') as string;
+    if (starts_at) body.starts_at = new Date(starts_at).toISOString();
+    if (ends_at) body.ends_at = new Date(ends_at).toISOString();
+    if (motif) body.motif = motif;
+    patchResult.className = '';
+    patchResult.textContent = 'Chargement…';
+    patchBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/slots/${slot_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+        body: JSON.stringify(body),
+      });
+      showResult(patchResult, patchBadge, status, data);
+    } catch (err) {
+      patchResult.className = 'error';
+      patchResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // DELETE /v1/cabinet/slots/{id}
+  const deleteForm = document.getElementById('slots-delete-form') as HTMLFormElement;
+  const deleteResult = document.getElementById('delete-result') as HTMLPreElement;
+  const deleteBadge = document.getElementById('delete-badge') as HTMLParagraphElement;
+
+  deleteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(deleteForm);
+    const access_token = fd.get('access_token') as string;
+    const slot_id = fd.get('slot_id') as string;
+    deleteResult.className = '';
+    deleteResult.textContent = 'Chargement…';
+    deleteBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/slots/${slot_id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
+      showResult(deleteResult, deleteBadge, status, data);
+    } catch (err) {
+      deleteResult.className = 'error';
+      deleteResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // PUT /v1/cabinet/slots/{id}/online
+  const onlineForm = document.getElementById('slots-online-form') as HTMLFormElement;
+  const onlineResult = document.getElementById('online-result') as HTMLPreElement;
+  const onlineBadge = document.getElementById('online-badge') as HTMLParagraphElement;
+
+  onlineForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(onlineForm);
+    const access_token = fd.get('access_token') as string;
+    const slot_id = fd.get('slot_id') as string;
+    const online = fd.get('online') === 'true';
+    onlineResult.className = '';
+    onlineResult.textContent = 'Chargement…';
+    onlineBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/slots/${slot_id}/online`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+        body: JSON.stringify({ online }),
+      });
+      showResult(onlineResult, onlineBadge, status, data);
+    } catch (err) {
+      onlineResult.className = 'error';
+      onlineResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
