@@ -12,6 +12,7 @@ class DashboardBody extends StatelessWidget {
   const DashboardBody({
     super.key,
     required this.summary,
+    required this.onRefresh,
     required this.onAppointmentTap,
     required this.onDocumentsTap,
     required this.onPaymentsTap,
@@ -20,6 +21,9 @@ class DashboardBody extends StatelessWidget {
   });
 
   final DashboardSummary summary;
+
+  /// Appelé par le [RefreshIndicator] lors d'un pull-to-refresh.
+  final Future<void> Function() onRefresh;
   final VoidCallback onAppointmentTap;
   final VoidCallback onDocumentsTap;
   final VoidCallback onPaymentsTap;
@@ -28,7 +32,9 @@ class DashboardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         DashboardTile(
@@ -63,6 +69,7 @@ class DashboardBody extends StatelessWidget {
         ),
         const SizedBox(height: 16),
       ],
+      ),
     );
   }
 
