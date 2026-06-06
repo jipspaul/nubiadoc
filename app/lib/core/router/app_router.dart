@@ -9,12 +9,14 @@ import 'package:nubia_patient/domain/entities/appointment.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/appointment_cancel_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/appointment_modify_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/booking_bloc.dart';
+import 'package:nubia_patient/presentation/features/appointments/bloc/checkin_bloc.dart';
 import 'package:nubia_patient/presentation/features/signature/bloc/signature_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_cancel_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_detail_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_modify_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointments_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/booking_screen.dart';
+import 'package:nubia_patient/presentation/features/appointments/pages/checkin_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/login_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/register_screen.dart';
 import 'package:nubia_patient/domain/entities/document.dart';
@@ -230,6 +232,17 @@ class AppRouter {
             return BlocProvider(
               create: (_) => getIt<AppointmentCancelBloc>(),
               child: AppointmentCancelScreen(appointment: appointment),
+            );
+          },
+        ),
+        GoRoute(
+          path: RouteNames.appointmentCheckin,
+          name: 'appointment-checkin',
+          builder: (_, state) {
+            final appointment = state.extra! as Appointment;
+            return BlocProvider(
+              create: (_) => getIt<CheckinBloc>(),
+              child: CheckinScreen(appointment: appointment),
             );
           },
         ),
