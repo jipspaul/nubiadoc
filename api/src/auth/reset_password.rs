@@ -4,9 +4,9 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
 };
-use axum::{extract::State, Json};
+use axum::{extract::State, http::StatusCode, Json};
+use chrono::Utc;
 use serde::Deserialize;
-use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -23,27 +23,36 @@ pub struct ResetPasswordBody {
 
 /// `POST /v1/auth/password/reset` — finalise le reset via un token à usage unique.
 ///
-/// Vérifie le token (SHA-256, non expiré), met à jour `password_hash`,
-/// puis invalide le token (`NULL`). Token inexistant ou expiré → `422`.
+/// Vérifie le token (SHA-256) : inconnu → `404`, expiré → `410`, valide → change
+/// `password_hash` (argon2id), révoque tous les refresh tokens de l'utilisateur
+/// (forcé logout), invalide le token (`NULL`). Retourne `204`.
 pub async fn reset_password(
     State(state): State<AppState>,
     Json(body): Json<ResetPasswordBody>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<StatusCode, AppError> {
     if body.new_password.len() < 8 || !body.new_password.chars().any(|c| c.is_ascii_digit()) {
         return Err(AppError::PasswordPolicy);
     }
 
+    // Recherche le token sans filtrer sur l'expiration pour distinguer les cas.
     let row = sqlx::query(
-        "SELECT id FROM app_user \
-         WHERE password_reset_token = encode(digest($1, 'sha256'), 'hex') \
-           AND password_reset_expires_at > now()",
+        "SELECT id, password_reset_expires_at FROM app_user \
+         WHERE password_reset_token = encode(digest($1, 'sha256'), 'hex')",
     )
     .bind(&body.token)
     .fetch_optional(&state.db)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let row = row.ok_or(AppError::InvalidToken)?;
+    let row = row.ok_or(AppError::NotFound)?;
+
+    let expires_at: chrono::DateTime<Utc> = row
+        .try_get("password_reset_expires_at")
+        .map_err(|_| AppError::Internal)?;
+    if expires_at <= Utc::now() {
+        return Err(AppError::LinkExpired);
+    }
+
     let user_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
     let salt = SaltString::generate(&mut OsRng);
@@ -51,6 +60,8 @@ pub async fn reset_password(
         .hash_password(body.new_password.as_bytes(), &salt)
         .map_err(|_| AppError::Internal)?
         .to_string();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "UPDATE app_user \
@@ -62,9 +73,23 @@ pub async fn reset_password(
     )
     .bind(&password_hash)
     .bind(user_id)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    Ok(Json(json!({"message": "Mot de passe réinitialisé."})))
+    // Révoque toutes les sessions actives (forcé logout sur tous les appareils).
+    sqlx::query(
+        "UPDATE refresh_token SET revoked_at = now() \
+         WHERE app_user_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(user_id = %user_id, "password reset and sessions revoked");
+
+    Ok(StatusCode::NO_CONTENT)
 }

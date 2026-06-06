@@ -113,7 +113,6 @@ pub(crate) enum AppError {
     CguRequired,
     PasswordPolicy,
     Forbidden,
-    InvalidToken,
     Conflict,
     NotFound,
     ProviderNotVerified,
@@ -171,11 +170,6 @@ impl IntoResponse for AppError {
             AppError::Forbidden => {
                 (StatusCode::FORBIDDEN, Json(json!({"code": "forbidden"}))).into_response()
             }
-            AppError::InvalidToken => (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(json!({"code": "validation_error", "detail": "Token invalide ou expiré."})),
-            )
-                .into_response(),
             AppError::Conflict => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "verification_pending"})),
