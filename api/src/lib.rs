@@ -234,8 +234,20 @@ pub fn app_with_dispatcher(
         )
         .route("/v1/cabinet/agenda", get(scheduling::get_cabinet_agenda))
         .route(
+            "/v1/cabinet/waiting-room",
+            get(scheduling::get_waiting_room),
+        )
+        .route(
             "/v1/cabinet/waiting-room/call-next",
             post(scheduling::call_next_patient),
+        )
+        .route(
+            "/v1/cabinet/waiting-list",
+            get(scheduling::get_waiting_list),
+        )
+        .route(
+            "/v1/cabinet/waiting-list/:id/offer",
+            post(scheduling::offer_waiting_list_slot),
         )
         .route("/v1/dashboard", get(dashboard::get_dashboard))
         .route(
