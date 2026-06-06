@@ -8,13 +8,34 @@ use axum::extract::{Json, State};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Deserialize;
 use sqlx::Row;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
 use crate::AppState;
 
 use super::{AppError, LoginResponse, PatientClaims, ProClaims};
+
+const RATE_MAX_ATTEMPTS: u32 = 10;
+const RATE_WINDOW: Duration = Duration::from_secs(300);
+
+static LOGIN_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn is_rate_limited(email: &str) -> bool {
+    let mut map = LOGIN_RATE.lock().unwrap_or_else(|e| e.into_inner());
+    let now = Instant::now();
+    let entry = map.entry(email.to_lowercase()).or_insert((0, now));
+    if now.duration_since(entry.1) >= RATE_WINDOW {
+        *entry = (1, now);
+        false
+    } else {
+        entry.0 += 1;
+        entry.0 > RATE_MAX_ATTEMPTS
+    }
+}
 
 /// Corps de la requête `POST /v1/auth/login`.
 #[derive(Deserialize)]
@@ -32,6 +53,10 @@ pub async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginBody>,
 ) -> Result<Json<LoginResponse>, AppError> {
+    if is_rate_limited(&body.email) {
+        return Err(AppError::TooManyRequests);
+    }
+
     let row = sqlx::query(
         "SELECT id, password_hash, kind, totp_enabled, totp_secret \
          FROM app_user WHERE email = $1",

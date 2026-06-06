@@ -21,7 +21,7 @@ async fn test_state() -> Option<AppState> {
 }
 
 #[tokio::test]
-async fn reset_valid_token_updates_password() {
+async fn reset_valid_token_returns_204_and_updates_password() {
     let Some(state) = test_state().await else {
         return;
     };
@@ -55,13 +55,7 @@ async fn reset_valid_token_updates_password() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
-
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["message"], "Mot de passe réinitialisé.");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     let row =
         sqlx::query("SELECT password_hash, password_reset_token FROM app_user WHERE email = $1")
@@ -87,7 +81,7 @@ async fn reset_valid_token_updates_password() {
 }
 
 #[tokio::test]
-async fn reset_expired_token_returns_422() {
+async fn reset_expired_token_returns_410_link_expired() {
     let Some(state) = test_state().await else {
         return;
     };
@@ -121,14 +115,13 @@ async fn reset_expired_token_returns_422() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(response.status(), StatusCode::GONE);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["code"], "validation_error");
-    assert_eq!(v["detail"], "Token invalide ou expiré.");
+    assert_eq!(v["code"], "link_expired");
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
@@ -138,7 +131,7 @@ async fn reset_expired_token_returns_422() {
 }
 
 #[tokio::test]
-async fn reset_unknown_token_returns_422() {
+async fn reset_unknown_token_returns_404() {
     let Some(state) = test_state().await else {
         return;
     };
@@ -157,12 +150,11 @@ async fn reset_unknown_token_returns_422() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["code"], "validation_error");
-    assert_eq!(v["detail"], "Token invalide ou expiré.");
+    assert_eq!(v["code"], "not_found");
 }

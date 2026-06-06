@@ -1,0 +1,117 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Profil — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/me — Profil utilisateur</h1>
+  <form id="me-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      GET
+    </button>
+  </form>
+
+  <section id="profile" style="display:none;margin-top:1.5rem;">
+    <h2 style="margin-bottom:1rem;font-size:1rem;">Profil</h2>
+    <dl style="display:grid;grid-template-columns:max-content 1fr;gap:0.5rem 1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;">
+      <dt style="color:var(--muted);">user_id</dt>
+      <dd id="field-user_id">—</dd>
+      <dt style="color:var(--muted);">email</dt>
+      <dd id="field-email">—</dd>
+      <dt style="color:var(--muted);">kind</dt>
+      <dd id="field-kind">—</dd>
+      <dt id="label-account_id" style="color:var(--muted);display:none;">account_id</dt>
+      <dd id="field-account_id" style="display:none;">—</dd>
+    </dl>
+  </section>
+
+  <section id="memberships-section" style="display:none;margin-top:1.5rem;">
+    <h2 style="margin-bottom:1rem;font-size:1rem;">Memberships</h2>
+    <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:4px;">
+      <thead>
+        <tr>
+          <th style="padding:0.5rem 1rem;text-align:left;color:var(--muted);border-bottom:1px solid var(--border);">cabinet_id</th>
+          <th style="padding:0.5rem 1rem;text-align:left;color:var(--muted);border-bottom:1px solid var(--border);">role</th>
+        </tr>
+      </thead>
+      <tbody id="memberships-body"></tbody>
+    </table>
+  </section>
+
+  <pre id="result" style="margin-top:1.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  interface Membership { cabinet_id: string; role: string; }
+  interface MeResponse {
+    user_id: string;
+    email: string;
+    kind: 'patient' | 'pro';
+    account_id?: string;
+    memberships?: Membership[];
+  }
+
+  const form = document.getElementById('me-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const profile = document.getElementById('profile') as HTMLElement;
+  const membershipsSection = document.getElementById('memberships-section') as HTMLElement;
+  const membershipsBody = document.getElementById('memberships-body') as HTMLTableSectionElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    profile.style.display = 'none';
+    membershipsSection.style.display = 'none';
+
+    try {
+      const { status, data } = await apiFetch('/v1/me', {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
+
+      result.className = status < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+
+      if (status === 200 && data) {
+        const me = data as MeResponse;
+        (document.getElementById('field-user_id') as HTMLElement).textContent = me.user_id ?? '—';
+        (document.getElementById('field-email') as HTMLElement).textContent = me.email ?? '—';
+        (document.getElementById('field-kind') as HTMLElement).textContent = me.kind ?? '—';
+        profile.style.display = '';
+
+        if (me.kind === 'patient' && me.account_id) {
+          const labelAccountId = document.getElementById('label-account_id') as HTMLElement;
+          const fieldAccountId = document.getElementById('field-account_id') as HTMLElement;
+          fieldAccountId.textContent = me.account_id;
+          labelAccountId.style.display = '';
+          fieldAccountId.style.display = '';
+        }
+
+        if (me.kind === 'pro' && me.memberships?.length) {
+          membershipsBody.innerHTML = me.memberships.map((m) =>
+            `<tr><td style="padding:0.5rem 1rem;border-bottom:1px solid var(--border);">${m.cabinet_id}</td><td style="padding:0.5rem 1rem;border-bottom:1px solid var(--border);">${m.role}</td></tr>`
+          ).join('');
+          membershipsSection.style.display = '';
+        }
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>

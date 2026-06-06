@@ -21,7 +21,7 @@ async fn test_state() -> Option<AppState> {
 }
 
 #[tokio::test]
-async fn forgot_password_known_email_returns_200_and_sets_token() {
+async fn forgot_password_known_email_returns_204_and_sets_token() {
     let Some(state) = test_state().await else {
         return;
     };
@@ -47,13 +47,7 @@ async fn forgot_password_known_email_returns_200_and_sets_token() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
-
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["message"], "Si un compte existe, un email a été envoyé.");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     let row = sqlx::query("SELECT password_reset_token FROM app_user WHERE email = $1")
         .bind(&email)
@@ -75,7 +69,7 @@ async fn forgot_password_known_email_returns_200_and_sets_token() {
 }
 
 #[tokio::test]
-async fn forgot_password_unknown_email_returns_200_neutral() {
+async fn forgot_password_unknown_email_returns_204_neutral() {
     let Some(state) = test_state().await else {
         return;
     };
@@ -92,11 +86,5 @@ async fn forgot_password_unknown_email_returns_200_neutral() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
-
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["message"], "Si un compte existe, un email a été envoyé.");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
 }

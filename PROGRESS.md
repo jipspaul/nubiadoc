@@ -44,14 +44,22 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 | Design (flux/copy/a11y/handoff) | Reste du dossier `design/` ; handoff à étendre aux écrans praticien | 🟨 |
 | Specs API vs maquettes | `docs/05` §10, `06` E4.6-E4.10/WS7, `07` §8.6-8.7 alignés | ✅ |
 | Référence API | `docs/12-api-reference.md` (toutes les routes/contrats) | ✅ |
-| Gestion DB | `db/` : migrations `0001→0012` + tests pgTAP + seed + Makefile + CI Forgejo + SCHEMA.md | ✅ (SQL exécutable ; `make test` vert from scratch — 118 tests) |
+| Gestion DB | `db/` : migrations `0001→0050` + tests pgTAP + seed + Makefile + CI Forgejo + SCHEMA.md | ✅ (SQL exécutable ; `make test` vert from scratch — 369 tests) |
 | T0 | Repo + CI (Forgejo) + infra POC | 🟨 scaffold Rust/Axum à créer + CI `api/` Forgejo |
 | T1 | Multi-tenant + RLS | ⬜ à implémenter en Rust/SQLx |
-| T2 | Auth + RBAC | 🟨 (register ✅, login ✅, refresh ✅, logout ✅, forgot/reset password ✅, MFA verify ✅) |
+| T2 | Auth + RBAC | 🟨 (register ✅, login ✅, refresh ✅, logout ✅, forgot ✅ 204, reset ✅ 204/404/410 + logout, MFA verify ✅) |
 | T3 | crypto + audit + tenancy | ⬜ (tenancy fait) |
 | T4-T24 | Domaines, wedge, démo, prod | ⬜ |
 
 ## Dernier point
+
+2026-06-06 — **`POST /v1/auth/password/forgot` + `POST /v1/auth/password/reset` alignés (issue #726).** `forgot` renvoie désormais `204` (anti-énumération, plus de corps JSON). `reset` distingue token inconnu → `404`, token expiré → `410 link_expired` ; révoque tous les refresh tokens de l'utilisateur après reset (forcé logout) ; renvoie `204`. `AppError::InvalidToken` (devenu mort) supprimé. Tests mis à jour : 5 tests forgot/reset + 129/129 tous verts. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo sqlx prepare --check` clean.
+
+2026-06-06 — **DB `db/` : tests pgTAP auth/account — schéma, RLS, contraintes, cycle consent (issue #732).** Quatre nouveaux fichiers pgTAP : `11_auth_schema.sql` (51 tests — types, defaults, nullable pour app_user/patient_account/refresh_token/mfa_enrollment/consent_record/notification_preference) ; `12_auth_rls.sql` (12 tests — fail-closed + ⭐ isolation WRITE UPDATE inter-user/inter-compte, complète 03_rls.sql) ; `13_auth_constraints.sql` (9 tests — FK ON DELETE CASCADE via catalogue, UNIQUE email citext, UNIQUE consent, UNIQUE notif_pref) ; `14_auth_consent.sql` (9 tests — cycle grant→revoke→re-grant, idempotence, multi-purpose, FK). Makefile inchangé (`tests/*.sql` auto-découvert). 369/369 tests verts (`make test`).
+
+2026-06-06 — **DB `db/` : migrations `refresh_token` RLS + `mfa_enrollment` + pgTAP (issue #719).** Migration `0046` : table `mfa_enrollment` (id uuid PK, app_user_id FK, secret_ciphertext bytea, secret_key_ref text, method totp, verified bool, enrolled_at ; index `idx_mfa_enrollment_app_user_id` ; GRANT nubia_app/seed). Migration `0047` : ENABLE + FORCE ROW LEVEL SECURITY sur `refresh_token` (existant, sans RLS) et `mfa_enrollment` ; policies user-scoped (`app.current_user_id`, fail-closed via `nullif(..., true)`) ; seed policies pour nubia_seed. Tests pgTAP : 15 tests schéma + RLS dans `00_schema.sql` ; 18 tests isolation dans `09_refresh_mfa_rls.sql` (fail-closed ×2, non-fuite ×4, unicité token_hash, FK ×2). 263/263 tests verts. `make seed verify-rls lint` verts.
+
+2026-06-06 — **`POST /v1/auth/refresh` — rotation de refresh token (issue #723).** Handler existant dans `api/src/auth/refresh.rs` (logique complète). Ajout du test manquant `refresh_expired_token_returns_401` (token expiré → 401) dans `api/tests/auth_refresh.rs` pour couvrir tous les critères "Done when" de l'issue. Couverture totale : happy path (200 + nouveaux tokens), token expiré (401), token révoqué (401), replay (401 + chaîne entière révoquée). 129/129 tests verts. `cargo fmt --check` + `cargo clippy -D warnings` clean.
 
 2026-06-06 — **`GET /v1/quotes` implémenté (issue #592).** Nouveau module `api/src/billing.rs`. Handler `list_quotes` : token patient requis (`PatientAccountClaims` → 403 pro, 401 sans token). RLS via `SET LOCAL app.patient_account_id` (policy `quote_patient_read`, migration 0029) — le patient voit ses devis tous cabinets confondus. Filtre `?status=` optionnel. Pagination cursor-based (`limit` + `cursor`), tri `created_at DESC`. Montants en centimes (`amount_cents = total_amount * 100`). Réponse `{ data:[], page:{next_cursor, limit} }`. Route `/v1/quotes` ajoutée dans `app_with_dispatcher`. `.sqlx/` régénéré (`--all-targets`). 125/125 tests verts. `cargo fmt --check` + `cargo clippy -D warnings` + `cargo sqlx prepare --check` clean.
 

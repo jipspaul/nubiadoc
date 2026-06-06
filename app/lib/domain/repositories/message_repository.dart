@@ -11,4 +11,14 @@ abstract class MessageRepository {
     List<String> attachmentIds = const [],
   });
   Future<Either<Failure, void>> markRead(String conversationId);
+
+  /// Uploads a photo as a document attachment.
+  ///
+  /// Returns the newly created document ID which can be passed as an
+  /// `attachmentId` when calling [send].
+  Future<Either<Failure, String>> uploadAttachment({
+    required String filePath,
+    required String filename,
+    required String mimeType,
+  });
 }

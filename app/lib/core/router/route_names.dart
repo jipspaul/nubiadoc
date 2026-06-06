@@ -12,6 +12,10 @@ class RouteNames {
   static const String messages = '/messages';            // Messages
   static const String documents = '/documents';          // Documents + finances
   static const String profile = '/profile';              // Profil
+  static const String profileHealthCoverage = '/profile/health-coverage';
+  static const String profileDependents = '/profile/dependents';
+  static const String profileCabinetInfo = '/profile/cabinet-info';
+  static const String notifications = '/notifications';  // Notifications
 
   // Nested
   static const String appointmentDetail = '/appointments/:id';
@@ -21,6 +25,7 @@ class RouteNames {
   static const String appointmentCancel = '/appointments/:id/cancel';
   static const String messageThread = '/messages/:id';
   static const String documentDetail = '/documents/:id';
+  static const String documentUpload = '/documents/upload';
   static const String signatureFlow = '/documents/:id/sign';
   static const String paymentFlow = '/billing/quotes/:id/pay';
 }

@@ -12,6 +12,7 @@ class DocumentBloc extends Bloc<DocumentEvent, DocumentState> {
     on<DocumentLoadRequested>(_onLoadRequested);
     on<DocumentCategorySelected>(_onCategorySelected);
     on<DocumentSignedUrlRequested>(_onSignedUrlRequested);
+    on<DocumentUploadRequested>(_onUploadRequested);
   }
 
   Future<void> _onLoadRequested(
@@ -45,6 +46,23 @@ class DocumentBloc extends Bloc<DocumentEvent, DocumentState> {
     result.fold(
       (failure) => emit(DocumentSignedUrlError(failure.message)),
       (url) => emit(DocumentSignedUrlReady(documentId: event.documentId, url: url)),
+    );
+  }
+
+  Future<void> _onUploadRequested(
+    DocumentUploadRequested event,
+    Emitter<DocumentState> emit,
+  ) async {
+    emit(const DocumentUploading());
+    final result = await _repository.upload(
+      filePath: event.filePath,
+      filename: event.filename,
+      mimeType: event.mimeType,
+      category: event.category,
+    );
+    result.fold(
+      (failure) => emit(DocumentUploadFailure(failure.message)),
+      (document) => emit(DocumentUploadSuccess(document)),
     );
   }
 }

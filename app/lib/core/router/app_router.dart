@@ -17,13 +17,22 @@ import 'package:nubia_patient/presentation/features/appointments/pages/appointme
 import 'package:nubia_patient/presentation/features/appointments/pages/booking_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/login_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/register_screen.dart';
+import 'package:nubia_patient/domain/entities/document.dart';
+import 'package:nubia_patient/presentation/features/documents/pages/document_detail_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_sign_screen.dart';
+import 'package:nubia_patient/presentation/features/documents/pages/document_upload_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/documents_screen.dart';
 import 'package:nubia_patient/presentation/features/home/pages/home_screen.dart';
 import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_bloc.dart';
 import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_event.dart';
 import 'package:nubia_patient/presentation/features/messaging/pages/message_thread_screen.dart';
 import 'package:nubia_patient/presentation/features/messaging/pages/messages_screen.dart';
+import 'package:nubia_patient/presentation/features/notifications/pages/notifications_screen.dart';
+import 'package:nubia_patient/presentation/features/profile/bloc/profile_bloc.dart';
+import 'package:nubia_patient/presentation/features/profile/bloc/profile_event.dart';
+import 'package:nubia_patient/presentation/features/profile/pages/cabinet_info_screen.dart';
+import 'package:nubia_patient/presentation/features/profile/pages/dependents_screen.dart';
+import 'package:nubia_patient/presentation/features/profile/pages/health_coverage_screen.dart';
 import 'package:nubia_patient/presentation/features/profile/pages/profile_screen.dart';
 
 /// Top-level router.
@@ -116,6 +125,31 @@ class AppRouter {
                   path: RouteNames.profile,
                   name: 'profile',
                   builder: (_, __) => const ProfileScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'health-coverage',
+                      name: 'profile-health-coverage',
+                      builder: (context, __) => BlocProvider(
+                        create: (_) => getIt<ProfileBloc>()
+                          ..add(const ProfileLoadRequested()),
+                        child: const HealthCoverageScreen(),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'dependents',
+                      name: 'profile-dependents',
+                      builder: (context, __) => BlocProvider(
+                        create: (_) => getIt<ProfileBloc>()
+                          ..add(const ProfileLoadRequested()),
+                        child: const DependentsScreen(),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'cabinet-info',
+                      name: 'profile-cabinet-info',
+                      builder: (_, __) => const CabinetInfoScreen(),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -132,6 +166,19 @@ class AppRouter {
           builder: (_, state) => AppointmentDetailScreen(
             id: state.pathParameters['id']!,
           ),
+        ),
+        GoRoute(
+          path: RouteNames.documentUpload,
+          name: 'document-upload',
+          builder: (_, __) => const DocumentUploadScreen(),
+        ),
+        GoRoute(
+          path: RouteNames.documentDetail,
+          name: 'document-detail',
+          builder: (_, state) {
+            final document = state.extra! as Document;
+            return DocumentDetailScreen(document: document);
+          },
         ),
         GoRoute(
           path: RouteNames.signatureFlow,
@@ -191,6 +238,11 @@ class AppRouter {
             );
           },
         ),
+        GoRoute(
+          path: RouteNames.notifications,
+          name: 'notifications',
+          builder: (_, __) => const NotificationsScreen(),
+        ),
       ],
     );
   }
@@ -221,5 +273,4 @@ class AppRouter {
     };
   }
 }
-
 
