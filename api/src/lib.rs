@@ -225,10 +225,7 @@ pub fn app_with_dispatcher(
             "/v1/conversations/:id/messages",
             get(messaging::get_conversation_messages).post(messaging::send_message),
         )
-        .route(
-            "/v1/cabinet/patients",
-            get(clinical::list_cabinet_patients),
-        )
+        .route("/v1/cabinet/patients", get(clinical::list_cabinet_patients))
         .route("/v1/cabinet/agenda", get(scheduling::get_cabinet_agenda))
         .route(
             "/v1/cabinet/waiting-room/call-next",
