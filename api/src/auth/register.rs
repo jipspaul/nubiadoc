@@ -11,12 +11,33 @@ use axum::{
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 use crate::AppState;
 
 use super::{is_unique_violation, AppError, PatientClaims};
+
+const RATE_MAX_ATTEMPTS: u32 = 5;
+const RATE_WINDOW: Duration = Duration::from_secs(600);
+
+static REGISTER_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn is_rate_limited(email: &str) -> bool {
+    let mut map = REGISTER_RATE.lock().unwrap_or_else(|e| e.into_inner());
+    let now = Instant::now();
+    let entry = map.entry(email.to_lowercase()).or_insert((0, now));
+    if now.duration_since(entry.1) >= RATE_WINDOW {
+        *entry = (1, now);
+        false
+    } else {
+        entry.0 += 1;
+        entry.0 > RATE_MAX_ATTEMPTS
+    }
+}
 
 /// Corps de la requête `POST /v1/auth/register`.
 #[derive(Deserialize)]
@@ -40,6 +61,9 @@ pub async fn register(
     State(state): State<AppState>,
     Json(body): Json<RegisterBody>,
 ) -> Result<(StatusCode, Json<RegisterResponse>), AppError> {
+    if is_rate_limited(&body.email) {
+        return Err(AppError::TooManyRequests);
+    }
     if !body.accept_cgu {
         return Err(AppError::CguRequired);
     }
