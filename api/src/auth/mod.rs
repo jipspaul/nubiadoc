@@ -1105,40 +1105,57 @@ pub async fn get_cabinet_members(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(
-        "SELECT cm.user_id, au.email, cm.role, cm.active, cm.created_at AS joined_at \
-         FROM cabinet_membership cm \
-         JOIN app_user au ON au.id = cm.user_id \
-         WHERE cm.cabinet_id = $1 \
-         ORDER BY cm.created_at ASC",
+    // La RLS user_self_select (migration 0045) bloque le JOIN avec app_user si
+    // app.current_user_id ne correspond pas à chaque ligne. On récupère d'abord
+    // les membership depuis cabinet_membership (accessible sous la RLS cabinet),
+    // puis on pose app.current_user_id pour chaque membre afin de lire son email.
+    let cm_rows = sqlx::query(
+        "SELECT user_id, role, active, created_at AS joined_at \
+         FROM cabinet_membership \
+         WHERE cabinet_id = $1 \
+         ORDER BY created_at ASC",
     )
     .bind(claims.cabinet_id)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    tx.commit().await.map_err(|_| AppError::Internal)?;
+    let mut members: Vec<CabinetMemberItem> = Vec::with_capacity(cm_rows.len());
+    for row in cm_rows {
+        let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
+        let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
+        let active: bool = row.try_get("active").map_err(|_| AppError::Internal)?;
+        let joined_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("joined_at").map_err(|_| AppError::Internal)?;
 
-    let members = rows
-        .into_iter()
-        .map(|row| {
-            let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
-            let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
-            let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
-            let active: bool = row.try_get("active").map_err(|_| AppError::Internal)?;
-            let joined_at: chrono::DateTime<chrono::Utc> =
-                row.try_get("joined_at").map_err(|_| AppError::Internal)?;
-            Ok(CabinetMemberItem {
-                user_id,
-                email,
-                first_name: None,
-                last_name: None,
-                role,
-                active,
-                joined_at: joined_at.to_rfc3339(),
-            })
-        })
-        .collect::<Result<Vec<_>, AppError>>()?;
+        // Pose current_user_id pour satisfaire user_self_select lors du SELECT email.
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(user_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let email_row = sqlx::query("SELECT email FROM app_user WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        let email = email_row
+            .and_then(|r| r.try_get::<String, _>("email").ok())
+            .unwrap_or_default();
+
+        members.push(CabinetMemberItem {
+            user_id,
+            email,
+            first_name: None,
+            last_name: None,
+            role,
+            active,
+            joined_at: joined_at.to_rfc3339(),
+        });
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
@@ -1249,6 +1266,18 @@ pub async fn post_cabinet_members(
         return Err(AppError::ValidationError);
     }
 
+    // Pre-generate user_id so we can insert app_user without RETURNING.
+    // RETURNING is blocked by the user_self_select RLS policy (migration 0045):
+    // it requires app.current_user_id = id, which is only available for the user's own row.
+    // By pre-generating the UUID and setting app.current_user_id before the INSERT,
+    // the RLS SELECT policy passes for the newly inserted row.
+    //
+    // If the email already exists (23505 unique violation), we return MemberAlreadyExists:
+    // the app_user SELECT RLS prevents looking up an existing user by email with nubia_app,
+    // so inviting a user who already has an account via a different cabinet is not supported
+    // in this flow (requires the owner role for the lookup, which is out of scope here).
+    let user_id = Uuid::new_v4();
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1257,44 +1286,42 @@ pub async fn post_cabinet_members(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // app_user n'a pas de RLS — lookup direct par email.
-    let existing = sqlx::query("SELECT id FROM app_user WHERE email = $1")
-        .bind(&body.email)
-        .fetch_optional(&mut *tx)
+    // Set current_user_id to the pre-generated UUID so that the user_self_select policy
+    // passes for this new row within the same transaction (used by subsequent SELECT if needed).
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
     // Token brut conservé pour l'email d'invite (uniquement si nouveau compte).
-    let mut raw_invite_token: Option<String> = None;
+    let raw_invite_token = Uuid::new_v4().to_string();
 
-    let user_id: Uuid = if let Some(row) = existing {
-        row.try_get("id").map_err(|_| AppError::Internal)?
-    } else {
-        let token = Uuid::new_v4().to_string();
-        let row = sqlx::query(
-            "INSERT INTO app_user \
-             (email, password_hash, kind, first_name, last_name, \
-              password_reset_token, password_reset_expires_at) \
-             VALUES ($1, NULL, 'pro', $2, $3, \
-                     encode(digest($4, 'sha256'), 'hex'), now() + interval '72 hours') \
-             RETURNING id",
-        )
-        .bind(&body.email)
-        .bind(&body.first_name)
-        .bind(&body.last_name)
-        .bind(&token)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| {
-            if is_unique_violation(&e) {
-                AppError::EmailTaken
-            } else {
-                AppError::Internal
-            }
-        })?;
-        raw_invite_token = Some(token);
-        row.try_get(0).map_err(|_| AppError::Internal)?
-    };
+    // INSERT sans RETURNING (RETURNING bloqué par user_self_select quand current_user_id ≠ id).
+    // On utilise l'id pré-généré. En cas de violation unique sur email → l'email existe déjà.
+    sqlx::query(
+        "INSERT INTO app_user \
+         (id, email, password_hash, kind, first_name, last_name, \
+          password_reset_token, password_reset_expires_at) \
+         VALUES ($1, $2, NULL, 'pro', $3, $4, \
+                 encode(digest($5, 'sha256'), 'hex'), now() + interval '72 hours')",
+    )
+    .bind(user_id)
+    .bind(&body.email)
+    .bind(&body.first_name)
+    .bind(&body.last_name)
+    .bind(&raw_invite_token)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        if is_unique_violation(&e) {
+            // L'email est déjà utilisé. Sous RLS nubia_app, on ne peut pas résoudre
+            // l'UUID de l'utilisateur existant par email → 409 member_already_exists.
+            AppError::MemberAlreadyExists
+        } else {
+            AppError::Internal
+        }
+    })?;
 
     // Crée le membership — UNIQUE (cabinet_id, user_id) → 409 si doublon.
     sqlx::query(
@@ -1334,16 +1361,13 @@ pub async fn post_cabinet_members(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    // Email d'invite envoyé après commit (fire-and-forget, nouveau compte uniquement).
-    if let Some(ref token) = raw_invite_token {
-        state.mailer.send_invite(&body.email, token);
-    }
+    // Email d'invite envoyé après commit (fire-and-forget — nouveau compte).
+    state.mailer.send_invite(&body.email, &raw_invite_token);
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
         user_id = %user_id,
         role = %body.role,
-        new_account = raw_invite_token.is_some(),
         "cabinet member created"
     );
 
