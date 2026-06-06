@@ -1,0 +1,177 @@
+---
+import Default from '../../../layouts/Default.astro';
+const { id } = Astro.params;
+---
+<Default title={`Avis — Praticien ${id} — Nubia Console`}>
+  <h1 style="margin-bottom:0.25rem;">GET /v1/providers/{id}/reviews</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;font-size:0.875rem;">
+    Provider ID : <code id="provider-id-display">{id}</code>
+  </p>
+
+  <form id="reviews-form" style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1.5rem;">
+    <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.875rem;">
+      Page
+      <input type="number" name="page" value="1" min="1"
+        style="width:5rem;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;" />
+    </label>
+    <label style="display:flex;flex-direction:column;gap:0.25rem;font-size:0.875rem;">
+      Per page
+      <input type="number" name="per_page" value="20" min="1" max="100"
+        style="width:6rem;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+      Charger les avis
+    </button>
+  </form>
+
+  <p id="status-badge" style="margin-bottom:1rem;display:none;"></p>
+  <p id="error-msg" role="alert" style="display:none;color:#fca5a5;margin-bottom:1rem;"></p>
+
+  <section id="summary-section" style="display:none;margin-bottom:1.5rem;">
+    <p>Note moyenne : <strong id="rating-avg">—</strong> &nbsp;|&nbsp; Total avis : <strong id="total-count">—</strong></p>
+  </section>
+
+  <section id="reviews-section">
+    <table id="reviews-table" style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">review_id</th>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">Note</th>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">Commentaire</th>
+          <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">Date</th>
+        </tr>
+      </thead>
+      <tbody id="reviews-tbody">
+        <tr><td colspan="4" style="padding:0.5rem;color:var(--muted);">—</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav id="pagination-nav" aria-label="Pagination" style="display:none;margin-top:1rem;display:none;gap:0.5rem;align-items:center;">
+    <button id="btn-prev" type="button"
+      style="padding:0.4rem 0.8rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;cursor:pointer;"
+      disabled>‹ Préc.</button>
+    <span id="page-info" style="font-size:0.875rem;color:var(--muted);"></span>
+    <button id="btn-next" type="button"
+      style="padding:0.4rem 0.8rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;cursor:pointer;"
+      disabled>Suiv. ›</button>
+  </nav>
+</Default>
+
+<style>
+  #reviews-tbody td { padding: 0.5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const providerId = document.getElementById('provider-id-display')!.textContent!.trim();
+  const form = document.getElementById('reviews-form') as HTMLFormElement;
+  const tbody = document.getElementById('reviews-tbody') as HTMLTableSectionElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+  const summarySection = document.getElementById('summary-section') as HTMLElement;
+  const ratingAvg = document.getElementById('rating-avg') as HTMLElement;
+  const totalCount = document.getElementById('total-count') as HTMLElement;
+  const paginationNav = document.getElementById('pagination-nav') as HTMLElement;
+  const pageInfo = document.getElementById('page-info') as HTMLElement;
+  const btnPrev = document.getElementById('btn-prev') as HTMLButtonElement;
+  const btnNext = document.getElementById('btn-next') as HTMLButtonElement;
+
+  let currentPage = 1;
+  let currentPerPage = 20;
+
+  async function loadReviews(page: number, perPage: number): Promise<void> {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:0.5rem;color:var(--muted);">Chargement…</td></tr>';
+    badge.style.display = 'none';
+    errorMsg.style.display = 'none';
+    summarySection.style.display = 'none';
+    paginationNav.style.display = 'none';
+
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    const path = `/v1/providers/${providerId}/reviews?${params.toString()}`;
+
+    try {
+      const { status, data } = await apiFetch(path);
+      badge.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
+      badge.style.display = 'block';
+
+      if (status === 404) {
+        tbody.innerHTML = '<tr><td colspan="4" id="not-found-msg" style="padding:0.5rem;color:#fca5a5;">Praticien introuvable (404).</td></tr>';
+        return;
+      }
+      if (status >= 300) {
+        tbody.innerHTML = `<tr><td colspan="4" style="padding:0.5rem;color:#fca5a5;">Erreur HTTP ${status}</td></tr>`;
+        errorMsg.textContent = JSON.stringify(data, null, 2);
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      const result = data as {
+        data?: Array<Record<string, unknown>>;
+        rating_avg?: number;
+        page?: { current: number; per_page: number; total: number; total_pages: number };
+      };
+
+      const reviews = result.data ?? [];
+      tbody.innerHTML = '';
+
+      if (reviews.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:0.5rem;color:var(--muted);">Aucun avis publié.</td></tr>';
+      } else {
+        for (const r of reviews) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = [
+            String(r.review_id ?? ''),
+            String(r.rating ?? ''),
+            String(r.comment ?? ''),
+            String(r.created_at ?? ''),
+          ].map(v => `<td>${v}</td>`).join('');
+          tbody.appendChild(tr);
+        }
+      }
+
+      if (result.rating_avg != null) {
+        ratingAvg.textContent = String(result.rating_avg);
+        totalCount.textContent = String(result.page?.total ?? reviews.length);
+        summarySection.style.display = 'block';
+      }
+
+      if (result.page != null) {
+        const { current, total_pages } = result.page;
+        pageInfo.textContent = `Page ${current} / ${total_pages}`;
+        btnPrev.disabled = current <= 1;
+        btnNext.disabled = current >= total_pages;
+        paginationNav.style.display = 'flex';
+        currentPage = current;
+      }
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="4" style="padding:0.5rem;color:#fca5a5;">Erreur réseau</td></tr>';
+      errorMsg.textContent = err instanceof Error ? err.message : String(err);
+      errorMsg.style.display = 'block';
+    }
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    currentPage = parseInt(fd.get('page') as string, 10) || 1;
+    currentPerPage = parseInt(fd.get('per_page') as string, 10) || 20;
+    loadReviews(currentPage, currentPerPage);
+  });
+
+  btnPrev.addEventListener('click', () => {
+    if (currentPage > 1) loadReviews(currentPage - 1, currentPerPage);
+  });
+
+  btnNext.addEventListener('click', () => {
+    loadReviews(currentPage + 1, currentPerPage);
+  });
+
+  // Auto-load on mount
+  loadReviews(currentPage, currentPerPage);
+</script>
