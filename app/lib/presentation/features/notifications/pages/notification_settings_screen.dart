@@ -46,9 +46,8 @@ class _NotificationSettingsList extends StatelessWidget {
     final cubit = context.read<NotificationSettingsCubit>();
     final prefs = state.preferences;
 
-    return SingleChildScrollView(
-      child: Column(
-        children: [
+    return ListView(
+      children: [
           const _SectionHeader(title: 'Canaux'),
           NotificationSettingsTile(
             icon: Icons.notifications_outlined,
@@ -107,8 +106,7 @@ class _NotificationSettingsList extends StatelessWidget {
             value: prefs.prevention,
             onChanged: (v) => cubit.toggle(prevention: v),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
