@@ -1,0 +1,131 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Dashboard patient — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/dashboard</h1>
+  <form id="dashboard-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Charger le dashboard
+    </button>
+  </form>
+
+  <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+
+  <section id="dashboard-sections" style="margin-top:1.5rem;display:none;">
+    <section aria-labelledby="next-appt-heading" style="margin-bottom:1.5rem;">
+      <h2 id="next-appt-heading" style="font-size:1rem;margin-bottom:0.5rem;">Prochain rendez-vous</h2>
+      <p id="next-appointment" style="color:var(--muted);padding:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;"></p>
+    </section>
+
+    <section aria-labelledby="to-sign-heading" style="margin-bottom:1.5rem;">
+      <h2 id="to-sign-heading" style="font-size:1rem;margin-bottom:0.5rem;">Documents à signer</h2>
+      <ul id="to-sign-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem;"></ul>
+      <p id="to-sign-empty" style="color:var(--muted);font-size:0.875rem;display:none;">Aucun document en attente.</p>
+    </section>
+
+    <section aria-labelledby="messages-heading">
+      <h2 id="messages-heading" style="font-size:1rem;margin-bottom:0.5rem;">Messages non lus</h2>
+      <p id="unread-messages" style="color:var(--muted);padding:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;"></p>
+    </section>
+  </section>
+
+  <pre id="result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+  .item-badge { display:inline-block;padding:0.125rem 0.5rem;border-radius:4px;font-size:0.75rem;background:var(--surface);border:1px solid var(--border);margin-left:0.5rem; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  interface NextAppointment {
+    id?: string;
+    starts_at?: string;
+    motif?: string;
+  }
+  interface ToSignItem {
+    quote_id?: string;
+    label?: string;
+  }
+  interface DashboardData {
+    next_appointment?: NextAppointment | null;
+    to_sign?: ToSignItem[];
+    unread_messages?: number;
+  }
+
+  const form = document.getElementById('dashboard-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const dashboardSections = document.getElementById('dashboard-sections') as HTMLElement;
+  const nextAppointmentEl = document.getElementById('next-appointment') as HTMLParagraphElement;
+  const toSignList = document.getElementById('to-sign-list') as HTMLUListElement;
+  const toSignEmpty = document.getElementById('to-sign-empty') as HTMLParagraphElement;
+  const unreadMessagesEl = document.getElementById('unread-messages') as HTMLParagraphElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+    dashboardSections.style.display = 'none';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch('/v1/dashboard', {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+
+      if (httpStatus === 200 && data && typeof data === 'object') {
+        const d = data as DashboardData;
+
+        const appt = d.next_appointment;
+        if (appt) {
+          const at = appt.starts_at ? new Date(appt.starts_at).toLocaleString('fr-FR') : '—';
+          nextAppointmentEl.textContent = `${at} — ${appt.motif ?? '—'}`;
+        } else {
+          nextAppointmentEl.textContent = 'Aucun rendez-vous à venir.';
+        }
+
+        const toSign = d.to_sign ?? [];
+        toSignList.innerHTML = '';
+        if (toSign.length === 0) {
+          toSignEmpty.style.display = 'block';
+        } else {
+          toSignEmpty.style.display = 'none';
+          toSign.forEach((item) => {
+            const li = document.createElement('li');
+            li.style.cssText = 'padding:0.5rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;';
+            li.textContent = item.label ?? item.quote_id ?? '—';
+            toSignList.appendChild(li);
+          });
+        }
+
+        unreadMessagesEl.textContent = `${d.unread_messages ?? 0} message(s) non lu(s)`;
+
+        dashboardSections.style.display = 'block';
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
