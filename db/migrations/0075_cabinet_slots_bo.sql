@@ -1,4 +1,4 @@
--- 0074_cabinet_slots_bo.sql
+-- 0075_cabinet_slots_bo.sql
 -- Gestion des créneaux BO : ajoute cabinet_id + practitioner_id + online_booking à
 -- availability_slot, contrainte d'exclusion anti-double-booking praticien, et policy
 -- RLS cabinet pour les opérations d'écriture BO (POST/PATCH/DELETE/PUT).
