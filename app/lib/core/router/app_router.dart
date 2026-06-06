@@ -24,6 +24,7 @@ import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_blo
 import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_event.dart';
 import 'package:nubia_patient/presentation/features/messaging/pages/message_thread_screen.dart';
 import 'package:nubia_patient/presentation/features/messaging/pages/messages_screen.dart';
+import 'package:nubia_patient/presentation/features/notifications/pages/notifications_screen.dart';
 import 'package:nubia_patient/presentation/features/profile/pages/profile_screen.dart';
 
 /// Top-level router.
@@ -190,6 +191,11 @@ class AppRouter {
               ),
             );
           },
+        ),
+        GoRoute(
+          path: RouteNames.notifications,
+          name: 'notifications',
+          builder: (_, __) => const NotificationsScreen(),
         ),
       ],
     );
