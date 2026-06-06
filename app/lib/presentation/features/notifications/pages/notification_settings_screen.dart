@@ -4,7 +4,7 @@ import 'package:nubia_patient/presentation/features/notifications/bloc/notificat
 import 'package:nubia_patient/presentation/features/notifications/bloc/notification_settings_state.dart';
 import 'package:nubia_patient/presentation/features/notifications/widgets/notification_settings_tile.dart';
 
-/// Screen for managing notification opt-in preferences per category.
+/// Screen for managing notification opt-in preferences per channel and type.
 ///
 /// [NotificationSettingsCubit] must be provided above this widget
 /// (typically by [AppRouter]).
@@ -49,6 +49,28 @@ class _NotificationSettingsList extends StatelessWidget {
     return ListView(
       children: [
         const _SectionHeader(title: 'Canaux'),
+        NotificationSettingsTile(
+          icon: Icons.notifications_outlined,
+          label: 'Notifications push',
+          subtitle: 'Alertes instantanées sur votre appareil.',
+          value: prefs.pushEnabled,
+          onChanged: (v) => cubit.toggle(pushEnabled: v),
+        ),
+        NotificationSettingsTile(
+          icon: Icons.email_outlined,
+          label: 'E-mail',
+          subtitle: 'Récapitulatifs et rappels par e-mail.',
+          value: prefs.emailEnabled,
+          onChanged: (v) => cubit.toggle(emailEnabled: v),
+        ),
+        NotificationSettingsTile(
+          icon: Icons.sms_outlined,
+          label: 'SMS',
+          subtitle: 'Rappels de rendez-vous par SMS.',
+          value: prefs.smsEnabled,
+          onChanged: (v) => cubit.toggle(smsEnabled: v),
+        ),
+        const _SectionHeader(title: 'Types d\'événement'),
         NotificationSettingsTile(
           icon: Icons.calendar_today_outlined,
           label: 'Rendez-vous',
