@@ -215,10 +215,27 @@ SELECT has_table('patient_coverage');
 SELECT has_column('patient_coverage', 'nss_encrypted', 'bytea');
 SELECT col_is_null('patient_coverage', 'nss_encrypted');
 
--- ----- notification_preference (0024, issue #238) -----
+-- ----- notification_preference (0024, issue #238 ; EAV + RLS 0049, issue #720) -----
 SELECT has_table('notification_preference');
-SELECT col_is_unique('notification_preference', 'patient_account_id',
-  'notification_preference.patient_account_id UNIQUE (une ligne par compte)');
+-- La contrainte UNIQUE mono-colonne (patient_account_id) a été remplacée en 0049 par
+-- UNIQUE(patient_account_id, channel, type) pour le modèle EAV (plusieurs lignes par compte).
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          WHERE t.relname = 'notification_preference'
+            AND c.contype = 'u'
+            AND c.conname = 'notification_preference_account_channel_type_unique'),
+  'notification_preference : UNIQUE(patient_account_id, channel, type) présente (0049)');
+SELECT has_column('notification_preference', 'channel', 'notification_preference.channel présent (0049)');
+SELECT has_column('notification_preference', 'enabled', 'notification_preference.enabled présent (0049)');
+SELECT has_column('notification_preference', 'type',    'notification_preference.type présent (0049)');
+SELECT ok( (SELECT relrowsecurity FROM pg_class WHERE relname = 'notification_preference'),
+  'notification_preference : ROW LEVEL SECURITY activée (0049)');
+SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'notification_preference'),
+  'notification_preference : FORCE ROW LEVEL SECURITY (0049)');
+SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'notification_preference'
+    AND policyname = 'notif_pref_account_select'),
+  'notification_preference : policy notif_pref_account_select présente (0049)');
 
 -- ----- account_guardianship (0025, issue #239) -----
 SELECT has_table('account_guardianship');
@@ -258,6 +275,26 @@ SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'mfa_enroll
 SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'mfa_enrollment'
     AND policyname = 'mfa_user_select'),
   'mfa_enrollment : policy mfa_user_select présente (0047)');
+
+-- ----- consent_record : patient_account_id + evidence + RLS (0048, issue #720) -----
+SELECT has_column('consent_record', 'patient_account_id',
+  'consent_record.patient_account_id présent (0048)');
+SELECT has_column('consent_record', 'evidence',
+  'consent_record.evidence présent (0048)');
+SELECT ok(
+  EXISTS (SELECT 1 FROM pg_constraint c
+          JOIN pg_class t ON t.oid = c.conrelid
+          WHERE t.relname = 'consent_record'
+            AND c.contype = 'u'
+            AND c.conname = 'consent_record_account_purpose_unique'),
+  'consent_record : UNIQUE(patient_account_id, purpose) présente (0048)');
+SELECT ok( (SELECT relrowsecurity FROM pg_class WHERE relname = 'consent_record'),
+  'consent_record : ROW LEVEL SECURITY activée (0048)');
+SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'consent_record'),
+  'consent_record : FORCE ROW LEVEL SECURITY (0048)');
+SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'consent_record'
+    AND policyname = 'consent_account_select'),
+  'consent_record : policy consent_account_select présente (0048)');
 
 SELECT * FROM finish();
 ROLLBACK;
