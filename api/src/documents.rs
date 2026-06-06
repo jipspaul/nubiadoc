@@ -542,9 +542,9 @@ pub async fn upload_document(
     let row = sqlx::query(
         "INSERT INTO document \
          (patient_account_id, category, storage_key, filename, mime_type, \
-          sha256, scan_status, uploaded_by) \
-         VALUES ($1, $2, $3, $4, $5, \
-                 encode(digest($6, 'sha256'), 'hex'), 'pending', $7) \
+          size_bytes, sha256, scan_status, uploaded_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, \
+                 encode(digest($7, 'sha256'), 'hex'), 'pending', $8) \
          RETURNING id, sha256",
     )
     .bind(claims.account_id)
@@ -552,6 +552,7 @@ pub async fn upload_document(
     .bind(&storage_key)
     .bind(&fname)
     .bind(&file_mime)
+    .bind(size_bytes)
     .bind(&file_bytes)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
