@@ -15,4 +15,5 @@ abstract class AppointmentRepository {
     required String id,
     required String newSlotId,
   });
+  Future<Either<Failure, Appointment>> checkin(String id);
 }

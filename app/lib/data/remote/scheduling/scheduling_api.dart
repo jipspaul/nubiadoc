@@ -59,4 +59,11 @@ class SchedulingApi {
     );
     return AppointmentDto.fromJson(response.data!);
   }
+
+  Future<AppointmentDto> checkin(String id) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/appointments/$id/checkin',
+    );
+    return AppointmentDto.fromJson(response.data!);
+  }
 }

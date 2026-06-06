@@ -135,6 +135,25 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
   }
 
   @override
+  Future<Either<Failure, Appointment>> checkin(String id) async {
+    try {
+      final dto = await _api.checkin(id);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Rendez-vous introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Erreur lors du check-in.',
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
+
+  @override
   Future<Either<Failure, Appointment>> modify({
     required String id,
     required String newSlotId,
