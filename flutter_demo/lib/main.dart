@@ -7,6 +7,7 @@ import 'features/auth/bloc/auth_state.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/data/token_storage.dart';
 import 'features/auth/login_screen.dart';
+import 'features/dashboard/dashboard_screen.dart';
 import 'theme/nubia_theme.dart';
 
 void main() {
@@ -43,7 +44,7 @@ class _AuthGate extends StatelessWidget {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
-          return const MyHomePage();
+          return const DashboardScreen();
         }
         return const LoginScreen();
       },
