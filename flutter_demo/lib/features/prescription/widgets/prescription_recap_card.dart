@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../models/prescription.dart';
+import '../models/prescription.dart';
 
 /// Carte récapitulative d'une ordonnance (brouillon ou signée).
 ///

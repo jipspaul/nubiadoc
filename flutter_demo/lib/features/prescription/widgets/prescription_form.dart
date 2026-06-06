@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../models/prescription.dart';
+import '../models/prescription.dart';
 
 /// Formulaire de création d'ordonnance.
 ///
@@ -29,43 +29,51 @@ class _PrescriptionFormState extends State<PrescriptionForm> {
   Widget build(BuildContext context) {
     return Form(
       key: _formKey,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
+      child: Column(
         children: [
-          _PatientDropdown(
-            patients: widget.patients,
-            value: _selectedPatientId,
-            onChanged: (v) => setState(() => _selectedPatientId = v),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _PatientDropdown(
+                  patients: widget.patients,
+                  value: _selectedPatientId,
+                  onChanged: (v) => setState(() => _selectedPatientId = v),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Médicaments',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+                ..._items.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final draft = entry.value;
+                  return _MedicationItemRow(
+                    key: ValueKey(draft),
+                    index: i,
+                    draft: draft,
+                    canRemove: _items.length > 1,
+                    onRemove: () => setState(() => _items.removeAt(i)),
+                  );
+                }),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  key: const Key('btn_add_item'),
+                  onPressed: () => setState(() => _items.add(_ItemDraft())),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Ajouter un médicament'),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Médicaments',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 8),
-          ..._items.asMap().entries.map((entry) {
-            final i = entry.key;
-            final draft = entry.value;
-            return _MedicationItemRow(
-              key: ValueKey(draft),
-              index: i,
-              draft: draft,
-              canRemove: _items.length > 1,
-              onRemove: () => setState(() => _items.removeAt(i)),
-            );
-          }),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            key: const Key('btn_add_item'),
-            onPressed: () => setState(() => _items.add(_ItemDraft())),
-            icon: const Icon(Icons.add),
-            label: const Text('Ajouter un médicament'),
-          ),
-          const SizedBox(height: 32),
-          FilledButton(
-            key: const Key('btn_create'),
-            onPressed: _submit,
-            child: const Text("Créer l'ordonnance"),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: FilledButton(
+              key: const Key('btn_create'),
+              onPressed: _submit,
+              child: const Text("Créer l'ordonnance"),
+            ),
           ),
         ],
       ),
