@@ -203,6 +203,10 @@ pub fn app_with_dispatcher(
             post(appointments::checkin_appointment),
         )
         .route(
+            "/v1/appointments/:id/callback-request",
+            post(appointments::callback_appointment),
+        )
+        .route(
             "/v1/appointments/:id/directions",
             get(appointments::get_appointment_directions),
         )

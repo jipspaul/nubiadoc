@@ -1024,6 +1024,114 @@ pub async fn get_appointment_directions(
     }))
 }
 
+// ── Callback request ────────────────────────────────────────────────────────
+
+/// Réponse de `POST /v1/appointments/:id/callback-request`.
+#[derive(Serialize)]
+pub struct CallbackRequestResponse {
+    pub appointment_id: Uuid,
+    pub callback_requested_at: String,
+}
+
+/// `POST /v1/appointments/:id/callback-request` — patient demande un rappel téléphonique.
+///
+/// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
+/// Vérifie status IN ('requested','confirmed') → sinon `409 {"error":"invalid_status"}`.
+/// Idempotent : si une demande existe déjà, retourne le timestamp existant.
+/// Audité (`callback_request`) dans `audit_log`.
+pub async fn callback_appointment(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(appt_id): Path<Uuid>,
+) -> Result<Json<CallbackRequestResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, status, cabinet_id, callback_requested_at \
+         FROM appointment \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let existing: Option<chrono::DateTime<chrono::Utc>> = row
+        .try_get("callback_requested_at")
+        .map_err(|_| AppError::Internal)?;
+
+    if status != "requested" && status != "confirmed" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    // Idempotent : si déjà demandé, retourne le timestamp existant sans ré-écrire.
+    if let Some(ts) = existing {
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Ok(Json(CallbackRequestResponse {
+            appointment_id: id,
+            callback_requested_at: ts.to_rfc3339(),
+        }));
+    }
+
+    // Scope cabinet pour UPDATE (tenant_isolation) + audit.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let updated = sqlx::query(
+        "UPDATE appointment \
+         SET callback_requested_at = now(), updated_at = now() \
+         WHERE id = $1 \
+         RETURNING callback_requested_at",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let callback_requested_at: chrono::DateTime<chrono::Utc> = updated
+        .try_get("callback_requested_at")
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'callback_request', 'appointment', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %id,
+        "appointment callback requested"
+    );
+
+    Ok(Json(CallbackRequestResponse {
+        appointment_id: id,
+        callback_requested_at: callback_requested_at.to_rfc3339(),
+    }))
+}
+
 fn is_exclusion_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
