@@ -1,0 +1,108 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Notifications — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">GET /v1/notifications</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;font-size:0.875rem;">Centre de notifications — liste paginée, filtre non lues.</p>
+
+  <section aria-labelledby="list-heading">
+    <h2 id="list-heading" style="font-size:1.1rem;margin-bottom:0.75rem;">Liste des notifications</h2>
+    <form id="list-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label style="display:flex;align-items:center;gap:0.5rem;">
+        <input type="checkbox" name="unread_only" id="unread_only" />
+        Non lues seulement
+      </label>
+      <label>
+        Cursor (pagination, optionnel)
+        <input type="text" name="cursor" placeholder="opaque cursor"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit" id="list-btn"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Charger les notifications
+      </button>
+    </form>
+    <p id="list-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="list-result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+    <div id="pagination" style="margin-top:1rem;display:none;gap:0.5rem;flex-wrap:wrap;"></div>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+  #pagination { display:none; }
+  #pagination.visible { display:flex; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  interface NotificationPage {
+    data?: unknown[];
+    page?: { next_cursor: string | null; limit: number };
+  }
+
+  const form = document.getElementById('list-form') as HTMLFormElement;
+  const result = document.getElementById('list-result') as HTMLPreElement;
+  const badge = document.getElementById('list-badge') as HTMLParagraphElement;
+  const pagination = document.getElementById('pagination') as HTMLDivElement;
+
+  async function load(cursor?: string): Promise<void> {
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+    const unread_only = (document.getElementById('unread_only') as HTMLInputElement).checked;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+    pagination.className = '';
+
+    const params = new URLSearchParams();
+    if (unread_only) params.set('unread_only', 'true');
+    if (cursor) params.set('cursor', cursor);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch(`/v1/notifications${qs}`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+
+      if (httpStatus === 200 && data && typeof data === 'object') {
+        const page = data as NotificationPage;
+        const next = page.page?.next_cursor ?? null;
+        if (next) {
+          pagination.className = 'visible';
+          pagination.innerHTML = '';
+          const btn = document.createElement('button');
+          btn.textContent = 'Page suivante →';
+          btn.style.cssText = 'padding:0.4rem 0.9rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;';
+          btn.addEventListener('click', () => load(next));
+          pagination.appendChild(btn);
+        }
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const cursor = fd.get('cursor') as string;
+    load(cursor || undefined);
+  });
+</script>
