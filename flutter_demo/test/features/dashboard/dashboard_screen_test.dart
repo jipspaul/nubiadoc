@@ -68,7 +68,7 @@ void main() {
     testWidgets('shows all five tiles when loaded', (tester) async {
       when(() => mockBloc.state).thenReturn(DashboardLoaded(_mockSummary));
       await tester.pumpWidget(_wrap(mockBloc));
-      expect(find.byType(DashboardTile), findsNWidgets(5));
+      expect(find.byType(DashboardTile), findsNWidgets(6));
     });
 
     testWidgets('shows unread message count badge', (tester) async {
@@ -105,8 +105,10 @@ void main() {
           home: Scaffold(
             body: DashboardBody(
               summary: _mockSummary,
+              onRefresh: () async {},
               onAppointmentTap: () {},
               onDocumentsTap: () {},
+              onQuestionnairesTodo: () {},
               onPaymentsTap: () {},
               onMessagesTap: () {},
               onRemindersTap: () {},
@@ -124,8 +126,10 @@ void main() {
           home: Scaffold(
             body: DashboardBody(
               summary: _mockSummary,
+              onRefresh: () async {},
               onAppointmentTap: () {},
               onDocumentsTap: () {},
+              onQuestionnairesTodo: () {},
               onPaymentsTap: () {},
               onMessagesTap: () {},
               onRemindersTap: () {},

@@ -1,13 +1,13 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_patient/core/error/failure.dart';
 import 'package:nubia_patient/domain/entities/appointment.dart';
-import 'package:nubia_patient/domain/usecases/appointments/checkin_appointment_use_case.dart';
 import 'package:nubia_patient/domain/usecases/appointments/get_appointment_by_id_use_case.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/checkin_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_detail_screen.dart';
@@ -65,17 +65,19 @@ void main() {
   testWidgets(
     'AppointmentDetailScreen affiche un loader pendant le chargement',
     (tester) async {
+      // Use a Completer that never completes to keep the widget in loading
+      // state without leaving a pending timer that would fail the test.
+      final completer = Completer<Either<Failure, Appointment>>();
       when(() => mockCheckinBloc.state).thenReturn(const CheckinInitial());
-      when(() => mockGetById(any())).thenAnswer(
-        (_) async {
-          await Future<void>.delayed(const Duration(seconds: 60));
-          return Right(appointment);
-        },
-      );
+      when(() => mockGetById(any())).thenAnswer((_) => completer.future);
 
       await tester.pumpWidget(wrap('appt-42'));
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      // Complete the future to avoid "Completer was never completed" warnings.
+      completer.complete(Right(appointment));
+      await tester.pump();
     },
   );
 

@@ -69,17 +69,24 @@ void main() {
         .thenReturn(const NotificationSettingsLoaded(_prefs));
 
     await tester.pumpWidget(_wrap(cubit));
+    // Scroll to ensure all items are laid out (SingleChildScrollView + Column).
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -500));
+    await tester.pump();
 
-    // 3 channel tiles + 5 type tiles = 8 total
-    expect(find.byType(NotificationSettingsTile), findsNWidgets(8));
-    expect(find.text('Notifications push'), findsOneWidget);
-    expect(find.text('E-mail'), findsOneWidget);
-    expect(find.text('SMS'), findsOneWidget);
-    expect(find.text('Rendez-vous'), findsOneWidget);
-    expect(find.text('Documents'), findsOneWidget);
-    expect(find.text('Messages'), findsOneWidget);
-    expect(find.text('Paiements'), findsOneWidget);
-    expect(find.text('Prévention'), findsOneWidget);
+    // 3 channel tiles + 5 type tiles = 8 total (skipOffstage to count all)
+    expect(
+      find.byType(NotificationSettingsTile, skipOffstage: false),
+      findsNWidgets(8),
+    );
+    expect(find.text('Notifications push', skipOffstage: false),
+        findsOneWidget);
+    expect(find.text('E-mail', skipOffstage: false), findsOneWidget);
+    expect(find.text('SMS', skipOffstage: false), findsOneWidget);
+    expect(find.text('Rendez-vous', skipOffstage: false), findsOneWidget);
+    expect(find.text('Documents', skipOffstage: false), findsOneWidget);
+    expect(find.text('Messages', skipOffstage: false), findsOneWidget);
+    expect(find.text('Paiements', skipOffstage: false), findsOneWidget);
+    expect(find.text('Prévention', skipOffstage: false), findsOneWidget);
   });
 
   testWidgets('appelle toggle(appointments:) quand on tape sur le switch RDV',

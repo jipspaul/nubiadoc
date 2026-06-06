@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../widgets/nubia_avatar.dart';
+import '../appointments/appointments_list_screen.dart';
+import '../appointments/bloc/appointment_bloc.dart';
 import 'bloc/dashboard_bloc.dart';
 import 'bloc/dashboard_event.dart';
 import 'bloc/dashboard_state.dart';
@@ -21,6 +24,12 @@ class DashboardScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Mon espace'),
+            actions: const [
+              Padding(
+                padding: EdgeInsets.only(right: 16),
+                child: NubiaAvatar(initials: 'MD'),
+              ),
+            ],
           ),
           body: switch (state) {
             DashboardInitial() => const _DashboardLoadTrigger(),
@@ -29,8 +38,12 @@ class DashboardScreen extends StatelessWidget {
               ),
             DashboardLoaded(:final summary) => DashboardBody(
                 summary: summary,
+                onRefresh: () async => context
+                    .read<DashboardBloc>()
+                    .add(const DashboardLoadRequested()),
                 onAppointmentTap: () => _navigate(context, '/appointments'),
                 onDocumentsTap: () => _navigate(context, '/documents'),
+                onQuestionnairesTodo: () => _navigate(context, '/questionnaires'),
                 onPaymentsTap: () => _navigate(context, '/payments'),
                 onMessagesTap: () => _navigate(context, '/messages'),
                 onRemindersTap: () => _navigate(context, '/reminders'),
@@ -50,6 +63,17 @@ class DashboardScreen extends StatelessWidget {
   /// Placeholder de navigation — à remplacer par go_router/Navigator quand
   /// les routes dédiées existent (hors scope de cette issue).
   void _navigate(BuildContext context, String route) {
+    if (route == '/appointments') {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => BlocProvider.value(
+            value: context.read<AppointmentBloc>(),
+            child: const AppointmentsListScreen(),
+          ),
+        ),
+      );
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Navigation vers $route')),
     );

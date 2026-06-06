@@ -4,6 +4,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -26,6 +27,35 @@ async fn app_pool() -> PgPool {
 
 fn db_available() -> bool {
     std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
+}
+
+/// Crée un JWT signé avec le rôle `secretary` (même secret que le stub).
+fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    #[derive(serde::Serialize)]
+    struct Claims {
+        sub: Uuid,
+        kind: String,
+        cabinet_id: Uuid,
+        role: String,
+        exp: u64,
+    }
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    encode(
+        &Header::default(),
+        &Claims {
+            sub,
+            kind: "pro".into(),
+            cabinet_id,
+            role: "secretary".into(),
+            exp,
+        },
+        &EncodingKey::from_secret(b"test-secret"),
+    )
+    .unwrap()
 }
 
 fn make_state(db: PgPool) -> AppState {
@@ -171,6 +201,81 @@ async fn get_cabinet_members_returns_list_with_admin() {
         }),
         "le créateur admin doit figurer dans la liste"
     );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
+// ── Test 3 : GET /v1/cabinet/members non-admin → 403 ─────────────────────────
+
+#[tokio::test]
+async fn get_cabinet_members_non_admin_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("members_secretary_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (_, account_id, cabinet_id) = register_pro(db.clone(), &email).await;
+
+    let secretary_token = make_secretary_token(account_id, cabinet_id);
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/members")
+                .header("Authorization", format!("Bearer {}", secretary_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
+// ── Test 4 : POST /v1/cabinet/members non-admin → 403 ────────────────────────
+
+#[tokio::test]
+async fn post_cabinet_members_non_admin_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("members_secretary_post_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (_, account_id, cabinet_id) = register_pro(db.clone(), &email).await;
+
+    let secretary_token = make_secretary_token(account_id, cabinet_id);
+    let member_body = json!({
+        "email": format!("invitee_{}@test.local", Uuid::new_v4()),
+        "role": "secretary",
+        "first_name": "Carl",
+        "last_name": "Dupont"
+    });
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/members")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", secretary_token))
+                .body(Body::from(member_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
