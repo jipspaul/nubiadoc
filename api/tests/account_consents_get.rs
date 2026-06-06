@@ -77,16 +77,18 @@ async fn consents_two_records_returns_array_of_two() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO consent_record (app_user_id, purpose, granted) VALUES ($1, 'soins', true)",
+        "INSERT INTO consent_record (patient_account_id, app_user_id, purpose, granted) VALUES ($1, $2, 'soins', true)",
     )
+    .bind(account_id)
     .bind(user_id)
     .execute(&db)
     .await
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO consent_record (app_user_id, purpose, granted) VALUES ($1, 'marketing', false)",
+        "INSERT INTO consent_record (patient_account_id, app_user_id, purpose, granted) VALUES ($1, $2, 'marketing', false)",
     )
+    .bind(account_id)
     .bind(user_id)
     .execute(&db)
     .await
