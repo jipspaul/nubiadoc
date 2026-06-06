@@ -1,0 +1,117 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Liste d'attente — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/cabinet/waiting-list + POST offer créneau</h1>
+
+  <section style="margin-bottom:2rem;">
+    <h2 style="margin-bottom:0.75rem;">Liste d'attente</h2>
+    <form id="waiting-list-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Charger la liste
+      </button>
+    </form>
+    <p id="list-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="list-result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <section>
+    <h2 style="margin-bottom:0.75rem;">Proposer un créneau</h2>
+    <form id="offer-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+      <label>
+        Access token (Bearer)
+        <input type="text" name="access_token_offer" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Waiting-list entry ID
+        <input type="text" name="entry_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Proposer un créneau
+      </button>
+    </form>
+    <p id="offer-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="offer-result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const listForm = document.getElementById('waiting-list-form') as HTMLFormElement;
+  const listResult = document.getElementById('list-result') as HTMLPreElement;
+  const listBadge = document.getElementById('list-badge') as HTMLParagraphElement;
+
+  listForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(listForm);
+    const access_token = fd.get('access_token') as string;
+
+    listResult.className = '';
+    listResult.textContent = 'Chargement…';
+    listBadge.style.display = 'none';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch('/v1/cabinet/waiting-list', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      listResult.className = httpStatus < 300 ? 'success' : 'error';
+      listResult.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      listBadge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      listBadge.style.display = 'block';
+    } catch (err) {
+      listResult.className = 'error';
+      listResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  const offerForm = document.getElementById('offer-form') as HTMLFormElement;
+  const offerResult = document.getElementById('offer-result') as HTMLPreElement;
+  const offerBadge = document.getElementById('offer-badge') as HTMLParagraphElement;
+
+  offerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(offerForm);
+    const access_token = fd.get('access_token_offer') as string;
+    const entry_id = fd.get('entry_id') as string;
+
+    offerResult.className = '';
+    offerResult.textContent = 'Chargement…';
+    offerBadge.style.display = 'none';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch(
+        `/v1/cabinet/waiting-list/${encodeURIComponent(entry_id)}/offer`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${access_token}` },
+        },
+      );
+      offerResult.className = httpStatus < 300 ? 'success' : 'error';
+      offerResult.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      offerBadge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      offerBadge.style.display = 'block';
+    } catch (err) {
+      offerResult.className = 'error';
+      offerResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
