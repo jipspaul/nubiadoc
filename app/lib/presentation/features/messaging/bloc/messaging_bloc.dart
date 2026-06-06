@@ -13,6 +13,7 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     on<MessagingThreadOpened>(_onThreadOpened);
     on<MessagingMessageSendRequested>(_onMessageSendRequested);
     on<MessagingMarkReadRequested>(_onMarkReadRequested);
+    on<MessagingPhotoAttachRequested>(_onPhotoAttachRequested);
   }
 
   Future<void> _onConversationsLoadRequested(
@@ -58,13 +59,16 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     final result = await _repository.send(
       conversationId: event.conversationId,
       text: event.text,
-      attachmentIds: event.attachmentIds,
+      attachmentIds: event.attachmentIds.isNotEmpty
+          ? event.attachmentIds
+          : current.pendingAttachmentIds,
     );
     result.fold(
       (failure) => emit(current.copyWith(sending: false)),
       (message) => emit(current.copyWith(
         sending: false,
         messages: [...current.messages, message],
+        pendingAttachmentIds: const [],
       )),
     );
   }
@@ -75,4 +79,27 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
   ) async {
     await _repository.markRead(event.conversationId);
   }
+
+  Future<void> _onPhotoAttachRequested(
+    MessagingPhotoAttachRequested event,
+    Emitter<MessagingState> emit,
+  ) async {
+    final current = state;
+    if (current is! MessagingThreadLoaded) return;
+
+    emit(current.copyWith(uploadingAttachment: true));
+    final result = await _repository.uploadAttachment(
+      filePath: event.filePath,
+      filename: event.filename,
+      mimeType: event.mimeType,
+    );
+    result.fold(
+      (failure) => emit(current.copyWith(uploadingAttachment: false)),
+      (documentId) => emit(current.copyWith(
+        uploadingAttachment: false,
+        pendingAttachmentIds: [...current.pendingAttachmentIds, documentId],
+      )),
+    );
+  }
 }
+

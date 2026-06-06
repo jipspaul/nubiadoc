@@ -52,6 +52,9 @@ dependencies:
   # Biometrics
   local_auth: ^2.3.0
 
+  # Image picker (camera / gallery — used for message photo attachments)
+  image_picker: ^1.1.2
+
   # URL launcher (maps, links)
   url_launcher: ^6.3.1
 

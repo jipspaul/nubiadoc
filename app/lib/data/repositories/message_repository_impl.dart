@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import 'package:nubia_patient/core/error/failure.dart';
+import 'package:nubia_patient/data/remote/documents/document_api.dart';
 import 'package:nubia_patient/data/remote/messaging/messaging_api.dart';
 import 'package:nubia_patient/domain/entities/message.dart';
 import 'package:nubia_patient/domain/repositories/message_repository.dart';
@@ -9,8 +10,9 @@ import 'package:nubia_patient/domain/repositories/message_repository.dart';
 @LazySingleton(as: MessageRepository)
 class MessageRepositoryImpl implements MessageRepository {
   final MessagingApi _api;
+  final DocumentApi _documentApi;
 
-  const MessageRepositoryImpl(this._api);
+  const MessageRepositoryImpl(this._api, this._documentApi);
 
   @override
   Future<Either<Failure, List<Conversation>>> getConversations() async {
@@ -58,6 +60,25 @@ class MessageRepositoryImpl implements MessageRepository {
       return const Right(null);
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du marquage comme lu.'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, String>> uploadAttachment({
+    required String filePath,
+    required String filename,
+    required String mimeType,
+  }) async {
+    try {
+      final dto = await _documentApi.upload(
+        filePath: filePath,
+        filename: filename,
+        mimeType: mimeType,
+        category: 'photo',
+      );
+      return Right(dto.id);
+    } on DioException catch (e) {
+      return Left(_mapDioError(e, 'Erreur lors de l\'envoi de la pièce jointe.'));
     }
   }
 

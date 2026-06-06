@@ -47,26 +47,35 @@ final class MessagingThreadLoaded extends MessagingState {
   final String conversationId;
   final List<Message> messages;
   final bool sending;
+  final bool uploadingAttachment;
+  final List<String> pendingAttachmentIds;
 
   const MessagingThreadLoaded({
     required this.conversationId,
     required this.messages,
     this.sending = false,
+    this.uploadingAttachment = false,
+    this.pendingAttachmentIds = const [],
   });
 
   MessagingThreadLoaded copyWith({
     List<Message>? messages,
     bool? sending,
+    bool? uploadingAttachment,
+    List<String>? pendingAttachmentIds,
   }) {
     return MessagingThreadLoaded(
       conversationId: conversationId,
       messages: messages ?? this.messages,
       sending: sending ?? this.sending,
+      uploadingAttachment: uploadingAttachment ?? this.uploadingAttachment,
+      pendingAttachmentIds: pendingAttachmentIds ?? this.pendingAttachmentIds,
     );
   }
 
   @override
-  List<Object?> get props => [conversationId, messages, sending];
+  List<Object?> get props =>
+      [conversationId, messages, sending, uploadingAttachment, pendingAttachmentIds];
 }
 
 final class MessagingThreadError extends MessagingState {
