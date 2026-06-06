@@ -38,4 +38,31 @@ class DocumentApi {
     }
     return DocumentSignedUrlDto.fromJson(response.data!);
   }
+
+  /// Uploads a file as multipart/form-data to POST /v1/documents.
+  ///
+  /// [filePath] is the local filesystem path of the file to upload.
+  /// [filename] is the original filename sent to the server.
+  /// [mimeType] is the MIME type (e.g. "application/pdf").
+  /// [category] is the API category string (e.g. "devis").
+  Future<DocumentDto> upload({
+    required String filePath,
+    required String filename,
+    required String mimeType,
+    required String category,
+  }) async {
+    final formData = FormData.fromMap({
+      'category': category,
+      'file': await MultipartFile.fromFile(
+        filePath,
+        filename: filename,
+        contentType: DioMediaType.parse(mimeType),
+      ),
+    });
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/documents',
+      data: formData,
+    );
+    return DocumentDto.fromJson(response.data!);
+  }
 }

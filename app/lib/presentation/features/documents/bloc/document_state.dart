@@ -66,3 +66,25 @@ final class DocumentSignedUrlError extends DocumentState {
   @override
   List<Object?> get props => [message];
 }
+
+final class DocumentUploading extends DocumentState {
+  const DocumentUploading();
+}
+
+final class DocumentUploadSuccess extends DocumentState {
+  final Document document;
+
+  const DocumentUploadSuccess(this.document);
+
+  @override
+  List<Object?> get props => [document];
+}
+
+final class DocumentUploadFailure extends DocumentState {
+  final String message;
+
+  const DocumentUploadFailure(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}

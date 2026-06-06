@@ -7,4 +7,11 @@ abstract class DocumentRepository {
   Future<Either<Failure, List<Document>>> getByCategory(DocumentCategory category);
   /// Returns a short-lived signed URL for download/display.
   Future<Either<Failure, String>> getSignedUrl(String documentId);
+  /// Uploads a file as a multipart/form-data POST to /v1/documents.
+  Future<Either<Failure, Document>> upload({
+    required String filePath,
+    required String filename,
+    required String mimeType,
+    required DocumentCategory category,
+  });
 }
