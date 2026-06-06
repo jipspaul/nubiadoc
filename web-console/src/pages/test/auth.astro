@@ -1,0 +1,152 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Auth — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">Auth patient</h1>
+
+  <section style="margin-bottom:2.5rem;">
+    <h2 style="margin-bottom:1rem;font-size:1.1rem;">POST /v1/auth/register</h2>
+    <form id="register-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+      <label>
+        Email
+        <input type="email" name="email" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Mot de passe
+        <input type="password" name="password" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Version CGU
+        <input type="text" name="cgu_version" value="1.0" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+        <input type="checkbox" name="accept_cgu" value="true" required />
+        J'accepte les CGU
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Créer le compte
+      </button>
+    </form>
+    <pre id="register-result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <section>
+    <h2 style="margin-bottom:1rem;font-size:1.1rem;">POST /v1/auth/login</h2>
+    <form id="login-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+      <label>
+        Email
+        <input type="email" name="email" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Mot de passe
+        <input type="password" name="password" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <fieldset id="mfa-section" hidden
+        style="border:1px solid var(--border);border-radius:4px;padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;">
+        <legend style="padding:0 0.25rem;font-size:0.875rem;color:var(--muted);">MFA requis</legend>
+        <label>
+          Code MFA (6 chiffres)
+          <input type="text" name="mfa_code" inputmode="numeric" maxlength="6" pattern="\d{6}"
+            autocomplete="one-time-code"
+            style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+        </label>
+      </fieldset>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Se connecter
+      </button>
+    </form>
+    <pre id="login-result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  // --- Register ---
+  const registerForm = document.getElementById('register-form') as HTMLFormElement;
+  const registerResult = document.getElementById('register-result') as HTMLPreElement;
+
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(registerForm);
+    const email = fd.get('email') as string;
+    const password = fd.get('password') as string;
+    const cgu_version = fd.get('cgu_version') as string;
+
+    registerResult.className = '';
+    registerResult.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, accept_cgu: true, cgu_version }),
+      });
+      registerResult.className = status === 201 ? 'success' : 'error';
+      registerResult.textContent = `HTTP ${status}\n${JSON.stringify(data, null, 2)}`;
+    } catch (err) {
+      registerResult.className = 'error';
+      registerResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // --- Login ---
+  const loginForm = document.getElementById('login-form') as HTMLFormElement;
+  const loginResult = document.getElementById('login-result') as HTMLPreElement;
+  const mfaSection = document.getElementById('mfa-section') as HTMLFieldSetElement;
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(loginForm);
+    const email = fd.get('email') as string;
+    const password = fd.get('password') as string;
+    const mfa_code = (fd.get('mfa_code') as string) || undefined;
+
+    loginResult.className = '';
+    loginResult.textContent = 'Chargement…';
+
+    const body: Record<string, string> = { email, password };
+    if (mfa_code) body.mfa_code = mfa_code;
+
+    try {
+      const { status, data } = await apiFetch('/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (status === 200) {
+        loginResult.className = 'success';
+        loginResult.textContent = `HTTP ${status}\n${JSON.stringify(data, null, 2)}`;
+      } else if (status === 401) {
+        const errData = data as Record<string, unknown> | null;
+        if (errData && errData.code === 'mfa_required') {
+          mfaSection.hidden = false;
+          loginResult.className = 'error';
+          loginResult.textContent = `HTTP 401 — MFA requis\nEntrez votre code TOTP et resoumettez.`;
+        } else {
+          loginResult.className = 'error';
+          loginResult.textContent = `HTTP 401 — Identifiants incorrects.`;
+        }
+      } else {
+        loginResult.className = 'error';
+        loginResult.textContent = `HTTP ${status}\n${JSON.stringify(data, null, 2)}`;
+      }
+    } catch (err) {
+      loginResult.className = 'error';
+      loginResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
