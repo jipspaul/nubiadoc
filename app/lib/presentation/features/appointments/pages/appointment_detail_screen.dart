@@ -160,7 +160,20 @@ class _AppointmentInfoCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(appointment.motif, style: textTheme.titleMedium),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(appointment.motif, style: textTheme.titleMedium),
+                ),
+                const SizedBox(width: 8),
+                _AppointmentStatusChip(
+                  status: appointment.status,
+                  tokens: tokens,
+                  colorScheme: colorScheme,
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             _IconRow(
               icon: Icons.person_outline,
@@ -309,6 +322,58 @@ class _ModifyButton extends StatelessWidget {
       icon: const Icon(Icons.edit_calendar_outlined),
       label: const Text('Modifier le rendez-vous'),
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _AppointmentStatusChip extends StatelessWidget {
+  const _AppointmentStatusChip({
+    required this.status,
+    required this.tokens,
+    required this.colorScheme,
+  });
+
+  final AppointmentStatus status;
+  final NubiaTokens? tokens;
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final (label, fg, bg) = _chipStyle();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+      ),
+      child: Text(
+        label,
+        style: textTheme.labelSmall?.copyWith(color: fg),
+      ),
+    );
+  }
+
+  (String, Color, Color) _chipStyle() {
+    final t = tokens;
+    switch (status) {
+      case AppointmentStatus.confirmed:
+        return ('Confirmé', t?.successFg ?? colorScheme.primary,
+            t?.successBg ?? colorScheme.primaryContainer);
+      case AppointmentStatus.requested:
+        return ('En attente', t?.warningFg ?? colorScheme.secondary,
+            t?.warningBg ?? colorScheme.secondaryContainer);
+      case AppointmentStatus.cancelled:
+        return ('Annulé', t?.dangerFg ?? colorScheme.error,
+            t?.dangerBg ?? colorScheme.errorContainer);
+      case AppointmentStatus.completed:
+        return ('Terminé', t?.textTertiary ?? colorScheme.onSurfaceVariant,
+            t?.primarySubtleBg ?? colorScheme.surfaceContainerHighest);
+      case AppointmentStatus.noShow:
+        return ('Absent', t?.dangerFg ?? colorScheme.error,
+            t?.dangerBg ?? colorScheme.errorContainer);
+    }
   }
 }
 
