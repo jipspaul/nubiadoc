@@ -57,14 +57,23 @@ pub async fn login(
         return Err(AppError::TooManyRequests);
     }
 
+    let mut auth_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_login_email', $1, true)")
+        .bind(&body.email)
+        .execute(&mut *auth_tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
         "SELECT id, password_hash, kind, totp_enabled, totp_secret \
          FROM app_user WHERE email = $1",
     )
     .bind(&body.email)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *auth_tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    auth_tx.rollback().await.map_err(|_| AppError::Internal)?;
 
     let row = row.ok_or(AppError::Unauthenticated)?;
 
@@ -108,10 +117,11 @@ pub async fn login(
         + EXPIRES_IN;
 
     let access_token = if kind == "patient" {
-        // patient_account a FORCE RLS avec account_auth_select (app.current_user_id = app_user_id).
-        // Il faut poser le GUC dans une transaction locale avant de lire la ligne.
+        // patient_account a FORCE RLS avec account_auth_select. La policy
+        // utilise un GUC dédié (app.current_login_user_id) introduit par la
+        // migration 0069, posé UNIQUEMENT dans cette transaction de login.
         let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        sqlx::query("SELECT set_config('app.current_login_user_id', $1, true)")
             .bind(user_id.to_string())
             .execute(&mut *tx)
             .await
