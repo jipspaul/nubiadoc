@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_patient/core/router/route_names.dart';
+import 'package:nubia_patient/presentation/features/notifications/bloc/notification_bloc.dart';
+import 'package:nubia_patient/presentation/features/notifications/bloc/notification_state.dart';
 
 /// Hosts the 5-tab [BottomNavigationBar] and delegates content rendering to
 /// GoRouter's [StatefulNavigationShell] so that each branch keeps its own
@@ -13,6 +16,13 @@ class MainShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        actions: [
+          _NotificationBell(),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: navigationShell,
       bottomNavigationBar: _ShellBottomNav(
         currentIndex: navigationShell.currentIndex,
@@ -26,6 +36,29 @@ class MainShell extends StatelessWidget {
       index,
       // Return to the branch's initial location when tapping the active tab.
       initialLocation: index == navigationShell.currentIndex,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _NotificationBell extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<NotificationBloc, NotificationState>(
+      builder: (context, state) {
+        final unread =
+            state is NotificationLoaded ? state.unreadCount : 0;
+        return IconButton(
+          tooltip: 'Notifications',
+          onPressed: () => context.push(RouteNames.notifications),
+          icon: Badge(
+            isLabelVisible: unread > 0,
+            label: Text('$unread'),
+            child: const Icon(Icons.notifications_outlined),
+          ),
+        );
+      },
     );
   }
 }

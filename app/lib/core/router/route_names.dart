@@ -12,6 +12,7 @@ class RouteNames {
   static const String messages = '/messages';            // Messages
   static const String documents = '/documents';          // Documents + finances
   static const String profile = '/profile';              // Profil
+  static const String notifications = '/notifications';  // Notifications
 
   // Nested
   static const String appointmentDetail = '/appointments/:id';
