@@ -113,7 +113,6 @@ pub(crate) enum AppError {
     CguRequired,
     PasswordPolicy,
     Forbidden,
-    InvalidToken,
     Conflict,
     NotFound,
     ProviderNotVerified,
@@ -171,11 +170,6 @@ impl IntoResponse for AppError {
             AppError::Forbidden => {
                 (StatusCode::FORBIDDEN, Json(json!({"code": "forbidden"}))).into_response()
             }
-            AppError::InvalidToken => (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(json!({"code": "validation_error", "detail": "Token invalide ou expiré."})),
-            )
-                .into_response(),
             AppError::Conflict => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "verification_pending"})),
@@ -259,13 +253,15 @@ impl FromRequestParts<AppState> for ProClaims {
     }
 }
 
-/// Claims JWT pour `GET /v1/me` — accepte patient et pro, extrait `kind` et `account_id`.
+/// Claims JWT pour `GET /v1/me` — accepte patient et pro, extrait `kind`, `account_id` et `cabinet_id`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MeClaims {
     pub(crate) sub: Uuid,
     pub(crate) kind: String,
     /// Présent uniquement dans les tokens patient.
     pub(crate) account_id: Option<Uuid>,
+    /// Présent dans les tokens pro émis par `POST /v1/pro/register` (porte le cabinet_id).
+    pub(crate) cabinet_id: Option<Uuid>,
 }
 
 /// Appartenance à un cabinet.
@@ -287,8 +283,10 @@ pub struct MeResponse {
 
 /// `GET /v1/me` — retourne le profil du porteur du token (patient ou pro).
 ///
-/// L'`account_id` est extrait directement du JWT pour les patients (pas de requête supplémentaire).
-/// `memberships` est vide en MVP (table `cabinet_membership` non encore créée).
+/// Pour les tokens pro portant un `cabinet_id` (émis par `POST /v1/pro/register`),
+/// interroge `cabinet_membership` via RLS (SET LOCAL). Pour les tokens pro sans
+/// `cabinet_id` (émis par `POST /v1/auth/login`), `memberships` est vide.
+/// Toujours auditée (`read_profile` sur `app_user`, cabinet_id nil UUID sentinel).
 pub async fn me(
     State(state): State<AppState>,
     claims: MeClaims,
@@ -301,12 +299,76 @@ pub async fn me(
 
     let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
 
+    // Interroge cabinet_membership si le token pro porte un cabinet_id.
+    let memberships = if claims.kind == "pro" {
+        if let Some(cabinet_id) = claims.cabinet_id {
+            let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+            sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+                .bind(cabinet_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+            let rows = sqlx::query(
+                "SELECT cabinet_id, role FROM cabinet_membership \
+                 WHERE cabinet_id = $1 AND user_id = $2 AND active = true",
+            )
+            .bind(cabinet_id)
+            .bind(claims.sub)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+            tx.commit().await.map_err(|_| AppError::Internal)?;
+            rows.into_iter()
+                .map(|r| {
+                    let cid: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+                    let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
+                    Ok(CabinetMembership {
+                        cabinet_id: cid,
+                        role,
+                    })
+                })
+                .collect::<Result<Vec<_>, AppError>>()?
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+
+    // Audit log : entité plateforme → nil UUID comme sentinel cabinet_id.
+    let mut atx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *atx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, $3, 'read_profile', 'app_user', $4, $5)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(&claims.kind)
+    .bind(claims.sub)
+    .bind(json!({}))
+    .execute(&mut *atx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    atx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        user_id = %claims.sub,
+        kind = %claims.kind,
+        "profile read"
+    );
+
     Ok(Json(MeResponse {
         user_id: claims.sub,
         email,
         kind: claims.kind,
         account_id: claims.account_id,
-        memberships: vec![],
+        memberships,
     }))
 }
 

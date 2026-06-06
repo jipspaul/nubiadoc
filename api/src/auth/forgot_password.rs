@@ -1,8 +1,7 @@
 //! Handler `POST /v1/auth/password/forgot`.
 
-use axum::{extract::State, Json};
+use axum::{extract::State, http::StatusCode, Json};
 use serde::Deserialize;
-use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -15,14 +14,13 @@ pub struct ForgotPasswordBody {
 
 /// `POST /v1/auth/password/forgot` — déclenche le reset de mot de passe.
 ///
-/// Réponse toujours identique (200 + message neutre) que l'email existe ou non
-/// (anti-énumération §1.8). Si l'email est connu, génère un token UUID, le stocke
-/// hashé (SHA-256 via pgcrypto) avec une expiration d'une heure, puis notifie via
-/// le mailer.
+/// Réponse toujours `204` que l'email existe ou non (anti-énumération §1.8).
+/// Si l'email est connu, génère un token UUID, le stocke hashé (SHA-256 via pgcrypto)
+/// avec une expiration d'une heure, puis notifie via le mailer.
 pub async fn forgot_password(
     State(state): State<AppState>,
     Json(body): Json<ForgotPasswordBody>,
-) -> Json<Value> {
+) -> StatusCode {
     let token = Uuid::new_v4().to_string();
 
     let result = sqlx::query(
@@ -49,5 +47,5 @@ pub async fn forgot_password(
         }
     }
 
-    Json(json!({"message": "Si un compte existe, un email a été envoyé."}))
+    StatusCode::NO_CONTENT
 }
