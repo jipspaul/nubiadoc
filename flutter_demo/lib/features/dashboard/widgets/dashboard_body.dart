@@ -4,10 +4,11 @@ import '../models/dashboard_summary.dart';
 import 'dashboard_tile.dart';
 
 /// Corps scrollable du dashboard : tuiles prochain RDV, à signer,
-/// à payer, messages, rappels.
+/// questionnaires, à payer, messages, rappels.
 ///
 /// Délègue la navigation au parent via les callbacks [onAppointmentTap],
-/// [onDocumentsTap], [onPaymentsTap], [onMessagesTap], [onRemindersTap].
+/// [onDocumentsTap], [onQuestionnairesTodo], [onPaymentsTap],
+/// [onMessagesTap], [onRemindersTap].
 class DashboardBody extends StatelessWidget {
   const DashboardBody({
     super.key,
@@ -15,6 +16,7 @@ class DashboardBody extends StatelessWidget {
     required this.onRefresh,
     required this.onAppointmentTap,
     required this.onDocumentsTap,
+    required this.onQuestionnairesTodo,
     required this.onPaymentsTap,
     required this.onMessagesTap,
     required this.onRemindersTap,
@@ -26,6 +28,7 @@ class DashboardBody extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final VoidCallback onAppointmentTap;
   final VoidCallback onDocumentsTap;
+  final VoidCallback onQuestionnairesTodo;
   final VoidCallback onPaymentsTap;
   final VoidCallback onMessagesTap;
   final VoidCallback onRemindersTap;
@@ -48,6 +51,12 @@ class DashboardBody extends StatelessWidget {
           title: 'À signer',
           count: summary.toSign.length,
           onTap: onDocumentsTap,
+        ),
+        DashboardTile(
+          icon: Icons.assignment_outlined,
+          title: 'Questionnaires',
+          count: summary.questionnairesTodo.length,
+          onTap: onQuestionnairesTodo,
         ),
         DashboardTile(
           icon: Icons.payment_outlined,
