@@ -416,28 +416,29 @@ pub async fn pro_register(
         .map_err(|_| AppError::Internal)?
         .to_string();
 
-    // Pre-generate cabinet UUID so we can SET LOCAL app.current_cabinet_id before the insert.
+    // Pre-generate UUIDs so we can avoid RETURNING on RLS-protected tables.
+    // app_user has FORCE RLS (migration 0045): RETURNING id would be blocked by the
+    // user_self_select policy (requires app.current_user_id = id, not yet set at insert time).
     // cabinet has FORCE RLS: WITH CHECK requires id = current_setting('app.current_cabinet_id').
+    let user_id = Uuid::new_v4();
     let cabinet_id = Uuid::new_v4();
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // app_user has no RLS — insert before setting the tenant GUC.
-    let user_row = sqlx::query(
-        "INSERT INTO app_user (email, password_hash, kind) VALUES ($1, $2, 'pro') RETURNING id",
-    )
-    .bind(&body.email)
-    .bind(&password_hash)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        if is_unique_violation(&e) {
-            AppError::EmailTaken
-        } else {
-            AppError::Internal
-        }
-    })?;
-    let user_id: Uuid = user_row.try_get(0).map_err(|_| AppError::Internal)?;
+    // Insert app_user with explicit id — no RETURNING needed (we already know user_id).
+    sqlx::query("INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'pro')")
+        .bind(user_id)
+        .bind(&body.email)
+        .bind(&password_hash)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            if is_unique_violation(&e) {
+                AppError::EmailTaken
+            } else {
+                AppError::Internal
+            }
+        })?;
 
     // Scope the tenant GUC to this transaction (SET LOCAL) so subsequent inserts
     // pass the cabinet / cabinet_membership / provider RLS WITH CHECK.
