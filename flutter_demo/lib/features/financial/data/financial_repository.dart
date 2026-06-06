@@ -13,7 +13,7 @@ class FakeFinancialRepository implements FinancialRepository {
     return FinancialSummary(
       totalDueCents: 280000,
       totalPaidCents: 105000,
-      quotes: const [
+      quotes: [
         FinancialDocument(
           id: 'q-001',
           label: 'Devis implant #1',
@@ -29,7 +29,7 @@ class FakeFinancialRepository implements FinancialRepository {
           date: _d(2026, 3, 5),
         ),
       ],
-      invoices: const [
+      invoices: [
         FinancialDocument(
           id: 'f-001',
           label: 'Facture acompte',
@@ -38,7 +38,7 @@ class FakeFinancialRepository implements FinancialRepository {
           date: _d(2026, 5, 1),
         ),
       ],
-      milestones: const [
+      milestones: [
         PaymentMilestone(
           id: 'm-001',
           label: 'Acompte',

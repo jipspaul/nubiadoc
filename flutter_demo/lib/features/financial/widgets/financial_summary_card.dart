@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../models/financial_summary.dart';
+import '../models/financial_summary.dart';
 
 /// Carte de résumé financier : montant dû, payé, restant + barre de progression.
 class FinancialSummaryCard extends StatelessWidget {
