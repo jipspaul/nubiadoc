@@ -127,6 +127,7 @@ async fn dashboard_empty_patient_returns_200_empty() {
     assert_eq!(v["to_sign"], json!([]), "to_sign doit être vide");
     assert_eq!(v["to_pay"], json!([]), "to_pay doit être vide");
     assert_eq!(v["unread_messages"], 0, "unread_messages doit être 0");
+    assert_eq!(v["reminders"], 0, "reminders doit être 0");
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)
