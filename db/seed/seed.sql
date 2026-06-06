@@ -239,6 +239,14 @@ INSERT INTO review (id, provider_id, patient_account_id, appointment_id, rating,
   ('ab000000-0000-0000-0000-000000000001','f0000000-0000-0000-0000-0000000000f1','e0000000-0000-0000-0000-0000000000e1','aa000000-0000-0000-0000-000000000001',5,'Praticien à l''écoute, intervention sans douleur.','published','2026-05-15 18:00+00')
 ON CONFLICT (id) DO NOTHING;
 
+-- =====================================================================
+-- Devices FCM push (issue #696) : 1 patient, 1 pro
+-- =====================================================================
+INSERT INTO device (id, app_user_id, fcm_token, platform) VALUES
+  ('ff000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a5','fcm_patient_marc_ios','ios'),
+  ('ff000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-0000000000a1','fcm_pro_hugo_android','android')
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;
 
 \echo '✓ seed démo chargé (Cabinet Lyon, données fictives, idempotent)'

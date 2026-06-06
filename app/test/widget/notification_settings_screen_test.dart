@@ -1,0 +1,96 @@
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:nubia_patient/domain/entities/notification_preferences.dart';
+import 'package:nubia_patient/presentation/features/notifications/bloc/notification_settings_cubit.dart';
+import 'package:nubia_patient/presentation/features/notifications/bloc/notification_settings_state.dart';
+import 'package:nubia_patient/presentation/features/notifications/pages/notification_settings_screen.dart';
+import 'package:nubia_patient/presentation/features/notifications/widgets/notification_settings_tile.dart';
+
+class MockNotificationSettingsCubit
+    extends MockCubit<NotificationSettingsState>
+    implements NotificationSettingsCubit {}
+
+const _prefs = NotificationPreferences(
+  appointments: true,
+  documents: false,
+  messages: true,
+  payments: false,
+  prevention: true,
+);
+
+Widget _wrap(NotificationSettingsCubit cubit) {
+  return MaterialApp(
+    home: BlocProvider<NotificationSettingsCubit>.value(
+      value: cubit,
+      child: const NotificationSettingsScreen(),
+    ),
+  );
+}
+
+void main() {
+  late MockNotificationSettingsCubit cubit;
+
+  setUp(() {
+    cubit = MockNotificationSettingsCubit();
+  });
+
+  tearDown(() => cubit.close());
+
+  testWidgets(
+      'affiche un indicateur de chargement en état Loading',
+      (tester) async {
+    when(() => cubit.state)
+        .thenReturn(const NotificationSettingsLoading());
+
+    await tester.pumpWidget(_wrap(cubit));
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('affiche un message d\'erreur en état Error', (tester) async {
+    when(() => cubit.state)
+        .thenReturn(const NotificationSettingsError('Erreur réseau.'));
+
+    await tester.pumpWidget(_wrap(cubit));
+
+    expect(find.text('Erreur réseau.'), findsOneWidget);
+    expect(find.text('Réessayer'), findsOneWidget);
+  });
+
+  testWidgets('affiche les toggles de préférences en état Loaded',
+      (tester) async {
+    when(() => cubit.state)
+        .thenReturn(const NotificationSettingsLoaded(_prefs));
+
+    await tester.pumpWidget(_wrap(cubit));
+
+    expect(find.byType(NotificationSettingsTile), findsNWidgets(5));
+    expect(find.text('Rendez-vous'), findsOneWidget);
+    expect(find.text('Documents'), findsOneWidget);
+    expect(find.text('Messages'), findsOneWidget);
+    expect(find.text('Paiements'), findsOneWidget);
+    expect(find.text('Prévention'), findsOneWidget);
+  });
+
+  testWidgets('appelle toggle(appointments:) quand on tape sur le switch RDV',
+      (tester) async {
+    when(() => cubit.state)
+        .thenReturn(const NotificationSettingsLoaded(_prefs));
+    when(() => cubit.toggle(appointments: false)).thenAnswer((_) async {});
+
+    await tester.pumpWidget(_wrap(cubit));
+
+    // The Rendez-vous tile has its switch ON; tap to disable.
+    final rdvSwitch = find.descendant(
+      of: find.widgetWithText(SwitchListTile, 'Rendez-vous'),
+      matching: find.byType(Switch),
+    );
+    await tester.tap(rdvSwitch);
+    await tester.pump();
+
+    verify(() => cubit.toggle(appointments: false)).called(1);
+  });
+}

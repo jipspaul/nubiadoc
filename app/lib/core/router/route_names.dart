@@ -16,6 +16,7 @@ class RouteNames {
   static const String profileDependents = '/profile/dependents';
   static const String profileCabinetInfo = '/profile/cabinet-info';
   static const String notifications = '/notifications';  // Notifications
+  static const String notificationSettings = '/notifications/settings';  // Préférences
 
   // Nested
   static const String appointmentDetail = '/appointments/:id';
@@ -25,6 +26,7 @@ class RouteNames {
   static const String appointmentCancel = '/appointments/:id/cancel';
   static const String messageThread = '/messages/:id';
   static const String documentDetail = '/documents/:id';
+  static const String documentViewer = '/documents/:id/view';
   static const String documentUpload = '/documents/upload';
   static const String signatureFlow = '/documents/:id/sign';
   static const String paymentFlow = '/billing/quotes/:id/pay';

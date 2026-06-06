@@ -21,6 +21,7 @@ import 'package:nubia_patient/domain/entities/document.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_detail_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_sign_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_upload_screen.dart';
+import 'package:nubia_patient/presentation/features/documents/pages/document_viewer_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/documents_screen.dart';
 import 'package:nubia_patient/presentation/features/home/pages/home_screen.dart';
 import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_bloc.dart';
@@ -28,6 +29,8 @@ import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_eve
 import 'package:nubia_patient/presentation/features/messaging/pages/message_thread_screen.dart';
 import 'package:nubia_patient/presentation/features/messaging/pages/messages_screen.dart';
 import 'package:nubia_patient/presentation/features/notifications/pages/notifications_screen.dart';
+import 'package:nubia_patient/presentation/features/notifications/bloc/notification_settings_cubit.dart';
+import 'package:nubia_patient/presentation/features/notifications/pages/notification_settings_screen.dart';
 import 'package:nubia_patient/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:nubia_patient/presentation/features/profile/bloc/profile_event.dart';
 import 'package:nubia_patient/presentation/features/profile/pages/cabinet_info_screen.dart';
@@ -181,6 +184,14 @@ class AppRouter {
           },
         ),
         GoRoute(
+          path: RouteNames.documentViewer,
+          name: 'document-viewer',
+          builder: (_, state) {
+            final document = state.extra! as Document;
+            return DocumentViewerScreen(document: document);
+          },
+        ),
+        GoRoute(
           path: RouteNames.signatureFlow,
           name: 'document-sign',
           builder: (_, state) => BlocProvider(
@@ -242,6 +253,14 @@ class AppRouter {
           path: RouteNames.notifications,
           name: 'notifications',
           builder: (_, __) => const NotificationsScreen(),
+        ),
+        GoRoute(
+          path: RouteNames.notificationSettings,
+          name: 'notification-settings',
+          builder: (_, __) => BlocProvider(
+            create: (_) => getIt<NotificationSettingsCubit>()..load(),
+            child: const NotificationSettingsScreen(),
+          ),
         ),
       ],
     );

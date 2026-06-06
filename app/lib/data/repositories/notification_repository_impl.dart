@@ -3,7 +3,9 @@ import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import 'package:nubia_patient/core/error/failure.dart';
 import 'package:nubia_patient/data/remote/notifications/notification_api.dart';
+import 'package:nubia_patient/data/remote/notifications/notification_preferences_dto.dart';
 import 'package:nubia_patient/domain/entities/app_notification.dart';
+import 'package:nubia_patient/domain/entities/notification_preferences.dart';
 import 'package:nubia_patient/domain/repositories/notification_repository.dart';
 
 @LazySingleton(as: NotificationRepository)
@@ -51,6 +53,30 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return const Right(null);
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors de l\'enregistrement du token.'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, NotificationPreferences>> getPreferences() async {
+    try {
+      final dto = await _api.getPreferences();
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapDioError(e, 'Erreur lors du chargement des préférences.'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> updatePreferences(
+    NotificationPreferences preferences,
+  ) async {
+    try {
+      await _api.updatePreferences(
+        NotificationPreferencesDto.fromDomain(preferences),
+      );
+      return const Right(null);
+    } on DioException catch (e) {
+      return Left(_mapDioError(e, 'Erreur lors de la mise à jour des préférences.'));
     }
   }
 
