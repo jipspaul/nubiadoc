@@ -242,6 +242,18 @@ pub fn app_with_dispatcher(
             get(scheduling::get_waiting_room),
         )
         .route(
+            "/v1/cabinet/appointments",
+            get(scheduling::get_cabinet_appointments),
+        )
+        .route(
+            "/v1/cabinet/appointments/:id/confirm",
+            post(scheduling::confirm_appointment),
+        )
+        .route(
+            "/v1/cabinet/appointments/:id",
+            patch(scheduling::patch_cabinet_appointment),
+        )
+        .route(
             "/v1/cabinet/waiting-room/call-next",
             post(scheduling::call_next_patient),
         )

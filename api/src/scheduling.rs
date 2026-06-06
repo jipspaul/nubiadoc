@@ -1,7 +1,7 @@
 //! Handler `GET /v1/cabinet/agenda` — agenda du cabinet pour le secrétariat et le praticien.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use chrono::TimeZone;
@@ -521,5 +521,370 @@ pub async fn offer_waiting_list_slot(
     Ok(Json(OfferSlotResponse {
         waiting_list_entry_id: entry_id,
         notified: true,
+    }))
+}
+
+// ── Cabinet appointments list ────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct CabinetAppointmentsQuery {
+    /// Filtre optionnel sur le statut.
+    pub status: Option<String>,
+    /// Date ISO 8601 "YYYY-MM-DD" — restreint aux RDV de ce jour.
+    pub date: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct CabinetAppointmentItem {
+    pub id: Uuid,
+    pub practitioner_id: Uuid,
+    pub patient_id: Uuid,
+    pub starts_at: String,
+    pub ends_at: String,
+    pub status: String,
+    /// Motif administratif visible par secrétariat+.
+    pub motif_admin: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct CabinetAppointmentsResponse {
+    pub data: Vec<CabinetAppointmentItem>,
+}
+
+/// `GET /v1/cabinet/appointments` — liste les RDV du cabinet (secrétariat, praticien, admin).
+///
+/// Token pro requis (secretary, practitioner, admin). `cabinet_id` extrait du JWT.
+/// RLS scopé via `app.current_cabinet_id`. RBAC R.4127-72 : secrétariat voit `motif` uniquement
+/// (pas de champ clinique distinct à ce stade — le motif unique est l'admin).
+/// Query : `status=<statut>`, `date=YYYY-MM-DD` (filtre sur `starts_at` du jour).
+pub async fn get_cabinet_appointments(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Query(params): Query<CabinetAppointmentsQuery>,
+) -> Result<Json<CabinetAppointmentsResponse>, AppError> {
+    let date_filter: Option<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> =
+        if let Some(date_str) = &params.date {
+            let d = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+                .map_err(|_| AppError::ValidationError)?;
+            let ndt_start = d.and_hms_opt(0, 0, 0).ok_or(AppError::ValidationError)?;
+            let range_start = chrono::Utc.from_utc_datetime(&ndt_start);
+            let range_end = range_start + chrono::Duration::days(1);
+            Some((range_start, range_end))
+        } else {
+            None
+        };
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Construit la requête dynamiquement selon les filtres optionnels.
+    let rows = match (&params.status, &date_filter) {
+        (Some(status), Some((ds, de))) => sqlx::query(
+            "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+             FROM appointment \
+             WHERE deleted_at IS NULL \
+               AND cabinet_id = $1 \
+               AND status = $2 \
+               AND starts_at >= $3 AND starts_at < $4 \
+             ORDER BY starts_at",
+        )
+        .bind(claims.cabinet_id)
+        .bind(status)
+        .bind(ds)
+        .bind(de)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+
+        (Some(status), None) => sqlx::query(
+            "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+             FROM appointment \
+             WHERE deleted_at IS NULL \
+               AND cabinet_id = $1 \
+               AND status = $2 \
+             ORDER BY starts_at",
+        )
+        .bind(claims.cabinet_id)
+        .bind(status)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+
+        (None, Some((ds, de))) => sqlx::query(
+            "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+             FROM appointment \
+             WHERE deleted_at IS NULL \
+               AND cabinet_id = $1 \
+               AND starts_at >= $2 AND starts_at < $3 \
+             ORDER BY starts_at",
+        )
+        .bind(claims.cabinet_id)
+        .bind(ds)
+        .bind(de)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+
+        (None, None) => sqlx::query(
+            "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+             FROM appointment \
+             WHERE deleted_at IS NULL \
+               AND cabinet_id = $1 \
+             ORDER BY starts_at",
+        )
+        .bind(claims.cabinet_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // RBAC R.4127-72 : secrétariat voit motif administratif uniquement.
+    // Le motif unique courant est déjà le motif admin ; lorsque motif_clinique
+    // sera ajouté, l'exclure si role == "secretary".
+    let mut data: Vec<CabinetAppointmentItem> = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let practitioner_id: Uuid = row
+            .try_get("practitioner_id")
+            .map_err(|_| AppError::Internal)?;
+        let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+        let starts_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+        let ends_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+        let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        let motif_admin: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
+        data.push(CabinetAppointmentItem {
+            id,
+            practitioner_id,
+            patient_id,
+            starts_at: starts_at.to_rfc3339(),
+            ends_at: ends_at.to_rfc3339(),
+            status,
+            motif_admin,
+        });
+    }
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        role = %claims.role,
+        count = data.len(),
+        "cabinet appointments listed"
+    );
+
+    Ok(Json(CabinetAppointmentsResponse { data }))
+}
+
+// ── Confirm appointment ───────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct ConfirmAppointmentResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
+/// `POST /v1/cabinet/appointments/:id/confirm` — confirme un RDV en attente (`requested → confirmed`).
+///
+/// Token pro requis (secretary+). `cabinet_id` extrait du JWT — jamais du body.
+/// RLS scopé via `app.current_cabinet_id` : 404 si le RDV n'appartient pas au cabinet.
+/// Statut attendu : `requested` → `409 invalid_status` sinon.
+/// Toute confirmation est auditée dans `audit_log`.
+pub async fn confirm_appointment(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(appt_id): Path<Uuid>,
+) -> Result<Json<ConfirmAppointmentResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, status FROM appointment \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    if status != "requested" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    sqlx::query("UPDATE appointment SET status = 'confirmed', updated_at = now() WHERE id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, $3, 'confirm_appointment', 'appointment', $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(&claims.role)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %id,
+        "appointment confirmed"
+    );
+
+    Ok(Json(ConfirmAppointmentResponse {
+        appointment_id: id,
+        status: "confirmed".to_string(),
+    }))
+}
+
+// ── Cabinet PATCH appointment ─────────────────────────────────────────────────
+
+/// Corps de la requête `PATCH /v1/cabinet/appointments/:id`.
+#[derive(Deserialize)]
+pub struct PatchCabinetAppointmentBody {
+    /// Nouveau créneau de début (ISO 8601 UTC). La durée est préservée.
+    pub starts_at: Option<String>,
+    /// Nouveau motif administratif.
+    pub motif: Option<String>,
+}
+
+/// Réponse de `PATCH /v1/cabinet/appointments/:id`.
+#[derive(Serialize)]
+pub struct PatchCabinetAppointmentResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
+fn is_exclusion_violation(e: &sqlx::Error) -> bool {
+    matches!(
+        e,
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23P01")
+    )
+}
+
+/// `PATCH /v1/cabinet/appointments/:id` — déplace ou édite un RDV côté cabinet.
+///
+/// Token pro requis (secretary+). `cabinet_id` extrait du JWT. 404 si le RDV
+/// n'appartient pas au cabinet (RLS). Statut valide pour modification :
+/// `requested` ou `confirmed` → `409 invalid_status` sinon.
+/// Conflit créneau (contrainte PG `23P01`) → `409 slot_taken`.
+/// Toute modification est auditée dans `audit_log`.
+pub async fn patch_cabinet_appointment(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(appt_id): Path<Uuid>,
+    Json(body): Json<PatchCabinetAppointmentBody>,
+) -> Result<Json<PatchCabinetAppointmentResponse>, AppError> {
+    let new_starts_at: Option<chrono::DateTime<chrono::Utc>> = body
+        .starts_at
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, status FROM appointment \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    if status != "requested" && status != "confirmed" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    // Préserve la durée si starts_at change. 23P01 → slot_taken.
+    let result = sqlx::query(
+        "UPDATE appointment \
+         SET \
+           starts_at  = COALESCE($1, starts_at), \
+           ends_at    = CASE WHEN $1 IS NOT NULL \
+                             THEN $1 + (ends_at - starts_at) \
+                             ELSE ends_at END, \
+           motif      = COALESCE($2, motif), \
+           updated_at = now() \
+         WHERE id = $3 \
+         RETURNING id, status",
+    )
+    .bind(new_starts_at)
+    .bind(body.motif.as_deref())
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await;
+
+    let updated = match result {
+        Ok(row) => row,
+        Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
+        Err(_) => return Err(AppError::Internal),
+    };
+
+    let appointment_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
+    let new_status: String = updated.try_get("status").map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, $3, 'update_appointment', 'appointment', $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(&claims.role)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %id,
+        "cabinet appointment patched"
+    );
+
+    Ok(Json(PatchCabinetAppointmentResponse {
+        appointment_id,
+        status: new_status,
     }))
 }
