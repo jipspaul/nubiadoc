@@ -1,17 +1,36 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:nubia_patient/core/storage/token_storage.dart';
+import 'package:nubia_patient/presentation/features/auth/bloc/auth_bloc.dart';
+import 'package:nubia_patient/presentation/features/auth/bloc/auth_state.dart';
 
 /// Notifies [GoRouter] when auth state changes.
 ///
-/// Listens to [TokenStorage] and exposes [isAuthenticated] so the
-/// GoRouter redirect guard can decide whether to allow or block a route.
+/// Listens to [AuthBloc] (or falls back to [TokenStorage] on startup) so
+/// that the GoRouter redirect guard re-evaluates when the user logs in or out.
 class RouterNotifier extends ChangeNotifier {
   RouterNotifier(this._tokenStorage);
 
   final TokenStorage _tokenStorage;
   bool _isAuthenticated = false;
+  StreamSubscription<AuthState>? _authSubscription;
 
   bool get isAuthenticated => _isAuthenticated;
+
+  /// Subscribe to [AuthBloc] to keep [isAuthenticated] in sync.
+  void addAuthListener(AuthBloc bloc) {
+    _authSubscription?.cancel();
+    _authSubscription = bloc.stream.listen((state) {
+      if (state is AuthAuthenticated) {
+        _isAuthenticated = true;
+        notifyListeners();
+      } else if (state is AuthUnauthenticated) {
+        _isAuthenticated = false;
+        notifyListeners();
+      }
+    });
+  }
 
   /// Call once at startup (and after every login/logout) to refresh the
   /// auth state and trigger a GoRouter re-evaluation.
@@ -32,5 +51,11 @@ class RouterNotifier extends ChangeNotifier {
   void markUnauthenticated() {
     _isAuthenticated = false;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 }

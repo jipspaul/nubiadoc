@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_patient/core/router/route_names.dart';
 import 'package:nubia_patient/presentation/features/auth/bloc/auth_bloc.dart';
 import 'package:nubia_patient/presentation/features/auth/bloc/auth_state.dart';
-import 'package:nubia_patient/presentation/features/auth/widgets/login_form.dart';
+import 'package:nubia_patient/presentation/features/auth/widgets/register_form.dart';
 
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatelessWidget {
+  const RegisterScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -18,31 +18,28 @@ class LoginScreen extends StatelessWidget {
         }
       },
       child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Créer un compte'),
+        ),
         body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Connexion',
+                  'Créer un compte',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Accédez à votre espace patient Nubia.',
+                  'Utilisez le code d\'invitation fourni par votre cabinet.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                 ),
                 const SizedBox(height: 40),
-                const LoginForm(),
-                const SizedBox(height: 24),
-                TextButton(
-                  key: const Key('go_to_register_button'),
-                  onPressed: () => context.push(RouteNames.register),
-                  child: const Text('Créer un compte'),
-                ),
+                const RegisterForm(),
               ],
             ),
           ),

@@ -6,6 +6,7 @@ import 'package:nubia_patient/core/router/router_notifier.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_detail_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointments_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/login_screen.dart';
+import 'package:nubia_patient/presentation/features/auth/pages/register_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_sign_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/documents_screen.dart';
 import 'package:nubia_patient/presentation/features/home/pages/home_screen.dart';
@@ -38,6 +39,11 @@ class AppRouter {
           path: RouteNames.login,
           name: 'login',
           builder: (_, __) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: RouteNames.register,
+          name: 'register',
+          builder: (_, __) => const RegisterScreen(),
         ),
 
         // ----------------------------------------------------------------
@@ -133,14 +139,16 @@ class AppRouter {
     return (BuildContext context, GoRouterState state) {
       final authenticated = notifier.isAuthenticated;
       final onLogin = state.matchedLocation == RouteNames.login;
+      final onRegister = state.matchedLocation == RouteNames.register;
+      final onAuthRoute = onLogin || onRegister;
 
-      if (!authenticated && !onLogin) {
-        // Not logged in and not on the login page → redirect to /login.
+      if (!authenticated && !onAuthRoute) {
+        // Not logged in and not on an auth page → redirect to /login.
         return RouteNames.login;
       }
 
-      if (authenticated && onLogin) {
-        // Already logged in but trying to visit /login → send home.
+      if (authenticated && onAuthRoute) {
+        // Already logged in but trying to visit an auth page → send home.
         return RouteNames.home;
       }
 
