@@ -876,6 +876,50 @@ impl FromRequestParts<AppState> for ProPractitionerClaims {
     }
 }
 
+/// Claims JWT pro avec accès secrétariat+ (secretary, practitioner, admin).
+///
+/// Renvoie `401` si absent/invalide, `403` si `kind != "pro"`.
+/// `role` est exposé pour le cloisonnement clinique R.4127-72 (motif admin vs clinique).
+#[derive(Debug, Deserialize)]
+pub(crate) struct ProSecretaryPlusClaims {
+    pub(crate) sub: Uuid,
+    kind: String,
+    pub(crate) cabinet_id: Uuid,
+    pub(crate) role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for ProSecretaryPlusClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        let claims = decode::<ProSecretaryPlusClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if claims.kind != "pro" {
+            return Err(AppError::Forbidden);
+        }
+
+        Ok(claims)
+    }
+}
+
 /// Corps de la requête `PATCH /v1/cabinet/provider`.
 #[derive(Deserialize)]
 pub struct PatchProviderBody {
