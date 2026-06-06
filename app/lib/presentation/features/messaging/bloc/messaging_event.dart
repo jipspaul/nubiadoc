@@ -43,3 +43,20 @@ final class MessagingMarkReadRequested extends MessagingEvent {
   @override
   List<Object?> get props => [conversationId];
 }
+
+final class MessagingPhotoAttachRequested extends MessagingEvent {
+  final String conversationId;
+  final String filePath;
+  final String filename;
+  final String mimeType;
+
+  const MessagingPhotoAttachRequested({
+    required this.conversationId,
+    required this.filePath,
+    required this.filename,
+    required this.mimeType,
+  });
+
+  @override
+  List<Object?> get props => [conversationId, filePath, filename, mimeType];
+}
