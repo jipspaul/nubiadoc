@@ -1,6 +1,7 @@
-//! Handler pour la facturation patient : GET /v1/quotes.
+//! Handlers pour la facturation patient : GET /v1/quotes, POST /v1/payments/intent.
 
 use axum::extract::{Query, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -183,4 +184,172 @@ pub async fn list_quotes(
         data,
         page: PageInfo { next_cursor, limit },
     }))
+}
+
+/// Corps de `POST /v1/payments/intent`.
+#[derive(Deserialize)]
+pub struct PaymentIntentBody {
+    pub quote_id: Uuid,
+    pub kind: String,
+    pub amount_cents: i64,
+    pub method: String,
+}
+
+/// Réponse de `POST /v1/payments/intent`.
+#[derive(Serialize)]
+pub struct PaymentIntentResponse {
+    pub payment_id: Uuid,
+    pub client_secret: String,
+}
+
+/// `POST /v1/payments/intent` — crée un PaymentIntent Stripe pour le patient.
+///
+/// Token `kind:"patient"` requis ; token pro → `403`.
+/// Header `Idempotency-Key` obligatoire → `422` si absent.
+/// Le devis (`quote_id`) doit être dans l'état `signed` → `409` sinon.
+/// Idempotence : même clé sur un paiement existant → `201` avec le même `client_secret`.
+/// PCI délégué (§07 §6.1) : seul le `client_secret` est transmis, aucune donnée carte.
+/// Confirmation finale par webhook Stripe (statut `pending` → `paid`).
+pub async fn create_payment_intent(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    headers: HeaderMap,
+    Json(body): Json<PaymentIntentBody>,
+) -> Result<(StatusCode, Json<PaymentIntentResponse>), AppError> {
+    let idempotency_key = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+        .ok_or(AppError::ValidationError)?
+        .to_owned();
+
+    if !["deposit", "installment", "full"].contains(&body.kind.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+    if !["card", "apple_pay", "google_pay", "sepa"].contains(&body.method.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient pour lire le devis via la policy quote_patient_read (migration 0029).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let quote_row = sqlx::query(
+        "SELECT q.cabinet_id, q.patient_id, q.status \
+         FROM quote q \
+         JOIN patient p ON p.id = q.patient_id \
+         WHERE q.id = $1 AND q.deleted_at IS NULL \
+           AND p.patient_account_id = $2",
+    )
+    .bind(body.quote_id)
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let cabinet_id: Uuid = quote_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = quote_row
+        .try_get("patient_id")
+        .map_err(|_| AppError::Internal)?;
+    let status: String = quote_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+
+    if status != "signed" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    // Scope cabinet pour les opérations sur payment (tenant_isolation policy).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Idempotence : retourne le paiement existant si la clé est déjà connue.
+    let existing = sqlx::query(
+        "SELECT id, client_secret FROM payment \
+         WHERE cabinet_id = $1 AND idempotency_key = $2",
+    )
+    .bind(cabinet_id)
+    .bind(&idempotency_key)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(row) = existing {
+        let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let client_secret: String = row
+            .try_get("client_secret")
+            .map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        tracing::info!(
+            account_id = %claims.account_id,
+            payment_id = %payment_id,
+            "payment intent idempotent hit"
+        );
+        return Ok((
+            StatusCode::CREATED,
+            Json(PaymentIntentResponse {
+                payment_id,
+                client_secret,
+            }),
+        ));
+    }
+
+    // Génère un client_secret stub (remplacé par l'appel Stripe réel post-T2).
+    let client_secret = format!(
+        "pi_{}_secret_{}",
+        Uuid::new_v4().simple(),
+        Uuid::new_v4().simple()
+    );
+
+    let row = sqlx::query(
+        "INSERT INTO payment \
+         (cabinet_id, patient_id, quote_id, amount, currency, kind, provider, status, \
+          idempotency_key, method, client_secret) \
+         VALUES ($1, $2, $3, $4::numeric / 100, 'EUR', $5, 'stripe', 'pending', $6, $7, $8) \
+         RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(body.quote_id)
+    .bind(body.amount_cents)
+    .bind(&body.kind)
+    .bind(&idempotency_key)
+    .bind(&body.method)
+    .bind(&client_secret)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        cabinet_id = %cabinet_id,
+        payment_id = %payment_id,
+        kind = %body.kind,
+        method = %body.method,
+        amount_cents = body.amount_cents,
+        "payment intent created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(PaymentIntentResponse {
+            payment_id,
+            client_secret,
+        }),
+    ))
 }
