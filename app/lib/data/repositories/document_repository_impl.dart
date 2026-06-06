@@ -45,6 +45,26 @@ class DocumentRepositoryImpl implements DocumentRepository {
     }
   }
 
+  @override
+  Future<Either<Failure, Document>> upload({
+    required String filePath,
+    required String filename,
+    required String mimeType,
+    required DocumentCategory category,
+  }) async {
+    try {
+      final dto = await _api.upload(
+        filePath: filePath,
+        filename: filename,
+        mimeType: mimeType,
+        category: _categoryToApi(category),
+      );
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapDioError(e, 'Erreur lors de l\'envoi du document.'));
+    }
+  }
+
   static String _categoryToApi(DocumentCategory category) {
     switch (category) {
       case DocumentCategory.quote:

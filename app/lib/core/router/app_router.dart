@@ -20,6 +20,7 @@ import 'package:nubia_patient/presentation/features/auth/pages/register_screen.d
 import 'package:nubia_patient/domain/entities/document.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_detail_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_sign_screen.dart';
+import 'package:nubia_patient/presentation/features/documents/pages/document_upload_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/documents_screen.dart';
 import 'package:nubia_patient/presentation/features/home/pages/home_screen.dart';
 import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_bloc.dart';
@@ -167,6 +168,11 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: RouteNames.documentUpload,
+          name: 'document-upload',
+          builder: (_, __) => const DocumentUploadScreen(),
+        ),
+        GoRoute(
           path: RouteNames.documentDetail,
           name: 'document-detail',
           builder: (_, state) {
@@ -267,5 +273,4 @@ class AppRouter {
     };
   }
 }
-
 
