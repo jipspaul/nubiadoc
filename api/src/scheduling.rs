@@ -10,7 +10,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, ProSecretaryPlusClaims},
+    auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
     AppState,
 };
 
@@ -189,5 +189,98 @@ pub async fn get_cabinet_agenda(
     Ok(Json(AgendaResponse {
         practitioners,
         slots,
+    }))
+}
+
+#[derive(Serialize)]
+pub struct CallNextResponse {
+    pub called: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub appointment_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patient_display_name: Option<String>,
+}
+
+/// `POST /v1/cabinet/waiting-room/call-next` — appelle le prochain patient checked-in.
+///
+/// Token pro practitioner+ requis (secretary → 403, patient → 403).
+/// RLS scopé via `app.current_cabinet_id`. Passe le statut `checked_in` → `in_progress`.
+/// Aucun patient en file → `{ called: false }`. Notification stub (NUB-T3).
+pub async fn call_next_patient(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+) -> Result<Json<CallNextResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Prochain rendez-vous checked_in (FIFO sur checkin_at).
+    // FOR UPDATE SKIP LOCKED évite les doubles appels concurrents.
+    let maybe_apt = sqlx::query(
+        "SELECT id, patient_id FROM appointment \
+         WHERE status = 'checked_in' AND deleted_at IS NULL \
+         ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
+         LIMIT 1 \
+         FOR UPDATE SKIP LOCKED",
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(apt_row) = maybe_apt else {
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Ok(Json(CallNextResponse {
+            called: false,
+            appointment_id: None,
+            patient_display_name: None,
+        }));
+    };
+
+    let appointment_id: Uuid = apt_row.try_get("id").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = apt_row
+        .try_get("patient_id")
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("UPDATE appointment SET status = 'in_progress', updated_at = now() WHERE id = $1")
+        .bind(appointment_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let pat_row = sqlx::query(
+        "SELECT first_name, last_name FROM patient WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let patient_display_name = if let Some(row) = pat_row {
+        let first: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+        let last: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+        format!("{first} {last}")
+    } else {
+        String::new()
+    };
+
+    // Stub : notification push + event WebSocket (NUB-T3).
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %appointment_id,
+        "waiting room: called next patient"
+    );
+
+    Ok(Json(CallNextResponse {
+        called: true,
+        appointment_id: Some(appointment_id),
+        patient_display_name: Some(patient_display_name),
     }))
 }
