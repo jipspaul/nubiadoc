@@ -2256,11 +2256,17 @@ pub async fn put_account_consent(
 ) -> Result<Json<ConsentUpdateResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
-        "INSERT INTO consent_record (app_user_id, purpose, granted, granted_at, revoked_at)
-         VALUES ($1, $2, $3,
-                 CASE WHEN $3 THEN now() ELSE NULL END,
-                 CASE WHEN NOT $3 THEN now() ELSE NULL END)
+        "INSERT INTO consent_record (patient_account_id, app_user_id, purpose, granted, granted_at, revoked_at)
+         VALUES ($1, $2, $3, $4,
+                 CASE WHEN $4 THEN now() ELSE NULL END,
+                 CASE WHEN NOT $4 THEN now() ELSE NULL END)
          ON CONFLICT (app_user_id, purpose) DO UPDATE SET
            granted    = EXCLUDED.granted,
            granted_at = CASE WHEN EXCLUDED.granted THEN now()
@@ -2269,6 +2275,7 @@ pub async fn put_account_consent(
          RETURNING purpose, granted,
                    COALESCE(revoked_at, granted_at, created_at) AS updated_at",
     )
+    .bind(claims.account_id)
     .bind(claims.sub)
     .bind(&purpose)
     .bind(body.granted)
@@ -2495,6 +2502,14 @@ pub async fn get_account_consents(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
 ) -> Result<Json<Vec<ConsentItem>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let rows = sqlx::query(
         "SELECT purpose, granted, granted_at, revoked_at \
          FROM consent_record \
@@ -2502,9 +2517,11 @@ pub async fn get_account_consents(
          ORDER BY created_at ASC",
     )
     .bind(claims.sub)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let consents = rows
         .into_iter()
