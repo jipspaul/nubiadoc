@@ -29,6 +29,9 @@ class DashboardScreen extends StatelessWidget {
               ),
             DashboardLoaded(:final summary) => DashboardBody(
                 summary: summary,
+                onRefresh: () async => context
+                    .read<DashboardBloc>()
+                    .add(const DashboardLoadRequested()),
                 onAppointmentTap: () => _navigate(context, '/appointments'),
                 onDocumentsTap: () => _navigate(context, '/documents'),
                 onPaymentsTap: () => _navigate(context, '/payments'),
