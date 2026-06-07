@@ -119,14 +119,8 @@ pub async fn get_medical_record(
             let data = decrypt_stub(&ciphertext)
                 .unwrap_or_else(|| json!({"allergies": [], "treatments": [], "history": null}));
 
-            let allergies = data["allergies"]
-                .as_array()
-                .cloned()
-                .unwrap_or_default();
-            let treatments = data["treatments"]
-                .as_array()
-                .cloned()
-                .unwrap_or_default();
+            let allergies = data["allergies"].as_array().cloned().unwrap_or_default();
+            let treatments = data["treatments"].as_array().cloned().unwrap_or_default();
             let history = data["history"].as_str().map(|s| s.to_string());
 
             MedicalRecordResponse {
@@ -215,15 +209,17 @@ pub async fn patch_medical_record(
     .map_err(|_| AppError::Internal)?;
 
     let (existing_id, existing_data) = match existing_row {
-        None => (None, json!({"allergies": [], "treatments": [], "history": null})),
+        None => (
+            None,
+            json!({"allergies": [], "treatments": [], "history": null}),
+        ),
         Some(row) => {
             let record_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
             let ct: Vec<u8> = row
                 .try_get("data_ciphertext")
                 .map_err(|_| AppError::Internal)?;
-            let data = decrypt_stub(&ct).unwrap_or_else(
-                || json!({"allergies": [], "treatments": [], "history": null}),
-            );
+            let data = decrypt_stub(&ct)
+                .unwrap_or_else(|| json!({"allergies": [], "treatments": [], "history": null}));
             (Some(record_id), data)
         }
     };
@@ -273,14 +269,8 @@ pub async fn patch_medical_record(
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     // Reconstruit la réponse depuis les données mergées (déjà en clair ici).
-    let allergies = merged["allergies"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    let treatments = merged["treatments"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
+    let allergies = merged["allergies"].as_array().cloned().unwrap_or_default();
+    let treatments = merged["treatments"].as_array().cloned().unwrap_or_default();
     let history = merged["history"].as_str().map(|s| s.to_string());
 
     tracing::info!(

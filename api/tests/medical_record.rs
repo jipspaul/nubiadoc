@@ -193,7 +193,10 @@ async fn get_medical_record_secretary_returns_403() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/cabinet/patients/{}/medical-record", patient_id))
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    patient_id
+                ))
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
@@ -225,7 +228,10 @@ async fn get_medical_record_other_cabinet_practitioner_returns_404() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/cabinet/patients/{}/medical-record", patient_id))
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    patient_id
+                ))
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
@@ -254,7 +260,10 @@ async fn get_medical_record_practitioner_returns_200_and_audit() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/cabinet/patients/{}/medical-record", patient_id))
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    patient_id
+                ))
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
@@ -269,7 +278,10 @@ async fn get_medical_record_practitioner_returns_200_and_audit() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert!(v["allergies"].is_array(), "allergies doit être un tableau");
-    assert!(v["treatments"].is_array(), "treatments doit être un tableau");
+    assert!(
+        v["treatments"].is_array(),
+        "treatments doit être un tableau"
+    );
 
     // Vérifie l'entrée audit_log (rôle owner, bypass RLS).
     let mut tx = db.begin().await.unwrap();
