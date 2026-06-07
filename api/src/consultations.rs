@@ -1,4 +1,4 @@
-//! Handler `GET /v1/cabinet/consultations/:id` — contexte clinique d'une séance.
+//! Handlers `/v1/cabinet/consultations/:id` — contexte et complétion d'une séance.
 
 use axum::{
     extract::{Path, State},
@@ -168,5 +168,198 @@ pub async fn get_consultation_context(
         },
         note,
         acts,
+    }))
+}
+
+// ── POST /v1/cabinet/consultations/:id/complete ───────────────────────────────
+
+/// Réponse de `POST /v1/cabinet/consultations/:id/complete`.
+#[derive(Serialize)]
+pub struct CompleteConsultationResponse {
+    /// Id de la facture/devis créé en draft, si des actes CCAM étaient présents.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invoice_id: Option<Uuid>,
+    /// Prochaine étape suggérée (ex. "sign_quote", "no_action").
+    pub next_step: String,
+}
+
+/// `POST /v1/cabinet/consultations/:id/complete` — clôture la séance et génère le devis.
+///
+/// Praticien uniquement (R.4127-72, §07 §4.1) — secrétaire → 403.
+/// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
+/// RLS tenant-scoped via `app.current_cabinet_id`.
+/// - Passe `consultation_session.status` en `completed` et pose `completed_at`.
+/// - Passe `appointment.status` en `done` et pose `appointment.completed_at`.
+/// - Si des actes CCAM existent pour ce RDV, crée un `quote` en `draft`
+///   avec les `quote_item` correspondants et retourne `invoice_id`.
+/// - Séance déjà `completed` ou `cancelled` → `409 invalid_status`.
+/// - Séance inexistante ou hors tenant → `404`.
+pub async fn complete_consultation(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<CompleteConsultationResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Récupère la séance + appointment_id, vérifie tenant et statut.
+    let session_row = sqlx::query(
+        "SELECT cs.id, cs.appointment_id, cs.status \
+         FROM consultation_session cs \
+         WHERE cs.id = $1 AND cs.cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let session_status: String = session_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    let appointment_id: Uuid = session_row
+        .try_get("appointment_id")
+        .map_err(|_| AppError::Internal)?;
+
+    if session_status != "in_progress" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    // Clôture la séance.
+    sqlx::query(
+        "UPDATE consultation_session \
+         SET status = 'completed', completed_at = now(), updated_at = now() \
+         WHERE id = $1",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Clôture le RDV associé.
+    sqlx::query(
+        "UPDATE appointment \
+         SET status = 'done', completed_at = now(), updated_at = now() \
+         WHERE id = $1",
+    )
+    .bind(appointment_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Récupère les actes CCAM pour ce RDV.
+    let act_rows = sqlx::query(
+        "SELECT id, patient_id, label, ccam_code, tooth, amount_cents \
+         FROM consultation_act \
+         WHERE appointment_id = $1 AND cabinet_id = $2 \
+         ORDER BY created_at ASC",
+    )
+    .bind(appointment_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let invoice_id = if act_rows.is_empty() {
+        None
+    } else {
+        // Déduit le patient_id depuis le premier acte (tous partagent le même).
+        let patient_id: Uuid = act_rows[0]
+            .try_get("patient_id")
+            .map_err(|_| AppError::Internal)?;
+
+        // Calcule le total en centimes pour le devis.
+        let mut total_cents: i64 = 0;
+        for row in &act_rows {
+            let cents: i32 = row
+                .try_get("amount_cents")
+                .map_err(|_| AppError::Internal)?;
+            total_cents += i64::from(cents);
+        }
+
+        // Crée le devis en draft.
+        let quote_row = sqlx::query(
+            "INSERT INTO quote \
+             (cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR') \
+             RETURNING id",
+        )
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .bind(total_cents)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let quote_id: Uuid = quote_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+        // Crée les lignes du devis.
+        for row in &act_rows {
+            let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
+            let ccam_code: Option<String> =
+                row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
+            let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
+            let amount_cents: i32 = row
+                .try_get("amount_cents")
+                .map_err(|_| AppError::Internal)?;
+
+            sqlx::query(
+                "INSERT INTO quote_item \
+                 (cabinet_id, quote_id, label, ccam_code, tooth, qty, unit_amount) \
+                 VALUES ($1, $2, $3, $4, $5, 1, $6::numeric / 100)",
+            )
+            .bind(claims.cabinet_id)
+            .bind(quote_id)
+            .bind(&label)
+            .bind(&ccam_code)
+            .bind(&tooth)
+            .bind(i64::from(amount_cents))
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
+
+        Some(quote_id)
+    };
+
+    // Audit.
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'practitioner', 'complete_consultation', 'consultation_session', $3)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let next_step = if invoice_id.is_some() {
+        "sign_quote"
+    } else {
+        "no_action"
+    };
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        consultation_id = %id,
+        appointment_id = %appointment_id,
+        invoice_id = ?invoice_id,
+        "consultation completed"
+    );
+
+    Ok(Json(CompleteConsultationResponse {
+        invoice_id,
+        next_step: next_step.to_string(),
     }))
 }
