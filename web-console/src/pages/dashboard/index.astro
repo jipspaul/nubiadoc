@@ -29,6 +29,12 @@ import Default from '../../layouts/Default.astro';
       <p id="to-sign-empty" style="color:var(--muted);font-size:0.875rem;display:none;">Aucun document en attente.</p>
     </section>
 
+    <section aria-labelledby="to-pay-heading" style="margin-bottom:1.5rem;">
+      <h2 id="to-pay-heading" style="font-size:1rem;margin-bottom:0.5rem;">À payer</h2>
+      <ul id="to-pay-list" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem;"></ul>
+      <p id="to-pay-empty" style="color:var(--muted);font-size:0.875rem;display:none;">Aucun paiement en attente.</p>
+    </section>
+
     <section aria-labelledby="messages-heading">
       <h2 id="messages-heading" style="font-size:1rem;margin-bottom:0.5rem;">Messages non lus</h2>
       <p id="unread-messages" style="color:var(--muted);padding:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;"></p>
@@ -58,10 +64,17 @@ import Default from '../../layouts/Default.astro';
   interface ToSignItem {
     quote_id?: string;
     label?: string;
+    deep_link?: string;
+  }
+  interface ToPayItem {
+    amount_cents?: number;
+    label?: string;
+    deep_link?: string;
   }
   interface DashboardData {
     next_appointment?: NextAppointment | null;
     to_sign?: ToSignItem[];
+    to_pay?: ToPayItem[];
     unread_messages?: number;
   }
 
@@ -72,6 +85,8 @@ import Default from '../../layouts/Default.astro';
   const nextAppointmentEl = document.getElementById('next-appointment') as HTMLParagraphElement;
   const toSignList = document.getElementById('to-sign-list') as HTMLUListElement;
   const toSignEmpty = document.getElementById('to-sign-empty') as HTMLParagraphElement;
+  const toPayList = document.getElementById('to-pay-list') as HTMLUListElement;
+  const toPayEmpty = document.getElementById('to-pay-empty') as HTMLParagraphElement;
   const unreadMessagesEl = document.getElementById('unread-messages') as HTMLParagraphElement;
 
   form.addEventListener('submit', async (e) => {
@@ -100,7 +115,11 @@ import Default from '../../layouts/Default.astro';
         const appt = d.next_appointment;
         if (appt) {
           const at = appt.starts_at ? new Date(appt.starts_at).toLocaleString('fr-FR') : '—';
-          nextAppointmentEl.textContent = `${at} — ${appt.motif ?? '—'}`;
+          if (appt.id) {
+            nextAppointmentEl.innerHTML = `<a href="/appointments/${appt.id}">${at} — ${appt.motif ?? '—'}</a>`;
+          } else {
+            nextAppointmentEl.textContent = `${at} — ${appt.motif ?? '—'}`;
+          }
         } else {
           nextAppointmentEl.textContent = 'Aucun rendez-vous à venir.';
         }
@@ -114,8 +133,35 @@ import Default from '../../layouts/Default.astro';
           toSign.forEach((item) => {
             const li = document.createElement('li');
             li.style.cssText = 'padding:0.5rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;';
-            li.textContent = item.label ?? item.quote_id ?? '—';
+            const label = item.label ?? item.quote_id ?? '—';
+            if (item.deep_link) {
+              li.innerHTML = `<a href="${item.deep_link}">${label}</a>`;
+            } else {
+              li.textContent = label;
+            }
             toSignList.appendChild(li);
+          });
+        }
+
+        const toPay = d.to_pay ?? [];
+        toPayList.innerHTML = '';
+        if (toPay.length === 0) {
+          toPayEmpty.style.display = 'block';
+        } else {
+          toPayEmpty.style.display = 'none';
+          toPay.forEach((item) => {
+            const li = document.createElement('li');
+            li.style.cssText = 'padding:0.5rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;';
+            const amountStr = item.amount_cents !== undefined
+              ? `${(item.amount_cents / 100).toFixed(2)} €`
+              : '—';
+            const label = item.label ? `${item.label} — ${amountStr}` : amountStr;
+            if (item.deep_link) {
+              li.innerHTML = `<a href="${item.deep_link}">${label}</a>`;
+            } else {
+              li.textContent = label;
+            }
+            toPayList.appendChild(li);
           });
         }
 
