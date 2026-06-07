@@ -20,6 +20,7 @@ mod documents;
 mod health;
 mod implant_passport;
 mod marketplace;
+mod medical_record;
 mod messaging;
 mod notifications;
 mod prescriptions;
@@ -260,6 +261,10 @@ pub fn app_with_dispatcher(
         .route(
             "/v1/cabinet/patients/:id/notes",
             post(clinical::add_patient_note),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/medical-record",
+            get(medical_record::get_medical_record).patch(medical_record::patch_medical_record),
         )
         .route(
             "/v1/cabinet/consultations/:id",
