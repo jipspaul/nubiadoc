@@ -1,0 +1,215 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Mon profil — Nubia" role="patient">
+  <header>
+    <h1>Mon profil</h1>
+    <p>Consultez et modifiez vos informations personnelles.</p>
+  </header>
+
+  <nav aria-label="Sous-navigation profil">
+    <ul>
+      <li><a href="/patient/profil" aria-current="page">Informations</a></li>
+      <li><a href="/patient/profil/couverture">Couverture</a></li>
+      <li><a href="/patient/profil/proches">Proches</a></li>
+      <li><a href="/patient/profil/consentements">Consentements</a></li>
+      <li><a href="/patient/profil/notifications">Notifications</a></li>
+    </ul>
+  </nav>
+
+  <section aria-labelledby="h-profil-infos">
+    <h2 id="h-profil-infos">Informations du compte</h2>
+
+    <div id="profil-loading" aria-live="polite">Chargement…</div>
+
+    <form id="profil-form" novalidate hidden>
+      <label>
+        Prénom <span aria-hidden="true">*</span>
+        <input type="text" name="first_name" required autocomplete="given-name" />
+      </label>
+
+      <label>
+        Nom <span aria-hidden="true">*</span>
+        <input type="text" name="last_name" required autocomplete="family-name" />
+      </label>
+
+      <label>
+        Adresse e-mail <span aria-hidden="true">*</span>
+        <input type="email" name="email" required autocomplete="email" />
+      </label>
+
+      <label>
+        Téléphone
+        <input type="tel" name="phone" autocomplete="tel" />
+      </label>
+
+      <label>
+        Date de naissance
+        <input type="date" name="date_of_birth" autocomplete="bday" />
+      </label>
+
+      <button type="submit">Enregistrer</button>
+    </form>
+
+    <p id="profil-toast" aria-live="polite" role="status" hidden></p>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  nav { margin-bottom: var(--space-6); }
+  nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  nav a {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+  }
+  nav a[aria-current="page"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+  nav a:hover:not([aria-current="page"]) { background: var(--color-border); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    max-width: 480px;
+  }
+  h2 { margin: 0 0 var(--space-4); font-size: var(--font-size-lg); }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  input {
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    width: 100%;
+  }
+  input:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  button[type="submit"] {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    align-self: flex-start;
+    margin-top: var(--space-1);
+  }
+  button[type="submit"]:hover { background: var(--color-accent-hover); }
+
+  #profil-toast {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  #profil-toast.success {
+    background: var(--color-success);
+    color: var(--color-success-fg);
+  }
+  #profil-toast.error {
+    background: var(--color-error);
+    color: var(--color-error-fg);
+  }
+</style>
+
+<script>
+  import { patientAccount, type PatientAccount } from '../../../lib/endpoints.ts';
+
+  const loading = document.getElementById('profil-loading') as HTMLElement;
+  const form = document.getElementById('profil-form') as HTMLFormElement;
+  const toast = document.getElementById('profil-toast') as HTMLParagraphElement;
+
+  function showToast(message: string, type: 'success' | 'error'): void {
+    toast.textContent = message;
+    toast.className = type;
+    toast.hidden = false;
+    setTimeout(() => { toast.hidden = true; }, 4000);
+  }
+
+  function fillForm(account: PatientAccount): void {
+    (form.elements.namedItem('first_name') as HTMLInputElement).value = account.first_name;
+    (form.elements.namedItem('last_name') as HTMLInputElement).value = account.last_name;
+    (form.elements.namedItem('email') as HTMLInputElement).value = account.email;
+    (form.elements.namedItem('phone') as HTMLInputElement).value = account.phone ?? '';
+    (form.elements.namedItem('date_of_birth') as HTMLInputElement).value = account.date_of_birth ?? '';
+  }
+
+  // Load account data
+  (async () => {
+    const { status, data } = await patientAccount.get();
+    loading.hidden = true;
+    if (status < 300 && data) {
+      fillForm(data as PatientAccount);
+      form.hidden = false;
+    } else {
+      loading.textContent = 'Impossible de charger le profil.';
+      loading.hidden = false;
+    }
+  })();
+
+  // Submit PATCH
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const body: Partial<PatientAccount> = {
+      first_name: (fd.get('first_name') as string).trim(),
+      last_name: (fd.get('last_name') as string).trim(),
+      email: (fd.get('email') as string).trim(),
+      phone: (fd.get('phone') as string).trim() || undefined,
+      date_of_birth: (fd.get('date_of_birth') as string) || undefined,
+    };
+
+    const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+
+    const { status, data } = await patientAccount.patch(body);
+    btn.disabled = false;
+
+    if (status < 300 && data) {
+      fillForm(data as PatientAccount);
+      showToast('Profil mis à jour.', 'success');
+    } else {
+      showToast('Erreur lors de la mise à jour.', 'error');
+    }
+  });
+</script>

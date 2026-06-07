@@ -349,11 +349,13 @@ pub struct SignQuoteResponse {
     pub signed_at: String,
 }
 
-/// `POST /v1/quotes/:id/sign` — signe un devis (stub Yousign).
+/// `POST /v1/quotes/:id/sign` — signature stub d'un devis par le patient connecté.
 ///
 /// Token `kind:"patient"` requis ; token pro → `403`.
-/// Retourne `404` si le devis n'existe pas ou n'appartient pas au patient connecté.
-/// Stub : met à jour `status = 'signed'` et `signed_at = now()` sans appel Yousign réel.
+/// RLS via `app.patient_account_id` (policy `quote_patient_read`, migration 0029).
+/// Retourne `404` si le devis n'appartient pas au patient authentifié.
+/// Met à jour le devis : `status = 'signed'`, `signed_at = now()`.
+/// Retourne `200 { signed: true, signed_at: "...ISO8601..." }` (stub Yousign — pas d'appel réel).
 pub async fn sign_quote(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -368,42 +370,49 @@ pub async fn sign_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let quote_row = sqlx::query(
+    // Vérifie que le devis appartient au patient (JOIN patient → patient_account_id).
+    // RLS fail-closed : si le devis n'existe pas ou hors tenant → 404.
+    let row = sqlx::query(
         "SELECT q.cabinet_id \
          FROM quote q \
-         WHERE q.id = $1 AND q.deleted_at IS NULL",
+         JOIN patient p ON p.id = q.patient_id \
+         WHERE q.id = $1 AND q.deleted_at IS NULL \
+           AND p.patient_account_id = $2",
     )
     .bind(id)
+    .bind(claims.account_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
-    let cabinet_id: Uuid = quote_row
-        .try_get("cabinet_id")
-        .map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
 
-    // Scope cabinet pour la mise à jour (tenant_isolation policy).
+    // Scope cabinet pour l'UPDATE (tenant_isolation policy sur quote).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(
-        "UPDATE quote SET status = 'signed', signed_at = now(), updated_at = now() \
-         WHERE id = $1 \
+    // Transition stub Yousign : draft → signed.
+    let update_row = sqlx::query(
+        "UPDATE quote \
+         SET status = 'signed', signed_at = now(), updated_at = now() \
+         WHERE id = $1 AND cabinet_id = $2 \
          RETURNING signed_at",
     )
     .bind(id)
+    .bind(cabinet_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    tx.commit().await.map_err(|_| AppError::Internal)?;
+    let signed_at: chrono::DateTime<chrono::Utc> = update_row
+        .try_get("signed_at")
+        .map_err(|_| AppError::Internal)?;
 
-    let signed_at: chrono::DateTime<chrono::Utc> =
-        row.try_get("signed_at").map_err(|_| AppError::Internal)?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         account_id = %claims.account_id,
