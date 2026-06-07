@@ -117,9 +117,11 @@ import Default from '../../../layouts/Default.astro';
           ['display_name', String(profile.display_name ?? '—')],
           ['specialty', String(profile.specialty ?? '—')],
           ['sector', String(profile.sector ?? '—')],
+          ['address', String(profile.address ?? '—')],
           ['bio', String(profile.bio ?? '—')],
           ['languages', Array.isArray(profile.languages) ? profile.languages.join(', ') : String(profile.languages ?? '—')],
           ['rating_avg', profile.rating_avg != null ? String(profile.rating_avg) : '—'],
+          ['review_count', profile.review_count != null ? String(profile.review_count) : '—'],
           ['accepts_new', profile.accepts_new != null ? String(profile.accepts_new) : '—'],
           ['teleconsult', profile.teleconsult != null ? String(profile.teleconsult) : '—'],
         ];
