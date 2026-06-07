@@ -298,6 +298,16 @@ export interface WaitingListEntry {
   status?: string;
 }
 
+// Pro — quotes (secrétariat / praticien)
+export interface CabinetQuote {
+  id: string;
+  patient_id?: string;
+  patient_name?: string;
+  status: string;
+  total_amount?: number;
+  created_at?: string;
+}
+
 // Pro — provider listing
 export interface Provider_listing {
   is_listed: boolean;
@@ -706,4 +716,13 @@ export const proPrescriptions = {
 
   sign: (id: string) =>
     apiFetch(`/v1/cabinet/prescriptions/${id}/sign`, { method: 'POST' }) as Promise<ApiResponse<Prescription>>,
+};
+
+// ---------------------------------------------------------------------------
+// pro.quotes
+// ---------------------------------------------------------------------------
+
+export const proQuotes = {
+  list: () =>
+    apiFetch('/v1/cabinet/quotes') as Promise<ApiResponse<CabinetQuote[]>>,
 };
