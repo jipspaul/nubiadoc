@@ -1777,6 +1777,18 @@ pub async fn patch_account(
         return Err(AppError::ValidationError);
     }
 
+    // Validation format E.164 : commence par '+', suivi de 7 à 14 chiffres.
+    if let Some(ref phone) = body.phone {
+        let digits: &str = phone.strip_prefix('+').unwrap_or("");
+        if digits.is_empty()
+            || digits.len() < 7
+            || digits.len() > 14
+            || !digits.chars().all(|c| c.is_ascii_digit())
+        {
+            return Err(AppError::ValidationError);
+        }
+    }
+
     let delta = contact_delta(body.address.as_ref());
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -1872,7 +1884,7 @@ pub async fn patch_account(
     sqlx::query(
         "INSERT INTO audit_log \
          (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
-         VALUES ($1, $2, 'patient', 'update', 'patient_account', $3, $4)",
+         VALUES ($1, $2, 'patient', 'update_account', 'patient_account', $3, $4)",
     )
     .bind(Uuid::nil())
     .bind(claims.sub)
