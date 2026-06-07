@@ -124,6 +124,9 @@ pub(crate) enum AppError {
     TooLate,
     LinkExpired,
     TooManyRequests,
+    MissingIdempotencyKey,
+    AppointmentNotHonored,
+    ReviewAlreadyExists,
 }
 
 impl IntoResponse for AppError {
@@ -215,6 +218,21 @@ impl IntoResponse for AppError {
             AppError::TooManyRequests => (
                 StatusCode::TOO_MANY_REQUESTS,
                 Json(json!({"code": "too_many_requests"})),
+            )
+                .into_response(),
+            AppError::MissingIdempotencyKey => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"code": "missing_idempotency_key"})),
+            )
+                .into_response(),
+            AppError::AppointmentNotHonored => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "appointment_not_honored"})),
+            )
+                .into_response(),
+            AppError::ReviewAlreadyExists => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "review_already_exists"})),
             )
                 .into_response(),
         }
