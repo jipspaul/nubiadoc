@@ -1,0 +1,434 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Mes devis — Nubia" role="patient">
+  <nav aria-label="Fil d'Ariane">
+    <a href="/patient/accueil">Accueil</a>
+    <span aria-hidden="true"> / </span>
+    <span aria-current="page">Mes devis</span>
+  </nav>
+
+  <header>
+    <h1>Mes devis</h1>
+    <p>Consultez, signez et réglez vos devis de soins.</p>
+  </header>
+
+  <section aria-labelledby="h-quotes">
+    <h2 id="h-quotes">Liste des devis</h2>
+
+    <div id="quotes-loading" aria-live="polite">Chargement…</div>
+
+    <ul id="quotes-list" hidden aria-label="Liste des devis"></ul>
+
+    <p id="quotes-empty" hidden>Aucun devis enregistré.</p>
+
+    <p id="quotes-error" hidden role="alert"></p>
+  </section>
+
+  <dialog id="dialog-pay" aria-labelledby="dialog-pay-title">
+    <article>
+      <header>
+        <h3 id="dialog-pay-title">Régler un acompte</h3>
+      </header>
+      <form id="form-pay" novalidate>
+        <input type="hidden" name="quote_id" />
+        <label>
+          Type de règlement
+          <select name="kind" required>
+            <option value="deposit">Acompte</option>
+            <option value="installment">Mensualité</option>
+            <option value="full">Solde total</option>
+          </select>
+        </label>
+        <label>
+          Montant (en centimes)
+          <input type="number" name="amount_cents" required min="1" placeholder="ex : 5000" />
+        </label>
+        <label>
+          Moyen de paiement
+          <select name="method" required>
+            <option value="card">Carte bancaire</option>
+            <option value="apple_pay">Apple Pay</option>
+            <option value="google_pay">Google Pay</option>
+            <option value="sepa">Prélèvement SEPA</option>
+          </select>
+        </label>
+        <footer>
+          <button type="button" id="btn-cancel-pay">Annuler</button>
+          <button type="submit" id="btn-submit-pay">Confirmer le paiement</button>
+        </footer>
+      </form>
+      <p id="pay-error" role="alert" hidden></p>
+      <p id="pay-success" role="status" hidden></p>
+    </article>
+  </dialog>
+</AppShell>
+
+<style>
+  nav { margin-bottom: var(--space-3); font-size: var(--font-size-sm); color: var(--color-muted); }
+  nav a { color: var(--color-muted); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  h2 { font-size: var(--font-size-lg); margin-bottom: var(--space-4); }
+
+  #quotes-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .quote-card {
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .quote-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .quote-id {
+    font-family: monospace;
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+  }
+
+  .quote-amount {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+  }
+
+  .quote-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+
+  .quote-status {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+  .quote-status[data-signed] {
+    background: var(--color-success);
+    color: var(--color-success-fg);
+  }
+  .quote-status[data-pending] {
+    background: var(--color-warning, #fef3c7);
+    color: var(--color-warning-fg, #92400e);
+  }
+
+  .quote-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .btn-sign {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .btn-sign:hover { background: var(--color-accent-hover); }
+  .btn-sign:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .btn-pay {
+    padding: var(--space-2) var(--space-4);
+    background: transparent;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .btn-pay:hover { background: var(--color-border); }
+  .btn-pay:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .sign-result {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    display: none;
+  }
+  .sign-result[data-ok] { color: var(--color-success-fg, #166534); }
+  .sign-result[data-err] { color: var(--color-error-fg, #991b1b); }
+
+  /* Dialog */
+  dialog {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-6);
+    max-width: 420px;
+    width: 100%;
+  }
+  dialog::backdrop { background: rgba(0,0,0,0.5); }
+
+  dialog article header { margin-bottom: var(--space-4); }
+  dialog h3 { margin: 0; font-size: var(--font-size-lg); }
+
+  #form-pay {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  #form-pay label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  #form-pay select,
+  #form-pay input[type="number"] {
+    padding: var(--space-2);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  #form-pay footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  #form-pay footer button {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    border: 1px solid var(--color-border);
+  }
+
+  #btn-submit-pay {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+
+  #btn-cancel-pay {
+    background: transparent;
+    color: var(--color-text);
+  }
+
+  #pay-error {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-error, #fef2f2);
+    color: var(--color-error-fg, #991b1b);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  #pay-success {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-success, #f0fdf4);
+    color: var(--color-success-fg, #166534);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+  }
+</style>
+
+<script>
+  import { patientQuotes, type Quote } from '../../../lib/endpoints.ts';
+
+  const loading = document.getElementById('quotes-loading') as HTMLElement;
+  const list = document.getElementById('quotes-list') as HTMLUListElement;
+  const empty = document.getElementById('quotes-empty') as HTMLParagraphElement;
+  const quotesError = document.getElementById('quotes-error') as HTMLParagraphElement;
+
+  const dialogPay = document.getElementById('dialog-pay') as HTMLDialogElement;
+  const formPay = document.getElementById('form-pay') as HTMLFormElement;
+  const btnCancelPay = document.getElementById('btn-cancel-pay') as HTMLButtonElement;
+  const btnSubmitPay = document.getElementById('btn-submit-pay') as HTMLButtonElement;
+  const payError = document.getElementById('pay-error') as HTMLParagraphElement;
+  const paySuccess = document.getElementById('pay-success') as HTMLParagraphElement;
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function statusAttrs(status: string): string {
+    if (status === 'signed') return ' data-signed';
+    if (status === 'pending') return ' data-pending';
+    return '';
+  }
+
+  function renderQuotes(quotes: Quote[]): void {
+    list.innerHTML = '';
+    if (quotes.length === 0) {
+      empty.hidden = false;
+      return;
+    }
+    for (const quote of quotes) {
+      const amountCents = typeof (quote as Record<string, unknown>)['amount_cents'] === 'number'
+        ? (quote as Record<string, unknown>)['amount_cents'] as number
+        : (quote.total_amount ?? null);
+      const amountEur = amountCents !== null
+        ? (amountCents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
+        : '—';
+      const date = quote.created_at
+        ? new Date(quote.created_at).toLocaleDateString('fr-FR')
+        : '';
+      const status = quote.status ?? 'inconnu';
+      const canSign = status === 'pending' || status === 'sent';
+      const canPay = status !== 'paid';
+
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <article class="quote-card" data-quote-id="${escHtml(quote.id)}">
+          <div class="quote-meta">
+            <div>
+              <span class="quote-amount">${escHtml(amountEur)}</span>
+              ${date ? `<span class="quote-date"> — ${escHtml(date)}</span>` : ''}
+              <br/>
+              <span class="quote-id">${escHtml(quote.id)}</span>
+            </div>
+            <span class="quote-status"${statusAttrs(status)}>${escHtml(status)}</span>
+          </div>
+          <div class="quote-actions">
+            ${canSign ? `<button type="button" class="btn-sign" data-quote-id="${escHtml(quote.id)}">Signer</button>` : ''}
+            ${canPay ? `<button type="button" class="btn-pay" data-quote-id="${escHtml(quote.id)}">Régler acompte</button>` : ''}
+          </div>
+          <p class="sign-result" id="sign-result-${escHtml(quote.id)}" hidden></p>
+        </article>`;
+      list.appendChild(li);
+    }
+    list.hidden = false;
+
+    list.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const quoteId = target.getAttribute('data-quote-id');
+      if (!quoteId) return;
+
+      if (target.classList.contains('btn-sign')) {
+        handleSign(quoteId, target as HTMLButtonElement);
+      } else if (target.classList.contains('btn-pay')) {
+        openPayDialog(quoteId);
+      }
+    });
+  }
+
+  async function handleSign(quoteId: string, btn: HTMLButtonElement): Promise<void> {
+    const resultEl = document.getElementById(`sign-result-${quoteId}`) as HTMLParagraphElement;
+    btn.disabled = true;
+    resultEl.hidden = true;
+    resultEl.removeAttribute('data-ok');
+    resultEl.removeAttribute('data-err');
+
+    const { status, data } = await patientQuotes.sign(quoteId);
+
+    if (status === 202 && data !== null && typeof data === 'object') {
+      const res = data as { redirect_url?: string; embed_token?: string };
+      if (res.redirect_url) {
+        window.location.href = res.redirect_url;
+        return;
+      }
+      resultEl.textContent = 'Signature initiée. Vous serez notifié par e-mail.';
+      resultEl.setAttribute('data-ok', '');
+    } else if (status === 409) {
+      resultEl.textContent = 'Ce devis est déjà signé ou verrouillé.';
+      resultEl.setAttribute('data-err', '');
+      btn.disabled = false;
+    } else if (status === 503 || status === 404) {
+      resultEl.textContent = 'Service de signature temporairement indisponible. Veuillez réessayer ultérieurement.';
+      resultEl.setAttribute('data-err', '');
+      btn.disabled = false;
+    } else {
+      const err = data as Record<string, unknown> | null;
+      resultEl.textContent = String(err?.title ?? err?.code ?? 'Erreur lors de la signature.');
+      resultEl.setAttribute('data-err', '');
+      btn.disabled = false;
+    }
+
+    resultEl.style.display = '';
+    resultEl.hidden = false;
+  }
+
+  function openPayDialog(quoteId: string): void {
+    (formPay.elements.namedItem('quote_id') as HTMLInputElement).value = quoteId;
+    payError.hidden = true;
+    paySuccess.hidden = true;
+    formPay.reset();
+    (formPay.elements.namedItem('quote_id') as HTMLInputElement).value = quoteId;
+    dialogPay.showModal();
+  }
+
+  btnCancelPay.addEventListener('click', () => dialogPay.close());
+
+  formPay.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formPay);
+    const quoteId = fd.get('quote_id') as string;
+    const kind = fd.get('kind') as 'deposit' | 'installment' | 'full';
+    const amountCents = Number(fd.get('amount_cents'));
+    const method = fd.get('method') as 'card' | 'apple_pay' | 'google_pay' | 'sepa';
+    const idempotencyKey = crypto.randomUUID();
+
+    payError.hidden = true;
+    paySuccess.hidden = true;
+    btnSubmitPay.disabled = true;
+
+    const { status, data } = await patientQuotes.createPaymentIntent({
+      quote_id: quoteId,
+      kind,
+      amount_cents: amountCents,
+      method,
+      idempotency_key: idempotencyKey,
+    });
+
+    btnSubmitPay.disabled = false;
+
+    if (status === 201 && data !== null) {
+      paySuccess.textContent = 'Paiement initié. Vous recevrez une confirmation par e-mail.';
+      paySuccess.hidden = false;
+      setTimeout(() => dialogPay.close(), 2000);
+    } else {
+      const err = data as Record<string, unknown> | null;
+      payError.textContent = String(err?.title ?? err?.code ?? `Erreur lors du paiement (HTTP ${status}).`);
+      payError.hidden = false;
+    }
+  });
+
+  // Load quotes on mount
+  (async () => {
+    const { status, data } = await patientQuotes.list();
+    loading.hidden = true;
+    if (status < 300 && Array.isArray(data)) {
+      renderQuotes(data as Quote[]);
+    } else {
+      quotesError.textContent = 'Impossible de charger les devis.';
+      quotesError.hidden = false;
+    }
+  })();
+</script>

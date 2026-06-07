@@ -149,8 +149,8 @@ export interface ImplantPassport {
 }
 
 export interface PaymentIntent {
+  payment_id: string;
   client_secret: string;
-  amount: number;
 }
 
 // Search / marketplace public
@@ -492,8 +492,11 @@ export const patientQuotes = {
   list: () =>
     apiFetch('/v1/quotes') as Promise<ApiResponse<Quote[]>>,
 
-  createPaymentIntent: (body: { quote_id: string; amount: number }) =>
-    apiFetch('/v1/payments/intent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<PaymentIntent>>,
+  sign: (id: string) =>
+    apiFetch(`/v1/quotes/${id}/signature`, { method: 'POST' }) as Promise<ApiResponse<{ signature_id: string; redirect_url?: string; embed_token?: string }>>,
+
+  createPaymentIntent: (body: { quote_id: string; kind: 'deposit' | 'installment' | 'full'; amount_cents: number; method: 'card' | 'apple_pay' | 'google_pay' | 'sepa'; idempotency_key: string }) =>
+    apiFetch('/v1/payments/intent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': body.idempotency_key }, body: JSON.stringify({ quote_id: body.quote_id, kind: body.kind, amount_cents: body.amount_cents, method: body.method }) }) as Promise<ApiResponse<PaymentIntent>>,
 };
 
 // ---------------------------------------------------------------------------
