@@ -1,0 +1,99 @@
+---
+interface Tab {
+  id: string;
+  label: string;
+}
+interface Props {
+  tabs: Tab[];
+  active?: string;
+  id?: string;
+}
+const { tabs, active, id = 'tabs' } = Astro.props;
+const activeId = active ?? tabs[0]?.id;
+---
+
+<div {id} class="tabs" data-tabs>
+  <nav class="tabs__nav" role="tablist" aria-label="Onglets">
+    {tabs.map((tab) => (
+      <button
+        type="button"
+        role="tab"
+        aria-selected={tab.id === activeId ? 'true' : 'false'}
+        aria-controls={`${id}-panel-${tab.id}`}
+        id={`${id}-tab-${tab.id}`}
+        class:list={['tabs__tab', { 'tabs__tab--active': tab.id === activeId }]}
+        data-tab-target={`${id}-panel-${tab.id}`}
+      >
+        {tab.label}
+      </button>
+    ))}
+  </nav>
+  <div class="tabs__panels">
+    <slot />
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('[data-tabs]').forEach((container) => {
+    container.querySelectorAll('[role="tab"]').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const targetId = (tab as HTMLElement).dataset.tabTarget;
+        if (!targetId) return;
+
+        // Désactiver tous les onglets
+        container.querySelectorAll('[role="tab"]').forEach((t) => {
+          t.setAttribute('aria-selected', 'false');
+          (t as HTMLElement).classList.remove('tabs__tab--active');
+        });
+        // Masquer tous les panneaux
+        container.querySelectorAll('[role="tabpanel"]').forEach((p) => {
+          (p as HTMLElement).hidden = true;
+        });
+
+        // Activer l'onglet sélectionné
+        tab.setAttribute('aria-selected', 'true');
+        (tab as HTMLElement).classList.add('tabs__tab--active');
+        const panel = document.getElementById(targetId);
+        if (panel) panel.hidden = false;
+      });
+    });
+
+    // Initialiser l'état des panneaux
+    const activeTabs = container.querySelectorAll('[aria-selected="true"]');
+    container.querySelectorAll('[role="tabpanel"]').forEach((panel) => {
+      const controlled = Array.from(activeTabs).some(
+        (t) => (t as HTMLElement).dataset.tabTarget === panel.id
+      );
+      (panel as HTMLElement).hidden = !controlled;
+    });
+  });
+</script>
+
+<style>
+  .tabs__nav {
+    display: flex;
+    border-bottom: 1px solid var(--color-border);
+    gap: var(--space-1);
+    overflow-x: auto;
+  }
+  .tabs__tab {
+    padding: var(--space-2) var(--space-4);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+  }
+  .tabs__tab:hover { color: var(--color-text); }
+  .tabs__tab--active {
+    color: var(--color-accent);
+    border-bottom-color: var(--color-accent);
+  }
+  .tabs__panels { padding-top: var(--space-4); }
+</style>

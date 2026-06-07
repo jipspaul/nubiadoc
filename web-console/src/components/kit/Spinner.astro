@@ -1,0 +1,53 @@
+---
+interface Props {
+  size?: 'sm' | 'md' | 'lg';
+  label?: string;
+  id?: string;
+}
+const { size = 'md', label = 'Chargement…', id } = Astro.props;
+---
+
+<span
+  {id}
+  class:list={['spinner', `spinner--${size}`]}
+  role="status"
+  aria-label={label}
+>
+  <span class="spinner__ring" aria-hidden="true"></span>
+  <span class="sr-only">{label}</span>
+</span>
+
+<style>
+  .spinner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .spinner--sm { --_size: 1rem; --_border: 2px; }
+  .spinner--md { --_size: 1.5rem; --_border: 2px; }
+  .spinner--lg { --_size: 2.5rem; --_border: 3px; }
+
+  .spinner__ring {
+    display: block;
+    width: var(--_size);
+    height: var(--_size);
+    border: var(--_border) solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: var(--radius-full);
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+</style>
