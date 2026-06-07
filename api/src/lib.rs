@@ -11,6 +11,7 @@ use uuid::Uuid;
 mod appointments;
 mod auth;
 mod billing;
+mod cabinet_info;
 mod cabinet_messaging;
 mod clinical;
 mod consultations;
@@ -348,6 +349,7 @@ pub fn app_with_dispatcher(
         .route("/v1/search/suggest", get(marketplace::suggest_search))
         .route("/v1/search/providers", get(marketplace::search_providers))
         .route("/v1/search/slots", get(marketplace::search_slots))
+        .route("/v1/cabinets/:id/info", get(cabinet_info::get_cabinet_info))
         .route("/v1/reviews", post(reviews::create_review))
         .route(
             "/v1/providers/:id/reviews",
