@@ -1,4 +1,4 @@
--- 0087_secretariat_membership.sql
+-- 0088_secretariat_membership.sql
 -- Table secretariat_membership : rôles du personnel d'un secrétariat (P11, §H.1).
 -- Chaque entrée lie un app_user(kind=pro) à un secrétariat via un rôle (secretary/manager).
 -- RLS cabinet-scoped (colonne cabinet_id directe, pattern tenant standard).
