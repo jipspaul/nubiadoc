@@ -339,6 +339,10 @@ pub fn app_with_dispatcher(
             "/v1/treatment-plans",
             get(treatment_plans::list_treatment_plans),
         )
+        .route(
+            "/v1/treatment-plans/:id",
+            get(treatment_plans::get_treatment_plan),
+        )
         .route("/v1/quotes", get(billing::list_quotes))
         .route(
             "/v1/payments/intent",
