@@ -60,6 +60,9 @@ pub async fn select_context(
     let row = row.ok_or(AppError::Forbidden)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
     let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
+    let secretariat_id: Option<Uuid> = row
+        .try_get("secretariat_id")
+        .map_err(|_| AppError::Internal)?;
 
     const EXPIRES_IN: u64 = 900;
     let exp = SystemTime::now()
@@ -75,6 +78,7 @@ pub async fn select_context(
             kind: "pro".to_string(),
             cabinet_id,
             role,
+            secretariat_id,
             exp,
         },
         &EncodingKey::from_secret(state.jwt_secret.as_bytes()),

@@ -38,6 +38,8 @@ pub struct LoginResponse {
     refresh_token: String,
     token_type: String,
     expires_in: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_required: Option<bool>,
 }
 
 /// Sous-corps cabinet pour `POST /v1/pro/register`.
@@ -82,6 +84,8 @@ pub(crate) struct ProRegisterClaims {
     kind: String,
     cabinet_id: Uuid,
     role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    secretariat_id: Option<Uuid>,
     exp: u64,
 }
 
@@ -529,6 +533,7 @@ pub async fn pro_register(
         kind: "pro".to_string(),
         cabinet_id,
         role: "admin".to_string(),
+        secretariat_id: None,
         exp,
     };
     let access_token = encode(
