@@ -523,8 +523,8 @@ async fn post_appointment_idempotency_key_returns_same_appointment() {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed) \
-             VALUES ($1, $2, $3, $4, 'Dr. Idem', true)",
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, $4, 'Dr. Idem', true, true)",
         )
         .bind(provider_id)
         .bind(cabinet_id)

@@ -18,6 +18,7 @@ mod documents;
 mod health;
 mod marketplace;
 mod messaging;
+mod reviews;
 mod scheduling;
 mod treatment_plans;
 
@@ -292,6 +293,11 @@ pub fn app_with_dispatcher(
         .route("/v1/acts", get(marketplace::list_acts))
         .route("/v1/search/suggest", get(marketplace::suggest_search))
         .route("/v1/search/providers", get(marketplace::search_providers))
+        .route("/v1/reviews", post(reviews::create_review))
+        .route(
+            "/v1/providers/:id/reviews",
+            get(reviews::list_provider_reviews),
+        )
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
             "/v1/account/consents/:purpose",
