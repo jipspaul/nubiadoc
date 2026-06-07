@@ -75,13 +75,15 @@ pub struct ProRegisterResponse {
     access_token: String,
 }
 
-/// Claims JWT émis par `POST /v1/pro/register` — porte `cabinet_id` + `role`.
+/// Claims JWT émis par `POST /v1/pro/register` — porte `cabinet_id` + `role` + `secretariat_id` optionnel.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ProRegisterClaims {
     sub: Uuid,
     kind: String,
     cabinet_id: Uuid,
     role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    secretariat_id: Option<Uuid>,
     exp: u64,
 }
 
@@ -129,6 +131,7 @@ pub(crate) enum AppError {
     AppointmentNotHonored,
     ReviewAlreadyExists,
     AlreadyOnWaitingList,
+    NoActiveMembership,
 }
 
 impl IntoResponse for AppError {
@@ -240,6 +243,11 @@ impl IntoResponse for AppError {
             AppError::AlreadyOnWaitingList => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "already_on_waiting_list"})),
+            )
+                .into_response(),
+            AppError::NoActiveMembership => (
+                StatusCode::FORBIDDEN,
+                Json(json!({"error": "no_active_membership"})),
             )
                 .into_response(),
         }
@@ -529,6 +537,7 @@ pub async fn pro_register(
         kind: "pro".to_string(),
         cabinet_id,
         role: "admin".to_string(),
+        secretariat_id: None,
         exp,
     };
     let access_token = encode(

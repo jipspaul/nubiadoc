@@ -186,6 +186,7 @@ pub async fn refresh(
                         kind: "pro".to_string(),
                         cabinet_id,
                         role,
+                        secretariat_id: None,
                         exp,
                     },
                     &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
