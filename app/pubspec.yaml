@@ -46,6 +46,9 @@ dependencies:
   # Functional error handling
   dartz: ^0.10.1
 
+  # Shimmer loading animation
+  shimmer: ^3.0.0
+
   # PDF viewer
   flutter_pdfview: ^1.3.3
 
