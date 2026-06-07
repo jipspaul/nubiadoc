@@ -15,6 +15,7 @@ use super::{AppError, ProClaims, ProRegisterClaims};
 #[derive(Deserialize)]
 pub struct SelectContextBody {
     cabinet_id: Uuid,
+    secretariat_id: Option<Uuid>,
 }
 
 /// Réponse de `POST /v1/auth/select-context`.
@@ -30,10 +31,14 @@ pub struct SelectContextResponse {
 /// Le porteur doit être un pro authentifié (`ProClaims`). L'endpoint vérifie que
 /// l'utilisateur est membre actif du `cabinet_id` demandé via `user_all_memberships`
 /// (SECURITY DEFINER, contourne la RLS cabinet-scoped) puis émet un nouveau
-/// `ProRegisterClaims` portant `cabinet_id` et `role`. Aucun refresh token n'est
-/// émis — sélection de contexte uniquement.
+/// `ProRegisterClaims` portant `cabinet_id`, `role` et `secretariat_id` optionnel.
 ///
-/// Retourne `403 forbidden` si l'utilisateur n'est pas membre actif du cabinet demandé.
+/// Si `secretariat_id` est fourni, valide qu'il appartient bien au même cabinet
+/// (via `secretariat_membership`) avant de l'inclure dans le JWT.
+///
+/// Retourne `403 no_active_membership` si :
+/// - l'utilisateur n'est pas membre actif du `cabinet_id` demandé, ou
+/// - le `secretariat_id` fourni n'appartient pas au même cabinet.
 pub async fn select_context(
     State(state): State<AppState>,
     claims: ProClaims,
@@ -57,12 +62,40 @@ pub async fn select_context(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let row = row.ok_or(AppError::Forbidden)?;
+    let row = row.ok_or(AppError::NoActiveMembership)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
     let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
     let secretariat_id: Option<Uuid> = row
         .try_get("secretariat_id")
         .map_err(|_| AppError::Internal)?;
+
+    // Si secretariat_id fourni, valide qu'il appartient au même cabinet.
+    if let Some(sid) = body.secretariat_id {
+        let mut stx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *stx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let exists = sqlx::query(
+            "SELECT 1 FROM secretariat_membership \
+             WHERE cabinet_id = $1 AND secretariat_id = $2 AND user_id = $3 AND active = true",
+        )
+        .bind(cabinet_id)
+        .bind(sid)
+        .bind(claims.sub)
+        .fetch_optional(&mut *stx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        stx.commit().await.map_err(|_| AppError::Internal)?;
+
+        if exists.is_none() {
+            return Err(AppError::NoActiveMembership);
+        }
+    }
 
     const EXPIRES_IN: u64 = 900;
     let exp = SystemTime::now()
