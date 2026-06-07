@@ -257,6 +257,10 @@ pub fn app_with_dispatcher(
             get(clinical::list_cabinet_patients).post(clinical::create_cabinet_patient),
         )
         .route(
+            "/v1/cabinet/patients/:id/notes",
+            post(clinical::add_patient_note),
+        )
+        .route(
             "/v1/cabinet/consultations/:id",
             get(consultations::get_consultation_context),
         )

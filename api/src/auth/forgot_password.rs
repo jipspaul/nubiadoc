@@ -24,12 +24,25 @@ pub async fn forgot_password(
 ) -> StatusCode {
     let token = Uuid::new_v4().to_string();
 
-    // Récupère l'id via user_auth_select (USING true), puis pose app.current_user_id
-    // pour satisfaire user_self_update (FORCE RLS) avant l'UPDATE.
+    // Pose app.current_login_email pour satisfaire user_login_select (migration 0065).
+    // Puis pose app.current_user_id pour satisfaire user_self_update (FORCE RLS) avant l'UPDATE.
+    let mut auth_tx = match state.db.begin().await {
+        Ok(tx) => tx,
+        Err(_) => return StatusCode::NO_CONTENT,
+    };
+    if sqlx::query("SELECT set_config('app.current_login_email', $1, true)")
+        .bind(&body.email)
+        .execute(&mut *auth_tx)
+        .await
+        .is_err()
+    {
+        return StatusCode::NO_CONTENT;
+    }
     let user_row = sqlx::query("SELECT id FROM app_user WHERE email = $1")
         .bind(&body.email)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *auth_tx)
         .await;
+    let _ = auth_tx.rollback().await;
 
     let user_id = match user_row {
         Ok(Some(r)) => match r.try_get::<Uuid, _>("id") {
