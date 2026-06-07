@@ -67,6 +67,8 @@ impl Mailer for StubMailer {
 pub trait JobDispatcher: Send + Sync {
     /// Enfile un job de vérification ANS. Fire-and-forget : ne bloque pas.
     fn enqueue_verify_provider(&self, verification_id: Uuid);
+    /// Enfile un job de notification cabinet suite à une demande de rappel patient.
+    fn enqueue_notify_callback(&self, appointment_id: Uuid, cabinet_id: Uuid);
 }
 
 /// Implémentation no-op pour les tests et le dev local.
@@ -74,6 +76,7 @@ pub struct StubJobDispatcher;
 
 impl JobDispatcher for StubJobDispatcher {
     fn enqueue_verify_provider(&self, _verification_id: Uuid) {}
+    fn enqueue_notify_callback(&self, _appointment_id: Uuid, _cabinet_id: Uuid) {}
 }
 
 /// Secret Stripe pour la vérification HMAC-SHA256 des webhooks.
