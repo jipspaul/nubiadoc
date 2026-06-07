@@ -1,0 +1,255 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Prise de RDV — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">POST /v1/appointments — Prise de RDV</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;font-size:0.875rem;">
+    Flow : sélection praticien → créneau disponible → confirmation. Idempotency-Key auto-générée.
+  </p>
+
+  <!-- Étape 1 : praticien & motif -->
+  <section id="step-1" aria-labelledby="step1-heading" style="margin-bottom:2rem;">
+    <h2 id="step1-heading" style="font-size:1.1rem;margin-bottom:0.75rem;">Étape 1 — Praticien &amp; motif</h2>
+    <form id="search-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer)
+        <input type="password" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Provider ID
+        <input type="text" name="provider_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Motif
+        <input type="text" name="motif" required placeholder="ex : détartrage, bilan annuel"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit" id="search-btn"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Chercher les créneaux
+      </button>
+    </form>
+    <p id="search-badge" style="margin-top:0.75rem;display:none;"></p>
+    <pre id="search-result"
+      style="margin-top:0.75rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:2rem;"></pre>
+  </section>
+
+  <hr style="border:none;border-top:1px solid var(--border);margin:1.5rem 0;" />
+
+  <!-- Étape 2 : sélection créneau -->
+  <section id="step-2" hidden aria-labelledby="step2-heading" style="margin-bottom:2rem;">
+    <h2 id="step2-heading" style="font-size:1.1rem;margin-bottom:0.75rem;">Étape 2 — Choisir un créneau</h2>
+    <div id="slots-container" role="list" style="margin-bottom:1rem;"></div>
+    <p style="font-size:0.875rem;color:var(--muted);margin-bottom:1rem;">
+      Idempotency-Key : <code id="idempotency-key" style="font-family:monospace;color:var(--text);"></code>
+      <button id="regen-key-btn" type="button"
+        style="margin-left:0.5rem;padding:0.2rem 0.5rem;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;cursor:pointer;font-size:0.8rem;">
+        ↻ Régénérer
+      </button>
+    </p>
+    <button id="book-btn" type="button" disabled
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+      Réserver ce créneau
+    </button>
+  </section>
+
+  <hr id="step3-hr" hidden style="border:none;border-top:1px solid var(--border);margin:1.5rem 0;" />
+
+  <!-- Étape 3 : résultat -->
+  <section id="step-3" hidden aria-labelledby="step3-heading">
+    <h2 id="step3-heading" style="font-size:1.1rem;margin-bottom:0.75rem;">Résultat</h2>
+    <p id="confirmation-msg" style="margin-bottom:0.75rem;"></p>
+    <pre id="book-result"
+      style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:2rem;"></pre>
+    <button id="restart-btn" type="button"
+      style="margin-top:1rem;padding:0.5rem 1rem;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:4px;cursor:pointer;">
+      ← Nouvelle réservation
+    </button>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+  .slot-btn {
+    display:block;width:100%;text-align:left;padding:0.5rem 0.75rem;margin-bottom:0.4rem;
+    background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;cursor:pointer;
+  }
+  .slot-btn:hover { border-color:var(--accent); }
+  .slot-btn.selected { border-color:var(--accent);color:var(--accent); }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  interface Slot { slot_id: string; starts_at: string; ends_at?: string; }
+  interface AvailabilityResponse { data?: Slot[]; }
+  interface AppointmentCreated { appointment_id?: string; status?: string; }
+  interface ApiError { code?: string; }
+
+  let accessToken = '';
+  let providerId = '';
+  let motif = '';
+  let selectedSlotId = '';
+  let selectedStartsAt = '';
+  let idempotencyKey = crypto.randomUUID();
+
+  const searchForm = document.getElementById('search-form') as HTMLFormElement;
+  const searchBadge = document.getElementById('search-badge') as HTMLElement;
+  const searchResult = document.getElementById('search-result') as HTMLPreElement;
+  const step2 = document.getElementById('step-2') as HTMLElement;
+  const step3hr = document.getElementById('step3-hr') as HTMLElement;
+  const slotsContainer = document.getElementById('slots-container') as HTMLElement;
+  const idempotencyKeyEl = document.getElementById('idempotency-key') as HTMLElement;
+  const regenKeyBtn = document.getElementById('regen-key-btn') as HTMLButtonElement;
+  const bookBtn = document.getElementById('book-btn') as HTMLButtonElement;
+  const step3 = document.getElementById('step-3') as HTMLElement;
+  const confirmationMsg = document.getElementById('confirmation-msg') as HTMLElement;
+  const bookResult = document.getElementById('book-result') as HTMLPreElement;
+  const restartBtn = document.getElementById('restart-btn') as HTMLButtonElement;
+
+  function refreshKeyDisplay() {
+    idempotencyKeyEl.textContent = idempotencyKey;
+  }
+  refreshKeyDisplay();
+
+  regenKeyBtn.addEventListener('click', () => {
+    idempotencyKey = crypto.randomUUID();
+    refreshKeyDisplay();
+  });
+
+  searchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(searchForm);
+    accessToken = fd.get('access_token') as string;
+    providerId = fd.get('provider_id') as string;
+    motif = fd.get('motif') as string;
+
+    searchResult.className = '';
+    searchResult.textContent = 'Chargement…';
+    searchBadge.style.display = 'none';
+    step2.hidden = true;
+
+    try {
+      const { status, data } = await apiFetch(
+        `/v1/providers/${providerId}/availability`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      searchBadge.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
+      searchBadge.style.display = 'block';
+      searchResult.className = status < 300 ? 'success' : 'error';
+      searchResult.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+
+      if (status === 200 && data && typeof data === 'object') {
+        const slots = (data as AvailabilityResponse).data ?? [];
+        renderSlots(slots);
+        idempotencyKey = crypto.randomUUID();
+        refreshKeyDisplay();
+        step2.hidden = false;
+      }
+    } catch (err) {
+      searchResult.className = 'error';
+      searchResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  function renderSlots(slots: Slot[]) {
+    slotsContainer.innerHTML = '';
+    selectedSlotId = '';
+    selectedStartsAt = '';
+    bookBtn.disabled = true;
+
+    if (slots.length === 0) {
+      slotsContainer.innerHTML = '<p style="color:var(--muted);">Aucun créneau disponible pour ce praticien.</p>';
+      return;
+    }
+
+    slots.forEach((slot) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'slot-btn';
+      btn.dataset.slotId = slot.slot_id;
+      const d = new Date(slot.starts_at);
+      btn.textContent = `${d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} — ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+      btn.addEventListener('click', () => {
+        document.querySelectorAll<HTMLButtonElement>('.slot-btn').forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedSlotId = slot.slot_id;
+        selectedStartsAt = slot.starts_at;
+        bookBtn.disabled = false;
+      });
+      slotsContainer.appendChild(btn);
+    });
+  }
+
+  bookBtn.addEventListener('click', async () => {
+    if (!selectedSlotId) return;
+    bookBtn.disabled = true;
+    bookBtn.textContent = 'Envoi…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/appointments', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify({ provider_id: providerId, slot_id: selectedSlotId, starts_at: selectedStartsAt, motif }),
+      });
+
+      bookResult.className = status < 300 ? 'success' : 'error';
+      bookResult.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+
+      if (status === 201 && data && typeof data === 'object') {
+        const d = data as AppointmentCreated;
+        confirmationMsg.innerHTML =
+          `<span class="badge badge-ok">Réservé</span> RDV confirmé — id : <code>${d.appointment_id ?? '—'}</code> · statut : <strong>${d.status ?? '—'}</strong>`;
+      } else if (status === 409) {
+        const d = data as ApiError;
+        if (d?.code === 'slot_taken') {
+          confirmationMsg.innerHTML =
+            `<span class="badge badge-err">409 Créneau indisponible</span> Ce créneau vient d'être pris. Veuillez en choisir un autre.`;
+        } else {
+          confirmationMsg.innerHTML = `<span class="badge badge-err">HTTP ${status}</span> Réservation échouée.`;
+        }
+      } else {
+        confirmationMsg.innerHTML = `<span class="badge badge-err">HTTP ${status}</span> Réservation échouée.`;
+      }
+
+      step3hr.hidden = false;
+      step3.hidden = false;
+    } catch (err) {
+      bookResult.className = 'error';
+      bookResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      step3hr.hidden = false;
+      step3.hidden = false;
+    } finally {
+      bookBtn.disabled = !selectedSlotId;
+      bookBtn.textContent = 'Réserver ce créneau';
+    }
+  });
+
+  restartBtn.addEventListener('click', () => {
+    step2.hidden = true;
+    step3.hidden = true;
+    step3hr.hidden = true;
+    searchResult.textContent = '';
+    searchResult.className = '';
+    searchBadge.style.display = 'none';
+    slotsContainer.innerHTML = '';
+    confirmationMsg.innerHTML = '';
+    bookResult.textContent = '';
+    selectedSlotId = '';
+    selectedStartsAt = '';
+    bookBtn.disabled = true;
+    idempotencyKey = crypto.randomUUID();
+    refreshKeyDisplay();
+    searchForm.reset();
+  });
+</script>
