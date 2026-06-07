@@ -341,6 +341,29 @@ INSERT INTO secretariat (id, cabinet_id, name) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
+-- Secrétariat membership (issue #1194 — P11) : 1 manager + 2 secrétaires.
+-- Rattachés au Secrétariat A du cabinet Lyon.
+-- User a3 (sonia.accueil) = secretary
+-- User a4 (admin) = manager
+-- Nouveau user a10 (lena.monceau) = secretary
+-- =====================================================================
+INSERT INTO app_user (id, email, password_hash, kind, status) VALUES
+  ('a0000000-0000-0000-0000-000000000a10', 'lena.monceau@cabinet-lyon.test',
+   '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwMTA$THTl7H7U4XRNE7VRF3JD3cVKkYHRQFI5Bwz+5TkULkA',
+   'pro', 'active')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO cabinet_membership (id, cabinet_id, user_id, role, active) VALUES
+  ('b0000000-0000-0000-0000-0000000000b5','11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000a10','secretary', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO secretariat_membership (id, cabinet_id, secretariat_id, user_id, role, active) VALUES
+  ('19880000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '19870000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-0000000000a4', 'manager', true),
+  ('19880000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', '19870000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-0000000000a3', 'secretary', true),
+  ('19880000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', '19870000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000a10', 'secretary', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
 -- Assignations provider ↔ secrétariat (issue #1195 — P12)
 -- Dr Marin (f1) → Secrétariat A ; Dr Lefèvre (f2) → Secrétariat B.
 -- UUIDs figés, idempotents.
