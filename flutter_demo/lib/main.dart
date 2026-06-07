@@ -12,6 +12,8 @@ import 'features/auth/login_screen.dart';
 import 'features/dashboard/bloc/dashboard_bloc.dart';
 import 'features/dashboard/data/dashboard_repository.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/prescription/bloc/prescription_bloc.dart';
+import 'features/prescription/data/prescription_repository.dart';
 import 'theme/nubia_theme.dart';
 
 void main() {
@@ -39,6 +41,11 @@ class MyApp extends StatelessWidget {
         BlocProvider(
           create: (_) => AppointmentBloc(
             repository: FakeAppointmentRepository(),
+          ),
+        ),
+        BlocProvider(
+          create: (_) => PrescriptionBloc(
+            repository: FakePrescriptionRepository(),
           ),
         ),
       ],
