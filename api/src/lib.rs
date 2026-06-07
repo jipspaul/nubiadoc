@@ -249,6 +249,10 @@ pub fn app_with_dispatcher(
             get(appointments::get_appointment_preparation),
         )
         .route(
+            "/v1/appointments/:id/queue",
+            get(appointments::get_appointment_queue),
+        )
+        .route(
             "/v1/documents",
             get(documents::list_documents).post(documents::upload_document),
         )
