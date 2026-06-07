@@ -15,6 +15,7 @@ mod cabinet_messaging;
 mod clinical;
 mod consultations;
 mod dashboard;
+mod devices;
 mod documents;
 mod health;
 mod implant_passport;
@@ -313,6 +314,7 @@ pub fn app_with_dispatcher(
             "/v1/implant-passport",
             get(implant_passport::list_implant_passport),
         )
+        .route("/v1/devices", post(devices::register_device))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
         ))
