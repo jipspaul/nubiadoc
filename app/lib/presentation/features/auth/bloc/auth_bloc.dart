@@ -10,6 +10,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   AuthBloc(this._authRepository) : super(const AuthInitial()) {
     on<AuthCheckRequested>(_onCheckRequested);
+    on<SessionRestored>(_onSessionRestored);
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
@@ -18,6 +19,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   Future<void> _onCheckRequested(
     AuthCheckRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final authenticated = await _authRepository.isAuthenticated();
+    if (!authenticated) {
+      emit(const AuthUnauthenticated());
+      return;
+    }
+    final result = await _authRepository.getMe();
+    result.fold(
+      (_) => emit(const AuthUnauthenticated()),
+      (account) => emit(AuthAuthenticated(account)),
+    );
+  }
+
+  Future<void> _onSessionRestored(
+    SessionRestored event,
     Emitter<AuthState> emit,
   ) async {
     final authenticated = await _authRepository.isAuthenticated();
