@@ -7,6 +7,7 @@ import 'package:nubia_patient/presentation/features/auth/bloc/auth_bloc.dart';
 import 'package:nubia_patient/presentation/features/auth/bloc/auth_event.dart';
 import 'package:nubia_patient/presentation/features/auth/bloc/auth_state.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/login_screen.dart';
+import 'package:nubia_patient/presentation/widgets/nubia_button.dart';
 
 class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
 
@@ -36,38 +37,66 @@ void main() {
     expect(find.byKey(const Key('login_submit_button')), findsOneWidget);
   });
 
-  testWidgets('LoginScreen shows validation error when email is empty',
+  testWidgets('LoginScreen submit button disabled when fields are empty',
       (tester) async {
     await tester.pumpWidget(_wrap(const LoginScreen(), authBloc));
 
-    await tester.tap(find.byKey(const Key('login_submit_button')));
-    await tester.pump();
-
-    expect(find.text('Veuillez saisir votre adresse e-mail.'), findsOneWidget);
+    final button = tester.widget<NubiaButton>(
+      find.byKey(const Key('login_submit_button')),
+    );
+    expect(button.onPressed, isNull);
   });
 
-  testWidgets('LoginScreen shows validation error for invalid email',
-      (tester) async {
-    await tester.pumpWidget(_wrap(const LoginScreen(), authBloc));
-
-    await tester.enterText(
-        find.byKey(const Key('login_email_field')), 'not-an-email');
-    await tester.tap(find.byKey(const Key('login_submit_button')));
-    await tester.pump();
-
-    expect(find.text('Adresse e-mail invalide.'), findsOneWidget);
-  });
-
-  testWidgets('LoginScreen shows validation error when password is empty',
+  testWidgets('LoginScreen submit button disabled when only email filled',
       (tester) async {
     await tester.pumpWidget(_wrap(const LoginScreen(), authBloc));
 
     await tester.enterText(
         find.byKey(const Key('login_email_field')), 'alice@example.com');
-    await tester.tap(find.byKey(const Key('login_submit_button')));
     await tester.pump();
 
-    expect(find.text('Veuillez saisir votre mot de passe.'), findsOneWidget);
+    final button = tester.widget<NubiaButton>(
+      find.byKey(const Key('login_submit_button')),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('LoginScreen submit button disabled when only password filled',
+      (tester) async {
+    await tester.pumpWidget(_wrap(const LoginScreen(), authBloc));
+
+    await tester.enterText(
+        find.byKey(const Key('login_password_field')), 'secret');
+    await tester.pump();
+
+    final button = tester.widget<NubiaButton>(
+      find.byKey(const Key('login_submit_button')),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('LoginScreen submit button enabled when both fields filled',
+      (tester) async {
+    await tester.pumpWidget(_wrap(const LoginScreen(), authBloc));
+
+    await tester.enterText(
+        find.byKey(const Key('login_email_field')), 'alice@example.com');
+    await tester.enterText(
+        find.byKey(const Key('login_password_field')), 'secret');
+    await tester.pump();
+
+    final button = tester.widget<NubiaButton>(
+      find.byKey(const Key('login_submit_button')),
+    );
+    expect(button.onPressed, isNotNull);
+  });
+
+  testWidgets('LoginScreen shows loader when AuthLoading', (tester) async {
+    when(() => authBloc.state).thenReturn(const AuthLoading());
+
+    await tester.pumpWidget(_wrap(const LoginScreen(), authBloc));
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
   testWidgets('LoginScreen submit button disabled when AuthLoading',
@@ -76,7 +105,7 @@ void main() {
 
     await tester.pumpWidget(_wrap(const LoginScreen(), authBloc));
 
-    final button = tester.widget<FilledButton>(
+    final button = tester.widget<NubiaButton>(
       find.byKey(const Key('login_submit_button')),
     );
     expect(button.onPressed, isNull);
