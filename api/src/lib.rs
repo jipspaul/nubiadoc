@@ -275,7 +275,7 @@ pub fn app_with_dispatcher(
         )
         .route(
             "/v1/cabinet/patients/:id/notes",
-            post(clinical::add_patient_note),
+            get(clinical::list_patient_notes).post(clinical::add_patient_note),
         )
         .route(
             "/v1/cabinet/patients/:id/medical-record",

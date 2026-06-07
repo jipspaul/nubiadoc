@@ -322,6 +322,167 @@ pub async fn create_cabinet_patient(
     ))
 }
 
+// ── GET /v1/cabinet/patients/:id/notes ───────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct ListNotesQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ClinicalNoteItem {
+    pub note_id: Uuid,
+    pub note_kind: String,
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tooth: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub act_ref: Option<Value>,
+    pub author_id: Uuid,
+    pub created_at: String,
+}
+
+#[derive(Serialize)]
+pub struct ListNotesResponse {
+    pub data: Vec<ClinicalNoteItem>,
+    pub page: PageInfo,
+}
+
+/// Inverse du stub chiffrement : supprime le préfixe `STUB_ENC:` et XOR 0xFF.
+/// Retourne `None` si le ciphertext ne commence pas par le préfixe attendu.
+fn stub_decrypt(ciphertext: &[u8]) -> Option<String> {
+    let prefix = b"STUB_ENC:";
+    let payload = ciphertext.strip_prefix(prefix.as_ref())?;
+    let plain: Vec<u8> = payload.iter().map(|b| b ^ 0xFF).collect();
+    String::from_utf8(plain).ok()
+}
+
+/// `GET /v1/cabinet/patients/:id/notes` — liste paginée (cursor) des notes cliniques.
+///
+/// Praticien uniquement (R.4127-72) — secrétaire → 403.
+/// Exclut les notes soft-deleted (`deleted_at IS NOT NULL`).
+/// Déchiffre `content_ciphertext` → `text` via stub (KMS à NUB-T3).
+/// Patient inexistant ou hors tenant → 404.
+pub async fn list_patient_notes(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(patient_id): Path<Uuid>,
+    Query(params): Query<ListNotesQuery>,
+) -> Result<Json<ListNotesResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
+    let fetch_limit = limit + 1;
+
+    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let (cursor_at, cursor_id) = cursor
+        .map(|(at, id)| (Some(at), Some(id)))
+        .unwrap_or((None, None));
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le patient appartient au cabinet (RLS garantit le tenant).
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let rows = sqlx::query(
+        "SELECT id, note_kind, content_ciphertext, tooth, act_ref, author_id, created_at \
+         FROM clinical_note \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+         AND ($3::timestamptz IS NULL \
+              OR created_at < $3 \
+              OR (created_at = $3 AND id < $4)) \
+         ORDER BY created_at DESC, id DESC \
+         LIMIT $5",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .bind(cursor_at)
+    .bind(cursor_id)
+    .bind(fetch_limit)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut data: Vec<ClinicalNoteItem> = Vec::with_capacity(visible.len());
+    let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+
+    for row in visible {
+        let note_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let note_kind: String = row.try_get("note_kind").map_err(|_| AppError::Internal)?;
+        let ciphertext: Vec<u8> = row
+            .try_get("content_ciphertext")
+            .map_err(|_| AppError::Internal)?;
+        let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
+        let act_ref: Option<Value> = row.try_get("act_ref").map_err(|_| AppError::Internal)?;
+        let author_id: Uuid = row.try_get("author_id").map_err(|_| AppError::Internal)?;
+        let created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
+
+        let text = stub_decrypt(&ciphertext).unwrap_or_default();
+
+        last_created_at = Some(created_at);
+        last_id = Some(note_id);
+
+        data.push(ClinicalNoteItem {
+            note_id,
+            note_kind,
+            text,
+            tooth,
+            act_ref,
+            author_id,
+            created_at: created_at.to_rfc3339(),
+        });
+    }
+
+    let next_cursor = if has_more {
+        last_created_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_cursor(dt, id))
+    } else {
+        None
+    };
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        patient_id = %patient_id,
+        count = data.len(),
+        has_more,
+        "clinical notes listed"
+    );
+
+    Ok(Json(ListNotesResponse {
+        data,
+        page: PageInfo { next_cursor, limit },
+    }))
+}
+
 // ── POST /v1/cabinet/patients/:id/notes ──────────────────────────────────────
 
 /// Corps de la requête `POST /v1/cabinet/patients/:id/notes`.
