@@ -12,6 +12,9 @@ import 'package:nubia_patient/presentation/features/appointments/bloc/booking_bl
 import 'package:nubia_patient/presentation/features/appointments/bloc/checkin_bloc.dart';
 import 'package:nubia_patient/presentation/features/clinical/bloc/clinical_session_bloc.dart';
 import 'package:nubia_patient/presentation/features/clinical/pages/clinical_session_screen.dart';
+import 'package:nubia_patient/presentation/features/prescription/bloc/prescription_bloc.dart';
+import 'package:nubia_patient/presentation/features/prescription/bloc/prescription_event.dart';
+import 'package:nubia_patient/presentation/features/prescription/pages/prescription_screen.dart';
 import 'package:nubia_patient/presentation/features/signature/bloc/signature_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_cancel_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_detail_screen.dart';
@@ -299,6 +302,28 @@ class AppRouter {
             return BlocProvider(
               create: (_) => getIt<ClinicalSessionBloc>(),
               child: ClinicalSessionScreen(appointment: appointment),
+            );
+          },
+        ),
+        GoRoute(
+          path: RouteNames.prescriptionNew,
+          name: 'prescription-new',
+          builder: (_, state) {
+            final extra = state.extra as Map<String, String?>?;
+            final patientId = extra?['patientId'];
+            final patientName = extra?['patientName'];
+            return BlocProvider(
+              create: (_) {
+                final bloc = getIt<PrescriptionBloc>();
+                if (patientId != null && patientName != null) {
+                  bloc.add(PrescriptionPatientSelected(
+                    patientId: patientId,
+                    patientName: patientName,
+                  ));
+                }
+                return bloc;
+              },
+              child: const PrescriptionScreen(),
             );
           },
         ),
