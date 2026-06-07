@@ -331,6 +331,16 @@ INSERT INTO notification (id, app_user_id, kind, title, body_ciphertext, body_ke
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
+-- Secrétariats (issue #1187 — P10) : 2 secrétariats sur le cabinet démo.
+-- Le backfill de la migration insère 'Principal' ; on complète avec 'Secrétariat B'.
+-- UUIDs figés, idempotents.
+-- =====================================================================
+INSERT INTO secretariat (id, cabinet_id, name) VALUES
+  ('19870000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Secrétariat A'),
+  ('19870000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Secrétariat B')
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
 -- Rappels RDV (issue #1142 — P8 seed engagement, W27)
 -- 1 rappel lié au RDV de Marc Dubois (appointment aa…001, patient d1, P5)
 -- =====================================================================
