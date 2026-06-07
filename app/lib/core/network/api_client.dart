@@ -3,7 +3,6 @@ import 'package:injectable/injectable.dart';
 import 'package:nubia_patient/core/network/api_constants.dart';
 import 'package:nubia_patient/core/network/auth_interceptor.dart';
 
-@singleton
 @lazySingleton
 class ApiClient {
   late final Dio dio;
