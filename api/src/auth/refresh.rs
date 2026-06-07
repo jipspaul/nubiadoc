@@ -129,7 +129,9 @@ pub async fn refresh(
         // Le GUC est déjà posé dans tx, mais on est sorti de la tx au commit().
         // On ouvre une nouvelle tx courte pour poser le GUC et lire patient_account.
         let mut tx2 = state.db.begin().await.map_err(|_| AppError::Internal)?;
-        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        // patient_account a FORCE RLS avec account_auth_select (migration 0069).
+        // La policy utilise app.current_login_user_id (GUC dédié, pas current_user_id).
+        sqlx::query("SELECT set_config('app.current_login_user_id', $1, true)")
             .bind(user_id.to_string())
             .execute(&mut *tx2)
             .await
