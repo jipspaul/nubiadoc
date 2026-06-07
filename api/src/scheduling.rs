@@ -788,6 +788,96 @@ fn is_exclusion_violation(e: &sqlx::Error) -> bool {
     )
 }
 
+// ── Start consultation ────────────────────────────────────────────────────────
+
+/// Réponse de `POST /v1/cabinet/appointments/:id/start`.
+#[derive(Serialize)]
+pub struct StartConsultationResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+    pub started_at: String,
+}
+
+/// `POST /v1/cabinet/appointments/:id/start` — démarre une séance de consultation au fauteuil.
+///
+/// Token pro praticien requis (secretary → 403, R.4127-72 §07 §4.1).
+/// `cabinet_id` extrait du JWT, jamais du body. RLS via `app.current_cabinet_id`.
+/// Transition d'état : `confirmed → in_progress` ; toute autre transition → `409 invalid_status`.
+/// Pose `started_at = now()` sur l'appointment. Audité (`start_consultation`, `appointment`).
+pub async fn start_consultation(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(appt_id): Path<Uuid>,
+) -> Result<Json<StartConsultationResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, status FROM appointment \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    if status != "confirmed" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let updated = sqlx::query(
+        "UPDATE appointment \
+         SET status = 'in_progress', started_at = now(), updated_at = now() \
+         WHERE id = $1 \
+         RETURNING started_at",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let started_at: chrono::DateTime<chrono::Utc> = updated
+        .try_get("started_at")
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'practitioner', 'start_consultation', 'appointment', $3)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %id,
+        "consultation started"
+    );
+
+    Ok(Json(StartConsultationResponse {
+        appointment_id: id,
+        status: "in_progress".to_string(),
+        started_at: started_at.to_rfc3339(),
+    }))
+}
+
 /// `PATCH /v1/cabinet/appointments/:id` — déplace ou édite un RDV côté cabinet.
 ///
 /// Token pro requis (secretary+). `cabinet_id` extrait du JWT. 404 si le RDV
