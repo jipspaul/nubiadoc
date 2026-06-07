@@ -333,6 +333,10 @@ pub fn app_with_dispatcher(
         )
         .route("/v1/devices", post(devices::register_device))
         .route(
+            "/v1/cabinet/prescriptions",
+            post(prescriptions::create_prescription),
+        )
+        .route(
             "/v1/cabinet/prescriptions/:id/sign",
             post(prescriptions::sign_prescription),
         )
