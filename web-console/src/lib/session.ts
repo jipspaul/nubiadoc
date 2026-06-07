@@ -36,8 +36,10 @@ export function login(token: string): void {
 
   const payload = decodePayload(token);
   if (payload) {
-    const roleValue = [payload.kind ?? '', payload.role ?? ''].filter(Boolean).join(':');
-    document.cookie = `${ROLE_KEY}=${encodeURIComponent(roleValue)}; path=/; SameSite=Strict`;
+    const effectiveRole = payload.kind === 'patient' ? 'patient' : (payload.role ?? '');
+    if (effectiveRole) {
+      document.cookie = `${ROLE_KEY}=${effectiveRole}; path=/; SameSite=Strict`;
+    }
   }
 }
 
