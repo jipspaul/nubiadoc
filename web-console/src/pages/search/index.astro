@@ -1,0 +1,237 @@
+---
+import PublicLayout from '../../layouts/PublicLayout.astro';
+---
+<PublicLayout title="Annuaire praticiens — Nubia">
+  <header>
+    <h1>Trouver un praticien</h1>
+    <p>Recherchez un praticien, une spécialité ou un acte dentaire.</p>
+  </header>
+
+  <form id="search-form" method="get" action="/search/providers" aria-label="Recherche de praticiens">
+    <div class="search-row">
+      <label for="search-input" class="sr-only">Rechercher</label>
+      <input
+        id="search-input"
+        name="q"
+        type="search"
+        placeholder="ex : orthodontiste, détartrage…"
+        autocomplete="off"
+        aria-autocomplete="list"
+        aria-controls="suggest-list"
+        aria-expanded="false"
+      />
+      <button type="submit">Rechercher</button>
+    </div>
+    <ul id="suggest-list" role="listbox" aria-label="Suggestions" hidden></ul>
+    <p id="error-msg" role="alert" hidden></p>
+  </form>
+
+  <section class="links" aria-label="Filtres rapides">
+    <h2>Parcourir par</h2>
+    <nav>
+      <a href="/marketplace/professions">Professions</a>
+      <a href="/marketplace/specialties">Spécialités</a>
+      <a href="/marketplace/acts">Actes</a>
+    </nav>
+  </section>
+</PublicLayout>
+
+<style>
+  header { margin-bottom: var(--space-8); }
+  h1 { font-size: var(--font-size-2xl); margin-bottom: var(--space-2); }
+  p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  #search-form { position: relative; margin-bottom: var(--space-8); }
+
+  .search-row {
+    display: flex;
+    gap: var(--space-2);
+    max-width: 600px;
+  }
+
+  #search-input {
+    flex: 1;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+  }
+
+  #search-input:focus { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+  button[type="submit"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    padding: var(--space-3) var(--space-6);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  button[type="submit"]:hover { background: var(--color-accent-hover); }
+
+  #suggest-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    max-width: 600px;
+    width: 100%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-top: var(--space-1);
+    list-style: none;
+    z-index: 10;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  #suggest-list li {
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  #suggest-list li:last-child { border-bottom: none; }
+  #suggest-list li:hover,
+  #suggest-list li[aria-selected="true"] { background: var(--color-border); }
+
+  #error-msg { color: var(--color-error-fg); font-size: var(--font-size-sm); margin-top: var(--space-2); }
+
+  .links h2 { font-size: var(--font-size-lg); margin-bottom: var(--space-4); }
+
+  .links nav {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  .links nav a {
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    text-decoration: none;
+    color: var(--color-text);
+  }
+
+  .links nav a:hover { background: var(--color-border); }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const input = document.getElementById('search-input') as HTMLInputElement;
+  const suggestList = document.getElementById('suggest-list') as HTMLUListElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+  const form = document.getElementById('search-form') as HTMLFormElement;
+
+  let debounceTimer: ReturnType<typeof setTimeout>;
+  let activeIndex = -1;
+  let suggestions: string[] = [];
+
+  function closeSuggestions() {
+    suggestList.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    activeIndex = -1;
+  }
+
+  function renderSuggestions(items: string[]) {
+    suggestions = items;
+    suggestList.innerHTML = '';
+    if (items.length === 0) {
+      closeSuggestions();
+      return;
+    }
+    for (const item of items) {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.textContent = item;
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        input.value = item;
+        closeSuggestions();
+        form.submit();
+      });
+      suggestList.appendChild(li);
+    }
+    suggestList.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    activeIndex = -1;
+  }
+
+  async function fetchSuggestions(q: string) {
+    errorMsg.hidden = true;
+    if (q.length < 2) {
+      closeSuggestions();
+      return;
+    }
+    try {
+      const { status, data } = await apiFetch(`/v1/search/suggest?q=${encodeURIComponent(q)}`);
+      if (status >= 300) {
+        closeSuggestions();
+        return;
+      }
+      const result = data as { suggestions?: string[]; specialties?: Array<{ label?: string }>; acts?: Array<{ label?: string }> };
+      let items: string[] = [];
+      if (Array.isArray(result.suggestions)) {
+        items = result.suggestions;
+      } else {
+        // Fallback: flatten specialties + acts labels
+        const s = (result.specialties ?? []).map(x => String(x.label ?? '')).filter(Boolean);
+        const a = (result.acts ?? []).map(x => String(x.label ?? '')).filter(Boolean);
+        items = [...s, ...a].slice(0, 8);
+      }
+      renderSuggestions(items);
+    } catch {
+      closeSuggestions();
+    }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => fetchSuggestions(input.value.trim()), 300);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const items = suggestList.querySelectorAll('li');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, items.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, -1);
+    } else if (e.key === 'Escape') {
+      closeSuggestions();
+      return;
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      input.value = suggestions[activeIndex] ?? input.value;
+      closeSuggestions();
+      form.submit();
+      return;
+    }
+    items.forEach((li, i) => li.setAttribute('aria-selected', String(i === activeIndex)));
+    if (activeIndex >= 0 && suggestions[activeIndex]) {
+      input.value = suggestions[activeIndex];
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!form.contains(e.target as Node)) closeSuggestions();
+  });
+</script>
