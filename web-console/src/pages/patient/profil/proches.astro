@@ -1,0 +1,418 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Mes proches — Nubia" role="patient">
+  <header>
+    <h1>Mon profil</h1>
+    <p>Consultez et modifiez vos informations personnelles.</p>
+  </header>
+
+  <nav aria-label="Sous-navigation profil">
+    <ul>
+      <li><a href="/patient/profil">Informations</a></li>
+      <li><a href="/patient/profil/couverture">Couverture</a></li>
+      <li><a href="/patient/profil/proches" aria-current="page">Proches</a></li>
+      <li><a href="/patient/profil/consentements">Consentements</a></li>
+      <li><a href="/patient/profil/notifications">Notifications</a></li>
+    </ul>
+  </nav>
+
+  <section aria-labelledby="h-proches">
+    <h2 id="h-proches">Mes proches (ayants-droit)</h2>
+
+    <div id="proches-loading" aria-live="polite">Chargement…</div>
+
+    <ul id="proches-list" hidden></ul>
+
+    <p id="proches-empty" hidden>Aucun proche enregistré.</p>
+
+    <p id="proches-error" hidden>Impossible de charger les proches.</p>
+  </section>
+
+  <section aria-labelledby="h-ajouter-proche">
+    <h2 id="h-ajouter-proche">Ajouter un proche</h2>
+
+    <form id="add-form" novalidate>
+      <label>
+        Prénom <span aria-hidden="true">*</span>
+        <input type="text" name="first_name" required autocomplete="given-name" />
+      </label>
+
+      <label>
+        Nom <span aria-hidden="true">*</span>
+        <input type="text" name="last_name" required autocomplete="family-name" />
+      </label>
+
+      <label>
+        Date de naissance
+        <input type="date" name="date_of_birth" autocomplete="bday" />
+      </label>
+
+      <label>
+        Lien de parenté
+        <input type="text" name="relationship" placeholder="Ex: enfant, conjoint…" />
+      </label>
+
+      <button type="submit">Ajouter</button>
+    </form>
+
+    <p id="add-toast" aria-live="polite" role="status" hidden></p>
+  </section>
+
+  <!-- Dialog modification -->
+  <dialog id="edit-dialog" aria-labelledby="edit-dialog-title">
+    <h3 id="edit-dialog-title">Modifier le proche</h3>
+    <form id="edit-form" novalidate>
+      <input type="hidden" name="id" />
+
+      <label>
+        Prénom <span aria-hidden="true">*</span>
+        <input type="text" name="first_name" required />
+      </label>
+
+      <label>
+        Nom <span aria-hidden="true">*</span>
+        <input type="text" name="last_name" required />
+      </label>
+
+      <label>
+        Date de naissance
+        <input type="date" name="date_of_birth" />
+      </label>
+
+      <label>
+        Lien de parenté
+        <input type="text" name="relationship" />
+      </label>
+
+      <div class="dialog-actions">
+        <button type="submit">Enregistrer</button>
+        <button type="button" id="edit-cancel">Annuler</button>
+      </div>
+    </form>
+    <p id="edit-toast" aria-live="polite" role="status" hidden></p>
+  </dialog>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  nav { margin-bottom: var(--space-6); }
+  nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  nav a {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+  }
+  nav a[aria-current="page"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+  nav a:hover:not([aria-current="page"]) { background: var(--color-border); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    max-width: 560px;
+    margin-bottom: var(--space-6);
+  }
+  h2 { margin: 0 0 var(--space-4); font-size: var(--font-size-lg); }
+
+  #proches-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .proche-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    gap: var(--space-3);
+  }
+
+  .proche-info { flex: 1; }
+  .proche-name { font-weight: 600; font-size: var(--font-size-sm); }
+  .proche-meta { color: var(--color-muted); font-size: var(--font-size-xs); margin-top: var(--space-1); }
+
+  .proche-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  input {
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    width: 100%;
+  }
+  input:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  button[type="submit"] {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    align-self: flex-start;
+    margin-top: var(--space-1);
+  }
+  button[type="submit"]:hover { background: var(--color-accent-hover); }
+
+  .btn-secondary {
+    padding: var(--space-1) var(--space-3);
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+  }
+  .btn-secondary:hover { background: var(--color-border); }
+
+  .btn-danger {
+    padding: var(--space-1) var(--space-3);
+    background: transparent;
+    color: var(--color-error-fg, #b91c1c);
+    border: 1px solid var(--color-error, #fca5a5);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+  }
+  .btn-danger:hover { background: var(--color-error, #fee2e2); }
+
+  #add-toast, #edit-toast {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  #add-toast.success, #edit-toast.success {
+    background: var(--color-success);
+    color: var(--color-success-fg);
+  }
+  #add-toast.error, #edit-toast.error {
+    background: var(--color-error);
+    color: var(--color-error-fg);
+  }
+
+  dialog {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    max-width: 480px;
+    width: 100%;
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+  dialog h3 { margin: 0 0 var(--space-4); font-size: var(--font-size-lg); }
+
+  .dialog-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+  .dialog-actions button[type="submit"] { margin-top: 0; align-self: auto; }
+</style>
+
+<script>
+  import { patientAccount, type Dependent } from '../../../lib/endpoints.ts';
+
+  const loadingEl = document.getElementById('proches-loading') as HTMLElement;
+  const listEl = document.getElementById('proches-list') as HTMLUListElement;
+  const emptyEl = document.getElementById('proches-empty') as HTMLParagraphElement;
+  const errorEl = document.getElementById('proches-error') as HTMLParagraphElement;
+  const addForm = document.getElementById('add-form') as HTMLFormElement;
+  const addToast = document.getElementById('add-toast') as HTMLParagraphElement;
+  const editDialog = document.getElementById('edit-dialog') as HTMLDialogElement;
+  const editForm = document.getElementById('edit-form') as HTMLFormElement;
+  const editToast = document.getElementById('edit-toast') as HTMLParagraphElement;
+  const editCancelBtn = document.getElementById('edit-cancel') as HTMLButtonElement;
+
+  function showToast(el: HTMLParagraphElement, message: string, type: 'success' | 'error'): void {
+    el.textContent = message;
+    el.className = type;
+    el.hidden = false;
+    setTimeout(() => { el.hidden = true; }, 4000);
+  }
+
+  function renderItem(dep: Dependent): HTMLLIElement {
+    const li = document.createElement('li');
+    li.className = 'proche-item';
+    li.dataset.id = dep.id;
+
+    const meta: string[] = [];
+    if (dep.relationship) meta.push(dep.relationship);
+    if (dep.date_of_birth) meta.push(dep.date_of_birth);
+
+    li.innerHTML = `
+      <div class="proche-info">
+        <p class="proche-name">${dep.first_name} ${dep.last_name}</p>
+        ${meta.length ? `<p class="proche-meta">${meta.join(' · ')}</p>` : ''}
+      </div>
+      <div class="proche-actions">
+        <button type="button" class="btn-secondary btn-edit" aria-label="Modifier ${dep.first_name} ${dep.last_name}">Modifier</button>
+        <button type="button" class="btn-danger btn-delete" aria-label="Supprimer ${dep.first_name} ${dep.last_name}">Supprimer</button>
+      </div>
+    `;
+
+    li.querySelector('.btn-edit')!.addEventListener('click', () => openEdit(dep));
+    li.querySelector('.btn-delete')!.addEventListener('click', () => deleteDependent(dep.id, li));
+
+    return li;
+  }
+
+  async function loadDependents(): Promise<void> {
+    const { status, data } = await patientAccount.getDependents();
+    loadingEl.hidden = true;
+
+    if (status >= 300) {
+      errorEl.hidden = false;
+      return;
+    }
+
+    const deps = data as Dependent[];
+    if (deps.length === 0) {
+      emptyEl.hidden = false;
+    } else {
+      deps.forEach((d) => listEl.appendChild(renderItem(d)));
+      listEl.hidden = false;
+    }
+  }
+
+  function openEdit(dep: Dependent): void {
+    (editForm.elements.namedItem('id') as HTMLInputElement).value = dep.id;
+    (editForm.elements.namedItem('first_name') as HTMLInputElement).value = dep.first_name;
+    (editForm.elements.namedItem('last_name') as HTMLInputElement).value = dep.last_name;
+    (editForm.elements.namedItem('date_of_birth') as HTMLInputElement).value = dep.date_of_birth ?? '';
+    (editForm.elements.namedItem('relationship') as HTMLInputElement).value = dep.relationship ?? '';
+    editToast.hidden = true;
+    editDialog.showModal();
+  }
+
+  async function deleteDependent(id: string, li: HTMLLIElement): Promise<void> {
+    if (!confirm('Supprimer ce proche ?')) return;
+
+    const { status } = await patientAccount.deleteDependent(id);
+    if (status < 300) {
+      li.remove();
+      if (listEl.children.length === 0) {
+        listEl.hidden = true;
+        emptyEl.hidden = false;
+      }
+    } else {
+      showToast(addToast, 'Erreur lors de la suppression.', 'error');
+    }
+  }
+
+  // Add
+  addForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(addForm);
+    const body: Omit<Dependent, 'id'> = {
+      first_name: (fd.get('first_name') as string).trim(),
+      last_name: (fd.get('last_name') as string).trim(),
+      date_of_birth: (fd.get('date_of_birth') as string) || undefined,
+      relationship: (fd.get('relationship') as string).trim() || undefined,
+    };
+
+    const btn = addForm.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+
+    const { status, data } = await patientAccount.postDependent(body);
+    btn.disabled = false;
+
+    if (status === 201 && data) {
+      const dep = data as Dependent;
+      emptyEl.hidden = true;
+      listEl.hidden = false;
+      listEl.appendChild(renderItem(dep));
+      addForm.reset();
+      showToast(addToast, 'Proche ajouté.', 'success');
+    } else {
+      showToast(addToast, 'Erreur lors de l\'ajout.', 'error');
+    }
+  });
+
+  // Edit
+  editCancelBtn.addEventListener('click', () => editDialog.close());
+
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(editForm);
+    const id = fd.get('id') as string;
+    const body: Partial<Dependent> = {
+      first_name: (fd.get('first_name') as string).trim(),
+      last_name: (fd.get('last_name') as string).trim(),
+      date_of_birth: (fd.get('date_of_birth') as string) || undefined,
+      relationship: (fd.get('relationship') as string).trim() || undefined,
+    };
+
+    const btn = editForm.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+
+    const { status, data } = await patientAccount.patchDependent(id, body);
+    btn.disabled = false;
+
+    if (status < 300 && data) {
+      const updated = data as Dependent;
+      const li = listEl.querySelector(`[data-id="${id}"]`) as HTMLLIElement;
+      if (li) {
+        const newLi = renderItem(updated);
+        li.replaceWith(newLi);
+      }
+      editDialog.close();
+    } else {
+      showToast(editToast, 'Erreur lors de la modification.', 'error');
+    }
+  });
+
+  loadDependents();
+</script>
