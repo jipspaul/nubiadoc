@@ -76,7 +76,7 @@ pub struct ProRegisterResponse {
 
 /// Claims JWT émis par `POST /v1/pro/register` — porte `cabinet_id` + `role`.
 #[derive(Serialize, Deserialize)]
-struct ProRegisterClaims {
+pub(crate) struct ProRegisterClaims {
     sub: Uuid,
     kind: String,
     cabinet_id: Uuid,

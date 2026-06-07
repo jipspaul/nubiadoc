@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::AppState;
 
-use super::{AppError, LoginResponse, PatientClaims, ProClaims};
+use super::{AppError, LoginResponse, PatientClaims, ProClaims, ProRegisterClaims};
 
 /// Corps de la requête `POST /v1/auth/refresh`.
 #[derive(Deserialize)]
@@ -159,16 +159,50 @@ pub async fn refresh(
         )
         .map_err(|_| AppError::Internal)?
     } else {
-        encode(
-            &Header::default(),
-            &ProClaims {
-                sub: user_id,
-                kind: "pro".to_string(),
-                exp,
-            },
-            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-        )
-        .map_err(|_| AppError::Internal)?
+        // Re-resolve cabinet_id + role from cabinet_membership (même logique que R1 login).
+        // user_active_membership() est SECURITY DEFINER (migration 0083), contourne la RLS
+        // cabinet-scoped pour bootstrapper le tenant sans GUC préalable.
+        let mut tx2 = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(user_id.to_string())
+            .execute(&mut *tx2)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        let membership_row = sqlx::query("SELECT cabinet_id, role FROM user_active_membership($1)")
+            .bind(user_id)
+            .fetch_optional(&mut *tx2)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx2.commit().await.map_err(|_| AppError::Internal)?;
+
+        match membership_row {
+            Some(r) => {
+                let cabinet_id: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+                let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
+                encode(
+                    &Header::default(),
+                    &ProRegisterClaims {
+                        sub: user_id,
+                        kind: "pro".to_string(),
+                        cabinet_id,
+                        role,
+                        exp,
+                    },
+                    &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+                )
+                .map_err(|_| AppError::Internal)?
+            }
+            None => encode(
+                &Header::default(),
+                &ProClaims {
+                    sub: user_id,
+                    kind: "pro".to_string(),
+                    exp,
+                },
+                &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+            )
+            .map_err(|_| AppError::Internal)?,
+        }
     };
 
     Ok(Json(LoginResponse {
