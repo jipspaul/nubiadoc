@@ -21,6 +21,7 @@ mod health;
 mod implant_passport;
 mod marketplace;
 mod messaging;
+mod notifications;
 mod prescriptions;
 mod reviews;
 mod scheduling;
@@ -344,6 +345,7 @@ pub fn app_with_dispatcher(
             get(implant_passport::list_implant_passport),
         )
         .route("/v1/devices", post(devices::register_device))
+        .route("/v1/notifications", get(notifications::list_notifications))
         .route(
             "/v1/cabinet/prescriptions",
             post(prescriptions::create_prescription),
