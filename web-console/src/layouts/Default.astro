@@ -1,5 +1,6 @@
 ---
 import NavMenu from '../components/NavMenu.astro';
+import '../styles/global.css';
 
 interface Props {
   title?: string;
@@ -12,28 +13,6 @@ const { title = 'Nubia Web Console' } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
-    <style is:global>
-      :root {
-        --bg: #0f0f0f;
-        --surface: #1a1a1a;
-        --border: #2a2a2a;
-        --text: #e0e0e0;
-        --muted: #888;
-        --accent: #4a90d9;
-      }
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
-        font-family: system-ui, sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        line-height: 1.5;
-      }
-      a { color: var(--accent); }
-      a:hover { text-decoration: none; }
-    </style>
   </head>
   <body>
     <header style="background:var(--surface);border-bottom:1px solid var(--border);padding:0.5rem 2rem;display:flex;align-items:center;gap:1rem;">
