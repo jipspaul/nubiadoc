@@ -442,6 +442,10 @@ pub fn app_with_dispatcher(
             axum::routing::delete(cabinet_secretariats::remove_secretariat_member),
         )
         .route(
+            "/v1/cabinet/secretariats/:id/staff",
+            post(cabinet_secretariats::provision_staff),
+        )
+        .route(
             "/v1/webhooks/stripe",
             post(webhooks::stripe::stripe_webhook),
         )
