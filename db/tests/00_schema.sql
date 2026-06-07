@@ -25,6 +25,12 @@ SELECT has_column('cabinet_membership', 'active',     'cabinet_membership.active
 SELECT col_type_is('cabinet_membership', 'active', 'boolean', 'cabinet_membership.active boolean');
 SELECT col_not_null('cabinet_membership', 'active',   'cabinet_membership.active NOT NULL');
 SELECT col_has_default('cabinet_membership', 'active', 'cabinet_membership.active défaut true');
+SELECT has_column('cabinet_membership', 'created_at', 'cabinet_membership.created_at présent (issue #1072)');
+SELECT col_type_is('cabinet_membership', 'created_at', 'timestamp with time zone', 'cabinet_membership.created_at timestamptz');
+SELECT col_not_null('cabinet_membership', 'created_at', 'cabinet_membership.created_at NOT NULL');
+SELECT has_index('cabinet_membership', 'cabinet_membership_user_idx',
+  ARRAY['user_id'],
+  'cabinet_membership : index user_id présent (0012, issue #1072)');
 SELECT has_table('practitioner');
 SELECT has_table('patient');
 SELECT has_table('medical_record');
