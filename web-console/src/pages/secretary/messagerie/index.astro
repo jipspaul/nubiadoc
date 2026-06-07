@@ -1,0 +1,156 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const jwt = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'secretary' && role !== 'admin') {
+  return new Response('Accès interdit', { status: 403 });
+}
+---
+<AppShell title="Messagerie — Espace secrétaire" role="secretary">
+  <header>
+    <h1>Messagerie du cabinet</h1>
+    <p>Conversations administratives uniquement. Les échanges cliniques sont masqués par l'API (R.4127-72).</p>
+  </header>
+
+  <section aria-labelledby="conversations-heading">
+    <h2 id="conversations-heading">Conversations</h2>
+    <div id="conv-status" role="status" aria-live="polite"></div>
+    <div id="conv-container">
+      <ul id="conv-list" hidden aria-label="Conversations du cabinet"></ul>
+      <p id="conv-empty" hidden>Aucune conversation.</p>
+    </div>
+  </section>
+</AppShell>
+
+<style>
+  h1 { margin-bottom: 0.25rem; }
+  h1 + p { color: var(--color-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-6); }
+  h2 { margin-bottom: var(--space-4); }
+
+  #conv-status {
+    margin-bottom: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+  #conv-status.error { color: var(--color-danger, #dc2626); }
+
+  #conv-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .conv-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+  }
+
+  .conv-subject {
+    flex: 1;
+    font-weight: 500;
+  }
+
+  .conv-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+  }
+
+  .conv-badge {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-radius: 999px;
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+  }
+</style>
+
+<script>
+  import { proAgenda } from '../../../lib/endpoints.ts';
+  import type { Conversation } from '../../../lib/endpoints.ts';
+
+  const statusEl = document.getElementById('conv-status') as HTMLElement;
+  const listEl = document.getElementById('conv-list') as HTMLUListElement;
+  const emptyEl = document.getElementById('conv-empty') as HTMLParagraphElement;
+
+  async function loadConversations(): Promise<void> {
+    statusEl.textContent = 'Chargement…';
+    statusEl.className = '';
+
+    try {
+      const { status, data } = await proAgenda.getConversations();
+
+      if (status === 401) {
+        window.location.href = '/auth/login?next=/secretary/messagerie';
+        return;
+      }
+      if (status === 403) {
+        statusEl.textContent = 'Accès refusé (403). Ce compte n\'a pas les droits requis.';
+        statusEl.className = 'error';
+        return;
+      }
+      if (status !== 200) {
+        statusEl.textContent = `Erreur serveur (HTTP ${status}).`;
+        statusEl.className = 'error';
+        return;
+      }
+
+      const conversations = data as Conversation[];
+      statusEl.textContent = '';
+
+      if (!conversations || conversations.length === 0) {
+        emptyEl.hidden = false;
+        return;
+      }
+
+      for (const conv of conversations) {
+        const li = document.createElement('li');
+        li.className = 'conv-item';
+        li.dataset['conversationId'] = conv.id;
+
+        const subject = document.createElement('span');
+        subject.className = 'conv-subject';
+        subject.textContent = conv.subject ?? '(sans objet)';
+
+        li.appendChild(subject);
+
+        if (conv.last_message_at) {
+          const date = document.createElement('span');
+          date.className = 'conv-date';
+          date.textContent = new Date(conv.last_message_at).toLocaleDateString('fr-FR');
+          li.appendChild(date);
+        }
+
+        if (conv.unread_count && conv.unread_count > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'conv-badge';
+          badge.textContent = String(conv.unread_count);
+          badge.setAttribute('aria-label', `${conv.unread_count} non lu`);
+          li.appendChild(badge);
+        }
+
+        listEl.appendChild(li);
+      }
+
+      listEl.hidden = false;
+    } catch (err) {
+      statusEl.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      statusEl.className = 'error';
+    }
+  }
+
+  void loadConversations();
+</script>
