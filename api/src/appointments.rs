@@ -1132,6 +1132,116 @@ pub async fn callback_appointment(
     }))
 }
 
+// ── Queue ────────────────────────────────────────────────────────────────────
+
+/// Réponse de `GET /v1/appointments/:id/queue`.
+#[derive(Serialize)]
+pub struct QueueResponse {
+    pub position: i64,
+    pub est_wait_min: i64,
+    pub status: String,
+}
+
+/// `GET /v1/appointments/:id/queue` — position du patient dans la salle d'attente virtuelle.
+///
+/// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
+/// `position` = nombre de rendez-vous antérieurs (checkin_at < le nôtre) pour le même praticien
+/// avec status `checked_in` ou `in_progress`.
+/// `est_wait_min` = position × 15 (estimation forfaitaire, 15 min par patient).
+/// Si le patient n'est pas encore checké, retourne le total de la file comme `position`.
+pub async fn get_appointment_queue(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(appt_id): Path<Uuid>,
+) -> Result<Json<QueueResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, status, checkin_at, practitioner_id, cabinet_id \
+         FROM appointment \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("checkin_at").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet pour les requêtes soumises à la RLS tenant_isolation.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Compte les rendez-vous antérieurs dans la file du même praticien.
+    let position: i64 = if let Some(our_checkin_at) = checkin_at {
+        sqlx::query(
+            "SELECT COUNT(*) AS cnt \
+             FROM appointment \
+             WHERE practitioner_id = $1 \
+               AND status IN ('checked_in', 'in_progress') \
+               AND deleted_at IS NULL \
+               AND checkin_at < $2 \
+               AND id != $3",
+        )
+        .bind(practitioner_id)
+        .bind(our_checkin_at)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .try_get::<i64, _>("cnt")
+        .map_err(|_| AppError::Internal)?
+    } else {
+        // Patient pas encore checké : retourne la taille totale de la file.
+        sqlx::query(
+            "SELECT COUNT(*) AS cnt \
+             FROM appointment \
+             WHERE practitioner_id = $1 \
+               AND status IN ('checked_in', 'in_progress') \
+               AND deleted_at IS NULL",
+        )
+        .bind(practitioner_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .try_get::<i64, _>("cnt")
+        .map_err(|_| AppError::Internal)?
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        appointment_id = %id,
+        position,
+        "appointment queue queried"
+    );
+
+    Ok(Json(QueueResponse {
+        position,
+        est_wait_min: position * 15,
+        status,
+    }))
+}
+
 fn is_exclusion_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
