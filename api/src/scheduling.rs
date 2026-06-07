@@ -525,6 +525,142 @@ pub async fn offer_waiting_list_slot(
     }))
 }
 
+// ── Create appointment (secrétariat) ─────────────────────────────────────────
+
+/// Corps de la requête `POST /v1/cabinet/appointments`.
+#[derive(Deserialize)]
+pub struct CreateCabinetAppointmentBody {
+    /// Dossier patient dans le cabinet (FK `patient.id`).
+    pub patient_id: Uuid,
+    /// Créneau à réserver (`availability_slot.id`). Obligatoire pour l'instant.
+    pub slot_id: Uuid,
+    /// Note administrative optionnelle (motif visible secrétariat+).
+    pub notes: Option<String>,
+}
+
+/// Réponse de `POST /v1/cabinet/appointments`.
+#[derive(Serialize)]
+pub struct CreateCabinetAppointmentResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
+/// `POST /v1/cabinet/appointments` — création d'un RDV par le secrétariat.
+///
+/// Token pro requis (secretary, practitioner, admin) — patient → 403.
+/// `cabinet_id` extrait du JWT, jamais du body.
+/// RLS scopé via `app.current_cabinet_id` : vérifie que le patient appartient
+/// au cabinet (404 sinon). Le créneau est résolu depuis `availability_slot`.
+/// Contrainte d'exclusion DB (23P01) → `409 slot_taken`.
+/// Statut initial : `"requested"`.
+pub async fn create_cabinet_appointment(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Json(body): Json<CreateCabinetAppointmentBody>,
+) -> Result<(StatusCode, Json<CreateCabinetAppointmentResponse>), AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le patient appartient au cabinet (RLS + filtre explicite).
+    let patient_row = sqlx::query(
+        "SELECT id FROM patient \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(body.patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Résout le créneau pour starts_at / ends_at / practitioner_id.
+    let slot_row = sqlx::query(
+        "SELECT starts_at, ends_at, practitioner_id \
+         FROM availability_slot \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(body.slot_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let starts_at: chrono::DateTime<chrono::Utc> = slot_row
+        .try_get("starts_at")
+        .map_err(|_| AppError::Internal)?;
+    let ends_at: chrono::DateTime<chrono::Utc> = slot_row
+        .try_get("ends_at")
+        .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = slot_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // INSERT — 23P01 (appointment_no_overlap) → 409 slot_taken.
+    let result = sqlx::query(
+        "INSERT INTO appointment \
+         (cabinet_id, patient_id, practitioner_id, slot_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'requested', $7) \
+         RETURNING id, status",
+    )
+    .bind(claims.cabinet_id)
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .bind(body.slot_id)
+    .bind(starts_at)
+    .bind(ends_at)
+    .bind(body.notes.as_deref())
+    .fetch_one(&mut *tx)
+    .await;
+
+    let row = match result {
+        Ok(r) => r,
+        Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
+        Err(_) => return Err(AppError::Internal),
+    };
+
+    let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, $3, 'create_appointment', 'appointment', $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(&claims.role)
+    .bind(appointment_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        role = %claims.role,
+        appointment_id = %appointment_id,
+        "cabinet appointment created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateCabinetAppointmentResponse {
+            appointment_id,
+            status,
+        }),
+    ))
+}
+
 // ── Cabinet appointments list ────────────────────────────────────────────────
 
 #[derive(Deserialize)]

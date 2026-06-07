@@ -324,7 +324,7 @@ pub fn app_with_dispatcher(
         )
         .route(
             "/v1/cabinet/appointments",
-            get(scheduling::get_cabinet_appointments),
+            get(scheduling::get_cabinet_appointments).post(scheduling::create_cabinet_appointment),
         )
         .route(
             "/v1/cabinet/appointments/:id/confirm",
