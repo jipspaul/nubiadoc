@@ -1,0 +1,125 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const jwt = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role === 'patient') {
+  return new Response('Accès interdit', { status: 403 });
+}
+---
+<AppShell title="Patients — Espace secrétaire" role="secretary">
+  <header>
+    <h1>Patients du cabinet</h1>
+    <p>Informations administratives uniquement. Accès clinique réservé au praticien (R.4127-72).</p>
+  </header>
+
+  <section aria-labelledby="patients-heading">
+    <h2 id="patients-heading">Liste des patients</h2>
+    <div id="patients-status" role="status" aria-live="polite"></div>
+    <div id="patients-container">
+      <table id="patients-table" hidden aria-label="Patients du cabinet">
+        <thead>
+          <tr>
+            <th scope="col">Nom</th>
+            <th scope="col">Prénom</th>
+            <th scope="col">Téléphone</th>
+          </tr>
+        </thead>
+        <tbody id="patients-tbody"></tbody>
+      </table>
+      <p id="patients-empty" hidden>Aucun patient trouvé.</p>
+    </div>
+  </section>
+</AppShell>
+
+<style>
+  h1 { margin-bottom: 0.25rem; }
+  h1 + p { color: var(--color-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-6); }
+  h2 { margin-bottom: var(--space-4); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+  th, td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+  th {
+    font-weight: 600;
+    background: var(--color-surface);
+  }
+  tr:hover td { background: var(--color-surface); }
+
+  #patients-status {
+    margin-bottom: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+  #patients-status.error { color: var(--color-danger, #dc2626); }
+</style>
+
+<script>
+  import { proPatients } from '../../../lib/endpoints.ts';
+  import type { CabinetPatient } from '../../../lib/endpoints.ts';
+
+  const statusEl = document.getElementById('patients-status') as HTMLParagraphElement;
+  const tableEl = document.getElementById('patients-table') as HTMLTableElement;
+  const tbodyEl = document.getElementById('patients-tbody') as HTMLTableSectionElement;
+  const emptyEl = document.getElementById('patients-empty') as HTMLParagraphElement;
+
+  async function loadPatients(): Promise<void> {
+    statusEl.textContent = 'Chargement…';
+    statusEl.className = '';
+
+    try {
+      const { status, data } = await proPatients.list();
+
+      if (status === 401) {
+        window.location.href = '/auth/login?next=/secretary/patients';
+        return;
+      }
+      if (status === 403) {
+        statusEl.textContent = 'Accès refusé (403). Ce compte n\'a pas les droits requis.';
+        statusEl.className = 'error';
+        return;
+      }
+      if (status !== 200) {
+        statusEl.textContent = `Erreur serveur (HTTP ${status}).`;
+        statusEl.className = 'error';
+        return;
+      }
+
+      const patients = data as CabinetPatient[];
+      statusEl.textContent = '';
+
+      if (!patients || patients.length === 0) {
+        emptyEl.hidden = false;
+        return;
+      }
+
+      for (const p of patients) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.last_name ?? '—'}</td>
+          <td>${p.first_name ?? '—'}</td>
+          <td>${(p as Record<string, unknown>)['phone'] as string ?? '—'}</td>
+        `;
+        tbodyEl.appendChild(tr);
+      }
+
+      tableEl.hidden = false;
+    } catch (err) {
+      statusEl.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      statusEl.className = 'error';
+    }
+  }
+
+  void loadPatients();
+</script>
