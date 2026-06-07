@@ -1,0 +1,124 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Document Detail — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/documents/{'{id}'}</h1>
+  <form id="detail-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      ID du document (UUID)
+      <input type="text" name="document_id" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Charger
+    </button>
+  </form>
+
+  <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+
+  <section id="detail-section" style="display:none;margin-top:1rem;">
+    <table id="detail-table" style="border-collapse:collapse;width:100%;max-width:640px;font-size:0.875rem;">
+      <tbody>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">id</th><td id="field-id" style="padding:0.4rem 0.75rem;border:1px solid var(--border);word-break:break-all;"></td></tr>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">category</th><td id="field-category" style="padding:0.4rem 0.75rem;border:1px solid var(--border);"></td></tr>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">filename</th><td id="field-filename" style="padding:0.4rem 0.75rem;border:1px solid var(--border);"></td></tr>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">mime_type</th><td id="field-mime-type" style="padding:0.4rem 0.75rem;border:1px solid var(--border);"></td></tr>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">size_bytes</th><td id="field-size-bytes" style="padding:0.4rem 0.75rem;border:1px solid var(--border);"></td></tr>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">sha256</th><td id="field-sha256" style="padding:0.4rem 0.75rem;border:1px solid var(--border);word-break:break-all;"></td></tr>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">created_at</th><td id="field-created-at" style="padding:0.4rem 0.75rem;border:1px solid var(--border);"></td></tr>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">signed_url</th><td id="field-signed-url" style="padding:0.4rem 0.75rem;border:1px solid var(--border);word-break:break-all;"></td></tr>
+        <tr><th style="text-align:left;padding:0.4rem 0.75rem;background:var(--surface);border:1px solid var(--border);">signed_url_expires_at</th><td id="field-expires-at" style="padding:0.4rem 0.75rem;border:1px solid var(--border);"></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:0.75rem;">
+      <a id="download-link" href="#" style="color:var(--accent);">Télécharger</a>
+    </p>
+  </section>
+
+  <pre id="error-box" style="display:none;margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;"></pre>
+</Default>
+
+<style>
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+  #error-box.error { border-left: 4px solid red; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  interface DocumentDetail {
+    id: string;
+    category: string;
+    filename: string;
+    mime_type: string;
+    size_bytes: number;
+    sha256: string;
+    created_at: string;
+    signed_url: string;
+    signed_url_expires_at: string;
+  }
+
+  const form = document.getElementById('detail-form') as HTMLFormElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const section = document.getElementById('detail-section') as HTMLElement;
+  const errorBox = document.getElementById('error-box') as HTMLPreElement;
+  const downloadLink = document.getElementById('download-link') as HTMLAnchorElement;
+
+  function setField(id: string, value: string): void {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+    const document_id = fd.get('document_id') as string;
+
+    section.style.display = 'none';
+    errorBox.style.display = 'none';
+    badge.style.display = 'none';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch(`/v1/documents/${document_id}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
+
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+
+      if (httpStatus === 200 && data !== null) {
+        const doc = data as DocumentDetail;
+        setField('field-id', doc.id ?? '');
+        setField('field-category', doc.category ?? '');
+        setField('field-filename', doc.filename ?? '');
+        setField('field-mime-type', doc.mime_type ?? '');
+        setField('field-size-bytes', String(doc.size_bytes ?? ''));
+        setField('field-sha256', doc.sha256 ?? '');
+        setField('field-created-at', doc.created_at ?? '');
+        const signedUrl: string = doc.signed_url ?? '';
+        setField('field-signed-url', signedUrl.length > 80 ? signedUrl.slice(0, 80) + '…' : signedUrl);
+        setField('field-expires-at', doc.signed_url_expires_at ?? '');
+        downloadLink.href = `/test/documents/download?id=${encodeURIComponent(document_id)}`;
+        section.style.display = 'block';
+      } else {
+        errorBox.className = 'error';
+        errorBox.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+        errorBox.style.display = 'block';
+      }
+    } catch (err) {
+      errorBox.className = 'error';
+      errorBox.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      errorBox.style.display = 'block';
+    }
+  });
+</script>
