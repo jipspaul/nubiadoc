@@ -265,6 +265,10 @@ pub fn app_with_dispatcher(
             get(messaging::get_conversation_messages).post(messaging::send_message),
         )
         .route(
+            "/v1/conversations/:id/read",
+            post(messaging::mark_conversation_read),
+        )
+        .route(
             "/v1/cabinet/patients",
             get(clinical::list_cabinet_patients).post(clinical::create_cabinet_patient),
         )

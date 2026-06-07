@@ -1,6 +1,7 @@
 //! Handlers pour la messagerie patient :
 //! GET /v1/conversations, POST /v1/conversations,
-//! GET /v1/conversations/:id/messages.
+//! GET /v1/conversations/:id/messages,
+//! POST /v1/conversations/:id/read.
 
 use axum::{
     extract::{Path, Query, State},
@@ -359,6 +360,97 @@ pub async fn get_conversation_messages(
         data,
         page: PageInfo { next_cursor, limit },
     }))
+}
+
+/// Corps de la requête `POST /v1/conversations/:id/read`.
+#[derive(Deserialize)]
+pub struct MarkReadBody {
+    /// Si fourni, seuls les messages dont l'`id` ≤ `last_read_message_id` sont marqués lus.
+    /// Si absent, tous les messages non lus du fil sont marqués lus.
+    pub last_read_message_id: Option<Uuid>,
+}
+
+/// `POST /v1/conversations/:id/read` — accusé de lecture d'un fil de messagerie.
+///
+/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (vérif conversation)
+/// puis `app.current_cabinet_id` (UPDATE message — policy `tenant_isolation`).
+/// Conversation hors tenant → 404. Renvoie `204 No Content`.
+pub async fn mark_conversation_read(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(conversation_id): Path<Uuid>,
+    Json(body): Json<MarkReadBody>,
+) -> Result<StatusCode, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope RLS patient — policies conversation_patient_read.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que la conversation est accessible (RLS filtre si hors tenant → None = 404).
+    let conv_row = sqlx::query("SELECT cabinet_id FROM conversation WHERE id = $1")
+        .bind(conversation_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let conv_row = conv_row.ok_or(AppError::NotFound)?;
+    let cabinet_id: Uuid = conv_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Scope RLS cabinet pour UPDATE message (policy tenant_isolation WITH CHECK).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Marque lus les messages non lus envoyés par le cabinet (practitioner/secretary).
+    match body.last_read_message_id {
+        Some(last_id) => {
+            sqlx::query(
+                "UPDATE message \
+                 SET read_at = now() \
+                 WHERE conversation_id = $1 \
+                   AND id <= $2 \
+                   AND sender_kind IN ('practitioner', 'secretary') \
+                   AND read_at IS NULL",
+            )
+            .bind(conversation_id)
+            .bind(last_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
+        None => {
+            sqlx::query(
+                "UPDATE message \
+                 SET read_at = now() \
+                 WHERE conversation_id = $1 \
+                   AND sender_kind IN ('practitioner', 'secretary') \
+                   AND read_at IS NULL",
+            )
+            .bind(conversation_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        conversation_id = %conversation_id,
+        last_read_message_id = ?body.last_read_message_id,
+        "conversation marquée lue"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Corps de la requête `POST /v1/conversations/:id/messages`.
