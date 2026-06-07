@@ -8,6 +8,8 @@
 -- 🔐 Chiffrement : les colonnes *_ciphertext stockent ici un PLACEHOLDER (key_ref =
 --    'SEED_PLACEHOLDER') — le vrai chemin de chiffrement passe par le binaire `nubia`
 --    (core/crypto), cf. seed/README.md. NE PAS confondre avec du chiffré de prod.
+--
+-- 🔑 Mots de passe démo : tous les comptes utilisent "Nubia2026!" (argon2id, cf. README.md).
 
 BEGIN;
 
@@ -31,16 +33,30 @@ ON CONFLICT (id) DO NOTHING;
 -- =====================================================================
 -- Identité & membres (RPPS fictifs)
 -- =====================================================================
+-- Membres du cabinet (kind='pro') — rôles : practitioner, practitioner, secretary, admin.
+-- Mot de passe démo commun : "Nubia2026!" (argon2id, cf. seed/README.md).
+-- Hashes déterministes (salt fixe par utilisateur, cf. README.md §Hashes).
 INSERT INTO app_user (id, email, password_hash, kind, rpps, status) VALUES
-  ('a0000000-0000-0000-0000-0000000000a1', 'hugo.marin@cabinet-lyon.test',   'SEED_PLACEHOLDER', 'pro', '10100000001', 'active'),
-  ('a0000000-0000-0000-0000-0000000000a2', 'claire.lefevre@cabinet-lyon.test','SEED_PLACEHOLDER', 'pro', '10100000002', 'active'),
-  ('a0000000-0000-0000-0000-0000000000a3', 'sonia.accueil@cabinet-lyon.test', 'SEED_PLACEHOLDER', 'pro', NULL,          'active'),
-  ('a0000000-0000-0000-0000-0000000000a4', 'admin@cabinet-lyon.test',         'SEED_PLACEHOLDER', 'pro', NULL,          'active')
+  ('a0000000-0000-0000-0000-0000000000a1', 'hugo.marin@cabinet-lyon.test',
+   '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwMQ$9sU+0grAVmhtI2LnUhePBkmBaodHJzHAz9ar4u1XJPU',
+   'pro', '10100000001', 'active'),
+  ('a0000000-0000-0000-0000-0000000000a2', 'claire.lefevre@cabinet-lyon.test',
+   '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwMg$CYHTiXIAmWDKHVDjjodFPRHuJ7OY++96myhsRwqxXm0',
+   'pro', '10100000002', 'active'),
+  ('a0000000-0000-0000-0000-0000000000a3', 'sonia.accueil@cabinet-lyon.test',
+   '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwMw$B32pRAN6Pa5e3R7AvtK4qP6PovusdNY8njh+CvoJGFA',
+   'pro', NULL, 'active'),
+  ('a0000000-0000-0000-0000-0000000000a4', 'admin@cabinet-lyon.test',
+   '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwNA$39TllpW9C+KxsdPWXUJBGkl20Tl/uAULBnTnMjyqx3M',
+   'pro', NULL, 'active')
 ON CONFLICT (id) DO NOTHING;
 
 -- Comptes patient (portail patient, kind='patient') — 1 par patient_account.
+-- Même mot de passe démo "Nubia2026!" pour marc.dubois ; autres comptes = SEED_PLACEHOLDER.
 INSERT INTO app_user (id, email, password_hash, kind) VALUES
-  ('a0000000-0000-0000-0000-0000000000a5', 'marc.dubois@patient.test',     'SEED_PLACEHOLDER', 'patient'),
+  ('a0000000-0000-0000-0000-0000000000a5', 'marc.dubois@patient.test',
+   '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwNQ$hl5bvWYmEinnXCxoBUp0DxvmgtJERqsyEM48QSses6Y',
+   'patient'),
   ('a0000000-0000-0000-0000-0000000000a6', 'leo.dubois@patient.test',      'SEED_PLACEHOLDER', 'patient'),
   ('a0000000-0000-0000-0000-0000000000a7', 'jade.dubois@patient.test',     'SEED_PLACEHOLDER', 'patient'),
   ('a0000000-0000-0000-0000-0000000000a8', 'camille.rousseau@patient.test','SEED_PLACEHOLDER', 'patient'),
