@@ -15,7 +15,8 @@ test('submit avec token fictif — statut HTTP visible dans #result', async ({ p
       contentType: 'application/json',
       body: JSON.stringify({
         next_appointment: { id: 'abc', starts_at: '2026-07-01T09:00:00Z', motif: 'bilan' },
-        to_sign: [{ quote_id: 'q1', label: 'Devis implant' }],
+        to_sign: [{ quote_id: 'q1', label: 'Devis implant', deep_link: '/documents/q1' }],
+        to_pay: [{ amount_cents: 15000, label: 'Facture #F001', deep_link: '/payments/p1' }],
         unread_messages: 2,
       }),
     }),
@@ -27,7 +28,9 @@ test('submit avec token fictif — statut HTTP visible dans #result', async ({ p
   await expect(page.locator('#result')).toContainText('HTTP 200', { timeout: 5000 });
   await expect(page.getByRole('heading', { name: /prochain rendez-vous/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /documents à signer/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /à payer/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /messages non lus/i })).toBeVisible();
+  await expect(page.locator('#to-pay-list a')).toHaveAttribute('href', '/payments/p1');
 });
 
 test('GET /appointments — page 200, formulaires liste et prise de RDV visibles', async ({ page }) => {

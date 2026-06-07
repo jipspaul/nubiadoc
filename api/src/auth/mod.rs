@@ -28,7 +28,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-use crate::{AppState, JobDispatcher};
+use crate::{AppState, JobDispatcher, StorageClient};
 
 /// Réponse de `POST /v1/auth/login`.
 #[derive(Serialize)]
@@ -2161,24 +2161,31 @@ pub async fn patch_account_coverage(
 #[derive(Serialize)]
 pub struct CoverageCardResponse {
     document_id: Uuid,
+    signed_url: String,
 }
+
+// Signature EICAR (68 octets) — chaîne standard de test antivirus.
+const EICAR_SIGNATURE: &[u8] =
+    b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
 
 /// `POST /v1/account/coverage/card` — upload de la carte mutuelle (multipart).
 ///
 /// Champs multipart attendus :
 /// - `side` : `"recto"` ou `"verso"` (enum strict → `422` sinon).
-/// - `file` : JPEG / PNG / PDF ≤ 5 Mo (`image/jpeg`, `image/png`, `application/pdf`).
+/// - `file` : JPEG / PNG / PDF ≤ 10 Mo (`image/jpeg`, `image/png`, `application/pdf`).
 ///
+/// Antivirus : fichier contenant la signature EICAR → `422`.
 /// Le fichier est scanné (stub → `scan_status = 'pending'`) et inséré dans
 /// `document` (`category = 'carte_mutuelle'`).
 /// Chiffrement au repos : stub UTF-8 en dev — AES-256-GCM KMS à NUB-T3 (ADR-009).
-/// Réponse : `201 { document_id }`.
+/// Réponse : `201 { document_id, signed_url }`.
 pub async fn post_coverage_card(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
+    Extension(storage): Extension<Arc<dyn StorageClient>>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<CoverageCardResponse>), AppError> {
-    const MAX_SIZE: usize = 5 * 1024 * 1024;
+    const MAX_SIZE: usize = 10 * 1024 * 1024;
     const ALLOWED_MIMES: &[&str] = &["image/jpeg", "image/png", "application/pdf"];
 
     let mut side: Option<String> = None;
@@ -2225,7 +2232,17 @@ pub async fn post_coverage_card(
     let side = side.ok_or(AppError::ValidationError)?;
     let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
     let file_mime = file_mime.ok_or(AppError::ValidationError)?;
+
+    // Antivirus : rejet EICAR (stub — intégration ClamAV à NUB-T3).
+    if file_bytes
+        .windows(EICAR_SIGNATURE.len())
+        .any(|w| w == EICAR_SIGNATURE)
+    {
+        return Err(AppError::ValidationError);
+    }
+
     let fname = filename.unwrap_or_else(|| format!("carte_mutuelle_{}.bin", side));
+    let size_bytes = file_bytes.len() as i64;
     // Stub : clé Object Storage (chiffrement AES-256-GCM KMS à NUB-T3 — ADR-009).
     let storage_key = Uuid::new_v4().to_string();
 
@@ -2240,15 +2257,16 @@ pub async fn post_coverage_card(
     let row = sqlx::query(
         "INSERT INTO document \
          (patient_account_id, category, storage_key, filename, mime_type, \
-          sha256, scan_status, side, uploaded_by) \
-         VALUES ($1, 'carte_mutuelle', $2, $3, $4, \
-                 encode(digest($5, 'sha256'), 'hex'), 'pending', $6, $7) \
+          size_bytes, sha256, scan_status, side, uploaded_by) \
+         VALUES ($1, 'carte_mutuelle', $2, $3, $4, $5, \
+                 encode(digest($6, 'sha256'), 'hex'), 'pending', $7, $8) \
          RETURNING id",
     )
     .bind(claims.account_id)
     .bind(&storage_key)
     .bind(&fname)
     .bind(&file_mime)
+    .bind(size_bytes)
     .bind(&file_bytes)
     .bind(&side)
     .bind(claims.sub)
@@ -2260,6 +2278,9 @@ pub async fn post_coverage_card(
 
     let document_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
+    // URL signée valable 15 minutes.
+    let signed_url = storage.sign_url(&storage_key, 900);
+
     tracing::info!(
         account_id = %claims.account_id,
         document_id = %document_id,
@@ -2269,7 +2290,10 @@ pub async fn post_coverage_card(
 
     Ok((
         StatusCode::CREATED,
-        Json(CoverageCardResponse { document_id }),
+        Json(CoverageCardResponse {
+            document_id,
+            signed_url,
+        }),
     ))
 }
 
