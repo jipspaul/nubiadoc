@@ -293,3 +293,21 @@ pub(crate) fn make_stripe_sig(secret: &str, body: &[u8], ts: i64) -> String {
 
 #[derive(Debug, Deserialize)]
 struct _Unused; // Évite l'import serde::Deserialize inutilisé sans #[allow]
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stripe_signature_roundtrip() {
+        let secret = "whsec_test_secret";
+        let body = b"{\"id\":\"evt_test\",\"type\":\"payment_intent.succeeded\"}";
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let header = make_stripe_sig(secret, body, ts);
+        assert!(verify_stripe_signature(secret, body, &header).is_ok());
+    }
+}
