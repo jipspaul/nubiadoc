@@ -187,12 +187,10 @@ test('annuler un RDV : POST /cancel → statut cancelled', async ({ page }) => {
     API_BASE,
   );
 
-  if (slotsResp.slots.length === 0) {
-    // Pas de créneau disponible : on annule via SEED_APPOINTMENT_ID si fourni
-    if (!process.env.SEED_APPOINTMENT_ID) {
-      test.skip();
-      return;
-    }
+  if (slotsResp.slots.length === 0 && !process.env.SEED_APPOINTMENT_ID) {
+    throw new Error(
+      'Aucun créneau disponible et SEED_APPOINTMENT_ID non fourni — précondition manquante pour le scénario annulation.',
+    );
   }
 
   let cancelId: string;
