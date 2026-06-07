@@ -64,7 +64,26 @@ test('créer conversation → envoyer message → marquer lu → relire', async 
     { timeout: 10_000 },
   );
 
-  // ── 9. Retour à la liste : conversation présente, unread_count = 0 ──────────
+  // ── 9. API : GET /v1/conversations → unread_count = 0 confirme markRead ─────
+  const { listStatus, unreadCount } = await page.evaluate(
+    async ({ apiBase, convId }: { apiBase: string; convId: string }) => {
+      const jwt = localStorage.getItem('nubia_jwt') ?? '';
+      const resp = await fetch(`${apiBase}/v1/conversations`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      let list: Array<{ id: string; unread_count?: number }> = [];
+      if (resp.ok) {
+        list = (await resp.json()) as typeof list;
+      }
+      const conv = list.find((c) => c.id === convId);
+      return { listStatus: resp.status, unreadCount: conv?.unread_count ?? -1 };
+    },
+    { apiBase: API_BASE, convId },
+  );
+  expect(listStatus).toBeLessThan(300);
+  expect(unreadCount).toBe(0);
+
+  // ── 10. Retour à la liste : conversation présente, unread_count = 0 (UI) ────
   await page.goto('/patient/messages');
   await expect(page.locator('#conv-loading')).toBeHidden({ timeout: 10_000 });
   const convItem = page.locator(`[data-conversation-id="${convId}"]`);
