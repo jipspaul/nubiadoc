@@ -35,6 +35,9 @@ class RouteNames {
   // Clinical
   static const String clinicalSession = '/appointments/:id/session';
 
+  // Prescription
+  static const String prescriptionNew = '/prescriptions/new';
+
   // Reviews
   static const String providerReviews = '/providers/:id/reviews';
 }
