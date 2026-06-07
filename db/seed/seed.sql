@@ -253,10 +253,23 @@ INSERT INTO message (id, cabinet_id, conversation_id, sender_kind, sender_id, bo
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
+-- Couverture santé patient (issue #1097)
+-- Marc Dubois : régime général + mutuelle MGEN fictive
+-- =====================================================================
+INSERT INTO patient_coverage (id, patient_account_id, regime_obligatoire, amc, numero_adherent, tiers_payant) VALUES
+  ('e8000000-0000-0000-0000-000000000001','e0000000-0000-0000-0000-0000000000e1','regime_general','MGEN','MGEN-001-FICTIF', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
 -- Consentements + 1 avis publié
 -- =====================================================================
 INSERT INTO consent_record (id, app_user_id, purpose, granted, cgu_version, granted_at) VALUES
   ('cc000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a5','soins', true, '1.0','2026-05-01 09:00+00')
+ON CONFLICT (id) DO NOTHING;
+
+-- Consentement RGPD data_processing pour le compte patient Marc Dubois (issue #1097)
+INSERT INTO consent_record (id, patient_account_id, purpose, granted, granted_at) VALUES
+  ('cc000000-0000-0000-0000-000000000002','e0000000-0000-0000-0000-0000000000e1','data_processing', true,'2026-05-01 09:05+00')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO review (id, provider_id, patient_account_id, appointment_id, rating, comment, status, created_at) VALUES
