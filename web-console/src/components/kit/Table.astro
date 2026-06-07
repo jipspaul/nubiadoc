@@ -1,0 +1,55 @@
+---
+interface Props {
+  caption?: string;
+  id?: string;
+}
+const { caption, id } = Astro.props;
+---
+
+<div class="table-wrap" role="region" aria-label={caption} tabindex={0}>
+  <table {id} class="table">
+    {caption && <caption class="table__caption">{caption}</caption>}
+    <slot />
+  </table>
+</div>
+
+<style>
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+  }
+  .table__caption {
+    caption-side: top;
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .table :global(thead) { background: var(--color-surface); }
+  .table :global(th) {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .table :global(td) {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+  }
+  .table :global(tbody tr:last-child td) { border-bottom: none; }
+  .table :global(tbody tr:hover) { background: var(--color-border); }
+</style>

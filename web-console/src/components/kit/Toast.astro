@@ -1,0 +1,76 @@
+---
+type Variant = 'success' | 'error' | 'warning' | 'info';
+interface Props {
+  message: string;
+  variant?: Variant;
+  id?: string;
+}
+const { message, variant = 'info', id } = Astro.props;
+---
+
+<aside
+  {id}
+  class:list={['toast', `toast--${variant}`]}
+  role="alert"
+  aria-live="polite"
+  aria-atomic="true"
+>
+  <span class="toast__message">{message}</span>
+  <button type="button" class="toast__close" data-toast-close aria-label="Fermer">&#x2715;</button>
+</aside>
+
+<script>
+  document.querySelectorAll('[data-toast-close]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const toast = btn.closest('.toast') as HTMLElement | null;
+      if (toast) toast.remove();
+    });
+  });
+</script>
+
+<style>
+  .toast {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    font-size: var(--font-size-sm);
+    font-family: var(--font-sans);
+  }
+  .toast--success {
+    background: var(--color-success);
+    color: var(--color-success-fg);
+    border-color: #166534;
+  }
+  .toast--error {
+    background: var(--color-error);
+    color: var(--color-error-fg);
+    border-color: #7f1d1d;
+  }
+  .toast--warning {
+    background: var(--color-warning);
+    color: var(--color-warning-fg);
+    border-color: #713f12;
+  }
+  .toast--info {
+    background: var(--color-info);
+    color: var(--color-info-fg);
+    border-color: #1e3a5f;
+  }
+  .toast__message { flex: 1; }
+  .toast__close {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.75;
+    font-size: var(--font-size-base);
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .toast__close:hover { opacity: 1; }
+</style>
