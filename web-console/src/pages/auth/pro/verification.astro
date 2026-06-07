@@ -1,0 +1,147 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Vérification praticien — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">Vérification RPPS / ADELI</h1>
+  <p style="color:var(--muted);margin-bottom:2rem;font-size:0.9rem;">
+    GET /v1/pro/verification — statut · POST /v1/pro/verification — (re)lancer
+  </p>
+
+  <!-- Statut GET -->
+  <section aria-labelledby="status-heading" style="margin-bottom:2.5rem;">
+    <h2 id="status-heading" style="margin-bottom:1rem;font-size:1rem;">Statut de vérification</h2>
+    <button id="btn-status" type="button"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+      Rafraîchir le statut
+    </button>
+    <p id="status-result" aria-live="polite"
+      style="margin-top:1rem;padding:0.75rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.9rem;min-height:2.5rem;">
+      Cliquez sur le bouton pour charger le statut.
+    </p>
+  </section>
+
+  <!-- Relancer POST -->
+  <section aria-labelledby="submit-heading">
+    <h2 id="submit-heading" style="margin-bottom:1rem;font-size:1rem;">Soumettre / relancer la vérification</h2>
+    <form id="verification-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Type d'identifiant
+        <select name="id_type" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+          <option value="rpps">RPPS (11 chiffres)</option>
+          <option value="adeli">ADELI (9 chiffres)</option>
+        </select>
+      </label>
+      <label>
+        Identifiant
+        <input type="text" name="identifier" required placeholder="ex : 10003456789"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        Soumettre
+      </button>
+    </form>
+    <p id="error-msg" aria-live="polite"
+      style="display:none;margin-top:1rem;padding:0.75rem;background:#7f1d1d;color:#fecaca;border-radius:4px;font-size:0.9rem;"></p>
+    <pre id="submit-result"
+      style="display:none;margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+  .status-pending   { background: #78350f; color: #fef3c7; }
+  .status-verified  { background: #166534; color: #bbf7d0; }
+  .status-rejected  { background: #7f1d1d; color: #fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  // --- GET statut ---
+  const btnStatus = document.getElementById('btn-status') as HTMLButtonElement;
+  const statusResult = document.getElementById('status-result') as HTMLParagraphElement;
+
+  async function loadStatus(): Promise<void> {
+    statusResult.textContent = 'Chargement…';
+    try {
+      const { status, data } = await apiFetch('/v1/pro/verification');
+      if (status === 200 && data !== null && typeof data === 'object') {
+        const v = data as { status?: string; message?: string };
+        const badgeClass =
+          v.status === 'verified' ? 'status-verified'
+          : v.status === 'rejected' ? 'status-rejected'
+          : 'status-pending';
+        statusResult.innerHTML =
+          `<span class="status-badge ${badgeClass}">${v.status ?? 'inconnu'}</span>`
+          + (v.message ? ` — ${v.message}` : '');
+      } else {
+        statusResult.textContent = `HTTP ${status} — ${data !== null ? JSON.stringify(data) : '(aucun contenu)'}`;
+      }
+    } catch (err) {
+      statusResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  btnStatus.addEventListener('click', () => { void loadStatus(); });
+  void loadStatus();
+
+  // --- POST relancer ---
+  const form = document.getElementById('verification-form') as HTMLFormElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+  const submitResult = document.getElementById('submit-result') as HTMLPreElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorMsg.style.display = 'none';
+    submitResult.style.display = 'none';
+
+    const fd = new FormData(form);
+    const id_type = fd.get('id_type') as string;
+    const identifier = (fd.get('identifier') as string).trim();
+
+    try {
+      const { status, data } = await apiFetch('/v1/pro/verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_type, identifier }),
+      });
+
+      if (status === 202) {
+        submitResult.className = 'success';
+        submitResult.textContent = `HTTP 202 — Vérification en cours.\n${data !== null ? JSON.stringify(data, null, 2) : ''}`;
+        submitResult.style.display = 'block';
+        void loadStatus();
+      } else if (status === 422) {
+        const err = data as Record<string, unknown> | null;
+        errorMsg.textContent = `Identifiant invalide : ${err?.detail ?? err?.message ?? JSON.stringify(data)}`;
+        errorMsg.style.display = 'block';
+      } else if (status === 409) {
+        const err = data as Record<string, unknown> | null;
+        const code = err?.code as string | undefined;
+        errorMsg.textContent = code === 'rpps_invalid'
+          ? 'Numéro RPPS invalide. Vérifiez le format (11 chiffres).'
+          : code === 'rpps_duplicate'
+            ? 'Ce numéro RPPS est déjà enregistré.'
+            : `Conflit : ${err?.message ?? JSON.stringify(data)}`;
+        errorMsg.style.display = 'block';
+      } else {
+        submitResult.className = status < 300 ? 'success' : 'error';
+        submitResult.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+        submitResult.style.display = 'block';
+      }
+    } catch (err) {
+      errorMsg.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      errorMsg.style.display = 'block';
+    }
+  });
+</script>
