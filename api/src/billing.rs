@@ -23,7 +23,7 @@ pub struct ListQuotesQuery {
 pub struct QuoteItem {
     pub id: Uuid,
     pub status: String,
-    pub amount_cents: i64,
+    pub total_amount_cents: i64,
     pub currency: String,
     pub created_at: String,
 }
@@ -159,7 +159,7 @@ pub async fn list_quotes(
         data.push(QuoteItem {
             id,
             status,
-            amount_cents,
+            total_amount_cents: amount_cents,
             currency: currency.trim().to_string(),
             created_at: created_at.to_rfc3339(),
         });
