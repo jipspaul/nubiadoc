@@ -127,6 +127,7 @@ pub(crate) enum AppError {
     MissingIdempotencyKey,
     AppointmentNotHonored,
     ReviewAlreadyExists,
+    AlreadyOnWaitingList,
 }
 
 impl IntoResponse for AppError {
@@ -233,6 +234,11 @@ impl IntoResponse for AppError {
             AppError::ReviewAlreadyExists => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "review_already_exists"})),
+            )
+                .into_response(),
+            AppError::AlreadyOnWaitingList => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "already_on_waiting_list"})),
             )
                 .into_response(),
         }
