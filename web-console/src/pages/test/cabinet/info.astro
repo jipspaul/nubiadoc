@@ -1,0 +1,103 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Cabinet Info — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/cabinets/{id}/info</h1>
+  <form id="cabinet-info-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+    <label>
+      cabinet_id
+      <input
+        type="text"
+        id="cabinet-id"
+        name="cabinet_id"
+        placeholder="ex : cab_123"
+        required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;"
+      />
+    </label>
+    <button
+      type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;"
+    >
+      GET
+    </button>
+  </form>
+
+  <section id="info-section" style="margin-top:2rem;display:none;">
+    <h2 style="font-size:1rem;margin-bottom:0.75rem;">
+      Résultat — <span id="info-status-badge"></span>
+    </h2>
+    <p id="info-error" role="alert" style="display:none;color:#fca5a5;margin-bottom:0.5rem;white-space:pre-wrap;"></p>
+    <dl id="info-dl" style="display:grid;grid-template-columns:max-content 1fr;gap:0.25rem 1rem;font-size:0.875rem;"></dl>
+  </section>
+</Default>
+
+<style>
+  #info-dl dt { color: var(--muted); }
+  #info-dl dd { color: var(--text); }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const form = document.getElementById('cabinet-info-form') as HTMLFormElement;
+  const infoSection = document.getElementById('info-section') as HTMLElement;
+  const infoBadge = document.getElementById('info-status-badge') as HTMLSpanElement;
+  const infoError = document.getElementById('info-error') as HTMLParagraphElement;
+  const infoDl = document.getElementById('info-dl') as HTMLDListElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const cabinetId = (fd.get('cabinet_id') as string).trim();
+
+    infoSection.style.display = 'none';
+    infoError.style.display = 'none';
+    infoDl.innerHTML = '';
+
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinets/${cabinetId}/info`);
+      infoBadge.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
+      infoSection.style.display = 'block';
+
+      if (status === 404) {
+        infoError.textContent = 'Cabinet introuvable (404).';
+        infoError.style.display = 'block';
+        return;
+      }
+
+      if (status >= 300) {
+        infoError.textContent = JSON.stringify(data, null, 2);
+        infoError.style.display = 'block';
+        return;
+      }
+
+      const info = data as Record<string, unknown>;
+      const schedule = info.schedule as Record<string, unknown> | undefined;
+      const provider = info.provider as Record<string, unknown> | undefined;
+
+      const fields: Array<[string, string]> = [
+        ['cabinet_id',    String(info.cabinet_id   ?? '—')],
+        ['name',          String(info.name         ?? '—')],
+        ['address',       String(info.address      ?? '—')],
+        ['phone',         String(info.phone        ?? '—')],
+        ['email',         String(info.email        ?? '—')],
+        ['website',       String(info.website      ?? '—')],
+        ['schedule',      schedule ? JSON.stringify(schedule) : '—'],
+        ['provider_name', String(provider?.display_name ?? '—')],
+        ['provider_id',   String(provider?.provider_id  ?? '—')],
+      ];
+      infoDl.innerHTML = fields
+        .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
+        .join('');
+    } catch (err) {
+      infoBadge.innerHTML = '<span class="badge badge-err">Erreur réseau</span>';
+      infoError.textContent = err instanceof Error ? err.message : String(err);
+      infoError.style.display = 'block';
+      infoSection.style.display = 'block';
+    }
+  });
+</script>
