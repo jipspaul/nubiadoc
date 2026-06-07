@@ -274,6 +274,10 @@ pub fn app_with_dispatcher(
             get(clinical::list_cabinet_patients).post(clinical::create_cabinet_patient),
         )
         .route(
+            "/v1/cabinet/patients/:id",
+            get(clinical::get_cabinet_patient),
+        )
+        .route(
             "/v1/cabinet/patients/:id/notes",
             get(clinical::list_patient_notes).post(clinical::add_patient_note),
         )
@@ -284,6 +288,10 @@ pub fn app_with_dispatcher(
         .route(
             "/v1/cabinet/patients/:id/dental-chart",
             get(dental_chart::get_dental_chart).put(dental_chart::put_dental_chart),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/documents",
+            get(clinical::list_patient_documents).post(clinical::upload_patient_document),
         )
         .route(
             "/v1/cabinet/consultations/:id",
