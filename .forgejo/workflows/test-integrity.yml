@@ -114,5 +114,28 @@ jobs:
           fi
           echo "OK: no new skip/ignore markers"
 
+      - name: Detect new web pages without e2e tests
+        if: steps.bypass.outputs.bypass != 'true'
+        run: |
+          set -e
+          base="${{ steps.resolve.outputs.base_sha }}"
+          head="${{ steps.resolve.outputs.head_sha }}"
+          added_pages=$(git diff --diff-filter=A --name-only "$base" "$head" | grep -E '^web-console/src/pages/.*\.astro$' || true)
+          if [ -z "$added_pages" ]; then
+            echo "OK: no new web pages added"
+            exit 0
+          fi
+          touched_specs=$(git diff --name-only "$base" "$head" | grep -E '^web-console/tests/e2e/.*\.spec\.(ts|js)$' || true)
+          if [ -z "$touched_specs" ]; then
+            echo "::error::New web page(s) added without any tests/e2e/*.spec.ts changes:"
+            echo "$added_pages" | sed 's/^/  - /'
+            echo "::error::Each new src/pages/*.astro REQUIRES at least one e2e test added or updated in the same PR."
+            echo "::error::See web-agent persona rule #10. Add the e2e spec or apply 'test-integrity:bypass' label if reviewer-approved."
+            exit 1
+          fi
+          echo "OK: new pages have associated e2e test changes:"
+          echo "$added_pages" | sed 's/^/  page: /'
+          echo "$touched_specs" | sed 's/^/  spec: /'
+
       - name: Summary
         run: echo "test-integrity OK (no deleted tests, no new skip markers)"
