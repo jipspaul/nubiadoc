@@ -1,6 +1,6 @@
-//! Handlers pour la facturation patient : GET /v1/quotes, POST /v1/payments/intent.
+//! Handlers pour la facturation patient : GET /v1/quotes, GET /v1/quotes/:id, POST /v1/payments/intent.
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -183,6 +183,162 @@ pub async fn list_quotes(
     Ok(Json(ListQuotesResponse {
         data,
         page: PageInfo { next_cursor, limit },
+    }))
+}
+
+/// Ligne d'un devis (réponse détail).
+#[derive(Serialize)]
+pub struct QuoteLineItem {
+    pub id: Uuid,
+    pub label: String,
+    pub ccam_code: Option<String>,
+    pub tooth: Option<String>,
+    pub qty_cents: i64,
+    pub unit_amount_cents: i64,
+    pub amc_part_cents: Option<i64>,
+    pub amo_part_cents: Option<i64>,
+}
+
+/// Réponse de `GET /v1/quotes/:id`.
+#[derive(Serialize)]
+pub struct QuoteDetail {
+    pub id: Uuid,
+    pub status: String,
+    pub version: i32,
+    pub total_amount_cents: i64,
+    pub currency: String,
+    pub signed_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub items: Vec<QuoteLineItem>,
+}
+
+/// `GET /v1/quotes/:id` — détail d'un devis du patient connecté.
+///
+/// Token `kind:"patient"` requis ; token pro → `403`.
+/// RLS via `app.patient_account_id` (policy `quote_patient_read`, migration 0029).
+/// Retourne `404` si le devis n'existe pas ou n'appartient pas au patient.
+pub async fn get_quote(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<QuoteDetail>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — quote_patient_read (migration 0029).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let quote_row = sqlx::query(
+        "SELECT q.id, q.cabinet_id, q.status, q.version, \
+                (q.total_amount * 100)::bigint AS amount_cents, \
+                q.currency, q.signed_at, q.created_at, q.updated_at \
+         FROM quote q \
+         WHERE q.id = $1 AND q.deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let cabinet_id: Uuid = quote_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet pour lire les lignes du devis (tenant_isolation sur quote_item).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let item_rows = sqlx::query(
+        "SELECT qi.id, qi.label, qi.ccam_code, qi.tooth, \
+                (qi.qty * 100)::bigint AS qty_cents, \
+                (qi.unit_amount * 100)::bigint AS unit_amount_cents, \
+                (qi.amc_part * 100)::bigint AS amc_part_cents, \
+                (qi.amo_part * 100)::bigint AS amo_part_cents \
+         FROM quote_item qi \
+         WHERE qi.quote_id = $1 \
+         ORDER BY qi.id",
+    )
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let status: String = quote_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    let version: i32 = quote_row
+        .try_get("version")
+        .map_err(|_| AppError::Internal)?;
+    let amount_cents: i64 = quote_row
+        .try_get("amount_cents")
+        .map_err(|_| AppError::Internal)?;
+    let currency: String = quote_row
+        .try_get("currency")
+        .map_err(|_| AppError::Internal)?;
+    let signed_at: Option<chrono::DateTime<chrono::Utc>> = quote_row
+        .try_get("signed_at")
+        .map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> = quote_row
+        .try_get("created_at")
+        .map_err(|_| AppError::Internal)?;
+    let updated_at: chrono::DateTime<chrono::Utc> = quote_row
+        .try_get("updated_at")
+        .map_err(|_| AppError::Internal)?;
+
+    let mut items = Vec::with_capacity(item_rows.len());
+    for row in &item_rows {
+        let item_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
+        let ccam_code: Option<String> = row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
+        let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
+        let qty_cents: i64 = row.try_get("qty_cents").map_err(|_| AppError::Internal)?;
+        let unit_amount_cents: i64 = row
+            .try_get("unit_amount_cents")
+            .map_err(|_| AppError::Internal)?;
+        let amc_part_cents: Option<i64> = row
+            .try_get("amc_part_cents")
+            .map_err(|_| AppError::Internal)?;
+        let amo_part_cents: Option<i64> = row
+            .try_get("amo_part_cents")
+            .map_err(|_| AppError::Internal)?;
+        items.push(QuoteLineItem {
+            id: item_id,
+            label,
+            ccam_code,
+            tooth,
+            qty_cents,
+            unit_amount_cents,
+            amc_part_cents,
+            amo_part_cents,
+        });
+    }
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        quote_id = %id,
+        "quote detail fetched"
+    );
+
+    Ok(Json(QuoteDetail {
+        id,
+        status,
+        version,
+        total_amount_cents: amount_cents,
+        currency: currency.trim().to_string(),
+        signed_at: signed_at.map(|dt| dt.to_rfc3339()),
+        created_at: created_at.to_rfc3339(),
+        updated_at: updated_at.to_rfc3339(),
+        items,
     }))
 }
 
