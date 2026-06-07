@@ -288,3 +288,49 @@ P3  Étape 11 README + ARCHITECTURE                                     p3-docs
 | `/v1/cabinet/agenda`, `appointments`, `waiting-room`, `slots`, `conversations` | `ProSecretaryPlusClaims` | secretary/practitioner/admin ; clinique filtré pour secretary |
 
 > **Implication front** : l'espace Secrétaire ne doit afficher **aucun** lien clinique (medical-record, dental-chart, consultation, ordonnance) — l'API renverrait 403 et ce serait hors secret médical.
+
+---
+
+## 13. Évolution — organisation multi-établissement & secrétariats (07/06)
+
+> **Besoin** : un docteur exerce dans **plusieurs établissements** ; il **assigne sa liste de patients + son agenda à un secrétariat** ; les utilisateurs de secrétariat appartiennent à **un ou plusieurs secrétariats/établissements** ; chaque secrétaire est **différenciée** et peut gérer **des docteurs/patients différents** ; un **directeur/manager** peut **créer et assigner des comptes secrétaires**.
+
+### 13.1 Modèle d'organisation (Option A retenue)
+```
+Établissement (= cabinet, frontière tenant/RLS)
+  └─ Secretariat (1..n par établissement)        ← NOUVEAU
+       ├─ secretariat_membership(user, role∈{secretary,manager})   ← personnel de secrétariat
+       └─ provider_secretariat(provider → secretariat)             ← le docteur délègue ici
+```
+- **3 catégories d'utilisateurs**, désormais explicites :
+  1. **patient** (`kind=patient`).
+  2. **docteur** (`kind=pro` + ligne `provider`).
+  3. **personnel de secrétariat** (`kind=pro`, **sans** `provider`) : rôle `secretary` ou `manager`, rattaché via `secretariat_membership`.
+- **Multi-appartenance** : un même `app_user` peut avoir plusieurs `cabinet_membership` (établissements) et plusieurs `secretariat_membership` (secrétariats).
+
+### 13.2 Nouvelles tables (`db/`)
+- `secretariat(id, cabinet_id FK, name, created_at)`.
+- `secretariat_membership(secretariat_id, user_id, role∈{secretary,manager}, active)`.
+- `provider_secretariat(provider_id, secretariat_id, active)` — **assignation docteur→secrétariat** (porte le scoping patients+agenda).
+- *(post-démo, si besoin)* `patient_secretariat` explicite ; sinon la visibilité patient est **dérivée** du docteur assigné via les RDV.
+
+### 13.3 Contexte d'authentification (généralise R1)
+- `GET /v1/me` → **tous les contextes** (établissements + secrétariats + rôles) — **R7**.
+- `POST /v1/auth/select-context {cabinet_id, secretariat_id?}` → ré-émet un JWT scoped `{cabinet_id, role, secretariat_id?}` — **R8**.
+- **login/refresh** : 1 seul contexte → embarqué ; plusieurs → token nu + `context_required` (le front force le choix) — **R9** (remplace le `LIMIT 1` de R1).
+- Front : **sélecteur de contexte** (header) + **écran de choix post-login** si multi-appartenance — **W52/W53** ; le nom du secrétariat est affiché pour **différencier** la secrétaire connectée.
+
+### 13.4 Cloisonnement (RLS) — **R10/P13**
+- GUC `app.current_secretariat_id` posé depuis le token.
+- Pour `role=secretary` : `agenda`, `patients`, `waiting-room`, `appointments`, `conversations` **filtrés** aux **docteurs assignés** au secrétariat actif (`provider_secretariat`) et à leurs patients.
+- `practitioner`/`admin` : inchangés (vue établissement). Test pgTAP : secrétaire A ⊅ secrétariat B (même établissement) — **P14**.
+
+### 13.5 Direction / management — **R11/R12/R13**
+- **Docteur** assigne ses patients+agenda à un secrétariat : `PUT /v1/cabinet/providers/:id/secretariats` (**R11**, UI **W54**).
+- **Admin établissement / manager** gère les secrétariats et leurs membres : CRUD `secretariats` + `members` (**R12**, UI **W57**).
+- **Manager** (`secretariat_membership.role='manager'`) **provisionne des comptes secrétaires** : `POST /v1/cabinet/secretariats/:id/staff` (crée l'`app_user` pro `secretary` ou rattache un existant + membership ; autorisé `{admin, manager}`) — **R13**, UI **W58**.
+
+### 13.6 Backlog atomique
+Détail des tâches (P10–P14, R7–R13, W51–W58, ED5/ES5/ES6/EX4) + dépendances : **`PLAN-ATOMIC.md` §H**.
+
+> ⚠️ **Hypothèses prises en mode autonome** (à confirmer) : établissement=cabinet ; secrétariat sous-unité ; manager = rôle secrétariat ; patient↔secrétariat dérivé. Si l'établissement doit être une entité **au-dessus** du cabinet (multi-cabinets juridiques), la frontière tenant change et `secretariat.cabinet_id` devient `establishment_id` — revoir P10/P13.
