@@ -1,4 +1,5 @@
 //! Handlers R12 — CRUD secrétariats + membres.
+//! Handler R13 — provisionner un nouveau secrétaire directement depuis un secrétariat.
 //!
 //! `GET  /v1/cabinet/secretariats`                           → liste des secrétariats du cabinet
 //! `POST /v1/cabinet/secretariats`                           → créer (admin)
@@ -6,6 +7,7 @@
 //! `DELETE /v1/cabinet/secretariats/:id`                     → supprimer (admin)
 //! `POST   /v1/cabinet/secretariats/:id/members`             → ajouter membre (admin)
 //! `DELETE /v1/cabinet/secretariats/:id/members/:user_id`    → retirer membre (admin)
+//! `POST   /v1/cabinet/secretariats/:id/staff`               → provisionner secrétaire (admin)
 
 use axum::{
     extract::{Path, State},
@@ -418,6 +420,154 @@ pub async fn remove_secretariat_member(
     );
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Corps de `POST /v1/cabinet/secretariats/:id/staff`.
+#[derive(Deserialize)]
+pub struct ProvisionStaffBody {
+    pub email: String,
+    pub first_name: String,
+    pub last_name: String,
+    /// Rôle dans le secrétariat : `secretary` ou `manager`.
+    pub role: String,
+}
+
+/// Réponse de `POST /v1/cabinet/secretariats/:id/staff`.
+#[derive(Serialize)]
+pub struct ProvisionStaffResponse {
+    pub user_id: Uuid,
+    pub email: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub secretariat_id: Uuid,
+    pub role: String,
+}
+
+/// `POST /v1/cabinet/secretariats/:id/staff`
+///
+/// Provisionne un nouveau secrétaire : crée `app_user` + `cabinet_membership(role='secretary')`
+/// + `secretariat_membership` dans une seule transaction atomique. Rôle `admin` requis.
+///
+/// - Secrétariat absent ou hors cabinet → `404`.
+/// - Email déjà utilisé (doublon) → `409`.
+/// - `role` doit être `secretary` ou `manager` → `422` sinon.
+pub async fn provision_staff(
+    State(state): State<AppState>,
+    claims: ProAdminClaims,
+    Path(secretariat_id): Path<Uuid>,
+    Json(body): Json<ProvisionStaffBody>,
+) -> Result<(StatusCode, Json<ProvisionStaffResponse>), AppError> {
+    if !["secretary", "manager"].contains(&body.role.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let user_id = Uuid::new_v4();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le secrétariat appartient au cabinet courant.
+    let sec_exists = sqlx::query("SELECT 1 FROM secretariat WHERE id = $1 AND cabinet_id = $2")
+        .bind(secretariat_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    if sec_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let raw_invite_token = Uuid::new_v4().to_string();
+
+    // Crée le compte pro (password_hash NULL → invite par email).
+    sqlx::query(
+        "INSERT INTO app_user \
+         (id, email, password_hash, kind, first_name, last_name, \
+          password_reset_token, password_reset_expires_at) \
+         VALUES ($1, $2, NULL, 'pro', $3, $4, \
+                 encode(digest($5, 'sha256'), 'hex'), now() + interval '72 hours')",
+    )
+    .bind(user_id)
+    .bind(&body.email)
+    .bind(&body.first_name)
+    .bind(&body.last_name)
+    .bind(&raw_invite_token)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        if is_unique_violation(&e) {
+            AppError::MemberAlreadyExists
+        } else {
+            AppError::Internal
+        }
+    })?;
+
+    // Rattache au cabinet comme secrétaire.
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
+         VALUES ($1, $2, 'secretary', true)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        if is_unique_violation(&e) {
+            AppError::MemberAlreadyExists
+        } else {
+            AppError::Internal
+        }
+    })?;
+
+    // Rattache au secrétariat avec le rôle demandé.
+    sqlx::query(
+        "INSERT INTO secretariat_membership \
+         (cabinet_id, secretariat_id, user_id, role, active) \
+         VALUES ($1, $2, $3, $4, true)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(secretariat_id)
+    .bind(user_id)
+    .bind(&body.role)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    state.mailer.send_invite(&body.email, &raw_invite_token);
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        secretariat_id = %secretariat_id,
+        user_id = %user_id,
+        role = %body.role,
+        "staff provisioned"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(ProvisionStaffResponse {
+            user_id,
+            email: body.email,
+            first_name: body.first_name,
+            last_name: body.last_name,
+            secretariat_id,
+            role: body.role,
+        }),
+    ))
 }
 
 fn is_unique_violation(e: &sqlx::Error) -> bool {
