@@ -10,6 +10,8 @@ import 'package:nubia_patient/presentation/features/appointments/bloc/appointmen
 import 'package:nubia_patient/presentation/features/appointments/bloc/appointment_modify_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/booking_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/bloc/checkin_bloc.dart';
+import 'package:nubia_patient/presentation/features/clinical/bloc/clinical_session_bloc.dart';
+import 'package:nubia_patient/presentation/features/clinical/pages/clinical_session_screen.dart';
 import 'package:nubia_patient/presentation/features/signature/bloc/signature_bloc.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_cancel_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/appointment_detail_screen.dart';
@@ -286,6 +288,17 @@ class AppRouter {
             return ReviewsScreen(
               providerId: providerId,
               honoredAppointments: honoredAppointments,
+            );
+          },
+        ),
+        GoRoute(
+          path: RouteNames.clinicalSession,
+          name: 'clinical-session',
+          builder: (_, state) {
+            final appointment = state.extra! as Appointment;
+            return BlocProvider(
+              create: (_) => getIt<ClinicalSessionBloc>(),
+              child: ClinicalSessionScreen(appointment: appointment),
             );
           },
         ),
