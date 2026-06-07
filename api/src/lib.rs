@@ -26,6 +26,7 @@ mod prescriptions;
 mod reviews;
 mod scheduling;
 mod treatment_plans;
+mod webhooks;
 
 /// Trait de génération d'URL signées Object Storage — swappable (stub en test, MinIO/Scaleway en prod).
 pub trait StorageClient: Send + Sync {
@@ -70,6 +71,13 @@ pub struct StubJobDispatcher;
 impl JobDispatcher for StubJobDispatcher {
     fn enqueue_verify_provider(&self, _verification_id: Uuid) {}
 }
+
+/// Secret Stripe pour la vérification HMAC-SHA256 des webhooks.
+///
+/// Injecté via `Extension<StripeWebhookSecret>`. Vide en dev/test (tous les
+/// appels webhook seront rejetés sauf si le test fournit le bon secret).
+#[derive(Clone)]
+pub struct StripeWebhookSecret(pub String);
 
 /// Trait de signature d'URL Object Storage — swappable (stub en test, Scaleway en prod).
 pub trait StorageSigner: Send + Sync {
@@ -358,6 +366,10 @@ pub fn app_with_dispatcher(
             "/v1/cabinet/prescriptions/:id/sign",
             post(prescriptions::sign_prescription),
         )
+        .route(
+            "/v1/webhooks/stripe",
+            post(webhooks::stripe::stripe_webhook),
+        )
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
         ))
@@ -366,6 +378,9 @@ pub fn app_with_dispatcher(
         .layer(Extension(
             Arc::new(StubSignatureClient) as Arc<dyn SignatureClient>
         ))
+        .layer(Extension(StripeWebhookSecret(
+            std::env::var("STRIPE_WEBHOOK_SECRET").unwrap_or_default(),
+        )))
         .layer(dev_cors_layer())
         .with_state(state)
 }
