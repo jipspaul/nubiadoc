@@ -21,6 +21,7 @@ mod health;
 mod implant_passport;
 mod marketplace;
 mod messaging;
+mod prescriptions;
 mod reviews;
 mod scheduling;
 mod treatment_plans;
@@ -85,6 +86,22 @@ impl StorageSigner for StubStorageSigner {
             "https://storage.example.com/{}?token=stub",
             storage_key
         ))
+    }
+}
+
+/// Trait de signature eIDAS (Yousign) — swappable (stub en test, Yousign en prod).
+pub trait SignatureClient: Send + Sync {
+    /// Initie une signature eIDAS pour une prescription et retourne la référence
+    /// externe du provider (ex. Yousign procedure id). Stub : retourne un UUID.
+    fn create_signature(&self, prescription_id: uuid::Uuid) -> String;
+}
+
+/// Implémentation stub : retourne un UUID fixe, pour les tests et le dev local.
+pub struct StubSignatureClient;
+
+impl SignatureClient for StubSignatureClient {
+    fn create_signature(&self, prescription_id: uuid::Uuid) -> String {
+        format!("stub-sig-{}", prescription_id)
     }
 }
 
@@ -315,11 +332,18 @@ pub fn app_with_dispatcher(
             get(implant_passport::list_implant_passport),
         )
         .route("/v1/devices", post(devices::register_device))
+        .route(
+            "/v1/cabinet/prescriptions/:id/sign",
+            post(prescriptions::sign_prescription),
+        )
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
         ))
         .layer(Extension(dispatcher))
         .layer(Extension(signer))
+        .layer(Extension(
+            Arc::new(StubSignatureClient) as Arc<dyn SignatureClient>
+        ))
         .layer(dev_cors_layer())
         .with_state(state)
 }
