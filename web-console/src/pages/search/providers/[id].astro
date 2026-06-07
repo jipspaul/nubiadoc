@@ -1,0 +1,279 @@
+---
+import PublicLayout from '../../../layouts/PublicLayout.astro';
+
+const { id } = Astro.params;
+---
+<PublicLayout title={`Praticien — Nubia`}>
+  <nav aria-label="Fil d'Ariane">
+    <a href="/search">Annuaire</a>
+    <span aria-hidden="true"> › </span>
+    <span id="breadcrumb-name">Praticien</span>
+  </nav>
+
+  <p id="error-msg" role="alert" hidden></p>
+
+  <article id="provider-article" aria-label="Profil du praticien">
+    <header id="provider-header">
+      <h1 id="provider-name">Chargement…</h1>
+      <p id="provider-specialty" class="muted"></p>
+    </header>
+
+    <section id="cabinet-section" aria-label="Cabinet" hidden>
+      <h2>Cabinet</h2>
+      <dl id="cabinet-info">
+        <div><dt>Nom</dt><dd id="cabinet-name"></dd></div>
+        <div><dt>Adresse</dt><dd id="cabinet-address"></dd></div>
+        <div><dt>Téléphone</dt><dd id="cabinet-phone"></dd></div>
+      </dl>
+    </section>
+
+    <section aria-label="Créneaux disponibles">
+      <h2>Créneaux disponibles</h2>
+      <p id="slots-error" role="alert" hidden></p>
+      <ul id="slots-list" class="slots-grid">
+        <li class="muted">Chargement…</li>
+      </ul>
+    </section>
+
+    <section aria-label="Avis patients">
+      <h2>Avis patients</h2>
+      <p id="avg-rating" class="rating"></p>
+      <p id="reviews-error" role="alert" hidden></p>
+      <ul id="reviews-list" class="reviews-list">
+        <li class="muted">Chargement…</li>
+      </ul>
+    </section>
+  </article>
+
+  <span id="provider-id-data" data-id={id} hidden></span>
+</PublicLayout>
+
+<style>
+  nav[aria-label="Fil d'Ariane"] {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    margin-bottom: var(--space-6);
+  }
+
+  nav[aria-label="Fil d'Ariane"] a { color: var(--color-accent); }
+
+  #provider-header { margin-bottom: var(--space-6); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-4); }
+
+  h1 { font-size: var(--font-size-2xl); margin-bottom: var(--space-2); }
+
+  h2 {
+    font-size: var(--font-size-lg);
+    margin-top: var(--space-8);
+    margin-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-2);
+  }
+
+  .muted { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  #error-msg,
+  #slots-error,
+  #reviews-error { color: var(--color-error-fg); font-size: var(--font-size-sm); margin-bottom: var(--space-4); }
+
+  #cabinet-info {
+    display: grid;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+  }
+
+  #cabinet-info div { display: flex; gap: var(--space-3); }
+  #cabinet-info dt { color: var(--color-muted); min-width: 80px; }
+  #cabinet-info dd { color: var(--color-text); }
+
+  .slots-grid {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-2);
+  }
+
+  .slot-item {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    text-align: center;
+  }
+
+  .slot-item a { color: var(--color-accent); text-decoration: none; display: block; }
+  .slot-item a:hover { text-decoration: underline; }
+
+  .reviews-list { list-style: none; display: grid; gap: var(--space-3); }
+
+  .review-item {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .review-item .stars { color: var(--color-accent); font-size: var(--font-size-sm); margin-bottom: var(--space-1); }
+  .review-item p { font-size: var(--font-size-sm); color: var(--color-text); margin-bottom: var(--space-1); }
+  .review-item time { font-size: var(--font-size-xs); color: var(--color-muted); }
+
+  .rating { font-size: var(--font-size-lg); font-weight: 600; color: var(--color-accent); margin-bottom: var(--space-4); }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const idEl = document.getElementById('provider-id-data') as HTMLElement;
+  const providerId = idEl?.dataset['id'] ?? '';
+
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+  const providerName = document.getElementById('provider-name') as HTMLHeadingElement;
+  const providerSpecialty = document.getElementById('provider-specialty') as HTMLParagraphElement;
+  const breadcrumbName = document.getElementById('breadcrumb-name') as HTMLSpanElement;
+
+  const cabinetSection = document.getElementById('cabinet-section') as HTMLElement;
+  const cabinetNameEl = document.getElementById('cabinet-name') as HTMLElement;
+  const cabinetAddressEl = document.getElementById('cabinet-address') as HTMLElement;
+  const cabinetPhoneEl = document.getElementById('cabinet-phone') as HTMLElement;
+
+  const slotsError = document.getElementById('slots-error') as HTMLParagraphElement;
+  const slotsList = document.getElementById('slots-list') as HTMLUListElement;
+
+  const avgRating = document.getElementById('avg-rating') as HTMLParagraphElement;
+  const reviewsError = document.getElementById('reviews-error') as HTMLParagraphElement;
+  const reviewsList = document.getElementById('reviews-list') as HTMLUListElement;
+
+  async function loadProvider() {
+    try {
+      const { status, data } = await apiFetch(`/v1/providers/${encodeURIComponent(providerId)}`);
+      if (status === 404) {
+        providerName.textContent = 'Praticien introuvable';
+        errorMsg.textContent = 'Ce praticien n\'existe pas (404).';
+        errorMsg.hidden = false;
+        return null;
+      }
+      if (status >= 300) {
+        errorMsg.textContent = `Erreur HTTP ${status} : ${JSON.stringify(data)}`;
+        errorMsg.hidden = false;
+        return null;
+      }
+      const p = data as { id?: unknown; first_name?: unknown; last_name?: unknown; specialty?: unknown; speciality?: unknown; cabinet_id?: unknown };
+      const name = [String(p.first_name ?? ''), String(p.last_name ?? '')].filter(Boolean).join(' ') || `Praticien ${providerId}`;
+      providerName.textContent = name;
+      breadcrumbName.textContent = name;
+      document.title = `${name} — Nubia`;
+      const specialty = String(p.specialty ?? p.speciality ?? '');
+      if (specialty) providerSpecialty.textContent = specialty;
+      return p;
+    } catch (err) {
+      errorMsg.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      errorMsg.hidden = false;
+      return null;
+    }
+  }
+
+  async function loadCabinetInfo(cabinetId: string) {
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinets/${encodeURIComponent(cabinetId)}/info`);
+      if (status >= 300) return;
+      const c = data as { name?: unknown; address?: unknown; phone?: unknown };
+      cabinetNameEl.textContent = String(c.name ?? '—');
+      cabinetAddressEl.textContent = String(c.address ?? '—');
+      cabinetPhoneEl.textContent = String(c.phone ?? '—');
+      cabinetSection.hidden = false;
+    } catch {
+      // Non-critical; cabinet info is supplemental
+    }
+  }
+
+  async function loadSlots() {
+    slotsList.innerHTML = '<li class="muted">Chargement…</li>';
+    slotsError.hidden = true;
+    try {
+      const { status, data } = await apiFetch(`/v1/search/slots?provider_id=${encodeURIComponent(providerId)}`);
+      slotsList.innerHTML = '';
+      if (status >= 300) {
+        slotsError.textContent = `Erreur HTTP ${status} : ${JSON.stringify(data)}`;
+        slotsError.hidden = false;
+        slotsList.innerHTML = '<li class="muted">Aucun créneau.</li>';
+        return;
+      }
+      const result = data as { slots?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      const slots = Array.isArray(result) ? result : ((result as { slots?: Array<Record<string, unknown>> }).slots ?? []);
+      if (slots.length === 0) {
+        slotsList.innerHTML = '<li class="muted">Aucun créneau disponible.</li>';
+        return;
+      }
+      for (const s of slots) {
+        const slotId = String(s.id ?? '');
+        const startsAt = String(s.starts_at ?? '');
+        const duration = s.duration_minutes != null ? `${s.duration_minutes} min` : '';
+        const displayDate = startsAt
+          ? new Date(startsAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+          : slotId;
+        const li = document.createElement('li');
+        li.className = 'slot-item';
+        li.innerHTML = `<a href="/patient/rdv/reserver?slot_id=${encodeURIComponent(slotId)}&provider_id=${encodeURIComponent(providerId)}" aria-label="Réserver le ${displayDate}">${displayDate}${duration ? `<br><small>${duration}</small>` : ''}</a>`;
+        slotsList.appendChild(li);
+      }
+    } catch (err) {
+      slotsList.innerHTML = '';
+      slotsError.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      slotsError.hidden = false;
+    }
+  }
+
+  async function loadReviews() {
+    reviewsList.innerHTML = '<li class="muted">Chargement…</li>';
+    reviewsError.hidden = true;
+    try {
+      const { status, data } = await apiFetch(`/v1/providers/${encodeURIComponent(providerId)}/reviews`);
+      reviewsList.innerHTML = '';
+      if (status >= 300) {
+        reviewsError.textContent = `Erreur HTTP ${status} : ${JSON.stringify(data)}`;
+        reviewsError.hidden = false;
+        reviewsList.innerHTML = '<li class="muted">Aucun avis.</li>';
+        return;
+      }
+      const result = data as { data?: Array<Record<string, unknown>>; rating_avg?: number } | Array<Record<string, unknown>>;
+      const reviews = Array.isArray(result) ? result : ((result as { data?: Array<Record<string, unknown>> }).data ?? []);
+
+      if (!Array.isArray(result) && (result as { rating_avg?: number }).rating_avg != null) {
+        avgRating.textContent = `Note moyenne : ${(result as { rating_avg: number }).rating_avg} / 5`;
+      }
+
+      if (reviews.length === 0) {
+        reviewsList.innerHTML = '<li class="muted">Aucun avis publié.</li>';
+        return;
+      }
+      for (const r of reviews) {
+        const rating = Number(r.rating ?? 0);
+        const stars = '★'.repeat(Math.max(0, Math.min(5, rating))) + '☆'.repeat(5 - Math.max(0, Math.min(5, rating)));
+        const comment = String(r.comment ?? r.commentaire ?? '');
+        const createdAt = String(r.created_at ?? '');
+        const displayDate = createdAt ? new Date(createdAt).toLocaleDateString('fr-FR') : '';
+
+        const li = document.createElement('li');
+        li.className = 'review-item';
+        li.innerHTML = `
+          <p class="stars" aria-label="Note ${rating} sur 5">${stars}</p>
+          ${comment ? `<p>${comment}</p>` : ''}
+          ${displayDate ? `<time datetime="${createdAt}">${displayDate}</time>` : ''}`;
+        reviewsList.appendChild(li);
+      }
+    } catch (err) {
+      reviewsList.innerHTML = '';
+      reviewsError.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      reviewsError.hidden = false;
+    }
+  }
+
+  const provider = await loadProvider();
+  const cabinetId = provider ? String((provider as Record<string, unknown>).cabinet_id ?? '') : '';
+
+  await Promise.all([
+    loadSlots(),
+    loadReviews(),
+    ...(cabinetId ? [loadCabinetInfo(cabinetId)] : []),
+  ]);
+</script>

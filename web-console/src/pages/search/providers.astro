@@ -1,0 +1,353 @@
+---
+import PublicLayout from '../../layouts/PublicLayout.astro';
+---
+<PublicLayout title="Résultats praticiens — Nubia">
+  <header>
+    <h1>Praticiens disponibles</h1>
+  </header>
+
+  <section aria-label="Filtres de recherche">
+    <form id="filter-form" method="get" action="/search/providers">
+      <div class="filter-row">
+        <div class="field">
+          <label for="q-input">Recherche</label>
+          <input id="q-input" name="q" type="search" placeholder="spécialité, acte…" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="specialty-select">Spécialité</label>
+          <select id="specialty-select" name="specialty">
+            <option value="">Toutes</option>
+          </select>
+        </div>
+        <button type="submit">Filtrer</button>
+      </div>
+    </form>
+  </section>
+
+  <p id="error-msg" role="alert" hidden></p>
+
+  <section aria-label="Liste des praticiens" id="providers-section">
+    <ul id="providers-list" class="providers-list">
+      <li class="loading">Chargement…</li>
+    </ul>
+  </section>
+
+  <section aria-label="Créneaux disponibles" id="slots-section" hidden>
+    <h2>Créneaux pour <span id="slots-provider-name"></span></h2>
+    <p id="slots-error" role="alert" hidden></p>
+    <ul id="slots-list" class="slots-list">
+      <li class="loading">Chargement…</li>
+    </ul>
+    <button id="slots-close" type="button">Fermer</button>
+  </section>
+</PublicLayout>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { font-size: var(--font-size-2xl); }
+
+  #filter-form { margin-bottom: var(--space-6); }
+
+  .filter-row {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .field label { font-size: var(--font-size-sm); color: var(--color-muted); }
+
+  .field input,
+  .field select {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    min-width: 180px;
+  }
+
+  .field input:focus,
+  .field select:focus { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+  button[type="submit"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+
+  button[type="submit"]:hover { background: var(--color-accent-hover); }
+
+  #error-msg { color: var(--color-error-fg); font-size: var(--font-size-sm); margin-bottom: var(--space-4); }
+
+  .providers-list {
+    list-style: none;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .providers-list .loading { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  .provider-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .provider-card:hover { border-color: var(--color-accent); }
+
+  .provider-info h3 { font-size: var(--font-size-base); margin-bottom: var(--space-1); }
+  .provider-info p { font-size: var(--font-size-sm); color: var(--color-muted); }
+
+  .provider-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn-secondary:hover { background: var(--color-border); }
+
+  .btn-primary {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+
+  .btn-primary:hover { background: var(--color-accent-hover); }
+
+  #slots-section {
+    margin-top: var(--space-8);
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-6);
+  }
+
+  #slots-section h2 { font-size: var(--font-size-lg); margin-bottom: var(--space-4); }
+
+  .slots-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+  }
+
+  .slots-list .loading { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  .slot-item {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-sm);
+    text-align: center;
+  }
+
+  .slot-item a {
+    color: var(--color-accent);
+    text-decoration: none;
+    display: block;
+  }
+
+  .slot-item a:hover { text-decoration: underline; }
+
+  #slots-close {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  const form = document.getElementById('filter-form') as HTMLFormElement;
+  const qInput = document.getElementById('q-input') as HTMLInputElement;
+  const specialtySelect = document.getElementById('specialty-select') as HTMLSelectElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+  const providersList = document.getElementById('providers-list') as HTMLUListElement;
+  const slotsSection = document.getElementById('slots-section') as HTMLElement;
+  const slotsProviderName = document.getElementById('slots-provider-name') as HTMLSpanElement;
+  const slotsError = document.getElementById('slots-error') as HTMLParagraphElement;
+  const slotsList = document.getElementById('slots-list') as HTMLUListElement;
+  const slotsClose = document.getElementById('slots-close') as HTMLButtonElement;
+
+  // Pre-fill query from URL params
+  const urlParams = new URLSearchParams(window.location.search);
+  qInput.value = urlParams.get('q') ?? '';
+  const selectedSpecialty = urlParams.get('specialty') ?? '';
+
+  // Load specialties for filter
+  async function loadSpecialties() {
+    try {
+      const { status, data } = await apiFetch('/v1/specialties');
+      if (status < 300 && Array.isArray(data)) {
+        for (const s of data as Array<{ id?: unknown; label?: unknown }>) {
+          const opt = document.createElement('option');
+          opt.value = String(s.id ?? '');
+          opt.textContent = String(s.label ?? s.id ?? '');
+          if (opt.value === selectedSpecialty) opt.selected = true;
+          specialtySelect.appendChild(opt);
+        }
+      }
+    } catch {
+      // Non-critical; filters still work without specialties list
+    }
+  }
+
+  async function loadProviders() {
+    providersList.innerHTML = '<li class="loading">Chargement…</li>';
+    errorMsg.hidden = true;
+    slotsSection.hidden = true;
+
+    const params: Record<string, string> = {};
+    if (qInput.value.trim()) params['q'] = qInput.value.trim();
+    if (specialtySelect.value) params['specialty'] = specialtySelect.value;
+    const qs = new URLSearchParams(params).toString();
+
+    try {
+      const { status, data } = await apiFetch(`/v1/search/providers${qs ? `?${qs}` : ''}`);
+      providersList.innerHTML = '';
+
+      if (status >= 300) {
+        errorMsg.textContent = `Erreur HTTP ${status} : ${JSON.stringify(data)}`;
+        errorMsg.hidden = false;
+        providersList.innerHTML = '<li class="loading">Aucun résultat.</li>';
+        return;
+      }
+
+      const result = data as { providers?: Array<Record<string, unknown>>; total?: number } | Array<Record<string, unknown>>;
+      const providers = Array.isArray(result) ? result : ((result as { providers?: Array<Record<string, unknown>> }).providers ?? []);
+
+      if (providers.length === 0) {
+        providersList.innerHTML = '<li class="loading">Aucun praticien trouvé.</li>';
+        return;
+      }
+
+      for (const p of providers) {
+        const id = String(p.id ?? '');
+        const firstName = String(p.first_name ?? '');
+        const lastName = String(p.last_name ?? '');
+        const name = [firstName, lastName].filter(Boolean).join(' ') || `Praticien ${id}`;
+        const specialty = String(p.specialty ?? p.speciality ?? '');
+
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <article class="provider-card" data-provider-id="${id}" data-provider-name="${name}">
+            <div class="provider-info">
+              <h3>${name}</h3>
+              ${specialty ? `<p>${specialty}</p>` : ''}
+            </div>
+            <div class="provider-actions">
+              <a href="/search/providers/${encodeURIComponent(id)}" class="btn-secondary">Voir le profil</a>
+              <button type="button" class="btn-primary btn-slots" data-provider-id="${id}" data-provider-name="${name}" aria-label="Voir les créneaux de ${name}">Créneaux</button>
+            </div>
+          </article>`;
+        providersList.appendChild(li);
+      }
+
+      // Attach slot buttons
+      providersList.querySelectorAll<HTMLButtonElement>('.btn-slots').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pid = btn.dataset['providerId'] ?? '';
+          const pname = btn.dataset['providerName'] ?? '';
+          loadSlots(pid, pname);
+        });
+      });
+    } catch (err) {
+      providersList.innerHTML = '';
+      errorMsg.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      errorMsg.hidden = false;
+    }
+  }
+
+  async function loadSlots(providerId: string, providerName: string) {
+    slotsSection.hidden = false;
+    slotsProviderName.textContent = providerName;
+    slotsList.innerHTML = '<li class="loading">Chargement des créneaux…</li>';
+    slotsError.hidden = true;
+    slotsSection.scrollIntoView({ behavior: 'smooth' });
+
+    try {
+      const { status, data } = await apiFetch(`/v1/search/slots?provider_id=${encodeURIComponent(providerId)}`);
+      slotsList.innerHTML = '';
+
+      if (status >= 300) {
+        slotsError.textContent = `Erreur HTTP ${status} : ${JSON.stringify(data)}`;
+        slotsError.hidden = false;
+        slotsList.innerHTML = '<li class="loading">Aucun créneau.</li>';
+        return;
+      }
+
+      const result = data as { slots?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      const slots = Array.isArray(result) ? result : ((result as { slots?: Array<Record<string, unknown>> }).slots ?? []);
+
+      if (slots.length === 0) {
+        slotsList.innerHTML = '<li class="loading">Aucun créneau disponible.</li>';
+        return;
+      }
+
+      for (const s of slots) {
+        const slotId = String(s.id ?? '');
+        const startsAt = String(s.starts_at ?? '');
+        const duration = s.duration_minutes != null ? `${s.duration_minutes} min` : '';
+        const displayDate = startsAt ? new Date(startsAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : slotId;
+
+        const li = document.createElement('li');
+        li.className = 'slot-item';
+        li.innerHTML = `<a href="/patient/rdv/reserver?slot_id=${encodeURIComponent(slotId)}&provider_id=${encodeURIComponent(providerId)}" aria-label="Réserver le ${displayDate}">${displayDate}${duration ? `<br><small>${duration}</small>` : ''}</a>`;
+        slotsList.appendChild(li);
+      }
+    } catch (err) {
+      slotsList.innerHTML = '';
+      slotsError.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      slotsError.hidden = false;
+    }
+  }
+
+  slotsClose.addEventListener('click', () => { slotsSection.hidden = true; });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (qInput.value.trim()) params.set('q', qInput.value.trim());
+    if (specialtySelect.value) params.set('specialty', specialtySelect.value);
+    const qs = params.toString();
+    window.history.replaceState(null, '', `/search/providers${qs ? `?${qs}` : ''}`);
+    loadProviders();
+  });
+
+  loadSpecialties();
+  loadProviders();
+</script>
