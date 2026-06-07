@@ -1,0 +1,165 @@
+---
+import Default from '../../../../../layouts/Default.astro';
+---
+<Default title="Notes patient — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">§14 Back-office — Notes cliniques</h1>
+  <p style="color:var(--muted);font-size:0.875rem;margin-bottom:1.5rem;">
+    GET <code>/v1/cabinet/patients/{id}/notes</code>
+    &nbsp;·&nbsp; POST <code>/v1/cabinet/patients/{id}/notes</code>
+    &nbsp;·&nbsp; <strong>practitioner only</strong>
+  </p>
+
+  <!-- Access token (shared) -->
+  <section style="margin-bottom:2rem;">
+    <label style="font-size:0.875rem;font-weight:600;">
+      Access token (Bearer) — partagé entre toutes les actions
+      <input id="access-token" type="text" name="access_token" placeholder="eyJ…"
+        style="display:block;width:100%;max-width:600px;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+  </section>
+
+  <!-- Patient ID (shared) -->
+  <section style="margin-bottom:2rem;">
+    <label style="font-size:0.875rem;font-weight:600;">
+      Patient ID <span style="color:red">*</span>
+      <input id="patient-id" type="text" name="patient_id" placeholder="uuid"
+        style="display:block;width:100%;max-width:600px;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+  </section>
+
+  <!-- Section 1 : GET notes (timeline) -->
+  <section aria-labelledby="h-get" style="margin-bottom:2rem;border:1px solid var(--border);border-radius:6px;padding:1rem;">
+    <h2 id="h-get" style="margin:0 0 1rem;font-size:1rem;">GET /v1/cabinet/patients/{id}/notes — timeline</h2>
+    <form id="form-get" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;">
+      <button type="submit" id="btn-get"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+        GET
+      </button>
+    </form>
+    <p id="badge-get" style="margin-top:0.75rem;display:none;"></p>
+    <pre id="result-get" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:2.5rem;"></pre>
+  </section>
+
+  <!-- Section 2 : POST note -->
+  <section aria-labelledby="h-post" style="margin-bottom:2rem;border:1px solid var(--border);border-radius:6px;padding:1rem;">
+    <h2 id="h-post" style="margin:0 0 1rem;font-size:1rem;">POST /v1/cabinet/patients/{id}/notes — ajouter une note</h2>
+    <form id="form-post" style="display:flex;flex-direction:column;gap:0.75rem;max-width:500px;">
+      <label style="font-size:0.875rem;">
+        note_kind <span style="color:red">*</span>
+        <select name="note_kind"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+          <option value="observation">observation</option>
+          <option value="act">act</option>
+        </select>
+      </label>
+      <label style="font-size:0.875rem;">
+        text <span style="color:red">*</span>
+        <textarea name="text" rows="3" required placeholder="Contenu de la note clinique"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;font-family:inherit;font-size:0.875rem;"></textarea>
+      </label>
+      <label style="font-size:0.875rem;">
+        tooth (optionnel, numéro de dent)
+        <input type="text" name="tooth" placeholder="11, 21…"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        POST (ajouter)
+      </button>
+    </form>
+    <p id="badge-post" style="margin-top:0.75rem;display:none;"></p>
+    <pre id="result-post" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:2.5rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../../../lib/api.ts';
+
+  function getToken(): string {
+    return (document.getElementById('access-token') as HTMLInputElement).value;
+  }
+
+  function getPatientId(): string {
+    return (document.getElementById('patient-id') as HTMLInputElement).value;
+  }
+
+  function renderResult(
+    resultEl: HTMLPreElement,
+    badgeEl: HTMLParagraphElement,
+    httpStatus: number,
+    data: unknown,
+  ): void {
+    resultEl.className = httpStatus < 300 ? 'success' : 'error';
+    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+    badgeEl.style.display = 'block';
+  }
+
+  function renderError(resultEl: HTMLPreElement, err: unknown): void {
+    resultEl.className = 'error';
+    resultEl.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+  }
+
+  // --- GET notes ---
+  const formGet = document.getElementById('form-get') as HTMLFormElement;
+  const resultGet = document.getElementById('result-get') as HTMLPreElement;
+  const badgeGet = document.getElementById('badge-get') as HTMLParagraphElement;
+
+  formGet.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const patientId = getPatientId();
+    resultGet.className = '';
+    resultGet.textContent = 'Chargement…';
+    badgeGet.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/patients/${encodeURIComponent(patientId)}/notes`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+      });
+      renderResult(resultGet, badgeGet, status, data);
+    } catch (err) {
+      renderError(resultGet, err);
+    }
+  });
+
+  // --- POST note ---
+  const formPost = document.getElementById('form-post') as HTMLFormElement;
+  const resultPost = document.getElementById('result-post') as HTMLPreElement;
+  const badgePost = document.getElementById('badge-post') as HTMLParagraphElement;
+
+  formPost.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formPost);
+    const patientId = getPatientId();
+    const body: Record<string, unknown> = {
+      note_kind: fd.get('note_kind') as string,
+      text: fd.get('text') as string,
+    };
+    const tooth = (fd.get('tooth') as string).trim();
+    if (tooth) body.tooth = tooth;
+    resultPost.className = '';
+    resultPost.textContent = 'Chargement…';
+    badgePost.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/patients/${encodeURIComponent(patientId)}/notes`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      renderResult(resultPost, badgePost, status, data);
+    } catch (err) {
+      renderError(resultPost, err);
+    }
+  });
+</script>
