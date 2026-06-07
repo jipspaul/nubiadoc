@@ -32,6 +32,9 @@ class RouteNames {
   static const String signatureFlow = '/documents/:id/sign';
   static const String paymentFlow = '/billing/quotes/:id/pay';
 
+  // Clinical
+  static const String clinicalSession = '/appointments/:id/session';
+
   // Reviews
   static const String providerReviews = '/providers/:id/reviews';
 }

@@ -259,6 +259,15 @@ class _AppointmentActions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        OutlinedButton.icon(
+          onPressed: () => context.push(
+            RouteNames.clinicalSession.replaceFirst(':id', appointment.id),
+            extra: appointment,
+          ),
+          icon: const Icon(Icons.medical_services_outlined),
+          label: const Text('Consultation au fauteuil'),
+        ),
+        const SizedBox(height: 12),
         if (canCheckin) _CheckinButton(appointment: appointment),
         if (appointment.canModify) ...[
           const SizedBox(height: 12),
