@@ -1,0 +1,174 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Inscription praticien — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">Inscription praticien / cabinet</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;font-size:0.9rem;">POST /v1/pro/register — crée le compte, pose <code>nubia_role=admin</code>, redirige vers /praticien/dashboard</p>
+
+  <form id="pro-register-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+    <fieldset style="border:1px solid var(--border);border-radius:4px;padding:0.75rem;display:flex;flex-direction:column;gap:0.75rem;">
+      <legend style="padding:0 0.4rem;font-size:0.875rem;color:var(--muted);">Compte</legend>
+      <label>
+        Email
+        <input type="email" name="email" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Mot de passe
+        <input type="password" name="password" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+    </fieldset>
+
+    <fieldset style="border:1px solid var(--border);border-radius:4px;padding:0.75rem;display:flex;flex-direction:column;gap:0.75rem;">
+      <legend style="padding:0 0.4rem;font-size:0.875rem;color:var(--muted);">Cabinet</legend>
+      <label>
+        Raison sociale
+        <input type="text" name="cabinet_raison_sociale" required placeholder="ex : Cabinet Dr Dupont"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Spécialité
+        <input type="text" name="cabinet_specialite" required placeholder="ex : medecine_generale"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        SIRET (optionnel)
+        <input type="text" name="cabinet_siret" placeholder="14 chiffres"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+    </fieldset>
+
+    <fieldset style="border:1px solid var(--border);border-radius:4px;padding:0.75rem;display:flex;flex-direction:column;gap:0.75rem;">
+      <legend style="padding:0 0.4rem;font-size:0.875rem;color:var(--muted);">Praticien</legend>
+      <label>
+        Prénom
+        <input type="text" name="first_name" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Nom
+        <input type="text" name="last_name" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        RPPS (optionnel)
+        <input type="text" name="rpps" placeholder="11 chiffres"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        ADELI (optionnel)
+        <input type="text" name="adeli" placeholder="9 chiffres"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+    </fieldset>
+
+    <label style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="checkbox" name="accept_cgu" id="accept_cgu" required />
+      J'accepte les CGU (version 1.0)
+    </label>
+
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Créer le compte pro
+    </button>
+  </form>
+
+  <p id="error-msg" aria-live="polite" style="display:none;margin-top:1rem;padding:0.75rem;background:#7f1d1d;color:#fecaca;border-radius:4px;font-size:0.9rem;"></p>
+  <pre id="result" style="display:none;margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const form = document.getElementById('pro-register-form') as HTMLFormElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+
+  function showError(msg: string): void {
+    errorMsg.textContent = msg;
+    errorMsg.style.display = 'block';
+    result.style.display = 'none';
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorMsg.style.display = 'none';
+    result.style.display = 'none';
+
+    const fd = new FormData(form);
+    const accept_cgu = (document.getElementById('accept_cgu') as HTMLInputElement).checked;
+    const siret = (fd.get('cabinet_siret') as string).trim() || undefined;
+    const rpps = (fd.get('rpps') as string).trim() || undefined;
+    const adeli = (fd.get('adeli') as string).trim() || undefined;
+
+    const body = {
+      email: fd.get('email') as string,
+      password: fd.get('password') as string,
+      accept_cgu,
+      cgu_version: '1.0',
+      cabinet: {
+        raison_sociale: fd.get('cabinet_raison_sociale') as string,
+        specialite: fd.get('cabinet_specialite') as string,
+        ...(siret ? { siret } : {}),
+      },
+      practitioner: {
+        first_name: fd.get('first_name') as string,
+        last_name: fd.get('last_name') as string,
+        ...(rpps ? { rpps } : {}),
+        ...(adeli ? { adeli } : {}),
+      },
+    };
+
+    try {
+      const { status, data } = await apiFetch('/v1/pro/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (status === 201) {
+        const resp = data as { access_token?: string; refresh_token?: string };
+        if (resp.access_token) {
+          localStorage.setItem('nubia_jwt', resp.access_token);
+          document.cookie = `nubia_jwt=${resp.access_token}; path=/; SameSite=Strict`;
+          document.cookie = `nubia_role=admin; path=/; SameSite=Strict`;
+          if (resp.refresh_token) {
+            localStorage.setItem('nubia_refresh_token', resp.refresh_token);
+          }
+          window.location.href = '/praticien/dashboard';
+        } else {
+          result.className = 'success';
+          result.textContent = `HTTP 201\n${JSON.stringify(data, null, 2)}`;
+          result.style.display = 'block';
+        }
+      } else if (status === 409) {
+        const err = data as Record<string, unknown> | null;
+        const code = err?.code as string | undefined;
+        if (code === 'email_taken') {
+          showError('Cette adresse email est déjà utilisée.');
+        } else if (code === 'rpps_invalid') {
+          showError('Numéro RPPS invalide. Vérifiez le format (11 chiffres).');
+        } else if (code === 'rpps_duplicate') {
+          showError('Ce numéro RPPS est déjà enregistré.');
+        } else {
+          showError(`Conflit (HTTP 409) : ${err?.message ?? JSON.stringify(data)}`);
+        }
+      } else if (status === 422) {
+        const err = data as Record<string, unknown> | null;
+        showError(`Validation échouée : ${err?.detail ?? err?.message ?? JSON.stringify(data)}`);
+      } else {
+        result.className = 'error';
+        result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+        result.style.display = 'block';
+      }
+    } catch (err) {
+      showError(`Erreur réseau : ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
+</script>
