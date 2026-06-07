@@ -23,7 +23,9 @@ import 'package:nubia_patient/presentation/features/appointments/pages/appointme
 import 'package:nubia_patient/presentation/features/appointments/pages/booking_screen.dart';
 import 'package:nubia_patient/presentation/features/appointments/pages/checkin_screen.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/login_screen.dart';
+import 'package:nubia_patient/presentation/features/auth/pages/onboarding_page.dart';
 import 'package:nubia_patient/presentation/features/auth/pages/register_screen.dart';
+import 'package:nubia_patient/presentation/features/auth/pages/splash_page.dart';
 import 'package:nubia_patient/domain/entities/document.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_detail_screen.dart';
 import 'package:nubia_patient/presentation/features/documents/pages/document_sign_screen.dart';
@@ -61,10 +63,19 @@ class AppRouter {
   /// redirect guard is re-evaluated.
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
-      initialLocation: RouteNames.home,
+      initialLocation: RouteNames.splash,
       refreshListenable: notifier,
       redirect: _authGuard(notifier),
       routes: [
+        // ----------------------------------------------------------------
+        // Splash — initial route, checks auth state
+        // ----------------------------------------------------------------
+        GoRoute(
+          path: RouteNames.splash,
+          name: 'splash',
+          builder: (_, __) => const SplashPage(),
+        ),
+
         // ----------------------------------------------------------------
         // Auth routes (outside the shell — no bottom nav)
         // ----------------------------------------------------------------
@@ -77,6 +88,11 @@ class AppRouter {
           path: RouteNames.register,
           name: 'register',
           builder: (_, __) => const RegisterScreen(),
+        ),
+        GoRoute(
+          path: RouteNames.onboarding,
+          name: 'onboarding',
+          builder: (_, __) => const OnboardingPage(),
         ),
 
         // ----------------------------------------------------------------
@@ -338,16 +354,19 @@ class AppRouter {
   static GoRouterRedirect _authGuard(RouterNotifier notifier) {
     return (BuildContext context, GoRouterState state) {
       final authenticated = notifier.isAuthenticated;
-      final onLogin = state.matchedLocation == RouteNames.login;
-      final onRegister = state.matchedLocation == RouteNames.register;
-      final onAuthRoute = onLogin || onRegister;
+      final location = state.matchedLocation;
+      final onLogin = location == RouteNames.login;
+      final onRegister = location == RouteNames.register;
+      final onOnboarding = location == RouteNames.onboarding;
+      final onSplash = location == RouteNames.splash;
+      final onAuthRoute = onLogin || onRegister || onOnboarding || onSplash;
 
       if (!authenticated && !onAuthRoute) {
         // Not logged in and not on an auth page → redirect to /login.
         return RouteNames.login;
       }
 
-      if (authenticated && onAuthRoute) {
+      if (authenticated && onAuthRoute && !onSplash) {
         // Already logged in but trying to visit an auth page → send home.
         return RouteNames.home;
       }
