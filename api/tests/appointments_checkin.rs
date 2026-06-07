@@ -17,12 +17,12 @@ use nubia_api::{app, AppState, StubMailer};
 const JWT_SECRET: &str = "test-jwt-secret-appointments-checkin";
 
 fn db_available() -> bool {
-    std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
+    std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("SEED_DATABASE_URL").is_ok()
 }
 
-async fn owner_pool() -> PgPool {
-    let url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://nubia_owner@localhost:5432/nubia".into());
+async fn seed_pool() -> PgPool {
+    let url = std::env::var("SEED_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://nubia_seed@localhost:5432/nubia".into());
     PgPool::connect(&url).await.unwrap()
 }
 
@@ -156,7 +156,7 @@ async fn post_checkin_manual_happy_path_returns_200() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
+    let db = seed_pool().await;
     let patient_user_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let patient_account_id = Uuid::new_v4();
@@ -252,7 +252,7 @@ async fn post_checkin_invalid_status_returns_409() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
+    let db = seed_pool().await;
     let patient_user_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let patient_account_id = Uuid::new_v4();
@@ -348,7 +348,7 @@ async fn post_checkin_tomorrow_returns_422() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
+    let db = seed_pool().await;
     let patient_user_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let patient_account_id = Uuid::new_v4();
