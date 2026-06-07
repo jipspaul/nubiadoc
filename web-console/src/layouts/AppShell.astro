@@ -1,0 +1,277 @@
+---
+import '../styles/global.css';
+
+export type Role = 'patient' | 'practitioner' | 'secretary' | 'admin';
+
+interface NavItem {
+  href: string;
+  label: string;
+}
+
+interface Props {
+  title?: string;
+  role: Role;
+}
+
+const { title = 'Nubia', role } = Astro.props;
+
+const NAV: Record<Role, NavItem[]> = {
+  patient: [
+    { href: '/patient/accueil',              label: 'Accueil' },
+    { href: '/patient/rdv',                  label: 'Mes rendez-vous' },
+    { href: '/patient/documents',            label: 'Documents' },
+    { href: '/patient/messages',             label: 'Messages' },
+    { href: '/patient/profil',               label: 'Mon profil' },
+  ],
+  practitioner: [
+    { href: '/praticien/dashboard',          label: 'Tableau de bord' },
+    { href: '/praticien/agenda',             label: 'Agenda' },
+    { href: '/praticien/patients',           label: 'Patients' },
+    { href: '/praticien/messages',           label: 'Messagerie' },
+  ],
+  secretary: [
+    { href: '/secretary/dashboard',          label: 'Tableau de bord' },
+    { href: '/secretary/agenda',             label: 'Agenda' },
+    { href: '/secretary/patients',           label: 'Patients' },
+    { href: '/secretary/facturation',        label: 'Facturation' },
+    { href: '/secretary/messagerie',         label: 'Messagerie' },
+  ],
+  admin: [
+    { href: '/patient/accueil',              label: 'Espace patient' },
+    { href: '/praticien/dashboard',          label: 'Espace praticien' },
+    { href: '/secretary/dashboard',          label: 'Espace secrétaire' },
+  ],
+};
+
+const navItems = NAV[role];
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isActive = (href: string) => {
+  const h = href.replace(/\/$/, '') || '/';
+  return h === currentPath || currentPath.startsWith(h + '/');
+};
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header class="app-header">
+      <a href="/" class="app-logo" aria-label="Nubia — accueil">Nubia</a>
+
+      {role === 'admin' && (
+        <nav class="space-switcher" aria-label="Sélecteur d'espace">
+          <a href="/patient/accueil">Patient</a>
+          <a href="/praticien/dashboard">Praticien</a>
+          <a href="/secretary/dashboard">Secrétaire</a>
+        </nav>
+      )}
+
+      <div class="header-user">
+        <span id="app-user-email" class="user-email"></span>
+        <button id="app-logout-btn" type="button" class="logout-btn">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <aside class="app-nav" aria-label="Navigation principale">
+        <details class="nav-collapsible" open>
+          <summary>Menu</summary>
+          <nav>
+            {navItems.map(item => (
+              <a
+                href={item.href}
+                class:list={['nav-link', { active: isActive(item.href) }]}
+                aria-current={isActive(item.href) ? 'page' : undefined}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        </details>
+      </aside>
+
+      <main class="app-main">
+        <slot />
+      </main>
+    </div>
+
+    <footer class="app-footer">
+      Nubia dev console — données fictives uniquement
+    </footer>
+  </body>
+</html>
+
+<script>
+  import { isAuthenticated, getCurrentUser, logout } from '../lib/session.ts';
+
+  if (!isAuthenticated()) {
+    window.location.href = '/login';
+  } else {
+    const el = document.getElementById('app-user-email');
+    if (el) el.textContent = getCurrentUser() ?? '';
+  }
+
+  const btn = document.getElementById('app-logout-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      logout();
+      window.location.href = '/';
+    });
+  }
+</script>
+
+<style>
+  .app-header {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-2) var(--space-8);
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    min-height: 3rem;
+  }
+
+  .app-logo {
+    font-weight: bold;
+    text-decoration: none;
+    color: var(--color-text);
+    font-size: var(--font-size-lg);
+  }
+
+  .space-switcher {
+    display: flex;
+    gap: var(--space-2);
+    margin-left: var(--space-4);
+  }
+
+  .space-switcher a {
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .space-switcher a:hover {
+    background: var(--color-border);
+  }
+
+  .header-user {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .user-email {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+
+  .logout-btn {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+  }
+
+  .logout-btn:hover {
+    background: var(--color-border);
+    color: var(--color-text);
+  }
+
+  .app-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  .app-nav {
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    width: 220px;
+    min-width: 220px;
+    overflow-y: auto;
+    font-size: var(--font-size-sm);
+  }
+
+  .app-nav nav {
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .nav-link {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .nav-link:hover {
+    background: var(--color-border);
+    text-decoration: none;
+  }
+
+  .nav-link.active {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+  }
+
+  .app-main {
+    flex: 1;
+    padding: var(--space-8);
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+    overflow-x: auto;
+  }
+
+  .app-footer {
+    padding: var(--space-2) var(--space-8);
+    text-align: center;
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* Desktop: always-open sidebar, hide summary toggle */
+  @media (min-width: 900px) {
+    .nav-collapsible > summary { display: none; }
+  }
+
+  /* Mobile: collapsible sidebar */
+  @media (max-width: 899px) {
+    .app-body { flex-direction: column; }
+
+    .app-nav {
+      width: 100%;
+      min-width: 0;
+      border-right: none;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .nav-collapsible > summary {
+      cursor: pointer;
+      padding: var(--space-3);
+      font-weight: 600;
+      list-style: none;
+    }
+
+    .nav-collapsible > summary::before { content: '☰ '; }
+    .nav-collapsible[open] > summary::before { content: '✕ '; }
+
+    .space-switcher { display: none; }
+  }
+</style>
