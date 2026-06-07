@@ -398,7 +398,7 @@ pub async fn sign_quote(
     // Transition stub Yousign : draft → signed.
     let update_row = sqlx::query(
         "UPDATE quote \
-         SET status = 'signed', signed_at = now() \
+         SET status = 'signed', signed_at = now(), updated_at = now() \
          WHERE id = $1 AND cabinet_id = $2 \
          RETURNING signed_at",
     )
