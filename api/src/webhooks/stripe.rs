@@ -8,12 +8,7 @@
 //! planifiée, etc.) est délégué à apalis (post-T2). Le handler ne fait que
 //! la mise à jour de statut synchrone.
 
-use axum::{
-    body::Bytes,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-    Json,
-};
+use axum::{body::Bytes, extract::State, http::HeaderMap, Extension, Json};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -21,7 +16,7 @@ use sha2::Sha256;
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::{auth::AppError, AppState};
+use crate::{auth::AppError, AppState, StripeWebhookSecret};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -49,23 +44,23 @@ fn verify_stripe_signature(
         }
     }
 
-    let ts = timestamp.ok_or(AppError::InvalidSignature)?;
+    let ts = timestamp.ok_or(AppError::Unauthorized)?;
 
     // Vérification de la tolérance temporelle (300 s).
-    let ts_secs: i64 = ts.parse().map_err(|_| AppError::InvalidSignature)?;
+    let ts_secs: i64 = ts.parse().map_err(|_| AppError::Unauthorized)?;
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
     if (now_secs - ts_secs).abs() > 300 {
-        return Err(AppError::InvalidSignature);
+        return Err(AppError::Unauthorized);
     }
 
     // Payload signé : "<timestamp>.<raw_body>".
     let signed_payload = [ts.as_bytes(), b".", body].concat();
 
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|_| AppError::InvalidSignature)?;
+    let mut mac =
+        HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| AppError::Unauthorized)?;
     mac.update(&signed_payload);
     let expected = mac.finalize().into_bytes();
     let expected_hex = hex::encode(expected);
@@ -76,7 +71,7 @@ fn verify_stripe_signature(
     {
         Ok(())
     } else {
-        Err(AppError::InvalidSignature)
+        Err(AppError::Unauthorized)
     }
 }
 
@@ -113,6 +108,7 @@ pub struct WebhookAck {
 /// (pas de RLS cabinet, cf. migration 0074).
 pub async fn stripe_webhook(
     State(state): State<AppState>,
+    Extension(StripeWebhookSecret(stripe_secret)): Extension<StripeWebhookSecret>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<WebhookAck>, AppError> {
@@ -120,9 +116,9 @@ pub async fn stripe_webhook(
     let sig_header = headers
         .get("stripe-signature")
         .and_then(|v| v.to_str().ok())
-        .ok_or(AppError::InvalidSignature)?;
+        .ok_or(AppError::Unauthorized)?;
 
-    verify_stripe_signature(&state.stripe_webhook_secret, &body, sig_header)?;
+    verify_stripe_signature(&stripe_secret, &body, sig_header)?;
 
     // ── 2. Deserialise le payload ─────────────────────────────────────────────
     let payload: Value = serde_json::from_slice(&body).map_err(|_| AppError::ValidationError)?;
