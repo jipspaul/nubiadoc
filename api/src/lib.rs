@@ -347,6 +347,7 @@ pub fn app_with_dispatcher(
         .route("/v1/acts", get(marketplace::list_acts))
         .route("/v1/search/suggest", get(marketplace::suggest_search))
         .route("/v1/search/providers", get(marketplace::search_providers))
+        .route("/v1/search/slots", get(marketplace::search_slots))
         .route("/v1/reviews", post(reviews::create_review))
         .route(
             "/v1/providers/:id/reviews",
