@@ -342,6 +342,81 @@ pub async fn get_quote(
     }))
 }
 
+/// Réponse de `POST /v1/quotes/:id/sign`.
+#[derive(Serialize)]
+pub struct SignQuoteResponse {
+    pub signed: bool,
+    pub signed_at: String,
+}
+
+/// `POST /v1/quotes/:id/sign` — signe un devis (stub Yousign).
+///
+/// Token `kind:"patient"` requis ; token pro → `403`.
+/// Retourne `404` si le devis n'existe pas ou n'appartient pas au patient connecté.
+/// Stub : met à jour `status = 'signed'` et `signed_at = now()` sans appel Yousign réel.
+pub async fn sign_quote(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<SignQuoteResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — quote_patient_read (migration 0029).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let quote_row = sqlx::query(
+        "SELECT q.cabinet_id \
+         FROM quote q \
+         WHERE q.id = $1 AND q.deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let cabinet_id: Uuid = quote_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet pour la mise à jour (tenant_isolation policy).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE quote SET status = 'signed', signed_at = now(), updated_at = now() \
+         WHERE id = $1 \
+         RETURNING signed_at",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let signed_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("signed_at").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        quote_id = %id,
+        "quote signed"
+    );
+
+    Ok(Json(SignQuoteResponse {
+        signed: true,
+        signed_at: signed_at.to_rfc3339(),
+    }))
+}
+
 /// Corps de `POST /v1/payments/intent`.
 #[derive(Deserialize)]
 pub struct PaymentIntentBody {
