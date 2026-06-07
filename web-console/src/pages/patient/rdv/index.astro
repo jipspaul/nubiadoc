@@ -1,0 +1,162 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Mes rendez-vous — Nubia" role="patient">
+  <header>
+    <h1>Mes rendez-vous</h1>
+    <p>Retrouvez vos rendez-vous à venir et passés.</p>
+  </header>
+
+  <section aria-labelledby="h-upcoming">
+    <h2 id="h-upcoming">À venir</h2>
+    <div id="upcoming-loading" aria-live="polite">Chargement…</div>
+    <ul id="upcoming-list" hidden aria-label="Rendez-vous à venir"></ul>
+    <p id="upcoming-empty" hidden>Aucun rendez-vous à venir.</p>
+  </section>
+
+  <section aria-labelledby="h-past">
+    <h2 id="h-past">Historique</h2>
+    <div id="past-loading" aria-live="polite">Chargement…</div>
+    <ul id="past-list" hidden aria-label="Rendez-vous passés"></ul>
+    <p id="past-empty" hidden>Aucun rendez-vous passé.</p>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section { margin-bottom: var(--space-8); }
+  h2 { font-size: var(--font-size-lg); margin-bottom: var(--space-3); }
+
+  .rdv-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .rdv-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    text-decoration: none;
+    color: var(--color-text);
+  }
+  .rdv-item:hover { background: var(--color-border); }
+
+  .rdv-info { display: flex; flex-direction: column; gap: var(--space-1); }
+  .rdv-date { font-weight: 600; }
+  .rdv-meta { font-size: var(--font-size-sm); color: var(--color-muted); }
+
+  .rdv-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: var(--space-1) var(--space-2);
+    border-radius: 9999px;
+    white-space: nowrap;
+    text-transform: capitalize;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+  .rdv-badge[data-status="confirmed"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+  .rdv-badge[data-status="pending"] {
+    background: transparent;
+    color: var(--color-muted);
+  }
+  .rdv-badge[data-status="completed"] {
+    background: var(--color-border);
+    color: var(--color-text);
+  }
+  .rdv-badge[data-status="cancelled"] {
+    background: var(--color-error);
+    color: var(--color-error-fg);
+    border-color: var(--color-error);
+  }
+</style>
+
+<script>
+  import { patientAppointments, type Appointment } from '../../../lib/endpoints.ts';
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  function renderList(listEl: HTMLUListElement, emptyEl: HTMLParagraphElement, items: Appointment[]): void {
+    listEl.innerHTML = '';
+    if (items.length === 0) {
+      emptyEl.hidden = false;
+      return;
+    }
+    listEl.className = 'rdv-list';
+    for (const appt of items) {
+      const date = formatDate(appt.scheduled_at);
+      const status = appt.status ?? '';
+      const provider = appt.provider_id ? `Praticien ${escHtml(appt.provider_id)}` : 'Praticien inconnu';
+
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = `/patient/rdv/${encodeURIComponent(appt.id)}`;
+      a.className = 'rdv-item';
+      a.innerHTML = `
+        <span class="rdv-info">
+          <span class="rdv-date">${escHtml(date)}</span>
+          <span class="rdv-meta">${provider}</span>
+        </span>
+        <span class="rdv-badge" data-status="${escHtml(status)}">${escHtml(status)}</span>`;
+      li.appendChild(a);
+      listEl.appendChild(li);
+    }
+    listEl.hidden = false;
+  }
+
+  const upcomingLoading = document.getElementById('upcoming-loading') as HTMLElement;
+  const upcomingList = document.getElementById('upcoming-list') as HTMLUListElement;
+  const upcomingEmpty = document.getElementById('upcoming-empty') as HTMLParagraphElement;
+
+  const pastLoading = document.getElementById('past-loading') as HTMLElement;
+  const pastList = document.getElementById('past-list') as HTMLUListElement;
+  const pastEmpty = document.getElementById('past-empty') as HTMLParagraphElement;
+
+  (async () => {
+    const [upcomingRes, pastRes] = await Promise.all([
+      patientAppointments.list({ status: 'upcoming' }),
+      patientAppointments.list({ status: 'past' }),
+    ]);
+
+    upcomingLoading.hidden = true;
+    if (upcomingRes.status < 300 && Array.isArray(upcomingRes.data)) {
+      renderList(upcomingList, upcomingEmpty, upcomingRes.data as Appointment[]);
+    } else {
+      upcomingLoading.textContent = 'Impossible de charger les rendez-vous à venir.';
+      upcomingLoading.hidden = false;
+    }
+
+    pastLoading.hidden = true;
+    if (pastRes.status < 300 && Array.isArray(pastRes.data)) {
+      renderList(pastList, pastEmpty, pastRes.data as Appointment[]);
+    } else {
+      pastLoading.textContent = 'Impossible de charger les rendez-vous passés.';
+      pastLoading.hidden = false;
+    }
+  })();
+</script>
