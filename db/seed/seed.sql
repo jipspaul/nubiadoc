@@ -239,6 +239,21 @@ INSERT INTO prescription_item (id, cabinet_id, prescription_id, label, form, pos
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
+-- Documents (issue #1115) : ordonnance, radio, carte mutuelle pour Marc Dubois
+-- =====================================================================
+INSERT INTO document (id, cabinet_id, patient_id, patient_account_id, category, storage_key, filename, mime_type, sha256, uploaded_by, size_bytes) VALUES
+  ('dc000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d1',NULL,
+   'ordonnance','seed/ord-marc-20260603.pdf','Ordonnance_Marc_Dubois_20260603.pdf','application/pdf',
+   repeat('a',64),'a0000000-0000-0000-0000-0000000000a1',52400),
+  ('dc000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d1',NULL,
+   'radio','seed/radio-marc-panoramique.jpg','Radio_panoramique_Marc_Dubois.jpg','image/jpeg',
+   repeat('b',64),'a0000000-0000-0000-0000-0000000000a1',1240000),
+  ('dc000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d1','e0000000-0000-0000-0000-0000000000e1',
+   'carte_mutuelle','seed/carte-mutuelle-marc-mgen.jpg','Carte_mutuelle_MGEN_Marc_Dubois.jpg','image/jpeg',
+   repeat('c',64),'a0000000-0000-0000-0000-0000000000a5',320000)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
 -- Messagerie : 2 fils urgents + 1 normal (contenu PLACEHOLDER chiffré)
 --              + 1 fil scope=clinical (W19) + 1 fil scope=admin (W42)
 --              (issue #1116 — P7 seed messagerie)
