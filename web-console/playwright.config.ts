@@ -1,19 +1,29 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const chromiumUse = {
+  ...devices['Desktop Chrome'],
+  ...(process.env.CHROMIUM_PATH || process.env.CI
+    ? { launchOptions: { executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium' } }
+    : {}),
+};
+
 export default defineConfig({
-  testDir: 'tests/e2e',
   reporter: 'list',
-  use: {
-    baseURL: 'http://localhost:4321',
-  },
   projects: [
     {
       name: 'chromium',
+      testDir: 'tests/e2e',
       use: {
-        ...devices['Desktop Chrome'],
-        ...(process.env.CHROMIUM_PATH || process.env.CI
-          ? { launchOptions: { executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium' } }
-          : {}),
+        ...chromiumUse,
+        baseURL: 'http://localhost:4321',
+      },
+    },
+    {
+      name: 'flows',
+      testDir: 'tests/flows',
+      use: {
+        ...chromiumUse,
+        baseURL: process.env.FLOWS_BASE_URL ?? 'http://localhost:38040',
       },
     },
   ],
