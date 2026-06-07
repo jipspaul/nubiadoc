@@ -1,6 +1,6 @@
 //! Référentiels marketplace : routes publiques (pas de JWT requis).
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -692,5 +692,103 @@ pub async fn search_providers(
             per_page,
             total,
         },
+    }))
+}
+
+// ── Provider profile ──────────────────────────────────────────────────────────
+
+/// Réponse de `GET /v1/providers/:id` (docs/12 §12.2).
+#[derive(Serialize)]
+pub struct ProviderProfile {
+    pub provider_id: Uuid,
+    pub display_name: String,
+    pub specialty: Option<String>,
+    pub profession: Option<String>,
+    pub sector: Option<String>,
+    pub rpps_verified: bool,
+    pub is_listed: bool,
+    pub bio: Option<String>,
+    pub languages: Option<Vec<String>>,
+    pub address: Option<serde_json::Value>,
+    pub geo: Option<serde_json::Value>,
+    pub tiers_payant: Option<bool>,
+    pub teleconsult: Option<bool>,
+    pub pmr: Option<bool>,
+    pub establishment_id: Option<Uuid>,
+    pub rating_avg: Option<f64>,
+    pub review_count: i64,
+}
+
+/// `GET /v1/providers/:id` — profil public complet d'un praticien (docs/12 §12.2).
+///
+/// Route publique, pas de JWT. Provider `is_listed=false` ou inexistant → `404`
+/// (masquer l'existence pour ne pas divulguer les profils non listés).
+pub async fn get_provider(
+    State(state): State<AppState>,
+    Path(provider_id): Path<Uuid>,
+) -> Result<Json<ProviderProfile>, AppError> {
+    let row = sqlx::query(
+        "SELECT \
+             p.id AS provider_id, \
+             p.display_name, \
+             s.label AS specialty, \
+             pr.label AS profession, \
+             p.sector, \
+             p.rpps_verified, \
+             p.is_listed, \
+             p.bio, \
+             p.languages, \
+             e.address, \
+             ST_Y(p.geo::geometry) AS geo_lat, \
+             ST_X(p.geo::geometry) AS geo_lng, \
+             p.tiers_payant, \
+             p.teleconsult, \
+             p.pmr, \
+             p.establishment_id, \
+             p.rating_avg::double precision AS rating_avg, \
+             p.rating_count \
+         FROM provider p \
+         LEFT JOIN specialty s  ON s.id  = p.specialty_id \
+         LEFT JOIN profession pr ON pr.id = s.profession_id \
+         LEFT JOIN establishment e ON e.id = p.establishment_id \
+         WHERE p.id = $1 AND p.is_listed = true",
+    )
+    .bind(provider_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let geo_lat: Option<f64> = row.try_get("geo_lat").unwrap_or(None);
+    let geo_lng: Option<f64> = row.try_get("geo_lng").unwrap_or(None);
+    let geo = match (geo_lat, geo_lng) {
+        (Some(lat), Some(lng)) => Some(serde_json::json!({"lat": lat, "lng": lng})),
+        _ => None,
+    };
+
+    let review_count: i32 = row.try_get("rating_count").unwrap_or(0);
+
+    Ok(Json(ProviderProfile {
+        provider_id: row.try_get("provider_id").map_err(|_| AppError::Internal)?,
+        display_name: row
+            .try_get("display_name")
+            .map_err(|_| AppError::Internal)?,
+        specialty: row.try_get("specialty").unwrap_or(None),
+        profession: row.try_get("profession").unwrap_or(None),
+        sector: row.try_get("sector").unwrap_or(None),
+        rpps_verified: row
+            .try_get("rpps_verified")
+            .map_err(|_| AppError::Internal)?,
+        is_listed: row.try_get("is_listed").map_err(|_| AppError::Internal)?,
+        bio: row.try_get("bio").unwrap_or(None),
+        languages: row.try_get("languages").unwrap_or(None),
+        address: row.try_get("address").unwrap_or(None),
+        geo,
+        tiers_payant: row.try_get("tiers_payant").unwrap_or(None),
+        teleconsult: row.try_get("teleconsult").unwrap_or(None),
+        pmr: row.try_get("pmr").unwrap_or(None),
+        establishment_id: row.try_get("establishment_id").unwrap_or(None),
+        rating_avg: row.try_get("rating_avg").unwrap_or(None),
+        review_count: review_count as i64,
     }))
 }
