@@ -1,0 +1,176 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Nouvelle ordonnance — Nubia" role="practitioner">
+  <header>
+    <h1>Nouvelle ordonnance</h1>
+    <p>Rôle requis : <code>practitioner</code> — <code>POST /v1/cabinet/prescriptions</code></p>
+  </header>
+
+  <section aria-labelledby="h-new-prescription">
+    <h2 id="h-new-prescription">Créer une ordonnance</h2>
+    <form id="form-new-prescription" method="dialog">
+      <label>
+        Patient ID <span aria-hidden="true">*</span>
+        <input type="text" name="patient_id" required placeholder="uuid du patient"
+          autocomplete="off" />
+      </label>
+
+      <fieldset>
+        <legend>Médicament</legend>
+        <label>
+          Libellé <span aria-hidden="true">*</span>
+          <input type="text" name="item_label" required placeholder="ex. Amoxicilline 500 mg" />
+        </label>
+        <label>
+          Forme galénique
+          <input type="text" name="item_form" placeholder="ex. gélule" />
+        </label>
+        <label>
+          Posologie <span aria-hidden="true">*</span>
+          <input type="text" name="item_posology" required placeholder="ex. 1 gélule 3×/jour" />
+        </label>
+        <label>
+          Durée <span aria-hidden="true">*</span>
+          <input type="text" name="item_duration" required placeholder="ex. 7 jours" />
+        </label>
+        <label>
+          Quantité <span aria-hidden="true">*</span>
+          <input type="number" name="item_quantity" required placeholder="1" min="1" value="1" />
+        </label>
+      </fieldset>
+
+      <button type="submit">Créer l'ordonnance</button>
+    </form>
+
+    <p id="badge-new" aria-live="polite"></p>
+    <pre id="result-new" aria-label="Résultat API"></pre>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-6); max-width: 520px; }
+  h2 { margin: 0 0 var(--space-4); font-size: var(--font-size-base); }
+
+  form { display: flex; flex-direction: column; gap: var(--space-3); }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  input {
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    width: 100%;
+  }
+
+  fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  legend { font-size: var(--font-size-sm); font-weight: 600; padding: 0 var(--space-1); }
+
+  button[type="submit"] {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    align-self: flex-start;
+  }
+
+  button[type="submit"]:hover { opacity: 0.9; }
+
+  #result-new {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    white-space: pre-wrap;
+    font-size: var(--font-size-sm);
+    min-height: 2.5rem;
+  }
+
+  #result-new.success { border-left: 4px solid green; }
+  #result-new.error   { border-left: 4px solid red; }
+
+  .badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .badge-ok  { background: #166534; color: #bbf7d0; }
+  .badge-err { background: #7f1d1d; color: #fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const form = document.getElementById('form-new-prescription') as HTMLFormElement;
+  const result = document.getElementById('result-new') as HTMLPreElement;
+  const badge = document.getElementById('badge-new') as HTMLParagraphElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const body = {
+      patient_id: (fd.get('patient_id') as string).trim(),
+      items: [{
+        label: (fd.get('item_label') as string).trim(),
+        ...(fd.get('item_form') ? { form: (fd.get('item_form') as string).trim() } : {}),
+        posology: (fd.get('item_posology') as string).trim(),
+        duration: (fd.get('item_duration') as string).trim(),
+        quantity: Number(fd.get('item_quantity')),
+      }],
+    };
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.innerHTML = '';
+
+    try {
+      const { status, data } = await apiFetch('/v1/cabinet/prescriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      result.className = status < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
+
+      if (status === 201) {
+        const rx = data as { id?: string };
+        if (rx?.id) {
+          badge.innerHTML += ` <a href="/praticien/ordonnances/${rx.id}/sign">Signer cette ordonnance →</a>`;
+        }
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>

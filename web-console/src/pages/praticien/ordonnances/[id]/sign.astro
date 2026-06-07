@@ -1,0 +1,166 @@
+---
+import AppShell from '../../../../layouts/AppShell.astro';
+
+const { id } = Astro.params;
+---
+<AppShell title="Signer l'ordonnance — Nubia" role="practitioner">
+  <header>
+    <h1>Signer l'ordonnance</h1>
+    <p>Rôle requis : <code>practitioner</code> — <code>POST /v1/cabinet/prescriptions/{id}/sign</code></p>
+  </header>
+
+  <section aria-labelledby="h-get">
+    <h2 id="h-get">Détail de l'ordonnance</h2>
+    <form id="form-get">
+      <button type="submit">Charger l'ordonnance</button>
+    </form>
+    <pre id="result-get" aria-label="Détail ordonnance"></pre>
+  </section>
+
+  <section aria-labelledby="h-sign" style="margin-top: var(--space-6);">
+    <h2 id="h-sign">Signer (eIDAS)</h2>
+    <form id="form-sign" method="dialog">
+      <p class="warning">
+        ⚠️ La signature est irréversible. Vérifiez le contenu de l'ordonnance avant de signer.
+      </p>
+      <button type="submit" id="btn-sign">Signer l'ordonnance</button>
+    </form>
+    <p id="badge-sign" aria-live="polite"></p>
+    <pre id="result-sign" aria-label="Résultat signature"></pre>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    max-width: 600px;
+  }
+
+  h2 { margin: 0 0 var(--space-4); font-size: var(--font-size-base); }
+
+  form { display: flex; flex-direction: column; gap: var(--space-3); }
+
+  button[type="submit"] {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    align-self: flex-start;
+  }
+
+  button[type="submit"]:hover { opacity: 0.9; }
+  button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .warning {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    border-left: 3px solid var(--color-accent);
+    padding-left: var(--space-3);
+    margin: 0;
+  }
+
+  pre {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    white-space: pre-wrap;
+    font-size: var(--font-size-sm);
+    min-height: 2.5rem;
+  }
+
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+
+  .badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .badge-ok  { background: #166534; color: #bbf7d0; }
+  .badge-err { background: #7f1d1d; color: #fecaca; }
+</style>
+
+<script define:vars={{ prescriptionId: id }}>
+  import { apiFetch } from '../../../../lib/api.ts';
+
+  const rxId = (prescriptionId as string | undefined) ?? '';
+
+  // --- GET prescription ---
+  const formGet = document.getElementById('form-get') as HTMLFormElement;
+  const resultGet = document.getElementById('result-get') as HTMLPreElement;
+
+  async function loadPrescription(): Promise<void> {
+    resultGet.className = '';
+    resultGet.textContent = 'Chargement…';
+    try {
+      const { status, data } = await apiFetch(
+        `/v1/cabinet/prescriptions/${encodeURIComponent(rxId)}`,
+        { method: 'GET' },
+      );
+      resultGet.className = status < 300 ? 'success' : 'error';
+      resultGet.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    } catch (err) {
+      resultGet.className = 'error';
+      resultGet.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  formGet.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void loadPrescription();
+  });
+
+  // Auto-load on mount
+  void loadPrescription();
+
+  // --- POST sign ---
+  const formSign = document.getElementById('form-sign') as HTMLFormElement;
+  const resultSign = document.getElementById('result-sign') as HTMLPreElement;
+  const badgeSign = document.getElementById('badge-sign') as HTMLParagraphElement;
+  const btnSign = document.getElementById('btn-sign') as HTMLButtonElement;
+
+  formSign.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    btnSign.disabled = true;
+    resultSign.className = '';
+    resultSign.textContent = 'Signature en cours…';
+    badgeSign.innerHTML = '';
+
+    try {
+      const { status, data } = await apiFetch(
+        `/v1/cabinet/prescriptions/${encodeURIComponent(rxId)}/sign`,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': crypto.randomUUID() },
+        },
+      );
+
+      resultSign.className = status < 300 ? 'success' : 'error';
+      resultSign.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badgeSign.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
+
+      if (status === 200 || status === 201 || status === 204) {
+        badgeSign.innerHTML += ' <strong>Ordonnance signée avec succès.</strong>';
+      }
+    } catch (err) {
+      resultSign.className = 'error';
+      resultSign.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      btnSign.disabled = false;
+    }
+  });
+</script>
