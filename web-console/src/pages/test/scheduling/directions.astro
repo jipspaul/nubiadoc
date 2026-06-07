@@ -1,0 +1,125 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Directions RDV — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/appointments/:id/directions</h1>
+  <form id="dir-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      Appointment ID
+      <input type="text" name="appointment_id" required placeholder="uuid"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      Mode
+      <select name="mode" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;">
+        <option value="car">car</option>
+        <option value="transit">transit</option>
+        <option value="walk">walk</option>
+      </select>
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Charger itinéraire
+    </button>
+  </form>
+
+  <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+  <p id="error-message" style="margin-top:1rem;display:none;color:#f87171;font-weight:600;"></p>
+
+  <section id="dir-details" style="margin-top:1rem;display:none;">
+    <dl style="margin:0 0 1rem;">
+      <dt style="font-weight:600;margin-bottom:0.25rem;">Mode</dt>
+      <dd id="dir-mode" style="margin:0 0 0.75rem;padding-left:1rem;"></dd>
+      <dt style="font-weight:600;margin-bottom:0.25rem;">Durée (min)</dt>
+      <dd id="dir-duration" style="margin:0 0 0.75rem;padding-left:1rem;"></dd>
+      <dt style="font-weight:600;margin-bottom:0.25rem;">Distance (m)</dt>
+      <dd id="dir-distance" style="margin:0 0 0.75rem;padding-left:1rem;"></dd>
+      <dt style="font-weight:600;margin-bottom:0.25rem;">Deeplink</dt>
+      <dd id="dir-deeplink-container" style="margin:0;padding-left:1rem;"></dd>
+    </dl>
+  </section>
+
+  <pre id="result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge-status { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const form = document.getElementById('dir-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const errorMsg = document.getElementById('error-message') as HTMLParagraphElement;
+  const dirDetails = document.getElementById('dir-details') as HTMLElement;
+  const dirMode = document.getElementById('dir-mode') as HTMLElement;
+  const dirDuration = document.getElementById('dir-duration') as HTMLElement;
+  const dirDistance = document.getElementById('dir-distance') as HTMLElement;
+  const dirDeeplinkContainer = document.getElementById('dir-deeplink-container') as HTMLElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+    const appointment_id = fd.get('appointment_id') as string;
+    const mode = fd.get('mode') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+    errorMsg.style.display = 'none';
+    dirDetails.style.display = 'none';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch(
+        `/v1/appointments/${encodeURIComponent(appointment_id)}/directions?mode=${encodeURIComponent(mode)}`,
+        { headers: { Authorization: `Bearer ${access_token}` } },
+      );
+
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge-status ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+
+      if (httpStatus === 200 && data && typeof data === 'object') {
+        const d = data as Record<string, unknown>;
+        dirMode.textContent = String(d.mode ?? '—');
+        dirDuration.textContent = d.duration_min !== undefined ? String(d.duration_min) : '—';
+        dirDistance.textContent = d.distance_m !== undefined ? String(d.distance_m) : '—';
+
+        dirDeeplinkContainer.innerHTML = '';
+        if (d.deeplink) {
+          const a = document.createElement('a');
+          a.href = String(d.deeplink);
+          a.textContent = String(d.deeplink);
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.id = 'dir-deeplink';
+          dirDeeplinkContainer.appendChild(a);
+        } else {
+          dirDeeplinkContainer.textContent = '—';
+        }
+
+        dirDetails.style.display = 'block';
+      } else if (httpStatus === 404) {
+        errorMsg.textContent = 'RDV introuvable (404) — vérifiez l\'UUID.';
+        errorMsg.style.display = 'block';
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
