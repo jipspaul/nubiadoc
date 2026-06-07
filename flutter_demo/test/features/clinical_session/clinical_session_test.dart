@@ -142,6 +142,77 @@ void main() {
       );
       expect(find.byType(CcamActForm), findsOneWidget);
     });
+
+    testWidgets('submit acte dispatche SessionActAdded', (tester) async {
+      when(() => mockBloc.state)
+          .thenReturn(const ClinicalSessionActive(_mockSession));
+      await tester.pumpWidget(
+        _wrap(
+          const ClinicalSessionScreen(appointmentId: 'apt-001'),
+          mockBloc,
+        ),
+      );
+      await tester.enterText(
+          find.byKey(const Key('field_ccam_code')), 'HBQD001');
+      await tester.enterText(
+          find.byKey(const Key('field_ccam_label')), 'Extraction');
+      await tester.tap(find.byKey(const Key('btn_add_act')));
+      await tester.pump();
+      verify(
+        () => mockBloc.add(
+          const SessionActAdded(
+            consultationId: 'cs-apt-001',
+            ccamCode: 'HBQD001',
+            label: 'Extraction',
+          ),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('tap retirer acte dispatche SessionActRemoved', (tester) async {
+      const sessionWithAct = ClinicalSession(
+        id: 'cs-apt-001',
+        appointmentId: 'apt-001',
+        patientName: 'Patient Démo',
+        status: SessionStatus.inProgress,
+        acts: [_mockAct],
+      );
+      when(() => mockBloc.state)
+          .thenReturn(const ClinicalSessionActive(sessionWithAct));
+      await tester.pumpWidget(
+        _wrap(
+          const ClinicalSessionScreen(appointmentId: 'apt-001'),
+          mockBloc,
+        ),
+      );
+      await tester.tap(find.byKey(Key('btn_remove_act_${_mockAct.id}')));
+      await tester.pump();
+      verify(
+        () => mockBloc.add(
+          const SessionActRemoved(
+            consultationId: 'cs-apt-001',
+            actId: 'act-1',
+          ),
+        ),
+      ).called(1);
+    });
+  });
+
+  group('ClinicalSessionScreen — état ActBusy', () {
+    testWidgets('affiche le bouton Terminer désactivé', (tester) async {
+      when(() => mockBloc.state)
+          .thenReturn(const ClinicalSessionActBusy(_mockSession));
+      await tester.pumpWidget(
+        _wrap(
+          const ClinicalSessionScreen(appointmentId: 'apt-001'),
+          mockBloc,
+        ),
+      );
+      final btn = tester.widget<FilledButton>(
+        find.byKey(const Key('btn_complete_session')),
+      );
+      expect(btn.onPressed, isNull);
+    });
   });
 
   group('CcamActForm', () {
