@@ -357,6 +357,39 @@ INSERT INTO provider_secretariat (id, provider_id, secretariat_id, active) VALUE
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
+-- Membres de secrétariat (issue #1200 — P11)
+-- Secrétariat A : 1 manager (a3 = Sonia Accueil) + 2 secrétaires.
+-- 2e secrétaire : nouvel app_user (a10) ajouté ci-dessous.
+-- UUID préfixe 12000000.
+-- =====================================================================
+INSERT INTO app_user (id, email, password_hash, kind) VALUES
+  ('a0000000-0000-0000-0000-000000000010', 'lea.secretaire@cabinet-lyon.test',
+   'SEED_PLACEHOLDER', 'pro'),
+  ('a0000000-0000-0000-0000-000000000011', 'marie.secretaire@cabinet-lyon.test',
+   'SEED_PLACEHOLDER', 'pro')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO cabinet_membership (id, cabinet_id, user_id, role, active) VALUES
+  ('b0000000-0000-0000-0000-0000000000b5','11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000010','secretary', true),
+  ('b0000000-0000-0000-0000-0000000000b6','11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000011','secretary', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO secretariat_membership (id, secretariat_id, user_id, role, active) VALUES
+  ('12000000-0000-0000-0000-000000000001',
+   '19870000-0000-0000-0000-000000000001',
+   'a0000000-0000-0000-0000-0000000000a3',
+   'manager', true),
+  ('12000000-0000-0000-0000-000000000002',
+   '19870000-0000-0000-0000-000000000001',
+   'a0000000-0000-0000-0000-000000000010',
+   'secretary', true),
+  ('12000000-0000-0000-0000-000000000003',
+   '19870000-0000-0000-0000-000000000001',
+   'a0000000-0000-0000-0000-000000000011',
+   'secretary', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
 -- Rappels RDV (issue #1142 — P8 seed engagement, W27)
 -- 1 rappel lié au RDV de Marc Dubois (appointment aa…001, patient d1, P5)
 -- =====================================================================
