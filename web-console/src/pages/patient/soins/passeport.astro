@@ -1,0 +1,197 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Passeport implant — Nubia" role="patient">
+  <nav aria-label="Fil d'Ariane">
+    <a href="/patient/accueil">Accueil</a>
+    <span aria-hidden="true"> / </span>
+    <span aria-current="page">Mes soins</span>
+  </nav>
+
+  <header>
+    <h1>Passeport implant</h1>
+    <p>Vos implants posés et leur traçabilité.</p>
+  </header>
+
+  <section aria-labelledby="h-passport">
+    <div class="section-header">
+      <h2 id="h-passport">Mes implants</h2>
+      <a href="/patient/soins/plan" class="link-plans">Voir le plan de traitement →</a>
+    </div>
+
+    <div id="passport-loading" aria-live="polite">Chargement…</div>
+
+    <table id="implants-table" hidden aria-label="Liste des implants">
+      <thead>
+        <tr>
+          <th scope="col">Type</th>
+          <th scope="col">Position</th>
+          <th scope="col">Posé le</th>
+        </tr>
+      </thead>
+      <tbody id="implants-tbody"></tbody>
+    </table>
+
+    <p id="implants-empty" hidden>Aucun implant enregistré.</p>
+
+    <p id="passport-error" hidden role="alert"></p>
+  </section>
+
+  <section aria-labelledby="h-export" class="export-section">
+    <h2 id="h-export">Exporter</h2>
+    <p>Téléchargez votre passeport implant au format PDF.</p>
+    <button type="button" id="btn-export">Exporter le passeport</button>
+    <p id="export-status" aria-live="polite" hidden></p>
+    <p id="export-link-wrap" hidden>
+      <a id="export-link" href="#" target="_blank" rel="noopener noreferrer">
+        Télécharger le PDF
+      </a>
+    </p>
+  </section>
+</AppShell>
+
+<style>
+  nav { margin-bottom: var(--space-3); font-size: var(--font-size-sm); color: var(--color-muted); }
+  nav a { color: var(--color-muted); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--space-4);
+  }
+  h2 { font-size: var(--font-size-lg); margin: 0; }
+
+  .link-plans {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+  .link-plans:hover { text-decoration: underline; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+  th {
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-muted);
+    font-weight: 600;
+  }
+  td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .export-section {
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+  }
+  .export-section h2 { margin-bottom: var(--space-2); }
+  .export-section > p { color: var(--color-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-4); }
+
+  #btn-export {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  #btn-export:hover { background: var(--color-accent-hover); }
+  #btn-export:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  #export-status { font-size: var(--font-size-sm); color: var(--color-muted); margin-top: var(--space-3); }
+  #export-status.error { color: var(--color-error-fg); }
+
+  #export-link-wrap { margin-top: var(--space-3); }
+  #export-link {
+    color: var(--color-accent);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+</style>
+
+<script>
+  import { patientTreatmentPlans, type ImplantPassport } from '../../../lib/endpoints.ts';
+
+  const passportLoading = document.getElementById('passport-loading') as HTMLElement;
+  const implantsTable = document.getElementById('implants-table') as HTMLTableElement;
+  const implantsTbody = document.getElementById('implants-tbody') as HTMLTableSectionElement;
+  const implantsEmpty = document.getElementById('implants-empty') as HTMLParagraphElement;
+  const passportError = document.getElementById('passport-error') as HTMLParagraphElement;
+
+  const btnExport = document.getElementById('btn-export') as HTMLButtonElement;
+  const exportStatus = document.getElementById('export-status') as HTMLParagraphElement;
+  const exportLinkWrap = document.getElementById('export-link-wrap') as HTMLParagraphElement;
+  const exportLink = document.getElementById('export-link') as HTMLAnchorElement;
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Load passport data
+  (async () => {
+    const { status, data } = await patientTreatmentPlans.getImplantPassport();
+    passportLoading.hidden = true;
+
+    if (status < 300 && data !== null && typeof data === 'object') {
+      const passport = data as ImplantPassport;
+      const implants = passport.implants ?? [];
+      if (implants.length === 0) {
+        implantsEmpty.hidden = false;
+      } else {
+        for (const implant of implants) {
+          const tr = document.createElement('tr');
+          const placedAt = implant.placed_at
+            ? new Date(implant.placed_at).toLocaleDateString('fr-FR')
+            : '—';
+          tr.innerHTML = `
+            <td>${escHtml(implant.type)}</td>
+            <td>${escHtml(implant.position ?? '—')}</td>
+            <td>${escHtml(placedAt)}</td>`;
+          implantsTbody.appendChild(tr);
+        }
+        implantsTable.hidden = false;
+      }
+    } else {
+      passportError.textContent = 'Impossible de charger le passeport implant.';
+      passportError.hidden = false;
+    }
+  })();
+
+  // Export
+  btnExport.addEventListener('click', async () => {
+    btnExport.disabled = true;
+    exportStatus.textContent = 'Export en cours…';
+    exportStatus.className = '';
+    exportStatus.hidden = false;
+    exportLinkWrap.hidden = true;
+
+    const { status, data } = await patientTreatmentPlans.exportImplantPassport();
+    btnExport.disabled = false;
+
+    if (status < 300 && data !== null && typeof data === 'object') {
+      const d = data as { url?: string };
+      exportStatus.textContent = 'Export prêt.';
+      if (d.url) {
+        exportLink.href = d.url;
+        exportLinkWrap.hidden = false;
+      }
+    } else {
+      exportStatus.textContent = 'Erreur lors de l\'export.';
+      exportStatus.className = 'error';
+    }
+  });
+</script>
