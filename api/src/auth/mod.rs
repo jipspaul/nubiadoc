@@ -277,15 +277,13 @@ impl FromRequestParts<AppState> for ProClaims {
     }
 }
 
-/// Claims JWT pour `GET /v1/me` — accepte patient et pro, extrait `kind`, `account_id` et `cabinet_id`.
+/// Claims JWT pour `GET /v1/me` — accepte patient et pro, extrait `kind`, `account_id`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MeClaims {
     pub(crate) sub: Uuid,
     pub(crate) kind: String,
     /// Présent uniquement dans les tokens patient.
     pub(crate) account_id: Option<Uuid>,
-    /// Présent dans les tokens pro émis par `POST /v1/pro/register` (porte le cabinet_id).
-    pub(crate) cabinet_id: Option<Uuid>,
 }
 
 /// Appartenance à un cabinet.
@@ -293,6 +291,8 @@ pub(crate) struct MeClaims {
 pub struct CabinetMembership {
     cabinet_id: Uuid,
     role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    secretariat_id: Option<Uuid>,
 }
 
 /// Réponse de `GET /v1/me`.
@@ -331,38 +331,36 @@ pub async fn me(
 
     let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
 
-    // Interroge cabinet_membership si le token pro porte un cabinet_id.
+    // Pour les tokens pro (login ou register), retourne tous les memberships actifs
+    // via user_all_memberships() (SECURITY DEFINER — contourne la RLS cabinet-scoped).
     let memberships = if claims.kind == "pro" {
-        if let Some(cabinet_id) = claims.cabinet_id {
-            let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-            sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-                .bind(cabinet_id.to_string())
-                .execute(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
-            let rows = sqlx::query(
-                "SELECT cabinet_id, role FROM cabinet_membership \
-                 WHERE cabinet_id = $1 AND user_id = $2 AND active = true",
-            )
-            .bind(cabinet_id)
-            .bind(claims.sub)
-            .fetch_all(&mut *tx)
+        let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(claims.sub.to_string())
+            .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
-            tx.commit().await.map_err(|_| AppError::Internal)?;
-            rows.into_iter()
-                .map(|r| {
-                    let cid: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-                    let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
-                    Ok(CabinetMembership {
-                        cabinet_id: cid,
-                        role,
-                    })
+        let rows =
+            sqlx::query("SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1)")
+                .bind(claims.sub)
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        rows.into_iter()
+            .map(|r| {
+                let cid: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+                let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
+                let secretariat_id: Option<Uuid> = r
+                    .try_get("secretariat_id")
+                    .map_err(|_| AppError::Internal)?;
+                Ok(CabinetMembership {
+                    cabinet_id: cid,
+                    role,
+                    secretariat_id,
                 })
-                .collect::<Result<Vec<_>, AppError>>()?
-        } else {
-            vec![]
-        }
+            })
+            .collect::<Result<Vec<_>, AppError>>()?
     } else {
         vec![]
     };
