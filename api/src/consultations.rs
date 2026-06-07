@@ -2,9 +2,10 @@
 
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
     Json,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -362,4 +363,119 @@ pub async fn complete_consultation(
         invoice_id,
         next_step: next_step.to_string(),
     }))
+}
+
+// ── POST /v1/cabinet/consultations/:id/acts ───────────────────────────────────
+
+/// Corps de la requête `POST /v1/cabinet/consultations/:id/acts`.
+#[derive(Deserialize)]
+pub struct AddActBody {
+    pub ccam_code: String,
+    pub label: String,
+    pub tooth: Option<String>,
+    pub amount_cents: Option<i32>,
+    /// Réservé pour le devis (inclus/hors-nomenclature) — accepté, non stocké dans cette version.
+    #[allow(dead_code)]
+    pub included: Option<bool>,
+}
+
+/// Réponse de `POST /v1/cabinet/consultations/:id/acts`.
+#[derive(Serialize)]
+pub struct AddActResponse {
+    pub act_id: Uuid,
+}
+
+/// `POST /v1/cabinet/consultations/:id/acts` — ajoute un acte CCAM à la séance.
+///
+/// Praticien uniquement (R.4127-72, §07 §4.1) — secrétaire → 403.
+/// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
+/// RLS tenant-scoped via `app.current_cabinet_id`.
+/// - Vérifie que la séance existe et appartient au cabinet du token.
+/// - Insère dans `consultation_act` (RLS garantit le scope tenant).
+/// - Retourne `201 { act_id }`.
+/// - Body invalide (ccam_code vide, amount_cents < 0) → 422.
+/// - Séance inexistante ou hors tenant → 404.
+pub async fn add_consultation_act(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AddActBody>,
+) -> Result<(StatusCode, Json<AddActResponse>), AppError> {
+    // Validation basique du body.
+    if body.ccam_code.trim().is_empty() || body.label.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    if let Some(cents) = body.amount_cents {
+        if cents < 0 {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que la séance existe, appartient au cabinet et récupère appointment_id +
+    // practitioner_id pour la ligne consultation_act.
+    let session_row = sqlx::query(
+        "SELECT cs.appointment_id, cs.practitioner_id, a.patient_id \
+         FROM consultation_session cs \
+         JOIN appointment a ON a.id = cs.appointment_id \
+         WHERE cs.id = $1 AND cs.cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let appointment_id: Uuid = session_row
+        .try_get("appointment_id")
+        .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = session_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = session_row
+        .try_get("patient_id")
+        .map_err(|_| AppError::Internal)?;
+
+    let amount_cents = body.amount_cents.unwrap_or(0);
+
+    let act_row = sqlx::query(
+        "INSERT INTO consultation_act \
+         (cabinet_id, appointment_id, patient_id, practitioner_id, \
+          ccam_code, label, tooth, amount_cents) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.cabinet_id)
+    .bind(appointment_id)
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .bind(body.ccam_code.trim())
+    .bind(body.label.trim())
+    .bind(body.tooth.as_deref())
+    .bind(amount_cents)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let act_id: Uuid = act_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        consultation_id = %id,
+        act_id = %act_id,
+        "consultation act added"
+    );
+
+    Ok((StatusCode::CREATED, Json(AddActResponse { act_id })))
 }
