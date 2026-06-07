@@ -13,6 +13,7 @@ mod auth;
 mod billing;
 mod cabinet_info;
 mod cabinet_messaging;
+mod cabinet_secretariats;
 mod clinical;
 mod consultations;
 mod dashboard;
@@ -421,6 +422,24 @@ pub fn app_with_dispatcher(
             "/v1/cabinet/providers/:id/secretariats",
             get(provider_secretariat::get_provider_secretariats)
                 .put(provider_secretariat::put_provider_secretariats),
+        )
+        .route(
+            "/v1/cabinet/secretariats",
+            get(cabinet_secretariats::list_secretariats)
+                .post(cabinet_secretariats::create_secretariat),
+        )
+        .route(
+            "/v1/cabinet/secretariats/:id",
+            patch(cabinet_secretariats::patch_secretariat)
+                .delete(cabinet_secretariats::delete_secretariat),
+        )
+        .route(
+            "/v1/cabinet/secretariats/:id/members",
+            post(cabinet_secretariats::add_secretariat_member),
+        )
+        .route(
+            "/v1/cabinet/secretariats/:id/members/:user_id",
+            axum::routing::delete(cabinet_secretariats::remove_secretariat_member),
         )
         .route(
             "/v1/webhooks/stripe",

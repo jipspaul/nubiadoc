@@ -887,10 +887,10 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 /// `exp` absent du struct : validé par jsonwebtoken sur le JSON brut (`validate_exp = true`).
 #[derive(Debug, Deserialize)]
 pub(crate) struct ProAdminClaims {
-    sub: Uuid,
+    pub(crate) sub: Uuid,
     kind: String,
     /// `cabinet_id` porté par le token (jamais du body/query — invariant tenancy).
-    cabinet_id: Uuid,
+    pub(crate) cabinet_id: Uuid,
     role: String,
 }
 
