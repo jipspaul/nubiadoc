@@ -10,9 +10,9 @@ if [ ! -d node_modules ]; then
   npm install --silent
 fi
 
-if ! curl -sf http://localhost:3000/v1/health > /dev/null 2>&1; then
-  echo "WARN: API Nubia inaccessible sur :3000. Lance d'abord \`cargo run --release\` dans api/"
+if ! curl -sf http://localhost:38030/v1/health > /dev/null 2>&1; then
+  echo "WARN: API Nubia inaccessible sur :38030. Lance d'abord \`cargo run --release\` dans api/"
 fi
 
-echo "--> ouvre http://localhost:4321/"
-exec npm run dev
+echo "--> ouvre http://localhost:38040/"
+PUBLIC_API_BASE=http://localhost:38030 exec npm run dev
