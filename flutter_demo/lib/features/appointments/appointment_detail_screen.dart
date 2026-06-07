@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../clinical_session/bloc/clinical_session_bloc.dart';
+import '../clinical_session/clinical_session_screen.dart';
+import '../clinical_session/data/clinical_session_repository.dart';
 import 'bloc/appointment_bloc.dart';
 import 'bloc/appointment_event.dart';
 import 'bloc/appointment_state.dart';
@@ -98,6 +101,18 @@ class _DetailBody extends StatelessWidget {
             ),
           ],
           const Spacer(),
+          if (appointment.status == AppointmentStatus.confirmed)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const Key('btn_start_session'),
+                onPressed: () => _openClinicalSession(context, appointment.id),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Démarrer la consultation'),
+              ),
+            ),
+          if (appointment.status == AppointmentStatus.confirmed)
+            const SizedBox(height: 12),
           if (canCancel)
             SizedBox(
               width: double.infinity,
@@ -124,6 +139,19 @@ class _DetailBody extends StatelessWidget {
     final hour = d.hour.toString().padLeft(2, '0');
     final min = d.minute.toString().padLeft(2, '0');
     return '$day/$month/${d.year} à $hour:$min';
+  }
+
+  void _openClinicalSession(BuildContext context, String appointmentId) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider(
+          create: (_) => ClinicalSessionBloc(
+            repository: FakeClinicalSessionRepository(),
+          ),
+          child: ClinicalSessionScreen(appointmentId: appointmentId),
+        ),
+      ),
+    );
   }
 }
 
