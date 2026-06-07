@@ -930,6 +930,52 @@ impl FromRequestParts<AppState> for ProAdminClaims {
     }
 }
 
+/// Claims JWT pro avec rôle `admin` ou `manager` — pour R13 (provisionnement secrétaire).
+///
+/// Renvoie `403` si le rôle est `secretary` ou `practitioner`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct ProAdminOrManagerClaims {
+    pub(crate) sub: Uuid,
+    kind: String,
+    pub(crate) cabinet_id: Uuid,
+    role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for ProAdminOrManagerClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        let claims = decode::<ProAdminOrManagerClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if claims.kind != "pro" {
+            return Err(AppError::Forbidden);
+        }
+        if claims.role != "admin" && claims.role != "manager" {
+            return Err(AppError::Forbidden);
+        }
+
+        Ok(claims)
+    }
+}
+
 /// Claims JWT pro avec rôle praticien (`practitioner` ou `admin`) — rejette `secretary`.
 ///
 /// Permet l'accès aux endpoints cliniques non accessibles au secrétariat (§07 §4.1).

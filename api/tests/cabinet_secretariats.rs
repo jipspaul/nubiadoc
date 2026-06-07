@@ -327,36 +327,201 @@ async fn post_secretariat_member_non_admin_returns_403() {
         .ok();
 }
 
-// ── Test 7 : DELETE membre non-admin → 403 ──────────────────────────────────
+// ── R13 — POST /v1/cabinet/secretariats/:id/staff ───────────────────────────
+
+/// Crée un secrétariat pour les tests R13 et retourne son id.
+async fn create_secretariat(db: PgPool, token: &str) -> Uuid {
+    let body = json!({ "name": "Secrétariat R13" });
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/secretariats")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    v["id"].as_str().unwrap().parse().unwrap()
+}
+
+// ── Test 8 : POST staff — nouvel utilisateur → 201 + activation_token ───────
 
 #[tokio::test]
-async fn delete_secretariat_member_non_admin_returns_403() {
+async fn post_staff_new_user_returns_201() {
     if !db_available() {
         return;
     }
-    let email = format!("sec_del_memb_403_{}@test.local", Uuid::new_v4());
+    let admin_email = format!("r13_admin_new_{}@test.local", Uuid::new_v4());
+    let staff_email = format!("r13_staff_new_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &admin_email).await;
+    let sec_id = create_secretariat(db.clone(), &token).await;
+
+    let body = json!({ "email": staff_email, "role": "secretary" });
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/secretariats/{}/staff", sec_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(v["user_id"].as_str().is_some(), "user_id présent");
+    assert!(
+        v["activation_token"].as_str().is_some(),
+        "activation_token présent pour un nouveau compte"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
+        .bind(&admin_email)
+        .bind(&staff_email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
+// ── Test 9 : POST staff — utilisateur existant → 200 + activation_token null ─
+
+#[tokio::test]
+async fn post_staff_existing_user_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let admin_email = format!("r13_admin_exist_{}@test.local", Uuid::new_v4());
+    let staff_email = format!("r13_staff_exist_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &admin_email).await;
+    let sec_id = create_secretariat(db.clone(), &token).await;
+
+    let body = json!({ "email": staff_email, "role": "secretary" });
+    // Premier appel : création (201).
+    let resp1 = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/secretariats/{}/staff", sec_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), StatusCode::CREATED);
+
+    // Deuxième appel : rattachement (200).
+    let resp2 = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/secretariats/{}/staff", sec_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp2.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(v["user_id"].as_str().is_some(), "user_id présent");
+    assert!(
+        v["activation_token"].is_null(),
+        "activation_token null pour un compte existant"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
+        .bind(&admin_email)
+        .bind(&staff_email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
+// ── Test 10 : POST staff sans rôle admin/manager → 403 ──────────────────────
+
+#[tokio::test]
+async fn post_staff_non_admin_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("r13_403_{}@test.local", Uuid::new_v4());
     let db = app_pool().await;
     let (_, account_id, cabinet_id) = register_pro(db.clone(), &email).await;
 
     let secretary_token = make_secretary_token(account_id, cabinet_id);
+    let body = json!({ "email": "anyone@test.local", "role": "secretary" });
 
     let resp = app(make_state(db))
         .oneshot(
             Request::builder()
-                .method("DELETE")
-                .uri(format!(
-                    "/v1/cabinet/secretariats/{}/members/{}",
-                    Uuid::new_v4(),
-                    Uuid::new_v4()
-                ))
+                .method("POST")
+                .uri(format!("/v1/cabinet/secretariats/{}/staff", Uuid::new_v4()))
+                .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {}", secretary_token))
-                .body(Body::empty())
+                .body(Body::from(body.to_string()))
                 .unwrap(),
         )
         .await
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
+// ── Test 11 : POST staff — secrétariat inconnu → 404 ────────────────────────
+
+#[tokio::test]
+async fn post_staff_unknown_secretariat_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("r13_404_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &email).await;
+
+    let body = json!({ "email": "anyone@test.local", "role": "secretary" });
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/secretariats/{}/staff", Uuid::new_v4()))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
