@@ -978,7 +978,6 @@ impl FromRequestParts<AppState> for ProPractitionerClaims {
 #[derive(Debug, Deserialize)]
 pub(crate) struct ProSecretaryPlusClaims {
     pub(crate) sub: Uuid,
-    kind: String,
     pub(crate) cabinet_id: Uuid,
     pub(crate) role: String,
 }
@@ -1003,13 +1002,20 @@ impl FromRequestParts<AppState> for ProSecretaryPlusClaims {
         let mut validation = Validation::default();
         validation.validate_exp = true;
 
-        let claims = decode::<ProSecretaryPlusClaims>(token, &key, &validation)
+        // Première passe : extrait uniquement `kind` pour renvoyer 403 (pas 401)
+        // si le token est valide mais n'appartient pas à un pro (ex. token patient).
+        let basic = decode::<KindClaims>(token, &key, &validation)
             .map(|d| d.claims)
             .map_err(|_| AppError::Unauthorized)?;
 
-        if claims.kind != "pro" {
+        if basic.kind != "pro" {
             return Err(AppError::Forbidden);
         }
+
+        // Deuxième passe : décode les champs pro obligatoires (cabinet_id, role).
+        let claims = decode::<ProSecretaryPlusClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
 
         Ok(claims)
     }
