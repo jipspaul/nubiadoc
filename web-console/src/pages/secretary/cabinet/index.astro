@@ -1,0 +1,311 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'secretary' && role !== 'admin') {
+  return new Response('Accès interdit', { status: 403 });
+}
+---
+<AppShell title="Réglages cabinet — Espace secrétaire" role="secretary">
+  <header>
+    <h1>Réglages du cabinet</h1>
+    <p>Informations du cabinet et vue publique. Réservé aux rôles <code>secretary</code> / <code>admin</code>.</p>
+  </header>
+
+  <section aria-labelledby="settings-heading">
+    <h2 id="settings-heading">Informations du cabinet</h2>
+    <div id="get-status" role="status" aria-live="polite"></div>
+
+    <form id="settings-form" novalidate>
+      <fieldset>
+        <legend>Modifier les informations</legend>
+
+        <div class="field">
+          <label for="field-name">Raison sociale</label>
+          <input id="field-name" name="name" type="text" placeholder="Cabinet Dupont" autocomplete="organization" />
+        </div>
+
+        <div class="field">
+          <label for="field-address">Adresse</label>
+          <input id="field-address" name="address" type="text" placeholder="12 rue de la Paix, 75001 Paris" autocomplete="street-address" />
+        </div>
+
+        <div class="field">
+          <label for="field-phone">Téléphone</label>
+          <input id="field-phone" name="phone" type="tel" placeholder="+33 1 23 45 67 89" autocomplete="tel" />
+        </div>
+
+        <div class="field">
+          <label for="field-siret">SIRET</label>
+          <input id="field-siret" name="siret" type="text" placeholder="123 456 789 00012" />
+        </div>
+      </fieldset>
+
+      <div class="form-actions">
+        <button id="btn-save" type="submit" class="btn-primary">Enregistrer</button>
+      </div>
+    </form>
+
+    <div id="patch-status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section aria-labelledby="public-heading" style="margin-top: var(--space-8);">
+    <h2 id="public-heading">Vue publique du cabinet</h2>
+    <p class="section-hint">Lecture seule — données affichées aux patients dans l'annuaire.</p>
+    <div id="public-status" role="status" aria-live="polite"></div>
+    <dl id="public-info" hidden aria-label="Informations publiques du cabinet"></dl>
+  </section>
+</AppShell>
+
+<style>
+  h1 { margin-bottom: var(--space-1); }
+  h1 + p {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-6);
+  }
+
+  h2 { margin-bottom: var(--space-4); }
+
+  .section-hint {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-4);
+  }
+
+  fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-6);
+    margin-bottom: var(--space-4);
+  }
+
+  legend {
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    font-weight: 600;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-bottom: var(--space-4);
+    max-width: 480px;
+  }
+
+  .field:last-child { margin-bottom: 0; }
+
+  .field label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  .field input {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: var(--font-size-base);
+  }
+
+  .field input:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  .form-actions { margin-bottom: var(--space-4); }
+
+  .btn-primary {
+    padding: var(--space-2) var(--space-6);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+
+  .btn-primary:hover { background: var(--color-accent-hover); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #get-status, #patch-status, #public-status {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-3);
+    min-height: 1.25rem;
+  }
+
+  #get-status.error, #patch-status.error, #public-status.error {
+    color: var(--color-error-fg);
+  }
+
+  #patch-status.success { color: var(--color-success-fg); }
+
+  #public-info {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-1) var(--space-4);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-6);
+    max-width: 560px;
+  }
+
+  #public-info dt {
+    color: var(--color-muted);
+    font-weight: 500;
+  }
+
+  #public-info dd { color: var(--color-text); }
+</style>
+
+<script>
+  import { proCabinet, search } from '../../../lib/endpoints.ts';
+  import type { Cabinet, CabinetInfo } from '../../../lib/endpoints.ts';
+
+  const getStatus   = document.getElementById('get-status')   as HTMLElement;
+  const patchStatus = document.getElementById('patch-status') as HTMLElement;
+  const publicStatus = document.getElementById('public-status') as HTMLElement;
+  const form        = document.getElementById('settings-form') as HTMLFormElement;
+  const saveBtn     = document.getElementById('btn-save')      as HTMLButtonElement;
+  const publicDl    = document.getElementById('public-info')   as HTMLDListElement;
+
+  const fieldName    = document.getElementById('field-name')    as HTMLInputElement;
+  const fieldAddress = document.getElementById('field-address') as HTMLInputElement;
+  const fieldPhone   = document.getElementById('field-phone')   as HTMLInputElement;
+  const fieldSiret   = document.getElementById('field-siret')   as HTMLInputElement;
+
+  let cabinetId: string | null = null;
+
+  // ── Load cabinet settings ────────────────────────────────────────────────
+  async function loadCabinet(): Promise<void> {
+    getStatus.textContent = 'Chargement…';
+    getStatus.className = '';
+
+    try {
+      const { status, data } = await proCabinet.get();
+
+      if (status === 401) {
+        window.location.href = '/auth/login?next=/secretary/cabinet';
+        return;
+      }
+      if (status === 403) {
+        getStatus.textContent = 'Accès refusé (403). Ce compte n\'a pas les droits requis.';
+        getStatus.className = 'error';
+        return;
+      }
+      if (status !== 200) {
+        getStatus.textContent = `Erreur serveur (HTTP ${status}).`;
+        getStatus.className = 'error';
+        return;
+      }
+
+      const cabinet = data as Cabinet;
+      cabinetId = cabinet.id ?? null;
+
+      fieldName.value    = cabinet.name    ?? '';
+      fieldAddress.value = cabinet.address ?? '';
+      fieldPhone.value   = cabinet.phone   ?? '';
+      fieldSiret.value   = cabinet.siret   ?? '';
+
+      getStatus.textContent = '';
+
+      if (cabinetId) {
+        void loadPublicInfo(cabinetId);
+      }
+    } catch (err) {
+      getStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      getStatus.className = 'error';
+    }
+  }
+
+  // ── Load public cabinet info ─────────────────────────────────────────────
+  async function loadPublicInfo(id: string): Promise<void> {
+    publicStatus.textContent = 'Chargement de la vue publique…';
+    publicStatus.className = '';
+
+    try {
+      const { status, data } = await search.getCabinetInfo(id);
+
+      if (status === 404) {
+        publicStatus.textContent = 'Aucune vue publique disponible (404).';
+        return;
+      }
+      if (status !== 200) {
+        publicStatus.textContent = `Erreur lors du chargement de la vue publique (HTTP ${status}).`;
+        publicStatus.className = 'error';
+        return;
+      }
+
+      const info = data as CabinetInfo;
+      publicStatus.textContent = '';
+
+      const fields: Array<[string, string]> = [
+        ['Nom',      info.name    ?? '—'],
+        ['Adresse',  info.address ?? '—'],
+        ['Téléphone', info.phone  ?? '—'],
+      ];
+
+      publicDl.innerHTML = fields
+        .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
+        .join('');
+      publicDl.hidden = false;
+    } catch (err) {
+      publicStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      publicStatus.className = 'error';
+    }
+  }
+
+  // ── Save cabinet settings ────────────────────────────────────────────────
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    patchStatus.textContent = 'Enregistrement…';
+    patchStatus.className = '';
+    saveBtn.disabled = true;
+
+    const body: Partial<Cabinet> = {};
+    if (fieldName.value.trim())    body.name    = fieldName.value.trim();
+    if (fieldAddress.value.trim()) body.address = fieldAddress.value.trim();
+    if (fieldPhone.value.trim())   body.phone   = fieldPhone.value.trim();
+    if (fieldSiret.value.trim())   body.siret   = fieldSiret.value.trim();
+
+    try {
+      const { status, data } = await proCabinet.patch(body);
+
+      if (status === 200) {
+        patchStatus.textContent = 'Modifications enregistrées.';
+        patchStatus.className = 'success';
+        const updated = data as Cabinet;
+        if (updated.name)    fieldName.value    = updated.name;
+        if (updated.address) fieldAddress.value = updated.address;
+        if (updated.phone)   fieldPhone.value   = updated.phone;
+        if (updated.siret)   fieldSiret.value   = updated.siret;
+      } else if (status === 401) {
+        window.location.href = '/auth/login?next=/secretary/cabinet';
+      } else if (status === 403) {
+        patchStatus.textContent = 'Accès refusé (403). Seul un administrateur peut modifier les réglages.';
+        patchStatus.className = 'error';
+      } else {
+        patchStatus.textContent = `Erreur lors de l'enregistrement (HTTP ${status}).`;
+        patchStatus.className = 'error';
+      }
+    } catch (err) {
+      patchStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      patchStatus.className = 'error';
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  void loadCabinet();
+</script>
