@@ -13,6 +13,7 @@ mod auth;
 mod billing;
 mod cabinet_messaging;
 mod clinical;
+mod consultations;
 mod dashboard;
 mod documents;
 mod health;
@@ -235,6 +236,10 @@ pub fn app_with_dispatcher(
         .route(
             "/v1/cabinet/patients",
             get(clinical::list_cabinet_patients).post(clinical::create_cabinet_patient),
+        )
+        .route(
+            "/v1/cabinet/consultations/:id",
+            get(consultations::get_consultation_context),
         )
         .route(
             "/v1/cabinet/conversations",
