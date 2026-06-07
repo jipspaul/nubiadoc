@@ -1,5 +1,5 @@
 const API_BASE: string =
-  (import.meta.env.PUBLIC_API_BASE as string | undefined) ?? 'http://localhost:3000';
+  (import.meta.env.PUBLIC_API_BASE as string | undefined) ?? 'http://localhost:38030';
 
 const JWT_KEY = 'nubia_jwt';
 const REFRESH_KEY = 'nubia_refresh_token';

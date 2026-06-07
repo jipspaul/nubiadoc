@@ -10,7 +10,7 @@ Console de test pour les endpoints de l'API Nubia. Usage développement uniqueme
 ```
 
 Cette commande (depuis la racine du repo) démarre Postgres dans un conteneur Podman,
-applique les migrations, lance l'API Rust sur `:3000` et la web-console Astro sur `:4321`.
+applique les migrations, lance l'API Rust sur `:38030` et la web-console Astro sur `:38040`.
 
 ### Lancer la web-console seule (si l'API tourne déjà)
 
@@ -27,7 +27,7 @@ npm install
 npm run dev
 ```
 
-L'application est accessible sur http://localhost:4321.
+L'application est accessible sur http://localhost:38040.
 
 ## Build statique
 
@@ -37,8 +37,9 @@ npm run build
 
 ## Configuration
 
-Par défaut l'API est contactée sur `http://localhost:3000`. Pour changer :
+Ports canon du projet : API sur `:38030`, web-console sur `:38040` (anti-collision intentionnelle).
+Par défaut l'API est contactée sur `http://localhost:38030`. Pour changer :
 
 ```bash
-PUBLIC_API_BASE=http://mon-api:3000 npm run dev
+PUBLIC_API_BASE=http://mon-api:38030 npm run dev
 ```
