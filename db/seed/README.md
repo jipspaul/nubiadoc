@@ -17,6 +17,40 @@ Alimenter la **démo investisseurs** (les 12 rubriques du PDF, mockées 🎭) et
 - **Messagerie** : 2 fils urgents (priorisation visuelle), 1 normal.
 - **Couverture** : régimes variés (Régime général / AME / CSS), 1 mutuelle (MGEN), tiers payant activé.
 
+## Mot de passe démo
+
+> **Mot de passe commun pour tous les comptes démo : `Nubia2026!`**
+
+Les comptes suivants peuvent être utilisés pour la démo :
+
+| Email | Rôle | Kind |
+|---|---|---|
+| `hugo.marin@cabinet-lyon.test` | practitioner | `pro` |
+| `claire.lefevre@cabinet-lyon.test` | practitioner | `pro` |
+| `sonia.accueil@cabinet-lyon.test` | secretary | `pro` |
+| `admin@cabinet-lyon.test` | admin | `pro` |
+| `marc.dubois@patient.test` | — | `patient` |
+
+### Hashes argon2id (déterministes)
+
+Les hashes sont générés avec `argon2id`, paramètres `m=4096,t=3,p=1` (v=19), avec un salt
+fixe par utilisateur. Commande de vérification :
+
+```bash
+echo -n "Nubia2026!" | argon2 "demoSeeda0000001" -id -t 3 -m 12 -p 1 -v
+# → Verification ok
+```
+
+Correspondance salt → utilisateur :
+
+| Salt | Utilisateur |
+|---|---|
+| `demoSeeda0000001` | `hugo.marin@cabinet-lyon.test` (a1) |
+| `demoSeeda0000002` | `claire.lefevre@cabinet-lyon.test` (a2) |
+| `demoSeeda0000003` | `sonia.accueil@cabinet-lyon.test` (a3) |
+| `demoSeeda0000004` | `admin@cabinet-lyon.test` (a4) |
+| `demoSeeda0000005` | `marc.dubois@patient.test` (a5) |
+
 ## Règles
 - **Zéro PII réelle**, noms/numéros inventés (RPPS, n° sécu fictifs).
 - **Chiffrement** : les champs sensibles (n° sécu, notes, messages) passent par le **même chemin applicatif** que la prod (le seed clinique chiffré se fait via un petit binaire/commande `nubia` plutôt qu'en SQL brut, pour ne pas court-circuiter `core/crypto`).
