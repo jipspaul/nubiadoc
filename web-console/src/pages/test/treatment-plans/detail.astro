@@ -1,0 +1,145 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Treatment Plan Detail — Nubia Console">
+  <h1 style="margin-bottom:1.5rem;">GET /v1/treatment-plans/:id</h1>
+  <form id="plan-detail-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      Treatment Plan ID
+      <input type="text" name="plan_id" required placeholder="uuid"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      GET
+    </button>
+  </form>
+  <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+  <section id="plan-detail" style="margin-top:1rem;display:none;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:1rem;">
+      <caption style="text-align:left;font-weight:600;padding:0.5rem 0;">Plan</caption>
+      <tbody id="plan-meta"></tbody>
+    </table>
+    <section id="phases-section" style="display:none;">
+      <h2 style="font-size:1rem;margin-bottom:0.5rem;">Phases</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">id</th>
+            <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">label</th>
+            <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">status</th>
+            <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">acts done</th>
+            <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">acts total</th>
+            <th style="text-align:left;padding:0.5rem;border-bottom:1px solid var(--border);">cost</th>
+          </tr>
+        </thead>
+        <tbody id="phases-tbody"></tbody>
+      </table>
+    </section>
+    <p id="no-phases" style="display:none;color:var(--muted);margin-top:0.75rem;">Aucune phase.</p>
+  </section>
+  <pre id="result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+  td, th { padding:0.5rem;border-bottom:1px solid var(--border); }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const form = document.getElementById('plan-detail-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const planDetail = document.getElementById('plan-detail') as HTMLElement;
+  const planMeta = document.getElementById('plan-meta') as HTMLTableSectionElement;
+  const phasesSection = document.getElementById('phases-section') as HTMLElement;
+  const phasesTobdy = document.getElementById('phases-tbody') as HTMLTableSectionElement;
+  const noPhases = document.getElementById('no-phases') as HTMLParagraphElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+    const plan_id = fd.get('plan_id') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+    planDetail.style.display = 'none';
+    planMeta.innerHTML = '';
+    phasesTobdy.innerHTML = '';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch(`/v1/treatment-plans/${encodeURIComponent(plan_id)}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
+
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+
+      if (httpStatus === 404) {
+        result.textContent = `HTTP 404\nPlan introuvable.`;
+        return;
+      }
+
+      if (httpStatus < 300 && data !== null && typeof data === 'object') {
+        const plan = data as Record<string, unknown>;
+        planDetail.style.display = 'block';
+
+        const metaFields: Array<[string, unknown]> = [
+          ['id', plan.id],
+          ['title', plan.title],
+          ['status', plan.status],
+          ['cost_total', plan.cost_total],
+          ['cost_remaining', plan.cost_remaining],
+          ['created_at', plan.created_at],
+        ];
+        for (const [key, val] of metaFields) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td style="font-weight:600;width:8rem;">${key}</td><td>${val ?? '—'}</td>`;
+          planMeta.appendChild(tr);
+        }
+
+        const phases = Array.isArray(plan.phases) ? (plan.phases as Array<Record<string, unknown>>) : [];
+        if (phases.length === 0) {
+          noPhases.style.display = 'block';
+          phasesSection.style.display = 'none';
+        } else {
+          noPhases.style.display = 'none';
+          phasesSection.style.display = 'block';
+          for (const phase of phases) {
+            const acts = Array.isArray(phase.acts) ? (phase.acts as unknown[]) : [];
+            const actsDone = acts.filter((a) => (a as Record<string, unknown>).done).length;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${phase.id ?? ''}</td>
+              <td>${phase.label ?? ''}</td>
+              <td>${phase.status ?? ''}</td>
+              <td>${actsDone}</td>
+              <td>${acts.length}</td>
+              <td>${phase.cost ?? '—'}</td>
+            `;
+            phasesTobdy.appendChild(tr);
+          }
+        }
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
