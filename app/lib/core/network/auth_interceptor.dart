@@ -12,8 +12,14 @@ class AuthInterceptor extends Interceptor {
   static const _refreshPath = '/auth/refresh';
   // Guard against re-entrant refresh (concurrent 401s).
   bool _isRefreshing = false;
+  // Shared adapter injected by ApiClient so tests can swap it.
+  HttpClientAdapter? _httpClientAdapter;
 
   AuthInterceptor(this._tokenStorage);
+
+  /// Called by [ApiClient] after constructing [Dio], so tests can inject
+  /// a fake [HttpClientAdapter] via the shared [Dio] instance.
+  void setDio(Dio dio) => _httpClientAdapter = dio.httpClientAdapter;
 
   @override
   Future<void> onRequest(
@@ -56,10 +62,10 @@ class AuthInterceptor extends Interceptor {
         return;
       }
 
-      // Attempt refresh using a plain Dio instance (bypasses this interceptor).
-      final refreshDio = Dio(
-        BaseOptions(baseUrl: err.requestOptions.baseUrl),
-      );
+      // Plain Dio for refresh: no interceptors, but shares the adapter so
+      // tests can inject a fake one via setDio().
+      final refreshDio = _buildPlainDio(err.requestOptions.baseUrl);
+
       final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
         _refreshPath,
         data: {'refresh_token': refreshToken},
@@ -83,9 +89,7 @@ class AuthInterceptor extends Interceptor {
       final retryOptions = err.requestOptions
         ..headers['Authorization'] = 'Bearer $newAccess';
 
-      final retryDio = Dio(
-        BaseOptions(baseUrl: retryOptions.baseUrl),
-      );
+      final retryDio = _buildPlainDio(retryOptions.baseUrl);
       final retryResponse = await retryDio.fetch<dynamic>(retryOptions);
       handler.resolve(retryResponse);
     } on DioException {
@@ -94,5 +98,16 @@ class AuthInterceptor extends Interceptor {
     } finally {
       _isRefreshing = false;
     }
+  }
+
+  /// Builds a [Dio] instance with no interceptors that shares the same
+  /// [HttpClientAdapter] (real or fake) as the parent [ApiClient].
+  Dio _buildPlainDio(String baseUrl) {
+    final dio = Dio(BaseOptions(baseUrl: baseUrl));
+    final adapter = _httpClientAdapter;
+    if (adapter != null) {
+      dio.httpClientAdapter = adapter;
+    }
+    return dio;
   }
 }

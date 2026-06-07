@@ -22,5 +22,8 @@ class ApiClient {
         authInterceptor,
         LogInterceptor(requestBody: false, responseBody: false),
       ]);
+    // Give the interceptor a reference to this Dio so refresh/retry
+    // calls reuse the same HttpClientAdapter (critical for tests).
+    authInterceptor.setDio(dio);
   }
 }
