@@ -1,11 +1,14 @@
-//! Handler `POST /v1/cabinet/prescriptions/{id}/sign` — signature eIDAS d'une ordonnance.
+//! Handlers prescriptions : `POST /v1/cabinet/prescriptions` (création) et
+//! `POST /v1/cabinet/prescriptions/{id}/sign` (signature eIDAS).
 
 use std::sync::Arc;
 
 use axum::{
     extract::{Extension, Path, State},
+    http::StatusCode,
     Json,
 };
+use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -14,8 +17,135 @@ use crate::{
     AppState, SignatureClient,
 };
 
+// ── POST /v1/cabinet/prescriptions ───────────────────────────────────────────
+
+/// Un item de médicament dans le body de création.
+#[derive(Deserialize)]
+pub struct PrescriptionItemInput {
+    pub label: String,
+    pub form: Option<String>,
+    pub posology: String,
+    pub duration: String,
+    pub quantity: Option<String>,
+}
+
+/// Body de `POST /v1/cabinet/prescriptions`.
+#[derive(Deserialize)]
+pub struct CreatePrescriptionBody {
+    pub patient_id: Uuid,
+    pub items: Vec<PrescriptionItemInput>,
+}
+
+/// Réponse de `POST /v1/cabinet/prescriptions`.
+#[derive(Serialize)]
+pub struct CreatePrescriptionResponse {
+    pub prescription_id: Uuid,
+}
+
+/// `POST /v1/cabinet/prescriptions` — crée une ordonnance (statut `draft`) avec ses lignes.
+///
+/// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403.
+/// - `cabinet_id` extrait du JWT (jamais du body — invariant tenancy).
+/// - Body invalide (items vides, champs manquants) → 422 (Axum rejection).
+/// - Insert `prescription` + N `prescription_item` dans la même transaction RLS-scoped.
+/// - Audit `action:'create_prescription', entity:'prescription'`.
+/// - Retourne `201 { prescription_id }`.
+pub async fn create_prescription(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Json(body): Json<CreatePrescriptionBody>,
+) -> Result<(StatusCode, Json<CreatePrescriptionResponse>), AppError> {
+    if body.items.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope RLS tenant — SET LOCAL à chaque opération DB (règle hard #1).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Résout le practitioner_id depuis le user_id JWT (clé cabinet + user).
+    let prac_row =
+        sqlx::query("SELECT id FROM practitioner WHERE cabinet_id = $1 AND user_id = $2")
+            .bind(claims.cabinet_id)
+            .bind(claims.sub)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::Forbidden)?;
+
+    let practitioner_id: Uuid = prac_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Insère la prescription (statut draft).
+    let presc_row = sqlx::query(
+        "INSERT INTO prescription (cabinet_id, patient_id, practitioner_id, status) \
+         VALUES ($1, $2, $3, 'draft') \
+         RETURNING id",
+    )
+    .bind(claims.cabinet_id)
+    .bind(body.patient_id)
+    .bind(practitioner_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let prescription_id: Uuid = presc_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Insère chaque ligne médicament.
+    for item in &body.items {
+        sqlx::query(
+            "INSERT INTO prescription_item \
+             (cabinet_id, prescription_id, label, form, posology, duration, quantity) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(claims.cabinet_id)
+        .bind(prescription_id)
+        .bind(&item.label)
+        .bind(&item.form)
+        .bind(&item.posology)
+        .bind(&item.duration)
+        .bind(&item.quantity)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    // Audit — zéro PII, action create_prescription.
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, $3, 'create_prescription', 'prescription', $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind("practitioner")
+    .bind(prescription_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        prescription_id = %prescription_id,
+        items = body.items.len(),
+        "prescription created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreatePrescriptionResponse { prescription_id }),
+    ))
+}
+
 /// Réponse de `POST /v1/cabinet/prescriptions/{id}/sign`.
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct SignPrescriptionResponse {
     pub signed_at: String,
     pub document_id: Uuid,
