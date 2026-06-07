@@ -392,6 +392,8 @@ pub async fn add_patient_note(
         return Err(AppError::NotFound);
     }
 
+    let act_ref = body.act_ref.unwrap_or_else(|| serde_json::json!({}));
+
     let row = sqlx::query(
         "INSERT INTO clinical_note \
          (cabinet_id, patient_id, author_id, content_ciphertext, content_key_ref, \
@@ -405,7 +407,7 @@ pub async fn add_patient_note(
     .bind(&ciphertext)
     .bind(&body.note_kind)
     .bind(body.tooth.as_deref())
-    .bind(body.act_ref.as_ref())
+    .bind(&act_ref)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
