@@ -25,6 +25,7 @@ mod medical_record;
 mod messaging;
 mod notifications;
 mod prescriptions;
+mod reminders;
 mod reviews;
 mod scheduling;
 mod treatment_plans;
@@ -366,6 +367,7 @@ pub fn app_with_dispatcher(
         )
         .route("/v1/devices", post(devices::register_device))
         .route("/v1/notifications", get(notifications::list_notifications))
+        .route("/v1/reminders", get(reminders::list_reminders))
         .route(
             "/v1/cabinet/prescriptions",
             post(prescriptions::create_prescription),
