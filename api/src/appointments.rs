@@ -1134,7 +1134,7 @@ pub async fn callback_appointment(
 #[derive(Serialize)]
 pub struct QueueResponse {
     pub position: i64,
-    pub est_wait_min: i64,
+    pub est_wait_min: Option<i64>,
     pub status: String,
 }
 
@@ -1231,10 +1231,22 @@ pub async fn get_appointment_queue(
         "appointment queue queried"
     );
 
+    // position 1-indexée : le patient en tête de file est en position 1.
+    let position_1 = position + 1;
+
+    // Mapping statut DB → statut file spec §7 :
+    //   in_progress → "in_progress" (patient appelé, en consultation)
+    //   checked_in  → "waiting"     (en salle d'attente)
+    //   sinon       → "waiting"     (pas encore checké)
+    let queue_status = match status.as_str() {
+        "in_progress" => "in_progress",
+        _ => "waiting",
+    };
+
     Ok(Json(QueueResponse {
-        position,
-        est_wait_min: position * 15,
-        status,
+        position: position_1,
+        est_wait_min: None,
+        status: queue_status.to_string(),
     }))
 }
 
