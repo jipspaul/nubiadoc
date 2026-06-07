@@ -364,10 +364,11 @@ pub async fn add_patient_note(
         return Err(AppError::ValidationError);
     }
 
-    // Stub chiffrement : préfixe "STUB_ENC:" pour que le ciphertext ≠ clair UTF-8
-    // tout en restant testable. Remplacé par AES-256-GCM + KMS Scaleway à NUB-T3.
+    // Stub chiffrement : préfixe "STUB_ENC:" + XOR 0xFF octet à octet.
+    // Garantit que le ciphertext ne contient pas le texte clair comme fenêtre contigüe.
+    // Remplacé par AES-256-GCM + KMS Scaleway à NUB-T3 (ADR-009).
     let mut ciphertext: Vec<u8> = b"STUB_ENC:".to_vec();
-    ciphertext.extend_from_slice(body.text.as_bytes());
+    ciphertext.extend(body.text.as_bytes().iter().map(|b| b ^ 0xFF));
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
