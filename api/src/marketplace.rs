@@ -249,6 +249,186 @@ pub struct SearchProvidersResponse {
     pub page: SearchPageInfo,
 }
 
+// ── Slot search ──────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct SlotRef {
+    pub slot_id: Uuid,
+    pub starts_at: String,
+}
+
+#[derive(Serialize)]
+pub struct SlotProviderItem {
+    pub provider_id: Uuid,
+    pub display_name: String,
+    pub distance_m: Option<f64>,
+    pub first_slot_at: String,
+    pub slots: Vec<SlotRef>,
+}
+
+#[derive(Serialize)]
+pub struct SearchSlotsResponse {
+    pub data: Vec<SlotProviderItem>,
+}
+
+/// `GET /v1/search/slots` — prochains créneaux disponibles par praticien (docs/12 §12.1).
+///
+/// Route publique, pas de JWT. Mêmes filtres que `/v1/search/providers`.
+/// Retourne uniquement les créneaux `status='open'` (RLS `slot_public_read`),
+/// triés par `first_slot_at` ascendant.
+pub async fn search_slots(
+    State(state): State<AppState>,
+    Query(params): Query<SearchProvidersQuery>,
+) -> Result<Json<SearchSlotsResponse>, AppError> {
+    if params.place.is_some() {
+        tracing::warn!("search_slots: `place` geocoding not implemented at MVP");
+    }
+
+    let (near_lat, near_lng): (Option<f64>, Option<f64>) = match params.near.as_deref() {
+        Some(s) => {
+            let mut parts = s.splitn(2, ',');
+            let lat = parts
+                .next()
+                .and_then(|v| v.trim().parse::<f64>().ok())
+                .ok_or(AppError::ValidationError)?;
+            let lng = parts
+                .next()
+                .and_then(|v| v.trim().parse::<f64>().ok())
+                .ok_or(AppError::ValidationError)?;
+            (Some(lat), Some(lng))
+        }
+        None => (None, None),
+    };
+
+    let (bbox_min_lng, bbox_min_lat, bbox_max_lng, bbox_max_lat): (
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+    ) = match params.bbox.as_deref() {
+        Some(s) => {
+            let parts: Vec<&str> = s.splitn(4, ',').collect();
+            if parts.len() != 4 {
+                return Err(AppError::ValidationError);
+            }
+            let min_lng = parts[0]
+                .trim()
+                .parse::<f64>()
+                .map_err(|_| AppError::ValidationError)?;
+            let min_lat = parts[1]
+                .trim()
+                .parse::<f64>()
+                .map_err(|_| AppError::ValidationError)?;
+            let max_lng = parts[2]
+                .trim()
+                .parse::<f64>()
+                .map_err(|_| AppError::ValidationError)?;
+            let max_lat = parts[3]
+                .trim()
+                .parse::<f64>()
+                .map_err(|_| AppError::ValidationError)?;
+            (Some(min_lng), Some(min_lat), Some(max_lng), Some(max_lat))
+        }
+        None => (None, None, None, None),
+    };
+
+    let radius_m: Option<f64> = params.radius_km.map(|r| r * 1000.0);
+
+    let lang_filter: Option<Vec<String>> = params
+        .languages
+        .as_ref()
+        .map(|l| {
+            l.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .filter(|v| !v.is_empty());
+
+    // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
+    // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
+    // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
+    let sql = "SELECT \
+             p.id AS provider_id, \
+             p.display_name, \
+             CASE WHEN $1::double precision IS NOT NULL AND $2::double precision IS NOT NULL \
+                  THEN ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) \
+                  ELSE NULL END AS distance_m, \
+             sl.id AS slot_id, \
+             sl.starts_at \
+         FROM availability_slot sl \
+         JOIN provider p ON p.id = sl.provider_id \
+         LEFT JOIN specialty s ON s.id = p.specialty_id \
+         WHERE p.is_listed = true \
+             AND sl.status = 'open' \
+             AND sl.starts_at > now() \
+             AND ($4::text IS NULL \
+                  OR p.display_name ILIKE '%' || $4 || '%' \
+                  OR s.label ILIKE '%' || $4 || '%') \
+             AND ($5::uuid IS NULL OR p.specialty_id = $5) \
+             AND ($6::text IS NULL OR p.sector = $6) \
+             AND ($7::boolean IS NULL OR p.teleconsult = $7) \
+             AND ($8::boolean IS NULL OR p.pmr = $8) \
+             AND ($9::boolean IS NULL OR p.accepts_new_patients = $9) \
+             AND ($10::text[] IS NULL \
+                  OR (p.languages IS NOT NULL AND p.languages && $10)) \
+             AND ($3::double precision IS NULL OR $1::double precision IS NULL \
+                  OR p.geo IS NULL \
+                  OR ST_DWithin(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3)) \
+             AND ($11::double precision IS NULL \
+                  OR p.geo IS NULL \
+                  OR ST_Within(p.geo::geometry, \
+                     ST_MakeEnvelope($11, $12, $13, $14, 4326))) \
+         ORDER BY sl.starts_at ASC";
+
+    let rows = sqlx::query(sql)
+        .bind(near_lat) // $1
+        .bind(near_lng) // $2
+        .bind(radius_m) // $3
+        .bind(params.q.as_deref()) // $4
+        .bind(params.specialty) // $5
+        .bind(params.sector.as_deref()) // $6
+        .bind(params.teleconsult) // $7
+        .bind(params.pmr) // $8
+        .bind(params.accepts_new) // $9
+        .bind(lang_filter) // $10
+        .bind(bbox_min_lng) // $11
+        .bind(bbox_min_lat) // $12
+        .bind(bbox_max_lng) // $13
+        .bind(bbox_max_lat) // $14
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Group by provider, preserving first-slot order (rows already sorted ASC by starts_at)
+    let mut data: Vec<SlotProviderItem> = Vec::new();
+    for row in &rows {
+        let provider_id: Uuid = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
+        let starts_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+        let slot_ref = SlotRef {
+            slot_id: row.try_get("slot_id").map_err(|_| AppError::Internal)?,
+            starts_at: starts_at.to_rfc3339(),
+        };
+        if let Some(entry) = data.iter_mut().find(|e| e.provider_id == provider_id) {
+            entry.slots.push(slot_ref);
+        } else {
+            let distance_m: Option<f64> = row.try_get("distance_m").unwrap_or(None);
+            data.push(SlotProviderItem {
+                provider_id,
+                display_name: row
+                    .try_get("display_name")
+                    .map_err(|_| AppError::Internal)?,
+                distance_m,
+                first_slot_at: starts_at.to_rfc3339(),
+                slots: vec![slot_ref],
+            });
+        }
+    }
+
+    Ok(Json(SearchSlotsResponse { data }))
+}
+
 /// `GET /v1/search/providers` — annuaire public de praticiens (docs/12 §12.1).
 ///
 /// Route publique, pas de JWT. Seuls les providers `is_listed=true` sont exposés
