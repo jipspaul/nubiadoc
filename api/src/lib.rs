@@ -16,6 +16,7 @@ mod cabinet_messaging;
 mod clinical;
 mod consultations;
 mod dashboard;
+mod dental_chart;
 mod devices;
 mod documents;
 mod health;
@@ -279,6 +280,10 @@ pub fn app_with_dispatcher(
         .route(
             "/v1/cabinet/patients/:id/medical-record",
             get(medical_record::get_medical_record).patch(medical_record::patch_medical_record),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/dental-chart",
+            get(dental_chart::get_dental_chart).put(dental_chart::put_dental_chart),
         )
         .route(
             "/v1/cabinet/consultations/:id",
