@@ -341,6 +341,22 @@ INSERT INTO secretariat (id, cabinet_id, name) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
+-- Assignations provider ↔ secrétariat (issue #1195 — P12)
+-- Dr Marin (f1) → Secrétariat A ; Dr Lefèvre (f2) → Secrétariat B.
+-- UUIDs figés, idempotents.
+-- =====================================================================
+INSERT INTO provider_secretariat (id, provider_id, secretariat_id, active) VALUES
+  ('11950000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-0000000000f1',
+   '19870000-0000-0000-0000-000000000001',
+   true),
+  ('11950000-0000-0000-0000-000000000002',
+   'f0000000-0000-0000-0000-0000000000f2',
+   '19870000-0000-0000-0000-000000000002',
+   true)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
 -- Rappels RDV (issue #1142 — P8 seed engagement, W27)
 -- 1 rappel lié au RDV de Marc Dubois (appointment aa…001, patient d1, P5)
 -- =====================================================================
