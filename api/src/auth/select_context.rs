@@ -65,6 +65,9 @@ pub async fn select_context(
     let row = row.ok_or(AppError::NoActiveMembership)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
     let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
+    let secretariat_id: Option<Uuid> = row
+        .try_get("secretariat_id")
+        .map_err(|_| AppError::Internal)?;
 
     // Si secretariat_id fourni, valide qu'il appartient au même cabinet.
     if let Some(sid) = body.secretariat_id {
@@ -108,7 +111,7 @@ pub async fn select_context(
             kind: "pro".to_string(),
             cabinet_id,
             role,
-            secretariat_id: body.secretariat_id,
+            secretariat_id,
             exp,
         },
         &EncodingKey::from_secret(state.jwt_secret.as_bytes()),

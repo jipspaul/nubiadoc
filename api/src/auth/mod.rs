@@ -38,6 +38,8 @@ pub struct LoginResponse {
     refresh_token: String,
     token_type: String,
     expires_in: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_required: Option<bool>,
 }
 
 /// Sous-corps cabinet pour `POST /v1/pro/register`.
