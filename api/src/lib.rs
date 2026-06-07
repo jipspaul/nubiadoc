@@ -26,6 +26,7 @@ mod medical_record;
 mod messaging;
 mod notifications;
 mod prescriptions;
+mod provider_secretariat;
 mod reminders;
 mod reviews;
 mod scheduling;
@@ -415,6 +416,11 @@ pub fn app_with_dispatcher(
         .route(
             "/v1/cabinet/prescriptions/:id/sign",
             post(prescriptions::sign_prescription),
+        )
+        .route(
+            "/v1/cabinet/providers/:id/secretariats",
+            get(provider_secretariat::get_provider_secretariats)
+                .put(provider_secretariat::put_provider_secretariats),
         )
         .route(
             "/v1/webhooks/stripe",
