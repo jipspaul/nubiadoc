@@ -261,7 +261,10 @@ async fn quotes_with_sent_quote_returns_data_and_status_filter() {
     assert!(q.is_some(), "le devis doit être présent");
     let q = q.unwrap();
     assert_eq!(q["status"], "sent");
-    assert_eq!(q["total_amount_cents"], 15000, "150.00 EUR = 15000 centimes");
+    assert_eq!(
+        q["total_amount_cents"], 15000,
+        "150.00 EUR = 15000 centimes"
+    );
     assert_eq!(q["currency"], "EUR");
 
     // Avec filtre ?status=sent : retourne le devis
