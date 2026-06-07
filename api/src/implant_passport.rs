@@ -1,6 +1,11 @@
-//! Handler `GET /v1/implant-passport` — passeport implantaire patient.
+//! Handlers `GET /v1/implant-passport` et `GET /v1/implant-passport/export` — passeport implantaire patient.
 
-use axum::extract::State;
+use std::sync::Arc;
+
+use axum::body::Body;
+use axum::extract::{Extension, State};
+use axum::http::{header, StatusCode};
+use axum::response::Response;
 use axum::Json;
 use serde::Serialize;
 use sqlx::Row;
@@ -8,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState,
+    AppState, StorageSigner,
 };
 
 /// Un implant du passeport implantaire patient.
@@ -93,4 +98,31 @@ pub async fn list_implant_passport(
     );
 
     Ok(Json(ImplantPassportResponse { data }))
+}
+
+/// `GET /v1/implant-passport/export` — export PDF du passeport implantaire (version 🎭 mockée).
+///
+/// Token `kind:"patient"` requis. Retourne `302 Found` avec `Location` vers l'URL signée.
+/// Échec du signer → `410 link_expired`. Aucun implant présent → ne bloque pas l'export.
+pub async fn export_implant_passport(
+    State(_state): State<AppState>,
+    claims: PatientAccountClaims,
+    Extension(signer): Extension<Arc<dyn StorageSigner>>,
+) -> Result<Response, AppError> {
+    // Version mockée : clé de stockage dérivée du compte patient.
+    let storage_key = format!("implant-passport/{}.pdf", claims.account_id);
+
+    let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        "implant passport export redirected"
+    );
+
+    Response::builder()
+        .status(StatusCode::FOUND)
+        .header(header::LOCATION, &signed_url)
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(Body::empty())
+        .map_err(|_| AppError::Internal)
 }

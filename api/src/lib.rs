@@ -365,6 +365,10 @@ pub fn app_with_dispatcher(
             "/v1/implant-passport",
             get(implant_passport::list_implant_passport),
         )
+        .route(
+            "/v1/implant-passport/export",
+            get(implant_passport::export_implant_passport),
+        )
         .route("/v1/devices", post(devices::register_device))
         .route("/v1/notifications", get(notifications::list_notifications))
         .route("/v1/reminders", get(reminders::list_reminders))
