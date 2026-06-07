@@ -1,0 +1,79 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Implant Passport Export — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">GET /v1/implant-passport/export</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;font-size:0.875rem;">Génère une URL signée pour télécharger le passeport implantaire en PDF.</p>
+
+  <form id="export-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Access token (Bearer)
+      <input type="text" name="access_token" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Obtenir le lien PDF
+    </button>
+  </form>
+
+  <p id="status-badge" style="margin-top:1rem;display:none;"></p>
+  <p id="export-link-container" style="margin-top:0.75rem;display:none;">
+    Lien PDF : <a id="export-link" href="#" target="_blank" rel="noopener noreferrer">Télécharger</a>
+  </p>
+  <pre id="result" style="margin-top:1rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  interface ExportResponse {
+    url?: string;
+  }
+
+  const form = document.getElementById('export-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const badge = document.getElementById('status-badge') as HTMLParagraphElement;
+  const linkContainer = document.getElementById('export-link-container') as HTMLParagraphElement;
+  const exportLink = document.getElementById('export-link') as HTMLAnchorElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const access_token = fd.get('access_token') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    badge.style.display = 'none';
+    linkContainer.style.display = 'none';
+
+    try {
+      const { status: httpStatus, data } = await apiFetch('/v1/implant-passport/export', {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      result.className = httpStatus < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+      badge.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+      badge.style.display = 'block';
+
+      if (httpStatus < 300 && data !== null && typeof data === 'object') {
+        const d = data as ExportResponse;
+        if (d.url) {
+          exportLink.href = d.url;
+          linkContainer.style.display = 'block';
+        }
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
