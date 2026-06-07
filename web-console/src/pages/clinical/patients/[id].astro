@@ -1,0 +1,136 @@
+---
+import Default from '../../../layouts/Default.astro';
+const { id } = Astro.params;
+---
+<Default title="Fiche patient — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">Fiche patient — GET /v1/cabinet/patients/{id}</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;">
+    Rôle <code>pro</code> requis. Sections cliniques masquées pour <code>secretary</code> (R.4127-72).
+  </p>
+
+  <section aria-labelledby="fiche-heading">
+    <h2 id="fiche-heading" style="margin-bottom:1rem;">Afficher la fiche</h2>
+    <form id="fiche-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle pro)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Patient ID
+        <input type="text" name="patient_id" required value={id ?? ''}
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        GET — Fiche patient
+      </button>
+    </form>
+    <p id="fiche-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="fiche-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <section aria-labelledby="clinical-heading" id="clinical-section" style="margin-top:2.5rem;display:none;">
+    <h2 id="clinical-heading" style="margin-bottom:0.5rem;">Sections cliniques</h2>
+    <p style="color:var(--muted);font-size:0.875rem;margin-bottom:1rem;"
+      id="clinical-note">Visible uniquement pour les rôles <code>practitioner</code> / <code>admin</code>.</p>
+    <div id="clinical-content"
+      style="padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:0.875rem;">
+    </div>
+  </section>
+
+  <section aria-labelledby="masked-heading" id="masked-section" style="margin-top:2.5rem;display:none;">
+    <h2 id="masked-heading" style="margin-bottom:0.5rem;">Dossier clinique masqué</h2>
+    <p style="color:var(--muted);font-size:0.875rem;">
+      Conformément au R.4127-72, le contenu clinique n'est pas accessible au secrétariat.
+    </p>
+  </section>
+
+  <nav aria-label="Navigation patient" style="margin-top:2.5rem;">
+    <a href="/clinical/patients" id="back-link">← Liste des patients</a>
+    &nbsp;|&nbsp;
+    <a href="" id="docs-link" style="display:none;">Documents du patient →</a>
+  </nav>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  interface PatientFiche {
+    id?: string;
+    role_context?: string;
+    administrative?: unknown;
+    clinical?: unknown;
+  }
+
+  function showResult(
+    resultEl: HTMLPreElement,
+    badgeEl: HTMLParagraphElement,
+    httpStatus: number,
+    data: unknown,
+  ): void {
+    resultEl.className = httpStatus < 300 ? 'success' : 'error';
+    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+    badgeEl.style.display = 'block';
+  }
+
+  const ficheForm = document.getElementById('fiche-form') as HTMLFormElement;
+  const ficheResult = document.getElementById('fiche-result') as HTMLPreElement;
+  const ficheBadge = document.getElementById('fiche-badge') as HTMLParagraphElement;
+  const clinicalSection = document.getElementById('clinical-section') as HTMLElement;
+  const maskedSection = document.getElementById('masked-section') as HTMLElement;
+  const clinicalContent = document.getElementById('clinical-content') as HTMLElement;
+  const docsLink = document.getElementById('docs-link') as HTMLAnchorElement;
+
+  ficheForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(ficheForm);
+    const access_token = fd.get('access_token') as string;
+    const patient_id = fd.get('patient_id') as string;
+
+    ficheResult.className = '';
+    ficheResult.textContent = 'Chargement…';
+    ficheBadge.style.display = 'none';
+    clinicalSection.style.display = 'none';
+    maskedSection.style.display = 'none';
+
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/patients/${patient_id}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
+
+      showResult(ficheResult, ficheBadge, status, data);
+
+      if (status === 200 && data !== null && typeof data === 'object') {
+        const fiche = data as PatientFiche;
+
+        // Show documents link
+        docsLink.href = `/clinical/patients/${patient_id}/documents`;
+        docsLink.style.display = 'inline';
+
+        // Role-based section display
+        if (fiche.clinical !== undefined && fiche.clinical !== null) {
+          // Practitioner / admin: show clinical section
+          clinicalContent.textContent = JSON.stringify(fiche.clinical, null, 2);
+          clinicalSection.style.display = 'block';
+        } else {
+          // Secretary: show masked notice
+          maskedSection.style.display = 'block';
+        }
+      }
+    } catch (err) {
+      ficheResult.className = 'error';
+      ficheResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
