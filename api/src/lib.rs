@@ -369,6 +369,7 @@ pub fn app_with_dispatcher(
             get(treatment_plans::get_treatment_plan),
         )
         .route("/v1/quotes", get(billing::list_quotes))
+        .route("/v1/quotes/:id", get(billing::get_quote))
         .route(
             "/v1/payments/intent",
             axum::routing::post(billing::create_payment_intent),
