@@ -216,8 +216,7 @@ async fn start_consultation_practitioner_confirmed_returns_200() {
     let owner_db = owner_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) =
-        insert_fixture(&owner_db, "confirmed").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&owner_db, "confirmed").await;
 
     let state = AppState {
         db: app_db,
@@ -263,8 +262,7 @@ async fn start_consultation_secretary_returns_403() {
     let owner_db = owner_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) =
-        insert_fixture(&owner_db, "confirmed").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&owner_db, "confirmed").await;
 
     let state = AppState {
         db: app_db,
@@ -304,8 +302,7 @@ async fn start_consultation_invalid_status_returns_409() {
     let owner_db = owner_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) =
-        insert_fixture(&owner_db, "done").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&owner_db, "done").await;
 
     let state = AppState {
         db: app_db,
