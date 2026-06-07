@@ -261,6 +261,10 @@ pub fn app_with_dispatcher(
             get(consultations::get_consultation_context),
         )
         .route(
+            "/v1/cabinet/consultations/:id/acts",
+            post(consultations::add_consultation_act),
+        )
+        .route(
             "/v1/cabinet/consultations/:id/complete",
             post(consultations::complete_consultation),
         )
