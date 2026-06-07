@@ -1,0 +1,97 @@
+---
+import Default from '../../../../../layouts/Default.astro';
+
+const { id } = Astro.params;
+---
+<Default title="Complete Consultation — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">§15 Back-office — Terminer la consultation</h1>
+  <p style="color:var(--muted);font-size:0.875rem;margin-bottom:1.5rem;">
+    POST <code>/v1/cabinet/consultations/{id}/complete</code>
+    &nbsp;·&nbsp; <strong>practitioner only</strong>
+    &nbsp;·&nbsp; clôture la séance, déclenche la facturation
+  </p>
+
+  <section style="margin-bottom:2rem;">
+    <label style="font-size:0.875rem;font-weight:600;">
+      Access token (Bearer)
+      <input id="access-token" type="text" name="access_token" placeholder="eyJ…"
+        style="display:block;width:100%;max-width:600px;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+  </section>
+
+  <section aria-labelledby="h-complete" style="margin-bottom:2rem;border:1px solid var(--border);border-radius:6px;padding:1rem;">
+    <h2 id="h-complete" style="margin:0 0 1rem;font-size:1rem;">POST /v1/cabinet/consultations/{id}/complete — terminer &amp; facturer</h2>
+    <form id="form-complete" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;">
+      <label style="font-size:0.875rem;">
+        Consultation ID <span style="color:red">*</span>
+        <input id="consultation-id" type="text" name="consultation_id" required
+          value={id ?? ''}
+          style="display:block;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;width:260px;" />
+      </label>
+      <button type="submit" id="btn-complete"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+        Complete consultation
+      </button>
+    </form>
+    <p id="badge-complete" style="margin-top:0.75rem;display:none;"></p>
+    <pre id="result-complete" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:2.5rem;"></pre>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../../../lib/api.ts';
+
+  function getToken(): string {
+    return (document.getElementById('access-token') as HTMLInputElement).value;
+  }
+
+  function renderResult(
+    resultEl: HTMLPreElement,
+    badgeEl: HTMLParagraphElement,
+    httpStatus: number,
+    data: unknown,
+  ): void {
+    resultEl.className = httpStatus < 300 ? 'success' : 'error';
+    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+    badgeEl.style.display = 'block';
+  }
+
+  function renderError(resultEl: HTMLPreElement, err: unknown): void {
+    resultEl.className = 'error';
+    resultEl.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+  }
+
+  const formComplete = document.getElementById('form-complete') as HTMLFormElement;
+  const resultComplete = document.getElementById('result-complete') as HTMLPreElement;
+  const badgeComplete = document.getElementById('badge-complete') as HTMLParagraphElement;
+
+  formComplete.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formComplete);
+    const id = (fd.get('consultation_id') as string).trim();
+    resultComplete.className = '';
+    resultComplete.textContent = 'Chargement…';
+    badgeComplete.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/consultations/${encodeURIComponent(id)}/complete`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getToken()}`,
+          'Idempotency-Key': crypto.randomUUID(),
+        },
+      });
+      renderResult(resultComplete, badgeComplete, status, data);
+    } catch (err) {
+      renderError(resultComplete, err);
+    }
+  });
+</script>
