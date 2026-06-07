@@ -17,6 +17,7 @@ mod consultations;
 mod dashboard;
 mod documents;
 mod health;
+mod implant_passport;
 mod marketplace;
 mod messaging;
 mod reviews;
@@ -307,6 +308,10 @@ pub fn app_with_dispatcher(
         .route(
             "/v1/account/consents/:purpose",
             put(auth::put_account_consent),
+        )
+        .route(
+            "/v1/implant-passport",
+            get(implant_passport::list_implant_passport),
         )
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
