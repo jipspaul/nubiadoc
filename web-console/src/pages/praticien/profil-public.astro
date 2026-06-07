@@ -1,0 +1,326 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+---
+<AppShell title="Profil public — Nubia" role="practitioner">
+  <header>
+    <h1>Profil public annuaire</h1>
+    <p>Gestion du profil provider, listing annuaire et vérification RPPS.</p>
+  </header>
+
+  <!-- ── 1. PATCH /v1/cabinet/provider ───────────────────────────────── -->
+  <section aria-labelledby="h-provider">
+    <h2 id="h-provider">Profil provider — <code>PATCH /v1/cabinet/provider</code></h2>
+    <form id="form-provider" method="dialog">
+      <label>
+        Spécialité
+        <input type="text" name="specialty" placeholder="ex. chirurgien-dentiste" />
+      </label>
+      <label>
+        Biographie
+        <textarea name="bio" rows="4" placeholder="Présentation du praticien…"></textarea>
+      </label>
+      <label>
+        Numéro RPPS
+        <input type="text" name="rpps" placeholder="11 chiffres" />
+      </label>
+      <button type="submit">Enregistrer</button>
+    </form>
+    <p id="badge-provider" aria-live="polite"></p>
+    <pre id="result-provider" aria-label="Résultat PATCH /v1/cabinet/provider"></pre>
+  </section>
+
+  <!-- ── 2. PUT /v1/cabinet/provider/listing ─────────────────────────── -->
+  <section aria-labelledby="h-listing">
+    <h2 id="h-listing">Listing annuaire — <code>PUT /v1/cabinet/provider/listing</code></h2>
+    <form id="form-listing" method="dialog">
+      <fieldset>
+        <legend>Statut listing</legend>
+        <label>
+          <input type="radio" name="is_listed" value="true" required /> Activer (visible dans l'annuaire)
+        </label>
+        <label>
+          <input type="radio" name="is_listed" value="false" required /> Désactiver
+        </label>
+      </fieldset>
+      <button type="submit">Mettre à jour</button>
+    </form>
+    <p id="badge-listing" aria-live="polite"></p>
+    <pre id="result-listing" aria-label="Résultat PUT /v1/cabinet/provider/listing"></pre>
+  </section>
+
+  <!-- ── 3. GET /v1/pro/verification ────────────────────────────────── -->
+  <section aria-labelledby="h-verif-status">
+    <h2 id="h-verif-status">Statut vérification RPPS — <code>GET /v1/pro/verification</code></h2>
+    <form id="form-verif-get" method="dialog">
+      <button type="submit">Consulter le statut</button>
+    </form>
+    <p id="badge-verif-get" aria-live="polite"></p>
+    <pre id="result-verif-get" aria-label="Résultat GET /v1/pro/verification"></pre>
+  </section>
+
+  <!-- ── 4. POST /v1/pro/verification ───────────────────────────────── -->
+  <section aria-labelledby="h-verif-post">
+    <h2 id="h-verif-post">Soumettre vérification RPPS — <code>POST /v1/pro/verification</code></h2>
+    <form id="form-verif-post" method="dialog">
+      <label>
+        Numéro RPPS <span aria-hidden="true">*</span>
+        <input type="text" name="rpps" required placeholder="11 chiffres" />
+      </label>
+      <button type="submit">Soumettre</button>
+    </form>
+    <p id="badge-verif-post" aria-live="polite"></p>
+    <pre id="result-verif-post" aria-label="Résultat POST /v1/pro/verification"></pre>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    max-width: 520px;
+    margin-bottom: var(--space-6);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-size-base);
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  input[type="text"],
+  textarea {
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    width: 100%;
+  }
+
+  textarea { resize: vertical; }
+
+  fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  legend { font-size: var(--font-size-sm); font-weight: 600; padding: 0 var(--space-1); }
+
+  fieldset label {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  button[type="submit"] {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    align-self: flex-start;
+  }
+
+  button[type="submit"]:hover { opacity: 0.9; }
+
+  pre {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    white-space: pre-wrap;
+    font-size: var(--font-size-sm);
+    min-height: 2.5rem;
+  }
+
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+
+  .badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .badge-ok  { background: #166534; color: #bbf7d0; }
+  .badge-err { background: #7f1d1d; color: #fecaca; }
+
+  .status-pending  { display: inline-block; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-weight: 600; background: #78350f; color: #fef3c7; }
+  .status-verified { display: inline-block; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-weight: 600; background: #14532d; color: #bbf7d0; }
+  .status-rejected { display: inline-block; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-weight: 600; background: #7f1d1d; color: #fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../lib/api.ts';
+
+  function showResult(
+    resultEl: HTMLPreElement,
+    badgeEl: HTMLParagraphElement,
+    httpStatus: number,
+    data: unknown,
+    extra?: string,
+  ): void {
+    resultEl.className = httpStatus < 300 ? 'success' : 'error';
+    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>${extra ?? ''}`;
+  }
+
+  // ── 1. PATCH /v1/cabinet/provider ────────────────────────────────────
+  const formProvider = document.getElementById('form-provider') as HTMLFormElement;
+  const resultProvider = document.getElementById('result-provider') as HTMLPreElement;
+  const badgeProvider = document.getElementById('badge-provider') as HTMLParagraphElement;
+
+  formProvider.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formProvider);
+    const body: Record<string, string> = {};
+    const specialty = (fd.get('specialty') as string).trim();
+    const bio = (fd.get('bio') as string).trim();
+    const rpps = (fd.get('rpps') as string).trim();
+    if (specialty) body.specialty = specialty;
+    if (bio) body.bio = bio;
+    if (rpps) body.rpps = rpps;
+
+    resultProvider.className = '';
+    resultProvider.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/cabinet/provider', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      showResult(resultProvider, badgeProvider, status, data);
+    } catch (err) {
+      resultProvider.className = 'error';
+      resultProvider.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── 2. PUT /v1/cabinet/provider/listing ──────────────────────────────
+  const formListing = document.getElementById('form-listing') as HTMLFormElement;
+  const resultListing = document.getElementById('result-listing') as HTMLPreElement;
+  const badgeListing = document.getElementById('badge-listing') as HTMLParagraphElement;
+
+  formListing.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formListing);
+    const is_listed = fd.get('is_listed') === 'true';
+
+    resultListing.className = '';
+    resultListing.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/cabinet/provider/listing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_listed }),
+      });
+      showResult(resultListing, badgeListing, status, data);
+    } catch (err) {
+      resultListing.className = 'error';
+      resultListing.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── 3. GET /v1/pro/verification ──────────────────────────────────────
+  const formVerifGet = document.getElementById('form-verif-get') as HTMLFormElement;
+  const resultVerifGet = document.getElementById('result-verif-get') as HTMLPreElement;
+  const badgeVerifGet = document.getElementById('badge-verif-get') as HTMLParagraphElement;
+
+  const STATUS_LABELS: Record<string, string> = {
+    pending: 'En attente',
+    verified: 'Vérifié',
+    rejected: 'Rejeté',
+  };
+  const STATUS_CSS: Record<string, string> = {
+    pending: 'status-pending',
+    verified: 'status-verified',
+    rejected: 'status-rejected',
+  };
+
+  formVerifGet.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    resultVerifGet.className = '';
+    resultVerifGet.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/pro/verification');
+      let extra = '';
+      if (status === 200 && data !== null && typeof data === 'object') {
+        const verif = data as { status?: string };
+        const s = verif.status ?? '';
+        if (s in STATUS_LABELS) {
+          extra = ` <span class="${STATUS_CSS[s]}">${STATUS_LABELS[s]}</span>`;
+        }
+      }
+      showResult(resultVerifGet, badgeVerifGet, status, data, extra);
+    } catch (err) {
+      resultVerifGet.className = 'error';
+      resultVerifGet.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── 4. POST /v1/pro/verification ─────────────────────────────────────
+  const formVerifPost = document.getElementById('form-verif-post') as HTMLFormElement;
+  const resultVerifPost = document.getElementById('result-verif-post') as HTMLPreElement;
+  const badgeVerifPost = document.getElementById('badge-verif-post') as HTMLParagraphElement;
+
+  formVerifPost.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formVerifPost);
+    const rpps = (fd.get('rpps') as string).trim();
+
+    resultVerifPost.className = '';
+    resultVerifPost.textContent = 'Chargement…';
+
+    try {
+      const { status, data } = await apiFetch('/v1/pro/verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rpps }),
+      });
+      let extra = '';
+      if (status === 202 && data !== null && typeof data === 'object') {
+        const verif = data as { status?: string };
+        if (verif.status === 'pending') {
+          extra = ` <span class="status-pending">En attente</span>`;
+        }
+      }
+      showResult(resultVerifPost, badgeVerifPost, status, data, extra);
+    } catch (err) {
+      resultVerifPost.className = 'error';
+      resultVerifPost.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
