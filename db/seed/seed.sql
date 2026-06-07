@@ -309,6 +309,40 @@ INSERT INTO device (id, app_user_id, fcm_token, platform) VALUES
   ('ff000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-0000000000a1','fcm_pro_hugo_android','android')
 ON CONFLICT (id) DO NOTHING;
 
+-- =====================================================================
+-- Notifications in-app (issue #1142 — P8 seed engagement)
+-- 1 rappel RDV pour Marc Dubois (app_user a5) + 1 message pour Karim Saïdi (a9)
+-- nubia_seed : policy FOR ALL USING (true) → pas de GUC requis.
+-- body_ciphertext = PLACEHOLDER (cf. seed/README.md §Règles).
+-- =====================================================================
+INSERT INTO notification (id, app_user_id, kind, title, body_ciphertext, body_key_ref, data, created_at) VALUES
+  ('fe000000-0000-0000-0000-000000000001',
+   'a0000000-0000-0000-0000-0000000000a5',
+   'rdv_rappel', 'Rappel RDV demain — Cabinet Lyon',
+   '\x53454544', 'SEED_PLACEHOLDER',
+   '{"appointment_id":"aa000000-0000-0000-0000-000000000001","deeplink":"/rdv/aa000000-0000-0000-0000-000000000001"}',
+   '2026-06-02 18:00+00'),
+  ('fe000000-0000-0000-0000-000000000002',
+   'a0000000-0000-0000-0000-0000000000a9',
+   'message', 'Nouveau message du Cabinet Lyon',
+   '\x53454544', 'SEED_PLACEHOLDER',
+   '{"conversation_id":"c1000000-0000-0000-0000-000000000001","deeplink":"/messages/c1000000-0000-0000-0000-000000000001"}',
+   '2026-06-03 07:31+00')
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
+-- Rappels RDV (issue #1142 — P8 seed engagement, W27)
+-- 1 rappel lié au RDV de Marc Dubois (appointment aa…001, patient d1, P5)
+-- =====================================================================
+INSERT INTO reminder (id, cabinet_id, appointment_id, patient_id, scheduled_at, kind, channel, status, sent_at) VALUES
+  ('fd000000-0000-0000-0000-000000000001',
+   '11111111-1111-1111-1111-111111111111',
+   'aa000000-0000-0000-0000-000000000001',
+   'd0000000-0000-0000-0000-0000000000d1',
+   '2026-06-02 18:00+00',
+   'rdv_rappel', 'push', 'sent', '2026-06-02 18:00:05+00')
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;
 
 \echo '✓ seed démo chargé (Cabinet Lyon, données fictives, idempotent)'
