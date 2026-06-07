@@ -107,16 +107,16 @@ pub async fn logout(
             .await
             .map_err(|_| AppError::Internal)?;
         let row = sqlx::query(
-            "SELECT app_user_id FROM refresh_token \
-             WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
+            "SELECT refresh_token_owner(encode(digest($1, 'sha256'), 'hex')) AS owner_id",
         )
         .bind(&token)
-        .fetch_optional(&mut *tx)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
-        if let Some(r) = row {
-            let owner_id: Uuid = r.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+        let owner_id: Option<Uuid> = row.try_get("owner_id").map_err(|_| AppError::Internal)?;
+
+        if let Some(owner_id) = owner_id {
             if owner_id != claims.sub {
                 tx.rollback().await.map_err(|_| AppError::Internal)?;
                 return Err(AppError::Forbidden);
