@@ -22,7 +22,7 @@ SET LOCAL app.current_cabinet_id = '10730000-0000-0000-0000-000000000001';
 INSERT INTO cabinet (id, raison_sociale, siret, specialite, settings) VALUES
   ('10730000-0000-0000-0000-000000000001', 'Cabinet Démo', '12345678900099', 'dentaire',
    '{"horaires":{"lun":"09:00-19:00"}}')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- 4 app_user démo : practitioner, secretary, admin (kind='pro') + patient (kind='patient').
 -- Les hash ici sont des hash argon2id valides (non SEED_PLACEHOLDER) pour le test.
@@ -39,7 +39,7 @@ INSERT INTO app_user (id, email, password_hash, kind, rpps, status) VALUES
   ('10730000-0000-0000-0000-0000000000a4', 'patient@demo-1073.test',
    '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhMDAwMDAwNA$39TllpW9C+KxsdPWXUJBGkl20Tl/uAULBnTnMjyqx3M',
    'patient', NULL, 'active')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- Memberships : practitioner + secretary + admin → cabinet démo
 INSERT INTO cabinet_membership (id, cabinet_id, user_id, role) VALUES
@@ -52,7 +52,7 @@ INSERT INTO cabinet_membership (id, cabinet_id, user_id, role) VALUES
   ('10730000-0000-0000-0000-0000000000b3',
    '10730000-0000-0000-0000-000000000001',
    '10730000-0000-0000-0000-0000000000a3', 'admin')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- ===========================================================================
 -- 1. Cabinet visible sous RLS (GUC = cabinet id)
