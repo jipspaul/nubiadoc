@@ -8,6 +8,7 @@ pub mod mfa_verify;
 pub mod refresh;
 pub mod register;
 pub mod reset_password;
+pub mod select_context;
 
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},

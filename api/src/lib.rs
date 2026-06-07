@@ -169,6 +169,10 @@ pub fn app_with_dispatcher(
         .route("/v1/auth/login", post(auth::login::login))
         .route("/v1/auth/refresh", post(auth::refresh::refresh))
         .route("/v1/auth/logout", post(auth::logout::logout))
+        .route(
+            "/v1/auth/select-context",
+            post(auth::select_context::select_context),
+        )
         .route("/v1/auth/mfa/enroll", post(auth::mfa_enroll::mfa_enroll))
         .route("/v1/auth/mfa/verify", post(auth::mfa_verify::mfa_verify))
         .route(
