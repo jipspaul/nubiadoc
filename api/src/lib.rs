@@ -30,6 +30,7 @@ mod reminders;
 mod reviews;
 mod scheduling;
 mod treatment_plans;
+mod waiting_list;
 mod webhooks;
 
 /// Trait de génération d'URL signées Object Storage — swappable (stub en test, MinIO/Scaleway en prod).
@@ -384,6 +385,10 @@ pub fn app_with_dispatcher(
         .route(
             "/v1/providers/:id/reviews",
             get(reviews::list_provider_reviews),
+        )
+        .route(
+            "/v1/waiting-list",
+            post(waiting_list::create_waiting_list_entry),
         )
         .route("/v1/account/consents", get(auth::get_account_consents))
         .route(
