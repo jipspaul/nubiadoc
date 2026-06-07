@@ -286,6 +286,10 @@ pub fn app_with_dispatcher(
             post(scheduling::confirm_appointment),
         )
         .route(
+            "/v1/cabinet/appointments/:id/start",
+            post(scheduling::start_consultation),
+        )
+        .route(
             "/v1/cabinet/appointments/:id",
             patch(scheduling::patch_cabinet_appointment),
         )
