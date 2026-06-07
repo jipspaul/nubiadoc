@@ -84,4 +84,40 @@ void main() {
       expect: () => [const AuthUnauthenticated()],
     );
   });
+
+  group('AuthBloc — SessionRestored', () {
+    blocTest<AuthBloc, AuthState>(
+      'emits [AuthAuthenticated] when token valid and getMe succeeds',
+      build: () {
+        when(() => repository.isAuthenticated()).thenAnswer((_) async => true);
+        when(() => repository.getMe())
+            .thenAnswer((_) async => const Right(_account));
+        return AuthBloc(repository);
+      },
+      act: (bloc) => bloc.add(const SessionRestored()),
+      expect: () => [const AuthAuthenticated(_account)],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'emits [AuthUnauthenticated] when no stored token',
+      build: () {
+        when(() => repository.isAuthenticated()).thenAnswer((_) async => false);
+        return AuthBloc(repository);
+      },
+      act: (bloc) => bloc.add(const SessionRestored()),
+      expect: () => [const AuthUnauthenticated()],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'emits [AuthUnauthenticated] when token present but getMe fails',
+      build: () {
+        when(() => repository.isAuthenticated()).thenAnswer((_) async => true);
+        when(() => repository.getMe())
+            .thenAnswer((_) async => const Left(UnauthorizedFailure()));
+        return AuthBloc(repository);
+      },
+      act: (bloc) => bloc.add(const SessionRestored()),
+      expect: () => [const AuthUnauthenticated()],
+    );
+  });
 }

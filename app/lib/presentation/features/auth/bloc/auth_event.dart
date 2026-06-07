@@ -43,3 +43,9 @@ final class AuthRefreshRequested extends AuthEvent {
 final class AuthCheckRequested extends AuthEvent {
   const AuthCheckRequested();
 }
+
+/// Fired on app startup when a stored token may still be valid.
+/// Alias for [AuthCheckRequested] with explicit naming for the splash flow.
+final class SessionRestored extends AuthEvent {
+  const SessionRestored();
+}
