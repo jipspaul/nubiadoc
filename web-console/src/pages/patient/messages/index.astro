@@ -1,0 +1,278 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Mes messages — Nubia" role="patient">
+  <header>
+    <h1>Mes messages</h1>
+    <p>Vos conversations avec votre cabinet.</p>
+  </header>
+
+  <section aria-labelledby="h-conversations">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4);">
+      <h2 id="h-conversations">Conversations</h2>
+      <button type="button" id="btn-new-conv">Nouvelle conversation</button>
+    </div>
+
+    <div id="conv-loading" aria-live="polite">Chargement…</div>
+
+    <ul id="conv-list" hidden aria-label="Liste des conversations"></ul>
+
+    <p id="conv-empty" hidden>Aucune conversation.</p>
+
+    <dialog id="dialog-new-conv" aria-labelledby="dialog-title">
+      <article>
+        <header>
+          <h3 id="dialog-title">Nouvelle conversation</h3>
+        </header>
+        <form id="form-new-conv" method="dialog" novalidate>
+          <label>
+            Cabinet ID (UUID)
+            <input type="text" name="cabinet_id" required
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              autocomplete="off" />
+          </label>
+          <label>
+            Sujet (optionnel)
+            <input type="text" name="subject" />
+          </label>
+          <footer>
+            <button type="button" id="btn-cancel-conv">Annuler</button>
+            <button type="submit">Démarrer</button>
+          </footer>
+        </form>
+        <p id="new-conv-error" role="alert" hidden></p>
+      </article>
+    </dialog>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  h2 { font-size: var(--font-size-lg); margin: 0; }
+
+  #conv-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .conv-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    text-decoration: none;
+    color: var(--color-text);
+  }
+  .conv-item:hover { background: var(--color-border); }
+
+  .conv-subject { font-weight: 600; }
+  .conv-meta { font-size: var(--font-size-sm); color: var(--color-muted); }
+
+  .conv-badge {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-radius: 9999px;
+    padding: 0 var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    min-width: 1.5rem;
+    text-align: center;
+  }
+  .conv-badge[data-zero] {
+    background: var(--color-border);
+    color: var(--color-muted);
+  }
+
+  #btn-new-conv {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  #btn-new-conv:hover { background: var(--color-accent-hover); }
+
+  dialog {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-6);
+    max-width: 420px;
+    width: 100%;
+  }
+  dialog::backdrop { background: rgba(0,0,0,0.5); }
+
+  dialog article header { margin-bottom: var(--space-4); }
+  dialog h3 { margin: 0; font-size: var(--font-size-lg); }
+
+  #form-new-conv {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  #form-new-conv label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  #form-new-conv input {
+    padding: var(--space-2);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  #form-new-conv footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  #form-new-conv footer button {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    border: 1px solid var(--color-border);
+  }
+  #form-new-conv footer button[type="submit"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+  #form-new-conv footer button[type="button"] {
+    background: transparent;
+    color: var(--color-text);
+  }
+
+  #new-conv-error {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-error);
+    color: var(--color-error-fg);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+  }
+</style>
+
+<script>
+  import { patientConversations, type Conversation } from '../../../lib/endpoints.ts';
+
+  const loading = document.getElementById('conv-loading') as HTMLElement;
+  const list = document.getElementById('conv-list') as HTMLUListElement;
+  const empty = document.getElementById('conv-empty') as HTMLParagraphElement;
+  const dialog = document.getElementById('dialog-new-conv') as HTMLDialogElement;
+  const btnNew = document.getElementById('btn-new-conv') as HTMLButtonElement;
+  const btnCancel = document.getElementById('btn-cancel-conv') as HTMLButtonElement;
+  const formNew = document.getElementById('form-new-conv') as HTMLFormElement;
+  const newConvError = document.getElementById('new-conv-error') as HTMLParagraphElement;
+
+  function renderConversations(convs: Conversation[]): void {
+    list.innerHTML = '';
+    if (convs.length === 0) {
+      empty.hidden = false;
+      return;
+    }
+    for (const conv of convs) {
+      const unread = conv.unread_count ?? 0;
+      const subject = conv.subject ?? 'Conversation';
+      const lastAt = conv.last_message_at
+        ? new Date(conv.last_message_at).toLocaleString('fr-FR')
+        : '';
+
+      const li = document.createElement('li');
+      li.setAttribute('data-conversation-id', conv.id);
+
+      const a = document.createElement('a');
+      a.href = `/patient/messages/${encodeURIComponent(conv.id)}`;
+      a.className = 'conv-item';
+      a.innerHTML = `
+        <span class="conv-info">
+          <span class="conv-subject">${escHtml(subject)}</span>
+          ${lastAt ? `<span class="conv-meta">${escHtml(lastAt)}</span>` : ''}
+        </span>
+        <span class="conv-badge" ${unread === 0 ? 'data-zero' : ''} aria-label="${unread} non lu(s)">${unread}</span>`;
+      li.appendChild(a);
+      list.appendChild(li);
+    }
+    list.hidden = false;
+  }
+
+  // Load conversations on page load
+  (async () => {
+    const { status, data } = await patientConversations.list();
+    loading.hidden = true;
+    if (status < 300 && Array.isArray(data)) {
+      renderConversations(data as Conversation[]);
+    } else {
+      loading.textContent = 'Impossible de charger les conversations.';
+      loading.hidden = false;
+    }
+  })();
+
+  // Dialog open/close
+  btnNew.addEventListener('click', () => {
+    newConvError.hidden = true;
+    formNew.reset();
+    dialog.showModal();
+  });
+  btnCancel.addEventListener('click', () => dialog.close());
+
+  // Create new conversation
+  formNew.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formNew);
+    const cabinet_id = (fd.get('cabinet_id') as string).trim();
+    const subject = (fd.get('subject') as string).trim() || undefined;
+
+    newConvError.hidden = true;
+    const submitBtn = formNew.querySelector('button[type="submit"]') as HTMLButtonElement;
+    submitBtn.disabled = true;
+
+    const { status, data } = await patientConversations.post({ cabinet_id, subject });
+    submitBtn.disabled = false;
+
+    if (status < 300 && data) {
+      dialog.close();
+      const conv = data as Conversation & { conversation_id?: string };
+      const id = conv.id ?? (conv as Record<string, unknown>).conversation_id as string;
+      if (id) {
+        window.location.href = `/patient/messages/${encodeURIComponent(id)}`;
+      } else {
+        // Refresh list
+        window.location.reload();
+      }
+    } else {
+      const err = data as Record<string, unknown> | null;
+      newConvError.textContent = String(err?.title ?? err?.code ?? 'Erreur lors de la création.');
+      newConvError.hidden = false;
+    }
+  });
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+</script>
