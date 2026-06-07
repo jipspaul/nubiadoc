@@ -1,16 +1,18 @@
-//! Handlers `GET /v1/cabinet/patients` et `POST /v1/cabinet/patients`.
+//! Handlers `GET /v1/cabinet/patients`, `POST /v1/cabinet/patients`,
+//! et `POST /v1/cabinet/patients/:id/notes`.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, ProSecretaryPlusClaims},
+    auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
     AppState,
 };
 
@@ -317,5 +319,116 @@ pub async fn create_cabinet_patient(
     Ok((
         StatusCode::CREATED,
         Json(AttachPatientResponse { patient_id }),
+    ))
+}
+
+// ── POST /v1/cabinet/patients/:id/notes ──────────────────────────────────────
+
+/// Corps de la requête `POST /v1/cabinet/patients/:id/notes`.
+#[derive(Deserialize)]
+pub struct AddClinicalNoteBody {
+    /// Type de note : `"observation"` ou `"act"`.
+    pub note_kind: String,
+    /// Texte libre de la note (chiffré avant stockage).
+    pub text: String,
+    /// Numérotation ISO 3950, optionnelle (notes de type `"act"`).
+    pub tooth: Option<String>,
+    /// Référence d'acte JSONB : `{ label, ccam?, quote_item_id? }` — optionnel.
+    pub act_ref: Option<Value>,
+}
+
+/// Réponse de `POST /v1/cabinet/patients/:id/notes`.
+#[derive(Serialize)]
+pub struct AddClinicalNoteResponse {
+    pub note_id: Uuid,
+    pub created_at: String,
+}
+
+/// `POST /v1/cabinet/patients/:id/notes` — ajoute une note clinique chiffrée.
+///
+/// Praticien uniquement (R.4127-72, §07 §4.1) — secrétaire → 403.
+/// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
+/// RLS tenant-scoped via `app.current_cabinet_id`.
+/// Chiffrement colonne : stub `"STUB_ENC:" + UTF-8` en dev — AES-256-GCM KMS à NUB-T3 (ADR-009).
+/// Patient inexistant ou hors tenant → 404. `note_kind` invalide → 422.
+pub async fn add_patient_note(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(patient_id): Path<Uuid>,
+    Json(body): Json<AddClinicalNoteBody>,
+) -> Result<(StatusCode, Json<AddClinicalNoteResponse>), AppError> {
+    if body.note_kind != "observation" && body.note_kind != "act" {
+        return Err(AppError::ValidationError);
+    }
+    if body.text.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
+    // Stub chiffrement : préfixe "STUB_ENC:" pour que le ciphertext ≠ clair UTF-8
+    // tout en restant testable. Remplacé par AES-256-GCM + KMS Scaleway à NUB-T3.
+    let mut ciphertext: Vec<u8> = b"STUB_ENC:".to_vec();
+    ciphertext.extend_from_slice(body.text.as_bytes());
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le patient appartient au cabinet (RLS garantit le tenant).
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let row = sqlx::query(
+        "INSERT INTO clinical_note \
+         (cabinet_id, patient_id, author_id, content_ciphertext, content_key_ref, \
+          note_kind, tooth, act_ref) \
+         VALUES ($1, $2, $3, $4, 'stub-key-ref', $5, $6, $7) \
+         RETURNING id, created_at",
+    )
+    .bind(claims.cabinet_id)
+    .bind(patient_id)
+    .bind(claims.sub)
+    .bind(&ciphertext)
+    .bind(&body.note_kind)
+    .bind(body.tooth.as_deref())
+    .bind(body.act_ref.as_ref())
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let note_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        patient_id = %patient_id,
+        note_id = %note_id,
+        note_kind = %body.note_kind,
+        "clinical note added"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(AddClinicalNoteResponse {
+            note_id,
+            created_at: created_at.to_rfc3339(),
+        }),
     ))
 }

@@ -30,6 +30,28 @@ pub async fn refresh(
 ) -> Result<Json<LoginResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    // refresh_token a FORCE RLS token_user_select (app.current_user_id requis).
+    // On utilise refresh_token_owner() SECURITY DEFINER (migration 0066) pour
+    // bootstrapper le user_id sans GUC, comme dans logout.rs.
+    let token_hash_row =
+        sqlx::query("SELECT refresh_token_owner(encode(digest($1, 'sha256'), 'hex')) AS owner_id")
+            .bind(&body.refresh_token)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+    let user_id: Uuid = token_hash_row
+        .try_get::<Option<Uuid>, _>("owner_id")
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::Unauthenticated)?;
+
+    // Pose le GUC pour satisfaire token_user_select sur la lecture complète.
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // Cherche le token sans filtrer sur revoked_at/expires_at pour distinguer les cas.
     let row = sqlx::query(
         "SELECT app_user_id, revoked_at, expires_at FROM refresh_token \
@@ -41,19 +63,10 @@ pub async fn refresh(
     .map_err(|_| AppError::Internal)?;
 
     let row = row.ok_or(AppError::Unauthenticated)?;
-
-    let user_id: Uuid = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
     let revoked_at: Option<chrono::DateTime<Utc>> =
         row.try_get("revoked_at").map_err(|_| AppError::Internal)?;
     let expires_at: chrono::DateTime<Utc> =
         row.try_get("expires_at").map_err(|_| AppError::Internal)?;
-
-    // refresh_token a FORCE RLS : token_user_update exige app.current_user_id.
-    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
-        .bind(user_id.to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
 
     if revoked_at.is_some() {
         // Replay détecté : révoque toute la chaîne active (vol de token présumé).
