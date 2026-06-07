@@ -1,7 +1,7 @@
 //! Handlers pour les RDV patient : liste, détail, création et check-in.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::{HeaderMap, StatusCode},
     Json,
 };
@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState,
+    AppState, JobDispatcher,
 };
 
 // ── Patch ────────────────────────────────────────────────────────────────────
@@ -1029,18 +1029,19 @@ pub async fn get_appointment_directions(
 /// Réponse de `POST /v1/appointments/:id/callback-request`.
 #[derive(Serialize)]
 pub struct CallbackRequestResponse {
-    pub appointment_id: Uuid,
-    pub callback_requested_at: String,
+    pub status: String,
 }
 
 /// `POST /v1/appointments/:id/callback-request` — patient demande un rappel téléphonique.
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
 /// Vérifie status IN ('requested','confirmed') → sinon `409 {"error":"invalid_status"}`.
-/// Idempotent : si une demande existe déjà, retourne le timestamp existant.
+/// Idempotent : si une demande existe déjà, retourne `callback_requested`.
 /// Audité (`callback_request`) dans `audit_log`.
+/// Notifie le cabinet via job apalis (stub pour MVP).
 pub async fn callback_appointment(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
 ) -> Result<Json<CallbackRequestResponse>, AppError> {
@@ -1075,12 +1076,11 @@ pub async fn callback_appointment(
         return Err(AppError::InvalidStatus);
     }
 
-    // Idempotent : si déjà demandé, retourne le timestamp existant sans ré-écrire.
-    if let Some(ts) = existing {
+    // Idempotent : si déjà demandé, retourne callback_requested sans ré-écrire.
+    if existing.is_some() {
         tx.commit().await.map_err(|_| AppError::Internal)?;
         return Ok(Json(CallbackRequestResponse {
-            appointment_id: id,
-            callback_requested_at: ts.to_rfc3339(),
+            status: "callback_requested".to_string(),
         }));
     }
 
@@ -1091,25 +1091,20 @@ pub async fn callback_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let updated = sqlx::query(
+    sqlx::query(
         "UPDATE appointment \
          SET callback_requested_at = now(), updated_at = now() \
-         WHERE id = $1 \
-         RETURNING callback_requested_at",
+         WHERE id = $1",
     )
     .bind(id)
-    .fetch_one(&mut *tx)
+    .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
-
-    let callback_requested_at: chrono::DateTime<chrono::Utc> = updated
-        .try_get("callback_requested_at")
-        .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO audit_log \
          (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
-         VALUES ($1, $2, 'patient', 'callback_request', 'appointment', $3)",
+         VALUES ($1, $2, 'patient', 'request_callback', 'appointment', $3)",
     )
     .bind(cabinet_id)
     .bind(claims.sub)
@@ -1120,6 +1115,8 @@ pub async fn callback_appointment(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
+    dispatcher.enqueue_notify_callback(id, cabinet_id);
+
     tracing::info!(
         account_id = %claims.account_id,
         appointment_id = %id,
@@ -1127,8 +1124,7 @@ pub async fn callback_appointment(
     );
 
     Ok(Json(CallbackRequestResponse {
-        appointment_id: id,
-        callback_requested_at: callback_requested_at.to_rfc3339(),
+        status: "callback_requested".to_string(),
     }))
 }
 
