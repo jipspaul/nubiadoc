@@ -10,6 +10,11 @@ use uuid::Uuid;
 
 use nubia_api::{app, AppState, StubMailer};
 
+async fn owner_pool() -> Option<PgPool> {
+    let url = std::env::var("DATABASE_URL").ok()?;
+    PgPool::connect(&url).await.ok()
+}
+
 async fn test_state() -> Option<AppState> {
     let url = std::env::var("APP_DATABASE_URL").ok()?;
     let pool = PgPool::connect(&url).await.ok()?;
@@ -25,17 +30,20 @@ async fn forgot_password_known_email_returns_204_and_sets_token() {
     let Some(state) = test_state().await else {
         return;
     };
+    let Some(owner_db) = owner_pool().await else {
+        return;
+    };
     let email = format!("reset_{}@test.local", Uuid::new_v4());
 
     sqlx::query(
         "INSERT INTO app_user (email, password_hash, kind) VALUES ($1, 'placeholder', 'patient')",
     )
     .bind(&email)
-    .execute(&state.db)
+    .execute(&owner_db)
     .await
     .expect("insert test user");
 
-    let response = app(state.clone())
+    let response = app(state)
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -51,7 +59,7 @@ async fn forgot_password_known_email_returns_204_and_sets_token() {
 
     let row = sqlx::query("SELECT password_reset_token FROM app_user WHERE email = $1")
         .bind(&email)
-        .fetch_one(&state.db)
+        .fetch_one(&owner_db)
         .await
         .expect("fetch user after forgot");
 
@@ -63,7 +71,7 @@ async fn forgot_password_known_email_returns_204_and_sets_token() {
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
-        .execute(&state.db)
+        .execute(&owner_db)
         .await
         .unwrap();
 }

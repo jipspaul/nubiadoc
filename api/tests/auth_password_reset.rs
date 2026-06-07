@@ -10,6 +10,11 @@ use uuid::Uuid;
 
 use nubia_api::{app, AppState, StubMailer};
 
+async fn owner_pool() -> Option<PgPool> {
+    let url = std::env::var("DATABASE_URL").ok()?;
+    PgPool::connect(&url).await.ok()
+}
+
 async fn test_state() -> Option<AppState> {
     let url = std::env::var("APP_DATABASE_URL").ok()?;
     let pool = PgPool::connect(&url).await.ok()?;
@@ -25,6 +30,9 @@ async fn reset_valid_token_returns_204_and_updates_password() {
     let Some(state) = test_state().await else {
         return;
     };
+    let Some(owner_db) = owner_pool().await else {
+        return;
+    };
     let email = format!("reset_ok_{}@test.local", Uuid::new_v4());
     let token = Uuid::new_v4().to_string();
 
@@ -36,11 +44,11 @@ async fn reset_valid_token_returns_204_and_updates_password() {
     )
     .bind(&email)
     .bind(&token)
-    .execute(&state.db)
+    .execute(&owner_db)
     .await
     .expect("insert test user");
 
-    let response = app(state.clone())
+    let response = app(state)
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -60,7 +68,7 @@ async fn reset_valid_token_returns_204_and_updates_password() {
     let row =
         sqlx::query("SELECT password_hash, password_reset_token FROM app_user WHERE email = $1")
             .bind(&email)
-            .fetch_one(&state.db)
+            .fetch_one(&owner_db)
             .await
             .expect("fetch user after reset");
 
@@ -75,7 +83,7 @@ async fn reset_valid_token_returns_204_and_updates_password() {
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
-        .execute(&state.db)
+        .execute(&owner_db)
         .await
         .unwrap();
 }
@@ -83,6 +91,9 @@ async fn reset_valid_token_returns_204_and_updates_password() {
 #[tokio::test]
 async fn reset_expired_token_returns_410_link_expired() {
     let Some(state) = test_state().await else {
+        return;
+    };
+    let Some(owner_db) = owner_pool().await else {
         return;
     };
     let email = format!("reset_exp_{}@test.local", Uuid::new_v4());
@@ -96,11 +107,11 @@ async fn reset_expired_token_returns_410_link_expired() {
     )
     .bind(&email)
     .bind(&token)
-    .execute(&state.db)
+    .execute(&owner_db)
     .await
     .expect("insert test user");
 
-    let response = app(state.clone())
+    let response = app(state)
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -125,7 +136,7 @@ async fn reset_expired_token_returns_410_link_expired() {
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
-        .execute(&state.db)
+        .execute(&owner_db)
         .await
         .unwrap();
 }

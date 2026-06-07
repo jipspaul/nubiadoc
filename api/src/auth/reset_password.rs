@@ -34,15 +34,37 @@ pub async fn reset_password(
         return Err(AppError::PasswordPolicy);
     }
 
+    // Calcule le hash du token pour la recherche ET pour le GUC (migration 0079).
+    // Pose app.current_reset_token_hash pour satisfaire user_reset_token_select.
+    let token_hash = {
+        let mut auth_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        let h_row = sqlx::query("SELECT encode(digest($1, 'sha256'), 'hex') AS h")
+            .bind(&body.token)
+            .fetch_one(&mut *auth_tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        let _ = auth_tx.rollback().await;
+        h_row
+            .try_get::<String, _>("h")
+            .map_err(|_| AppError::Internal)?
+    };
+
     // Recherche le token sans filtrer sur l'expiration pour distinguer les cas.
+    let mut auth_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_reset_token_hash', $1, true)")
+        .bind(&token_hash)
+        .execute(&mut *auth_tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
     let row = sqlx::query(
         "SELECT id, password_reset_expires_at FROM app_user \
-         WHERE password_reset_token = encode(digest($1, 'sha256'), 'hex')",
+         WHERE password_reset_token = $1",
     )
-    .bind(&body.token)
-    .fetch_optional(&state.db)
+    .bind(&token_hash)
+    .fetch_optional(&mut *auth_tx)
     .await
     .map_err(|_| AppError::Internal)?;
+    let _ = auth_tx.rollback().await;
 
     let row = row.ok_or(AppError::NotFound)?;
 

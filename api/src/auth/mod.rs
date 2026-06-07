@@ -3365,10 +3365,11 @@ pub async fn pro_verification(
     }
 
     let verification_row = sqlx::query(
-        "INSERT INTO provider_verification (provider_id, identifier, id_type) \
-         VALUES ($1, $2, $3) RETURNING id",
+        "INSERT INTO provider_verification (provider_id, cabinet_id, identifier, id_type) \
+         VALUES ($1, $2, $3, $4) RETURNING id",
     )
     .bind(provider_id)
+    .bind(claims.cabinet_id)
     .bind(&body.identifier)
     .bind(&body.id_type)
     .fetch_one(&mut *tx)
