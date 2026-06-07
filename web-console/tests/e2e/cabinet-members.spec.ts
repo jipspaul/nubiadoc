@@ -33,6 +33,23 @@ test('happy path — GET 200 liste les membres du cabinet', async ({ page }) => 
   await expect(page.locator('#list-result')).toContainText('dr.dupont@cabinet.fr');
 });
 
+test('error path — GET 403 forbidden affiché pour un non-admin (secrétaire)', async ({ page }) => {
+  await page.route('**/v1/cabinet/members', (route) => {
+    if (route.request().method() !== 'GET') { route.continue(); return; }
+    route.fulfill({
+      status: 403,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'forbidden' }),
+    });
+  });
+
+  await page.goto('/cabinet/members');
+  await page.locator('#members-list-form input[name="access_token"]').fill('secretary-token');
+  await page.locator('#members-list-form button[type="submit"]').click();
+  await expect(page.locator('#list-result')).toContainText('HTTP 403', { timeout: 5000 });
+  await expect(page.locator('#list-result')).toContainText('forbidden');
+});
+
 test('error path — POST 409 email déjà utilisé affiché dans le résultat', async ({ page }) => {
   await page.route('**/v1/cabinet/members', (route) => {
     if (route.request().method() !== 'POST') { route.continue(); return; }
