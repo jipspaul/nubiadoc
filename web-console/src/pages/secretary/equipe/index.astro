@@ -1,0 +1,316 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const jwt = Astro.cookies.get('nubia_jwt')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+---
+<AppShell title="Équipe — Espace secrétaire" role="secretary">
+  <header>
+    <h1>Membres du cabinet</h1>
+    <p>Gestion des collaborateurs : inviter, modifier un rôle ou supprimer un accès.</p>
+  </header>
+
+  <section aria-labelledby="invite-heading">
+    <h2 id="invite-heading">Inviter un membre</h2>
+    <form id="invite-form" novalidate>
+      <div class="form-row">
+        <label for="invite-email">Adresse e-mail</label>
+        <input id="invite-email" name="email" type="email" required autocomplete="off" placeholder="prenom.nom@cabinet.fr" />
+      </div>
+      <div class="form-row">
+        <label for="invite-role">Rôle</label>
+        <select id="invite-role" name="role" required>
+          <option value="">— Choisir —</option>
+          <option value="secretary">Secrétaire</option>
+          <option value="practitioner">Praticien</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-primary">Inviter</button>
+      <p id="invite-status" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section aria-labelledby="members-heading">
+    <h2 id="members-heading">Liste des membres</h2>
+    <div id="members-status" role="status" aria-live="polite"></div>
+    <table id="members-table" hidden aria-label="Membres du cabinet">
+      <thead>
+        <tr>
+          <th scope="col">Utilisateur</th>
+          <th scope="col">Rôle</th>
+          <th scope="col">Statut</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="members-tbody"></tbody>
+    </table>
+    <p id="members-empty" hidden>Aucun membre trouvé.</p>
+  </section>
+</AppShell>
+
+<style>
+  h1 { margin-bottom: 0.25rem; }
+  h1 + p { color: var(--color-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-6); }
+
+  section { margin-bottom: var(--space-8); }
+  h2 { margin-bottom: var(--space-4); }
+
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-bottom: var(--space-3);
+    max-width: 360px;
+  }
+  label { font-size: var(--font-size-sm); font-weight: 600; }
+  input, select {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  .btn-primary {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+
+  #invite-status {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+  }
+  #invite-status.success { color: var(--color-success, #16a34a); }
+  #invite-status.error   { color: var(--color-danger, #dc2626); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+  th, td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+  th { font-weight: 600; background: var(--color-surface); }
+  tr:hover td { background: var(--color-surface); }
+
+  #members-status {
+    margin-bottom: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+  #members-status.error { color: var(--color-danger, #dc2626); }
+
+  .role-select {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  .btn-danger {
+    padding: var(--space-1) var(--space-3);
+    background: transparent;
+    border: 1px solid var(--color-danger, #dc2626);
+    color: var(--color-danger, #dc2626);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+  }
+  .btn-danger:hover { background: var(--color-danger, #dc2626); color: #fff; }
+
+  .badge {
+    display: inline-block;
+    padding: 0.1em 0.5em;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+  }
+  .badge-active { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+  .badge-inactive { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+</style>
+
+<script>
+  import { proCabinet } from '../../../lib/endpoints.ts';
+  import type { CabinetMember } from '../../../lib/endpoints.ts';
+
+  const membersStatusEl  = document.getElementById('members-status') as HTMLElement;
+  const membersTableEl   = document.getElementById('members-table') as HTMLTableElement;
+  const membersTbodyEl   = document.getElementById('members-tbody') as HTMLTableSectionElement;
+  const membersEmptyEl   = document.getElementById('members-empty') as HTMLParagraphElement;
+  const inviteForm       = document.getElementById('invite-form') as HTMLFormElement;
+  const inviteStatusEl   = document.getElementById('invite-status') as HTMLParagraphElement;
+
+  const ROLE_LABELS: Record<string, string> = {
+    admin: 'Admin',
+    practitioner: 'Praticien',
+    secretary: 'Secrétaire',
+  };
+
+  function buildRow(member: CabinetMember): HTMLTableRowElement {
+    const tr = document.createElement('tr');
+    tr.dataset['userId'] = member.user_id;
+
+    const roleOptions = (['practitioner', 'secretary'] as const)
+      .map(r => `<option value="${r}"${member.role === r ? ' selected' : ''}>${ROLE_LABELS[r]}</option>`)
+      .join('');
+
+    tr.innerHTML = `
+      <td>${member.email ?? member.user_id}</td>
+      <td>
+        <select class="role-select" aria-label="Rôle de ${member.email ?? member.user_id}" data-user-id="${member.user_id}">
+          ${roleOptions}
+        </select>
+      </td>
+      <td>
+        <span class="badge ${member.active !== false ? 'badge-active' : 'badge-inactive'}">
+          ${member.active !== false ? 'Actif' : 'Inactif'}
+        </span>
+      </td>
+      <td>
+        <button type="button" class="btn-danger" data-delete="${member.user_id}" aria-label="Supprimer ${member.email ?? member.user_id}">
+          Supprimer
+        </button>
+      </td>
+    `;
+    return tr;
+  }
+
+  async function loadMembers(): Promise<void> {
+    membersStatusEl.textContent = 'Chargement…';
+    membersStatusEl.className = '';
+    membersTbodyEl.innerHTML = '';
+    membersTableEl.hidden = true;
+    membersEmptyEl.hidden = true;
+
+    const { status, data } = await proCabinet.getMembers();
+
+    if (status === 401) {
+      window.location.href = '/auth/login?next=/secretary/equipe';
+      return;
+    }
+    if (status === 403) {
+      membersStatusEl.textContent = 'Accès refusé (403). Ce compte n\'a pas les droits requis.';
+      membersStatusEl.className = 'error';
+      return;
+    }
+    if (status !== 200) {
+      membersStatusEl.textContent = `Erreur serveur (HTTP ${status}).`;
+      membersStatusEl.className = 'error';
+      return;
+    }
+
+    const members = data as CabinetMember[];
+    membersStatusEl.textContent = '';
+
+    if (!members || members.length === 0) {
+      membersEmptyEl.hidden = false;
+      return;
+    }
+
+    for (const m of members) {
+      membersTbodyEl.appendChild(buildRow(m));
+    }
+    membersTableEl.hidden = false;
+  }
+
+  // PATCH role on change
+  membersTbodyEl.addEventListener('change', async (e: Event) => {
+    const select = e.target as HTMLSelectElement;
+    if (!select.classList.contains('role-select')) return;
+    const userId = select.dataset['userId'];
+    if (!userId) return;
+
+    select.disabled = true;
+    const newRole = select.value as CabinetMember['role'];
+    const { status } = await proCabinet.patchMember(userId, { role: newRole });
+    select.disabled = false;
+
+    if (status !== 200) {
+      alert(`Erreur lors de la modification du rôle (HTTP ${status}).`);
+      void loadMembers();
+    }
+  });
+
+  // DELETE member
+  membersTbodyEl.addEventListener('click', async (e: Event) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-delete]');
+    if (!btn) return;
+    const userId = btn.dataset['delete'];
+    if (!userId) return;
+
+    if (!confirm('Supprimer ce membre du cabinet ?')) return;
+
+    btn.disabled = true;
+    const { status } = await proCabinet.deleteMember(userId);
+
+    if (status === 200 || status === 204) {
+      const row = membersTbodyEl.querySelector(`tr[data-user-id="${userId}"]`);
+      row?.remove();
+      if (membersTbodyEl.rows.length === 0) {
+        membersTableEl.hidden = true;
+        membersEmptyEl.hidden = false;
+      }
+    } else {
+      alert(`Erreur lors de la suppression (HTTP ${status}).`);
+      btn.disabled = false;
+    }
+  });
+
+  // POST invite
+  inviteForm.addEventListener('submit', async (e: Event) => {
+    e.preventDefault();
+    const emailInput = document.getElementById('invite-email') as HTMLInputElement;
+    const roleSelect = document.getElementById('invite-role') as HTMLSelectElement;
+
+    const email = emailInput.value.trim();
+    const role = roleSelect.value as 'practitioner' | 'secretary' | '';
+
+    if (!email || !role) {
+      inviteStatusEl.textContent = 'Veuillez remplir tous les champs.';
+      inviteStatusEl.className = 'error';
+      return;
+    }
+
+    inviteStatusEl.textContent = 'Envoi…';
+    inviteStatusEl.className = '';
+
+    const { status, data } = await proCabinet.postMember({ email, role });
+
+    if (status === 201 || status === 200) {
+      inviteStatusEl.textContent = 'Membre invité avec succès.';
+      inviteStatusEl.className = 'success';
+      emailInput.value = '';
+      roleSelect.value = '';
+      const newMember = data as CabinetMember;
+      membersTbodyEl.appendChild(buildRow(newMember));
+      membersTableEl.hidden = false;
+      membersEmptyEl.hidden = true;
+    } else if (status === 409) {
+      inviteStatusEl.textContent = 'Cet email est déjà membre du cabinet.';
+      inviteStatusEl.className = 'error';
+    } else {
+      inviteStatusEl.textContent = `Erreur lors de l'invitation (HTTP ${status}).`;
+      inviteStatusEl.className = 'error';
+    }
+  });
+
+  void loadMembers();
+</script>
