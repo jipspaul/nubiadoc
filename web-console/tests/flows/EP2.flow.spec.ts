@@ -46,8 +46,37 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
   const firstCard = page.locator('#providers-list .provider-card').first();
   await expect(firstCard).toBeVisible({ timeout: 10_000 });
 
+  // ── 5.a. GET /v1/search/providers?q=dentiste → 200 ──────────────────────
+  const searchApiStatus = await page.evaluate(
+    async ({ apiBase }: { apiBase: string }) => {
+      const resp = await fetch(
+        `${apiBase}/v1/search/providers?q=${encodeURIComponent('dentiste')}`,
+      );
+      return resp.status;
+    },
+    { apiBase: API_BASE },
+  );
+  expect(searchApiStatus).toBe(200);
+
   // ── 5. Naviguer vers le profil du premier praticien ───────────────────────
   const profileLink = firstCard.locator('a.btn-secondary');
+
+  // Récupérer l'id praticien depuis le href avant de cliquer
+  const profileHref = await profileLink.getAttribute('href');
+  expect(profileHref).toBeTruthy();
+  const profileProviderId = (profileHref as string).split('/').pop() ?? '';
+  expect(profileProviderId).not.toBe('');
+
+  // GET /v1/providers/:id → 200 ──────────────────────────────────────────────
+  const providerApiStatus = await page.evaluate(
+    async ({ apiBase, pid }: { apiBase: string; pid: string }) => {
+      const resp = await fetch(`${apiBase}/v1/providers/${pid}`);
+      return resp.status;
+    },
+    { apiBase: API_BASE, pid: profileProviderId },
+  );
+  expect(providerApiStatus).toBe(200);
+
   await profileLink.click();
 
   // ── 6. Page profil praticien (/search/providers/{id}) ────────────────────
@@ -75,6 +104,17 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
   const providerId = slotUrl.searchParams.get('provider_id') ?? '';
   expect(slotId).not.toBe('');
   expect(providerId).not.toBe('');
+
+  // ── 7.a GET /v1/search/slots?provider_id=… → 200 ─────────────────────────
+  const slotsApiStatus = await page.evaluate(
+    async ({ apiBase, pid }: { apiBase: string; pid: string }) => {
+      const url = `${apiBase}/v1/search/slots?${new URLSearchParams({ provider_id: pid }).toString()}`;
+      const resp = await fetch(url);
+      return resp.status;
+    },
+    { apiBase: API_BASE, pid: providerId },
+  );
+  expect(slotsApiStatus).toBe(200);
 
   // ── 8. POST /v1/appointments → 201 avec un id ─────────────────────────────
   const { postStatus, appointmentId } = await page.evaluate(
