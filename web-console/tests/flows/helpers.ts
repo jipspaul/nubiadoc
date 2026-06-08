@@ -12,8 +12,10 @@ const SEED_ACCOUNTS: Record<Role, { email: string; password: string }> = {
  * Navigates to /auth/login and submits seed credentials for the given role.
  * After login, `nubia_jwt` cookie is set and the page is redirected to the
  * role-appropriate dashboard.
+ *
+ * Returns the JWT token stored in localStorage after successful login.
  */
-export async function loginAs(page: Page, role: Role): Promise<void> {
+export async function loginAs(page: Page, role: Role): Promise<string> {
   const { email, password } = SEED_ACCOUNTS[role];
   await page.goto('/auth/login');
   await page.locator('input[name="email"]').fill(email);
@@ -21,6 +23,8 @@ export async function loginAs(page: Page, role: Role): Promise<void> {
   await page.locator('form#login-form button[type="submit"]').click();
   // Wait for redirect away from /auth/login (successful login)
   await page.waitForURL((url) => !url.pathname.startsWith('/auth/login'), { timeout: 10_000 });
+  const token = await page.evaluate(() => localStorage.getItem('nubia_jwt') ?? '');
+  return token;
 }
 
 /**
