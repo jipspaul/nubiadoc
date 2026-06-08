@@ -1,0 +1,136 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'practitioner' && role !== 'admin') {
+  return new Response('Accès interdit', { status: 403 });
+}
+---
+<AppShell title="Patients — Espace praticien" role="practitioner">
+  <header>
+    <h1>Patients du cabinet</h1>
+    <p>Liste paginée des patients suivis. Cliquez sur un patient pour accéder à son dossier.</p>
+  </header>
+
+  <!-- ── Liste patients — GET /v1/cabinet/patients ────────────────────── -->
+  <section aria-labelledby="h-patients">
+    <h2 id="h-patients">Liste des patients</h2>
+    <div id="patients-status" role="status" aria-live="polite"></div>
+    <div id="patients-container">
+      <table id="patients-table" hidden aria-label="Patients du cabinet">
+        <thead>
+          <tr>
+            <th scope="col">Nom</th>
+            <th scope="col">Prénom</th>
+            <th scope="col">Date de naissance</th>
+            <th scope="col">Dernière visite</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="patients-tbody"></tbody>
+      </table>
+      <p id="patients-empty" hidden class="empty-hint">Aucun patient enregistré.</p>
+    </div>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+  }
+
+  h2 { margin: 0 0 var(--space-4); font-size: var(--font-size-base); font-weight: 600; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+
+  th, td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  th { color: var(--color-muted); font-weight: 600; background: var(--color-surface); }
+
+  tr:hover td { background: var(--color-surface); }
+  tr:last-child td { border-bottom: none; }
+
+  .patient-link {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .patient-link:hover { text-decoration: underline; }
+
+  .empty-hint { color: var(--color-muted); font-size: var(--font-size-sm); margin: 0; padding: var(--space-4) 0; }
+
+  #patients-status { margin-bottom: var(--space-3); font-size: var(--font-size-sm); color: var(--color-muted); }
+  #patients-status.error { color: var(--color-error-fg); }
+</style>
+
+<script>
+  import { proPatients } from '../../../lib/endpoints.ts';
+  import type { CabinetPatient } from '../../../lib/endpoints.ts';
+
+  const statusEl = document.getElementById('patients-status') as HTMLElement;
+  const tableEl  = document.getElementById('patients-table')  as HTMLTableElement;
+  const tbodyEl  = document.getElementById('patients-tbody')  as HTMLTableSectionElement;
+  const emptyEl  = document.getElementById('patients-empty')  as HTMLElement;
+
+  async function loadPatients(): Promise<void> {
+    statusEl.textContent = 'Chargement…';
+    statusEl.className = '';
+
+    try {
+      const { status, data } = await proPatients.list();
+
+      if (status === 401) { window.location.href = '/auth/login?next=/praticien/patients'; return; }
+      if (status === 403) { statusEl.textContent = 'Accès refusé (403).'; statusEl.className = 'error'; return; }
+      if (status !== 200) { statusEl.textContent = `Erreur serveur (HTTP ${status}).`; statusEl.className = 'error'; return; }
+
+      const patients = (data as CabinetPatient[]) ?? [];
+      statusEl.textContent = '';
+
+      if (patients.length === 0) {
+        emptyEl.hidden = false;
+        return;
+      }
+
+      for (const p of patients) {
+        const tr = document.createElement('tr');
+        const dob = p.date_of_birth
+          ? new Date(p.date_of_birth).toLocaleDateString('fr-FR')
+          : '—';
+        tr.innerHTML = `
+          <td>${p.last_name ?? '—'}</td>
+          <td>${p.first_name ?? '—'}</td>
+          <td>${dob}</td>
+          <td>—</td>
+          <td><a class="patient-link" href="/praticien/patients/${p.id}">Dossier</a></td>
+        `;
+        tbodyEl.appendChild(tr);
+      }
+
+      tableEl.hidden = false;
+    } catch (err) {
+      statusEl.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      statusEl.className = 'error';
+    }
+  }
+
+  void loadPatients();
+</script>
