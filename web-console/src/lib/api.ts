@@ -20,6 +20,7 @@ function purgeSession(): void {
   localStorage.removeItem(REFRESH_KEY);
   document.cookie = `${JWT_KEY}=; path=/; max-age=0`;
   document.cookie = `nubia_role=; path=/; max-age=0`;
+  document.cookie = `nubia_ctx=; path=/; max-age=0`;
 }
 
 async function refreshTokens(): Promise<boolean> {
