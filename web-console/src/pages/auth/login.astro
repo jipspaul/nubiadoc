@@ -66,9 +66,13 @@ import Default from '../../layouts/Default.astro';
       });
 
       if (status === 200) {
-        const tokens = data as { access_token: string; refresh_token: string; token_type: string; expires_in: number };
+        const tokens = data as { access_token: string; refresh_token: string; token_type: string; expires_in: number; context_required?: boolean };
         login(tokens.access_token);
-        window.location.href = '/app';
+        if (tokens.context_required) {
+          window.location.href = '/auth/select-context';
+        } else {
+          window.location.href = '/app';
+        }
         return;
       } else if (status === 401) {
         const errData = data as Record<string, unknown> | null;
