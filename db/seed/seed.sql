@@ -380,6 +380,36 @@ INSERT INTO provider_secretariat (id, provider_id, secretariat_id, active) VALUE
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================================
+-- Membres de secrétariat supplémentaires (issue #1200 — P11)
+-- Deux nouvelles secrétaires : lea (a10) et marie (a11).
+-- UUID préfixe 12000000.
+-- =====================================================================
+INSERT INTO app_user (id, email, password_hash, kind) VALUES
+  ('a0000000-0000-0000-0000-000000000010', 'lea.secretaire@cabinet-lyon.test',
+   'SEED_PLACEHOLDER', 'pro'),
+  ('a0000000-0000-0000-0000-000000000011', 'marie.secretaire@cabinet-lyon.test',
+   'SEED_PLACEHOLDER', 'pro')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO cabinet_membership (id, cabinet_id, user_id, role, active) VALUES
+  ('b0000000-0000-0000-0000-0000000000b5','11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000010','secretary', true),
+  ('b0000000-0000-0000-0000-0000000000b6','11111111-1111-1111-1111-111111111111','a0000000-0000-0000-0000-000000000011','secretary', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO secretariat_membership (id, cabinet_id, secretariat_id, user_id, role, active) VALUES
+  ('12000000-0000-0000-0000-000000000002',
+   '11111111-1111-1111-1111-111111111111',
+   '19870000-0000-0000-0000-000000000001',
+   'a0000000-0000-0000-0000-000000000010',
+   'secretary', true),
+  ('12000000-0000-0000-0000-000000000003',
+   '11111111-1111-1111-1111-111111111111',
+   '19870000-0000-0000-0000-000000000001',
+   'a0000000-0000-0000-0000-000000000011',
+   'secretary', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================================
 -- Rappels RDV (issue #1142 — P8 seed engagement, W27)
 -- 1 rappel lié au RDV de Marc Dubois (appointment aa…001, patient d1, P5)
 -- =====================================================================
