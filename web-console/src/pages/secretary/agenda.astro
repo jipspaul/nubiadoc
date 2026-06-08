@@ -1,0 +1,400 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'secretary' && role !== 'admin') {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+---
+<AppShell title="Agenda — Espace secrétaire" role="secretary">
+  <header>
+    <h1>Agenda — gestion des RDV et créneaux</h1>
+    <p>Réservé aux rôles <code>secretary</code> / <code>admin</code>. Données filtrées par secrétariat actif.</p>
+  </header>
+
+  <!-- ── 1. POST /v1/cabinet/appointments/:id/confirm ─────────────────── -->
+  <section aria-labelledby="h-confirm">
+    <h2 id="h-confirm">Confirmer un RDV — <code>POST …/appointments/:id/confirm</code></h2>
+    <form id="form-confirm" method="dialog">
+      <label>
+        ID du RDV <span aria-hidden="true">*</span>
+        <input type="text" name="appointment_id" required placeholder="uuid" />
+      </label>
+      <button type="submit">Confirmer</button>
+    </form>
+    <p id="badge-confirm" aria-live="polite"></p>
+    <pre id="result-confirm" aria-label="Résultat POST confirm"></pre>
+  </section>
+
+  <!-- ── 2. PATCH /v1/cabinet/appointments/:id ────────────────────────── -->
+  <section aria-labelledby="h-patch-appt">
+    <h2 id="h-patch-appt">Modifier un RDV — <code>PATCH …/appointments/:id</code></h2>
+    <form id="form-patch-appt" method="dialog">
+      <label>
+        ID du RDV <span aria-hidden="true">*</span>
+        <input type="text" name="appointment_id" required placeholder="uuid" />
+      </label>
+      <label>
+        Nouvelle date/heure (optionnel)
+        <input type="datetime-local" name="scheduled_at" />
+      </label>
+      <label>
+        Notes (optionnel)
+        <input type="text" name="notes" placeholder="commentaire…" />
+      </label>
+      <button type="submit">Modifier</button>
+    </form>
+    <p id="badge-patch-appt" aria-live="polite"></p>
+    <pre id="result-patch-appt" aria-label="Résultat PATCH appointment"></pre>
+  </section>
+
+  <!-- ── 3. POST /v1/cabinet/slots ────────────────────────────────────── -->
+  <section aria-labelledby="h-create-slot">
+    <h2 id="h-create-slot">Créer un créneau — <code>POST /v1/cabinet/slots</code></h2>
+    <form id="form-create-slot" method="dialog">
+      <label>
+        Début <span aria-hidden="true">*</span>
+        <input type="datetime-local" name="starts_at" required />
+      </label>
+      <label>
+        Durée (minutes) <span aria-hidden="true">*</span>
+        <input type="number" name="duration_minutes" required min="5" step="5" placeholder="30" />
+      </label>
+      <label>
+        <input type="checkbox" name="online" value="true" />
+        Exposer en ligne
+      </label>
+      <button type="submit">Créer</button>
+    </form>
+    <p id="badge-create-slot" aria-live="polite"></p>
+    <pre id="result-create-slot" aria-label="Résultat POST slots"></pre>
+  </section>
+
+  <!-- ── 4. PATCH /v1/cabinet/slots/:id ───────────────────────────────── -->
+  <section aria-labelledby="h-patch-slot">
+    <h2 id="h-patch-slot">Modifier un créneau — <code>PATCH /v1/cabinet/slots/:id</code></h2>
+    <form id="form-patch-slot" method="dialog">
+      <label>
+        ID du créneau <span aria-hidden="true">*</span>
+        <input type="text" name="slot_id" required placeholder="uuid" />
+      </label>
+      <label>
+        Nouveau début (optionnel)
+        <input type="datetime-local" name="starts_at" />
+      </label>
+      <label>
+        Nouvelle durée en minutes (optionnel)
+        <input type="number" name="duration_minutes" min="5" step="5" />
+      </label>
+      <button type="submit">Modifier</button>
+    </form>
+    <p id="badge-patch-slot" aria-live="polite"></p>
+    <pre id="result-patch-slot" aria-label="Résultat PATCH slot"></pre>
+  </section>
+
+  <!-- ── 5. DELETE /v1/cabinet/slots/:id ──────────────────────────────── -->
+  <section aria-labelledby="h-delete-slot">
+    <h2 id="h-delete-slot">Supprimer un créneau — <code>DELETE /v1/cabinet/slots/:id</code></h2>
+    <form id="form-delete-slot" method="dialog">
+      <label>
+        ID du créneau <span aria-hidden="true">*</span>
+        <input type="text" name="slot_id" required placeholder="uuid" />
+      </label>
+      <button type="submit" class="btn-danger">Supprimer</button>
+    </form>
+    <p id="badge-delete-slot" aria-live="polite"></p>
+    <pre id="result-delete-slot" aria-label="Résultat DELETE slot"></pre>
+  </section>
+
+  <!-- ── 6. PUT /v1/cabinet/slots/:id/online ──────────────────────────── -->
+  <section aria-labelledby="h-online">
+    <h2 id="h-online">Créneau en ligne — <code>PUT /v1/cabinet/slots/:id/online</code></h2>
+    <form id="form-online" method="dialog">
+      <label>
+        ID du créneau <span aria-hidden="true">*</span>
+        <input type="text" name="slot_id" required placeholder="uuid" />
+      </label>
+      <fieldset>
+        <legend>Exposé en ligne</legend>
+        <label>
+          <input type="radio" name="online" value="true" required /> Activer
+        </label>
+        <label>
+          <input type="radio" name="online" value="false" required /> Désactiver
+        </label>
+      </fieldset>
+      <button type="submit">Mettre à jour</button>
+    </form>
+    <p id="badge-online" aria-live="polite"></p>
+    <pre id="result-online" aria-label="Résultat PUT slot online"></pre>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    max-width: 520px;
+    margin-bottom: var(--space-6);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-size-base);
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="datetime-local"] {
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    width: 100%;
+  }
+
+  label:has(input[type="checkbox"]) {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  legend { font-size: var(--font-size-sm); font-weight: 600; padding: 0 var(--space-1); }
+
+  fieldset label {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  button[type="submit"] {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    align-self: flex-start;
+  }
+
+  button[type="submit"]:hover { opacity: 0.9; }
+
+  button.btn-danger {
+    background: var(--color-error);
+    color: var(--color-error-fg);
+  }
+
+  pre {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    white-space: pre-wrap;
+    font-size: var(--font-size-sm);
+    min-height: 2.5rem;
+  }
+
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+
+  .badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .badge-ok  { background: #166534; color: #bbf7d0; }
+  .badge-err { background: #7f1d1d; color: #fecaca; }
+</style>
+
+<script>
+  import { proAgenda } from '../../lib/endpoints.ts';
+  import type { Appointment, Slot } from '../../lib/endpoints.ts';
+
+  function showResult(
+    resultEl: HTMLPreElement,
+    badgeEl: HTMLParagraphElement,
+    httpStatus: number,
+    data: unknown,
+  ): void {
+    resultEl.className = httpStatus < 300 ? 'success' : 'error';
+    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+  }
+
+  // ── 1. POST /v1/cabinet/appointments/:id/confirm ──────────────────────
+  const formConfirm  = document.getElementById('form-confirm')  as HTMLFormElement;
+  const resultConfirm = document.getElementById('result-confirm') as HTMLPreElement;
+  const badgeConfirm  = document.getElementById('badge-confirm')  as HTMLParagraphElement;
+
+  formConfirm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formConfirm);
+    const id = fd.get('appointment_id') as string;
+    resultConfirm.className = '';
+    resultConfirm.textContent = 'Chargement…';
+    try {
+      const { status, data } = await proAgenda.confirmAppointment(id);
+      showResult(resultConfirm, badgeConfirm, status, data);
+    } catch (err) {
+      resultConfirm.className = 'error';
+      resultConfirm.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── 2. PATCH /v1/cabinet/appointments/:id ────────────────────────────
+  const formPatchAppt  = document.getElementById('form-patch-appt')  as HTMLFormElement;
+  const resultPatchAppt = document.getElementById('result-patch-appt') as HTMLPreElement;
+  const badgePatchAppt  = document.getElementById('badge-patch-appt')  as HTMLParagraphElement;
+
+  formPatchAppt.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formPatchAppt);
+    const id = fd.get('appointment_id') as string;
+    const body: Partial<Appointment> = {};
+    const scheduledAt = fd.get('scheduled_at') as string;
+    const notes = fd.get('notes') as string;
+    if (scheduledAt) body.scheduled_at = new Date(scheduledAt).toISOString();
+    if (notes) body.notes = notes;
+    resultPatchAppt.className = '';
+    resultPatchAppt.textContent = 'Chargement…';
+    try {
+      const { status, data } = await proAgenda.patchAppointment(id, body);
+      showResult(resultPatchAppt, badgePatchAppt, status, data);
+    } catch (err) {
+      resultPatchAppt.className = 'error';
+      resultPatchAppt.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── 3. POST /v1/cabinet/slots ─────────────────────────────────────────
+  const formCreateSlot  = document.getElementById('form-create-slot')  as HTMLFormElement;
+  const resultCreateSlot = document.getElementById('result-create-slot') as HTMLPreElement;
+  const badgeCreateSlot  = document.getElementById('badge-create-slot')  as HTMLParagraphElement;
+
+  formCreateSlot.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formCreateSlot);
+    const starts_at = new Date(fd.get('starts_at') as string).toISOString();
+    const duration_minutes = Number(fd.get('duration_minutes'));
+    const online = fd.get('online') === 'true';
+    resultCreateSlot.className = '';
+    resultCreateSlot.textContent = 'Chargement…';
+    try {
+      const { status, data } = await proAgenda.postSlot({ starts_at, duration_minutes, online });
+      showResult(resultCreateSlot, badgeCreateSlot, status, data);
+    } catch (err) {
+      resultCreateSlot.className = 'error';
+      resultCreateSlot.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── 4. PATCH /v1/cabinet/slots/:id ───────────────────────────────────
+  const formPatchSlot  = document.getElementById('form-patch-slot')  as HTMLFormElement;
+  const resultPatchSlot = document.getElementById('result-patch-slot') as HTMLPreElement;
+  const badgePatchSlot  = document.getElementById('badge-patch-slot')  as HTMLParagraphElement;
+
+  formPatchSlot.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formPatchSlot);
+    const id = fd.get('slot_id') as string;
+    const body: Partial<Slot> = {};
+    const starts_at = fd.get('starts_at') as string;
+    const duration_minutes = fd.get('duration_minutes') as string;
+    if (starts_at) body.starts_at = new Date(starts_at).toISOString();
+    if (duration_minutes) body.duration_minutes = Number(duration_minutes);
+    resultPatchSlot.className = '';
+    resultPatchSlot.textContent = 'Chargement…';
+    try {
+      const { status, data } = await proAgenda.patchSlot(id, body);
+      showResult(resultPatchSlot, badgePatchSlot, status, data);
+    } catch (err) {
+      resultPatchSlot.className = 'error';
+      resultPatchSlot.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── 5. DELETE /v1/cabinet/slots/:id ──────────────────────────────────
+  const formDeleteSlot  = document.getElementById('form-delete-slot')  as HTMLFormElement;
+  const resultDeleteSlot = document.getElementById('result-delete-slot') as HTMLPreElement;
+  const badgeDeleteSlot  = document.getElementById('badge-delete-slot')  as HTMLParagraphElement;
+
+  formDeleteSlot.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formDeleteSlot);
+    const id = fd.get('slot_id') as string;
+    resultDeleteSlot.className = '';
+    resultDeleteSlot.textContent = 'Chargement…';
+    try {
+      const { status, data } = await proAgenda.deleteSlot(id);
+      showResult(resultDeleteSlot, badgeDeleteSlot, status, data);
+    } catch (err) {
+      resultDeleteSlot.className = 'error';
+      resultDeleteSlot.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── 6. PUT /v1/cabinet/slots/:id/online ──────────────────────────────
+  const formOnline  = document.getElementById('form-online')  as HTMLFormElement;
+  const resultOnline = document.getElementById('result-online') as HTMLPreElement;
+  const badgeOnline  = document.getElementById('badge-online')  as HTMLParagraphElement;
+
+  formOnline.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formOnline);
+    const id = fd.get('slot_id') as string;
+    const online = fd.get('online') === 'true';
+    resultOnline.className = '';
+    resultOnline.textContent = 'Chargement…';
+    try {
+      const { status, data } = await proAgenda.setSlotOnline(id, { online });
+      showResult(resultOnline, badgeOnline, status, data);
+    } catch (err) {
+      resultOnline.className = 'error';
+      resultOnline.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>

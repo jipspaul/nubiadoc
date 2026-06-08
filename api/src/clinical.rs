@@ -111,11 +111,39 @@ pub async fn list_cabinet_patients(
     };
 
     // $1 = fetch_limit, $2 = search_pattern (NULL → no filter), $3/$4 = cursor (NULL → no cursor).
+    // R10 : secrétaires scopées — uniquement les patients ayant un RDV avec un praticien du secrétariat actif.
+    // $5 = secretariat_id (NULL pour les rôles non-secretary → pas de filtre).
+    let sec_clause = if claims.role == "secretary" {
+        if claims.secretariat_id.is_none() {
+            // Secrétaire sans secrétariat actif : aucun patient visible.
+            let tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+            tx.commit().await.map_err(|_| AppError::Internal)?;
+            return Ok(Json(ListPatientsResponse {
+                data: vec![],
+                page: PageInfo {
+                    next_cursor: None,
+                    limit,
+                },
+            }));
+        }
+        " AND EXISTS (\
+           SELECT 1 FROM appointment a \
+           JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+           JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+           WHERE a.patient_id = p.id \
+             AND a.deleted_at IS NULL \
+             AND ps.secretariat_id = $5 \
+             AND ps.active = true\
+         )"
+    } else {
+        ""
+    };
+
     let sql = format!(
         "SELECT p.id, p.first_name, p.last_name, p.birth_date, p.created_at \
          FROM patient p \
          WHERE p.deleted_at IS NULL\
-         {filter_clause} \
+         {filter_clause}{sec_clause} \
          AND ($2::text IS NULL OR p.first_name ILIKE $2 OR p.last_name ILIKE $2) \
          AND ($3::timestamptz IS NULL \
               OR p.created_at < $3 \
@@ -132,14 +160,27 @@ pub async fn list_cabinet_patients(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&sql)
-        .bind(fetch_limit)
-        .bind(search_pattern.as_deref())
-        .bind(cursor_at)
-        .bind(cursor_id)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    let rows = if claims.role == "secretary" {
+        // secretariat_id is guaranteed Some here (None case returned early above).
+        sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(search_pattern.as_deref())
+            .bind(cursor_at)
+            .bind(cursor_id)
+            .bind(claims.secretariat_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+    } else {
+        sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(search_pattern.as_deref())
+            .bind(cursor_at)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+    };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 

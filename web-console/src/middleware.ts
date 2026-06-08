@@ -35,5 +35,13 @@ export const onRequest = defineMiddleware(async ({ url, cookies, redirect }, nex
     }
   }
 
+  if (url.pathname === '/secretary' || url.pathname.startsWith('/secretary/')) {
+    const ctx = cookies.get('nubia_ctx')?.value ?? '';
+    const secretariatId = ctx.split('|')[2] ?? '';
+    if (!secretariatId) {
+      return redirect(`/auth/select-context?next=${encodeURIComponent(url.pathname)}`);
+    }
+  }
+
   return next();
 });

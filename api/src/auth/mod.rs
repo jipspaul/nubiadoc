@@ -8,6 +8,7 @@ pub mod mfa_verify;
 pub mod refresh;
 pub mod register;
 pub mod reset_password;
+pub mod select_context;
 
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
@@ -37,6 +38,8 @@ pub struct LoginResponse {
     refresh_token: String,
     token_type: String,
     expires_in: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_required: Option<bool>,
 }
 
 /// Sous-corps cabinet pour `POST /v1/pro/register`.
@@ -74,13 +77,15 @@ pub struct ProRegisterResponse {
     access_token: String,
 }
 
-/// Claims JWT émis par `POST /v1/pro/register` — porte `cabinet_id` + `role`.
+/// Claims JWT émis par `POST /v1/pro/register` — porte `cabinet_id` + `role` + `secretariat_id` optionnel.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ProRegisterClaims {
     sub: Uuid,
     kind: String,
     cabinet_id: Uuid,
     role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    secretariat_id: Option<Uuid>,
     exp: u64,
 }
 
@@ -128,6 +133,7 @@ pub(crate) enum AppError {
     AppointmentNotHonored,
     ReviewAlreadyExists,
     AlreadyOnWaitingList,
+    NoActiveMembership,
 }
 
 impl IntoResponse for AppError {
@@ -241,6 +247,11 @@ impl IntoResponse for AppError {
                 Json(json!({"code": "already_on_waiting_list"})),
             )
                 .into_response(),
+            AppError::NoActiveMembership => (
+                StatusCode::FORBIDDEN,
+                Json(json!({"error": "no_active_membership"})),
+            )
+                .into_response(),
         }
     }
 }
@@ -277,15 +288,13 @@ impl FromRequestParts<AppState> for ProClaims {
     }
 }
 
-/// Claims JWT pour `GET /v1/me` — accepte patient et pro, extrait `kind`, `account_id` et `cabinet_id`.
+/// Claims JWT pour `GET /v1/me` — accepte patient et pro, extrait `kind`, `account_id`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MeClaims {
     pub(crate) sub: Uuid,
     pub(crate) kind: String,
     /// Présent uniquement dans les tokens patient.
     pub(crate) account_id: Option<Uuid>,
-    /// Présent dans les tokens pro émis par `POST /v1/pro/register` (porte le cabinet_id).
-    pub(crate) cabinet_id: Option<Uuid>,
 }
 
 /// Appartenance à un cabinet.
@@ -293,6 +302,8 @@ pub(crate) struct MeClaims {
 pub struct CabinetMembership {
     cabinet_id: Uuid,
     role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    secretariat_id: Option<Uuid>,
 }
 
 /// Réponse de `GET /v1/me`.
@@ -331,38 +342,36 @@ pub async fn me(
 
     let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
 
-    // Interroge cabinet_membership si le token pro porte un cabinet_id.
+    // Pour les tokens pro (login ou register), retourne tous les memberships actifs
+    // via user_all_memberships() (SECURITY DEFINER — contourne la RLS cabinet-scoped).
     let memberships = if claims.kind == "pro" {
-        if let Some(cabinet_id) = claims.cabinet_id {
-            let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-            sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-                .bind(cabinet_id.to_string())
-                .execute(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
-            let rows = sqlx::query(
-                "SELECT cabinet_id, role FROM cabinet_membership \
-                 WHERE cabinet_id = $1 AND user_id = $2 AND active = true",
-            )
-            .bind(cabinet_id)
-            .bind(claims.sub)
-            .fetch_all(&mut *tx)
+        let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(claims.sub.to_string())
+            .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
-            tx.commit().await.map_err(|_| AppError::Internal)?;
-            rows.into_iter()
-                .map(|r| {
-                    let cid: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-                    let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
-                    Ok(CabinetMembership {
-                        cabinet_id: cid,
-                        role,
-                    })
+        let rows =
+            sqlx::query("SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1)")
+                .bind(claims.sub)
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        rows.into_iter()
+            .map(|r| {
+                let cid: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+                let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
+                let secretariat_id: Option<Uuid> = r
+                    .try_get("secretariat_id")
+                    .map_err(|_| AppError::Internal)?;
+                Ok(CabinetMembership {
+                    cabinet_id: cid,
+                    role,
+                    secretariat_id,
                 })
-                .collect::<Result<Vec<_>, AppError>>()?
-        } else {
-            vec![]
-        }
+            })
+            .collect::<Result<Vec<_>, AppError>>()?
     } else {
         vec![]
     };
@@ -530,6 +539,7 @@ pub async fn pro_register(
         kind: "pro".to_string(),
         cabinet_id,
         role: "admin".to_string(),
+        secretariat_id: None,
         exp,
     };
     let access_token = encode(
@@ -889,10 +899,10 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 /// `exp` absent du struct : validé par jsonwebtoken sur le JSON brut (`validate_exp = true`).
 #[derive(Debug, Deserialize)]
 pub(crate) struct ProAdminClaims {
-    sub: Uuid,
+    pub(crate) sub: Uuid,
     kind: String,
     /// `cabinet_id` porté par le token (jamais du body/query — invariant tenancy).
-    cabinet_id: Uuid,
+    pub(crate) cabinet_id: Uuid,
     role: String,
 }
 
@@ -924,6 +934,52 @@ impl FromRequestParts<AppState> for ProAdminClaims {
             return Err(AppError::Forbidden);
         }
         if claims.role != "admin" {
+            return Err(AppError::Forbidden);
+        }
+
+        Ok(claims)
+    }
+}
+
+/// Claims JWT pro avec rôle `admin` ou `manager` — pour R13 (provisionnement secrétaire).
+///
+/// Renvoie `403` si le rôle est `secretary` ou `practitioner`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct ProAdminOrManagerClaims {
+    pub(crate) sub: Uuid,
+    kind: String,
+    pub(crate) cabinet_id: Uuid,
+    role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for ProAdminOrManagerClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        let claims = decode::<ProAdminOrManagerClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if claims.kind != "pro" {
+            return Err(AppError::Forbidden);
+        }
+        if claims.role != "admin" && claims.role != "manager" {
             return Err(AppError::Forbidden);
         }
 
@@ -981,11 +1037,14 @@ impl FromRequestParts<AppState> for ProPractitionerClaims {
 ///
 /// Renvoie `401` si absent/invalide, `403` si `kind != "pro"`.
 /// `role` est exposé pour le cloisonnement clinique R.4127-72 (motif admin vs clinique).
+/// `secretariat_id` présent uniquement pour les secrétaires (R10 : filtrage scope secrétariat).
 #[derive(Debug, Deserialize)]
 pub(crate) struct ProSecretaryPlusClaims {
     pub(crate) sub: Uuid,
     pub(crate) cabinet_id: Uuid,
     pub(crate) role: String,
+    #[serde(default)]
+    pub(crate) secretariat_id: Option<Uuid>,
 }
 
 #[async_trait]

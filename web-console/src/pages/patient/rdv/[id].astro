@@ -1,0 +1,322 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const { id } = Astro.params;
+---
+<AppShell title="Détail rendez-vous — Nubia" role="patient">
+  <header>
+    <nav aria-label="Fil d'Ariane">
+      <a href="/patient/rdv">← Mes rendez-vous</a>
+    </nav>
+    <h1>Détail du rendez-vous</h1>
+  </header>
+
+  <section aria-labelledby="h-rdv-detail" id="rdv-detail-section">
+    <h2 id="h-rdv-detail" class="sr-only">Informations</h2>
+    <div id="rdv-loading" aria-live="polite">Chargement…</div>
+    <article id="rdv-card" hidden>
+      <dl class="rdv-fields">
+        <div class="field-row">
+          <dt>Date</dt>
+          <dd id="rdv-date">—</dd>
+        </div>
+        <div class="field-row">
+          <dt>Praticien</dt>
+          <dd id="rdv-provider">—</dd>
+        </div>
+        <div class="field-row">
+          <dt>Statut</dt>
+          <dd><span id="rdv-status-badge" class="badge">—</span></dd>
+        </div>
+        <div class="field-row" id="rdv-notes-row" hidden>
+          <dt>Notes</dt>
+          <dd id="rdv-notes">—</dd>
+        </div>
+      </dl>
+    </article>
+    <p id="rdv-error" hidden class="error-msg">Impossible de charger ce rendez-vous.</p>
+  </section>
+
+  <section aria-labelledby="h-actions" id="actions-section" hidden>
+    <h2 id="h-actions">Actions</h2>
+
+    <section aria-labelledby="h-modify" class="action-card">
+      <h3 id="h-modify">Modifier le rendez-vous</h3>
+      <form id="form-modify" novalidate>
+        <div class="form-group">
+          <label for="input-scheduled-at">Nouvelle date et heure</label>
+          <input type="datetime-local" id="input-scheduled-at" name="scheduled_at" required />
+        </div>
+        <div class="form-group">
+          <label for="input-notes">Notes (optionnel)</label>
+          <textarea id="input-notes" name="notes" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Enregistrer la modification</button>
+        <p id="msg-modify" class="action-msg" aria-live="polite" hidden></p>
+      </form>
+    </section>
+
+    <section aria-labelledby="h-cancel" class="action-card action-card--danger">
+      <h3 id="h-cancel">Annuler le rendez-vous</h3>
+      <p>Cette action est irréversible.</p>
+      <button type="button" id="btn-cancel" class="btn btn-danger">Annuler ce rendez-vous</button>
+      <p id="msg-cancel" class="action-msg" aria-live="polite" hidden></p>
+    </section>
+
+    <section aria-labelledby="h-checkin" class="action-card">
+      <h3 id="h-checkin">Check-in</h3>
+      <p>Signalez votre arrivée au cabinet.</p>
+      <button type="button" id="btn-checkin" class="btn btn-secondary">Effectuer le check-in</button>
+      <p id="msg-checkin" class="action-msg" aria-live="polite" hidden></p>
+    </section>
+
+    <section aria-labelledby="h-callback" class="action-card">
+      <h3 id="h-callback">Demande de rappel</h3>
+      <p>Demandez à être rappelé par le cabinet.</p>
+      <button type="button" id="btn-callback" class="btn btn-secondary">Demander un rappel</button>
+      <p id="msg-callback" class="action-msg" aria-live="polite" hidden></p>
+    </section>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  header nav { margin-bottom: var(--space-2); font-size: var(--font-size-sm); }
+  h1 { margin-bottom: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+
+  .rdv-fields {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+  .field-row { display: flex; gap: var(--space-3); }
+  .field-row dt { font-weight: 600; min-width: 8rem; color: var(--color-muted); }
+  .field-row dd { margin: 0; }
+
+  .badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: var(--space-1) var(--space-2);
+    border-radius: 9999px;
+    text-transform: capitalize;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+  .badge[data-status="confirmed"] { background: var(--color-accent); color: var(--color-accent-fg); border-color: var(--color-accent); }
+  .badge[data-status="pending"]   { background: transparent; color: var(--color-muted); }
+  .badge[data-status="completed"] { background: var(--color-border); color: var(--color-text); }
+  .badge[data-status="cancelled"] { background: var(--color-error); color: var(--color-error-fg); border-color: var(--color-error); }
+  .badge[data-status="checked_in"] { background: var(--color-accent); color: var(--color-accent-fg); border-color: var(--color-accent); }
+
+  #actions-section { margin-top: var(--space-8); }
+  #actions-section > h2 { font-size: var(--font-size-lg); margin-bottom: var(--space-4); }
+
+  .action-card {
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    margin-bottom: var(--space-4);
+  }
+  .action-card h3 { font-size: var(--font-size-base); margin-bottom: var(--space-2); }
+  .action-card p { color: var(--color-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-3); }
+  .action-card--danger { border-color: var(--color-error); }
+
+  .form-group { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }
+  .form-group label { font-size: var(--font-size-sm); font-weight: 600; }
+  .form-group input,
+  .form-group textarea {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+    width: 100%;
+    max-width: 24rem;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-primary { background: var(--color-accent); color: var(--color-accent-fg); }
+  .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
+  .btn-danger { background: var(--color-error); color: var(--color-error-fg); }
+
+  .action-msg { margin-top: var(--space-2); font-size: var(--font-size-sm); }
+  .action-msg.ok { color: var(--color-accent); }
+  .action-msg.err { color: var(--color-error); }
+
+  .error-msg { color: var(--color-error); }
+</style>
+
+<script define:vars={{ appointmentId: id }}>
+  import { patientAppointments, type Appointment } from '../../../lib/endpoints.ts';
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  function showMsg(el: HTMLElement, text: string, isOk: boolean): void {
+    el.textContent = text;
+    el.className = `action-msg ${isOk ? 'ok' : 'err'}`;
+    el.hidden = false;
+  }
+
+  const id = appointmentId as string;
+
+  const loadingEl  = document.getElementById('rdv-loading') as HTMLElement;
+  const cardEl     = document.getElementById('rdv-card') as HTMLElement;
+  const errorEl    = document.getElementById('rdv-error') as HTMLElement;
+  const actionsEl  = document.getElementById('actions-section') as HTMLElement;
+
+  const dateEl     = document.getElementById('rdv-date') as HTMLElement;
+  const providerEl = document.getElementById('rdv-provider') as HTMLElement;
+  const badgeEl    = document.getElementById('rdv-status-badge') as HTMLElement;
+  const notesRowEl = document.getElementById('rdv-notes-row') as HTMLElement;
+  const notesEl    = document.getElementById('rdv-notes') as HTMLElement;
+
+  // Load appointment
+  let appt: Appointment | null = null;
+  (async () => {
+    const res = await patientAppointments.get(id);
+    loadingEl.hidden = true;
+
+    if (res.status < 300 && res.data && typeof res.data === 'object') {
+      appt = res.data as Appointment;
+      dateEl.textContent     = formatDate(appt.scheduled_at);
+      providerEl.textContent = appt.provider_id ? `Praticien ${appt.provider_id}` : 'Praticien inconnu';
+      badgeEl.textContent    = appt.status ?? '';
+      badgeEl.setAttribute('data-status', appt.status ?? '');
+      if (appt.notes) {
+        notesEl.textContent = appt.notes;
+        notesRowEl.hidden = false;
+      }
+      cardEl.hidden = false;
+      actionsEl.hidden = false;
+
+      // Pre-fill the modify form with current scheduled_at
+      const inputDate = document.getElementById('input-scheduled-at') as HTMLInputElement;
+      // datetime-local requires "YYYY-MM-DDTHH:mm"
+      if (appt.scheduled_at) {
+        inputDate.value = appt.scheduled_at.slice(0, 16);
+      }
+    } else {
+      errorEl.hidden = false;
+    }
+  })();
+
+  // Modify form
+  const formModify  = document.getElementById('form-modify') as HTMLFormElement;
+  const msgModify   = document.getElementById('msg-modify') as HTMLElement;
+
+  formModify.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = formModify.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+    msgModify.hidden = true;
+
+    const fd = new FormData(formModify);
+    const body: Partial<Appointment> = {};
+    const scheduledAt = fd.get('scheduled_at') as string | null;
+    const notes       = fd.get('notes') as string | null;
+    if (scheduledAt) body.scheduled_at = new Date(scheduledAt).toISOString();
+    if (notes !== null && notes !== '') body.notes = notes;
+
+    const res = await patientAppointments.patch(id, body);
+    btn.disabled = false;
+
+    if (res.status < 300 && res.data && typeof res.data === 'object') {
+      const updated = res.data as Appointment;
+      dateEl.textContent  = formatDate(updated.scheduled_at);
+      badgeEl.textContent = updated.status ?? '';
+      badgeEl.setAttribute('data-status', updated.status ?? '');
+      showMsg(msgModify, 'Modification enregistrée.', true);
+    } else {
+      showMsg(msgModify, 'Erreur lors de la modification. Veuillez réessayer.', false);
+    }
+  });
+
+  // Cancel
+  const btnCancel = document.getElementById('btn-cancel') as HTMLButtonElement;
+  const msgCancel = document.getElementById('msg-cancel') as HTMLElement;
+
+  btnCancel.addEventListener('click', async () => {
+    if (!confirm('Confirmer l\'annulation de ce rendez-vous ?')) return;
+    btnCancel.disabled = true;
+    msgCancel.hidden = true;
+
+    const res = await patientAppointments.cancel(id);
+    btnCancel.disabled = false;
+
+    if (res.status < 300) {
+      badgeEl.textContent = 'cancelled';
+      badgeEl.setAttribute('data-status', 'cancelled');
+      showMsg(msgCancel, 'Rendez-vous annulé.', true);
+      btnCancel.disabled = true;
+    } else {
+      showMsg(msgCancel, 'Erreur lors de l\'annulation. Veuillez réessayer.', false);
+    }
+  });
+
+  // Check-in
+  const btnCheckin = document.getElementById('btn-checkin') as HTMLButtonElement;
+  const msgCheckin = document.getElementById('msg-checkin') as HTMLElement;
+
+  btnCheckin.addEventListener('click', async () => {
+    btnCheckin.disabled = true;
+    msgCheckin.hidden = true;
+
+    const res = await patientAppointments.checkin(id);
+    btnCheckin.disabled = false;
+
+    if (res.status < 300) {
+      badgeEl.textContent = 'checked_in';
+      badgeEl.setAttribute('data-status', 'checked_in');
+      showMsg(msgCheckin, 'Check-in effectué avec succès.', true);
+      btnCheckin.disabled = true;
+    } else {
+      showMsg(msgCheckin, 'Erreur lors du check-in. Veuillez réessayer.', false);
+    }
+  });
+
+  // Callback request
+  const btnCallback = document.getElementById('btn-callback') as HTMLButtonElement;
+  const msgCallback = document.getElementById('msg-callback') as HTMLElement;
+
+  btnCallback.addEventListener('click', async () => {
+    btnCallback.disabled = true;
+    msgCallback.hidden = true;
+
+    const res = await patientAppointments.callbackRequest(id);
+    btnCallback.disabled = false;
+
+    if (res.status < 300) {
+      showMsg(msgCallback, 'Demande de rappel envoyée.', true);
+      btnCallback.disabled = true;
+    } else {
+      showMsg(msgCallback, 'Erreur lors de la demande. Veuillez réessayer.', false);
+    }
+  });
+</script>

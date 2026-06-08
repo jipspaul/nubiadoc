@@ -86,18 +86,45 @@ pub async fn get_cabinet_agenda(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Tous les praticiens du cabinet avec leur profil public si disponible.
-    let pract_rows = sqlx::query(
-        "SELECT p.id, pr.display_name, p.specialite \
-         FROM practitioner p \
-         LEFT JOIN provider pr ON pr.practitioner_id = p.id \
-         WHERE p.cabinet_id = $1 \
-         ORDER BY pr.display_name NULLS LAST, p.id",
-    )
-    .bind(claims.cabinet_id)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    // R10 : secrétaires scopées au secrétariat actif — praticiens assignés uniquement.
+    // Praticiens du cabinet (tous rôles) ou filtrés par secrétariat (role=secretary).
+    let pract_rows = if claims.role == "secretary" {
+        if let Some(sid) = claims.secretariat_id {
+            sqlx::query(
+                "SELECT p.id, pr.display_name, p.specialite \
+                 FROM practitioner p \
+                 LEFT JOIN provider pr ON pr.practitioner_id = p.id \
+                 WHERE p.cabinet_id = $1 \
+                   AND EXISTS ( \
+                       SELECT 1 FROM provider_secretariat ps \
+                       WHERE ps.provider_id = pr.id \
+                         AND ps.secretariat_id = $2 \
+                         AND ps.active = true \
+                   ) \
+                 ORDER BY pr.display_name NULLS LAST, p.id",
+            )
+            .bind(claims.cabinet_id)
+            .bind(sid)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+        } else {
+            // Secrétaire sans secrétariat actif : aucun praticien visible.
+            vec![]
+        }
+    } else {
+        sqlx::query(
+            "SELECT p.id, pr.display_name, p.specialite \
+             FROM practitioner p \
+             LEFT JOIN provider pr ON pr.practitioner_id = p.id \
+             WHERE p.cabinet_id = $1 \
+             ORDER BY pr.display_name NULLS LAST, p.id",
+        )
+        .bind(claims.cabinet_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    };
 
     let practitioners = pract_rows
         .into_iter()
@@ -117,21 +144,76 @@ pub async fn get_cabinet_agenda(
         .collect::<Result<Vec<_>, AppError>>()?;
 
     // Créneaux dans la plage, filtrés optionnellement par praticien.
+    // R10 : secrétaires scopées au secrétariat actif via provider_secretariat.
     let slot_rows = if let Some(pid) = params.practitioner_id {
-        sqlx::query(
-            "SELECT id, practitioner_id, starts_at, ends_at, status, motif \
-             FROM appointment \
-             WHERE deleted_at IS NULL \
-               AND starts_at >= $1 AND starts_at < $2 \
-               AND practitioner_id = $3 \
-             ORDER BY starts_at",
-        )
-        .bind(range_start)
-        .bind(range_end)
-        .bind(pid)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?
+        if claims.role == "secretary" {
+            if let Some(sid) = claims.secretariat_id {
+                sqlx::query(
+                    "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif \
+                     FROM appointment a \
+                     WHERE a.deleted_at IS NULL \
+                       AND a.starts_at >= $1 AND a.starts_at < $2 \
+                       AND a.practitioner_id = $3 \
+                       AND EXISTS ( \
+                           SELECT 1 FROM provider pr \
+                           JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                           WHERE pr.practitioner_id = a.practitioner_id \
+                             AND ps.secretariat_id = $4 \
+                             AND ps.active = true \
+                       ) \
+                     ORDER BY a.starts_at",
+                )
+                .bind(range_start)
+                .bind(range_end)
+                .bind(pid)
+                .bind(sid)
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+            } else {
+                vec![]
+            }
+        } else {
+            sqlx::query(
+                "SELECT id, practitioner_id, starts_at, ends_at, status, motif \
+                 FROM appointment \
+                 WHERE deleted_at IS NULL \
+                   AND starts_at >= $1 AND starts_at < $2 \
+                   AND practitioner_id = $3 \
+                 ORDER BY starts_at",
+            )
+            .bind(range_start)
+            .bind(range_end)
+            .bind(pid)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+        }
+    } else if claims.role == "secretary" {
+        if let Some(sid) = claims.secretariat_id {
+            sqlx::query(
+                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif \
+                 FROM appointment a \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.starts_at >= $1 AND a.starts_at < $2 \
+                   AND EXISTS ( \
+                       SELECT 1 FROM provider pr \
+                       JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                       WHERE pr.practitioner_id = a.practitioner_id \
+                         AND ps.secretariat_id = $3 \
+                         AND ps.active = true \
+                   ) \
+                 ORDER BY a.starts_at",
+            )
+            .bind(range_start)
+            .bind(range_end)
+            .bind(sid)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+        } else {
+            vec![]
+        }
     } else {
         sqlx::query(
             "SELECT id, practitioner_id, starts_at, ends_at, status, motif \
@@ -324,18 +406,46 @@ pub async fn get_waiting_room(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(
-        "SELECT id, patient_id, status, checkin_at \
-         FROM appointment \
-         WHERE deleted_at IS NULL \
-           AND status IN ('checked_in', 'in_progress') \
-           AND starts_at >= date_trunc('day', now()) \
-           AND starts_at < date_trunc('day', now()) + interval '1 day' \
-         ORDER BY checkin_at ASC NULLS LAST, starts_at ASC",
-    )
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    // R10 : secrétaires scopées au secrétariat actif — seulement les RDV des praticiens assignés.
+    let rows = if claims.role == "secretary" {
+        if let Some(sid) = claims.secretariat_id {
+            sqlx::query(
+                "SELECT a.id, a.patient_id, a.status, a.checkin_at \
+                 FROM appointment a \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.status IN ('checked_in', 'in_progress') \
+                   AND a.starts_at >= date_trunc('day', now()) \
+                   AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
+                   AND EXISTS ( \
+                       SELECT 1 FROM provider pr \
+                       JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                       WHERE pr.practitioner_id = a.practitioner_id \
+                         AND ps.secretariat_id = $1 \
+                         AND ps.active = true \
+                   ) \
+                 ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC",
+            )
+            .bind(sid)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+        } else {
+            vec![]
+        }
+    } else {
+        sqlx::query(
+            "SELECT id, patient_id, status, checkin_at \
+             FROM appointment \
+             WHERE deleted_at IS NULL \
+               AND status IN ('checked_in', 'in_progress') \
+               AND starts_at >= date_trunc('day', now()) \
+               AND starts_at < date_trunc('day', now()) + interval '1 day' \
+             ORDER BY checkin_at ASC NULLS LAST, starts_at ASC",
+        )
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -719,65 +829,106 @@ pub async fn get_cabinet_appointments(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // R10 : clause supplémentaire pour les secrétaires — filtre sur les praticiens du secrétariat.
+    // Pour les autres rôles : chaîne vide (pas de filtre).
+    let sec_filter = if claims.role == "secretary" {
+        " AND EXISTS ( \
+             SELECT 1 FROM provider pr \
+             JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+             WHERE pr.practitioner_id = practitioner_id \
+               AND ps.secretariat_id = $5 \
+               AND ps.active = true \
+         )"
+    } else {
+        ""
+    };
+    let sec_filter_nodate = if claims.role == "secretary" {
+        " AND EXISTS ( \
+             SELECT 1 FROM provider pr \
+             JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+             WHERE pr.practitioner_id = practitioner_id \
+               AND ps.secretariat_id = $4 \
+               AND ps.active = true \
+         )"
+    } else {
+        ""
+    };
+    // Secrétaire sans secrétariat actif : aucun résultat.
+    if claims.role == "secretary" && claims.secretariat_id.is_none() {
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Ok(Json(CabinetAppointmentsResponse { data: vec![] }));
+    }
+    let sid = claims.secretariat_id;
+
     // Construit la requête dynamiquement selon les filtres optionnels.
     let rows = match (&params.status, &date_filter) {
-        (Some(status), Some((ds, de))) => sqlx::query(
-            "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
-             FROM appointment \
-             WHERE deleted_at IS NULL \
-               AND cabinet_id = $1 \
-               AND status = $2 \
-               AND starts_at >= $3 AND starts_at < $4 \
-             ORDER BY starts_at",
-        )
-        .bind(claims.cabinet_id)
-        .bind(status)
-        .bind(ds)
-        .bind(de)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?,
+        (Some(status), Some((ds, de))) => {
+            let sql = format!(
+                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+                 FROM appointment \
+                 WHERE deleted_at IS NULL \
+                   AND cabinet_id = $1 \
+                   AND status = $2 \
+                   AND starts_at >= $3 AND starts_at < $4{sec_filter} \
+                 ORDER BY starts_at",
+            );
+            let q = sqlx::query(&sql)
+                .bind(claims.cabinet_id)
+                .bind(status)
+                .bind(ds)
+                .bind(de);
+            if let Some(s) = sid { q.bind(s) } else { q }
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+        }
 
-        (Some(status), None) => sqlx::query(
-            "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
-             FROM appointment \
-             WHERE deleted_at IS NULL \
-               AND cabinet_id = $1 \
-               AND status = $2 \
-             ORDER BY starts_at",
-        )
-        .bind(claims.cabinet_id)
-        .bind(status)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?,
+        (Some(status), None) => {
+            let sql = format!(
+                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+                 FROM appointment \
+                 WHERE deleted_at IS NULL \
+                   AND cabinet_id = $1 \
+                   AND status = $2{sec_filter_nodate} \
+                 ORDER BY starts_at",
+            );
+            let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(status);
+            if let Some(s) = sid { q.bind(s) } else { q }
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+        }
 
-        (None, Some((ds, de))) => sqlx::query(
-            "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
-             FROM appointment \
-             WHERE deleted_at IS NULL \
-               AND cabinet_id = $1 \
-               AND starts_at >= $2 AND starts_at < $3 \
-             ORDER BY starts_at",
-        )
-        .bind(claims.cabinet_id)
-        .bind(ds)
-        .bind(de)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?,
+        (None, Some((ds, de))) => {
+            let sql = format!(
+                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+                 FROM appointment \
+                 WHERE deleted_at IS NULL \
+                   AND cabinet_id = $1 \
+                   AND starts_at >= $2 AND starts_at < $3{sec_filter_nodate} \
+                 ORDER BY starts_at",
+            );
+            let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(ds).bind(de);
+            if let Some(s) = sid { q.bind(s) } else { q }
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+        }
 
-        (None, None) => sqlx::query(
-            "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
-             FROM appointment \
-             WHERE deleted_at IS NULL \
-               AND cabinet_id = $1 \
-             ORDER BY starts_at",
-        )
-        .bind(claims.cabinet_id)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?,
+        (None, None) => {
+            let sql = format!(
+                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+                 FROM appointment \
+                 WHERE deleted_at IS NULL \
+                   AND cabinet_id = $1{sec_filter_nodate} \
+                 ORDER BY starts_at",
+            );
+            let q = sqlx::query(&sql).bind(claims.cabinet_id);
+            if let Some(s) = sid { q.bind(s) } else { q }
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+        }
     };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;

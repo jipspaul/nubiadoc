@@ -25,6 +25,14 @@ export interface AuthTokens {
   refresh_token?: string;
 }
 
+export interface MeContext {
+  cabinet_id: string;
+  cabinet_name?: string;
+  role: string;
+  secretariat_id?: string;
+  secretariat_name?: string;
+}
+
 export interface MeResponse {
   id: string;
   email: string;
@@ -32,6 +40,7 @@ export interface MeResponse {
   role?: 'admin' | 'practitioner' | 'secretary';
   cabinet_id?: string;
   memberships?: Array<{ cabinet_id: string; role: string }>;
+  contexts?: MeContext[];
 }
 
 // Patient — compte
@@ -122,10 +131,15 @@ export interface Message {
 
 // Patient — dashboard
 export interface Dashboard {
-  next_appointment?: Appointment;
+  next_appointment?: Appointment & { provider_name?: string };
   unread_messages?: number;
+  /** Legacy flat count (pre-contract). */
   pending_quotes?: number;
   pending_signatures?: number;
+  /** Contract per docs/12: array of quotes awaiting signature. */
+  to_sign?: Array<{ quote_id: string }>;
+  /** Contract per docs/12: array of payments due. */
+  to_pay?: Array<{ amount_cents: number }>;
 }
 
 // Patient — finances / soins
@@ -298,6 +312,13 @@ export interface WaitingListEntry {
   status?: string;
 }
 
+// Pro — secretariats
+export interface Secretariat {
+  id: string;
+  name?: string;
+  cabinet_id?: string;
+}
+
 // Pro — quotes (secrétariat / praticien)
 export interface CabinetQuote {
   id: string;
@@ -352,6 +373,9 @@ export const auth = {
 
   me: () =>
     apiFetch('/v1/me') as Promise<ApiResponse<MeResponse>>,
+
+  selectContext: (body: { cabinet_id: string; secretariat_id?: string }) =>
+    apiFetch('/v1/auth/select-context', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<AuthTokens>>,
 };
 
 // ---------------------------------------------------------------------------
@@ -723,6 +747,62 @@ export const proPrescriptions = {
 // ---------------------------------------------------------------------------
 
 export const proQuotes = {
+  list: (params?: { status?: string }) => {
+    const qs = params?.status ? `?status=${encodeURIComponent(params.status)}` : '';
+    return apiFetch(`/v1/cabinet/quotes${qs}`) as Promise<ApiResponse<CabinetQuote[]>>;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// pro.secretariats
+// ---------------------------------------------------------------------------
+
+export const proSecretariats = {
+  /** GET /v1/cabinet/secretariats — liste les secrétariats de l'établissement actif */
   list: () =>
-    apiFetch('/v1/cabinet/quotes') as Promise<ApiResponse<CabinetQuote[]>>,
+    apiFetch('/v1/cabinet/secretariats') as Promise<ApiResponse<Secretariat[]>>,
+
+  /** POST /v1/cabinet/secretariats — crée un secrétariat */
+  post: (body: { name: string }) =>
+    apiFetch('/v1/cabinet/secretariats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<Secretariat>>,
+
+  /** PATCH /v1/cabinet/secretariats/:id — modifie un secrétariat */
+  patch: (id: string, body: { name: string }) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<Secretariat>>,
+
+  /** DELETE /v1/cabinet/secretariats/:id — supprime un secrétariat */
+  delete: (id: string) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}`, { method: 'DELETE' }) as Promise<ApiResponse<null>>,
+
+  /** POST /v1/cabinet/secretariats/:id/members — ajoute un membre */
+  addMember: (id: string, body: { user_id: string }) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<null>>,
+
+  /** DELETE /v1/cabinet/secretariats/:id/members/:userId — retire un membre */
+  removeMember: (id: string, userId: string) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}/members/${userId}`, { method: 'DELETE' }) as Promise<ApiResponse<null>>,
+
+  /** GET /v1/cabinet/providers/:id/secretariats — secrétariats assignés à un praticien */
+  getForProvider: (providerId: string) =>
+    apiFetch(`/v1/cabinet/providers/${providerId}/secretariats`) as Promise<ApiResponse<Secretariat[]>>,
+
+  /** PUT /v1/cabinet/providers/:id/secretariats — (ré)assigne le praticien à une liste de secrétariats */
+  putForProvider: (providerId: string, body: { secretariat_ids: string[] }) =>
+    apiFetch(`/v1/cabinet/providers/${providerId}/secretariats`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<Secretariat[]>>,
 };

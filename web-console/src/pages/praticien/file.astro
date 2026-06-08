@@ -1,0 +1,210 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'practitioner' && role !== 'admin') {
+  return new Response('Accès interdit', { status: 403 });
+}
+---
+<AppShell title="Salle d'attente — Espace praticien" role="practitioner">
+  <header>
+    <h1>Salle d'attente</h1>
+    <p>File d'attente en temps réel. Actualisée toutes les 10 secondes.</p>
+  </header>
+
+  <!-- ── File d'attente — GET /v1/cabinet/waiting-room ───────────────── -->
+  <section aria-labelledby="h-queue">
+    <h2 id="h-queue">File d'attente</h2>
+    <div id="queue-status" role="status" aria-live="polite"></div>
+    <div id="queue-content" hidden>
+      <table id="queue-table" aria-label="Patients en salle d'attente">
+        <thead>
+          <tr>
+            <th scope="col">Position</th>
+            <th scope="col">Patient</th>
+            <th scope="col">Arrivé à</th>
+          </tr>
+        </thead>
+        <tbody id="queue-tbody"></tbody>
+      </table>
+      <p id="queue-empty" hidden class="empty-hint">Salle d'attente vide.</p>
+    </div>
+  </section>
+
+  <!-- ── Appeler le suivant — POST /v1/cabinet/waiting-room/call-next ── -->
+  <section aria-labelledby="h-call-next">
+    <h2 id="h-call-next">Appeler le suivant</h2>
+    <p id="call-next-status" role="status" aria-live="polite"></p>
+    <button id="btn-call-next" type="button">Appeler le patient suivant</button>
+    <div id="call-next-result" hidden>
+      <p id="call-next-patient" class="next-patient"></p>
+    </div>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+
+  th, td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  th {
+    color: var(--color-muted);
+    font-weight: 600;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  .empty-hint {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+    padding: var(--space-4) 0;
+  }
+
+  .next-patient {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-accent);
+    margin: var(--space-3) 0 0;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+  }
+
+  #btn-call-next {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+
+  #btn-call-next:hover { opacity: 0.9; }
+
+  [role="status"] {
+    font-size: var(--font-size-sm);
+    min-height: 1.25rem;
+    margin-bottom: var(--space-2);
+    color: var(--color-muted);
+  }
+
+  [role="status"].error { color: var(--color-error-fg); }
+</style>
+
+<script>
+  import { proAgenda } from '../../lib/endpoints.ts';
+  import type { WaitingRoomEntry } from '../../lib/endpoints.ts';
+
+  const queueStatus  = document.getElementById('queue-status')  as HTMLElement;
+  const queueContent = document.getElementById('queue-content') as HTMLElement;
+  const queueTbody   = document.getElementById('queue-tbody')   as HTMLTableSectionElement;
+  const queueEmpty   = document.getElementById('queue-empty')   as HTMLElement;
+
+  const callNextStatus  = document.getElementById('call-next-status')  as HTMLElement;
+  const callNextResult  = document.getElementById('call-next-result')  as HTMLElement;
+  const callNextPatient = document.getElementById('call-next-patient') as HTMLElement;
+  const btnCallNext     = document.getElementById('btn-call-next')     as HTMLButtonElement;
+
+  async function loadQueue(): Promise<void> {
+    queueStatus.textContent = 'Chargement…';
+    queueStatus.className = '';
+    try {
+      const { status, data } = await proAgenda.getWaitingRoom();
+      if (status === 401) { window.location.href = '/auth/login?next=/praticien/file'; return; }
+      if (status === 403) { queueStatus.textContent = 'Accès refusé (403).'; queueStatus.className = 'error'; return; }
+      if (status !== 200) { queueStatus.textContent = `Erreur serveur (HTTP ${status}).`; queueStatus.className = 'error'; return; }
+
+      queueStatus.textContent = '';
+      const entries = (data as WaitingRoomEntry[]) ?? [];
+      queueTbody.innerHTML = '';
+      queueEmpty.hidden = true;
+
+      if (entries.length === 0) {
+        queueEmpty.hidden = false;
+      } else {
+        entries.forEach((entry) => {
+          const tr = queueTbody.insertRow();
+          tr.insertCell().textContent = String(entry.position ?? '—');
+          tr.insertCell().textContent = entry.patient_id ?? '—';
+          tr.insertCell().textContent = entry.checked_in_at
+            ? new Date(entry.checked_in_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+            : '—';
+        });
+      }
+
+      queueContent.hidden = false;
+    } catch (err) {
+      queueStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      queueStatus.className = 'error';
+    }
+  }
+
+  btnCallNext.addEventListener('click', async () => {
+    callNextStatus.textContent = 'Appel en cours…';
+    callNextStatus.className = '';
+    callNextResult.hidden = true;
+    btnCallNext.disabled = true;
+
+    try {
+      const { status, data } = await proAgenda.callNext();
+      if (status === 401) { window.location.href = '/auth/login?next=/praticien/file'; return; }
+      if (status === 403) { callNextStatus.textContent = 'Accès refusé (403).'; callNextStatus.className = 'error'; btnCallNext.disabled = false; return; }
+      if (status !== 200 && status !== 204) { callNextStatus.textContent = `Erreur serveur (HTTP ${status}).`; callNextStatus.className = 'error'; btnCallNext.disabled = false; return; }
+
+      callNextStatus.textContent = '';
+      const entry = data as WaitingRoomEntry | null;
+      if (entry) {
+        callNextPatient.textContent = `Patient appelé : ${entry.patient_id ?? '—'} (position ${entry.position ?? 1})`;
+      } else {
+        callNextPatient.textContent = 'Patient appelé.';
+      }
+      callNextResult.hidden = false;
+
+      // Recharger la file après l'appel
+      await loadQueue();
+    } catch (err) {
+      callNextStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      callNextStatus.className = 'error';
+    } finally {
+      btnCallNext.disabled = false;
+    }
+  });
+
+  // Chargement initial + polling toutes les 10 secondes
+  void loadQueue();
+  setInterval(() => { void loadQueue(); }, 10_000);
+</script>

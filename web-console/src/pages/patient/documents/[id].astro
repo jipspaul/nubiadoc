@@ -1,0 +1,187 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const { id } = Astro.params;
+---
+<AppShell title="Document — Nubia" role="patient">
+  <nav aria-label="Fil d'Ariane">
+    <a href="/patient/accueil">Accueil</a>
+    <span aria-hidden="true"> / </span>
+    <a href="/patient/documents">Mes documents</a>
+    <span aria-hidden="true"> / </span>
+    <span aria-current="page" id="breadcrumb-title">Document</span>
+  </nav>
+
+  <header>
+    <h1 id="doc-title">Chargement…</h1>
+  </header>
+
+  <section aria-labelledby="h-metadata">
+    <h2 id="h-metadata">Métadonnées</h2>
+
+    <dl id="doc-metadata" hidden>
+      <div class="meta-row">
+        <dt>Identifiant</dt>
+        <dd id="meta-id"></dd>
+      </div>
+      <div class="meta-row">
+        <dt>Titre</dt>
+        <dd id="meta-name"></dd>
+      </div>
+      <div class="meta-row">
+        <dt>Type</dt>
+        <dd id="meta-type"></dd>
+      </div>
+      <div class="meta-row">
+        <dt>Date d'ajout</dt>
+        <dd id="meta-date"></dd>
+      </div>
+    </dl>
+
+    <p id="doc-error" hidden role="alert"></p>
+  </section>
+
+  <section aria-labelledby="h-download" style="margin-top: var(--space-8);">
+    <h2 id="h-download">Téléchargement</h2>
+    <p id="download-hint" style="font-size: var(--font-size-sm); color: var(--color-muted); margin-bottom: var(--space-4);">
+      Cliquez sur le bouton pour obtenir le lien de téléchargement.
+    </p>
+    <button type="button" id="btn-download" disabled>Télécharger</button>
+    <p id="download-error" hidden role="alert"></p>
+  </section>
+
+  <nav aria-label="Navigation documents" style="margin-top: var(--space-8);">
+    <a href="/patient/documents">← Retour à la liste</a>
+  </nav>
+</AppShell>
+
+<style>
+  nav[aria-label="Fil d'Ariane"] {
+    margin-bottom: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+  nav[aria-label="Fil d'Ariane"] a { color: var(--color-muted); text-decoration: none; }
+  nav[aria-label="Fil d'Ariane"] a:hover { text-decoration: underline; }
+
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+
+  h2 { font-size: var(--font-size-lg); margin-bottom: var(--space-4); }
+
+  dl#doc-metadata {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .meta-row {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    display: grid;
+    grid-template-columns: 10rem 1fr;
+    gap: var(--space-3);
+    align-items: baseline;
+  }
+
+  dt {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-muted);
+  }
+
+  dd {
+    font-size: var(--font-size-sm);
+    word-break: break-all;
+  }
+
+  #btn-download {
+    padding: var(--space-2) var(--space-6);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  #btn-download:hover:not(:disabled) { background: var(--color-accent-hover); }
+  #btn-download:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  #download-error {
+    margin-top: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-error-fg, #991b1b);
+  }
+
+  @media (max-width: 599px) {
+    .meta-row { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script>
+  import { patientDocuments, type Document } from '../../../lib/endpoints.ts';
+
+  const docId = window.location.pathname.split('/').at(-1) ?? '';
+
+  const titleEl = document.getElementById('doc-title') as HTMLHeadingElement;
+  const breadcrumb = document.getElementById('breadcrumb-title') as HTMLSpanElement;
+  const metadataDl = document.getElementById('doc-metadata') as HTMLElement;
+  const docError = document.getElementById('doc-error') as HTMLParagraphElement;
+  const btnDownload = document.getElementById('btn-download') as HTMLButtonElement;
+  const downloadError = document.getElementById('download-error') as HTMLParagraphElement;
+
+  function setText(id: string, value: string): void {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  // Load metadata
+  (async () => {
+    const { status, data } = await patientDocuments.get(docId);
+    if (status < 300 && data !== null && typeof data === 'object') {
+      const doc = data as Document;
+      const title = doc.name ?? doc.id;
+      titleEl.textContent = title;
+      breadcrumb.textContent = title;
+      setText('meta-id', doc.id);
+      setText('meta-name', doc.name ?? '—');
+      setText('meta-type', doc.type ?? '—');
+      setText('meta-date', doc.created_at ? new Date(doc.created_at).toLocaleDateString('fr-FR') : '—');
+      metadataDl.hidden = false;
+      btnDownload.disabled = false;
+    } else {
+      titleEl.textContent = 'Document introuvable';
+      docError.textContent = `Impossible de charger le document (HTTP ${status}).`;
+      docError.hidden = false;
+    }
+  })();
+
+  // Download handler
+  btnDownload.addEventListener('click', async () => {
+    btnDownload.disabled = true;
+    downloadError.hidden = true;
+
+    const { status, data } = await patientDocuments.download(docId);
+
+    if (status < 300 && data !== null && typeof data === 'object') {
+      const res = data as { url?: string };
+      if (res.url) {
+        const a = document.createElement('a');
+        a.href = res.url;
+        a.download = '';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } else {
+      downloadError.textContent = `Erreur lors du téléchargement (HTTP ${status}).`;
+      downloadError.hidden = false;
+    }
+
+    btnDownload.disabled = false;
+  });
+</script>

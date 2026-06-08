@@ -116,6 +116,7 @@ pub async fn login(
         .as_secs()
         + EXPIRES_IN;
 
+    let mut context_required: Option<bool> = None;
     let access_token = if kind == "patient" {
         // patient_account a FORCE RLS avec account_auth_select. La policy
         // utilise un GUC dédié (app.current_login_user_id) introduit par la
@@ -151,40 +152,49 @@ pub async fn login(
         )
         .map_err(|_| AppError::Internal)?
     } else {
-        // Re-resolve cabinet_id + role from cabinet_membership.
-        // user_active_membership() est SECURITY DEFINER (migration 0083), contourne la RLS
-        // cabinet-scoped pour bootstrapper le tenant sans GUC préalable.
+        // Résoudre tous les memberships actifs via user_all_memberships() (SECURITY DEFINER,
+        // migration 0089). Contexte unique : JWT porte cabinet_id+role+secretariat_id?.
+        // Multi-appartenance : JWT nu (ProClaims) + context_required:true.
         let mut tx2 = state.db.begin().await.map_err(|_| AppError::Internal)?;
         sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
             .bind(user_id.to_string())
             .execute(&mut *tx2)
             .await
             .map_err(|_| AppError::Internal)?;
-        let membership_row = sqlx::query("SELECT cabinet_id, role FROM user_active_membership($1)")
-            .bind(user_id)
-            .fetch_optional(&mut *tx2)
-            .await
-            .map_err(|_| AppError::Internal)?;
+        let memberships =
+            sqlx::query("SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1)")
+                .bind(user_id)
+                .fetch_all(&mut *tx2)
+                .await
+                .map_err(|_| AppError::Internal)?;
         tx2.commit().await.map_err(|_| AppError::Internal)?;
 
-        match membership_row {
-            Some(r) => {
-                let cabinet_id: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-                let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
-                encode(
-                    &Header::default(),
-                    &ProRegisterClaims {
-                        sub: user_id,
-                        kind: "pro".to_string(),
-                        cabinet_id,
-                        role,
-                        exp,
-                    },
-                    &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-                )
-                .map_err(|_| AppError::Internal)?
+        if memberships.len() == 1 {
+            let r = &memberships[0];
+            let cabinet_id: Uuid = r.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+            let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
+            let secretariat_id: Option<Uuid> = r
+                .try_get("secretariat_id")
+                .map_err(|_| AppError::Internal)?;
+            encode(
+                &Header::default(),
+                &ProRegisterClaims {
+                    sub: user_id,
+                    kind: "pro".to_string(),
+                    cabinet_id,
+                    role,
+                    secretariat_id,
+                    exp,
+                },
+                &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+            )
+            .map_err(|_| AppError::Internal)?
+        } else {
+            // 0 memberships (no cabinet yet) or multi-membership: emit naked token.
+            if memberships.len() > 1 {
+                context_required = Some(true);
             }
-            None => encode(
+            encode(
                 &Header::default(),
                 &ProClaims {
                     sub: user_id,
@@ -193,7 +203,7 @@ pub async fn login(
                 },
                 &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
             )
-            .map_err(|_| AppError::Internal)?,
+            .map_err(|_| AppError::Internal)?
         }
     };
 
@@ -213,5 +223,6 @@ pub async fn login(
         refresh_token: raw_token,
         token_type: "Bearer".to_string(),
         expires_in: EXPIRES_IN,
+        context_required,
     }))
 }

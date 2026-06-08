@@ -1,0 +1,389 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'practitioner' && role !== 'admin') {
+  return new Response('Accès interdit', { status: 403 });
+}
+
+const { id } = Astro.params;
+---
+<AppShell title="Dossier patient — Espace praticien" role="practitioner">
+  <header>
+    <nav aria-label="Fil d'Ariane">
+      <a href="/praticien/patients">← Patients</a>
+    </nav>
+    <h1>Dossier patient</h1>
+    <div id="patient-identity" role="status" aria-live="polite">Chargement…</div>
+  </header>
+
+  <!-- ── Onglets ────────────────────────────────────────────────────────── -->
+  <nav aria-label="Sections du dossier" id="tabs-nav">
+    <button type="button" class="tab-btn active" data-tab="medical" aria-current="true">Dossier médical</button>
+    <button type="button" class="tab-btn" data-tab="notes">Notes</button>
+    <button type="button" class="tab-btn" data-tab="documents">Documents</button>
+  </nav>
+
+  <!-- ── Dossier médical — GET /v1/cabinet/patients/:id/medical-record ─── -->
+  <section id="tab-medical" aria-labelledby="h-medical">
+    <h2 id="h-medical" class="sr-only">Dossier médical</h2>
+    <div id="medical-status" role="status" aria-live="polite"></div>
+    <div id="medical-content" hidden>
+      <dl>
+        <div>
+          <dt>Allergies</dt>
+          <dd id="medical-allergies">—</dd>
+        </div>
+        <div>
+          <dt>Médicaments en cours</dt>
+          <dd id="medical-medications">—</dd>
+        </div>
+        <div>
+          <dt>Antécédents</dt>
+          <dd id="medical-history">—</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ── Notes — GET/POST /v1/cabinet/patients/:id/notes ──────────────── -->
+  <section id="tab-notes" aria-labelledby="h-notes" hidden>
+    <h2 id="h-notes" class="sr-only">Notes cliniques</h2>
+    <div id="notes-status" role="status" aria-live="polite"></div>
+    <ul id="notes-list" hidden aria-label="Notes cliniques"></ul>
+    <p id="notes-empty" hidden class="empty-hint">Aucune note pour ce patient.</p>
+
+    <form id="note-form" aria-label="Ajouter une note">
+      <label for="note-body">Nouvelle note</label>
+      <textarea id="note-body" name="body" rows="3" required placeholder="Saisir une note clinique…"></textarea>
+      <button type="submit">Ajouter la note</button>
+      <div id="note-submit-status" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <!-- ── Documents — GET /v1/cabinet/patients/:id/documents ───────────── -->
+  <section id="tab-documents" aria-labelledby="h-documents" hidden>
+    <h2 id="h-documents" class="sr-only">Documents</h2>
+    <div id="documents-status" role="status" aria-live="polite"></div>
+    <ul id="documents-list" hidden aria-label="Documents du patient"></ul>
+    <p id="documents-empty" hidden class="empty-hint">Aucun document pour ce patient.</p>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  header > nav { font-size: var(--font-size-sm); margin-bottom: var(--space-3); }
+  header > nav a { color: var(--color-accent); text-decoration: none; }
+  header > nav a:hover { text-decoration: underline; }
+  h1 { margin-bottom: var(--space-2); }
+
+  #patient-identity {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    min-height: 1.25rem;
+  }
+
+  #tabs-nav {
+    display: flex;
+    gap: var(--space-1);
+    border-bottom: 2px solid var(--color-border);
+    margin-bottom: var(--space-6);
+  }
+
+  .tab-btn {
+    background: none;
+    border: none;
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+  }
+
+  .tab-btn.active {
+    color: var(--color-accent);
+    border-bottom-color: var(--color-accent);
+  }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+  }
+
+  dl { display: grid; gap: var(--space-4); }
+  dl > div { display: flex; flex-direction: column; gap: var(--space-1); }
+  dt { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-muted); }
+  dd { margin: 0; font-size: var(--font-size-sm); }
+
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+
+  li.note-item {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+
+  li.note-item time { display: block; color: var(--color-muted); font-size: var(--font-size-xs, 0.75rem); margin-top: var(--space-1); }
+
+  li.doc-item {
+    font-size: var(--font-size-sm);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  li.doc-item:last-child { border-bottom: none; }
+
+  #note-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-6);
+  }
+
+  #note-form label { font-size: var(--font-size-sm); font-weight: 600; }
+
+  #note-form textarea {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-family: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+
+  #note-form button[type="submit"] {
+    align-self: flex-start;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  #note-form button[type="submit"]:hover { opacity: 0.9; }
+
+  .empty-hint { color: var(--color-muted); font-size: var(--font-size-sm); margin: 0; padding: var(--space-4) 0; }
+
+  [role="status"] { font-size: var(--font-size-sm); min-height: 1.25rem; margin-bottom: var(--space-2); color: var(--color-muted); }
+  [role="status"].error { color: var(--color-error-fg); }
+  [role="status"].success { color: var(--color-success-fg, #16a34a); }
+</style>
+
+<script define:vars={{ patientId: id }}>
+  import { proPatients } from '../../../lib/endpoints.ts';
+  import type { CabinetPatient, MedicalRecord, PatientNote, Document } from '../../../lib/endpoints.ts';
+
+  const pid = patientId as string;
+  const loginRedirect = `/auth/login?next=/praticien/patients/${pid}`;
+
+  // ── Identity ───────────────────────────────────────────────────────────────
+  const identityEl = document.getElementById('patient-identity') as HTMLElement;
+
+  async function loadIdentity(): Promise<void> {
+    try {
+      const { status, data } = await proPatients.get(pid);
+      if (status === 401) { window.location.href = loginRedirect; return; }
+      if (status !== 200) { identityEl.textContent = `Erreur chargement identité (HTTP ${status}).`; return; }
+      const p = data as CabinetPatient;
+      const dob = p.date_of_birth ? ` — né(e) le ${new Date(p.date_of_birth).toLocaleDateString('fr-FR')}` : '';
+      identityEl.textContent = `${p.last_name ?? ''} ${p.first_name ?? ''}${dob}`.trim();
+    } catch (err) {
+      identityEl.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+  const tabBtns = document.querySelectorAll<HTMLButtonElement>('.tab-btn');
+  const tabSections: Record<string, HTMLElement> = {
+    medical:   document.getElementById('tab-medical')   as HTMLElement,
+    notes:     document.getElementById('tab-notes')     as HTMLElement,
+    documents: document.getElementById('tab-documents') as HTMLElement,
+  };
+
+  let loadedTabs = new Set<string>();
+
+  function showTab(name: string): void {
+    tabBtns.forEach((btn) => {
+      const active = btn.dataset['tab'] === name;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-current', active ? 'true' : 'false');
+    });
+    Object.entries(tabSections).forEach(([key, el]) => { el.hidden = key !== name; });
+    if (!loadedTabs.has(name)) {
+      loadedTabs.add(name);
+      void loaders[name as keyof typeof loaders]?.();
+    }
+  }
+
+  tabBtns.forEach((btn) => {
+    btn.addEventListener('click', () => { showTab(btn.dataset['tab'] ?? 'medical'); });
+  });
+
+  // ── Medical record ─────────────────────────────────────────────────────────
+  const medicalStatus = document.getElementById('medical-status')   as HTMLElement;
+  const medicalContent = document.getElementById('medical-content') as HTMLElement;
+
+  async function loadMedical(): Promise<void> {
+    medicalStatus.textContent = 'Chargement…';
+    medicalStatus.className = '';
+    try {
+      const { status, data } = await proPatients.getMedicalRecord(pid);
+      if (status === 401) { window.location.href = loginRedirect; return; }
+      if (status === 403) { medicalStatus.textContent = 'Accès refusé (403).'; medicalStatus.className = 'error'; return; }
+      if (status !== 200) { medicalStatus.textContent = `Erreur serveur (HTTP ${status}).`; medicalStatus.className = 'error'; return; }
+
+      const rec = data as MedicalRecord;
+      medicalStatus.textContent = '';
+      (document.getElementById('medical-allergies') as HTMLElement).textContent =
+        (rec.allergies?.length ? rec.allergies.join(', ') : '—');
+      (document.getElementById('medical-medications') as HTMLElement).textContent =
+        (rec.current_medications?.length ? rec.current_medications.join(', ') : '—');
+      (document.getElementById('medical-history') as HTMLElement).textContent =
+        rec.history ?? '—';
+      medicalContent.hidden = false;
+    } catch (err) {
+      medicalStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      medicalStatus.className = 'error';
+    }
+  }
+
+  // ── Notes ─────────────────────────────────────────────────────────────────
+  const notesStatus = document.getElementById('notes-status')  as HTMLElement;
+  const notesList   = document.getElementById('notes-list')    as HTMLUListElement;
+  const notesEmpty  = document.getElementById('notes-empty')   as HTMLElement;
+
+  function renderNote(note: PatientNote): void {
+    const li = document.createElement('li');
+    li.className = 'note-item';
+    const date = note.created_at ? new Date(note.created_at).toLocaleString('fr-FR') : null;
+    li.innerHTML = `<p>${note.body}</p>${date ? `<time datetime="${note.created_at}">${date}</time>` : ''}`;
+    notesList.prepend(li);
+  }
+
+  async function loadNotes(): Promise<void> {
+    notesStatus.textContent = 'Chargement…';
+    notesStatus.className = '';
+    try {
+      const { status, data } = await proPatients.getNotes(pid);
+      if (status === 401) { window.location.href = loginRedirect; return; }
+      if (status === 403) { notesStatus.textContent = 'Accès refusé (403).'; notesStatus.className = 'error'; return; }
+      if (status !== 200) { notesStatus.textContent = `Erreur serveur (HTTP ${status}).`; notesStatus.className = 'error'; return; }
+
+      const notes = (data as PatientNote[]) ?? [];
+      notesStatus.textContent = '';
+
+      if (notes.length === 0) {
+        notesEmpty.hidden = false;
+      } else {
+        notes.forEach((n) => renderNote(n));
+        notesList.hidden = false;
+      }
+    } catch (err) {
+      notesStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      notesStatus.className = 'error';
+    }
+  }
+
+  // Note form
+  const noteForm          = document.getElementById('note-form')          as HTMLFormElement;
+  const noteBodyInput     = document.getElementById('note-body')          as HTMLTextAreaElement;
+  const noteSubmitStatus  = document.getElementById('note-submit-status') as HTMLElement;
+
+  noteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = noteBodyInput.value.trim();
+    if (!body) return;
+
+    noteSubmitStatus.textContent = 'Enregistrement…';
+    noteSubmitStatus.className = '';
+    try {
+      const { status, data } = await proPatients.postNote(pid, { body });
+      if (status === 401) { window.location.href = loginRedirect; return; }
+      if (status === 403) { noteSubmitStatus.textContent = 'Accès refusé (403).'; noteSubmitStatus.className = 'error'; return; }
+      if (status !== 200 && status !== 201) { noteSubmitStatus.textContent = `Erreur (HTTP ${status}).`; noteSubmitStatus.className = 'error'; return; }
+
+      const newNote = data as PatientNote;
+      noteSubmitStatus.textContent = 'Note ajoutée.';
+      noteSubmitStatus.className = 'success';
+      noteBodyInput.value = '';
+      notesEmpty.hidden = true;
+      notesList.hidden = false;
+      renderNote(newNote);
+
+      setTimeout(() => { noteSubmitStatus.textContent = ''; }, 3000);
+    } catch (err) {
+      noteSubmitStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      noteSubmitStatus.className = 'error';
+    }
+  });
+
+  // ── Documents ─────────────────────────────────────────────────────────────
+  const documentsStatus = document.getElementById('documents-status') as HTMLElement;
+  const documentsList   = document.getElementById('documents-list')   as HTMLUListElement;
+  const documentsEmpty  = document.getElementById('documents-empty')  as HTMLElement;
+
+  async function loadDocuments(): Promise<void> {
+    documentsStatus.textContent = 'Chargement…';
+    documentsStatus.className = '';
+    try {
+      const { status, data } = await proPatients.getDocuments(pid);
+      if (status === 401) { window.location.href = loginRedirect; return; }
+      if (status === 403) { documentsStatus.textContent = 'Accès refusé (403).'; documentsStatus.className = 'error'; return; }
+      if (status !== 200) { documentsStatus.textContent = `Erreur serveur (HTTP ${status}).`; documentsStatus.className = 'error'; return; }
+
+      const docs = (data as Document[]) ?? [];
+      documentsStatus.textContent = '';
+
+      if (docs.length === 0) {
+        documentsEmpty.hidden = false;
+      } else {
+        docs.forEach((doc) => {
+          const li = document.createElement('li');
+          li.className = 'doc-item';
+          const created = doc.created_at ? new Date(doc.created_at).toLocaleDateString('fr-FR') : '—';
+          li.innerHTML = `<span>${doc.name} <small>(${doc.type ?? 'document'})</small></span><time datetime="${doc.created_at ?? ''}">${created}</time>`;
+          documentsList.appendChild(li);
+        });
+        documentsList.hidden = false;
+      }
+    } catch (err) {
+      documentsStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      documentsStatus.className = 'error';
+    }
+  }
+
+  const loaders = { medical: loadMedical, notes: loadNotes, documents: loadDocuments };
+
+  // Init
+  void loadIdentity();
+  loadedTabs.add('medical');
+  void loadMedical();
+</script>
