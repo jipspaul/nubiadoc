@@ -322,4 +322,15 @@ test('notifications : GET/PATCH notification-preferences → 200 ; GET notificat
 
   expect(remindersResp.status).toBeLessThan(300);
   expect(Array.isArray(remindersResp.data)).toBe(true);
+
+  // ── 5. Page /patient/profil/notifications : centre de notifications visible ─
+  await page.goto('/patient/profil/notifications');
+  // Attendre la fin des chargements (spinners masqués)
+  await expect(page.locator('#prefs-loading')).toBeHidden({ timeout: 15_000 });
+  await expect(page.locator('#notifs-loading')).toBeHidden({ timeout: 15_000 });
+  await expect(page.locator('#reminders-loading')).toBeHidden({ timeout: 15_000 });
+  // Le formulaire de préférences ou la section notifications doit être présent
+  await expect(
+    page.locator('#prefs-form, #notifs-list, #notifs-empty, #notifs-error'),
+  ).toBeVisible({ timeout: 10_000 });
 });
