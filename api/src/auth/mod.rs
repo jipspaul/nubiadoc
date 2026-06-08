@@ -1037,11 +1037,14 @@ impl FromRequestParts<AppState> for ProPractitionerClaims {
 ///
 /// Renvoie `401` si absent/invalide, `403` si `kind != "pro"`.
 /// `role` est exposé pour le cloisonnement clinique R.4127-72 (motif admin vs clinique).
+/// `secretariat_id` présent uniquement pour les secrétaires (R10 : filtrage scope secrétariat).
 #[derive(Debug, Deserialize)]
 pub(crate) struct ProSecretaryPlusClaims {
     pub(crate) sub: Uuid,
     pub(crate) cabinet_id: Uuid,
     pub(crate) role: String,
+    #[serde(default)]
+    pub(crate) secretariat_id: Option<Uuid>,
 }
 
 #[async_trait]
