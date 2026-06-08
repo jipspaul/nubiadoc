@@ -1,5 +1,11 @@
 ---
 import AppShell from '../../layouts/AppShell.astro';
+import type { Dashboard } from '../../lib/endpoints.ts';
+
+const API_BASE: string =
+  (import.meta.env.API_BASE as string | undefined) ??
+  (import.meta.env.PUBLIC_API_BASE as string | undefined) ??
+  'http://localhost:38030';
 
 const jwt  = Astro.cookies.get('nubia_jwt')?.value;
 const role = Astro.cookies.get('nubia_role')?.value;
@@ -10,51 +16,131 @@ if (!jwt) {
 if (role !== 'patient') {
   return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
 }
+
+// ── Server-side fetch ────────────────────────────────────────────────────────
+
+let dashboard: Dashboard | null = null;
+let fetchError: string | null = null;
+
+try {
+  const res = await fetch(`${API_BASE}/v1/dashboard`, {
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+
+  if (res.status === 401) {
+    return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+  }
+
+  if (res.ok) {
+    const text = await res.text();
+    dashboard = text ? (JSON.parse(text) as Dashboard) : null;
+  } else {
+    fetchError = `Erreur serveur (HTTP ${res.status}).`;
+  }
+} catch (err) {
+  fetchError = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+}
+
+// ── Derived display values ───────────────────────────────────────────────────
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+const nextAppt = dashboard?.next_appointment ?? null;
+const nextApptDate = nextAppt?.scheduled_at ? formatDate(nextAppt.scheduled_at) : null;
+const nextApptId   = nextAppt?.id ?? null;
+const nextApptProv = nextAppt?.provider_name ?? null;
+
+const unreadMessages = dashboard?.unread_messages ?? 0;
+
+const pendingQuotes = dashboard?.to_sign?.length
+  ?? dashboard?.pending_quotes
+  ?? 0;
+
+const pendingPayments = dashboard?.to_pay?.length ?? 0;
 ---
+
 <AppShell title="Accueil — Espace patient" role="patient">
   <header>
     <h1>Accueil</h1>
     <p>Bienvenue dans votre espace patient.</p>
   </header>
 
-  <!-- ── Prochain rendez-vous ─────────────────────────────────────────────── -->
-  <section aria-labelledby="h-next-rdv">
-    <h2 id="h-next-rdv">Prochain rendez-vous</h2>
-    <div id="next-rdv-status" role="status" aria-live="polite"></div>
-    <div id="next-rdv-content" hidden>
-      <p id="next-rdv-empty" hidden class="empty-hint">Aucun rendez-vous à venir.</p>
-      <article id="next-rdv-card" hidden aria-label="Prochain rendez-vous">
-        <p id="next-rdv-date" class="rdv-date"></p>
-        <a id="next-rdv-link" href="/patient/rdv" class="link-action">Voir le détail</a>
-      </article>
-    </div>
-  </section>
+  {fetchError && (
+    <p role="alert" class="fetch-error">{fetchError}</p>
+  )}
 
-  <!-- ── Messages non lus ─────────────────────────────────────────────────── -->
-  <section aria-labelledby="h-messages">
-    <h2 id="h-messages">Messages non lus</h2>
-    <div id="messages-status" role="status" aria-live="polite"></div>
-    <div id="messages-content" hidden>
-      <p id="unread-count" class="counter"></p>
-      <a href="/patient/messages" class="link-action">Voir les messages</a>
-    </div>
-  </section>
+  {!fetchError && (
+    <>
+      <!-- ── Prochain rendez-vous ──────────────────────────────────────────── -->
+      <section aria-labelledby="h-next-rdv">
+        <h2 id="h-next-rdv">Prochain rendez-vous</h2>
+        {nextApptDate ? (
+          <article aria-label="Prochain rendez-vous">
+            <p class="rdv-date">{nextApptDate}</p>
+            {nextApptProv && <p class="rdv-provider">{nextApptProv}</p>}
+            <a href={nextApptId ? `/patient/rdv/${encodeURIComponent(nextApptId)}` : '/patient/rdv'} class="link-action">
+              Voir le détail
+            </a>
+          </article>
+        ) : (
+          <p class="empty-hint">Aucun rendez-vous à venir.</p>
+        )}
+      </section>
 
-  <!-- ── Devis en attente ──────────────────────────────────────────────────── -->
-  <section aria-labelledby="h-devis">
-    <h2 id="h-devis">Devis en attente</h2>
-    <div id="devis-status" role="status" aria-live="polite"></div>
-    <div id="devis-content" hidden>
-      <p id="pending-quotes" class="counter"></p>
-      <a href="/patient/devis" class="link-action">Voir les devis</a>
-    </div>
-  </section>
+      <!-- ── Messages non lus ─────────────────────────────────────────────── -->
+      <section aria-labelledby="h-messages">
+        <h2 id="h-messages">Messages non lus</h2>
+        <p class="counter">
+          {unreadMessages === 0
+            ? 'Aucun message non lu.'
+            : `${unreadMessages} message${unreadMessages > 1 ? 's' : ''} non lu${unreadMessages > 1 ? 's' : ''}.`}
+        </p>
+        <a href="/patient/messages" class="link-action">Voir les messages</a>
+      </section>
+
+      <!-- ── Devis en attente ──────────────────────────────────────────────── -->
+      <section aria-labelledby="h-devis">
+        <h2 id="h-devis">Devis en attente</h2>
+        <p class="counter">
+          {pendingQuotes === 0
+            ? 'Aucun devis en attente.'
+            : `${pendingQuotes} devis en attente.`}
+        </p>
+        <a href="/patient/devis" class="link-action">Voir les devis</a>
+      </section>
+
+      <!-- ── Paiements à régler ────────────────────────────────────────────── -->
+      <section aria-labelledby="h-payments">
+        <h2 id="h-payments">Paiements à régler</h2>
+        <p class="counter">
+          {pendingPayments === 0
+            ? 'Aucun paiement en attente.'
+            : `${pendingPayments} paiement${pendingPayments > 1 ? 's' : ''} à régler.`}
+        </p>
+        <a href="/patient/devis" class="link-action">Voir les devis</a>
+      </section>
+    </>
+  )}
 </AppShell>
 
 <style>
   header { margin-bottom: var(--space-6); }
   h1 { margin-bottom: var(--space-1); }
   header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  .fetch-error {
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-error, #fef2f2);
+    color: var(--color-error-fg, #991b1b);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-6);
+    font-size: var(--font-size-sm);
+  }
 
   section {
     border: 1px solid var(--color-border);
@@ -69,23 +155,20 @@ if (role !== 'patient') {
     font-weight: 600;
   }
 
-  [role="status"] {
-    font-size: var(--font-size-sm);
-    min-height: 1.25rem;
-    margin-bottom: var(--space-2);
-    color: var(--color-muted);
-  }
-
-  [role="status"].error { color: var(--color-error-fg); }
-
   .empty-hint {
     color: var(--color-muted);
     font-size: var(--font-size-sm);
-    margin: 0;
+    margin: 0 0 var(--space-2);
   }
 
   .rdv-date {
     font-weight: 600;
+    margin: 0 0 var(--space-1);
+  }
+
+  .rdv-provider {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
     margin: 0 0 var(--space-2);
   }
 
@@ -101,100 +184,3 @@ if (role !== 'patient') {
     color: var(--color-accent);
   }
 </style>
-
-<script>
-  import { patientDashboard } from '../../lib/endpoints.ts';
-  import type { Dashboard } from '../../lib/endpoints.ts';
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleString('fr-FR', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-  }
-
-  // ── Elements ───────────────────────────────────────────────────────────────
-
-  const nextRdvStatus  = document.getElementById('next-rdv-status')  as HTMLElement;
-  const nextRdvContent = document.getElementById('next-rdv-content') as HTMLElement;
-  const nextRdvEmpty   = document.getElementById('next-rdv-empty')   as HTMLElement;
-  const nextRdvCard    = document.getElementById('next-rdv-card')    as HTMLElement;
-  const nextRdvDate    = document.getElementById('next-rdv-date')    as HTMLElement;
-  const nextRdvLink    = document.getElementById('next-rdv-link')    as HTMLAnchorElement;
-
-  const messagesStatus  = document.getElementById('messages-status')  as HTMLElement;
-  const messagesContent = document.getElementById('messages-content') as HTMLElement;
-  const unreadCount     = document.getElementById('unread-count')     as HTMLElement;
-
-  const devisStatus  = document.getElementById('devis-status')  as HTMLElement;
-  const devisContent = document.getElementById('devis-content') as HTMLElement;
-  const pendingQuotes = document.getElementById('pending-quotes') as HTMLElement;
-
-  // ── Load ───────────────────────────────────────────────────────────────────
-
-  (async () => {
-    nextRdvStatus.textContent = 'Chargement…';
-    messagesStatus.textContent = 'Chargement…';
-    devisStatus.textContent = 'Chargement…';
-
-    try {
-      const { status, data } = await patientDashboard.get();
-
-      if (status === 401) {
-        window.location.href = '/auth/login?next=/patient/accueil';
-        return;
-      }
-
-      if (status !== 200) {
-        const msg = `Erreur serveur (HTTP ${status}).`;
-        nextRdvStatus.textContent = msg;
-        nextRdvStatus.className = 'error';
-        messagesStatus.textContent = msg;
-        messagesStatus.className = 'error';
-        devisStatus.textContent = msg;
-        devisStatus.className = 'error';
-        return;
-      }
-
-      const dashboard = data as Dashboard;
-
-      // Prochain RDV
-      nextRdvStatus.textContent = '';
-      if (dashboard.next_appointment?.scheduled_at) {
-        nextRdvDate.textContent = formatDate(dashboard.next_appointment.scheduled_at);
-        nextRdvLink.href = `/patient/rdv/${encodeURIComponent(dashboard.next_appointment.id)}`;
-        nextRdvCard.hidden = false;
-      } else {
-        nextRdvEmpty.hidden = false;
-      }
-      nextRdvContent.hidden = false;
-
-      // Messages non lus
-      messagesStatus.textContent = '';
-      const unread = dashboard.unread_messages ?? 0;
-      unreadCount.textContent = unread === 0
-        ? 'Aucun message non lu.'
-        : `${unread} message${unread > 1 ? 's' : ''} non lu${unread > 1 ? 's' : ''}.`;
-      messagesContent.hidden = false;
-
-      // Devis en attente
-      devisStatus.textContent = '';
-      const pending = dashboard.pending_quotes ?? 0;
-      pendingQuotes.textContent = pending === 0
-        ? 'Aucun devis en attente.'
-        : `${pending} devis en attente.`;
-      devisContent.hidden = false;
-
-    } catch (err) {
-      const msg = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
-      nextRdvStatus.textContent = msg;
-      nextRdvStatus.className = 'error';
-      messagesStatus.textContent = msg;
-      messagesStatus.className = 'error';
-      devisStatus.textContent = msg;
-      devisStatus.className = 'error';
-    }
-  })();
-</script>

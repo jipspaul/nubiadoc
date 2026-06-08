@@ -122,10 +122,15 @@ export interface Message {
 
 // Patient — dashboard
 export interface Dashboard {
-  next_appointment?: Appointment;
+  next_appointment?: Appointment & { provider_name?: string };
   unread_messages?: number;
+  /** Legacy flat count (pre-contract). */
   pending_quotes?: number;
   pending_signatures?: number;
+  /** Contract per docs/12: array of quotes awaiting signature. */
+  to_sign?: Array<{ quote_id: string }>;
+  /** Contract per docs/12: array of payments due. */
+  to_pay?: Array<{ amount_cents: number }>;
 }
 
 // Patient — finances / soins
