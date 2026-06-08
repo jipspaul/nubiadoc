@@ -156,9 +156,9 @@ test('modifier un RDV : PATCH /v1/appointments/:id → 200', async ({ page }) =>
   expect(getResult.status).toBe(200);
   expect(getResult.data.id).toBe(appointmentId);
 
-  // Page détail W15 : /patient/rdv accessible
-  await page.goto('/patient/rdv');
-  await expect(page.locator('#upcoming-loading, #past-loading, h1, main')).toBeVisible({
+  // Page détail W15 : /patient/rdv/:id rendu
+  await page.goto(`/patient/rdv/${appointmentId}`);
+  await expect(page.getByRole('heading', { name: /détail du rendez-vous/i })).toBeVisible({
     timeout: 10_000,
   });
 });
@@ -368,9 +368,19 @@ test('jour J : checkin → queue → preparation', async ({ page }) => {
 
   expect(prepResp.status).toBeLessThan(300);
 
-  // Page salle d'attente W17 : /patient/rdv → liste visible
-  await page.goto('/patient/rdv');
-  await expect(page.locator('#upcoming-loading, #past-loading, main')).toBeVisible({
+  // ── 4. Page salle d'attente W17 : /patient/rdv/:id/salle-attente ──────────
+  await page.goto(`/patient/rdv/${appointmentId}/salle-attente`);
+  await expect(page.getByRole('heading', { name: /salle d'attente/i })).toBeVisible({
     timeout: 10_000,
   });
+  // loading → card ou error visible
+  await expect(page.locator('#queue-card, #queue-error')).toBeVisible({ timeout: 10_000 });
+
+  // ── 5. Page préparation W16 : /patient/rdv/:id/preparation ───────────────
+  await page.goto(`/patient/rdv/${appointmentId}/preparation`);
+  await expect(page.getByRole('heading', { name: /préparation/i })).toBeVisible({
+    timeout: 10_000,
+  });
+  // loading → card ou error visible
+  await expect(page.locator('#prep-card, #prep-error')).toBeVisible({ timeout: 10_000 });
 });

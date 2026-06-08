@@ -1,0 +1,97 @@
+---
+import AppShell from '../../../../layouts/AppShell.astro';
+
+const { id } = Astro.params;
+---
+<AppShell title="Salle d'attente — Nubia" role="patient">
+  <header>
+    <nav aria-label="Fil d'Ariane">
+      <a href={`/patient/rdv/${id}`}>← Retour au rendez-vous</a>
+    </nav>
+    <h1>Salle d'attente</h1>
+  </header>
+
+  <section aria-labelledby="h-queue">
+    <h2 id="h-queue" class="sr-only">Position dans la file</h2>
+    <div id="queue-loading" aria-live="polite">Chargement…</div>
+
+    <article id="queue-card" hidden aria-live="polite" aria-atomic="true">
+      <dl class="queue-fields">
+        <div class="field-row">
+          <dt>Position</dt>
+          <dd id="queue-position">—</dd>
+        </div>
+        <div class="field-row">
+          <dt>Attente estimée</dt>
+          <dd id="queue-wait">—</dd>
+        </div>
+      </dl>
+      <p id="queue-msg" class="muted"></p>
+    </article>
+
+    <p id="queue-error" hidden class="error-msg">Impossible de charger la position dans la file.</p>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  header nav { margin-bottom: var(--space-2); font-size: var(--font-size-sm); }
+  h1 { margin-bottom: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+
+  #queue-card {
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    max-width: 24rem;
+  }
+
+  .queue-fields {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0 0 var(--space-3) 0;
+  }
+  .field-row { display: flex; gap: var(--space-3); align-items: baseline; }
+  .field-row dt { font-weight: 600; min-width: 10rem; color: var(--color-muted); font-size: var(--font-size-sm); }
+  .field-row dd { margin: 0; font-size: var(--font-size-lg); font-weight: 700; }
+
+  .muted { color: var(--color-muted); font-size: var(--font-size-sm); margin: 0; }
+  .error-msg { color: var(--color-error); }
+</style>
+
+<script define:vars={{ appointmentId: id }}>
+  import { patientAppointments, type QueuePosition } from '../../../../lib/endpoints.ts';
+
+  const apptId = appointmentId as string;
+
+  const loadingEl  = document.getElementById('queue-loading') as HTMLElement;
+  const cardEl     = document.getElementById('queue-card') as HTMLElement;
+  const errorEl    = document.getElementById('queue-error') as HTMLElement;
+  const positionEl = document.getElementById('queue-position') as HTMLElement;
+  const waitEl     = document.getElementById('queue-wait') as HTMLElement;
+  const msgEl      = document.getElementById('queue-msg') as HTMLElement;
+
+  async function poll(): Promise<void> {
+    const res = await patientAppointments.getQueue(apptId);
+    loadingEl.hidden = true;
+
+    if (res.status < 300 && res.data) {
+      const q = res.data as QueuePosition;
+      positionEl.textContent = q.position != null ? String(q.position) : '—';
+      waitEl.textContent     = q.estimated_wait_minutes != null
+        ? `${q.estimated_wait_minutes} min`
+        : '—';
+      msgEl.textContent      = 'Mise à jour automatique toutes les 30 secondes.';
+      cardEl.hidden = false;
+    } else {
+      errorEl.hidden = false;
+    }
+  }
+
+  poll();
+  const intervalId = setInterval(poll, 30_000);
+
+  // Clean up polling when navigating away
+  document.addEventListener('astro:before-preparation', () => clearInterval(intervalId), { once: true });
+</script>
