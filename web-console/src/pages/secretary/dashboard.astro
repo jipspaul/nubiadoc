@@ -1,0 +1,299 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'secretary' && role !== 'admin') {
+  return new Response('Accès interdit', { status: 403 });
+}
+---
+<AppShell title="Tableau de bord — Espace secrétaire" role="secretary">
+  <header>
+    <h1>Tableau de bord secrétaire</h1>
+    <p>Vue opérationnelle journalière : agenda, rendez-vous et file d'attente.</p>
+  </header>
+
+  <!-- ── Rendez-vous du jour — GET /v1/cabinet/appointments ─────────────── -->
+  <section aria-labelledby="h-appointments">
+    <h2 id="h-appointments">Rendez-vous du jour</h2>
+    <div id="appointments-status" role="status" aria-live="polite"></div>
+    <div id="appointments-content" hidden>
+      <table id="appointments-table" aria-label="Liste des rendez-vous du jour">
+        <thead>
+          <tr>
+            <th scope="col">Horaire</th>
+            <th scope="col">Patient</th>
+            <th scope="col">Statut</th>
+          </tr>
+        </thead>
+        <tbody id="appointments-tbody"></tbody>
+      </table>
+      <p id="appointments-empty" hidden class="empty-hint">Aucun rendez-vous pour aujourd'hui.</p>
+    </div>
+  </section>
+
+  <!-- ── Agenda du jour — GET /v1/cabinet/agenda ──────────────────────── -->
+  <section aria-labelledby="h-agenda">
+    <h2 id="h-agenda">Créneaux du jour</h2>
+    <div id="agenda-status" role="status" aria-live="polite"></div>
+    <div id="agenda-content" hidden>
+      <table id="agenda-table" aria-label="Créneaux du jour">
+        <thead>
+          <tr>
+            <th scope="col">Horaire</th>
+            <th scope="col">Durée</th>
+            <th scope="col">En ligne</th>
+          </tr>
+        </thead>
+        <tbody id="agenda-tbody"></tbody>
+      </table>
+      <p id="agenda-empty" hidden class="empty-hint">Aucun créneau pour aujourd'hui.</p>
+    </div>
+  </section>
+
+  <!-- ── Salle d'attente — GET /v1/cabinet/waiting-room (polling ≤30s) ── -->
+  <section aria-labelledby="h-waiting">
+    <h2 id="h-waiting">
+      File d'attente
+      <span id="waiting-badge" class="count-badge" hidden></span>
+    </h2>
+    <div id="waiting-status" role="status" aria-live="polite"></div>
+    <div id="waiting-content" hidden>
+      <ol id="waiting-list" aria-label="Patients en salle d'attente"></ol>
+      <p id="waiting-empty" hidden class="empty-hint">Salle d'attente vide.</p>
+    </div>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+
+  th, td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  th { color: var(--color-muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  .empty-hint {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+    padding: var(--space-4) 0;
+  }
+
+  [role="status"] {
+    font-size: var(--font-size-sm);
+    min-height: 1.25rem;
+    margin-bottom: var(--space-2);
+    color: var(--color-muted);
+  }
+
+  [role="status"].error { color: var(--color-error-fg); }
+
+  ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  ol li {
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+  }
+
+  .position {
+    font-weight: 700;
+    color: var(--color-accent);
+    min-width: 1.5rem;
+    text-align: center;
+  }
+
+  .count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-radius: 9999px;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 var(--space-1);
+  }
+</style>
+
+<script>
+  import { proAgenda } from '../../lib/endpoints.ts';
+  import type { AgendaEntry, Appointment, WaitingRoomEntry } from '../../lib/endpoints.ts';
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const loginRedirect = '/auth/login?next=/secretary/dashboard';
+
+  // ── Appointments ──────────────────────────────────────────────────────────
+  const appointmentsStatus  = document.getElementById('appointments-status')  as HTMLElement;
+  const appointmentsContent = document.getElementById('appointments-content') as HTMLElement;
+  const appointmentsTbody   = document.getElementById('appointments-tbody')   as HTMLTableSectionElement;
+  const appointmentsEmpty   = document.getElementById('appointments-empty')   as HTMLElement;
+
+  async function loadAppointments(): Promise<void> {
+    appointmentsStatus.textContent = 'Chargement…';
+    appointmentsStatus.className = '';
+    try {
+      const { status, data } = await proAgenda.getAppointments();
+      if (status === 401) { window.location.href = loginRedirect; return; }
+      if (status === 403) { appointmentsStatus.textContent = 'Accès refusé (403).'; appointmentsStatus.className = 'error'; return; }
+      if (status !== 200) { appointmentsStatus.textContent = `Erreur serveur (HTTP ${status}).`; appointmentsStatus.className = 'error'; return; }
+
+      appointmentsStatus.textContent = '';
+      const appts = (data as Appointment[]) ?? [];
+      const todayAppts = appts.filter((a) => a.scheduled_at?.startsWith(todayIso));
+      appointmentsTbody.innerHTML = '';
+
+      if (todayAppts.length === 0) {
+        appointmentsEmpty.hidden = false;
+      } else {
+        todayAppts.forEach((appt) => {
+          const tr = appointmentsTbody.insertRow();
+          tr.insertCell().textContent = new Date(appt.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          tr.insertCell().textContent = appt.patient_id ?? '—';
+          tr.insertCell().textContent = appt.status ?? '—';
+        });
+      }
+
+      appointmentsContent.hidden = false;
+    } catch (err) {
+      appointmentsStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      appointmentsStatus.className = 'error';
+    }
+  }
+
+  // ── Agenda ────────────────────────────────────────────────────────────────
+  const agendaStatus  = document.getElementById('agenda-status')  as HTMLElement;
+  const agendaContent = document.getElementById('agenda-content') as HTMLElement;
+  const agendaTbody   = document.getElementById('agenda-tbody')   as HTMLTableSectionElement;
+  const agendaEmpty   = document.getElementById('agenda-empty')   as HTMLElement;
+
+  async function loadAgenda(): Promise<void> {
+    agendaStatus.textContent = 'Chargement…';
+    agendaStatus.className = '';
+    try {
+      const { status, data } = await proAgenda.get({ from: todayIso, to: todayIso });
+      if (status === 401) { window.location.href = loginRedirect; return; }
+      if (status === 403) { agendaStatus.textContent = 'Accès refusé (403).'; agendaStatus.className = 'error'; return; }
+      if (status !== 200) { agendaStatus.textContent = `Erreur serveur (HTTP ${status}).`; agendaStatus.className = 'error'; return; }
+
+      agendaStatus.textContent = '';
+      const entries = (data as AgendaEntry[]) ?? [];
+      const slots = entries.flatMap((e) => e.slots ?? []);
+      agendaTbody.innerHTML = '';
+
+      if (slots.length === 0) {
+        agendaEmpty.hidden = false;
+      } else {
+        slots.forEach((slot) => {
+          const tr = agendaTbody.insertRow();
+          tr.insertCell().textContent = slot.starts_at
+            ? new Date(slot.starts_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+            : '—';
+          tr.insertCell().textContent = slot.duration_minutes != null ? `${slot.duration_minutes} min` : '—';
+          tr.insertCell().textContent = '—';
+        });
+      }
+
+      agendaContent.hidden = false;
+    } catch (err) {
+      agendaStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      agendaStatus.className = 'error';
+    }
+  }
+
+  // ── Waiting room (polling ≤30s) ───────────────────────────────────────────
+  const waitingStatus  = document.getElementById('waiting-status')  as HTMLElement;
+  const waitingContent = document.getElementById('waiting-content') as HTMLElement;
+  const waitingList    = document.getElementById('waiting-list')    as HTMLOListElement;
+  const waitingEmpty   = document.getElementById('waiting-empty')   as HTMLElement;
+  const waitingBadge   = document.getElementById('waiting-badge')   as HTMLElement;
+
+  async function loadWaitingRoom(): Promise<void> {
+    try {
+      const { status, data } = await proAgenda.getWaitingRoom();
+      if (status === 401) { window.location.href = loginRedirect; return; }
+      if (status === 403) { waitingStatus.textContent = 'Accès refusé (403).'; waitingStatus.className = 'error'; return; }
+      if (status !== 200) { waitingStatus.textContent = `Erreur serveur (HTTP ${status}).`; waitingStatus.className = 'error'; return; }
+
+      waitingStatus.textContent = '';
+      const entries = (data as WaitingRoomEntry[]) ?? [];
+      waitingList.innerHTML = '';
+      waitingEmpty.hidden = true;
+
+      if (entries.length === 0) {
+        waitingEmpty.hidden = false;
+        waitingBadge.hidden = true;
+      } else {
+        waitingBadge.textContent = String(entries.length);
+        waitingBadge.hidden = false;
+        entries.forEach((entry) => {
+          const li = document.createElement('li');
+          const checkinTime = entry.checked_in_at
+            ? new Date(entry.checked_in_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+            : '—';
+          li.innerHTML = `<span class="position">${entry.position ?? '?'}</span><span>Patient <code>${entry.patient_id ?? '—'}</code> — arrivé à ${checkinTime}</span>`;
+          waitingList.appendChild(li);
+        });
+      }
+
+      waitingContent.hidden = false;
+    } catch (err) {
+      waitingStatus.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+      waitingStatus.className = 'error';
+    }
+  }
+
+  void loadAppointments();
+  void loadAgenda();
+  void loadWaitingRoom();
+
+  // Polling waiting-room toutes les 30 secondes
+  setInterval(() => { void loadWaitingRoom(); }, 30_000);
+</script>
