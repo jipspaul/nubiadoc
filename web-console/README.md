@@ -12,6 +12,14 @@ Console de test pour les endpoints de l'API Nubia. Usage développement uniqueme
 Cette commande (depuis la racine du repo) démarre Postgres dans un conteneur Podman,
 applique les migrations, lance l'API Rust sur `:38030` et la web-console Astro sur `:38040`.
 
+Une fois démarrée, les 3 espaces sont accessibles :
+
+| Rôle       | URL                                    | Login                          | Mot de passe |
+|------------|----------------------------------------|--------------------------------|--------------|
+| Patient    | http://localhost:38040/patient         | patient.demo@nubia.test        | NubiaDemo1!  |
+| Praticien  | http://localhost:38040/praticien       | praticien.demo@nubia.test      | NubiaDemo1!  |
+| Secrétaire | http://localhost:38040/secretary       | secretaire.demo@nubia.test     | NubiaDemo1!  |
+
 ### Lancer la web-console seule (si l'API tourne déjà)
 
 ```bash
