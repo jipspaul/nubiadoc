@@ -14,7 +14,7 @@ if (role !== 'practitioner' && role !== 'admin') {
 <AppShell title="Salle d'attente — Espace praticien" role="practitioner">
   <header>
     <h1>Salle d'attente</h1>
-    <p>File d'attente en temps réel. Actualisée toutes les 15 secondes.</p>
+    <p>File d'attente en temps réel. Actualisée toutes les 10 secondes.</p>
   </header>
 
   <!-- ── File d'attente — GET /v1/cabinet/waiting-room ───────────────── -->
@@ -204,7 +204,7 @@ if (role !== 'practitioner' && role !== 'admin') {
     }
   });
 
-  // Chargement initial + polling toutes les 15 secondes
+  // Chargement initial + polling toutes les 10 secondes
   void loadQueue();
-  setInterval(() => { void loadQueue(); }, 15_000);
+  setInterval(() => { void loadQueue(); }, 10_000);
 </script>
