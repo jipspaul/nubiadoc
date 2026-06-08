@@ -1,0 +1,102 @@
+---
+/**
+ * W52 — Sélecteur de contexte (établissement + secrétariat).
+ * Affiché dans AppShell uniquement si l'utilisateur a >1 appartenance.
+ * Appelle POST /v1/auth/select-context via le client centralisé.
+ */
+---
+
+<div id="ctx-selector-root" hidden aria-label="Sélecteur de contexte"></div>
+
+<script>
+  import { auth } from '../lib/endpoints.ts';
+  import { login, getContext } from '../lib/session.ts';
+
+  interface Membership {
+    cabinet_id: string;
+    cabinet_name?: string;
+    role: string;
+    secretariat_id?: string;
+    secretariat_name?: string;
+  }
+
+  async function init() {
+    const root = document.getElementById('ctx-selector-root');
+    if (!root) return;
+
+    const { status, data } = await auth.me();
+    if (status !== 200 || !data) return;
+
+    const me = data as {
+      memberships?: Membership[];
+    };
+
+    const memberships = me.memberships ?? [];
+    if (memberships.length <= 1) return;
+
+    const currentCtx = getContext();
+
+    const select = document.createElement('select');
+    select.id = 'ctx-selector-select';
+    select.setAttribute('aria-label', 'Contexte actif');
+
+    for (const m of memberships) {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify({ cabinet_id: m.cabinet_id, secretariat_id: m.secretariat_id });
+      const label = m.secretariat_name
+        ? `${m.secretariat_name} — ${m.cabinet_name ?? m.cabinet_id}`
+        : (m.cabinet_name ?? m.cabinet_id);
+      opt.textContent = label;
+
+      const isActive =
+        currentCtx?.cabinet_id === m.cabinet_id &&
+        (currentCtx?.secretariat_id ?? '') === (m.secretariat_id ?? '');
+      if (isActive) opt.selected = true;
+
+      select.appendChild(opt);
+    }
+
+    select.addEventListener('change', async () => {
+      const parsed = JSON.parse(select.value) as {
+        cabinet_id: string;
+        secretariat_id?: string;
+      };
+      const body: { cabinet_id: string; secretariat_id?: string } = {
+        cabinet_id: parsed.cabinet_id,
+      };
+      if (parsed.secretariat_id) body.secretariat_id = parsed.secretariat_id;
+
+      const { status: s, data: d } = await auth.selectContext(body);
+      if (s === 200 && d) {
+        const tokens = d as { access_token?: string };
+        if (tokens.access_token) {
+          login(tokens.access_token);
+          window.location.reload();
+        }
+      }
+    });
+
+    root.appendChild(select);
+    root.hidden = false;
+  }
+
+  init().catch(() => { /* silencieux — pas critique */ });
+</script>
+
+<style>
+  #ctx-selector-select {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    max-width: 260px;
+  }
+
+  #ctx-selector-select:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+</style>

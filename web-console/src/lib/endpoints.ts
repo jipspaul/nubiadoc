@@ -31,7 +31,13 @@ export interface MeResponse {
   kind: 'patient' | 'pro';
   role?: 'admin' | 'practitioner' | 'secretary';
   cabinet_id?: string;
-  memberships?: Array<{ cabinet_id: string; role: string }>;
+  memberships?: Array<{
+    cabinet_id: string;
+    cabinet_name?: string;
+    role: string;
+    secretariat_id?: string;
+    secretariat_name?: string;
+  }>;
 }
 
 // Patient — compte
@@ -364,6 +370,13 @@ export const auth = {
 
   me: () =>
     apiFetch('/v1/me') as Promise<ApiResponse<MeResponse>>,
+
+  selectContext: (body: { cabinet_id: string; secretariat_id?: string }) =>
+    apiFetch('/v1/auth/select-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<AuthTokens>>,
 };
 
 // ---------------------------------------------------------------------------
