@@ -53,7 +53,7 @@ pub async fn select_context(
         .map_err(|_| AppError::Internal)?;
 
     let row =
-        sqlx::query("SELECT cabinet_id, role FROM user_all_memberships($1) WHERE cabinet_id = $2")
+        sqlx::query("SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1) WHERE cabinet_id = $2")
             .bind(claims.sub)
             .bind(body.cabinet_id)
             .fetch_optional(&mut *tx)
