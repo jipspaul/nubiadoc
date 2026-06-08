@@ -26,6 +26,30 @@ export default defineConfig({
         baseURL: process.env.FLOWS_BASE_URL ?? 'http://localhost:38040',
       },
     },
+    {
+      name: 'patient',
+      testDir: 'tests/flows',
+      use: {
+        ...chromiumUse,
+        baseURL: process.env.FLOWS_BASE_URL ?? 'http://localhost:38040',
+      },
+    },
+    {
+      name: 'practitioner',
+      testDir: 'tests/flows',
+      use: {
+        ...chromiumUse,
+        baseURL: process.env.FLOWS_BASE_URL ?? 'http://localhost:38040',
+      },
+    },
+    {
+      name: 'secretary',
+      testDir: 'tests/flows',
+      use: {
+        ...chromiumUse,
+        baseURL: process.env.FLOWS_BASE_URL ?? 'http://localhost:38040',
+      },
+    },
   ],
   webServer: {
     command: 'npm run dev',

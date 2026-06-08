@@ -1130,6 +1130,23 @@ pub async fn callback_appointment(
 
     dispatcher.enqueue_notify_callback(id, cabinet_id);
 
+    // Relit callback_requested_at depuis la DB pour retourner le timestamp exact.
+    let mut rtx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *rtx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let ts_row = sqlx::query("SELECT callback_requested_at FROM appointment WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *rtx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    rtx.commit().await.map_err(|_| AppError::Internal)?;
+    let callback_requested_at: chrono::DateTime<chrono::Utc> = ts_row
+        .try_get("callback_requested_at")
+        .map_err(|_| AppError::Internal)?;
+
     tracing::info!(
         account_id = %claims.account_id,
         appointment_id = %id,

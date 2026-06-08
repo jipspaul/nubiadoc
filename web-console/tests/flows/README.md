@@ -8,6 +8,11 @@ Distinct des specs unitaires page par page (`tests/e2e/`).
 ```bash
 # Depuis web-console/
 npx playwright test --project=flows
+
+# Par rôle (alias : même testDir, projets dédiés)
+npx playwright test tests/flows/ --project=patient
+npx playwright test tests/flows/ --project=practitioner
+npx playwright test tests/flows/ --project=secretary
 ```
 
 L'URL cible par défaut est `http://localhost:38040`. Assurez-vous que le `dev-stack`
@@ -48,16 +53,16 @@ Créés par la migration `db/` seed P2 :
 ```typescript
 import { loginAs, clearSession } from './helpers';
 
-// Se connecter en tant que patient
-await loginAs(page, 'patient');
+// Se connecter en tant que patient — retourne le JWT
+const token = await loginAs(page, 'patient');
 
 // Nettoyer la session entre tests
 await clearSession(page);
 ```
 
 `loginAs(page, role)` : navigue vers `/auth/login`, soumet les credentials seed,
-attend la redirection post-login. Le cookie `nubia_jwt` et le cookie `nubia_role`
-sont posés par le JS client de la page login.
+attend la redirection post-login, puis retourne le JWT stocké dans `localStorage`.
+Le cookie `nubia_jwt` et le cookie `nubia_role` sont posés par le JS client.
 
 `clearSession(page)` : vide cookies + localStorage — à appeler dans `afterEach`
 pour isoler les parcours.
