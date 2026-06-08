@@ -95,6 +95,17 @@ pub async fn list_cabinet_conversations(
         return Err(AppError::Forbidden);
     }
 
+    // R10 : secrétaire sans secrétariat actif → liste vide.
+    if claims.role == "secretary" && claims.secretariat_id.is_none() {
+        return Ok(Json(ListCabinetConversationsResponse {
+            data: vec![],
+            page: PageInfo {
+                next_cursor: None,
+                limit: params.limit.unwrap_or(20).clamp(1, 100),
+            },
+        }));
+    }
+
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
     let fetch_limit = limit + 1;
     let cursor = params.cursor.as_deref().and_then(decode_cursor);
@@ -108,6 +119,7 @@ pub async fn list_cabinet_conversations(
     };
 
     // Clause cursor dans la SELECT externe (pas d'alias de table — colonnes viennent de la CTE).
+    // $2/$3/$4 (cursor avec ts) ou $2/$3 (cursor sans ts).
     let cursor_clause = match &cursor {
         None => String::new(),
         Some((_, Some(_), _)) => {
@@ -124,6 +136,30 @@ pub async fn list_cabinet_conversations(
                OR (urgency_int = $2 AND last_message_at IS NULL AND id < $3))"
                 .to_string()
         }
+    };
+
+    // R10 : secrétaire scopée au secrétariat actif.
+    // Le paramètre secretariat_id est toujours lié EN DERNIER (après les params curseur).
+    // Numéro de param : pas de cursor → $2 ; cursor sans ts → $4 ; cursor avec ts → $5.
+    let sec_param_n = match &cursor {
+        None => 2,
+        Some((_, None, _)) => 4,
+        Some((_, Some(_), _)) => 5,
+    };
+    let sec_filter = if claims.role == "secretary" {
+        format!(
+            " AND EXISTS ( \
+                 SELECT 1 FROM appointment a \
+                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                 WHERE a.patient_id = c.patient_id \
+                   AND a.deleted_at IS NULL \
+                   AND ps.active = true \
+                   AND ps.secretariat_id = ${sec_param_n} \
+             )"
+        )
+    } else {
+        String::new()
     };
 
     let sql = format!(
@@ -155,7 +191,7 @@ pub async fn list_cabinet_conversations(
              FROM conversation c \
              LEFT JOIN patient p  ON p.id  = c.patient_id \
              LEFT JOIN patient_account pa ON pa.id = c.patient_account_id \
-             WHERE true{scope_filter} \
+             WHERE true{scope_filter}{sec_filter} \
          ) \
          SELECT id, patient_first_name, patient_last_name, last_message_at, \
                 triage_flag, urgency_int, unread_count, scope, status \
@@ -174,27 +210,37 @@ pub async fn list_cabinet_conversations(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Lie les paramètres : $1=fetch_limit, puis curseur ($2...), puis secretariat_id si secretary.
+    let sid = claims.secretariat_id;
     let rows = match &cursor {
-        None => sqlx::query(&sql)
-            .bind(fetch_limit)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-        Some((urgency_c, Some(ts_c), id_c)) => sqlx::query(&sql)
-            .bind(fetch_limit)
-            .bind(urgency_c)
-            .bind(ts_c)
-            .bind(id_c)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-        Some((urgency_c, None, id_c)) => sqlx::query(&sql)
-            .bind(fetch_limit)
-            .bind(urgency_c)
-            .bind(id_c)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
+        None => {
+            let q = sqlx::query(&sql).bind(fetch_limit);
+            if let Some(s) = sid { q.bind(s) } else { q }
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+        }
+        Some((urgency_c, Some(ts_c), id_c)) => {
+            let q = sqlx::query(&sql)
+                .bind(fetch_limit)
+                .bind(urgency_c)
+                .bind(ts_c)
+                .bind(id_c);
+            if let Some(s) = sid { q.bind(s) } else { q }
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+        }
+        Some((urgency_c, None, id_c)) => {
+            let q = sqlx::query(&sql)
+                .bind(fetch_limit)
+                .bind(urgency_c)
+                .bind(id_c);
+            if let Some(s) = sid { q.bind(s) } else { q }
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+        }
     };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
