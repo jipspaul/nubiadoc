@@ -1,0 +1,357 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'practitioner' && role !== 'admin') {
+  return new Response('Accès interdit', { status: 403 });
+}
+
+const { id } = Astro.params;
+---
+<AppShell title="Consultation — Espace praticien" role="practitioner">
+  <header>
+    <h1>Fauteuil clinique</h1>
+    <p>Consultation <code id="consultation-id-display">{id}</code></p>
+  </header>
+
+  <!-- ── Données consultation — GET /v1/cabinet/consultations/:id ──────── -->
+  <section aria-labelledby="h-consultation">
+    <h2 id="h-consultation">Détails de la consultation</h2>
+    <div id="consultation-status" role="status" aria-live="polite">Chargement…</div>
+    <div id="consultation-content" hidden>
+      <dl id="consultation-fields">
+        <div><dt>Statut</dt><dd id="c-status">—</dd></div>
+        <div><dt>Patient</dt><dd id="c-patient">—</dd></div>
+        <div><dt>Rendez-vous</dt><dd id="c-appointment">—</dd></div>
+        <div><dt>Démarrée le</dt><dd id="c-started">—</dd></div>
+        <div><dt>Terminée le</dt><dd id="c-completed">—</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ── Actes — liste ─────────────────────────────────────────────────── -->
+  <section aria-labelledby="h-acts">
+    <h2 id="h-acts">Actes réalisés</h2>
+    <div id="acts-status" role="status" aria-live="polite"></div>
+    <div id="acts-content" hidden>
+      <table id="acts-table" aria-label="Liste des actes">
+        <thead>
+          <tr>
+            <th scope="col">Code</th>
+            <th scope="col">Libellé</th>
+            <th scope="col">Quantité</th>
+          </tr>
+        </thead>
+        <tbody id="acts-tbody"></tbody>
+      </table>
+      <p id="acts-empty" hidden class="empty-hint">Aucun acte enregistré.</p>
+    </div>
+  </section>
+
+  <!-- ── Ajouter un acte — POST /v1/cabinet/consultations/:id/acts ──────── -->
+  <section aria-labelledby="h-add-act">
+    <h2 id="h-add-act">Ajouter un acte</h2>
+    <form id="form-add-act" aria-label="Formulaire ajout d'acte">
+      <div class="field">
+        <label for="act-code">Code acte <span aria-hidden="true">*</span></label>
+        <input
+          type="text"
+          id="act-code"
+          name="code"
+          required
+          placeholder="ex: CCAM123"
+          autocomplete="off"
+        />
+      </div>
+      <div class="field">
+        <label for="act-label">Libellé</label>
+        <input
+          type="text"
+          id="act-label"
+          name="label"
+          placeholder="ex: Extraction dentaire"
+          autocomplete="off"
+        />
+      </div>
+      <div class="field">
+        <label for="act-quantity">Quantité</label>
+        <input
+          type="number"
+          id="act-quantity"
+          name="quantity"
+          min="1"
+          value="1"
+        />
+      </div>
+      <button type="submit" id="btn-add-act">Ajouter l'acte</button>
+    </form>
+    <p id="add-act-status" role="status" aria-live="polite"></p>
+  </section>
+
+  <!-- ── Terminer la consultation — POST /v1/cabinet/consultations/:id/complete ── -->
+  <section aria-labelledby="h-complete">
+    <h2 id="h-complete">Terminer la consultation</h2>
+    <p class="warning">Vérifiez les actes avant de terminer. Cette action clôture la séance.</p>
+    <button type="button" id="btn-complete">Terminer la consultation</button>
+    <p id="complete-status" role="status" aria-live="polite"></p>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-4);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+  }
+
+  dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2) var(--space-4); }
+  dl > div { display: contents; }
+  dt { color: var(--color-muted); font-size: var(--font-size-sm); font-weight: 600; }
+  dd { margin: 0; font-size: var(--font-size-sm); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+
+  th, td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  th { color: var(--color-muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  .empty-hint {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+    padding: var(--space-4) 0;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    max-width: 480px;
+  }
+
+  label { font-size: var(--font-size-sm); font-weight: 600; }
+
+  input {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+  }
+
+  input:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+  button[type="submit"],
+  button[type="button"] {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    align-self: flex-start;
+  }
+
+  button[type="submit"]:hover,
+  button[type="button"]:hover { opacity: 0.9; }
+
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .warning {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    border-left: 3px solid var(--color-accent);
+    padding-left: var(--space-3);
+    margin: 0 0 var(--space-4);
+  }
+
+  #btn-complete {
+    background: var(--color-error-fg, #dc2626);
+  }
+
+  [role="status"] {
+    font-size: var(--font-size-sm);
+    min-height: 1.25rem;
+    margin-top: var(--space-2);
+    color: var(--color-muted);
+  }
+
+  [role="status"].error { color: var(--color-error-fg); }
+  [role="status"].success { color: var(--color-success-fg, green); }
+</style>
+
+<script define:vars={{ consultationId: id }}>
+  import { proConsultations } from '../../../lib/endpoints.ts';
+  import type { Consultation, ConsultationAct } from '../../../lib/endpoints.ts';
+
+  const cId: string = (consultationId as string | undefined) ?? '';
+  const redirectOnAuth = `/auth/login?next=/praticien/consultation/${encodeURIComponent(cId)}`;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function setStatus(el: HTMLElement, msg: string, cls: '' | 'error' | 'success' = ''): void {
+    el.textContent = msg;
+    el.className = cls;
+  }
+
+  function renderActs(acts: ConsultationAct[]): void {
+    const tbody = document.getElementById('acts-tbody') as HTMLTableSectionElement;
+    const empty = document.getElementById('acts-empty') as HTMLElement;
+    tbody.innerHTML = '';
+    empty.hidden = acts.length > 0;
+    acts.forEach((act) => {
+      const tr = tbody.insertRow();
+      tr.insertCell().textContent = act.code ?? '—';
+      tr.insertCell().textContent = act.label ?? '—';
+      tr.insertCell().textContent = String(act.quantity ?? 1);
+    });
+  }
+
+  // ── Load consultation ─────────────────────────────────────────────────────
+
+  const consultationStatus  = document.getElementById('consultation-status') as HTMLElement;
+  const consultationContent = document.getElementById('consultation-content') as HTMLElement;
+  const actsContent         = document.getElementById('acts-content') as HTMLElement;
+  const actsStatus          = document.getElementById('acts-status') as HTMLElement;
+
+  async function loadConsultation(): Promise<void> {
+    setStatus(consultationStatus, 'Chargement…');
+    try {
+      const { status, data } = await proConsultations.get(cId);
+
+      if (status === 401) { window.location.href = redirectOnAuth; return; }
+      if (status === 403) { setStatus(consultationStatus, 'Accès refusé (403).', 'error'); return; }
+      if (status === 404) { setStatus(consultationStatus, 'Consultation introuvable (404).', 'error'); return; }
+      if (status !== 200) { setStatus(consultationStatus, `Erreur serveur (HTTP ${status}).`, 'error'); return; }
+
+      setStatus(consultationStatus, '');
+      const c = data as Consultation & { patient_id?: string; acts?: ConsultationAct[] };
+
+      (document.getElementById('c-status')      as HTMLElement).textContent = c.status ?? '—';
+      (document.getElementById('c-patient')     as HTMLElement).textContent = c.patient_id ?? '—';
+      (document.getElementById('c-appointment') as HTMLElement).textContent = c.appointment_id ?? '—';
+      (document.getElementById('c-started')     as HTMLElement).textContent = c.started_at
+        ? new Date(c.started_at).toLocaleString('fr-FR')
+        : '—';
+      (document.getElementById('c-completed')   as HTMLElement).textContent = c.completed_at
+        ? new Date(c.completed_at).toLocaleString('fr-FR')
+        : '—';
+
+      consultationContent.hidden = false;
+
+      // Render embedded acts if API returns them
+      const acts = c.acts ?? [];
+      renderActs(acts);
+      actsContent.hidden = false;
+    } catch (err) {
+      setStatus(consultationStatus, `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`, 'error');
+    }
+  }
+
+  // ── Add act ───────────────────────────────────────────────────────────────
+
+  const formAddAct  = document.getElementById('form-add-act')   as HTMLFormElement;
+  const addActStatus = document.getElementById('add-act-status') as HTMLElement;
+  const btnAddAct    = document.getElementById('btn-add-act')    as HTMLButtonElement;
+
+  formAddAct.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    btnAddAct.disabled = true;
+    setStatus(addActStatus, 'Enregistrement…');
+
+    const fd = new FormData(formAddAct);
+    const code     = (fd.get('code')     as string).trim();
+    const label    = (fd.get('label')    as string).trim() || undefined;
+    const quantity = Number(fd.get('quantity') ?? 1) || 1;
+
+    try {
+      const { status, data } = await proConsultations.postAct(cId, { code, label, quantity });
+
+      if (status === 401) { window.location.href = redirectOnAuth; return; }
+      if (status === 403) { setStatus(addActStatus, 'Accès refusé (403).', 'error'); btnAddAct.disabled = false; return; }
+      if (status !== 200 && status !== 201) {
+        setStatus(addActStatus, `Erreur serveur (HTTP ${status}).`, 'error');
+        btnAddAct.disabled = false;
+        return;
+      }
+
+      setStatus(addActStatus, 'Acte ajouté.', 'success');
+      formAddAct.reset();
+      (document.getElementById('act-quantity') as HTMLInputElement).value = '1';
+
+      // Refresh consultation to get updated acts list
+      await loadConsultation();
+    } catch (err) {
+      setStatus(addActStatus, `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`, 'error');
+    } finally {
+      btnAddAct.disabled = false;
+    }
+  });
+
+  // ── Complete consultation ─────────────────────────────────────────────────
+
+  const btnComplete     = document.getElementById('btn-complete')     as HTMLButtonElement;
+  const completeStatus  = document.getElementById('complete-status')  as HTMLElement;
+
+  btnComplete.addEventListener('click', async () => {
+    if (!confirm('Terminer la consultation ? Cette action est irréversible.')) return;
+
+    btnComplete.disabled = true;
+    setStatus(completeStatus, 'Fermeture en cours…');
+
+    try {
+      const { status } = await proConsultations.complete(cId);
+
+      if (status === 401) { window.location.href = redirectOnAuth; return; }
+      if (status === 403) { setStatus(completeStatus, 'Accès refusé (403).', 'error'); btnComplete.disabled = false; return; }
+      if (status !== 200 && status !== 204) {
+        setStatus(completeStatus, `Erreur serveur (HTTP ${status}).`, 'error');
+        btnComplete.disabled = false;
+        return;
+      }
+
+      window.location.href = '/praticien/dashboard';
+    } catch (err) {
+      setStatus(completeStatus, `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`, 'error');
+      btnComplete.disabled = false;
+    }
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+
+  void loadConsultation();
+</script>
