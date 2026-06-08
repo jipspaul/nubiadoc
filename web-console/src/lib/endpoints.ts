@@ -303,6 +303,13 @@ export interface WaitingListEntry {
   status?: string;
 }
 
+// Pro — secretariats
+export interface Secretariat {
+  id: string;
+  name?: string;
+  cabinet_id?: string;
+}
+
 // Pro — quotes (secrétariat / praticien)
 export interface CabinetQuote {
   id: string;
@@ -732,4 +739,26 @@ export const proQuotes = {
     const qs = params?.status ? `?status=${encodeURIComponent(params.status)}` : '';
     return apiFetch(`/v1/cabinet/quotes${qs}`) as Promise<ApiResponse<CabinetQuote[]>>;
   },
+};
+
+// ---------------------------------------------------------------------------
+// pro.secretariats
+// ---------------------------------------------------------------------------
+
+export const proSecretariats = {
+  /** GET /v1/cabinet/secretariats — liste les secrétariats de l'établissement actif */
+  list: () =>
+    apiFetch('/v1/cabinet/secretariats') as Promise<ApiResponse<Secretariat[]>>,
+
+  /** GET /v1/cabinet/providers/:id/secretariats — secrétariats assignés à un praticien */
+  getForProvider: (providerId: string) =>
+    apiFetch(`/v1/cabinet/providers/${providerId}/secretariats`) as Promise<ApiResponse<Secretariat[]>>,
+
+  /** PUT /v1/cabinet/providers/:id/secretariats — (ré)assigne le praticien à une liste de secrétariats */
+  putForProvider: (providerId: string, body: { secretariat_ids: string[] }) =>
+    apiFetch(`/v1/cabinet/providers/${providerId}/secretariats`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<Secretariat[]>>,
 };
