@@ -1,0 +1,289 @@
+---
+import Default from '../../../../layouts/Default.astro';
+---
+<Default title="Gestion du personnel — Admin Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">Gestion du personnel — W58</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;">
+    Rôle requis : <code>admin</code> ou <code>manager</code> ·
+    Endpoint : <code>GET /v1/cabinet/secretariats/:id</code> /
+    <code>POST /v1/cabinet/secretariats/:id/staff</code> /
+    <code>DELETE /v1/cabinet/secretariats/:id/members/:user_id</code>
+  </p>
+
+  <!-- ── LISTE DES MEMBRES ─────────────────────────────── -->
+  <section aria-labelledby="list-heading">
+    <h2 id="list-heading" style="margin-bottom:1rem;">
+      Liste des membres — GET /v1/cabinet/secretariats/:id
+    </h2>
+    <form id="list-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin ou manager)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        ID du secrétariat
+        <input type="text" name="secretariat_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        GET
+      </button>
+    </form>
+    <p id="list-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="list-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+    <ul id="members-list" style="margin-top:1rem;padding:0;list-style:none;display:none;"></ul>
+  </section>
+
+  <!-- ── INVITER / CRÉER SECRÉTAIRE ─────────────────────── -->
+  <section aria-labelledby="invite-heading" style="margin-top:2.5rem;">
+    <h2 id="invite-heading" style="margin-bottom:1rem;">
+      Inviter / Créer secrétaire — POST /v1/cabinet/secretariats/:id/staff
+    </h2>
+    <form id="invite-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin ou manager)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        ID du secrétariat
+        <input type="text" name="secretariat_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Email du secrétaire
+        <input type="email" name="email" required placeholder="secretaire@cabinet.fr"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Prénom (optionnel)
+        <input type="text" name="first_name" placeholder="Marie"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Nom (optionnel)
+        <input type="text" name="last_name" placeholder="Dupont"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        POST staff
+      </button>
+    </form>
+    <p id="invite-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="invite-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- ── RETIRER UN SECRÉTAIRE ──────────────────────────── -->
+  <section aria-labelledby="remove-heading" style="margin-top:2.5rem;">
+    <h2 id="remove-heading" style="margin-bottom:1rem;">
+      Retirer un secrétaire — DELETE /v1/cabinet/secretariats/:id/members/:user_id
+    </h2>
+    <form id="remove-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin ou manager)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        ID du secrétariat
+        <input type="text" name="secretariat_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        user_id du secrétaire à retirer
+        <input type="text" name="user_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:#7f1d1d;color:#fecaca;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        DELETE membre
+      </button>
+    </form>
+    <p id="remove-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="remove-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <nav aria-label="Navigation admin secrétariats" style="margin-top:2.5rem;">
+    <a href="/admin/secretariats">← Retour à la liste des secrétariats</a>
+  </nav>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+  #members-list li {
+    display:flex;justify-content:space-between;align-items:center;
+    padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:4px;margin-bottom:0.5rem;
+    background:var(--surface);
+  }
+</style>
+
+<script>
+  import { apiFetch } from '../../../../lib/api.ts';
+
+  function showResult(
+    resultEl: HTMLPreElement,
+    badgeEl: HTMLParagraphElement,
+    httpStatus: number,
+    data: unknown,
+  ): void {
+    resultEl.className = httpStatus < 300 ? 'success' : 'error';
+    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+    badgeEl.style.display = 'block';
+  }
+
+  // ── Liste des membres ──────────────────────────────────
+  const listForm = document.getElementById('list-form') as HTMLFormElement;
+  const listResult = document.getElementById('list-result') as HTMLPreElement;
+  const listBadge = document.getElementById('list-badge') as HTMLParagraphElement;
+  const membersList = document.getElementById('members-list') as HTMLUListElement;
+
+  interface SecretariatMember {
+    user_id: string;
+    email?: string;
+    role?: string;
+  }
+
+  interface SecretariatDetail {
+    id?: string;
+    name?: string;
+    members?: SecretariatMember[];
+  }
+
+  function renderMembersList(members: SecretariatMember[]): void {
+    membersList.innerHTML = '';
+    if (members.length === 0) {
+      membersList.style.display = 'block';
+      const li = document.createElement('li');
+      li.textContent = 'Aucun membre.';
+      membersList.appendChild(li);
+      return;
+    }
+    membersList.style.display = 'block';
+    for (const m of members) {
+      const li = document.createElement('li');
+      li.dataset.userId = m.user_id;
+      const info = document.createElement('span');
+      info.textContent = `${m.email ?? m.user_id} (${m.role ?? 'secretary'})`;
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = 'Retirer';
+      removeBtn.setAttribute('aria-label', `Retirer ${m.email ?? m.user_id}`);
+      removeBtn.style.cssText = 'padding:0.25rem 0.6rem;background:#7f1d1d;color:#fecaca;border:none;border-radius:4px;cursor:pointer;font-size:0.8rem;';
+      removeBtn.addEventListener('click', () => {
+        const fd = new FormData(listForm);
+        const secretariatId = fd.get('secretariat_id') as string;
+        const token = fd.get('access_token') as string;
+        if (secretariatId && token) {
+          (document.querySelector('#remove-form [name="secretariat_id"]') as HTMLInputElement).value = secretariatId;
+          (document.querySelector('#remove-form [name="access_token"]') as HTMLInputElement).value = token;
+          (document.querySelector('#remove-form [name="user_id"]') as HTMLInputElement).value = m.user_id;
+          li.remove();
+          if (membersList.querySelectorAll('li').length === 0) {
+            membersList.style.display = 'none';
+          }
+        }
+      });
+      li.appendChild(info);
+      li.appendChild(removeBtn);
+      membersList.appendChild(li);
+    }
+  }
+
+  listForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(listForm);
+    const token = fd.get('access_token') as string;
+    const secretariatId = fd.get('secretariat_id') as string;
+    listResult.textContent = 'Chargement…';
+    listBadge.style.display = 'none';
+    membersList.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      showResult(listResult, listBadge, status, data);
+      if (status === 200 && data && typeof data === 'object') {
+        const detail = data as SecretariatDetail;
+        if (Array.isArray(detail.members)) {
+          renderMembersList(detail.members);
+        }
+      }
+    } catch (err) {
+      listResult.className = 'error';
+      listResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── Inviter / Créer secrétaire ─────────────────────────
+  const inviteForm = document.getElementById('invite-form') as HTMLFormElement;
+  const inviteResult = document.getElementById('invite-result') as HTMLPreElement;
+  const inviteBadge = document.getElementById('invite-badge') as HTMLParagraphElement;
+
+  inviteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(inviteForm);
+    const token = fd.get('access_token') as string;
+    const secretariatId = fd.get('secretariat_id') as string;
+    const email = fd.get('email') as string;
+    const firstName = fd.get('first_name') as string;
+    const lastName = fd.get('last_name') as string;
+
+    const body: Record<string, string> = { email };
+    if (firstName) body.first_name = firstName;
+    if (lastName) body.last_name = lastName;
+
+    inviteResult.textContent = 'Chargement…';
+    inviteBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      showResult(inviteResult, inviteBadge, status, data);
+    } catch (err) {
+      inviteResult.className = 'error';
+      inviteResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── Retirer un secrétaire ──────────────────────────────
+  const removeForm = document.getElementById('remove-form') as HTMLFormElement;
+  const removeResult = document.getElementById('remove-result') as HTMLPreElement;
+  const removeBadge = document.getElementById('remove-badge') as HTMLParagraphElement;
+
+  removeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(removeForm);
+    const token = fd.get('access_token') as string;
+    const secretariatId = fd.get('secretariat_id') as string;
+    const userId = fd.get('user_id') as string;
+    removeResult.textContent = 'Chargement…';
+    removeBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}/members/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      showResult(removeResult, removeBadge, status, data);
+      if (status < 300) {
+        const li = membersList.querySelector(`li[data-user-id="${userId}"]`);
+        if (li) li.remove();
+        if (membersList.querySelectorAll('li').length === 0) {
+          membersList.style.display = 'none';
+        }
+      }
+    } catch (err) {
+      removeResult.className = 'error';
+      removeResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
