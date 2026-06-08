@@ -1,0 +1,374 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Secrétariats — Admin Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">Secrétariats — CRUD R12</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;">
+    Rôle requis : <code>admin</code> · Cookie <code>nubia_ctx</code> portant <code>cabinet_id</code>
+  </p>
+
+  <!-- ── LISTE ─────────────────────────────────────────── -->
+  <section aria-labelledby="list-heading">
+    <h2 id="list-heading" style="margin-bottom:1rem;">
+      Lister les secrétariats — GET /v1/cabinet/secretariats
+    </h2>
+    <form id="list-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        GET
+      </button>
+    </form>
+    <p id="list-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="list-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- ── CRÉER ─────────────────────────────────────────── -->
+  <section aria-labelledby="create-heading" style="margin-top:2.5rem;">
+    <h2 id="create-heading" style="margin-bottom:1rem;">
+      Créer un secrétariat — POST /v1/cabinet/secretariats
+    </h2>
+    <form id="create-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Nom du secrétariat
+        <input type="text" name="name" required placeholder="Secrétariat principal"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        POST
+      </button>
+    </form>
+    <p id="create-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="create-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- ── ÉDITER ─────────────────────────────────────────── -->
+  <section aria-labelledby="edit-heading" style="margin-top:2.5rem;">
+    <h2 id="edit-heading" style="margin-bottom:1rem;">
+      Modifier un secrétariat — PATCH /v1/cabinet/secretariats/:id
+    </h2>
+    <form id="edit-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        ID du secrétariat
+        <input type="text" name="id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        Nouveau nom
+        <input type="text" name="name" required placeholder="Nouveau nom"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        PATCH
+      </button>
+    </form>
+    <p id="edit-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="edit-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- ── SUPPRIMER ──────────────────────────────────────── -->
+  <section aria-labelledby="delete-heading" style="margin-top:2.5rem;">
+    <h2 id="delete-heading" style="margin-bottom:1rem;">
+      Supprimer un secrétariat — DELETE /v1/cabinet/secretariats/:id
+    </h2>
+    <form id="delete-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        ID du secrétariat à supprimer
+        <input type="text" name="id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <p role="note" style="color:var(--muted);font-size:0.875rem;margin:0;">
+        Une modale de confirmation s'affichera avant l'envoi.
+      </p>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:#7f1d1d;color:#fecaca;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        DELETE
+      </button>
+    </form>
+    <p id="delete-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="delete-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- ── AJOUTER MEMBRE ─────────────────────────────────── -->
+  <section aria-labelledby="add-member-heading" style="margin-top:2.5rem;">
+    <h2 id="add-member-heading" style="margin-bottom:1rem;">
+      Ajouter un membre — POST /v1/cabinet/secretariats/:id/members
+    </h2>
+    <form id="add-member-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        ID du secrétariat
+        <input type="text" name="secretariat_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        user_id du membre
+        <input type="text" name="user_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        POST membre
+      </button>
+    </form>
+    <p id="add-member-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="add-member-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- ── RETIRER MEMBRE ─────────────────────────────────── -->
+  <section aria-labelledby="remove-member-heading" style="margin-top:2.5rem;">
+    <h2 id="remove-member-heading" style="margin-bottom:1rem;">
+      Retirer un membre — DELETE /v1/cabinet/secretariats/:id/members/:userId
+    </h2>
+    <form id="remove-member-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+      <label>
+        Access token (Bearer, rôle admin)
+        <input type="text" name="access_token" required
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        ID du secrétariat
+        <input type="text" name="secretariat_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <label>
+        user_id du membre à retirer
+        <input type="text" name="user_id" required placeholder="uuid"
+          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+      </label>
+      <button type="submit"
+        style="padding:0.5rem 1rem;background:#7f1d1d;color:#fecaca;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+        DELETE membre
+      </button>
+    </form>
+    <p id="remove-member-badge" style="margin-top:1rem;display:none;"></p>
+    <pre id="remove-member-result" style="margin-top:0.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+  </section>
+
+  <!-- ── Modale de confirmation suppression ─────────────── -->
+  <dialog id="confirm-delete-dialog"
+    style="padding:1.5rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;max-width:420px;width:100%;">
+    <h3 style="margin:0 0 0.75rem;">Confirmer la suppression</h3>
+    <p style="margin:0 0 1.25rem;">Cette action est irréversible. Supprimer ce secrétariat ?</p>
+    <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+      <button id="confirm-cancel"
+        style="padding:0.5rem 1rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;cursor:pointer;">
+        Annuler
+      </button>
+      <button id="confirm-ok"
+        style="padding:0.5rem 1rem;background:#7f1d1d;color:#fecaca;border:none;border-radius:4px;cursor:pointer;">
+        Supprimer
+      </button>
+    </div>
+  </dialog>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+  .badge { display:inline-block;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.85rem;font-weight:600; }
+  .badge-ok  { background:#166534;color:#bbf7d0; }
+  .badge-err { background:#7f1d1d;color:#fecaca; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  function showResult(
+    resultEl: HTMLPreElement,
+    badgeEl: HTMLParagraphElement,
+    httpStatus: number,
+    data: unknown,
+  ): void {
+    resultEl.className = httpStatus < 300 ? 'success' : 'error';
+    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
+    badgeEl.style.display = 'block';
+  }
+
+  // ── Liste ──────────────────────────────────────────────
+  const listForm = document.getElementById('list-form') as HTMLFormElement;
+  const listResult = document.getElementById('list-result') as HTMLPreElement;
+  const listBadge = document.getElementById('list-badge') as HTMLParagraphElement;
+
+  listForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(listForm);
+    const token = fd.get('access_token') as string;
+    listResult.textContent = 'Chargement…';
+    listBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch('/v1/cabinet/secretariats', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      showResult(listResult, listBadge, status, data);
+    } catch (err) {
+      listResult.className = 'error';
+      listResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── Créer ──────────────────────────────────────────────
+  const createForm = document.getElementById('create-form') as HTMLFormElement;
+  const createResult = document.getElementById('create-result') as HTMLPreElement;
+  const createBadge = document.getElementById('create-badge') as HTMLParagraphElement;
+
+  createForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(createForm);
+    const token = fd.get('access_token') as string;
+    const name = fd.get('name') as string;
+    createResult.textContent = 'Chargement…';
+    createBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch('/v1/cabinet/secretariats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name }),
+      });
+      showResult(createResult, createBadge, status, data);
+    } catch (err) {
+      createResult.className = 'error';
+      createResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── Éditer ─────────────────────────────────────────────
+  const editForm = document.getElementById('edit-form') as HTMLFormElement;
+  const editResult = document.getElementById('edit-result') as HTMLPreElement;
+  const editBadge = document.getElementById('edit-badge') as HTMLParagraphElement;
+
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(editForm);
+    const token = fd.get('access_token') as string;
+    const id = fd.get('id') as string;
+    const name = fd.get('name') as string;
+    editResult.textContent = 'Chargement…';
+    editBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name }),
+      });
+      showResult(editResult, editBadge, status, data);
+    } catch (err) {
+      editResult.className = 'error';
+      editResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── Supprimer (avec modale de confirmation) ────────────
+  const deleteForm = document.getElementById('delete-form') as HTMLFormElement;
+  const deleteResult = document.getElementById('delete-result') as HTMLPreElement;
+  const deleteBadge = document.getElementById('delete-badge') as HTMLParagraphElement;
+  const dialog = document.getElementById('confirm-delete-dialog') as HTMLDialogElement;
+  const confirmOk = document.getElementById('confirm-ok') as HTMLButtonElement;
+  const confirmCancel = document.getElementById('confirm-cancel') as HTMLButtonElement;
+
+  let pendingDeleteToken = '';
+  let pendingDeleteId = '';
+
+  deleteForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(deleteForm);
+    pendingDeleteToken = fd.get('access_token') as string;
+    pendingDeleteId = fd.get('id') as string;
+    dialog.showModal();
+  });
+
+  confirmCancel.addEventListener('click', () => { dialog.close(); });
+
+  confirmOk.addEventListener('click', async () => {
+    dialog.close();
+    deleteResult.textContent = 'Chargement…';
+    deleteBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${pendingDeleteId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${pendingDeleteToken}` },
+      });
+      showResult(deleteResult, deleteBadge, status, data);
+    } catch (err) {
+      deleteResult.className = 'error';
+      deleteResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── Ajouter membre ─────────────────────────────────────
+  const addMemberForm = document.getElementById('add-member-form') as HTMLFormElement;
+  const addMemberResult = document.getElementById('add-member-result') as HTMLPreElement;
+  const addMemberBadge = document.getElementById('add-member-badge') as HTMLParagraphElement;
+
+  addMemberForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(addMemberForm);
+    const token = fd.get('access_token') as string;
+    const secretariatId = fd.get('secretariat_id') as string;
+    const userId = fd.get('user_id') as string;
+    addMemberResult.textContent = 'Chargement…';
+    addMemberBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      showResult(addMemberResult, addMemberBadge, status, data);
+    } catch (err) {
+      addMemberResult.className = 'error';
+      addMemberResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
+  // ── Retirer membre ─────────────────────────────────────
+  const removeMemberForm = document.getElementById('remove-member-form') as HTMLFormElement;
+  const removeMemberResult = document.getElementById('remove-member-result') as HTMLPreElement;
+  const removeMemberBadge = document.getElementById('remove-member-badge') as HTMLParagraphElement;
+
+  removeMemberForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(removeMemberForm);
+    const token = fd.get('access_token') as string;
+    const secretariatId = fd.get('secretariat_id') as string;
+    const userId = fd.get('user_id') as string;
+    removeMemberResult.textContent = 'Chargement…';
+    removeMemberBadge.style.display = 'none';
+    try {
+      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}/members/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      showResult(removeMemberResult, removeMemberBadge, status, data);
+    } catch (err) {
+      removeMemberResult.className = 'error';
+      removeMemberResult.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>

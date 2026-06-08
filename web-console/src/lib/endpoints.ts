@@ -762,6 +762,38 @@ export const proSecretariats = {
   list: () =>
     apiFetch('/v1/cabinet/secretariats') as Promise<ApiResponse<Secretariat[]>>,
 
+  /** POST /v1/cabinet/secretariats — crée un secrétariat */
+  post: (body: { name: string }) =>
+    apiFetch('/v1/cabinet/secretariats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<Secretariat>>,
+
+  /** PATCH /v1/cabinet/secretariats/:id — modifie un secrétariat */
+  patch: (id: string, body: { name: string }) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<Secretariat>>,
+
+  /** DELETE /v1/cabinet/secretariats/:id — supprime un secrétariat */
+  delete: (id: string) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}`, { method: 'DELETE' }) as Promise<ApiResponse<null>>,
+
+  /** POST /v1/cabinet/secretariats/:id/members — ajoute un membre */
+  addMember: (id: string, body: { user_id: string }) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<null>>,
+
+  /** DELETE /v1/cabinet/secretariats/:id/members/:userId — retire un membre */
+  removeMember: (id: string, userId: string) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}/members/${userId}`, { method: 'DELETE' }) as Promise<ApiResponse<null>>,
+
   /** GET /v1/cabinet/providers/:id/secretariats — secrétariats assignés à un praticien */
   getForProvider: (providerId: string) =>
     apiFetch(`/v1/cabinet/providers/${providerId}/secretariats`) as Promise<ApiResponse<Secretariat[]>>,
