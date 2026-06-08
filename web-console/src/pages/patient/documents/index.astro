@@ -1,0 +1,166 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Mes documents — Nubia" role="patient">
+  <nav aria-label="Fil d'Ariane">
+    <a href="/patient/accueil">Accueil</a>
+    <span aria-hidden="true"> / </span>
+    <span aria-current="page">Mes documents</span>
+  </nav>
+
+  <header>
+    <h1>Mes documents</h1>
+    <p>Consultez et téléchargez vos documents médicaux et administratifs.</p>
+  </header>
+
+  <section aria-labelledby="h-documents">
+    <h2 id="h-documents">Liste des documents</h2>
+
+    <div id="docs-loading" aria-live="polite">Chargement…</div>
+
+    <ul id="docs-list" hidden aria-label="Liste des documents"></ul>
+
+    <p id="docs-empty" hidden>Aucun document enregistré.</p>
+
+    <p id="docs-error" hidden role="alert"></p>
+  </section>
+</AppShell>
+
+<style>
+  nav { margin-bottom: var(--space-3); font-size: var(--font-size-sm); color: var(--color-muted); }
+  nav a { color: var(--color-muted); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  h2 { font-size: var(--font-size-lg); margin-bottom: var(--space-4); }
+
+  #docs-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .doc-card {
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .doc-info { flex: 1; min-width: 0; }
+
+  .doc-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .doc-meta {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-1);
+    flex-wrap: wrap;
+  }
+
+  .doc-type {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .doc-date {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+
+  .doc-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .btn-detail {
+    padding: var(--space-2) var(--space-4);
+    background: transparent;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .btn-detail:hover { background: var(--color-border); }
+</style>
+
+<script>
+  import { patientDocuments, type Document } from '../../../lib/endpoints.ts';
+
+  const loading = document.getElementById('docs-loading') as HTMLElement;
+  const list = document.getElementById('docs-list') as HTMLUListElement;
+  const empty = document.getElementById('docs-empty') as HTMLParagraphElement;
+  const docsError = document.getElementById('docs-error') as HTMLParagraphElement;
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function renderDocuments(docs: Document[]): void {
+    list.innerHTML = '';
+    if (docs.length === 0) {
+      empty.hidden = false;
+      return;
+    }
+    for (const doc of docs) {
+      const title = doc.name ?? doc.id;
+      const type = doc.type ?? '—';
+      const date = doc.created_at
+        ? new Date(doc.created_at).toLocaleDateString('fr-FR')
+        : '';
+
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <article class="doc-card">
+          <div class="doc-info">
+            <p class="doc-title">${escHtml(title)}</p>
+            <div class="doc-meta">
+              <span class="doc-type">${escHtml(type)}</span>
+              ${date ? `<span class="doc-date">${escHtml(date)}</span>` : ''}
+            </div>
+          </div>
+          <div class="doc-actions">
+            <a class="btn-detail" href="/patient/documents/${escHtml(doc.id)}">Voir</a>
+          </div>
+        </article>`;
+      list.appendChild(li);
+    }
+    list.hidden = false;
+  }
+
+  (async () => {
+    const { status, data } = await patientDocuments.list();
+    loading.hidden = true;
+    if (status < 300 && Array.isArray(data)) {
+      renderDocuments(data as Document[]);
+    } else {
+      docsError.textContent = 'Impossible de charger les documents.';
+      docsError.hidden = false;
+    }
+  })();
+</script>
