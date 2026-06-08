@@ -1029,6 +1029,8 @@ pub async fn get_appointment_directions(
 /// Réponse de `POST /v1/appointments/:id/callback-request`.
 #[derive(Serialize)]
 pub struct CallbackRequestResponse {
+    pub appointment_id: Uuid,
+    pub callback_requested_at: String,
     pub status: String,
 }
 
@@ -1077,9 +1079,11 @@ pub async fn callback_appointment(
     }
 
     // Idempotent : si déjà demandé, retourne callback_requested sans ré-écrire.
-    if existing.is_some() {
+    if let Some(ts) = existing {
         tx.commit().await.map_err(|_| AppError::Internal)?;
         return Ok(Json(CallbackRequestResponse {
+            appointment_id: id,
+            callback_requested_at: ts.to_rfc3339(),
             status: "callback_requested".to_string(),
         }));
     }
@@ -1117,6 +1121,23 @@ pub async fn callback_appointment(
 
     dispatcher.enqueue_notify_callback(id, cabinet_id);
 
+    // Relit callback_requested_at depuis la DB pour retourner le timestamp exact.
+    let mut rtx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *rtx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let ts_row = sqlx::query("SELECT callback_requested_at FROM appointment WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *rtx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    rtx.commit().await.map_err(|_| AppError::Internal)?;
+    let callback_requested_at: chrono::DateTime<chrono::Utc> = ts_row
+        .try_get("callback_requested_at")
+        .map_err(|_| AppError::Internal)?;
+
     tracing::info!(
         account_id = %claims.account_id,
         appointment_id = %id,
@@ -1124,6 +1145,8 @@ pub async fn callback_appointment(
     );
 
     Ok(Json(CallbackRequestResponse {
+        appointment_id: id,
+        callback_requested_at: callback_requested_at.to_rfc3339(),
         status: "callback_requested".to_string(),
     }))
 }
