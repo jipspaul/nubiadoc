@@ -728,6 +728,8 @@ export const proPrescriptions = {
 // ---------------------------------------------------------------------------
 
 export const proQuotes = {
-  list: () =>
-    apiFetch('/v1/cabinet/quotes') as Promise<ApiResponse<CabinetQuote[]>>,
+  list: (params?: { status?: string }) => {
+    const qs = params?.status ? `?status=${encodeURIComponent(params.status)}` : '';
+    return apiFetch(`/v1/cabinet/quotes${qs}`) as Promise<ApiResponse<CabinetQuote[]>>;
+  },
 };
