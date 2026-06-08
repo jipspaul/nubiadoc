@@ -1,0 +1,138 @@
+---
+import AppShell from '../../../../layouts/AppShell.astro';
+
+const { id } = Astro.params;
+---
+<AppShell title="Préparation rendez-vous — Nubia" role="patient">
+  <header>
+    <nav aria-label="Fil d'Ariane">
+      <a href={`/patient/rdv/${id}`}>← Retour au rendez-vous</a>
+    </nav>
+    <h1>Préparation</h1>
+  </header>
+
+  <section aria-labelledby="h-prep">
+    <h2 id="h-prep" class="sr-only">Informations de préparation</h2>
+    <div id="prep-loading" aria-live="polite">Chargement…</div>
+
+    <article id="prep-card" hidden>
+      <section aria-labelledby="h-instructions" class="info-card">
+        <h3 id="h-instructions">Instructions</h3>
+        <p id="prep-instructions" class="muted">—</p>
+      </section>
+
+      <section aria-labelledby="h-documents" class="info-card" id="docs-section" hidden>
+        <h3 id="h-documents">Documents à apporter</h3>
+        <ul id="prep-docs-list" aria-label="Documents nécessaires"></ul>
+      </section>
+
+      <section aria-labelledby="h-directions" class="info-card" id="directions-section" hidden>
+        <h3 id="h-directions">Itinéraire</h3>
+        <p id="directions-address" class="muted">—</p>
+        <a id="directions-link" href="#" target="_blank" rel="noopener" class="btn btn-secondary" hidden>
+          Voir sur la carte
+        </a>
+      </section>
+    </article>
+
+    <p id="prep-error" hidden class="error-msg">Impossible de charger les informations de préparation.</p>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  header nav { margin-bottom: var(--space-2); font-size: var(--font-size-sm); }
+  h1 { margin-bottom: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+
+  .info-card {
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    margin-bottom: var(--space-4);
+  }
+  .info-card h3 { font-size: var(--font-size-base); margin-bottom: var(--space-2); }
+
+  .muted { color: var(--color-muted); font-size: var(--font-size-sm); margin: 0; }
+
+  #prep-docs-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  #prep-docs-list li { font-size: var(--font-size-sm); color: var(--color-text); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
+
+  .error-msg { color: var(--color-error); }
+</style>
+
+<script define:vars={{ appointmentId: id }}>
+  import { patientAppointments, type AppointmentPreparation, type AppointmentDirections } from '../../../../lib/endpoints.ts';
+
+  const apptId = appointmentId as string;
+
+  const loadingEl    = document.getElementById('prep-loading') as HTMLElement;
+  const cardEl       = document.getElementById('prep-card') as HTMLElement;
+  const errorEl      = document.getElementById('prep-error') as HTMLElement;
+  const instrEl      = document.getElementById('prep-instructions') as HTMLElement;
+  const docsSection  = document.getElementById('docs-section') as HTMLElement;
+  const docsListEl   = document.getElementById('prep-docs-list') as HTMLUListElement;
+  const dirSection   = document.getElementById('directions-section') as HTMLElement;
+  const dirAddrEl    = document.getElementById('directions-address') as HTMLElement;
+  const dirLinkEl    = document.getElementById('directions-link') as HTMLAnchorElement;
+
+  (async () => {
+    const [prepRes, dirRes] = await Promise.all([
+      patientAppointments.getPreparation(apptId),
+      patientAppointments.getDirections(apptId),
+    ]);
+
+    loadingEl.hidden = true;
+
+    if (prepRes.status < 300 && prepRes.data) {
+      const prep = prepRes.data as AppointmentPreparation;
+      instrEl.textContent = prep.instructions ?? 'Aucune instruction particulière.';
+
+      if (prep.documents_needed && prep.documents_needed.length > 0) {
+        for (const doc of prep.documents_needed) {
+          const li = document.createElement('li');
+          li.textContent = doc;
+          docsListEl.appendChild(li);
+        }
+        docsSection.hidden = false;
+      }
+      cardEl.hidden = false;
+    } else {
+      errorEl.hidden = false;
+      return;
+    }
+
+    if (dirRes.status < 300 && dirRes.data) {
+      const dir = dirRes.data as AppointmentDirections;
+      if (dir.address) {
+        dirAddrEl.textContent = dir.address;
+        dirSection.hidden = false;
+      }
+      if (dir.map_url) {
+        dirLinkEl.href = dir.map_url;
+        dirLinkEl.hidden = false;
+      }
+    }
+  })();
+</script>

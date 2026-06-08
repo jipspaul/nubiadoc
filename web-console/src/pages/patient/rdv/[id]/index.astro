@@ -1,5 +1,5 @@
 ---
-import AppShell from '../../../layouts/AppShell.astro';
+import AppShell from '../../../../layouts/AppShell.astro';
 
 const { id } = Astro.params;
 ---
@@ -76,6 +76,11 @@ const { id } = Astro.params;
       <button type="button" id="btn-callback" class="btn btn-secondary">Demander un rappel</button>
       <p id="msg-callback" class="action-msg" aria-live="polite" hidden></p>
     </section>
+
+    <nav aria-label="Jour J" class="dayof-nav">
+      <a id="link-preparation" href="#" class="btn btn-secondary">Voir la préparation</a>
+      <a id="link-salle-attente" href="#" class="btn btn-secondary">Salle d'attente</a>
+    </nav>
   </section>
 </AppShell>
 
@@ -162,10 +167,17 @@ const { id } = Astro.params;
   .action-msg.err { color: var(--color-error); }
 
   .error-msg { color: var(--color-error); }
+
+  .dayof-nav {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    flex-wrap: wrap;
+  }
 </style>
 
 <script define:vars={{ appointmentId: id }}>
-  import { patientAppointments, type Appointment } from '../../../lib/endpoints.ts';
+  import { patientAppointments, type Appointment } from '../../../../lib/endpoints.ts';
 
   function escHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -196,6 +208,13 @@ const { id } = Astro.params;
   const badgeEl    = document.getElementById('rdv-status-badge') as HTMLElement;
   const notesRowEl = document.getElementById('rdv-notes-row') as HTMLElement;
   const notesEl    = document.getElementById('rdv-notes') as HTMLElement;
+
+  const linkPrep   = document.getElementById('link-preparation') as HTMLAnchorElement;
+  const linkSalle  = document.getElementById('link-salle-attente') as HTMLAnchorElement;
+
+  // Set day-J navigation links
+  linkPrep.href  = `/patient/rdv/${encodeURIComponent(id)}/preparation`;
+  linkSalle.href = `/patient/rdv/${encodeURIComponent(id)}/salle-attente`;
 
   // Load appointment
   let appt: Appointment | null = null;
