@@ -2,10 +2,10 @@
  * EP5 — Documents + devis patient (E2E flow)
  *
  * Parcours :
- *   1. Documents : GET /v1/documents liste → GET /v1/documents/:id détail
- *                  GET /v1/documents/:id/download → 200 (URL signée reçue)
- *   2. Devis     : GET /v1/quotes liste → POST /v1/quotes/:id/signature (Yousign stub)
- *                  → GET /v1/quotes/:id statut mis à jour → POST /v1/payments/intent → 201
+ *   1. Documents (W20) : UI /patient/documents liste → UI /patient/documents/:id détail
+ *                        → bouton activé → GET /v1/documents/:id/download 200 (URL signée)
+ *   2. Devis     (W21) : UI /patient/devis liste → POST /v1/quotes/:id/signature (Yousign stub)
+ *                        → GET /v1/quotes/:id statut mis à jour → POST /v1/payments/intent → 201
  *
  * Prérequis : dev-stack actif sur FLOWS_BASE_URL (défaut :38040) avec seed P2.
  * Le seed doit contenir au moins un document et un devis en statut `pending`/`sent`.
@@ -31,14 +31,21 @@ test.afterEach(async ({ page }) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scénario 1 : Documents — liste → détail → download
+// Scénario 1 : Documents — liste UI → détail UI → download
 // ─────────────────────────────────────────────────────────────────────────────
-test('documents : GET /v1/documents liste → détail → /download 200 + URL reçue', async ({ page }) => {
+test('documents : liste UI → détail UI → /download 200 + URL reçue', async ({ page }) => {
   await loginAs(page, 'patient');
   const jwt = await getJwt(page);
   expect(jwt).not.toBe('');
 
-  // ── 1. GET /v1/documents → liste ─────────────────────────────────────────
+  // ── 1. UI : page /patient/documents — liste ───────────────────────────────
+  await page.goto('/patient/documents');
+  await expect(page.locator('#docs-loading')).toBeHidden({ timeout: 15_000 });
+  await expect(
+    page.locator('#docs-list, #docs-empty, #docs-error'),
+  ).toBeVisible({ timeout: 10_000 });
+
+  // ── 2. API : GET /v1/documents → confirme la liste ────────────────────────
   const listResp = await page.evaluate(
     async (apiBase: string) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
@@ -58,8 +65,7 @@ test('documents : GET /v1/documents liste → détail → /download 200 + URL re
 
   // La suite ne peut s'exécuter qu'avec au moins un document (seed P2)
   if (listResp.documents.length === 0) {
-    // Pas de documents dans le seed — on ne peut pas tester détail/download
-    // Ce n'est pas une erreur de test : on log et on continue
+    await expect(page.locator('#docs-empty')).toBeVisible();
     return;
   }
 
@@ -68,7 +74,12 @@ test('documents : GET /v1/documents liste → détail → /download 200 + URL re
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   );
 
-  // ── 2. GET /v1/documents/:id → métadonnées ────────────────────────────────
+  // ── 3. UI : naviguer vers /patient/documents/:id ──────────────────────────
+  await page.goto(`/patient/documents/${firstDoc.id}`);
+  // Attendre que les métadonnées soient visibles (le script client remplit #doc-metadata)
+  await expect(page.locator('#doc-metadata')).toBeVisible({ timeout: 15_000 });
+
+  // ── 4. API : GET /v1/documents/:id → métadonnées ─────────────────────────
   const detailResp = await page.evaluate(
     async ({ apiBase, docId }: { apiBase: string; docId: string }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
@@ -86,7 +97,11 @@ test('documents : GET /v1/documents liste → détail → /download 200 + URL re
   expect(detailResp.status).toBe(200);
   expect(detailResp.data?.id).toBe(firstDoc.id);
 
-  // ── 3. GET /v1/documents/:id/download → URL signée reçue ─────────────────
+  // ── 5. UI : bouton télécharger activé → clic ─────────────────────────────
+  const btnDownload = page.locator('#btn-download');
+  await expect(btnDownload).toBeEnabled({ timeout: 10_000 });
+
+  // ── 6. API : GET /v1/documents/:id/download → URL signée reçue ───────────
   // L'API répond 200 avec { url } ou effectue un 302 → on suit les redirections
   // et on vérifie que la réponse finale est OK (fichier reçu ou URL présente).
   const downloadResp = await page.evaluate(
