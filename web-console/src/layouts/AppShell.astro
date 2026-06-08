@@ -66,6 +66,10 @@ const isActive = (href: string) => {
     <header class="app-header">
       <a href="/" class="app-logo" aria-label="Nubia — accueil">Nubia</a>
 
+      {role === 'secretary' && (
+        <div id="secretary-ctx-banner" class="secretary-banner" hidden aria-label="Contexte secrétariat actif"></div>
+      )}
+
       {role === 'admin' && (
         <nav class="space-switcher" aria-label="Sélecteur d'espace">
           <a href="/patient/accueil">Patient</a>
@@ -110,13 +114,22 @@ const isActive = (href: string) => {
 </html>
 
 <script>
-  import { isAuthenticated, getCurrentUser, logout } from '../lib/session.ts';
+  import { isAuthenticated, getCurrentUser, logout, getContext } from '../lib/session.ts';
 
   if (!isAuthenticated()) {
     window.location.href = '/login';
   } else {
     const el = document.getElementById('app-user-email');
     if (el) el.textContent = getCurrentUser() ?? '';
+  }
+
+  const banner = document.getElementById('secretary-ctx-banner');
+  if (banner) {
+    const ctx = getContext();
+    if (ctx?.secretariat_id) {
+      banner.textContent = `Secrétariat ${ctx.secretariat_id} — Établissement ${ctx.cabinet_id}`;
+      banner.hidden = false;
+    }
   }
 
   const btn = document.getElementById('app-logout-btn');
@@ -150,6 +163,17 @@ const isActive = (href: string) => {
     display: flex;
     gap: var(--space-2);
     margin-left: var(--space-4);
+  }
+
+  .secretary-banner {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-accent-fg);
+    background: var(--color-accent);
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-3);
+    margin-left: var(--space-4);
+    white-space: nowrap;
   }
 
   .space-switcher a {
