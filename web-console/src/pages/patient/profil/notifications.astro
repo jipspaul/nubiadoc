@@ -1,0 +1,409 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Notifications — Nubia" role="patient">
+  <header>
+    <h1>Mon profil</h1>
+    <p>Consultez et modifiez vos informations personnelles.</p>
+  </header>
+
+  <nav aria-label="Sous-navigation profil">
+    <ul>
+      <li><a href="/patient/profil">Informations</a></li>
+      <li><a href="/patient/profil/couverture">Couverture</a></li>
+      <li><a href="/patient/profil/proches">Proches</a></li>
+      <li><a href="/patient/profil/consentements">Consentements</a></li>
+      <li><a href="/patient/profil/notifications" aria-current="page">Notifications</a></li>
+    </ul>
+  </nav>
+
+  <section aria-labelledby="h-prefs">
+    <h2 id="h-prefs">Préférences de notification</h2>
+    <p class="section-desc">Choisissez les canaux par lesquels vous souhaitez être notifié.</p>
+
+    <div id="prefs-loading" aria-live="polite">Chargement…</div>
+
+    <form id="prefs-form" hidden>
+      <ul class="toggle-list" aria-label="Canaux de notification">
+        <li class="toggle-item">
+          <div class="toggle-info">
+            <span class="toggle-label">E-mail</span>
+            <span class="toggle-desc">Recevoir les notifications par e-mail</span>
+          </div>
+          <label class="toggle-switch" aria-label="Notifications par e-mail">
+            <input type="checkbox" name="email" />
+            <span class="toggle-track" aria-hidden="true"></span>
+          </label>
+        </li>
+        <li class="toggle-item">
+          <div class="toggle-info">
+            <span class="toggle-label">SMS</span>
+            <span class="toggle-desc">Recevoir les notifications par SMS</span>
+          </div>
+          <label class="toggle-switch" aria-label="Notifications par SMS">
+            <input type="checkbox" name="sms" />
+            <span class="toggle-track" aria-hidden="true"></span>
+          </label>
+        </li>
+        <li class="toggle-item">
+          <div class="toggle-info">
+            <span class="toggle-label">Notifications push</span>
+            <span class="toggle-desc">Recevoir les notifications sur l'application</span>
+          </div>
+          <label class="toggle-switch" aria-label="Notifications push">
+            <input type="checkbox" name="push" />
+            <span class="toggle-track" aria-hidden="true"></span>
+          </label>
+        </li>
+      </ul>
+    </form>
+
+    <p id="prefs-toast" aria-live="polite" role="status" hidden></p>
+  </section>
+
+  <section aria-labelledby="h-notifs" class="notifs-section">
+    <h2 id="h-notifs">Centre de notifications</h2>
+
+    <div class="notifs-cols">
+      <article aria-labelledby="h-notifs-list">
+        <h3 id="h-notifs-list">Notifications</h3>
+        <div id="notifs-loading" aria-live="polite">Chargement…</div>
+        <ul id="notifs-list" hidden aria-label="Liste des notifications"></ul>
+        <p id="notifs-empty" hidden class="empty-msg">Aucune notification.</p>
+        <p id="notifs-error" aria-live="polite" hidden class="error-msg">Impossible de charger les notifications.</p>
+      </article>
+
+      <article aria-labelledby="h-reminders-list">
+        <h3 id="h-reminders-list">Rappels</h3>
+        <div id="reminders-loading" aria-live="polite">Chargement…</div>
+        <ul id="reminders-list" hidden aria-label="Liste des rappels"></ul>
+        <p id="reminders-empty" hidden class="empty-msg">Aucun rappel.</p>
+        <p id="reminders-error" aria-live="polite" hidden class="error-msg">Impossible de charger les rappels.</p>
+      </article>
+    </div>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  h1 { margin-bottom: var(--space-1); }
+  header > p { color: var(--color-muted); font-size: var(--font-size-sm); }
+
+  nav { margin-bottom: var(--space-6); }
+  nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  nav a {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+  }
+  nav a[aria-current="page"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+  nav a:hover:not([aria-current="page"]) { background: var(--color-border); }
+
+  section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    max-width: 600px;
+    margin-bottom: var(--space-6);
+  }
+  h2 { margin: 0 0 var(--space-2); font-size: var(--font-size-lg); }
+  h3 { margin: 0 0 var(--space-3); font-size: var(--font-size-base, 1rem); font-weight: 600; }
+
+  .section-desc {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-4);
+  }
+
+  /* Preferences toggles */
+  .toggle-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .toggle-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  .toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .toggle-label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+
+  .toggle-desc {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-muted);
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 2.5rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--color-border);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .toggle-track::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 1rem;
+    height: 1rem;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+
+  .toggle-switch input:checked + .toggle-track { background: var(--color-accent); }
+  .toggle-switch input:checked + .toggle-track::after { transform: translateX(1.25rem); }
+  .toggle-switch input:focus-visible + .toggle-track {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  #prefs-toast {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  #prefs-toast.success { background: var(--color-success); color: var(--color-success-fg); }
+  #prefs-toast.error { background: var(--color-error); color: var(--color-error-fg); }
+
+  /* Notifications center */
+  .notifs-section { max-width: 800px; }
+
+  .notifs-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-6);
+  }
+  @media (max-width: 540px) {
+    .notifs-cols { grid-template-columns: 1fr; }
+  }
+
+  article { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-4); }
+
+  #notifs-list,
+  #reminders-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .notif-item,
+  .reminder-item {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  .notif-item.unread { border-left: 3px solid var(--color-accent); }
+
+  .notif-type {
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+  }
+
+  .notif-date,
+  .reminder-due {
+    font-size: var(--font-size-xs, 0.75rem);
+    color: var(--color-muted);
+    margin-top: var(--space-1);
+  }
+
+  .empty-msg {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+
+  .error-msg {
+    font-size: var(--font-size-sm);
+    color: var(--color-error, red);
+  }
+</style>
+
+<script>
+  import {
+    patientAccount,
+    patientDashboard,
+    type NotificationPreferences,
+  } from '../../../lib/endpoints.ts';
+
+  // ---- Preferences ----
+
+  const prefsLoading = document.getElementById('prefs-loading') as HTMLElement;
+  const prefsForm = document.getElementById('prefs-form') as HTMLFormElement;
+  const prefsToast = document.getElementById('prefs-toast') as HTMLParagraphElement;
+
+  function showPrefsToast(message: string, type: 'success' | 'error'): void {
+    prefsToast.textContent = message;
+    prefsToast.className = type;
+    prefsToast.hidden = false;
+    setTimeout(() => { prefsToast.hidden = true; }, 4000);
+  }
+
+  function fillPrefs(prefs: NotificationPreferences): void {
+    (prefsForm.elements.namedItem('email') as HTMLInputElement).checked = prefs.email;
+    (prefsForm.elements.namedItem('sms') as HTMLInputElement).checked = prefs.sms;
+    (prefsForm.elements.namedItem('push') as HTMLInputElement).checked = prefs.push;
+  }
+
+  async function savePrefs(field: keyof NotificationPreferences, value: boolean): Promise<void> {
+    const { status, data } = await patientAccount.patchNotificationPreferences({ [field]: value });
+    if (status < 300 && data) {
+      fillPrefs(data as NotificationPreferences);
+      showPrefsToast('Préférences mises à jour.', 'success');
+    } else {
+      showPrefsToast('Erreur lors de la mise à jour.', 'error');
+    }
+  }
+
+  (async () => {
+    const { status, data } = await patientAccount.getNotificationPreferences();
+    prefsLoading.hidden = true;
+    if (status < 300 && data) {
+      fillPrefs(data as NotificationPreferences);
+      prefsForm.hidden = false;
+
+      for (const name of ['email', 'sms', 'push'] as Array<keyof NotificationPreferences>) {
+        const input = prefsForm.elements.namedItem(name) as HTMLInputElement;
+        input.addEventListener('change', () => {
+          input.disabled = true;
+          savePrefs(name, input.checked).finally(() => { input.disabled = false; });
+        });
+      }
+    } else {
+      prefsLoading.textContent = 'Impossible de charger les préférences.';
+      prefsLoading.hidden = false;
+    }
+  })();
+
+  // ---- Notifications list ----
+
+  const notifsLoading = document.getElementById('notifs-loading') as HTMLElement;
+  const notifsList = document.getElementById('notifs-list') as HTMLUListElement;
+  const notifsEmpty = document.getElementById('notifs-empty') as HTMLParagraphElement;
+  const notifsError = document.getElementById('notifs-error') as HTMLParagraphElement;
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  (async () => {
+    const { status, data } = await patientDashboard.getNotifications();
+    notifsLoading.hidden = true;
+    if (status < 300 && Array.isArray(data)) {
+      if (data.length === 0) {
+        notifsEmpty.hidden = false;
+      } else {
+        for (const notif of data as Array<{ id: string; type: string; read: boolean; created_at: string }>) {
+          const li = document.createElement('li');
+          li.className = `notif-item${notif.read ? '' : ' unread'}`;
+
+          const type = document.createElement('p');
+          type.className = 'notif-type';
+          type.textContent = notif.type;
+
+          const date = document.createElement('p');
+          date.className = 'notif-date';
+          date.textContent = formatDate(notif.created_at);
+
+          li.append(type, date);
+          notifsList.append(li);
+        }
+        notifsList.hidden = false;
+      }
+    } else {
+      notifsError.hidden = false;
+    }
+  })();
+
+  // ---- Reminders list ----
+
+  const remindersLoading = document.getElementById('reminders-loading') as HTMLElement;
+  const remindersList = document.getElementById('reminders-list') as HTMLUListElement;
+  const remindersEmpty = document.getElementById('reminders-empty') as HTMLParagraphElement;
+  const remindersError = document.getElementById('reminders-error') as HTMLParagraphElement;
+
+  (async () => {
+    const { status, data } = await patientDashboard.getReminders();
+    remindersLoading.hidden = true;
+    if (status < 300 && Array.isArray(data)) {
+      if (data.length === 0) {
+        remindersEmpty.hidden = false;
+      } else {
+        for (const reminder of data as Array<{ id: string; message: string; due_at: string }>) {
+          const li = document.createElement('li');
+          li.className = 'reminder-item';
+
+          const msg = document.createElement('p');
+          msg.textContent = reminder.message;
+
+          const due = document.createElement('p');
+          due.className = 'reminder-due';
+          due.textContent = `Échéance : ${formatDate(reminder.due_at)}`;
+
+          li.append(msg, due);
+          remindersList.append(li);
+        }
+        remindersList.hidden = false;
+      }
+    } else {
+      remindersError.hidden = false;
+    }
+  })();
+</script>
