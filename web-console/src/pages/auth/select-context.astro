@@ -1,0 +1,179 @@
+---
+import Default from '../../layouts/Default.astro';
+---
+<Default title="Choisir un contexte — Nubia">
+  <main>
+    <header>
+      <h1>Choisir votre espace de travail</h1>
+      <p id="subtitle" style="color:var(--muted);margin-top:0.25rem;"></p>
+    </header>
+
+    <section id="loading" aria-live="polite" style="margin-top:2rem;">
+      Chargement de vos contextes…
+    </section>
+
+    <section id="context-list" hidden aria-label="Contextes disponibles" style="margin-top:2rem;display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
+    </section>
+
+    <section id="error-section" hidden style="margin-top:2rem;">
+      <p id="error-msg" style="color:var(--color-error-fg);background:var(--color-error);padding:0.75rem 1rem;border-radius:var(--radius-md);"></p>
+      <a href="/auth/login" style="display:inline-block;margin-top:0.75rem;color:var(--accent);">Retour à la connexion</a>
+    </section>
+  </main>
+</Default>
+
+<style>
+  .ctx-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .ctx-card strong { font-size: var(--font-size-base); }
+  .ctx-card span { font-size: var(--font-size-sm); color: var(--muted); }
+  .ctx-btn {
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: var(--accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    align-self: flex-start;
+  }
+  .ctx-btn:hover { background: var(--color-accent-hover); }
+  .ctx-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+</style>
+
+<script>
+  import { auth, type MeContext } from '../../lib/endpoints.ts';
+  import { login } from '../../lib/session.ts';
+
+  const ROLE_HOME: Record<string, string> = {
+    patient: '/patient/accueil',
+    practitioner: '/praticien/dashboard',
+    admin: '/praticien/dashboard',
+    secretary: '/secretary/dashboard',
+    manager: '/secretary/dashboard',
+  };
+
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get('next') ?? '';
+
+  const loadingEl = document.getElementById('loading') as HTMLElement;
+  const listEl = document.getElementById('context-list') as HTMLElement;
+  const errorSection = document.getElementById('error-section') as HTMLElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLElement;
+  const subtitle = document.getElementById('subtitle') as HTMLElement;
+
+  function showError(msg: string): void {
+    loadingEl.hidden = true;
+    errorSection.hidden = false;
+    errorMsg.textContent = msg;
+  }
+
+  function buildCard(ctx: MeContext): HTMLElement {
+    const card = document.createElement('article');
+    card.className = 'ctx-card';
+
+    const name = document.createElement('strong');
+    name.textContent = ctx.cabinet_name ?? ctx.cabinet_id;
+    card.appendChild(name);
+
+    if (ctx.secretariat_name ?? ctx.secretariat_id) {
+      const sec = document.createElement('span');
+      sec.textContent = `Secrétariat : ${ctx.secretariat_name ?? ctx.secretariat_id}`;
+      card.appendChild(sec);
+    }
+
+    const role = document.createElement('span');
+    role.textContent = `Rôle : ${ctx.role}`;
+    card.appendChild(role);
+
+    const btn = document.createElement('button');
+    btn.className = 'ctx-btn';
+    btn.type = 'button';
+    btn.textContent = 'Choisir cet espace';
+    btn.addEventListener('click', () => selectContext(ctx, btn));
+    card.appendChild(btn);
+
+    return card;
+  }
+
+  async function selectContext(ctx: MeContext, btn: HTMLButtonElement): Promise<void> {
+    btn.disabled = true;
+    btn.textContent = 'Connexion…';
+
+    try {
+      const body: { cabinet_id: string; secretariat_id?: string } = { cabinet_id: ctx.cabinet_id };
+      if (ctx.secretariat_id) body.secretariat_id = ctx.secretariat_id;
+
+      const { status, data } = await auth.selectContext(body);
+      if (status === 200 && data && typeof data === 'object' && 'access_token' in data) {
+        const tokens = data as { access_token: string; refresh_token?: string };
+        login(tokens.access_token);
+        const home = next || ROLE_HOME[ctx.role] || '/app';
+        window.location.href = home;
+        return;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Choisir cet espace';
+      showError(`Erreur lors de la sélection du contexte (HTTP ${status}).`);
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Choisir cet espace';
+      showError(`Erreur réseau : ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  async function init(): Promise<void> {
+    const { status, data } = await auth.me();
+
+    if (status !== 200 || !data || typeof data !== 'object') {
+      showError('Impossible de récupérer vos contextes. Reconnectez-vous.');
+      return;
+    }
+
+    const me = data as import('../../lib/endpoints.ts').MeResponse;
+
+    // Build flat list of contexts from `contexts` (R7) or fallback to `memberships`
+    let contexts: MeContext[] = [];
+    if (me.contexts && me.contexts.length > 0) {
+      contexts = me.contexts;
+    } else if (me.memberships && me.memberships.length > 0) {
+      contexts = me.memberships.map((m) => ({ cabinet_id: m.cabinet_id, role: m.role }));
+    }
+
+    // Auto-select if exactly 1 context
+    if (contexts.length === 1) {
+      subtitle.textContent = 'Un seul espace disponible, sélection automatique…';
+      loadingEl.hidden = true;
+      const dummy = document.createElement('button') as HTMLButtonElement;
+      dummy.disabled = false;
+      dummy.textContent = '';
+      await selectContext(contexts[0], dummy);
+      return;
+    }
+
+    if (contexts.length === 0) {
+      showError('Aucun espace de travail trouvé pour ce compte. Contactez votre administrateur.');
+      return;
+    }
+
+    subtitle.textContent = `${contexts.length} espaces disponibles. Choisissez-en un pour continuer.`;
+    loadingEl.hidden = true;
+    listEl.hidden = false;
+
+    for (const ctx of contexts) {
+      listEl.appendChild(buildCard(ctx));
+    }
+  }
+
+  init().catch((err: unknown) => {
+    showError(`Erreur inattendue : ${err instanceof Error ? err.message : String(err)}`);
+  });
+</script>
