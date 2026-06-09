@@ -69,8 +69,8 @@ void main() {
         .thenReturn(const NotificationSettingsLoaded(_prefs));
 
     await tester.pumpWidget(_wrap(cubit));
-    // Scroll to ensure all items are laid out (SingleChildScrollView + Column).
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -500));
+    // Scroll to ensure all items are laid out (ListView).
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
     await tester.pump();
 
     // 3 channel tiles + 5 type tiles = 8 total (skipOffstage to count all)
