@@ -1,7 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-import '../models/appointment.dart';
-
 sealed class AppointmentEvent extends Equatable {
   const AppointmentEvent();
 

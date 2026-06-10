@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'appointment_detail_page.dart';
+import 'appointment_detail_screen.dart';
 import 'bloc/appointment_bloc.dart';
 import 'bloc/appointment_event.dart';
 import 'bloc/appointment_state.dart';
@@ -33,7 +33,7 @@ class AppointmentsPage extends StatelessWidget {
           icon: const Icon(Icons.add),
           label: const Text('Prendre RDV'),
         ),
-        body: TabBarView(
+        body: const TabBarView(
           children: [
             _AppointmentsTab(tab: AppointmentTab.upcoming),
             _AppointmentsTab(tab: AppointmentTab.history),
@@ -151,7 +151,7 @@ class _AppointmentList extends StatelessWidget {
       MaterialPageRoute<void>(
         builder: (_) => BlocProvider.value(
           value: context.read<AppointmentBloc>(),
-          child: AppointmentDetailPage(appointmentId: id),
+          child: AppointmentDetailScreen(appointmentId: id),
         ),
       ),
     );
