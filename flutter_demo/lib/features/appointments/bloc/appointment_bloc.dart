@@ -23,8 +23,9 @@ class AppointmentBloc extends Bloc<AppointmentEvent, AppointmentState> {
   ) async {
     emit(const AppointmentLoading());
     try {
-      final list = await _repository.fetchAll();
-      emit(AppointmentListLoaded(list));
+      final all = await _repository.fetchAll();
+      final filtered = _filterByTab(all, event.tab);
+      emit(AppointmentListLoaded(filtered, tab: event.tab));
     } catch (e) {
       emit(AppointmentError(e.toString()));
     }
@@ -74,10 +75,30 @@ class AppointmentBloc extends Bloc<AppointmentEvent, AppointmentState> {
     emit(AppointmentCancelling(currentList));
     try {
       await _repository.cancel(event.id);
-      final updated = await _repository.fetchAll();
-      emit(AppointmentListLoaded(updated));
+      final all = await _repository.fetchAll();
+      final filtered = _filterByTab(all, AppointmentTab.upcoming);
+      emit(AppointmentListLoaded(filtered));
     } catch (e) {
       emit(AppointmentError(e.toString()));
     }
   }
+
+  List<Appointment> _filterByTab(
+    List<Appointment> all,
+    AppointmentTab tab,
+  ) {
+    return switch (tab) {
+      AppointmentTab.upcoming => all
+          .where((a) =>
+              a.status == AppointmentStatus.requested ||
+              a.status == AppointmentStatus.confirmed)
+          .toList(),
+      AppointmentTab.history => all
+          .where((a) =>
+              a.status == AppointmentStatus.done ||
+              a.status == AppointmentStatus.cancelled)
+          .toList(),
+    };
+  }
 }
+
