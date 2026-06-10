@@ -735,3 +735,118 @@ T0.1 → T0.2 → T0.3 → T0.4 → T1.1 → **T1.2** → T2.1 → T2.2 → **T3
 
 > Les issues **en gras** sont les verrous critiques : ne les bâcle pas, c'est là que vivent les vrais risques (RLS, crypto, wedge, signature/paiement, démo, prod).
 
+---
+
+# AUDIT API — écart contrat ↔ implémentation (10/06/2026)
+
+> Audit de couverture des routes : contrat documenté (`docs/12-api-reference.md`, les tableaux font foi) vs routes montées dans `api/src/lib.rs::app_with_dispatcher`.
+> **Constat** : ~30 endpoints documentés n'ont **aucun handler** (pas seulement non-montés — vérifié). Plusieurs viennent d'issues `NUB-T` partiellement livrées (route racine montée, sous-routes manquantes) ; d'autres n'ont **jamais été backloggées** (booking marketplace, consultation au fauteuil, ordonnance — scope marketplace ajouté le 02/06, postérieur au backlog initial).
+> Ordre conseillé : AUDIT-1 → AUDIT-2 → AUDIT-3, puis AUDIT-6 (débloque la signature d'AUDIT-2), puis AUDIT-4, AUDIT-5, AUDIT-7.
+
+### NUB-AUDIT-1 — Corrige le contrat signature devis + routes manquantes notifications/devices
+**Bloquée par** : — · **Labels** : `area:backend` `type:fix` `prio:P1` · **Estimate** : S
+
+**Objectif** : aligner l'API sur le contrat documenté et débloquer un appel front cassé.
+
+**Micro-étapes**
+- [ ] Renommer `POST /v1/quotes/{id}/sign` → `POST /v1/quotes/{id}/signature` (doc §10) ; conserver le handler.
+- [ ] Ajouter `GET /v1/quotes/{id}/signature` (statut de signature).
+- [ ] Ajouter `DELETE /v1/devices/{id}` (désenregistrement) et `POST /v1/notifications/{id}/read`.
+
+**Critères d'acceptation (tests)**
+- [ ] Le chemin `/signature` répond ; `/sign` n'existe plus (ou redirige sciemment).
+- [ ] Test d'intégration par route ; pgTAP cross-tenant pour devices/notifications.
+
+**Gate** : checklist `08` §4 verte.
+
+### NUB-AUDIT-2 — Implémente la facturation cabinet (devis + plans de traitement) — backend de `secretary/facturation`
+**Bloquée par** : T10.1, T10.2 · **Labels** : `area:backend` `type:feature` `prio:P0` · **Estimate** : L
+
+**Objectif** : donner un backend à l'écran `secretary/facturation` (web W41) qui n'en a aucun (doc §16).
+
+**Micro-étapes**
+- [ ] `GET /v1/cabinet/quotes` (suivi, `?status=`), `POST /v1/cabinet/quotes` (lignes CCAM, AMO/AMC, reste-à-charge calculé serveur).
+- [ ] `GET /v1/cabinet/quotes/{id}`, `PATCH /v1/cabinet/quotes/{id}` (→ `409 quote_locked` si signé), `POST …/{id}/send`, `POST …/{id}/remind`.
+- [ ] `GET /v1/cabinet/treatment-plans`, `POST /v1/cabinet/treatment-plans`, `POST …/{id}/phases`.
+
+**Critères d'acceptation (tests)**
+- [ ] RBAC (B.2) : création devis/plan = `practitioner`+`admin` ; suivi (`GET`, `remind`) = `secretary`+ ; `secretary` → `403` sur création.
+- [ ] Devis signé immuable (`PATCH`/`send` → `409`). Reste-à-charge = `unit − amo − amc`.
+- [ ] `with_tenant` partout ; pgTAP cross-tenant.
+
+**Gate** : checklist `08` §4 verte.
+
+### NUB-AUDIT-3 — Implémente la réservation cross-provider (availability, hold, bookings)
+**Bloquée par** : T7.1, T7.2 · **Labels** : `area:backend` `type:feature` `prio:P0` · **Estimate** : L
+
+**Objectif** : tenir la promesse marketplace — la recherche marche, la réservation n'existe pas (doc §12.2/§12.3). Jamais backloggée.
+
+**Micro-étapes**
+- [ ] `GET /v1/providers/{id}/availability` (`?from=&to=&motif=`) et `GET /v1/establishments/{id}` (public, lecture).
+- [ ] `POST /v1/slots/{id}/hold` → `{hold_token, expires_at}` (statut slot `held` + expiration ; petite migration forward-only).
+- [ ] `POST /v1/bookings` avec `Idempotency-Key` : motif→créneau→confirm, rattache l'`appointment` au tenant **et** à l'espace patient global.
+
+**Critères d'acceptation (tests)**
+- [ ] Conflit/hold expiré → `409 slot_taken` / `409 hold_expired`. Anti-double-booking via contrainte d'exclusion (T7.1).
+- [ ] Idempotence prouvée (rejouer la clé ne crée pas de doublon). pgTAP cross-tenant.
+
+**Gate** : checklist `08` §4 verte.
+
+### NUB-AUDIT-4 — Complète consultation au fauteuil, ordonnances et messagerie priorisée
+**Bloquée par** : T9.1 · **Labels** : `area:backend` `type:feature` `prio:P1` · **Estimate** : M
+
+**Objectif** : finir les routes back-office cliniques documentées (doc §15/§17/§18) jamais backloggées.
+
+**Micro-étapes**
+- [ ] Consultation : `DELETE /v1/cabinet/consultations/{id}/acts/{actId}`, `PUT /v1/cabinet/consultations/{id}/note` (chiffrée).
+- [ ] Ordonnance : `GET /v1/cabinet/prescriptions`, `PATCH /v1/cabinet/prescriptions/{id}` (brouillon), `POST …/{id}/send` (→ `document(category='ordonnance')`).
+- [ ] Messagerie priorisée : `GET/POST /v1/cabinet/conversations/{id}/messages`, `POST …/convert-to-appointment`.
+
+**Critères d'acceptation (tests)**
+- [ ] Cloisonnement R.4127-72 : routes cliniques `practitioner` only → `secretary` = `403`.
+- [ ] Garde-fou MDR ordonnance : aucun contrôle clinique automatique. pgTAP cross-tenant.
+
+**Gate** : checklist `08` §4 verte.
+
+### NUB-AUDIT-5 — Expose factures et historique paiements patient
+**Bloquée par** : T12.2 · **Labels** : `area:backend` `type:feature` `prio:P2` · **Estimate** : S
+
+**Objectif** : compléter la vue financière patient (doc §10).
+
+**Micro-étapes**
+- [ ] `GET /v1/invoices`, `GET /v1/payments`.
+
+**Critères d'acceptation (tests)** : tenant/compte-scoped ; pgTAP cross-tenant ; tests par route.
+
+**Gate** : checklist `08` §4 verte.
+
+### NUB-AUDIT-6 — Ajoute les webhooks Yousign et GoCardless
+**Bloquée par** : T11.1 · **Labels** : `area:backend` `type:feature` `prio:P1` · **Estimate** : M
+
+**Objectif** : compléter la chaîne signature/paiement (doc §21) ; débloque la complétion de signature d'AUDIT-2. Seul Stripe existe.
+
+**Micro-étapes**
+- [ ] `POST /v1/webhooks/yousign` (fige devis/ordonnance : `signed_at`, `sha256`, notifie).
+- [ ] `POST /v1/webhooks/gocardless` (mandat/prélèvement SEPA → MAJ paiement).
+- [ ] Réutiliser le pattern HMAC + idempotence du webhook Stripe (`webhooks/stripe.rs`).
+
+**Critères d'acceptation (tests)** : signature invalide → `400` ; rejouabilité idempotente (clé = id événement prestataire) ; réponse `200` rapide.
+
+**Gate** : checklist `08` §4 verte.
+
+### NUB-AUDIT-7 — Implémente le canal temps réel WebSocket
+**Bloquée par** : T16.1 · **Labels** : `area:backend` `type:feature` `prio:P1` · **Estimate** : L
+
+**Objectif** : livrer `GET /v1/ws` (doc §20) — salle d'attente, file patient, agenda, conversations en temps réel.
+
+**Micro-étapes**
+- [ ] `GET /v1/ws` (upgrade, auth JWT via `?access_token=` ou header au handshake).
+- [ ] Canaux `waiting_room`, `patient_queue:{id}`, `agenda:{id}`, `conversation:{id}`, `teleconsult:{id}` ; fan-out pub/sub Redis (ADR-005).
+- [ ] ⚠️ Réinjecter le contexte tenant/RLS à **chaque** opération DB sur la connexion longue durée.
+
+**Critères d'acceptation (tests)** : autorisation par canal (RLS+RBAC+propriété) ; un abonné hors tenant ne reçoit rien.
+
+**Gate** : checklist `08` §4 verte.
+
+> **Hors scope (correctement absents)** : FranceConnect/PSC (post-MVP), Annexe A `/v1/cabinet/search` + `/v1/cabinet/assistant/ask` (post-traction), `/v1/payment-schedules` (🎭).
+
