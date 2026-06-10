@@ -76,8 +76,6 @@ void main() {
   testWidgets(
       'Messaging flow — message envoyé apparaît côté patient dans le fil',
       (tester) async {
-    bloc.add(const MessagingThreadOpened('conv-1'));
-
     await tester.pumpWidget(
       MaterialApp(
         home: BlocProvider<MessagingBloc>.value(
@@ -90,17 +88,22 @@ void main() {
       ),
     );
 
-    // Wait for the thread to load.
-    await tester.pump();
-    await tester.pump();
+    // Dispatch event after widget is mounted so state changes reach the tree.
+    bloc.add(const MessagingThreadOpened('conv-1'));
+
+    // Wait for the thread to load: bloc processes event → emits Loading
+    // → getMessages resolves → emits Loaded → markRead resolves.
+    await tester.pump(); // emits MessagingThreadLoading, suspends at getMessages
+    await tester.pump(); // getMessages resolves, emits MessagingThreadLoaded, suspends at markRead
+    await tester.pump(); // markRead resolves
 
     expect(find.text('Bonjour !'), findsOneWidget);
 
     // Type and send a message.
     await tester.enterText(find.byType(TextField), 'Merci pour votre réponse.');
     await tester.tap(find.byTooltip('Envoyer'));
-    await tester.pump();
-    await tester.pump();
+    await tester.pump(); // send Future resolves, state updated
+    await tester.pump(); // rebuild
 
     // The sent message should now appear in the thread.
     expect(find.text('Merci pour votre réponse.'), findsOneWidget);
@@ -111,8 +114,6 @@ void main() {
       (tester) async {
     // Start: conversation has unreadCount = 1.
     // After MessagingThreadOpened, the bloc calls markRead — verify it's called.
-    bloc.add(const MessagingThreadOpened('conv-1'));
-
     await tester.pumpWidget(
       MaterialApp(
         home: BlocProvider<MessagingBloc>.value(
@@ -125,8 +126,11 @@ void main() {
       ),
     );
 
-    await tester.pump();
-    await tester.pump();
+    bloc.add(const MessagingThreadOpened('conv-1'));
+
+    await tester.pump(); // emits MessagingThreadLoading, suspends at getMessages
+    await tester.pump(); // getMessages resolves, emits MessagingThreadLoaded, suspends at markRead
+    await tester.pump(); // markRead resolves
 
     verify(() => repository.markRead('conv-1')).called(1);
   });
