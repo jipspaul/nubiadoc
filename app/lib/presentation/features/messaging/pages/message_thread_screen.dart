@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_bloc.dart';
 import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_event.dart';
 import 'package:nubia_patient/presentation/features/messaging/bloc/messaging_state.dart';
@@ -18,6 +19,21 @@ class MessageThreadScreen extends StatelessWidget {
 
   final String conversationId;
   final String cabinetName;
+
+  Future<void> _pickAndAttachPhoto(BuildContext context) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked == null) return;
+    if (!context.mounted) return;
+    context.read<MessagingBloc>().add(
+          MessagingPhotoAttachRequested(
+            conversationId: conversationId,
+            filePath: picked.path,
+            filename: picked.name,
+            mimeType: 'image/jpeg',
+          ),
+        );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,8 +72,12 @@ class MessageThreadScreen extends StatelessWidget {
               builder: (context, state) {
                 final sending =
                     state is MessagingThreadLoaded && state.sending;
+                final uploading =
+                    state is MessagingThreadLoaded && state.uploadingAttachment;
                 return MessageInputBar(
                   enabled: !sending,
+                  uploadingAttachment: uploading,
+                  onAttachPhoto: () => _pickAndAttachPhoto(context),
                   onSend: (text) {
                     context.read<MessagingBloc>().add(
                           MessagingMessageSendRequested(
