@@ -8,7 +8,9 @@ import 'package:flutter_demo/features/appointments/bloc/appointment_bloc.dart';
 import 'package:flutter_demo/features/appointments/bloc/appointment_event.dart';
 import 'package:flutter_demo/features/appointments/bloc/appointment_state.dart';
 import 'package:flutter_demo/features/appointments/appointments_list_screen.dart';
+import 'package:flutter_demo/features/appointments/appointments_page.dart';
 import 'package:flutter_demo/features/appointments/appointment_detail_screen.dart';
+import 'package:flutter_demo/features/appointments/appointment_preparation_page.dart';
 import 'package:flutter_demo/features/appointments/book_appointment_screen.dart';
 import 'package:flutter_demo/features/appointments/models/appointment.dart';
 import 'package:flutter_demo/features/appointments/widgets/appointment_card.dart';
@@ -26,6 +28,8 @@ final _mockAppointment = Appointment(
   startsAt: DateTime.utc(2026, 7, 10, 9, 30),
   status: AppointmentStatus.confirmed,
   address: '12 rue de la Paix, 75001 Paris',
+  itemsToBring: const ['Carte Vitale', 'Mutuelle'],
+  qrCode: 'NUBIA:apt-001:checkin',
 );
 
 Widget _wrap(Widget child, AppointmentBloc bloc) {
@@ -107,6 +111,49 @@ void main() {
     });
   });
 
+  group('AppointmentsPage', () {
+    testWidgets('renders without throwing', (tester) async {
+      when(() => mockBloc.state)
+          .thenReturn(AppointmentListLoaded([_mockAppointment]));
+      await tester.pumpWidget(
+        _wrap(const AppointmentsPage(), mockBloc),
+      );
+      expect(find.byType(AppointmentsPage), findsOneWidget);
+    });
+
+    testWidgets('shows À venir and Historique tabs', (tester) async {
+      when(() => mockBloc.state)
+          .thenReturn(const AppointmentListLoaded([]));
+      await tester.pumpWidget(
+        _wrap(const AppointmentsPage(), mockBloc),
+      );
+      expect(find.text('À venir'), findsOneWidget);
+      expect(find.text('Historique'), findsOneWidget);
+    });
+
+    testWidgets('shows appointment card in upcoming tab', (tester) async {
+      when(() => mockBloc.state).thenReturn(
+        AppointmentListLoaded([_mockAppointment], tab: AppointmentTab.upcoming),
+      );
+      await tester.pumpWidget(
+        _wrap(const AppointmentsPage(), mockBloc),
+      );
+      await tester.pump();
+      expect(find.byType(AppointmentCard), findsOneWidget);
+    });
+
+    testWidgets('shows empty list message', (tester) async {
+      when(() => mockBloc.state).thenReturn(
+        const AppointmentListLoaded([], tab: AppointmentTab.upcoming),
+      );
+      await tester.pumpWidget(
+        _wrap(const AppointmentsPage(), mockBloc),
+      );
+      await tester.pump();
+      expect(find.text('Aucun rendez-vous'), findsOneWidget);
+    });
+  });
+
   group('AppointmentDetailScreen', () {
     testWidgets('renders without throwing', (tester) async {
       when(() => mockBloc.state)
@@ -145,6 +192,19 @@ void main() {
       expect(find.byKey(const Key('btn_cancel')), findsOneWidget);
     });
 
+    testWidgets('shows Préparer mon RDV button when status is confirmed',
+        (tester) async {
+      when(() => mockBloc.state)
+          .thenReturn(AppointmentDetailLoaded(_mockAppointment));
+      await tester.pumpWidget(
+        _wrap(
+          AppointmentDetailScreen(appointmentId: _mockAppointment.id),
+          mockBloc,
+        ),
+      );
+      expect(find.byKey(const Key('btn_prepare')), findsOneWidget);
+    });
+
     testWidgets('cancel button dispatches AppointmentCancelRequested',
         (tester) async {
       when(() => mockBloc.state)
@@ -162,6 +222,66 @@ void main() {
           AppointmentCancelRequested(id: _mockAppointment.id),
         ),
       ).called(1);
+    });
+  });
+
+  group('AppointmentPreparationPage', () {
+    testWidgets('renders without throwing', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: AppointmentPreparationPage(appointment: _mockAppointment),
+        ),
+      );
+      expect(find.byType(AppointmentPreparationPage), findsOneWidget);
+    });
+
+    testWidgets('shows address when provided', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: AppointmentPreparationPage(appointment: _mockAppointment),
+        ),
+      );
+      expect(find.text('12 rue de la Paix, 75001 Paris'), findsOneWidget);
+    });
+
+    testWidgets('shows items to bring', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: AppointmentPreparationPage(appointment: _mockAppointment),
+        ),
+      );
+      expect(find.text('Carte Vitale'), findsOneWidget);
+      expect(find.text('Mutuelle'), findsOneWidget);
+    });
+
+    testWidgets('shows QR code placeholder', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: AppointmentPreparationPage(appointment: _mockAppointment),
+        ),
+      );
+      expect(find.byKey(const Key('qr_placeholder')), findsOneWidget);
+    });
+
+    testWidgets('renders without address or QR when absent', (tester) async {
+      final apt = Appointment(
+        id: 'apt-x',
+        providerName: 'Dr Test',
+        motif: 'Test',
+        startsAt: DateTime.utc(2026, 8, 1, 9, 0),
+        status: AppointmentStatus.confirmed,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: AppointmentPreparationPage(appointment: apt),
+        ),
+      );
+      expect(find.byType(AppointmentPreparationPage), findsOneWidget);
     });
   });
 
