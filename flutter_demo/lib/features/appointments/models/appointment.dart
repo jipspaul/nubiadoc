@@ -17,6 +17,8 @@ class Appointment extends Equatable {
     required this.startsAt,
     required this.status,
     this.address,
+    this.itemsToBring = const [],
+    this.qrCode,
   });
 
   final String id;
@@ -28,6 +30,14 @@ class Appointment extends Equatable {
   /// Adresse du cabinet — disponible dans le détail.
   final String? address;
 
+  /// Liste des documents/objets à apporter au RDV.
+  final List<String> itemsToBring;
+
+  /// Code QR de check-in (data URI ou token brut).
+  final String? qrCode;
+
   @override
-  List<Object?> get props => [id, providerName, motif, startsAt, status, address];
+  List<Object?> get props =>
+      [id, providerName, motif, startsAt, status, address, itemsToBring, qrCode];
 }
+

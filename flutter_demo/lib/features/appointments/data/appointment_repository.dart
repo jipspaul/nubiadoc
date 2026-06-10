@@ -29,6 +29,12 @@ class FakeAppointmentRepository implements AppointmentRepository {
       startsAt: DateTime.utc(2026, 7, 10, 9, 30),
       status: AppointmentStatus.confirmed,
       address: '12 rue de la Paix, 75001 Paris',
+      itemsToBring: const [
+        'Carte Vitale',
+        'Mutuelle / attestation de droits',
+        'Dernier compte-rendu radiologique',
+      ],
+      qrCode: 'NUBIA:apt-001:checkin',
     ),
     Appointment(
       id: 'apt-002',
@@ -37,6 +43,8 @@ class FakeAppointmentRepository implements AppointmentRepository {
       startsAt: DateTime.utc(2026, 8, 5, 14, 0),
       status: AppointmentStatus.requested,
       address: '12 rue de la Paix, 75001 Paris',
+      itemsToBring: const ['Carte Vitale'],
+      qrCode: 'NUBIA:apt-002:checkin',
     ),
     Appointment(
       id: 'apt-003',
@@ -94,6 +102,8 @@ class FakeAppointmentRepository implements AppointmentRepository {
       startsAt: _store[idx].startsAt,
       status: AppointmentStatus.cancelled,
       address: _store[idx].address,
+      itemsToBring: _store[idx].itemsToBring,
+      qrCode: _store[idx].qrCode,
     );
   }
 }

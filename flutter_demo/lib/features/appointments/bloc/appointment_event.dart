@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../models/appointment.dart';
+
 sealed class AppointmentEvent extends Equatable {
   const AppointmentEvent();
 
@@ -7,9 +9,14 @@ sealed class AppointmentEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Charge la liste des RDV (GET /v1/appointments).
+/// Charge la liste des RDV (GET /v1/appointments), filtrée par [tab].
 final class AppointmentLoadRequested extends AppointmentEvent {
-  const AppointmentLoadRequested();
+  const AppointmentLoadRequested({this.tab = AppointmentTab.upcoming});
+
+  final AppointmentTab tab;
+
+  @override
+  List<Object?> get props => [tab];
 }
 
 /// Charge le détail d'un RDV (GET /v1/appointments/{id}).
@@ -47,3 +54,13 @@ final class AppointmentCancelRequested extends AppointmentEvent {
   @override
   List<Object?> get props => [id];
 }
+
+/// Onglets de la liste des RDV.
+enum AppointmentTab {
+  /// RDV à venir : statuts [requested] + [confirmed].
+  upcoming,
+
+  /// Historique : statuts [done] + [cancelled].
+  history,
+}
+

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../bloc/appointment_event.dart';
 import '../models/appointment.dart';
 
 sealed class AppointmentState extends Equatable {
@@ -17,14 +18,16 @@ final class AppointmentLoading extends AppointmentState {
   const AppointmentLoading();
 }
 
-/// Liste chargée.
+/// Liste chargée avec l'onglet actif.
 final class AppointmentListLoaded extends AppointmentState {
-  const AppointmentListLoaded(this.appointments);
+  const AppointmentListLoaded(this.appointments,
+      {this.tab = AppointmentTab.upcoming});
 
   final List<Appointment> appointments;
+  final AppointmentTab tab;
 
   @override
-  List<Object?> get props => [appointments];
+  List<Object?> get props => [appointments, tab];
 }
 
 /// Détail chargé.
@@ -65,3 +68,4 @@ final class AppointmentError extends AppointmentState {
   @override
   List<Object?> get props => [message];
 }
+
