@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../clinical_session/bloc/clinical_session_bloc.dart';
 import '../clinical_session/clinical_session_screen.dart';
 import '../clinical_session/data/clinical_session_repository.dart';
+import 'appointment_preparation_page.dart';
 import 'bloc/appointment_bloc.dart';
 import 'bloc/appointment_event.dart';
 import 'bloc/appointment_state.dart';
@@ -116,6 +117,17 @@ class _DetailBody extends StatelessWidget {
           if (canCancel)
             SizedBox(
               width: double.infinity,
+              child: FilledButton.tonal(
+                key: const Key('btn_prepare'),
+                onPressed: () => _openPreparation(context, appointment),
+                child: const Text('Préparer mon RDV'),
+              ),
+            ),
+          if (canCancel)
+            const SizedBox(height: 12),
+          if (canCancel)
+            SizedBox(
+              width: double.infinity,
               child: OutlinedButton.icon(
                 key: const Key('btn_cancel'),
                 onPressed: () => context.read<AppointmentBloc>().add(
@@ -139,6 +151,14 @@ class _DetailBody extends StatelessWidget {
     final hour = d.hour.toString().padLeft(2, '0');
     final min = d.minute.toString().padLeft(2, '0');
     return '$day/$month/${d.year} à $hour:$min';
+  }
+
+  void _openPreparation(BuildContext context, Appointment appointment) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AppointmentPreparationPage(appointment: appointment),
+      ),
+    );
   }
 
   void _openClinicalSession(BuildContext context, String appointmentId) {
