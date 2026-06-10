@@ -100,4 +100,29 @@ void main() {
       ),
     ).called(1);
   });
+
+  testWidgets(
+      'MessageThreadScreen — message envoyé côté patient s\'affiche dans le fil',
+      (tester) async {
+    final sentMessage = Message(
+      id: 'msg-3',
+      conversationId: 'conv-1',
+      sender: MessageSender.patient,
+      text: 'Message envoyé.',
+      urgency: MessageUrgency.normal,
+      sentAt: DateTime(2026, 6, 6, 9, 10),
+    );
+
+    // Simulate state after send: thread now includes the sent message.
+    when(() => bloc.state).thenReturn(
+      MessagingThreadLoaded(
+        conversationId: 'conv-1',
+        messages: [..._messages, sentMessage],
+      ),
+    );
+
+    await tester.pumpWidget(_wrap(bloc));
+
+    expect(find.text('Message envoyé.'), findsOneWidget);
+  });
 }
