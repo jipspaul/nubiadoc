@@ -1,0 +1,108 @@
+---
+import Default from '../../../layouts/Default.astro';
+---
+<Default title="Login pro (cabinet_id) — Nubia Console">
+  <h1 style="margin-bottom:0.5rem;">POST /v1/auth/login — flux pro</h1>
+  <p style="color:var(--muted);margin-bottom:1.5rem;font-size:0.9rem;">Soumet les credentials pro, affiche le token décodé (<code>cabinet_id</code>, <code>role</code>).</p>
+
+  <form id="login-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:400px;">
+    <label>
+      Email
+      <input type="email" name="email" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      Mot de passe
+      <input type="password" name="password" required
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <label>
+      cabinet_id
+      <input type="text" name="cabinet_id" required placeholder="cab-xxxxx"
+        style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
+    </label>
+    <button type="submit"
+      style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
+      Se connecter (pro)
+    </button>
+  </form>
+
+  <pre id="result" style="margin-top:1.5rem;padding:1rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;white-space:pre-wrap;font-size:0.875rem;min-height:3rem;"></pre>
+
+  <section id="decoded-section" hidden style="margin-top:1rem;">
+    <h2 style="font-size:1rem;margin-bottom:0.5rem;">Token décodé</h2>
+    <table id="decoded-table" style="border-collapse:collapse;font-size:0.875rem;">
+      <tr>
+        <th style="text-align:left;padding:0.25rem 0.75rem 0.25rem 0;color:var(--muted);">cabinet_id</th>
+        <td id="decoded-cabinet-id" style="padding:0.25rem 0;font-family:monospace;"></td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:0.25rem 0.75rem 0.25rem 0;color:var(--muted);">role</th>
+        <td id="decoded-role" style="padding:0.25rem 0;font-family:monospace;"></td>
+      </tr>
+    </table>
+  </section>
+</Default>
+
+<style>
+  pre.success { border-left: 4px solid green; }
+  pre.error   { border-left: 4px solid red; }
+</style>
+
+<script>
+  import { apiFetch } from '../../../lib/api.ts';
+
+  const form = document.getElementById('login-form') as HTMLFormElement;
+  const result = document.getElementById('result') as HTMLPreElement;
+  const decodedSection = document.getElementById('decoded-section') as HTMLElement;
+  const decodedCabinetId = document.getElementById('decoded-cabinet-id') as HTMLTableCellElement;
+  const decodedRole = document.getElementById('decoded-role') as HTMLTableCellElement;
+
+  function decodeJwtPayload(token: string): Record<string, unknown> | null {
+    try {
+      const part = token.split('.')[1];
+      if (!part) return null;
+      return JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const email = fd.get('email') as string;
+    const password = fd.get('password') as string;
+    const cabinet_id = fd.get('cabinet_id') as string;
+
+    result.className = '';
+    result.textContent = 'Chargement…';
+    decodedSection.hidden = true;
+
+    try {
+      const { status, data } = await apiFetch('/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, cabinet_id }),
+      });
+
+      result.className = status < 300 ? 'success' : 'error';
+      result.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+
+      if (status === 200) {
+        const tokens = data as { access_token?: string };
+        if (tokens.access_token) {
+          const payload = decodeJwtPayload(tokens.access_token);
+          if (payload) {
+            decodedCabinetId.textContent = (payload.cabinet_id as string) ?? '—';
+            decodedRole.textContent = (payload.role as string) ?? '—';
+            decodedSection.hidden = false;
+          }
+        }
+      }
+    } catch (err) {
+      result.className = 'error';
+      result.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+</script>
