@@ -179,7 +179,8 @@ mod tests {
     #[test]
     fn gocardless_signature_roundtrip() {
         let secret = "gc_test_secret";
-        let body = b"{\"event\":{\"action\":\"payments.confirmed\",\"links\":{\"payment\":\"PM123\"}}}";
+        let body =
+            b"{\"event\":{\"action\":\"payments.confirmed\",\"links\":{\"payment\":\"PM123\"}}}";
         let header = make_gocardless_sig(secret, body);
         assert!(verify_gocardless_signature(secret, body, &header).is_ok());
     }
