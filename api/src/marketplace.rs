@@ -792,3 +792,70 @@ pub async fn get_provider(
         review_count: review_count as i64,
     }))
 }
+
+// ── Provider availability ─────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct AvailabilitySlotItem {
+    pub slot_id: Uuid,
+    pub starts_at: String,
+    pub ends_at: String,
+    pub motif: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ProviderAvailabilityResponse {
+    pub data: Vec<AvailabilitySlotItem>,
+}
+
+struct AvailabilitySlotRow {
+    slot_id: Uuid,
+    starts_at: chrono::DateTime<chrono::Utc>,
+    ends_at: chrono::DateTime<chrono::Utc>,
+    motif: Option<String>,
+}
+
+/// `GET /v1/providers/:id/availability` — 50 prochains créneaux ouverts (docs/12 §12.2).
+///
+/// Route publique, pas de JWT. Provider inexistant ou `is_listed=false` → `404`.
+/// Créneaux filtrés `status='open'` + `starts_at > now()`, triés ASC, limite 50.
+pub async fn get_provider_availability(
+    State(state): State<AppState>,
+    Path(provider_id): Path<Uuid>,
+) -> Result<Json<ProviderAvailabilityResponse>, AppError> {
+    sqlx::query!(
+        "SELECT id FROM provider WHERE id = $1 AND is_listed = true",
+        provider_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let rows = sqlx::query_as!(
+        AvailabilitySlotRow,
+        r#"SELECT id AS "slot_id!", starts_at, ends_at, motif
+           FROM availability_slot
+           WHERE provider_id = $1
+             AND status = 'open'
+             AND starts_at > now()
+           ORDER BY starts_at ASC
+           LIMIT 50"#,
+        provider_id
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .into_iter()
+        .map(|r| AvailabilitySlotItem {
+            slot_id: r.slot_id,
+            starts_at: r.starts_at.to_rfc3339(),
+            ends_at: r.ends_at.to_rfc3339(),
+            motif: r.motif,
+        })
+        .collect();
+
+    Ok(Json(ProviderAvailabilityResponse { data }))
+}
