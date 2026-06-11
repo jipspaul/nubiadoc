@@ -95,6 +95,8 @@ pub struct StripeWebhookSecret(pub String);
 #[derive(Clone)]
 pub struct YousignWebhookSecret(pub String);
 
+pub use webhooks::gocardless::GocardlessWebhookSecret;
+
 /// Trait de signature d'URL Object Storage — swappable (stub en test, Scaleway en prod).
 pub trait StorageSigner: Send + Sync {
     /// Génère une URL signée fraîche pour la clé de stockage donnée.

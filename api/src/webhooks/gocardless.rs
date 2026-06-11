@@ -143,7 +143,7 @@ pub async fn gocardless_webhook(
 
     sqlx::query(
         "UPDATE payment \
-         SET status = 'paid' \
+         SET status = 'paid', paid_at = now() \
          WHERE id = $1 AND cabinet_id = $2 AND status = 'pending'",
     )
     .bind(payment_id)
