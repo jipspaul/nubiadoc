@@ -388,6 +388,10 @@ pub fn app_with_dispatcher(
         .route("/v1/search/providers", get(marketplace::search_providers))
         .route("/v1/search/slots", get(marketplace::search_slots))
         .route("/v1/providers/:id", get(marketplace::get_provider))
+        .route(
+            "/v1/providers/:id/availability",
+            get(marketplace::get_provider_availability),
+        )
         .route("/v1/cabinets/:id/info", get(cabinet_info::get_cabinet_info))
         .route("/v1/reviews", post(reviews::create_review))
         .route(
