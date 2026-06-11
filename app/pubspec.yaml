@@ -67,6 +67,13 @@ dependencies:
   # Analytics
   posthog_flutter: ^4.6.0
 
+  # Payments (Stripe PaymentSheet + Apple/Google Pay — prérequis A5)
+  flutter_stripe: '>=13.0.0 <14.0.0'
+  pay: '>=3.3.0 <4.0.0'
+
+  # In-app WebView (flux signature Yousign — prérequis A4)
+  flutter_inappwebview: '>=6.1.5 <7.0.0'
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
