@@ -89,6 +89,12 @@ impl JobDispatcher for StubJobDispatcher {
 #[derive(Clone)]
 pub struct StripeWebhookSecret(pub String);
 
+/// Secret Yousign pour la vérification HMAC-SHA256 des webhooks.
+///
+/// Injecté via `Extension<YousignWebhookSecret>`. Vide en dev/test.
+#[derive(Clone)]
+pub struct YousignWebhookSecret(pub String);
+
 /// Trait de signature d'URL Object Storage — swappable (stub en test, Scaleway en prod).
 pub trait StorageSigner: Send + Sync {
     /// Génère une URL signée fraîche pour la clé de stockage donnée.
@@ -457,6 +463,10 @@ pub fn app_with_dispatcher(
             "/v1/webhooks/stripe",
             post(webhooks::stripe::stripe_webhook),
         )
+        .route(
+            "/v1/webhooks/yousign",
+            post(webhooks::yousign::yousign_webhook),
+        )
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
         ))
@@ -467,6 +477,9 @@ pub fn app_with_dispatcher(
         ))
         .layer(Extension(StripeWebhookSecret(
             std::env::var("STRIPE_WEBHOOK_SECRET").unwrap_or_default(),
+        )))
+        .layer(Extension(YousignWebhookSecret(
+            std::env::var("YOUSIGN_WEBHOOK_SECRET").unwrap_or_default(),
         )))
         .layer(dev_cors_layer())
         .with_state(state)
