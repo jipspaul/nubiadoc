@@ -1,0 +1,241 @@
+---
+import AppShell from '../../../layouts/AppShell.astro';
+---
+<AppShell title="Réserver un rendez-vous — Nubia" role="patient">
+  <header>
+    <nav aria-label="Fil d'Ariane">
+      <a href="/patient/rdv">← Mes rendez-vous</a>
+    </nav>
+    <h1>Réserver un rendez-vous</h1>
+  </header>
+
+  <section aria-labelledby="h-reserver">
+    <h2 id="h-reserver" class="sr-only">Formulaire de réservation</h2>
+
+    <!-- État erreur 409 slot_taken -->
+    <div id="slot-taken-error" hidden role="alert" class="error-banner">
+      <p>Ce créneau vient d'être pris.</p>
+      <a href="/search/providers" class="btn btn-secondary">Retour à la recherche</a>
+    </div>
+
+    <!-- Formulaire -->
+    <form id="reserver-form" novalidate>
+      <input type="hidden" id="slot_id" name="slot_id" />
+
+      <div class="form-group">
+        <label for="motif">
+          Motif de la consultation <span aria-hidden="true">*</span>
+        </label>
+        <textarea
+          id="motif"
+          name="motif"
+          rows="4"
+          required
+          placeholder="Décrivez brièvement le motif de votre visite…"
+        ></textarea>
+      </div>
+
+      <div class="form-group" id="proches-group">
+        <label for="on_behalf_of">Réserver pour un proche (optionnel)</label>
+        <select id="on_behalf_of" name="on_behalf_of">
+          <option value="">— Moi-même —</option>
+        </select>
+        <p id="proches-loading-hint" class="hint">Chargement de vos proches…</p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" id="submit-btn" class="btn btn-primary">Confirmer la réservation</button>
+        <p id="form-error" class="error-msg" aria-live="polite" hidden></p>
+      </div>
+    </form>
+  </section>
+</AppShell>
+
+<style>
+  header { margin-bottom: var(--space-6); }
+  header nav { margin-bottom: var(--space-2); font-size: var(--font-size-sm); }
+  h1 { margin-bottom: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+
+  section {
+    max-width: 560px;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text);
+  }
+
+  textarea, select {
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+  textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+
+  .hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+  }
+
+  .form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: flex-start;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-primary {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
+
+  .btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--color-border);
+  }
+  .btn-secondary:hover { background: var(--color-border); }
+
+  .error-banner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius-md);
+    background: var(--color-error);
+    color: var(--color-error-fg);
+    margin-bottom: var(--space-5);
+  }
+  .error-banner p { margin: 0; font-weight: 600; }
+
+  .error-msg {
+    font-size: var(--font-size-sm);
+    color: var(--color-error-fg);
+  }
+</style>
+
+<script>
+  import { patientAppointments, patientAccount, type Dependent, type Appointment } from '../../../lib/endpoints.ts';
+
+  // --- Read slot_id from query param ---
+  const params = new URLSearchParams(window.location.search);
+  const slotId = params.get('slot_id') ?? '';
+
+  const slotInput = document.getElementById('slot_id') as HTMLInputElement;
+  slotInput.value = slotId;
+
+  // --- Load dependents ---
+  const hintEl = document.getElementById('proches-loading-hint') as HTMLElement;
+  const selectEl = document.getElementById('on_behalf_of') as HTMLSelectElement;
+
+  (async () => {
+    const res = await patientAccount.getDependents();
+    hintEl.hidden = true;
+    if (res.status < 300 && Array.isArray(res.data)) {
+      const deps = res.data as Dependent[];
+      for (const dep of deps) {
+        const opt = document.createElement('option');
+        opt.value = dep.id;
+        opt.textContent = `${dep.first_name} ${dep.last_name}`;
+        selectEl.appendChild(opt);
+      }
+    }
+  })();
+
+  // --- Submit ---
+  const form = document.getElementById('reserver-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const formError = document.getElementById('form-error') as HTMLElement;
+  const slotTakenBanner = document.getElementById('slot-taken-error') as HTMLElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    formError.hidden = true;
+    slotTakenBanner.hidden = true;
+
+    const fd = new FormData(form);
+    const slot_id = (fd.get('slot_id') as string).trim();
+    const motif = (fd.get('motif') as string).trim();
+    const on_behalf_of = (fd.get('on_behalf_of') as string) || undefined;
+
+    if (!slot_id) {
+      formError.textContent = 'Créneau manquant. Veuillez sélectionner un créneau depuis la recherche.';
+      formError.hidden = false;
+      return;
+    }
+    if (!motif) {
+      formError.textContent = 'Le motif est requis.';
+      formError.hidden = false;
+      return;
+    }
+
+    submitBtn.disabled = true;
+
+    const body: { slot_id: string; motif: string; on_behalf_of?: string } = { slot_id, motif };
+    if (on_behalf_of) body.on_behalf_of = on_behalf_of;
+
+    const res = await patientAppointments.book(body);
+
+    submitBtn.disabled = false;
+
+    if (res.status === 201 && res.data && typeof res.data === 'object') {
+      const appt = res.data as Appointment;
+      window.location.href = `/patient/rdv/${encodeURIComponent(appt.id)}`;
+      return;
+    }
+
+    // 409 slot_taken
+    if (res.status === 409) {
+      form.hidden = true;
+      slotTakenBanner.hidden = false;
+      return;
+    }
+
+    // Other errors
+    formError.textContent = 'Une erreur est survenue. Veuillez réessayer.';
+    formError.hidden = false;
+  });
+</script>

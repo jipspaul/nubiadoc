@@ -439,6 +439,9 @@ export const patientAppointments = {
   post: (body: { provider_id: string; scheduled_at: string; notes?: string }) =>
     apiFetch('/v1/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<Appointment>>,
 
+  book: (body: { slot_id: string; motif: string; on_behalf_of?: string }) =>
+    apiFetch('/v1/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<Appointment>>,
+
   get: (id: string) =>
     apiFetch(`/v1/appointments/${id}`) as Promise<ApiResponse<Appointment>>,
 
