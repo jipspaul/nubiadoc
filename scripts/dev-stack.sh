@@ -217,13 +217,20 @@ WEB_PID=$!
 CHILD_PIDS+=("$WEB_PID")
 
 for i in $(seq 1 30); do
-  curl -sf "http://localhost:$WEB_PORT/" >/dev/null 2>&1 && { ok "web-console répond"; break; }
+  grep -q "Local:.*localhost:$WEB_PORT" "$LOG_DIR/web.log" 2>/dev/null && { ok "web-console prête"; break; }
   sleep 1
 done
 
 # ---------------------------------------------------------------------------
 # 7. Récap + attente
 # ---------------------------------------------------------------------------
+# Couleurs du bloc creds : seulement si stdout est un TTY
+if [ -t 1 ]; then
+  _G=$'\033[32m' _D=$'\033[90m' _R=$'\033[0m'
+else
+  _G='' _D='' _R=''
+fi
+
 cat <<EOF
 
 $(c_grn '✅ Stack Nubia prête :')
@@ -236,5 +243,16 @@ Tail : tail -f .dev-stack-logs/{api,web}.log
 
 Ctrl+C pour arrêter API + web-console.
 EOF
+
+# Vérification non-bloquante API/DB (peut avoir crashé après démarrage)
+if ! curl -sf "http://localhost:$API_PORT/v1/health" >/dev/null 2>&1; then
+  printf '  %s API non joignable sur :%s — les appels backend échoueront\n' "$(c_red '⚠')" "$API_PORT"
+fi
+
+printf '\n%s──────────────────────── Comptes démo ────────────────────────%s\n' "$_D" "$_R"
+printf '  patient    %shttp://localhost:%s/patient%s     alice@demo.fr / DemoPass!1\n' "$_G" "$WEB_PORT" "$_R"
+printf '  praticien  %shttp://localhost:%s/praticien%s   hugo@demo.fr  / DemoPass!1\n' "$_G" "$WEB_PORT" "$_R"
+printf '  secrétaire %shttp://localhost:%s/secretary%s   emma@demo.fr  / DemoPass!1\n' "$_G" "$WEB_PORT" "$_R"
+printf '%s───────────────────────────────────────────────────────────────%s\n' "$_D" "$_R"
 
 wait
