@@ -467,6 +467,10 @@ pub fn app_with_dispatcher(
             "/v1/webhooks/yousign",
             post(webhooks::yousign::yousign_webhook),
         )
+        .route(
+            "/v1/webhooks/gocardless",
+            post(webhooks::gocardless::gocardless_webhook),
+        )
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
         ))
@@ -480,6 +484,9 @@ pub fn app_with_dispatcher(
         )))
         .layer(Extension(YousignWebhookSecret(
             std::env::var("YOUSIGN_WEBHOOK_SECRET").unwrap_or_default(),
+        )))
+        .layer(Extension(webhooks::gocardless::GocardlessWebhookSecret(
+            std::env::var("GOCARDLESS_WEBHOOK_SECRET").unwrap_or_default(),
         )))
         .layer(dev_cors_layer())
         .with_state(state)
