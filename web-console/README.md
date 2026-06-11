@@ -1,33 +1,20 @@
 # Nubia Web Console
 
-Console de test pour les endpoints de l'API Nubia. Usage développement uniquement.
+Back-office Astro (SSG + SSR) pour la plateforme Nubia — gestion cabinets, patients, agenda, facturation.
 
-## Quickstart
+---
+
+## 1. Quick start
+
+**Option A — Stack complète depuis la racine du repo :**
 
 ```bash
-# Lance toute la stack en une commande (Postgres + API + web-console)
 ./scripts/dev-stack.sh
 ```
 
-Cette commande (depuis la racine du repo) démarre Postgres dans un conteneur Podman,
-applique les migrations, lance l'API Rust sur `:38030` et la web-console Astro sur `:38040`.
+Lance Postgres (Podman), applique les migrations, démarre l'API Rust sur `:38030` et la web-console sur `:38040`.
 
-Une fois démarrée, les 3 espaces sont accessibles :
-
-| Rôle       | URL                                    | Login                          | Mot de passe |
-|------------|----------------------------------------|--------------------------------|--------------|
-| Patient    | http://localhost:38040/patient         | patient.demo@nubia.test        | NubiaDemo1!  |
-| Praticien  | http://localhost:38040/praticien       | praticien.demo@nubia.test      | NubiaDemo1!  |
-| Secrétaire | http://localhost:38040/secretary       | secretaire.demo@nubia.test     | NubiaDemo1!  |
-
-### Lancer la web-console seule (si l'API tourne déjà)
-
-```bash
-cd web-console
-./scripts/dev.sh
-```
-
-## Lancer
+**Option B — Web-console seule (si l'API tourne déjà) :**
 
 ```bash
 cd web-console
@@ -35,19 +22,139 @@ npm install
 npm run dev
 ```
 
-L'application est accessible sur http://localhost:38040.
+La console est accessible sur <http://localhost:38040>.
 
-## Build statique
+---
+
+## 2. URLs & comptes démo
+
+| Rôle       | URL                                     | Email                          | Mot de passe |
+|------------|-----------------------------------------|--------------------------------|--------------|
+| Patient    | http://localhost:38040/patient/accueil  | patient.demo@nubia.test        | NubiaDemo1!  |
+| Praticien  | http://localhost:38040/praticien/dashboard | praticien.demo@nubia.test   | NubiaDemo1!  |
+| Secrétaire | http://localhost:38040/secretary/dashboard | secretaire.demo@nubia.test  | NubiaDemo1!  |
+
+> Ports canon : API `:38030`, web-console `:38040` (anti-collision intentionnelle).
+
+---
+
+## 3. Rôles & accès
+
+| Rôle          | Routes accessibles                        | Cookie(s) requis                          | Middleware             |
+|---------------|-------------------------------------------|-------------------------------------------|------------------------|
+| `patient`     | `/patient/*`                              | `nubia_jwt`, `nubia_role=patient`         | vérification de rôle   |
+| `practitioner`| `/praticien/*`                            | `nubia_jwt`, `nubia_role=practitioner`    | vérification de rôle   |
+| `secretary`   | `/secretary/*`                            | `nubia_jwt`, `nubia_role=secretary`, `nubia_ctx` (doit contenir un secretariatId) | vérification de rôle + contexte |
+| `admin`       | `/praticien/*`, `/admin/*`                | `nubia_jwt`, `nubia_role=admin`           | vérification de rôle   |
+| `manager`     | (pas de routes dédiées — accès via API)   | `nubia_jwt`, `nubia_role=manager`         | —                      |
+
+**Flux middleware** (`src/middleware.ts`) :
+- Route protégée sans `nubia_jwt` → redirect vers `/auth/login?next=<url>`.
+- Rôle non autorisé sur le préfixe → redirect vers `/auth/login?next=<url>`.
+- Route `/secretary/*` sans `nubia_ctx` valide → redirect vers `/auth/select-context?next=<url>`.
+- `/app` → redirect vers la page d'accueil du rôle (`ROLE_HOME`).
+
+---
+
+## 4. Structure
+
+```
+src/pages/
+├── index.astro                  # Redirect racine
+├── auth/
+│   ├── login.astro
+│   ├── register.astro
+│   ├── me.astro
+│   ├── mfa-verify.astro
+│   ├── select-context.astro
+│   ├── password/
+│   └── pro/
+├── patient/
+│   ├── accueil.astro
+│   ├── rdv/
+│   ├── soins/
+│   ├── documents/
+│   ├── messages/
+│   ├── profil/
+│   └── devis/
+├── praticien/
+│   ├── dashboard.astro
+│   ├── agenda.astro
+│   ├── file.astro
+│   ├── profil-public.astro
+│   ├── secretariats.astro
+│   ├── patients/
+│   ├── consultation/
+│   └── ordonnances/
+├── secretary/
+│   ├── dashboard.astro
+│   ├── agenda.astro
+│   ├── liste-attente.astro
+│   ├── cabinet/
+│   ├── equipe/
+│   ├── facturation/
+│   ├── messagerie/
+│   └── patients/
+├── admin/
+│   └── secretariats/
+├── search/
+│   ├── index.astro
+│   ├── providers.astro
+│   └── providers/
+└── webhooks/
+
+tests/
+├── e2e/          # ~157 specs Playwright (couverture API endpoint par endpoint)
+└── flows/        # ~23 flows E2E scénarisés (ED*, EP*, ES*, EX*)
+
+src/components/kit/
+├── Badge.astro
+├── Button.astro
+├── Card.astro
+├── EmptyState.astro
+├── Field.astro
+├── Modal.astro
+├── Spinner.astro
+├── Table.astro
+├── Tabs.astro
+└── Toast.astro
+```
+
+---
+
+## 5. Build & test
 
 ```bash
+# Build de production
 npm run build
+
+# Vérification TypeScript sans émission
+npx tsc --noEmit
+
+# Tous les tests E2E (projet par défaut)
+npx playwright test
+
+# Flows scénarisés uniquement
+npx playwright test --project=flows
 ```
 
-## Configuration
+> Les tests E2E nécessitent que l'API tourne sur `:38030` (ou `API_BASE` configuré).
 
-Ports canon du projet : API sur `:38030`, web-console sur `:38040` (anti-collision intentionnelle).
-Par défaut l'API est contactée sur `http://localhost:38030`. Pour changer :
+---
 
-```bash
-PUBLIC_API_BASE=http://mon-api:38030 npm run dev
+## 6. Variables d'environnement
+
+| Variable          | Obligatoire | Défaut                       | Description                                  |
+|-------------------|-------------|------------------------------|----------------------------------------------|
+| `PUBLIC_API_BASE` | non         | `http://localhost:38030`     | Base URL de l'API (exposée côté client)      |
+| `API_BASE`        | non         | `http://localhost:38030`     | Base URL de l'API (côté serveur SSR)         |
+
+Exemple `.env` :
+
+```dotenv
+PUBLIC_API_BASE=http://localhost:38030
+API_BASE=http://localhost:38030
 ```
+
+> `PUBLIC_API_BASE` est accessible dans le bundle client (`import.meta.env.PUBLIC_API_BASE`).
+> `API_BASE` est réservée au code serveur (pages SSR, middleware).
