@@ -67,7 +67,7 @@ class PaymentSuccessPage extends StatelessWidget {
                   Navigator.of(context)
                       .popUntil((route) => route.isFirst);
                   // Navigate to documents tab
-                  final router = RouteNames.documents;
+                  const router = RouteNames.documents;
                   Navigator.of(context).pushNamed(router);
                 },
               ),
