@@ -15,16 +15,23 @@ interface Context {
 
 interface Props {
   contexts: Context[];
+  /** Code d'erreur renvoyé par /api/select-context (403 = accès refusé, 500 = erreur serveur). */
+  error?: '403' | '500' | null;
 }
 
-const { contexts } = Astro.props;
+const { contexts, error = null } = Astro.props;
 
 const current = contexts.find(c => c.current);
+
+const errorMessages: Record<string, string> = {
+  '403': 'Accès refusé à ce contexte.',
+  '500': 'Erreur lors du changement de contexte. Réessayez.',
+};
 ---
 
 {contexts.length > 1 && (
   <div class="ctx-switcher">
-    <details class="ctx-switcher__details">
+    <details class="ctx-switcher__details" open={error ? true : undefined}>
       <summary class="ctx-switcher__trigger" aria-haspopup="listbox" aria-label="Changer de contexte">
         <span class="ctx-switcher__label">{current?.label ?? '—'}</span>
         <span class="ctx-switcher__chevron" aria-hidden="true">▾</span>
@@ -52,6 +59,9 @@ const current = contexts.find(c => c.current);
           </li>
         ))}
       </ul>
+      {error && (
+        <p class="ctx-switcher__error" role="alert">{errorMessages[error] ?? 'Erreur lors du changement de contexte.'}</p>
+      )}
     </details>
   </div>
 )}
@@ -179,5 +189,14 @@ const current = contexts.find(c => c.current);
   .ctx-switcher__check--empty {
     display: inline-block;
     width: 1em;
+  }
+
+  .ctx-switcher__error {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-error-fg, #fff);
+    background: var(--color-error, #c0392b);
+    border-top: 1px solid var(--color-border);
   }
 </style>
