@@ -338,7 +338,113 @@ async fn consultation_get_secretary_returns_403() {
     cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
 }
 
-// ── Test 3 : séance inexistante → 404 ─────────────────────────────────────────
+// ── Test 3 : praticien d'un autre cabinet → 404 (isolation tenant) ────────────
+
+#[tokio::test]
+async fn consultation_get_other_cabinet_provider_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, session_id) =
+        insert_consultation_fixture(&db).await;
+
+    // Praticien valide mais appartenant à un cabinet différent.
+    let other_provider_user_id = Uuid::new_v4();
+    let other_cabinet_id = Uuid::new_v4();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(other_provider_user_id, other_cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Le cabinet_id du token ne correspond pas → la requête SQL ne trouve rien → 404.
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
+}
+
+// ── Test 4 : token patient → 403 (extractor ProPractitionerClaims) ────────────
+
+#[tokio::test]
+async fn consultation_get_patient_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, session_id) =
+        insert_consultation_fixture(&db).await;
+
+    let patient_user_id = Uuid::new_v4();
+
+    // Token de type "patient" — rejeté par ProPractitionerClaims (kind != "pro").
+    #[derive(serde::Serialize)]
+    struct PatientClaims {
+        sub: Uuid,
+        kind: String,
+        account_id: Uuid,
+        exp: u64,
+    }
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    let patient_token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &PatientClaims {
+            sub: patient_user_id,
+            kind: "patient".into(),
+            account_id: patient_user_id,
+            exp,
+        },
+        &jsonwebtoken::EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
+}
+
+// ── Test 5 : séance inexistante → 404 ─────────────────────────────────────────
 
 #[tokio::test]
 async fn consultation_get_unknown_returns_404() {
