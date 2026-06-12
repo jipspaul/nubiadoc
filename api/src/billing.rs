@@ -704,3 +704,102 @@ pub async fn create_cabinet_quote(
         }),
     ))
 }
+
+// ---------------------------------------------------------------------------
+// GET /v1/cabinet/quotes — suivi devis côté cabinet (doc12 §10)
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct ListCabinetQuotesQuery {
+    pub status: Option<String>,
+}
+
+/// Un devis vu du cabinet. `total_amount` en **centimes** (conventions doc12 §1.7).
+#[derive(Serialize)]
+pub struct CabinetQuoteItem {
+    pub id: Uuid,
+    pub patient_id: Option<Uuid>,
+    pub patient_name: Option<String>,
+    pub status: String,
+    pub total_amount: i64,
+    pub created_at: String,
+}
+
+/// `GET /v1/cabinet/quotes` — liste les devis du cabinet courant.
+///
+/// Token pro requis (secretary, practitioner, admin, manager). `cabinet_id`
+/// extrait du JWT, RLS scopée via `app.current_cabinet_id` (fail-closed).
+/// Filtre optionnel `?status=`. Tri `created_at DESC`.
+pub async fn list_cabinet_quotes(
+    State(state): State<AppState>,
+    claims: crate::auth::ProSecretaryPlusClaims,
+    Query(params): Query<ListCabinetQuotesQuery>,
+) -> Result<Json<Vec<CabinetQuoteItem>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let base_sql = "SELECT q.id, q.patient_id, \
+                    trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
+                    q.status, (q.total_amount * 100)::bigint AS amount_cents, q.created_at \
+             FROM quote q \
+             LEFT JOIN patient p ON p.id = q.patient_id \
+             WHERE q.cabinet_id = $1";
+
+    let rows = if let Some(ref status) = params.status {
+        sqlx::query(&format!(
+            "{base_sql} AND q.status = $2 ORDER BY q.created_at DESC"
+        ))
+        .bind(claims.cabinet_id)
+        .bind(status)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    } else {
+        sqlx::query(&format!("{base_sql} ORDER BY q.created_at DESC"))
+            .bind(claims.cabinet_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let items = rows
+        .into_iter()
+        .map(|row| {
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let patient_id: Option<Uuid> =
+                row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+            let patient_name: Option<String> = row
+                .try_get("patient_name")
+                .map_err(|_| AppError::Internal)?;
+            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let amount_cents: i64 = row
+                .try_get("amount_cents")
+                .map_err(|_| AppError::Internal)?;
+            let created_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("created_at").map_err(|_| AppError::Internal)?;
+            Ok(CabinetQuoteItem {
+                id,
+                patient_id,
+                patient_name: patient_name.filter(|n| !n.is_empty()),
+                status,
+                total_amount: amount_cents,
+                created_at: created_at.to_rfc3339(),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        count = items.len(),
+        "cabinet quotes listed"
+    );
+
+    Ok(Json(items))
+}

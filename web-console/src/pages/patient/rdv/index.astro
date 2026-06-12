@@ -109,9 +109,11 @@ import AppShell from '../../../layouts/AppShell.astro';
     }
     listEl.className = 'rdv-list';
     for (const appt of items) {
-      const date = formatDate(appt.scheduled_at);
+      const date = formatDate(appt.starts_at ?? appt.scheduled_at);
       const status = appt.status ?? '';
-      const provider = appt.provider_id ? `Praticien ${escHtml(appt.provider_id)}` : 'Praticien inconnu';
+      const providerName = appt.provider?.display_name
+        ?? (appt.provider_id ? `Praticien ${appt.provider_id}` : 'Praticien inconnu');
+      const provider = escHtml(providerName);
 
       const li = document.createElement('li');
       const a = document.createElement('a');
@@ -137,6 +139,15 @@ import AppShell from '../../../layouts/AppShell.astro';
   const pastList = document.getElementById('past-list') as HTMLUListElement;
   const pastEmpty = document.getElementById('past-empty') as HTMLParagraphElement;
 
+  /** L'API renvoie une enveloppe `{data: [...], page: {...}}` (docs/12 §RDV). */
+  function unwrap(payload: unknown): Appointment[] | null {
+    if (Array.isArray(payload)) return payload as Appointment[];
+    if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
+      return (payload as { data: Appointment[] }).data;
+    }
+    return null;
+  }
+
   (async () => {
     const [upcomingRes, pastRes] = await Promise.all([
       patientAppointments.list({ status: 'upcoming' }),
@@ -144,16 +155,18 @@ import AppShell from '../../../layouts/AppShell.astro';
     ]);
 
     upcomingLoading.hidden = true;
-    if (upcomingRes.status < 300 && Array.isArray(upcomingRes.data)) {
-      renderList(upcomingList, upcomingEmpty, upcomingRes.data as Appointment[]);
+    const upcoming = upcomingRes.status < 300 ? unwrap(upcomingRes.data) : null;
+    if (upcoming) {
+      renderList(upcomingList, upcomingEmpty, upcoming);
     } else {
       upcomingLoading.textContent = 'Impossible de charger les rendez-vous à venir.';
       upcomingLoading.hidden = false;
     }
 
     pastLoading.hidden = true;
-    if (pastRes.status < 300 && Array.isArray(pastRes.data)) {
-      renderList(pastList, pastEmpty, pastRes.data as Appointment[]);
+    const past = pastRes.status < 300 ? unwrap(pastRes.data) : null;
+    if (past) {
+      renderList(pastList, pastEmpty, past);
     } else {
       pastLoading.textContent = 'Impossible de charger les rendez-vous passés.';
       pastLoading.hidden = false;

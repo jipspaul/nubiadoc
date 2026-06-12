@@ -127,7 +127,7 @@ if (role !== 'practitioner' && role !== 'admin') {
 
 <script>
   import { proAgenda } from '../../lib/endpoints.ts';
-  import type { WaitingRoomEntry } from '../../lib/endpoints.ts';
+  import type { WaitingRoomEntry, CallNextResponse } from '../../lib/endpoints.ts';
 
   const queueStatus  = document.getElementById('queue-status')  as HTMLElement;
   const queueContent = document.getElementById('queue-content') as HTMLElement;
@@ -156,12 +156,15 @@ if (role !== 'practitioner' && role !== 'admin') {
       if (entries.length === 0) {
         queueEmpty.hidden = false;
       } else {
-        entries.forEach((entry) => {
+        entries.forEach((entry, index) => {
+          // Contrat API : entrées `{ appointment_id, patient_id, status, checkin_at }`,
+          // triées FIFO — la position est l'index dans la liste.
+          const checkinAt = entry.checkin_at ?? entry.checked_in_at;
           const tr = queueTbody.insertRow();
-          tr.insertCell().textContent = String(entry.position ?? '—');
+          tr.insertCell().textContent = String(entry.position ?? index + 1);
           tr.insertCell().textContent = entry.patient_id ?? '—';
-          tr.insertCell().textContent = entry.checked_in_at
-            ? new Date(entry.checked_in_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+          tr.insertCell().textContent = checkinAt
+            ? new Date(checkinAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
             : '—';
         });
       }
@@ -186,9 +189,13 @@ if (role !== 'practitioner' && role !== 'admin') {
       if (status !== 200 && status !== 204) { callNextStatus.textContent = `Erreur serveur (HTTP ${status}).`; callNextStatus.className = 'error'; btnCallNext.disabled = false; return; }
 
       callNextStatus.textContent = '';
-      const entry = data as WaitingRoomEntry | null;
-      if (entry) {
-        callNextPatient.textContent = `Patient appelé : ${entry.patient_id ?? '—'} (position ${entry.position ?? 1})`;
+      // Contrat API : 200 avec `{ called: false }` quand la file est vide,
+      // sinon `{ called: true, appointment_id, patient_display_name }`.
+      const res = data as CallNextResponse | null;
+      if (res && res.called === false) {
+        callNextPatient.textContent = 'Aucun patient en attente.';
+      } else if (res && res.called) {
+        callNextPatient.textContent = `Patient appelé : ${res.patient_display_name || res.appointment_id || '—'}`;
       } else {
         callNextPatient.textContent = 'Patient appelé.';
       }

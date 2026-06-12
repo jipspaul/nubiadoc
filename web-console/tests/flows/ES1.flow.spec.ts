@@ -3,21 +3,25 @@
  *
  * Valide le parcours bout-en-bout secrétaire sur l'agenda :
  * login → dashboard (GET /v1/cabinet/appointments 200)
- * → créer un RDV (POST /v1/cabinet/appointments 201)
+ * → ouvrir un créneau (POST /v1/cabinet/slots 201)
+ * → créer un RDV sur ce créneau (POST /v1/cabinet/appointments {patient_id, slot_id} 201)
  * → confirmer (POST …/:id/confirm 200)
- * → modifier (PATCH …/:id 200)
+ * → modifier (PATCH …/:id {starts_at} 200)
  *
  * Couvre W35 (secretary/dashboard) et W36 (secretary/agenda).
- * Route R4 (POST /v1/cabinet/appointments) déjà livrée.
+ * Contrat réel (api/src/scheduling.rs) :
+ *   POST /v1/cabinet/appointments body = {patient_id, slot_id, notes?}
+ *   → réponse {appointment_id, status:"requested"}.
+ *   PATCH …/:id body = {starts_at?, motif?}.
  *
- * Prérequis : dev-stack actif sur FLOWS_BASE_URL (défaut :38040) avec seed P2.
- *             R1 restauré (login pro porte cabinet_id+role dans le JWT).
+ * Prérequis : dev-stack actif sur FLOWS_BASE_URL (défaut :38040) avec seed réel
+ *             (seed.sql + seed_e2e.sql).
  *
  * Variables d'environnement :
- *   FLOWS_BASE_URL           URL de l'app web (défaut http://localhost:38040)
- *   FLOWS_API_BASE_URL       URL de l'API backend (défaut http://localhost:38030)
- *   SEED_PRACTITIONER_ID     UUID du praticien seed (pour créer les RDV)
- *   SEED_PATIENT_ID          UUID du patient seed (bénéficiaire du RDV)
+ *   FLOWS_BASE_URL              URL de l'app web (défaut http://localhost:38040)
+ *   FLOWS_API_BASE_URL          URL de l'API backend (défaut http://localhost:38030)
+ *   SEED_PRACTITIONER_TABLE_ID  UUID praticien (table practitioner) pour le créneau
+ *   SEED_PATIENT_ID             UUID du patient seed (bénéficiaire du RDV)
  */
 
 import { test, expect } from '@playwright/test';
@@ -26,11 +30,25 @@ import { loginAs, clearSession } from './helpers';
 const API_BASE =
   process.env.FLOWS_API_BASE_URL ?? 'http://localhost:38030';
 
-const SEED_PRACTITIONER_ID =
-  process.env.SEED_PRACTITIONER_ID ?? '00000000-0000-0000-0000-000000000001';
+// ID dans la table `practitioner` (≠ provider) — exigé par POST /v1/cabinet/slots.
+const SEED_PRACTITIONER_TABLE_ID =
+  process.env.SEED_PRACTITIONER_TABLE_ID ?? 'c0000000-0000-0000-0000-0000000000c1';
 
 const SEED_PATIENT_ID =
-  process.env.SEED_PATIENT_ID ?? '00000000-0000-0000-0000-000000000010';
+  process.env.SEED_PATIENT_ID ?? 'd0000000-0000-0000-0000-0000000000d1';
+
+/**
+ * Fenêtre horaire aléatoire dans le futur (2 à 40 jours, heures ouvrées) pour
+ * éviter les collisions avec la contrainte d'exclusion praticien (23P01)
+ * entre les runs successifs sur un même stack.
+ */
+function randomFutureWindow(): { startsAt: string; endsAt: string } {
+  const start = new Date();
+  start.setDate(start.getDate() + 2 + Math.floor(Math.random() * 38));
+  start.setHours(8 + Math.floor(Math.random() * 10), Math.floor(Math.random() * 4) * 15, 0, 0);
+  const end = new Date(start.getTime() + 15 * 60 * 1000);
+  return { startsAt: start.toISOString(), endsAt: end.toISOString() };
+}
 
 test.afterEach(async ({ page }) => {
   await clearSession(page);
@@ -73,22 +91,63 @@ test('secrétaire : POST appointment (201) → confirm (200) → PATCH (200)', a
   await page.goto('/secretary/agenda');
   await expect(page.locator('h1')).toBeVisible({ timeout: 15_000 });
 
-  // ── 3. POST /v1/cabinet/appointments → RDV créé (201) ────────────────────
-  const scheduledAt = new Date();
-  scheduledAt.setDate(scheduledAt.getDate() + 2);
-  scheduledAt.setHours(10, 0, 0, 0);
+  // ── 3a. POST /v1/cabinet/slots → créneau ouvert (201) ────────────────────
+  const window = randomFutureWindow();
 
-  const createResult = await page.evaluate(
+  const slotResult = await page.evaluate(
     async ({
       apiBase,
       practitionerId,
-      patientId,
-      scheduledAt,
+      startsAt,
+      endsAt,
     }: {
       apiBase: string;
       practitionerId: string;
+      startsAt: string;
+      endsAt: string;
+    }) => {
+      const jwt = localStorage.getItem('nubia_jwt') ?? '';
+      const resp = await fetch(`${apiBase}/v1/cabinet/slots`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          practitioner_id: practitionerId,
+          starts_at: startsAt,
+          ends_at: endsAt,
+          status: 'open',
+          motif: 'consultation-ES1',
+        }),
+      });
+      const data = resp.ok ? ((await resp.json()) as { id?: string }) : null;
+      return { status: resp.status, slotId: data?.id ?? '' };
+    },
+    {
+      apiBase: API_BASE,
+      practitionerId: SEED_PRACTITIONER_TABLE_ID,
+      startsAt: window.startsAt,
+      endsAt: window.endsAt,
+    },
+  );
+
+  expect(
+    slotResult.status,
+    `POST /v1/cabinet/slots attendu 201, reçu ${slotResult.status}`,
+  ).toBe(201);
+  expect(slotResult.slotId, 'id du créneau créé doit être présent').toBeTruthy();
+
+  // ── 3b. POST /v1/cabinet/appointments {patient_id, slot_id} → 201 ────────
+  const createResult = await page.evaluate(
+    async ({
+      apiBase,
+      patientId,
+      slotId,
+    }: {
+      apiBase: string;
       patientId: string;
-      scheduledAt: string;
+      slotId: string;
     }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
       const resp = await fetch(`${apiBase}/v1/cabinet/appointments`, {
@@ -98,20 +157,20 @@ test('secrétaire : POST appointment (201) → confirm (200) → PATCH (200)', a
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          provider_id: practitionerId,
           patient_id: patientId,
-          scheduled_at: scheduledAt,
-          motif: 'consultation-ES1',
+          slot_id: slotId,
+          notes: 'consultation-ES1',
         }),
       });
-      const data = resp.ok ? ((await resp.json()) as { id?: string }) : null;
+      const data = resp.ok
+        ? ((await resp.json()) as { appointment_id?: string; status?: string })
+        : null;
       return { status: resp.status, data };
     },
     {
       apiBase: API_BASE,
-      practitionerId: SEED_PRACTITIONER_ID,
       patientId: SEED_PATIENT_ID,
-      scheduledAt: scheduledAt.toISOString(),
+      slotId: slotResult.slotId,
     },
   );
 
@@ -120,9 +179,10 @@ test('secrétaire : POST appointment (201) → confirm (200) → PATCH (200)', a
     `POST /v1/cabinet/appointments attendu 201, reçu ${createResult.status}`,
   ).toBe(201);
 
-  const appointmentId = createResult.data?.id;
-  expect(appointmentId, 'id du RDV créé doit être présent').toBeTruthy();
+  const appointmentId = createResult.data?.appointment_id;
+  expect(appointmentId, 'appointment_id du RDV créé doit être présent').toBeTruthy();
   if (!appointmentId) return; // garde TypeScript
+  expect(createResult.data?.status, 'statut initial attendu : requested').toBe('requested');
 
   // ── 4. POST /v1/cabinet/appointments/:id/confirm → confirmé (200) ─────────
   const confirmStatus = await page.evaluate(
@@ -142,19 +202,19 @@ test('secrétaire : POST appointment (201) → confirm (200) → PATCH (200)', a
     `POST …/confirm attendu 200, reçu ${confirmStatus}`,
   ).toBe(200);
 
-  // ── 5. PATCH /v1/cabinet/appointments/:id → modifié (200) ─────────────────
-  const rescheduledAt = new Date(scheduledAt);
-  rescheduledAt.setHours(11, 0, 0, 0);
+  // ── 5. PATCH /v1/cabinet/appointments/:id {starts_at} → modifié (200) ─────
+  // Décale le RDV de 1 h (la durée est préservée par l'API).
+  const rescheduledAt = new Date(new Date(window.startsAt).getTime() + 60 * 60 * 1000);
 
   const patchStatus = await page.evaluate(
     async ({
       apiBase,
       id,
-      scheduledAt,
+      startsAt,
     }: {
       apiBase: string;
       id: string;
-      scheduledAt: string;
+      startsAt: string;
     }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
       const resp = await fetch(
@@ -165,12 +225,12 @@ test('secrétaire : POST appointment (201) → confirm (200) → PATCH (200)', a
             Authorization: `Bearer ${jwt}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ scheduled_at: scheduledAt }),
+          body: JSON.stringify({ starts_at: startsAt }),
         },
       );
       return resp.status;
     },
-    { apiBase: API_BASE, id: appointmentId, scheduledAt: rescheduledAt.toISOString() },
+    { apiBase: API_BASE, id: appointmentId, startsAt: rescheduledAt.toISOString() },
   );
 
   expect(

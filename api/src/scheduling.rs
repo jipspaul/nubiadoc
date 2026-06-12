@@ -851,28 +851,23 @@ pub async fn get_cabinet_appointments(
         .map_err(|_| AppError::Internal)?;
 
     // R10 : clause supplémentaire pour les secrétaires — filtre sur les praticiens du secrétariat.
-    // Pour les autres rôles : chaîne vide (pas de filtre).
-    let sec_filter = if claims.role == "secretary" {
-        " AND EXISTS ( \
-             SELECT 1 FROM provider pr \
-             JOIN provider_secretariat ps ON ps.provider_id = pr.id \
-             WHERE pr.practitioner_id = practitioner_id \
-               AND ps.secretariat_id = $5 \
-               AND ps.active = true \
-         )"
-    } else {
-        ""
-    };
-    let sec_filter_nodate = if claims.role == "secretary" {
-        " AND EXISTS ( \
-             SELECT 1 FROM provider pr \
-             JOIN provider_secretariat ps ON ps.provider_id = pr.id \
-             WHERE pr.practitioner_id = practitioner_id \
-               AND ps.secretariat_id = $4 \
-               AND ps.active = true \
-         )"
-    } else {
-        ""
+    // Le placeholder du secrétariat dépend du nombre de binds posés par la branche
+    // appelante ; la colonne du RDV doit être qualifiée (`appointment.`), sinon
+    // `practitioner_id` se résout sur `pr` et la clause est une tautologie.
+    let mk_sec_filter = |n: usize| -> String {
+        if claims.role == "secretary" {
+            format!(
+                " AND EXISTS ( \
+                     SELECT 1 FROM provider pr \
+                     JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                     WHERE pr.practitioner_id = appointment.practitioner_id \
+                       AND ps.secretariat_id = ${n} \
+                       AND ps.active = true \
+                 )"
+            )
+        } else {
+            String::new()
+        }
     };
     // Secrétaire sans secrétariat actif : aucun résultat.
     if claims.role == "secretary" && claims.secretariat_id.is_none() {
@@ -890,8 +885,9 @@ pub async fn get_cabinet_appointments(
                  WHERE deleted_at IS NULL \
                    AND cabinet_id = $1 \
                    AND status = $2 \
-                   AND starts_at >= $3 AND starts_at < $4{sec_filter} \
+                   AND starts_at >= $3 AND starts_at < $4{} \
                  ORDER BY starts_at",
+                mk_sec_filter(5),
             );
             let q = sqlx::query(&sql)
                 .bind(claims.cabinet_id)
@@ -910,8 +906,9 @@ pub async fn get_cabinet_appointments(
                  FROM appointment \
                  WHERE deleted_at IS NULL \
                    AND cabinet_id = $1 \
-                   AND status = $2{sec_filter_nodate} \
+                   AND status = $2{} \
                  ORDER BY starts_at",
+                mk_sec_filter(3),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(status);
             if let Some(s) = sid { q.bind(s) } else { q }
@@ -926,8 +923,9 @@ pub async fn get_cabinet_appointments(
                  FROM appointment \
                  WHERE deleted_at IS NULL \
                    AND cabinet_id = $1 \
-                   AND starts_at >= $2 AND starts_at < $3{sec_filter_nodate} \
+                   AND starts_at >= $2 AND starts_at < $3{} \
                  ORDER BY starts_at",
+                mk_sec_filter(4),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(ds).bind(de);
             if let Some(s) = sid { q.bind(s) } else { q }
@@ -941,8 +939,9 @@ pub async fn get_cabinet_appointments(
                 "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
                  FROM appointment \
                  WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1{sec_filter_nodate} \
+                   AND cabinet_id = $1{} \
                  ORDER BY starts_at",
+                mk_sec_filter(2),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id);
             if let Some(s) = sid { q.bind(s) } else { q }

@@ -23,7 +23,14 @@ export async function fetchMe(jwt: string): Promise<MeResult> {
     const contexts: MeContext[] =
       me.contexts && me.contexts.length > 0
         ? me.contexts
-        : (me.memberships ?? []).map(m => ({ cabinet_id: m.cabinet_id, role: m.role }));
+        : (me.memberships ?? []).map(m => ({
+            cabinet_id: m.cabinet_id,
+            role: m.role,
+            // Préserver secretariat_id : sans lui, deux memberships du même cabinet
+            // (multi-secrétariat) deviennent indistinguables dans le ContextSwitcher
+            // et le POST select-context perd le scope secrétariat demandé.
+            secretariat_id: m.secretariat_id,
+          }));
 
     return { contexts, hasMultiple: contexts.length > 1 };
   } catch {

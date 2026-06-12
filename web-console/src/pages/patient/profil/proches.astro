@@ -283,6 +283,15 @@ import AppShell from '../../../layouts/AppShell.astro';
     setTimeout(() => { el.hidden = true; }, 4000);
   }
 
+  /** Normalise la forme API (dependent_account_id, birth_date) vers la forme locale. */
+  function normalize(raw: Dependent): Dependent {
+    return {
+      ...raw,
+      id: raw.dependent_account_id ?? raw.id,
+      date_of_birth: raw.birth_date ?? raw.date_of_birth,
+    };
+  }
+
   function renderItem(dep: Dependent): HTMLLIElement {
     const li = document.createElement('li');
     li.className = 'proche-item';
@@ -318,10 +327,13 @@ import AppShell from '../../../layouts/AppShell.astro';
       return;
     }
 
-    const deps = data as Dependent[];
+    const deps = (data as Dependent[]).map(normalize);
+    listEl.replaceChildren();
     if (deps.length === 0) {
+      listEl.hidden = true;
       emptyEl.hidden = false;
     } else {
+      emptyEl.hidden = true;
       deps.forEach((d) => listEl.appendChild(renderItem(d)));
       listEl.hidden = false;
     }
@@ -356,11 +368,13 @@ import AppShell from '../../../layouts/AppShell.astro';
   addForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(addForm);
+    // Contrat API : POST /v1/account/dependents attend birth_date et un
+    // relationship parmi enfant|conjoint|parent|autre.
     const body: Omit<Dependent, 'id'> = {
       first_name: (fd.get('first_name') as string).trim(),
       last_name: (fd.get('last_name') as string).trim(),
-      date_of_birth: (fd.get('date_of_birth') as string) || undefined,
-      relationship: (fd.get('relationship') as string).trim() || undefined,
+      birth_date: (fd.get('date_of_birth') as string) || undefined,
+      relationship: (fd.get('relationship') as string).trim() || 'autre',
     };
 
     const btn = addForm.querySelector('button[type="submit"]') as HTMLButtonElement;
@@ -370,10 +384,8 @@ import AppShell from '../../../layouts/AppShell.astro';
     btn.disabled = false;
 
     if (status === 201 && data) {
-      const dep = data as Dependent;
-      emptyEl.hidden = true;
-      listEl.hidden = false;
-      listEl.appendChild(renderItem(dep));
+      // La réponse ne contient que dependent_account_id → recharger la liste.
+      await loadDependents();
       addForm.reset();
       showToast(addToast, 'Proche ajouté.', 'success');
     } else {
@@ -391,7 +403,7 @@ import AppShell from '../../../layouts/AppShell.astro';
     const body: Partial<Dependent> = {
       first_name: (fd.get('first_name') as string).trim(),
       last_name: (fd.get('last_name') as string).trim(),
-      date_of_birth: (fd.get('date_of_birth') as string) || undefined,
+      birth_date: (fd.get('date_of_birth') as string) || undefined,
       relationship: (fd.get('relationship') as string).trim() || undefined,
     };
 
@@ -402,7 +414,7 @@ import AppShell from '../../../layouts/AppShell.astro';
     btn.disabled = false;
 
     if (status < 300 && data) {
-      const updated = data as Dependent;
+      const updated = normalize({ ...(data as Dependent), id });
       const li = listEl.querySelector(`[data-id="${id}"]`) as HTMLLIElement;
       if (li) {
         const newLi = renderItem(updated);

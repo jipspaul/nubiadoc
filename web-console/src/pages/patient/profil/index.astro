@@ -171,7 +171,19 @@ import AppShell from '../../../layouts/AppShell.astro';
     (form.elements.namedItem('last_name') as HTMLInputElement).value = account.last_name;
     (form.elements.namedItem('email') as HTMLInputElement).value = account.email;
     (form.elements.namedItem('phone') as HTMLInputElement).value = account.phone ?? '';
-    (form.elements.namedItem('date_of_birth') as HTMLInputElement).value = account.date_of_birth ?? '';
+    (form.elements.namedItem('date_of_birth') as HTMLInputElement).value =
+      account.birth_date ?? account.date_of_birth ?? '';
+  }
+
+  /**
+   * Normalise un numéro saisi au format national français vers E.164
+   * (attendu par PATCH /v1/account) : "06 12 34 56 78" → "+33612345678".
+   */
+  function normalizePhone(raw: string): string {
+    const cleaned = raw.replace(/[\s.\-()]/g, '');
+    if (/^0\d{9}$/.test(cleaned)) return `+33${cleaned.slice(1)}`;
+    if (/^0033\d{9}$/.test(cleaned)) return `+33${cleaned.slice(4)}`;
+    return cleaned;
   }
 
   // Load account data
@@ -191,12 +203,13 @@ import AppShell from '../../../layouts/AppShell.astro';
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
+    const phoneRaw = (fd.get('phone') as string).trim();
+    // PATCH /v1/account n'accepte que first_name, last_name, phone, address —
+    // email et date de naissance ne sont pas modifiables via cette route (422).
     const body: Partial<PatientAccount> = {
       first_name: (fd.get('first_name') as string).trim(),
       last_name: (fd.get('last_name') as string).trim(),
-      email: (fd.get('email') as string).trim(),
-      phone: (fd.get('phone') as string).trim() || undefined,
-      date_of_birth: (fd.get('date_of_birth') as string) || undefined,
+      phone: phoneRaw ? normalizePhone(phoneRaw) : undefined,
     };
 
     const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;

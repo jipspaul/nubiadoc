@@ -52,15 +52,18 @@ test('messagerie cabinet : GET /v1/cabinet/conversations → aucune conversation
   await loginAs(page, 'secretary');
 
   // ── 2. GET /v1/cabinet/conversations → filtrer scope=clinical ────────────
+  // Contrat réel (api/src/cabinet_messaging.rs) : réponse enveloppée {data: [...]} ;
+  // pour une secrétaire le filtre `scope != 'clinical'` est appliqué silencieusement.
   const { status, clinicalCount } = await page.evaluate(
     async (apiBase: string) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
       const resp = await fetch(`${apiBase}/v1/cabinet/conversations`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      const conversations = resp.ok
-        ? ((await resp.json()) as Array<{ id: string; scope?: string }>)
-        : ([] as Array<{ id: string; scope?: string }>);
+      const body = resp.ok
+        ? ((await resp.json()) as { data?: Array<{ id: string; scope?: string }> })
+        : {};
+      const conversations = body.data ?? [];
       const clinical = conversations.filter((c) => c.scope === 'clinical');
       return { status: resp.status, clinicalCount: clinical.length };
     },
@@ -72,6 +75,20 @@ test('messagerie cabinet : GET /v1/cabinet/conversations → aucune conversation
   // Cloisonnement R.4127-72 : la secrétaire ne voit aucune conversation
   // à portée clinical (secret médical réservé aux praticiens)
   expect(clinicalCount).toBe(0);
+
+  // ── 4. Demande explicite du scope clinical → 403 (cloisonnement strict) ───
+  const clinicalScopeStatus = await page.evaluate(async (apiBase: string) => {
+    const jwt = localStorage.getItem('nubia_jwt') ?? '';
+    const resp = await fetch(`${apiBase}/v1/cabinet/conversations?scope=clinical`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    return resp.status;
+  }, API_BASE);
+
+  expect(
+    clinicalScopeStatus,
+    `GET /v1/cabinet/conversations?scope=clinical (secrétaire) attendu 403, reçu ${clinicalScopeStatus}`,
+  ).toBe(403);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

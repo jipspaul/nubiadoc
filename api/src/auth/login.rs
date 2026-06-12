@@ -18,8 +18,17 @@ use crate::AppState;
 
 use super::{AppError, LoginResponse, PatientClaims, ProClaims, ProRegisterClaims};
 
-const RATE_MAX_ATTEMPTS: u32 = 10;
 const RATE_WINDOW: Duration = Duration::from_secs(300);
+
+/// Plafond de tentatives par email et par fenêtre. Surchargé via
+/// `LOGIN_RATE_MAX_ATTEMPTS` (dev/E2E : les flows Playwright se reconnectent
+/// des dizaines de fois avec le même compte seed). Défaut prod : 10.
+static RATE_MAX_ATTEMPTS: LazyLock<u32> = LazyLock::new(|| {
+    std::env::var("LOGIN_RATE_MAX_ATTEMPTS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10)
+});
 
 static LOGIN_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -33,7 +42,7 @@ fn is_rate_limited(email: &str) -> bool {
         false
     } else {
         entry.0 += 1;
-        entry.0 > RATE_MAX_ATTEMPTS
+        entry.0 > *RATE_MAX_ATTEMPTS
     }
 }
 

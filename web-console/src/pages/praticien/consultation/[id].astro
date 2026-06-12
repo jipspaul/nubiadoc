@@ -16,7 +16,7 @@ const { id } = Astro.params;
 <AppShell title="Consultation — Espace praticien" role="practitioner">
   <header>
     <h1>Fauteuil clinique</h1>
-    <p>Consultation <code id="consultation-id-display">{id}</code></p>
+    <p>Consultation <code id="consultation-id-display" data-consultation-id={id}>{id}</code></p>
   </header>
 
   <!-- ── Données consultation — GET /v1/cabinet/consultations/:id ──────── -->
@@ -214,11 +214,15 @@ const { id } = Astro.params;
   [role="status"].success { color: var(--color-success-fg, green); }
 </style>
 
-<script define:vars={{ consultationId: id }}>
+<script>
+  // NOTE : pas de `define:vars` ici — un script `define:vars` devient inline et
+  // ne peut ni utiliser `import` ni la syntaxe TypeScript. L'id de consultation
+  // est lu depuis l'attribut `data-consultation-id` posé côté serveur.
   import { proConsultations } from '../../../lib/endpoints.ts';
   import type { Consultation, ConsultationAct } from '../../../lib/endpoints.ts';
 
-  const cId: string = (consultationId as string | undefined) ?? '';
+  const cId: string =
+    (document.getElementById('consultation-id-display') as HTMLElement | null)?.dataset['consultationId'] ?? '';
   const redirectOnAuth = `/auth/login?next=/praticien/consultation/${encodeURIComponent(cId)}`;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -235,7 +239,7 @@ const { id } = Astro.params;
     empty.hidden = acts.length > 0;
     acts.forEach((act) => {
       const tr = tbody.insertRow();
-      tr.insertCell().textContent = act.code ?? '—';
+      tr.insertCell().textContent = act.ccam_code ?? act.code ?? '—';
       tr.insertCell().textContent = act.label ?? '—';
       tr.insertCell().textContent = String(act.quantity ?? 1);
     });
@@ -294,12 +298,18 @@ const { id } = Astro.params;
     setStatus(addActStatus, 'Enregistrement…');
 
     const fd = new FormData(formAddAct);
-    const code     = (fd.get('code')     as string).trim();
-    const label    = (fd.get('label')    as string).trim() || undefined;
-    const quantity = Number(fd.get('quantity') ?? 1) || 1;
+    const code  = (fd.get('code')  as string).trim();
+    const label = (fd.get('label') as string).trim();
+
+    // Contrat API : `ccam_code` et `label` sont obligatoires (422 sinon).
+    if (!label) {
+      setStatus(addActStatus, 'Le libellé est obligatoire.', 'error');
+      btnAddAct.disabled = false;
+      return;
+    }
 
     try {
-      const { status, data } = await proConsultations.postAct(cId, { code, label, quantity });
+      const { status, data } = await proConsultations.postAct(cId, { ccam_code: code, label });
 
       if (status === 401) { window.location.href = redirectOnAuth; return; }
       if (status === 403) { setStatus(addActStatus, 'Accès refusé (403).', 'error'); btnAddAct.disabled = false; return; }

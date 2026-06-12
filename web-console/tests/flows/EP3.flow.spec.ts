@@ -28,40 +28,46 @@ async function getJwt(page: Parameters<typeof loginAs>[0]): Promise<string> {
   return (await page.evaluate(() => localStorage.getItem('nubia_jwt'))) ?? '';
 }
 
+type FlatSlot = { slot_id: string; provider_id: string; starts_at: string };
+
 /**
- * Obtient un appointment_id utilisable pour le parcours.
- * - Si SEED_APPOINTMENT_ID est fourni, on le retourne directement.
- * - Sinon, on crée un RDV via POST /v1/appointments (nécessite un créneau disponible).
- * Retourne null si aucun créneau n'est trouvé (parcours optionnel).
+ * Liste les créneaux ouverts via GET /v1/search/slots (contrat réel :
+ * `{ data: [{ provider_id, slots: [{ slot_id, starts_at }] }] }`), aplatie.
+ * `minHoursAhead` filtre les créneaux trop proches (PATCH exige ≥ 24 h,
+ * cancel exige ≥ 2 h avant starts_at).
  */
-async function resolveAppointmentId(
+async function listOpenSlots(
   page: Parameters<typeof loginAs>[0],
-): Promise<string | null> {
-  if (process.env.SEED_APPOINTMENT_ID) {
-    return process.env.SEED_APPOINTMENT_ID;
-  }
+  minHoursAhead: number,
+): Promise<FlatSlot[]> {
+  const slots = await page.evaluate(async (apiBase: string) => {
+    const resp = await fetch(`${apiBase}/v1/search/slots`);
+    if (!resp.ok) return [] as Array<{ slot_id: string; provider_id: string; starts_at: string }>;
+    const payload = (await resp.json()) as {
+      data?: Array<{
+        provider_id: string;
+        slots?: Array<{ slot_id: string; starts_at: string }>;
+      }>;
+    };
+    const flat: Array<{ slot_id: string; provider_id: string; starts_at: string }> = [];
+    for (const group of payload.data ?? []) {
+      for (const s of group.slots ?? []) {
+        flat.push({ slot_id: s.slot_id, provider_id: group.provider_id, starts_at: s.starts_at });
+      }
+    }
+    return flat;
+  }, API_BASE);
 
-  // 1. Chercher un créneau disponible
-  const slotsResp = await page.evaluate(
-    async (apiBase: string) => {
-      const jwt = localStorage.getItem('nubia_jwt') ?? '';
-      const resp = await fetch(`${apiBase}/v1/search/slots`, {
-        headers: { Authorization: `Bearer ${jwt}` },
-      });
-      const data = resp.ok
-        ? ((await resp.json()) as { slots?: Array<{ id: string; provider_id?: string }> })
-        : { slots: [] };
-      return { status: resp.status, slots: data.slots ?? [] };
-    },
-    API_BASE,
-  );
+  const cutoff = Date.now() + minHoursAhead * 3_600_000;
+  return slots.filter((s) => new Date(s.starts_at).getTime() > cutoff);
+}
 
-  if (slotsResp.slots.length === 0) return null;
-
-  const slot = slotsResp.slots[0];
-
-  // 2. Réserver le créneau
-  const bookResp = await page.evaluate(
+/** Réserve un créneau via POST /v1/appointments (motif requis par le contrat). */
+async function bookSlot(
+  page: Parameters<typeof loginAs>[0],
+  slot: FlatSlot,
+): Promise<{ status: number; id: string }> {
+  return page.evaluate(
     async ({
       apiBase,
       slotId,
@@ -79,16 +85,106 @@ async function resolveAppointmentId(
           'Content-Type': 'application/json',
           'Idempotency-Key': crypto.randomUUID(),
         },
-        body: JSON.stringify({ slot_id: slotId, provider_id: providerId }),
+        body: JSON.stringify({
+          slot_id: slotId,
+          provider_id: providerId,
+          motif: 'RDV EP3 (E2E)',
+        }),
       });
-      const data = resp.ok ? ((await resp.json()) as { id?: string }) : {};
-      return { status: resp.status, id: data.id ?? '' };
+      const data = resp.ok
+        ? ((await resp.json()) as { appointment_id?: string; id?: string })
+        : {};
+      return { status: resp.status, id: data.appointment_id ?? data.id ?? '' };
     },
-    { apiBase: API_BASE, slotId: slot.id, providerId: slot.provider_id ?? '' },
+    { apiBase: API_BASE, slotId: slot.slot_id, providerId: slot.provider_id },
   );
+}
 
-  if (bookResp.status === 201 && bookResp.id) return bookResp.id;
+/** Annule un RDV créé par le test (nettoyage — rouvre le créneau seed). */
+async function cancelAppointment(
+  page: Parameters<typeof loginAs>[0],
+  appointmentId: string,
+): Promise<void> {
+  await page.evaluate(
+    async ({ apiBase, appointmentId }: { apiBase: string; appointmentId: string }) => {
+      const jwt = localStorage.getItem('nubia_jwt') ?? '';
+      await fetch(`${apiBase}/v1/appointments/${appointmentId}/cancel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+    },
+    { apiBase: API_BASE, appointmentId },
+  );
+}
+
+/**
+ * Réserve le premier créneau qui accepte la réservation. L'API ne marque pas
+ * les créneaux `booked` à la création (conflits gérés par contrainte
+ * d'exclusion → 409 slot_taken) : il faut donc itérer.
+ */
+async function bookFirstAvailable(
+  page: Parameters<typeof loginAs>[0],
+  slots: FlatSlot[],
+): Promise<string | null> {
+  for (const slot of slots) {
+    const resp = await bookSlot(page, slot);
+    if (resp.status === 201 && resp.id) return resp.id;
+  }
   return null;
+}
+
+/**
+ * Cherche un RDV EP3 résiduel (run précédent interrompu avant nettoyage)
+ * encore modifiable (status requested/confirmed, starts_at > cutoff).
+ */
+async function findLeftoverEp3Appointment(
+  page: Parameters<typeof loginAs>[0],
+  minHoursAhead: number,
+): Promise<string | null> {
+  const items = await page.evaluate(async (apiBase: string) => {
+    const jwt = localStorage.getItem('nubia_jwt') ?? '';
+    const resp = await fetch(`${apiBase}/v1/appointments?status=upcoming&limit=100`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    if (!resp.ok) return [] as Array<{ id: string; starts_at: string; status: string; motif: string | null }>;
+    const payload = (await resp.json()) as {
+      data?: Array<{ id: string; starts_at: string; status: string; motif: string | null }>;
+    };
+    return payload.data ?? [];
+  }, API_BASE);
+
+  const cutoff = Date.now() + minHoursAhead * 3_600_000;
+  const leftover = items.find(
+    (a) =>
+      a.motif === 'RDV EP3 (E2E)' &&
+      (a.status === 'requested' || a.status === 'confirmed') &&
+      new Date(a.starts_at).getTime() > cutoff,
+  );
+  return leftover?.id ?? null;
+}
+
+/**
+ * Obtient un appointment_id utilisable pour le parcours.
+ * - Si SEED_APPOINTMENT_ID est fourni, on le retourne directement.
+ * - Sinon, réutilise un RDV EP3 résiduel, ou crée un RDV via
+ *   POST /v1/appointments sur un créneau à ≥ 25 h (PATCH exige ≥ 24 h
+ *   de marge avant starts_at).
+ * Retourne null si aucun créneau n'est trouvé (parcours optionnel).
+ */
+async function resolveAppointmentId(
+  page: Parameters<typeof loginAs>[0],
+): Promise<string | null> {
+  if (process.env.SEED_APPOINTMENT_ID) {
+    return process.env.SEED_APPOINTMENT_ID;
+  }
+
+  const leftover = await findLeftoverEp3Appointment(page, 25);
+  if (leftover) return leftover;
+
+  const slots = await listOpenSlots(page, 25);
+  if (slots.length === 0) return null;
+
+  return bookFirstAvailable(page, slots);
 }
 
 test.afterEach(async ({ page }) => {
@@ -108,7 +204,7 @@ test('modifier un RDV : PATCH /v1/appointments/:id → 200', async ({ page }) =>
   expect(appointmentId).not.toBeNull();
   if (!appointmentId) return; // garde — ne devrait pas arriver après expect
 
-  // PATCH /v1/appointments/:id avec une note modifiée
+  // PATCH /v1/appointments/:id — le contrat n'accepte que starts_at/motif.
   const patchResult = await page.evaluate(
     async ({
       apiBase,
@@ -124,9 +220,11 @@ test('modifier un RDV : PATCH /v1/appointments/:id → 200', async ({ page }) =>
           Authorization: `Bearer ${jwt}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ notes: 'Modification EP3' }),
+        body: JSON.stringify({ motif: 'Modification EP3' }),
       });
-      const data = resp.ok ? ((await resp.json()) as { id?: string; notes?: string }) : {};
+      const data = resp.ok
+        ? ((await resp.json()) as { appointment_id?: string; status?: string })
+        : {};
       return { status: resp.status, data };
     },
     { apiBase: API_BASE, appointmentId },
@@ -161,6 +259,11 @@ test('modifier un RDV : PATCH /v1/appointments/:id → 200', async ({ page }) =>
   await expect(page.getByRole('heading', { name: /détail du rendez-vous/i })).toBeVisible({
     timeout: 10_000,
   });
+
+  // Nettoyage : annuler le RDV créé pour rouvrir le créneau seed.
+  if (!process.env.SEED_APPOINTMENT_ID) {
+    await cancelAppointment(page, appointmentId);
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,23 +274,11 @@ test('annuler un RDV : POST /cancel → statut cancelled', async ({ page }) => {
   const jwt = await getJwt(page);
   expect(jwt).not.toBe('');
 
-  // Créer un nouveau RDV à annuler (cherche un créneau frais pour éviter de
-  // casser le créneau partagé avec les autres scénarios)
-  const slotsResp = await page.evaluate(
-    async (apiBase: string) => {
-      const jwt = localStorage.getItem('nubia_jwt') ?? '';
-      const resp = await fetch(`${apiBase}/v1/search/slots`, {
-        headers: { Authorization: `Bearer ${jwt}` },
-      });
-      const data = resp.ok
-        ? ((await resp.json()) as { slots?: Array<{ id: string; provider_id?: string }> })
-        : { slots: [] };
-      return { status: resp.status, slots: data.slots ?? [] };
-    },
-    API_BASE,
-  );
+  // Créer un nouveau RDV à annuler (cancel exige starts_at > now + 2 h ;
+  // on prend une marge de 3 h sur le créneau choisi)
+  const slots = await listOpenSlots(page, 3);
 
-  if (slotsResp.slots.length === 0 && !process.env.SEED_APPOINTMENT_ID) {
+  if (slots.length === 0 && !process.env.SEED_APPOINTMENT_ID) {
     throw new Error(
       'Aucun créneau disponible et SEED_APPOINTMENT_ID non fourni — précondition manquante pour le scénario annulation.',
     );
@@ -198,38 +289,15 @@ test('annuler un RDV : POST /cancel → statut cancelled', async ({ page }) => {
   if (process.env.SEED_APPOINTMENT_ID) {
     cancelId = process.env.SEED_APPOINTMENT_ID;
   } else {
-    const slot = slotsResp.slots[0];
-    const bookResp = await page.evaluate(
-      async ({
-        apiBase,
-        slotId,
-        providerId,
-      }: {
-        apiBase: string;
-        slotId: string;
-        providerId: string;
-      }) => {
-        const jwt = localStorage.getItem('nubia_jwt') ?? '';
-        const resp = await fetch(`${apiBase}/v1/appointments`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-            'Content-Type': 'application/json',
-            'Idempotency-Key': crypto.randomUUID(),
-          },
-          body: JSON.stringify({ slot_id: slotId, provider_id: providerId }),
-        });
-        const data = resp.ok ? ((await resp.json()) as { id?: string }) : {};
-        return { status: resp.status, id: data.id ?? '' };
-      },
-      { apiBase: API_BASE, slotId: slot.id, providerId: slot.provider_id ?? '' },
-    );
+    const bookedId =
+      (await findLeftoverEp3Appointment(page, 3)) ??
+      (await bookFirstAvailable(page, slots));
 
-    expect(bookResp.status).toBe(201);
-    expect(bookResp.id).toMatch(
+    expect(bookedId).not.toBeNull();
+    expect(bookedId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
-    cancelId = bookResp.id;
+    cancelId = bookedId as string;
   }
 
   // POST /v1/appointments/:id/cancel
@@ -373,14 +441,19 @@ test('jour J : checkin → queue → preparation', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /salle d'attente/i })).toBeVisible({
     timeout: 10_000,
   });
-  // loading → card ou error visible
-  await expect(page.locator('#queue-card, #queue-error')).toBeVisible({ timeout: 10_000 });
+  // loading → card ou error visible (first() : les deux éléments existent dans le DOM)
+  await expect(page.locator('#queue-card:visible, #queue-error:visible').first()).toBeVisible({ timeout: 10_000 });
 
   // ── 5. Page préparation W16 : /patient/rdv/:id/preparation ───────────────
   await page.goto(`/patient/rdv/${appointmentId}/preparation`);
-  await expect(page.getByRole('heading', { name: /préparation/i })).toBeVisible({
+  await expect(page.getByRole('heading', { level: 1, name: /préparation/i })).toBeVisible({
     timeout: 10_000,
   });
-  // loading → card ou error visible
-  await expect(page.locator('#prep-card, #prep-error')).toBeVisible({ timeout: 10_000 });
+  // loading → card ou error visible (first() : les deux éléments existent dans le DOM)
+  await expect(page.locator('#prep-card:visible, #prep-error:visible').first()).toBeVisible({ timeout: 10_000 });
+
+  // Nettoyage : annuler le RDV créé pour rouvrir le créneau seed.
+  if (!process.env.SEED_APPOINTMENT_ID) {
+    await cancelAppointment(page, appointmentId);
+  }
 });

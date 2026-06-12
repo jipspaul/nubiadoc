@@ -198,6 +198,16 @@ if (role !== 'admin' && role !== 'manager') {
       staffStatus.className = 'error';
       return;
     }
+    if (status === 405) {
+      // L'API R13 n'expose pas (encore) de GET sur /staff (POST uniquement) :
+      // le listing est indisponible mais l'ajout reste possible.
+      staffStatus.textContent =
+        'Listing du personnel indisponible (API) — l\'ajout reste possible ci-dessous.';
+      staffEmpty.hidden = false;
+      sectionStaff.hidden = false;
+      sectionAdd.hidden = false;
+      return;
+    }
     if (status !== 200) {
       staffStatus.textContent = `Erreur serveur (HTTP ${status}).`;
       staffStatus.className = 'error';
@@ -273,11 +283,11 @@ if (role !== 'admin' && role !== 'manager') {
     addStatus.textContent = 'Ajout en cours…';
     addStatus.className = '';
 
-    const body: { email: string; first_name?: string; last_name?: string } = { email };
-    if (firstName) body.first_name = firstName;
-    if (lastName) body.last_name = lastName;
-
-    const { status, data } = await proSecretariats.postStaff(currentSecretariatId, body);
+    // Contrat réel R13 : body {email, role} — les noms ne sont pas portés par l'API.
+    const { status, data } = await proSecretariats.postStaff(currentSecretariatId, {
+      email,
+      role: 'secretary',
+    });
 
     if (status === 201 || status === 200) {
       addStatus.textContent = 'Secrétaire ajouté avec succès.';
@@ -285,7 +295,17 @@ if (role !== 'admin' && role !== 'manager') {
       emailInput.value = '';
       firstNameInput.value = '';
       lastNameInput.value = '';
-      const newMember = data as SecretariatStaffMember;
+      // Réponse réelle : {user_id, activation_token} — l'email vient du formulaire.
+      const resp = data as { user_id?: string; email?: string; role?: string };
+      const newMember: SecretariatStaffMember = {
+        user_id: resp.user_id ?? '',
+        email: resp.email ?? email,
+        role: (resp.role as SecretariatStaffMember['role']) ?? 'secretary',
+      };
+      if (firstName || lastName) {
+        newMember.first_name = firstName || undefined;
+        newMember.last_name = lastName || undefined;
+      }
       staffTbody.appendChild(buildRow(newMember));
       staffEmpty.hidden = true;
     } else if (status === 409) {

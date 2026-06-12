@@ -198,7 +198,7 @@ import AppShell from '../../../layouts/AppShell.astro';
     }
     for (const conv of convs) {
       const unread = conv.unread_count ?? 0;
-      const subject = conv.subject ?? 'Conversation';
+      const subject = conv.subject ?? conv.cabinet_name ?? 'Conversation';
       const lastAt = conv.last_message_at
         ? new Date(conv.last_message_at).toLocaleString('fr-FR')
         : '';
@@ -221,12 +221,16 @@ import AppShell from '../../../layouts/AppShell.astro';
     list.hidden = false;
   }
 
-  // Load conversations on page load
+  // Load conversations on page load — l'API renvoie { data: [...], page: {...} }.
   (async () => {
     const { status, data } = await patientConversations.list();
     loading.hidden = true;
-    if (status < 300 && Array.isArray(data)) {
-      renderConversations(data as Conversation[]);
+    const payload = data as Conversation[] | { data?: Conversation[] } | null;
+    const convs = Array.isArray(payload)
+      ? payload
+      : (payload && Array.isArray(payload.data) ? payload.data : null);
+    if (status < 300 && convs) {
+      renderConversations(convs);
     } else {
       loading.textContent = 'Impossible de charger les conversations.';
       loading.hidden = false;

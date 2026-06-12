@@ -96,7 +96,7 @@ test('register → login → profil → couverture (+carte) → proches CRUD', a
   await page.locator('input[name="mutual_number"]').fill('123456789');
   await page.locator('#couverture-form button[type="submit"]').click();
 
-  await expect(page.locator('#couverture-toast')).toContainText(/mis à jour/i, {
+  await expect(page.locator('#couverture-toast')).toContainText(/mise? à jour/i, {
     timeout: 10_000,
   });
 

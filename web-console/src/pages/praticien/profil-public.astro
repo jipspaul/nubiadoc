@@ -19,10 +19,6 @@ import AppShell from '../../layouts/AppShell.astro';
         Biographie
         <textarea name="bio" rows="4" placeholder="Présentation du praticien…"></textarea>
       </label>
-      <label>
-        Numéro RPPS
-        <input type="text" name="rpps" placeholder="11 chiffres" />
-      </label>
       <button type="submit">Enregistrer</button>
     </form>
     <p id="badge-provider" aria-live="polite"></p>
@@ -203,13 +199,13 @@ import AppShell from '../../layouts/AppShell.astro';
   formProvider.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(formProvider);
+    // Contrat API (PATCH /v1/cabinet/provider) : champs `specialite`, `bio`,
+    // `langues`, `pmr`. Le RPPS se soumet via POST /v1/pro/verification (section 4).
     const body: Record<string, string> = {};
     const specialty = (fd.get('specialty') as string).trim();
     const bio = (fd.get('bio') as string).trim();
-    const rpps = (fd.get('rpps') as string).trim();
-    if (specialty) body.specialty = specialty;
+    if (specialty) body.specialite = specialty;
     if (bio) body.bio = bio;
-    if (rpps) body.rpps = rpps;
 
     resultProvider.className = '';
     resultProvider.textContent = 'Chargement…';
@@ -241,10 +237,12 @@ import AppShell from '../../layouts/AppShell.astro';
     resultListing.textContent = 'Chargement…';
 
     try {
+      // Contrat API : le body attendu est `{ online: bool }`.
+      // NB : l'endpoint exige le rôle `admin` — un praticien reçoit 403.
       const { status, data } = await apiFetch('/v1/cabinet/provider/listing', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_listed }),
+        body: JSON.stringify({ online: is_listed }),
       });
       showResult(resultListing, badgeListing, status, data);
     } catch (err) {
@@ -305,10 +303,12 @@ import AppShell from '../../layouts/AppShell.astro';
     resultVerifPost.textContent = 'Chargement…';
 
     try {
+      // Contrat API : le body attendu est `{ identifier, id_type: "rpps"|"adeli" }`.
+      // NB : l'endpoint exige le rôle `admin` — un praticien reçoit 403.
       const { status, data } = await apiFetch('/v1/pro/verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rpps }),
+        body: JSON.stringify({ identifier: rpps, id_type: 'rpps' }),
       });
       let extra = '';
       if (status === 202 && data !== null && typeof data === 'object') {

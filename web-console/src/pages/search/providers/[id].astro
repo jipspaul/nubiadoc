@@ -157,8 +157,11 @@ const { id } = Astro.params;
         errorMsg.hidden = false;
         return null;
       }
-      const p = data as { id?: unknown; first_name?: unknown; last_name?: unknown; specialty?: unknown; speciality?: unknown; cabinet_id?: unknown };
-      const name = [String(p.first_name ?? ''), String(p.last_name ?? '')].filter(Boolean).join(' ') || `Praticien ${providerId}`;
+      // Contrat API : GET /v1/providers/:id → { provider_id, display_name, specialty, … }
+      const p = data as { display_name?: unknown; first_name?: unknown; last_name?: unknown; specialty?: unknown; speciality?: unknown; cabinet_id?: unknown };
+      const name = String(p.display_name ?? '')
+        || [String(p.first_name ?? ''), String(p.last_name ?? '')].filter(Boolean).join(' ')
+        || `Praticien ${providerId}`;
       providerName.textContent = name;
       breadcrumbName.textContent = name;
       document.title = `${name} — Nubia`;
@@ -198,14 +201,25 @@ const { id } = Astro.params;
         slotsList.innerHTML = '<li class="muted">Aucun créneau.</li>';
         return;
       }
-      const result = data as { slots?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-      const slots = Array.isArray(result) ? result : ((result as { slots?: Array<Record<string, unknown>> }).slots ?? []);
+      // Contrat API : GET /v1/search/slots → { data: [{ provider_id, slots: [{ slot_id, starts_at }] }] }
+      // (pas de filtre provider_id côté API → filtrage client.)
+      type SlotGroup = { provider_id?: string; slots?: Array<Record<string, unknown>> };
+      const result = data as { data?: SlotGroup[]; slots?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      let slots: Array<Record<string, unknown>>;
+      if (Array.isArray(result)) {
+        slots = result;
+      } else if (Array.isArray(result.data)) {
+        const group = result.data.find((g) => String(g.provider_id ?? '') === providerId) ?? null;
+        slots = group?.slots ?? [];
+      } else {
+        slots = result.slots ?? [];
+      }
       if (slots.length === 0) {
         slotsList.innerHTML = '<li class="muted">Aucun créneau disponible.</li>';
         return;
       }
       for (const s of slots) {
-        const slotId = String(s.id ?? '');
+        const slotId = String(s.slot_id ?? s.id ?? '');
         const startsAt = String(s.starts_at ?? '');
         const duration = s.duration_minutes != null ? `${s.duration_minutes} min` : '';
         const displayDate = startsAt

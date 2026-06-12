@@ -32,7 +32,9 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
   await expect(page.locator('#search-form')).toBeVisible();
 
   // ── 3. Soumettre une recherche ────────────────────────────────────────────
-  await page.locator('#search-input').fill('dentiste');
+  // « Marin » correspond au seed réel (Dr Hugo Marin, seul praticien avec des
+  // créneaux open) ; la recherche q matche display_name/label de spécialité.
+  await page.locator('#search-input').fill('Marin');
   await page.locator('#search-form button[type="submit"]').click();
 
   // ── 4. Page de résultats (/search/providers?q=dentiste) ───────────────────
@@ -46,11 +48,11 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
   const firstCard = page.locator('#providers-list .provider-card').first();
   await expect(firstCard).toBeVisible({ timeout: 10_000 });
 
-  // ── 5.a. GET /v1/search/providers?q=dentiste → 200 ──────────────────────
+  // ── 5.a. GET /v1/search/providers?q=Marin → 200 ──────────────────────────
   const searchApiStatus = await page.evaluate(
     async ({ apiBase }: { apiBase: string }) => {
       const resp = await fetch(
-        `${apiBase}/v1/search/providers?q=${encodeURIComponent('dentiste')}`,
+        `${apiBase}/v1/search/providers?q=${encodeURIComponent('Marin')}`,
       );
       return resp.status;
     },
@@ -136,7 +138,12 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
           'Content-Type': 'application/json',
           'Idempotency-Key': idempotencyKey,
         },
-        body: JSON.stringify({ slot_id: slotId, provider_id: providerId }),
+        // Contrat API (appointments.rs) : motif est requis ; statut initial "requested".
+        body: JSON.stringify({
+          slot_id: slotId,
+          provider_id: providerId,
+          motif: 'Consultation de contrôle',
+        }),
       });
       const text = await resp.text();
       let data: Record<string, unknown> = {};
@@ -171,9 +178,13 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
       const resp = await fetch(`${apiBase}/v1/appointments`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
+      // Contrat API : enveloppe { data: [...], page: {...} }
       let list: Array<{ id: string; status?: string }> = [];
       if (resp.ok) {
-        list = (await resp.json()) as Array<{ id: string; status?: string }>;
+        const payload = (await resp.json()) as {
+          data?: Array<{ id: string; status?: string }>;
+        };
+        list = payload.data ?? [];
       }
       const found = list.find((a) => a.id === appointmentId);
       return { listStatus: resp.status, found };
@@ -183,9 +194,10 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
 
   expect(listStatus).toBeLessThan(300);
   expect(found).toBeDefined();
-  expect(found?.status).toBe('pending');
+  // Contrat API : le statut initial d'un RDV créé par le patient est "requested".
+  expect(found?.status).toBe('requested');
 
-  // ── 10. Page /patient/rdv : le RDV apparaît dans l'UI avec statut pending ─
+  // ── 10. Page /patient/rdv : le RDV apparaît dans l'UI avec statut requested ─
   await page.goto('/patient/rdv');
   await expect(page.locator('#upcoming-loading')).toBeHidden({
     timeout: 15_000,
@@ -193,7 +205,7 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
 
   const rdvItem = page.locator(`a[href="/patient/rdv/${appointmentId}"]`);
   await expect(rdvItem).toBeVisible({ timeout: 10_000 });
-  await expect(rdvItem.locator('.rdv-badge[data-status="pending"]')).toBeVisible();
+  await expect(rdvItem.locator('.rdv-badge[data-status="requested"]')).toBeVisible();
 
   // ── 11. Reset — annuler le RDV créé ──────────────────────────────────────
   await page.evaluate(

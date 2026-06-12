@@ -160,6 +160,20 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 4bis. Seed démo (idempotent, ON CONFLICT DO NOTHING) — comptes + données
+# ---------------------------------------------------------------------------
+step "seed démo (db/seed/seed.sql, rôle nubia_seed)"
+podman exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 --no-psqlrc \
+  -U nubia_seed -d nubia < "$ROOT/db/seed/seed.sql" >/dev/null \
+  || fail "seed démo a échoué — voir la sortie ci-dessus"
+if [ -f "$ROOT/db/seed/seed_e2e.sql" ]; then
+  podman exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 --no-psqlrc \
+    -U nubia_seed -d nubia < "$ROOT/db/seed/seed_e2e.sql" >/dev/null \
+    || fail "seed e2e a échoué — voir la sortie ci-dessus"
+fi
+ok "seed chargé (Cabinet Lyon, comptes démo)"
+
+# ---------------------------------------------------------------------------
 # 5. API Rust
 # ---------------------------------------------------------------------------
 step "API Nubia — cargo build ($CARGO_PROFILE)"
@@ -176,6 +190,7 @@ step "API Nubia — démarrage (log : .dev-stack-logs/api.log)"
   APP_DATABASE_URL="postgres://nubia_app@localhost:$PG_PORT/nubia" \
   APP_PORT="$API_PORT" \
   JWT_SECRET="$JWT_SECRET" \
+  LOGIN_RATE_MAX_ATTEMPTS="${LOGIN_RATE_MAX_ATTEMPTS:-10000}" \
   exec cargo run $BUILD_FLAG --bin nubia-api
 ) >>"$LOG_DIR/api.log" 2>&1 &
 API_PID=$!
@@ -250,9 +265,10 @@ if ! curl -sf "http://localhost:$API_PORT/v1/health" >/dev/null 2>&1; then
 fi
 
 printf '\n%s──────────────────────── Comptes démo ────────────────────────%s\n' "$_D" "$_R"
-printf '  patient    %shttp://localhost:%s/patient%s     alice@demo.fr / DemoPass!1\n' "$_G" "$WEB_PORT" "$_R"
-printf '  praticien  %shttp://localhost:%s/praticien%s   hugo@demo.fr  / DemoPass!1\n' "$_G" "$WEB_PORT" "$_R"
-printf '  secrétaire %shttp://localhost:%s/secretary%s   emma@demo.fr  / DemoPass!1\n' "$_G" "$WEB_PORT" "$_R"
+printf '  patient    %shttp://localhost:%s/patient%s     marc.dubois@patient.test / Nubia2026!\n' "$_G" "$WEB_PORT" "$_R"
+printf '  praticien  %shttp://localhost:%s/praticien%s   hugo.marin@cabinet-lyon.test / Nubia2026!\n' "$_G" "$WEB_PORT" "$_R"
+printf '  secrétaire %shttp://localhost:%s/secretary%s   sonia.accueil@cabinet-lyon.test / Nubia2026!\n' "$_G" "$WEB_PORT" "$_R"
+printf '  manager    %shttp://localhost:%s/manager/personnel%s   admin@cabinet-lyon.test / Nubia2026!\n' "$_G" "$WEB_PORT" "$_R"
 printf '%s───────────────────────────────────────────────────────────────%s\n' "$_D" "$_R"
 
 wait

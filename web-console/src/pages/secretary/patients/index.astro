@@ -96,7 +96,10 @@ if (role === 'patient') {
         return;
       }
 
-      const patients = data as CabinetPatient[];
+      // L'API renvoie une enveloppe {data: [...], page: {...}} (R10) —
+      // tolère aussi un tableau nu pour compatibilité.
+      const body = data as { data?: CabinetPatient[] } | CabinetPatient[];
+      const patients: CabinetPatient[] = Array.isArray(body) ? body : (body?.data ?? []);
       statusEl.textContent = '';
 
       if (!patients || patients.length === 0) {

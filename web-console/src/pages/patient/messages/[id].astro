@@ -35,6 +35,8 @@ const { id } = Astro.params;
       </div>
     </form>
   </section>
+
+  <span id="conv-id-data" data-id={id} hidden></span>
 </AppShell>
 
 <style>
@@ -124,10 +126,11 @@ const { id } = Astro.params;
   #reply-status.error { color: var(--color-error-fg, red); }
 </style>
 
-<script define:vars={{ conversationId: id }}>
+<script>
   import { patientConversations, type Message } from '../../../lib/endpoints.ts';
 
-  const convId = conversationId as string;
+  // `define:vars` rendrait le script inline (imports impossibles) → id via data-attribute.
+  const convId = (document.getElementById('conv-id-data') as HTMLElement)?.dataset['id'] ?? '';
   const msgLoading = document.getElementById('msg-loading') as HTMLElement;
   const msgList = document.getElementById('msg-list') as HTMLUListElement;
   const msgEmpty = document.getElementById('msg-empty') as HTMLParagraphElement;
@@ -142,8 +145,10 @@ const { id } = Astro.params;
       return;
     }
     for (const msg of messages) {
-      const sender = (msg as Record<string, unknown>).sender_type as string | undefined ?? 'pro';
-      const sentAt = msg.sent_at ?? (msg as Record<string, unknown>).created_at as string | undefined;
+      const sender = msg.sender
+        ?? ((msg as Record<string, unknown>).sender_type as string | undefined)
+        ?? 'pro';
+      const sentAt = msg.sent_at ?? msg.created_at;
       const dateStr = sentAt ? new Date(sentAt).toLocaleString('fr-FR') : '';
 
       const li = document.createElement('li');
@@ -163,8 +168,13 @@ const { id } = Astro.params;
   async function loadMessages(): Promise<void> {
     const { status, data } = await patientConversations.getMessages(convId);
     msgLoading.hidden = true;
-    if (status < 300 && Array.isArray(data)) {
-      renderMessages(data as Message[]);
+    // Contrat API : { data: [...], page } trié created_at DESC → on inverse pour l'affichage.
+    const payload = data as Message[] | { data?: Message[] } | null;
+    const messages = Array.isArray(payload)
+      ? payload
+      : (payload && Array.isArray(payload.data) ? payload.data : null);
+    if (status < 300 && messages) {
+      renderMessages([...messages].reverse());
       replyForm.hidden = false;
       // Mark conversation as read
       patientConversations.markRead(convId).catch(() => {/* best-effort */});

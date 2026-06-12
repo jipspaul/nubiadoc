@@ -14,7 +14,11 @@
  * Variables d'environnement :
  *   FLOWS_BASE_URL        URL de l'app web (défaut http://localhost:38040)
  *   FLOWS_API_BASE_URL    URL de l'API backend (défaut http://localhost:38030)
- *   SEED_PRACTITIONER_ID  UUID du praticien seed (pour les créneaux)
+ *   SEED_PRACTITIONER_TABLE_ID  UUID du praticien dans la table `practitioner`
+ *                               (≠ SEED_PRACTITIONER_ID qui porte l'id `provider`
+ *                               marketplace). Les endpoints cabinet
+ *                               (POST /v1/cabinet/slots, GET /v1/cabinet/agenda)
+ *                               attendent l'id practitioner-table (seed: c0…c1).
  */
 
 import { test, expect } from '@playwright/test';
@@ -23,8 +27,8 @@ import { loginAs, clearSession } from './helpers';
 const API_BASE =
   process.env.FLOWS_API_BASE_URL ?? 'http://localhost:38030';
 
-const SEED_PRACTITIONER_ID =
-  process.env.SEED_PRACTITIONER_ID ?? '00000000-0000-0000-0000-000000000001';
+const SEED_PRACTITIONER_TABLE_ID =
+  process.env.SEED_PRACTITIONER_TABLE_ID ?? 'c0000000-0000-0000-0000-0000000000c1';
 
 test.afterEach(async ({ page }) => {
   await clearSession(page);
@@ -120,7 +124,7 @@ test('créneaux : POST /v1/cabinet/slots → PATCH → DELETE', async ({ page })
     },
     {
       apiBase: API_BASE,
-      practitionerId: SEED_PRACTITIONER_ID,
+      practitionerId: SEED_PRACTITIONER_TABLE_ID,
       startsAt: tomorrow.toISOString(),
       endsAt: endsAt.toISOString(),
     },

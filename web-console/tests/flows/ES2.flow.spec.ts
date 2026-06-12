@@ -39,38 +39,48 @@ test('secrétaire : GET /v1/cabinet/waiting-list → 200 et offer sur premier en
   await loginAs(page, 'secretary');
 
   // ── 2. Récupérer la liste d'attente (GET /v1/cabinet/waiting-list → 200) ──
-  const { listStatus, firstId } = await page.evaluate(async (apiBase: string) => {
+  // Contrat réel : réponse enveloppée {data: [...]} (api/src/scheduling.rs).
+  const { listStatus, firstActiveId } = await page.evaluate(async (apiBase: string) => {
     const jwt = localStorage.getItem('nubia_jwt') ?? '';
     const resp = await fetch(`${apiBase}/v1/cabinet/waiting-list`, {
       headers: { Authorization: `Bearer ${jwt}` },
     });
-    const entries = resp.ok
-      ? ((await resp.json()) as Array<{ id: string }>)
-      : ([] as Array<{ id: string }>);
-    return { listStatus: resp.status, firstId: entries[0]?.id ?? '' };
+    const body = resp.ok
+      ? ((await resp.json()) as { data?: Array<{ id: string; status?: string }> })
+      : {};
+    const entries = body.data ?? [];
+    // L'offer n'est valide que sur une entrée `active` (409 invalid_status sinon).
+    const firstActive = entries.find((e) => e.status === 'active');
+    return { listStatus: resp.status, firstActiveId: firstActive?.id ?? '' };
   }, API_BASE);
 
   expect(listStatus, `GET /v1/cabinet/waiting-list attendu 200, reçu ${listStatus}`).toBe(200);
 
-  // ── 3. Proposer un créneau sur la première entrée si elle existe ───────────
-  if (firstId) {
+  // ── 3. Proposer un créneau sur la première entrée active si elle existe ────
+  if (firstActiveId) {
     const offerStatus = await page.evaluate(
       async ({ apiBase, id }: { apiBase: string; id: string }) => {
         const jwt = localStorage.getItem('nubia_jwt') ?? '';
+        // Contrat réel : body JSON {proposed_at} obligatoire (415/422 sinon).
+        const proposedAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         const resp = await fetch(`${apiBase}/v1/cabinet/waiting-list/${id}/offer`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${jwt}` },
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ proposed_at: proposedAt }),
         });
         return resp.status;
       },
-      { apiBase: API_BASE, id: firstId },
+      { apiBase: API_BASE, id: firstActiveId },
     );
 
     // 200 (with body) ou 204 (no content) selon l'implémentation
     const offerOk = offerStatus === 200 || offerStatus === 204;
     expect(offerOk, `POST …/offer attendu 200 ou 204, reçu ${offerStatus}`).toBe(true);
   }
-  // Si la liste est vide, l'assertion GET 200 suffit pour valider l'accès.
+  // Si aucune entrée active, l'assertion GET 200 suffit pour valider l'accès.
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,9 +97,13 @@ test('secrétaire : GET /v1/cabinet/patients → 200, identité présente, clini
       const resp = await fetch(`${apiBase}/v1/cabinet/patients`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      const patients = resp.ok
-        ? ((await resp.json()) as Array<{ id: string; first_name?: string; last_name?: string }>)
-        : ([] as Array<{ id: string; first_name?: string; last_name?: string }>);
+      // Contrat réel : réponse enveloppée {data: [...], page: {...}} (R10).
+      const body = resp.ok
+        ? ((await resp.json()) as {
+            data?: Array<{ id: string; first_name?: string; last_name?: string }>;
+          })
+        : {};
+      const patients = body.data ?? [];
       const first = patients[0];
       // Vérifie que les champs identité sont présents (id au minimum)
       const hasAdminFields = first !== undefined && typeof first.id === 'string';
@@ -157,8 +171,10 @@ test('secrétaire : page /secretary/patients visible avec table ou message vide'
   await expect(page.locator('h1')).toBeVisible({ timeout: 10_000 });
 
   // ── 4. La table ou le message vide doit apparaître ────────────────────────
-  // Le script client charge les données et affiche soit #patients-table soit #patients-empty
+  // Le script client charge les données et affiche soit #patients-table soit
+  // #patients-empty. `:visible` + first() : les deux nœuds existent toujours
+  // dans le DOM (strict mode violation sinon).
   await expect(
-    page.locator('#patients-table, #patients-empty'),
+    page.locator('#patients-table:visible, #patients-empty:visible').first(),
   ).toBeVisible({ timeout: 15_000 });
 });

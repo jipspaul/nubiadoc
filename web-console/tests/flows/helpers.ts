@@ -35,5 +35,11 @@ export async function loginAs(page: Page, role: Role): Promise<string> {
  */
 export async function clearSession(page: Page): Promise<void> {
   await page.context().clearCookies();
-  await page.evaluate(() => localStorage.clear());
+  // localStorage est inaccessible sur about:blank (test qui n'a jamais navigué)
+  // ou après un crash de page — ne pas faire échouer le test dans l'afterEach.
+  try {
+    await page.evaluate(() => localStorage.clear());
+  } catch {
+    // pas de page chargée → rien à purger
+  }
 }

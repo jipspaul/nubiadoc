@@ -37,6 +37,8 @@ const { id } = Astro.params;
 
     <p id="prep-error" hidden class="error-msg">Impossible de charger les informations de préparation.</p>
   </section>
+
+  <span id="appt-id-data" data-id={id} hidden></span>
 </AppShell>
 
 <style>
@@ -82,10 +84,11 @@ const { id } = Astro.params;
   .error-msg { color: var(--color-error); }
 </style>
 
-<script define:vars={{ appointmentId: id }}>
+<script>
   import { patientAppointments, type AppointmentPreparation, type AppointmentDirections } from '../../../../lib/endpoints.ts';
 
-  const apptId = appointmentId as string;
+  // `define:vars` rendrait le script inline (imports impossibles) → id via data-attribute.
+  const apptId = (document.getElementById('appt-id-data') as HTMLElement)?.dataset['id'] ?? '';
 
   const loadingEl    = document.getElementById('prep-loading') as HTMLElement;
   const cardEl       = document.getElementById('prep-card') as HTMLElement;
@@ -106,16 +109,24 @@ const { id } = Astro.params;
     loadingEl.hidden = true;
 
     if (prepRes.status < 300 && prepRes.data) {
+      // Contrat API : { provider, establishment, bring: [{label, required}], reminder_at }
       const prep = prepRes.data as AppointmentPreparation;
       instrEl.textContent = prep.instructions ?? 'Aucune instruction particulière.';
 
-      if (prep.documents_needed && prep.documents_needed.length > 0) {
-        for (const doc of prep.documents_needed) {
+      const docs = prep.documents_needed ?? prep.bring?.map((b) => b.label) ?? [];
+      if (docs.length > 0) {
+        for (const doc of docs) {
           const li = document.createElement('li');
           li.textContent = doc;
           docsListEl.appendChild(li);
         }
         docsSection.hidden = false;
+      }
+
+      const address = prep.establishment?.address;
+      if (address) {
+        dirAddrEl.textContent = address;
+        dirSection.hidden = false;
       }
       cardEl.hidden = false;
     } else {
@@ -124,14 +135,17 @@ const { id } = Astro.params;
     }
 
     if (dirRes.status < 300 && dirRes.data) {
+      // Contrat API : { mode, duration_min, distance_m, deeplink }
       const dir = dirRes.data as AppointmentDirections;
       if (dir.address) {
         dirAddrEl.textContent = dir.address;
         dirSection.hidden = false;
       }
-      if (dir.map_url) {
-        dirLinkEl.href = dir.map_url;
+      const link = dir.map_url ?? dir.deeplink;
+      if (link) {
+        dirLinkEl.href = link;
         dirLinkEl.hidden = false;
+        dirSection.hidden = false;
       }
     }
   })();

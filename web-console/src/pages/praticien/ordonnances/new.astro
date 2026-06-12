@@ -136,6 +136,8 @@ import AppShell from '../../../layouts/AppShell.astro';
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
+    // Contrat API (POST /v1/cabinet/prescriptions) : `quantity` est une chaîne
+    // libre (ex. "QSP 15 cp") — un nombre JSON provoque un 422.
     const body = {
       patient_id: (fd.get('patient_id') as string).trim(),
       items: [{
@@ -143,7 +145,7 @@ import AppShell from '../../../layouts/AppShell.astro';
         ...(fd.get('item_form') ? { form: (fd.get('item_form') as string).trim() } : {}),
         posology: (fd.get('item_posology') as string).trim(),
         duration: (fd.get('item_duration') as string).trim(),
-        quantity: Number(fd.get('item_quantity')),
+        quantity: String(fd.get('item_quantity') ?? '').trim(),
       }],
     };
 
@@ -163,9 +165,11 @@ import AppShell from '../../../layouts/AppShell.astro';
       badge.innerHTML = `<span class="badge ${status < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${status}</span>`;
 
       if (status === 201) {
-        const rx = data as { id?: string };
-        if (rx?.id) {
-          badge.innerHTML += ` <a href="/praticien/ordonnances/${rx.id}/sign">Signer cette ordonnance →</a>`;
+        // Contrat API : la création renvoie `{ prescription_id }`.
+        const rx = data as { prescription_id?: string; id?: string };
+        const rxId = rx?.prescription_id ?? rx?.id;
+        if (rxId) {
+          badge.innerHTML += ` <a href="/praticien/ordonnances/${rxId}/sign">Signer cette ordonnance →</a>`;
         }
       }
     } catch (err) {

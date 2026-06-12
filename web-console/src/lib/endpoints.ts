@@ -39,7 +39,7 @@ export interface MeResponse {
   kind: 'patient' | 'pro';
   role?: 'admin' | 'practitioner' | 'secretary';
   cabinet_id?: string;
-  memberships?: Array<{ cabinet_id: string; role: string }>;
+  memberships?: Array<{ cabinet_id: string; role: string; secretariat_id?: string }>;
   contexts?: MeContext[];
 }
 
@@ -50,6 +50,8 @@ export interface PatientAccount {
   first_name: string;
   last_name: string;
   phone?: string;
+  /** Renvoyé par l'API (`GET /v1/account`). */
+  birth_date?: string;
   date_of_birth?: string;
 }
 
@@ -65,6 +67,9 @@ export interface Dependent {
   last_name: string;
   date_of_birth?: string;
   relationship?: string;
+  /** Champs renvoyés par l'API (GET/POST/PATCH /v1/account/dependents). */
+  dependent_account_id?: string;
+  birth_date?: string;
 }
 
 export interface NotificationPreferences {
@@ -88,21 +93,37 @@ export interface Appointment {
   cabinet_id?: string;
   patient_id?: string;
   notes?: string;
+  /** Champs renvoyés par l'API (GET /v1/appointments). */
+  starts_at?: string;
+  ends_at?: string;
+  motif?: string;
+  provider?: { display_name?: string | null };
 }
 
 export interface AppointmentPreparation {
   instructions?: string;
   documents_needed?: string[];
+  /** Champs renvoyés par l'API (GET /v1/appointments/:id/preparation). */
+  bring?: Array<{ label: string; required: boolean }>;
+  reminder_at?: string;
+  provider?: { name?: string | null };
+  establishment?: { address?: string | null };
 }
 
 export interface AppointmentDirections {
   address?: string;
   map_url?: string;
+  /** Champs renvoyés par l'API (GET /v1/appointments/:id/directions). */
+  mode?: string;
+  deeplink?: string;
 }
 
 export interface QueuePosition {
   position?: number;
   estimated_wait_minutes?: number;
+  /** Champs renvoyés par l'API (GET /v1/appointments/:id/queue). */
+  est_wait_min?: number | null;
+  status?: string;
 }
 
 // Patient — documents
@@ -120,6 +141,9 @@ export interface Conversation {
   last_message_at?: string;
   unread_count?: number;
   scope?: 'clinical' | 'admin';
+  /** Champs renvoyés par l'API (GET /v1/conversations). */
+  cabinet_id?: string;
+  cabinet_name?: string;
 }
 
 export interface Message {
@@ -127,6 +151,10 @@ export interface Message {
   body: string;
   sender_id: string;
   sent_at: string;
+  /** Champs renvoyés par l'API (GET /v1/conversations/:id/messages). */
+  sender?: string;
+  created_at?: string;
+  read_at?: string | null;
 }
 
 // Patient — dashboard
@@ -247,20 +275,43 @@ export interface CabinetPatient {
   first_name?: string;
   last_name?: string;
   email?: string;
+  /** Champ réel renvoyé par l'API (`GET /v1/cabinet/patients`). */
+  birth_date?: string;
+  /** @deprecated alias historique — l'API renvoie `birth_date`. */
   date_of_birth?: string;
+  created_at?: string;
 }
 
 export interface PatientNote {
-  id: string;
-  body: string;
+  /** Champs réels de l'API (`GET /v1/cabinet/patients/:id/notes`). */
+  note_id?: string;
+  note_kind?: string;
+  text?: string;
+  tooth?: string;
+  /** @deprecated alias historiques — l'API renvoie `note_id`/`text`. */
+  id?: string;
+  body?: string;
   created_at?: string;
   author_id?: string;
 }
 
 export interface MedicalRecord {
   allergies?: string[];
+  /** Champ réel de l'API (traitements en cours). */
+  treatments?: string[];
+  /** @deprecated alias historique — l'API renvoie `treatments`. */
   current_medications?: string[];
-  history?: string;
+  history?: string | null;
+}
+
+/** Document patient tel que renvoyé par `GET /v1/cabinet/patients/:id/documents`. */
+export interface CabinetPatientDocument {
+  id: string;
+  category?: string;
+  filename?: string;
+  mime_type?: string;
+  size_bytes?: number;
+  created_at?: string;
 }
 
 export interface DentalChart {
@@ -277,8 +328,13 @@ export interface Consultation {
 }
 
 export interface ConsultationAct {
-  code: string;
+  /** Champs réels de l'API (`POST /v1/cabinet/consultations/:id/acts`). */
+  ccam_code?: string;
   label?: string;
+  tooth?: string;
+  amount_cents?: number;
+  /** @deprecated alias historiques — l'API attend `ccam_code`. */
+  code?: string;
   quantity?: number;
 }
 
@@ -299,10 +355,22 @@ export interface AgendaEntry {
 }
 
 export interface WaitingRoomEntry {
-  id: string;
+  /** Champs réels de l'API (`GET /v1/cabinet/waiting-room`). */
+  appointment_id?: string;
   patient_id?: string;
+  status?: string;
+  checkin_at?: string;
+  /** @deprecated alias historiques — l'API renvoie `appointment_id`/`checkin_at`. */
+  id?: string;
   checked_in_at?: string;
   position?: number;
+}
+
+/** Réponse réelle de `POST /v1/cabinet/waiting-room/call-next`. */
+export interface CallNextResponse {
+  called: boolean;
+  appointment_id?: string;
+  patient_display_name?: string;
 }
 
 export interface WaitingListEntry {
@@ -511,7 +579,8 @@ export const patientConversations = {
     apiFetch(`/v1/conversations/${id}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<Message>>,
 
   markRead: (id: string) =>
-    apiFetch(`/v1/conversations/${id}/read`, { method: 'POST' }) as Promise<ApiResponse<null>>,
+    // Le handler attend un corps JSON (MarkReadBody) même vide.
+    apiFetch(`/v1/conversations/${id}/read`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }) as Promise<ApiResponse<null>>,
 };
 
 // ---------------------------------------------------------------------------
@@ -648,9 +717,14 @@ export const proAgenda = {
     return apiFetch(`/v1/cabinet/agenda${qs ? `?${qs}` : ''}`) as Promise<ApiResponse<AgendaEntry[]>>;
   },
 
-  getAppointments: (params?: { status?: string }) => {
+  getAppointments: async (params?: { status?: string }): Promise<ApiResponse<Appointment[]>> => {
     const qs = params?.status ? `?status=${params.status}` : '';
-    return apiFetch(`/v1/cabinet/appointments${qs}`) as Promise<ApiResponse<Appointment[]>>;
+    // L'API renvoie `{ data: [...] }` — on déballe pour les consommateurs.
+    const res = (await apiFetch(`/v1/cabinet/appointments${qs}`)) as ApiResponse<
+      Appointment[] | { data?: Appointment[] }
+    >;
+    const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+    return { ...res, data };
   },
 
   confirmAppointment: (id: string) =>
@@ -662,11 +736,18 @@ export const proAgenda = {
   patchAppointment: (id: string, body: Partial<Appointment>) =>
     apiFetch(`/v1/cabinet/appointments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<Appointment>>,
 
-  getWaitingRoom: () =>
-    apiFetch('/v1/cabinet/waiting-room') as Promise<ApiResponse<WaitingRoomEntry[]>>,
+  getWaitingRoom: async (): Promise<ApiResponse<WaitingRoomEntry[]>> => {
+    // L'API renvoie `{ entries: [...] }` — on déballe pour les consommateurs.
+    const res = (await apiFetch('/v1/cabinet/waiting-room')) as ApiResponse<
+      WaitingRoomEntry[] | { entries?: WaitingRoomEntry[] }
+    >;
+    const data = Array.isArray(res.data) ? res.data : (res.data?.entries ?? []);
+    return { ...res, data };
+  },
 
   callNext: () =>
-    apiFetch('/v1/cabinet/waiting-room/call-next', { method: 'POST' }) as Promise<ApiResponse<WaitingRoomEntry>>,
+    // L'API renvoie `{ called, appointment_id?, patient_display_name? }` (200 même si file vide).
+    apiFetch('/v1/cabinet/waiting-room/call-next', { method: 'POST' }) as Promise<ApiResponse<CallNextResponse>>,
 
   getWaitingList: () =>
     apiFetch('/v1/cabinet/waiting-list') as Promise<ApiResponse<WaitingListEntry[]>>,
@@ -695,16 +776,28 @@ export const proAgenda = {
 // ---------------------------------------------------------------------------
 
 export const proPatients = {
-  list: () =>
-    apiFetch('/v1/cabinet/patients') as Promise<ApiResponse<CabinetPatient[]>>,
+  list: async (): Promise<ApiResponse<CabinetPatient[]>> => {
+    // L'API renvoie `{ data: [...], page: {...} }` — on déballe pour les consommateurs.
+    const res = (await apiFetch('/v1/cabinet/patients')) as ApiResponse<
+      CabinetPatient[] | { data?: CabinetPatient[] }
+    >;
+    const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+    return { ...res, data };
+  },
 
   get: (id: string) =>
     apiFetch(`/v1/cabinet/patients/${id}`) as Promise<ApiResponse<CabinetPatient>>,
 
-  getNotes: (id: string) =>
-    apiFetch(`/v1/cabinet/patients/${id}/notes`) as Promise<ApiResponse<PatientNote[]>>,
+  getNotes: async (id: string): Promise<ApiResponse<PatientNote[]>> => {
+    // L'API renvoie `{ data: [...], page: {...} }` — on déballe pour les consommateurs.
+    const res = (await apiFetch(`/v1/cabinet/patients/${id}/notes`)) as ApiResponse<
+      PatientNote[] | { data?: PatientNote[] }
+    >;
+    const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+    return { ...res, data };
+  },
 
-  postNote: (id: string, body: { body: string }) =>
+  postNote: (id: string, body: { note_kind: 'observation' | 'act'; text: string; tooth?: string }) =>
     apiFetch(`/v1/cabinet/patients/${id}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<PatientNote>>,
 
   getMedicalRecord: (id: string) =>
@@ -719,8 +812,14 @@ export const proPatients = {
   putDentalChart: (id: string, body: DentalChart) =>
     apiFetch(`/v1/cabinet/patients/${id}/dental-chart`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<DentalChart>>,
 
-  getDocuments: (id: string) =>
-    apiFetch(`/v1/cabinet/patients/${id}/documents`) as Promise<ApiResponse<Document[]>>,
+  getDocuments: async (id: string): Promise<ApiResponse<CabinetPatientDocument[]>> => {
+    // L'API renvoie `{ data: [...], page: {...} }` — on déballe pour les consommateurs.
+    const res = (await apiFetch(`/v1/cabinet/patients/${id}/documents`)) as ApiResponse<
+      CabinetPatientDocument[] | { data?: CabinetPatientDocument[] }
+    >;
+    const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+    return { ...res, data };
+  },
 
   postDocument: (id: string, body: FormData) =>
     apiFetch(`/v1/cabinet/patients/${id}/documents`, { method: 'POST', body }) as Promise<ApiResponse<Document>>,
@@ -734,8 +833,9 @@ export const proConsultations = {
   get: (id: string) =>
     apiFetch(`/v1/cabinet/consultations/${id}`) as Promise<ApiResponse<Consultation>>,
 
-  postAct: (id: string, body: ConsultationAct) =>
-    apiFetch(`/v1/cabinet/consultations/${id}/acts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<ConsultationAct>>,
+  postAct: (id: string, body: { ccam_code: string; label: string; tooth?: string; amount_cents?: number }) =>
+    // L'API attend `{ ccam_code, label, tooth?, amount_cents? }` et renvoie `201 { act_id }`.
+    apiFetch(`/v1/cabinet/consultations/${id}/acts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<{ act_id?: string }>>,
 
   complete: (id: string) =>
     apiFetch(`/v1/cabinet/consultations/${id}/complete`, { method: 'POST' }) as Promise<ApiResponse<Consultation>>,
@@ -746,11 +846,17 @@ export const proConsultations = {
 // ---------------------------------------------------------------------------
 
 export const proPrescriptions = {
-  post: (body: Omit<Prescription, 'id' | 'signed' | 'signed_at'>) =>
-    apiFetch('/v1/cabinet/prescriptions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<Prescription>>,
+  // L'API attend `{ patient_id, items: [{ label, form?, posology, duration, quantity? (string) }] }`
+  // et renvoie `201 { prescription_id }`.
+  post: (body: {
+    patient_id: string;
+    items: Array<{ label: string; form?: string; posology: string; duration: string; quantity?: string }>;
+  }) =>
+    apiFetch('/v1/cabinet/prescriptions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) as Promise<ApiResponse<{ prescription_id?: string }>>,
 
+  // Renvoie `200 { signed_at, document_id }`.
   sign: (id: string) =>
-    apiFetch(`/v1/cabinet/prescriptions/${id}/sign`, { method: 'POST' }) as Promise<ApiResponse<Prescription>>,
+    apiFetch(`/v1/cabinet/prescriptions/${id}/sign`, { method: 'POST' }) as Promise<ApiResponse<{ signed_at?: string; document_id?: string }>>,
 };
 
 // ---------------------------------------------------------------------------
@@ -805,13 +911,18 @@ export const proSecretariats = {
   getStaff: (id: string) =>
     apiFetch(`/v1/cabinet/secretariats/${id}/staff`) as Promise<ApiResponse<SecretariatStaffMember[]>>,
 
-  /** POST /v1/cabinet/secretariats/:id/staff — provisionne un secrétaire (R13) */
-  postStaff: (id: string, body: { email: string; first_name?: string; last_name?: string }) =>
+  /**
+   * POST /v1/cabinet/secretariats/:id/staff — provisionne un secrétaire (R13).
+   * Contrat réel : body {email, role} (role: 'secretary' | 'manager'),
+   * réponse 201 {user_id, activation_token} (nouveau compte)
+   * ou 200 {user_id, activation_token: null} (compte existant rattaché).
+   */
+  postStaff: (id: string, body: { email: string; role: string }) =>
     apiFetch(`/v1/cabinet/secretariats/${id}/staff`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }) as Promise<ApiResponse<SecretariatStaffMember>>,
+    }) as Promise<ApiResponse<{ user_id: string; activation_token: string | null }>>,
 
   /** DELETE /v1/cabinet/secretariats/:id/members/:userId — retire un membre */
   removeMember: (id: string, userId: string) =>

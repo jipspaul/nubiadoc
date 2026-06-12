@@ -19,7 +19,7 @@ const { id } = Astro.params;
       <a href="/praticien/patients">← Patients</a>
     </nav>
     <h1>Dossier patient</h1>
-    <div id="patient-identity" role="status" aria-live="polite">Chargement…</div>
+    <div id="patient-identity" role="status" aria-live="polite" data-patient-id={id}>Chargement…</div>
   </header>
 
   <!-- ── Onglets ────────────────────────────────────────────────────────── -->
@@ -197,15 +197,18 @@ const { id } = Astro.params;
   [role="status"].success { color: var(--color-success-fg, #16a34a); }
 </style>
 
-<script define:vars={{ patientId: id }}>
+<script>
+  // NOTE : pas de `define:vars` ici — un script `define:vars` devient inline et
+  // ne peut ni utiliser `import` ni la syntaxe TypeScript. L'id patient est lu
+  // depuis l'attribut `data-patient-id` posé côté serveur.
   import { proPatients } from '../../../lib/endpoints.ts';
-  import type { CabinetPatient, MedicalRecord, PatientNote, Document } from '../../../lib/endpoints.ts';
-
-  const pid = patientId as string;
-  const loginRedirect = `/auth/login?next=/praticien/patients/${pid}`;
+  import type { CabinetPatient, MedicalRecord, PatientNote, CabinetPatientDocument } from '../../../lib/endpoints.ts';
 
   // ── Identity ───────────────────────────────────────────────────────────────
   const identityEl = document.getElementById('patient-identity') as HTMLElement;
+
+  const pid = identityEl.dataset['patientId'] ?? '';
+  const loginRedirect = `/auth/login?next=/praticien/patients/${pid}`;
 
   async function loadIdentity(): Promise<void> {
     try {
@@ -213,7 +216,8 @@ const { id } = Astro.params;
       if (status === 401) { window.location.href = loginRedirect; return; }
       if (status !== 200) { identityEl.textContent = `Erreur chargement identité (HTTP ${status}).`; return; }
       const p = data as CabinetPatient;
-      const dob = p.date_of_birth ? ` — né(e) le ${new Date(p.date_of_birth).toLocaleDateString('fr-FR')}` : '';
+      const birthDate = p.birth_date ?? p.date_of_birth;
+      const dob = birthDate ? ` — né(e) le ${new Date(birthDate).toLocaleDateString('fr-FR')}` : '';
       identityEl.textContent = `${p.last_name ?? ''} ${p.first_name ?? ''}${dob}`.trim();
     } catch (err) {
       identityEl.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
@@ -264,8 +268,9 @@ const { id } = Astro.params;
       medicalStatus.textContent = '';
       (document.getElementById('medical-allergies') as HTMLElement).textContent =
         (rec.allergies?.length ? rec.allergies.join(', ') : '—');
+      const treatments = rec.treatments ?? rec.current_medications;
       (document.getElementById('medical-medications') as HTMLElement).textContent =
-        (rec.current_medications?.length ? rec.current_medications.join(', ') : '—');
+        (treatments?.length ? treatments.join(', ') : '—');
       (document.getElementById('medical-history') as HTMLElement).textContent =
         rec.history ?? '—';
       medicalContent.hidden = false;
@@ -284,7 +289,9 @@ const { id } = Astro.params;
     const li = document.createElement('li');
     li.className = 'note-item';
     const date = note.created_at ? new Date(note.created_at).toLocaleString('fr-FR') : null;
-    li.innerHTML = `<p>${note.body}</p>${date ? `<time datetime="${note.created_at}">${date}</time>` : ''}`;
+    const text = note.text ?? note.body ?? '—';
+    const kind = note.note_kind ? ` <small>(${note.note_kind})</small>` : '';
+    li.innerHTML = `<p>${text}${kind}</p>${date ? `<time datetime="${note.created_at}">${date}</time>` : ''}`;
     notesList.prepend(li);
   }
 
@@ -325,7 +332,8 @@ const { id } = Astro.params;
     noteSubmitStatus.textContent = 'Enregistrement…';
     noteSubmitStatus.className = '';
     try {
-      const { status, data } = await proPatients.postNote(pid, { body });
+      // Contrat API : POST /v1/cabinet/patients/:id/notes attend { note_kind, text }.
+      const { status, data } = await proPatients.postNote(pid, { note_kind: 'observation', text: body });
       if (status === 401) { window.location.href = loginRedirect; return; }
       if (status === 403) { noteSubmitStatus.textContent = 'Accès refusé (403).'; noteSubmitStatus.className = 'error'; return; }
       if (status !== 200 && status !== 201) { noteSubmitStatus.textContent = `Erreur (HTTP ${status}).`; noteSubmitStatus.className = 'error'; return; }
@@ -336,7 +344,8 @@ const { id } = Astro.params;
       noteBodyInput.value = '';
       notesEmpty.hidden = true;
       notesList.hidden = false;
-      renderNote(newNote);
+      // La réponse de création ne renvoie pas le texte — on réutilise la saisie.
+      renderNote({ ...newNote, text: newNote.text ?? body });
 
       setTimeout(() => { noteSubmitStatus.textContent = ''; }, 3000);
     } catch (err) {
@@ -359,7 +368,7 @@ const { id } = Astro.params;
       if (status === 403) { documentsStatus.textContent = 'Accès refusé (403).'; documentsStatus.className = 'error'; return; }
       if (status !== 200) { documentsStatus.textContent = `Erreur serveur (HTTP ${status}).`; documentsStatus.className = 'error'; return; }
 
-      const docs = (data as Document[]) ?? [];
+      const docs = (data as CabinetPatientDocument[]) ?? [];
       documentsStatus.textContent = '';
 
       if (docs.length === 0) {
@@ -369,7 +378,7 @@ const { id } = Astro.params;
           const li = document.createElement('li');
           li.className = 'doc-item';
           const created = doc.created_at ? new Date(doc.created_at).toLocaleDateString('fr-FR') : '—';
-          li.innerHTML = `<span>${doc.name} <small>(${doc.type ?? 'document'})</small></span><time datetime="${doc.created_at ?? ''}">${created}</time>`;
+          li.innerHTML = `<span>${doc.filename ?? doc.id} <small>(${doc.category ?? 'document'})</small></span><time datetime="${doc.created_at ?? ''}">${created}</time>`;
           documentsList.appendChild(li);
         });
         documentsList.hidden = false;

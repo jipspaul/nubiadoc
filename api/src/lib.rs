@@ -383,6 +383,7 @@ pub fn app_with_dispatcher(
             get(treatment_plans::get_treatment_plan),
         )
         .route("/v1/quotes", get(billing::list_quotes))
+        .route("/v1/cabinet/quotes", get(billing::list_cabinet_quotes))
         .route("/v1/quotes/:id", get(billing::get_quote))
         .route("/v1/quotes/:id/sign", post(billing::sign_quote))
         .route(

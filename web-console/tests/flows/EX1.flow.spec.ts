@@ -1,24 +1,29 @@
 /**
  * EX1 — Réservation bout-en-bout (parcours cross-rôle)
  *
- * Parcours :
- *   1. Patient réserve un créneau → POST /v1/appointments → 201
- *   2. Praticien consulte son agenda → GET /v1/cabinet/agenda → contient le RDV
+ * Parcours (contrat réel api/src/) :
+ *   1. Patient réserve → POST /v1/appointments {provider_id, starts_at, motif}
+ *      → 201 {appointment_id, status:"requested"}
+ *   2. Praticien consulte son agenda → GET /v1/cabinet/agenda?date=YYYY-MM-DD
+ *      → {practitioners, slots:[{id,…}]} contient le RDV
  *   3. Secrétaire confirme → POST /v1/cabinet/appointments/:id/confirm → 200
  *   4. Patient vérifie le statut → GET /v1/appointments/:id → status=confirmed
  *
  * Contrôle fuite cross-rôle :
- *   - GET /v1/appointments (patient) ne liste que les RDV de ce patient
- *     (pas de données d'autres patients).
+ *   - GET /v1/appointments (patient) renvoie {data:[…]} sans patient_id : la
+ *     fuite est vérifiée en créant un RDV pour un AUTRE patient du cabinet
+ *     (via la secrétaire) et en s'assurant qu'il n'apparaît PAS dans la liste
+ *     du patient connecté.
  *
- * Prérequis : dev-stack actif sur FLOWS_BASE_URL (défaut :38040) avec seed P2
- *             et seed P5 (praticien avec créneaux disponibles).
- *             R1 restauré (login pro porte cabinet_id+role dans le JWT).
+ * Prérequis : dev-stack actif sur FLOWS_BASE_URL (défaut :38040) avec seed réel
+ *             (seed.sql + seed_e2e.sql).
  *
  * Variables d'environnement :
- *   FLOWS_BASE_URL        URL de l'app web (défaut http://localhost:38040)
- *   FLOWS_API_BASE_URL    URL de l'API backend (défaut http://localhost:38030)
- *   SEED_PRACTITIONER_ID  UUID du praticien seed (pour la recherche de créneau)
+ *   FLOWS_BASE_URL              URL de l'app web (défaut http://localhost:38040)
+ *   FLOWS_API_BASE_URL          URL de l'API backend (défaut http://localhost:38030)
+ *   SEED_PRACTITIONER_ID        UUID provider (table provider) du praticien seed
+ *   SEED_PRACTITIONER_TABLE_ID  UUID praticien (table practitioner) pour les créneaux
+ *   SEED_OTHER_PATIENT_ID       UUID d'un autre patient du cabinet (contrôle fuite)
  */
 
 import { test, expect } from '@playwright/test';
@@ -27,8 +32,29 @@ import { loginAs, clearSession } from './helpers';
 const API_BASE =
   process.env.FLOWS_API_BASE_URL ?? 'http://localhost:38030';
 
+// ID dans la table `provider` (marketplace) — exigé par POST /v1/appointments.
 const SEED_PRACTITIONER_ID =
-  process.env.SEED_PRACTITIONER_ID ?? '00000000-0000-0000-0000-000000000001';
+  process.env.SEED_PRACTITIONER_ID ?? 'f0000000-0000-0000-0000-0000000000f1';
+
+// ID dans la table `practitioner` — exigé par POST /v1/cabinet/slots.
+const SEED_PRACTITIONER_TABLE_ID =
+  process.env.SEED_PRACTITIONER_TABLE_ID ?? 'c0000000-0000-0000-0000-0000000000c1';
+
+// Autre patient du cabinet (≠ patient connecté) pour le contrôle de fuite.
+const SEED_OTHER_PATIENT_ID =
+  process.env.SEED_OTHER_PATIENT_ID ?? 'd0000000-0000-0000-0000-0000000000d5';
+
+/**
+ * Date de début aléatoire dans le futur (2 à 40 jours, heures ouvrées) pour
+ * éviter la contrainte d'exclusion praticien (23P01 → 409 slot_taken)
+ * entre les runs successifs sur un même stack.
+ */
+function randomFutureStart(): Date {
+  const start = new Date();
+  start.setDate(start.getDate() + 2 + Math.floor(Math.random() * 38));
+  start.setHours(8 + Math.floor(Math.random() * 10), Math.floor(Math.random() * 4) * 15, 0, 0);
+  return start;
+}
 
 test.afterEach(async ({ page }) => {
   await clearSession(page);
@@ -43,52 +69,21 @@ test('EX1 : patient réserve → praticien voit agenda → secrétaire confirme 
   // ── 1. Connexion patient ──────────────────────────────────────────────────
   await loginAs(page, 'patient');
 
-  // ── 2. Récupérer un créneau disponible (praticien seed) ───────────────────
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowIso = tomorrow.toISOString().slice(0, 10);
+  // ── 2. Patient : POST /v1/appointments → 201 ─────────────────────────────
+  // Contrat réel : {provider_id, starts_at | slot_id, motif} — motif requis.
+  const startsAt = randomFutureStart();
+  const startsAtIso = startsAt.toISOString();
+  const dateIso = startsAtIso.slice(0, 10);
 
-  const slotsResult = await page.evaluate(
+  const { postStatus, appointmentId, initialStatus } = await page.evaluate(
     async ({
       apiBase,
       providerId,
-      date,
+      startsAt,
     }: {
       apiBase: string;
       providerId: string;
-      date: string;
-    }) => {
-      const jwt = localStorage.getItem('nubia_jwt') ?? '';
-      const resp = await fetch(
-        `${apiBase}/v1/search/slots?provider_id=${encodeURIComponent(providerId)}&from=${encodeURIComponent(date)}&to=${encodeURIComponent(date)}`,
-        { headers: { Authorization: `Bearer ${jwt}` } },
-      );
-      const text = await resp.text();
-      let data: { slots?: Array<{ id: string }> } = {};
-      try {
-        data = JSON.parse(text) as { slots?: Array<{ id: string }> };
-      } catch {
-        data = {};
-      }
-      return { status: resp.status, slots: data.slots ?? [] };
-    },
-    { apiBase: API_BASE, providerId: SEED_PRACTITIONER_ID, date: tomorrowIso },
-  );
-
-  expect(slotsResult.status).toBeLessThan(300);
-  expect(slotsResult.slots.length).toBeGreaterThan(0);
-  const slotId = slotsResult.slots[0].id;
-
-  // ── 3. Patient : POST /v1/appointments → 201 ─────────────────────────────
-  const { postStatus, appointmentId } = await page.evaluate(
-    async ({
-      apiBase,
-      slotId,
-      providerId,
-    }: {
-      apiBase: string;
-      slotId: string;
-      providerId: string;
+      startsAt: string;
     }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
       const idempotencyKey = crypto.randomUUID();
@@ -99,7 +94,11 @@ test('EX1 : patient réserve → praticien voit agenda → secrétaire confirme 
           'Content-Type': 'application/json',
           'Idempotency-Key': idempotencyKey,
         },
-        body: JSON.stringify({ slot_id: slotId, provider_id: providerId }),
+        body: JSON.stringify({
+          provider_id: providerId,
+          starts_at: startsAt,
+          motif: 'consultation-EX1',
+        }),
       });
       const text = await resp.text();
       let data: Record<string, unknown> = {};
@@ -110,54 +109,48 @@ test('EX1 : patient réserve → praticien voit agenda → secrétaire confirme 
       }
       return {
         postStatus: resp.status,
-        appointmentId: (data['id'] ?? data['appointment_id'] ?? '') as string,
+        appointmentId: (data['appointment_id'] ?? data['id'] ?? '') as string,
+        initialStatus: (data['status'] ?? '') as string,
       };
     },
-    { apiBase: API_BASE, slotId, providerId: SEED_PRACTITIONER_ID },
+    { apiBase: API_BASE, providerId: SEED_PRACTITIONER_ID, startsAt: startsAtIso },
   );
 
-  expect(postStatus).toBe(201);
+  expect(postStatus, `POST /v1/appointments attendu 201, reçu ${postStatus}`).toBe(201);
   expect(appointmentId).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   );
+  // Statut initial du contrat réel : "requested".
+  expect(initialStatus).toBe('requested');
 
-  // ── 4. Patient : GET /v1/appointments → status=pending ───────────────────
+  // ── 3. Patient : GET /v1/appointments → RDV visible, status=requested ─────
+  // Contrat réel : réponse enveloppée {data:[…]} sans patient_id.
   const patientListResult = await page.evaluate(
     async ({ apiBase, appointmentId }: { apiBase: string; appointmentId: string }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
       const resp = await fetch(`${apiBase}/v1/appointments`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      let list: Array<{ id: string; status?: string; patient_id?: string }> = [];
-      if (resp.ok) {
-        list = (await resp.json()) as Array<{ id: string; status?: string; patient_id?: string }>;
-      }
+      const body = resp.ok
+        ? ((await resp.json()) as { data?: Array<{ id: string; status?: string }> })
+        : {};
+      const list = body.data ?? [];
       const found = list.find((a) => a.id === appointmentId);
-      // Contrôle fuite : tous les RDV listés doivent avoir le même patient_id
-      const patientIds = list
-        .filter((a) => a.patient_id !== undefined)
-        .map((a) => a.patient_id as string);
-      const uniquePatientIds = [...new Set(patientIds)];
-      return {
-        listStatus: resp.status,
-        found,
-        uniquePatientIds,
-      };
+      return { listStatus: resp.status, found };
     },
     { apiBase: API_BASE, appointmentId },
   );
 
   expect(patientListResult.listStatus).toBeLessThan(300);
   expect(patientListResult.found).toBeDefined();
-  expect(patientListResult.found?.status).toBe('pending');
-  // Fuite cross-rôle : au plus un patient_id distinct dans la liste du patient
-  expect(patientListResult.uniquePatientIds.length).toBeLessThanOrEqual(1);
+  expect(patientListResult.found?.status).toBe('requested');
 
-  // ── 5. Déconnexion patient / connexion praticien ──────────────────────────
+  // ── 4. Déconnexion patient / connexion praticien ──────────────────────────
   await clearSession(page);
   await loginAs(page, 'practitioner');
 
-  // ── 6. Praticien : GET /v1/cabinet/agenda → contient le RDV créé (200) ────
+  // ── 5. Praticien : GET /v1/cabinet/agenda?date=… → contient le RDV (200) ──
+  // Contrat réel : {practitioners:[…], slots:[{id, …}]} — slots = RDV du jour.
   const agendaResult = await page.evaluate(
     async ({
       apiBase,
@@ -170,31 +163,30 @@ test('EX1 : patient réserve → praticien voit agenda → secrétaire confirme 
     }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
       const resp = await fetch(
-        `${apiBase}/v1/cabinet/agenda?from=${encodeURIComponent(date)}&to=${encodeURIComponent(date)}`,
+        `${apiBase}/v1/cabinet/agenda?date=${encodeURIComponent(date)}`,
         { headers: { Authorization: `Bearer ${jwt}` } },
       );
       const text = await resp.text();
-      let entries: Array<{ appointments?: Array<{ id: string }> }> = [];
+      let body: { slots?: Array<{ id: string }> } = {};
       try {
-        entries = JSON.parse(text) as Array<{ appointments?: Array<{ id: string }> }>;
+        body = JSON.parse(text) as { slots?: Array<{ id: string }> };
       } catch {
-        entries = [];
+        body = {};
       }
-      const allAppts = entries.flatMap((e) => e.appointments ?? []);
-      const found = allAppts.some((a) => a.id === appointmentId);
+      const found = (body.slots ?? []).some((s) => s.id === appointmentId);
       return { status: resp.status, found };
     },
-    { apiBase: API_BASE, date: tomorrowIso, appointmentId },
+    { apiBase: API_BASE, date: dateIso, appointmentId },
   );
 
   expect(agendaResult.status).toBe(200);
-  expect(agendaResult.found).toBe(true);
+  expect(agendaResult.found, 'le RDV doit apparaître dans l’agenda praticien').toBe(true);
 
-  // ── 7. Déconnexion praticien / connexion secrétaire ───────────────────────
+  // ── 6. Déconnexion praticien / connexion secrétaire ───────────────────────
   await clearSession(page);
   await loginAs(page, 'secretary');
 
-  // ── 8. Secrétaire : POST /v1/cabinet/appointments/:id/confirm → 200 ───────
+  // ── 7. Secrétaire : POST /v1/cabinet/appointments/:id/confirm → 200 ───────
   const confirmResult = await page.evaluate(
     async ({ apiBase, appointmentId }: { apiBase: string; appointmentId: string }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
@@ -212,11 +204,11 @@ test('EX1 : patient réserve → praticien voit agenda → secrétaire confirme 
 
   expect(confirmResult.status).toBe(200);
 
-  // ── 9. Déconnexion secrétaire / connexion patient ─────────────────────────
+  // ── 8. Déconnexion secrétaire / connexion patient ─────────────────────────
   await clearSession(page);
   await loginAs(page, 'patient');
 
-  // ── 10. Patient : GET /v1/appointments/:id → status=confirmed ────────────
+  // ── 9. Patient : GET /v1/appointments/:id → status=confirmed ─────────────
   const getResult = await page.evaluate(
     async ({ apiBase, appointmentId }: { apiBase: string; appointmentId: string }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
@@ -236,7 +228,7 @@ test('EX1 : patient réserve → praticien voit agenda → secrétaire confirme 
   expect(getResult.status).toBeLessThan(300);
   expect(getResult.appointmentStatus).toBe('confirmed');
 
-  // ── 11. Reset — annuler le RDV créé ──────────────────────────────────────
+  // ── 10. Reset — annuler le RDV créé (best effort, non bloquant) ───────────
   await page.evaluate(
     async ({ apiBase, appointmentId }: { apiBase: string; appointmentId: string }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
@@ -254,49 +246,117 @@ test('EX1 : patient réserve → praticien voit agenda → secrétaire confirme 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scénario 2 : Absence de fuite cross-rôle
-// Patient ne voit pas les RDV des autres patients dans GET /v1/appointments
+// Un RDV créé pour un AUTRE patient du cabinet (par la secrétaire) ne doit
+// pas apparaître dans GET /v1/appointments du patient connecté.
 // ─────────────────────────────────────────────────────────────────────────────
 test('EX1 : aucune fuite cross-rôle — GET /v1/appointments retourne uniquement les RDV du patient connecté', async ({ page }) => {
-  // ── 1. Connexion patient ──────────────────────────────────────────────────
+  // ── 1. Connexion secrétaire : créer un RDV pour un AUTRE patient ──────────
+  await loginAs(page, 'secretary');
+
+  const start = randomFutureStart();
+  const end = new Date(start.getTime() + 15 * 60 * 1000);
+
+  const foreign = await page.evaluate(
+    async ({
+      apiBase,
+      practitionerId,
+      patientId,
+      startsAt,
+      endsAt,
+    }: {
+      apiBase: string;
+      practitionerId: string;
+      patientId: string;
+      startsAt: string;
+      endsAt: string;
+    }) => {
+      const jwt = localStorage.getItem('nubia_jwt') ?? '';
+      // Créneau ouvert (contrat : POST /v1/cabinet/slots {practitioner_id,…}).
+      const slotResp = await fetch(`${apiBase}/v1/cabinet/slots`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          practitioner_id: practitionerId,
+          starts_at: startsAt,
+          ends_at: endsAt,
+          status: 'open',
+        }),
+      });
+      if (!slotResp.ok) return { ok: false, step: 'slot', status: slotResp.status, id: '' };
+      const slot = (await slotResp.json()) as { id: string };
+
+      // RDV pour l'autre patient (contrat : {patient_id, slot_id, notes?}).
+      const apptResp = await fetch(`${apiBase}/v1/cabinet/appointments`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_id: patientId,
+          slot_id: slot.id,
+          notes: 'EX1-leak-check',
+        }),
+      });
+      if (!apptResp.ok) return { ok: false, step: 'appointment', status: apptResp.status, id: '' };
+      const appt = (await apptResp.json()) as { appointment_id: string };
+      return { ok: true, step: 'done', status: apptResp.status, id: appt.appointment_id };
+    },
+    {
+      apiBase: API_BASE,
+      practitionerId: SEED_PRACTITIONER_TABLE_ID,
+      patientId: SEED_OTHER_PATIENT_ID,
+      startsAt: start.toISOString(),
+      endsAt: end.toISOString(),
+    },
+  );
+
+  expect(
+    foreign.ok,
+    `création du RDV étranger (étape ${foreign.step}) attendu 201, reçu ${foreign.status}`,
+  ).toBe(true);
+  const foreignAppointmentId = foreign.id;
+
+  // ── 2. Déconnexion secrétaire / connexion patient ─────────────────────────
+  await clearSession(page);
   await loginAs(page, 'patient');
 
-  // ── 2. GET /v1/appointments + GET /v1/me → patient_id cohérent ───────────
-  const leakCheck = await page.evaluate(async (apiBase: string) => {
-    const jwt = localStorage.getItem('nubia_jwt') ?? '';
+  // ── 3. GET /v1/me + GET /v1/appointments → aucune fuite ───────────────────
+  const leakCheck = await page.evaluate(
+    async ({ apiBase, foreignId }: { apiBase: string; foreignId: string }) => {
+      const jwt = localStorage.getItem('nubia_jwt') ?? '';
 
-    const meResp = await fetch(`${apiBase}/v1/me`, {
-      headers: { Authorization: `Bearer ${jwt}` },
-    });
-    let me: { id?: string } = {};
-    if (meResp.ok) {
-      me = (await meResp.json()) as { id?: string };
-    }
-    const myId = me.id ?? '';
+      const meResp = await fetch(`${apiBase}/v1/me`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      let me: { id?: string; user_id?: string; account_id?: string } = {};
+      if (meResp.ok) {
+        me = (await meResp.json()) as { id?: string; user_id?: string; account_id?: string };
+      }
+      // Contrat réel : /v1/me renvoie user_id + account_id (pas de champ id).
+      const myId = me.user_id ?? me.id ?? '';
 
-    const listResp = await fetch(`${apiBase}/v1/appointments`, {
-      headers: { Authorization: `Bearer ${jwt}` },
-    });
-    let list: Array<{ id: string; patient_id?: string }> = [];
-    if (listResp.ok) {
-      list = (await listResp.json()) as Array<{ id: string; patient_id?: string }>;
-    }
+      const listResp = await fetch(`${apiBase}/v1/appointments`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      const body = listResp.ok
+        ? ((await listResp.json()) as { data?: Array<{ id: string }> })
+        : {};
+      const list = body.data ?? [];
 
-    // Vérifier qu'aucun RDV n'appartient à un autre patient
-    const foreignAppts = list.filter(
-      (a) => a.patient_id !== undefined && a.patient_id !== myId,
-    );
-
-    return {
-      listStatus: listResp.status,
-      myId,
-      foreignCount: foreignAppts.length,
-    };
-  }, API_BASE);
+      return {
+        listStatus: listResp.status,
+        myId,
+        foreignVisible: list.some((a) => a.id === foreignId),
+      };
+    },
+    { apiBase: API_BASE, foreignId: foreignAppointmentId },
+  );
 
   expect(leakCheck.listStatus).toBeLessThan(300);
   expect(leakCheck.myId).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   );
-  // Aucun RDV d'un autre patient ne doit apparaître
-  expect(leakCheck.foreignCount).toBe(0);
+  // Le RDV d'un autre patient ne doit pas apparaître
+  expect(
+    leakCheck.foreignVisible,
+    'Fuite détectée : le RDV d’un autre patient est visible',
+  ).toBe(false);
 });

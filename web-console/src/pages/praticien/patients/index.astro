@@ -112,8 +112,9 @@ if (role !== 'practitioner' && role !== 'admin') {
 
       for (const p of patients) {
         const tr = document.createElement('tr');
-        const dob = p.date_of_birth
-          ? new Date(p.date_of_birth).toLocaleDateString('fr-FR')
+        const birthDate = p.birth_date ?? p.date_of_birth;
+        const dob = birthDate
+          ? new Date(birthDate).toLocaleDateString('fr-FR')
           : '—';
         tr.innerHTML = `
           <td>${p.last_name ?? '—'}</td>

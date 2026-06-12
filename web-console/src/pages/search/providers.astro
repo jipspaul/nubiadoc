@@ -247,8 +247,11 @@ import PublicLayout from '../../layouts/PublicLayout.astro';
         return;
       }
 
-      const result = data as { providers?: Array<Record<string, unknown>>; total?: number } | Array<Record<string, unknown>>;
-      const providers = Array.isArray(result) ? result : ((result as { providers?: Array<Record<string, unknown>> }).providers ?? []);
+      // Contrat API : GET /v1/search/providers → { data: [{ provider_id, display_name, specialty, … }], facets, page }
+      const result = data as { data?: Array<Record<string, unknown>>; providers?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      const providers = Array.isArray(result)
+        ? result
+        : (result.data ?? result.providers ?? []);
 
       if (providers.length === 0) {
         providersList.innerHTML = '<li class="loading">Aucun praticien trouvé.</li>';
@@ -256,10 +259,12 @@ import PublicLayout from '../../layouts/PublicLayout.astro';
       }
 
       for (const p of providers) {
-        const id = String(p.id ?? '');
+        const id = String(p.provider_id ?? p.id ?? '');
         const firstName = String(p.first_name ?? '');
         const lastName = String(p.last_name ?? '');
-        const name = [firstName, lastName].filter(Boolean).join(' ') || `Praticien ${id}`;
+        const name = String(p.display_name ?? '')
+          || [firstName, lastName].filter(Boolean).join(' ')
+          || `Praticien ${id}`;
         const specialty = String(p.specialty ?? p.speciality ?? '');
 
         const li = document.createElement('li');
@@ -310,8 +315,19 @@ import PublicLayout from '../../layouts/PublicLayout.astro';
         return;
       }
 
-      const result = data as { slots?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
-      const slots = Array.isArray(result) ? result : ((result as { slots?: Array<Record<string, unknown>> }).slots ?? []);
+      // Contrat API : GET /v1/search/slots → { data: [{ provider_id, slots: [{ slot_id, starts_at }] }] }
+      // (pas de filtre provider_id côté API → filtrage client.)
+      type SlotGroup = { provider_id?: string; slots?: Array<Record<string, unknown>> };
+      const result = data as { data?: SlotGroup[]; slots?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+      let slots: Array<Record<string, unknown>>;
+      if (Array.isArray(result)) {
+        slots = result;
+      } else if (Array.isArray(result.data)) {
+        const group = result.data.find((g) => String(g.provider_id ?? '') === providerId) ?? null;
+        slots = group?.slots ?? [];
+      } else {
+        slots = result.slots ?? [];
+      }
 
       if (slots.length === 0) {
         slotsList.innerHTML = '<li class="loading">Aucun créneau disponible.</li>';
@@ -319,7 +335,7 @@ import PublicLayout from '../../layouts/PublicLayout.astro';
       }
 
       for (const s of slots) {
-        const slotId = String(s.id ?? '');
+        const slotId = String(s.slot_id ?? s.id ?? '');
         const startsAt = String(s.starts_at ?? '');
         const duration = s.duration_minutes != null ? `${s.duration_minutes} min` : '';
         const displayDate = startsAt ? new Date(startsAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : slotId;

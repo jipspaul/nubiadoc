@@ -6,20 +6,19 @@ const { id } = Astro.params;
 <AppShell title="Signer l'ordonnance — Nubia" role="practitioner">
   <header>
     <h1>Signer l'ordonnance</h1>
-    <p>Rôle requis : <code>practitioner</code> — <code>POST /v1/cabinet/prescriptions/{id}/sign</code></p>
+    <p>Rôle requis : <code>practitioner</code> — <code>POST /v1/cabinet/prescriptions/&#123;id&#125;/sign</code></p>
   </header>
 
-  <section aria-labelledby="h-get">
-    <h2 id="h-get">Détail de l'ordonnance</h2>
-    <form id="form-get">
-      <button type="submit">Charger l'ordonnance</button>
-    </form>
-    <pre id="result-get" aria-label="Détail ordonnance"></pre>
+  <section aria-labelledby="h-detail">
+    <h2 id="h-detail">Ordonnance</h2>
+    <!-- NOTE contrat API : il n'existe pas de GET /v1/cabinet/prescriptions/:id —
+         seul POST …/:id/sign est exposé. On affiche donc uniquement l'identifiant. -->
+    <p>Identifiant : <code id="rx-id-display">{id}</code></p>
   </section>
 
   <section aria-labelledby="h-sign" style="margin-top: var(--space-6);">
     <h2 id="h-sign">Signer (eIDAS)</h2>
-    <form id="form-sign" method="dialog">
+    <form id="form-sign" method="dialog" data-prescription-id={id}>
       <p class="warning">
         ⚠️ La signature est irréversible. Vérifiez le contenu de l'ordonnance avant de signer.
       </p>
@@ -94,44 +93,18 @@ const { id } = Astro.params;
   .badge-err { background: #7f1d1d; color: #fecaca; }
 </style>
 
-<script define:vars={{ prescriptionId: id }}>
+<script>
+  // NOTE : pas de `define:vars` ici — un script `define:vars` devient inline et
+  // ne peut ni utiliser `import` ni la syntaxe TypeScript. L'id d'ordonnance est
+  // lu depuis l'attribut `data-prescription-id` posé côté serveur.
   import { apiFetch } from '../../../../lib/api.ts';
 
-  const rxId = (prescriptionId as string | undefined) ?? '';
-
-  // --- GET prescription ---
-  const formGet = document.getElementById('form-get') as HTMLFormElement;
-  const resultGet = document.getElementById('result-get') as HTMLPreElement;
-
-  async function loadPrescription(): Promise<void> {
-    resultGet.className = '';
-    resultGet.textContent = 'Chargement…';
-    try {
-      const { status, data } = await apiFetch(
-        `/v1/cabinet/prescriptions/${encodeURIComponent(rxId)}`,
-        { method: 'GET' },
-      );
-      resultGet.className = status < 300 ? 'success' : 'error';
-      resultGet.textContent = `HTTP ${status}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
-    } catch (err) {
-      resultGet.className = 'error';
-      resultGet.textContent = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
-    }
-  }
-
-  formGet.addEventListener('submit', (e) => {
-    e.preventDefault();
-    void loadPrescription();
-  });
-
-  // Auto-load on mount
-  void loadPrescription();
-
-  // --- POST sign ---
   const formSign = document.getElementById('form-sign') as HTMLFormElement;
   const resultSign = document.getElementById('result-sign') as HTMLPreElement;
   const badgeSign = document.getElementById('badge-sign') as HTMLParagraphElement;
   const btnSign = document.getElementById('btn-sign') as HTMLButtonElement;
+
+  const rxId = formSign.dataset['prescriptionId'] ?? '';
 
   formSign.addEventListener('submit', async (e) => {
     e.preventDefault();

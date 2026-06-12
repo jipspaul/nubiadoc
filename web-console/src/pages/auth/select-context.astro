@@ -145,7 +145,13 @@ import Default from '../../layouts/Default.astro';
     if (me.contexts && me.contexts.length > 0) {
       contexts = me.contexts;
     } else if (me.memberships && me.memberships.length > 0) {
-      contexts = me.memberships.map((m) => ({ cabinet_id: m.cabinet_id, role: m.role }));
+      contexts = me.memberships.map((m) => ({
+        cabinet_id: m.cabinet_id,
+        role: m.role,
+        // Préserver secretariat_id (multi-secrétariat) : sans lui, les deux cartes
+        // du même cabinet sont identiques et la sélection perd le scope demandé.
+        secretariat_id: m.secretariat_id,
+      }));
     }
 
     // Auto-select if exactly 1 context

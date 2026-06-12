@@ -31,6 +31,8 @@ const { id } = Astro.params;
 
     <p id="queue-error" hidden class="error-msg">Impossible de charger la position dans la file.</p>
   </section>
+
+  <span id="appt-id-data" data-id={id} hidden></span>
 </AppShell>
 
 <style>
@@ -60,10 +62,11 @@ const { id } = Astro.params;
   .error-msg { color: var(--color-error); }
 </style>
 
-<script define:vars={{ appointmentId: id }}>
+<script>
   import { patientAppointments, type QueuePosition } from '../../../../lib/endpoints.ts';
 
-  const apptId = appointmentId as string;
+  // `define:vars` rendrait le script inline (imports impossibles) → id via data-attribute.
+  const apptId = (document.getElementById('appt-id-data') as HTMLElement)?.dataset['id'] ?? '';
 
   const loadingEl  = document.getElementById('queue-loading') as HTMLElement;
   const cardEl     = document.getElementById('queue-card') as HTMLElement;
@@ -79,10 +82,10 @@ const { id } = Astro.params;
     if (res.status < 300 && res.data) {
       const q = res.data as QueuePosition;
       positionEl.textContent = q.position != null ? String(q.position) : '—';
-      waitEl.textContent     = q.estimated_wait_minutes != null
-        ? `${q.estimated_wait_minutes} min`
-        : '—';
+      const wait = q.est_wait_min ?? q.estimated_wait_minutes;
+      waitEl.textContent     = wait != null ? `${wait} min` : '—';
       msgEl.textContent      = 'Mise à jour automatique toutes les 30 secondes.';
+      errorEl.hidden = true;
       cardEl.hidden = false;
     } else {
       errorEl.hidden = false;
