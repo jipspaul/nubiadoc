@@ -319,6 +319,14 @@ export interface Secretariat {
   cabinet_id?: string;
 }
 
+export interface SecretariatStaffMember {
+  user_id: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  role?: string;
+}
+
 // Pro — quotes (secrétariat / praticien)
 export interface CabinetQuote {
   id: string;
@@ -792,6 +800,18 @@ export const proSecretariats = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }) as Promise<ApiResponse<null>>,
+
+  /** GET /v1/cabinet/secretariats/:id/staff — liste le personnel du secrétariat */
+  getStaff: (id: string) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}/staff`) as Promise<ApiResponse<SecretariatStaffMember[]>>,
+
+  /** POST /v1/cabinet/secretariats/:id/staff — provisionne un secrétaire (R13) */
+  postStaff: (id: string, body: { email: string; first_name?: string; last_name?: string }) =>
+    apiFetch(`/v1/cabinet/secretariats/${id}/staff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }) as Promise<ApiResponse<SecretariatStaffMember>>,
 
   /** DELETE /v1/cabinet/secretariats/:id/members/:userId — retire un membre */
   removeMember: (id: string, userId: string) =>

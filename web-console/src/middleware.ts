@@ -4,6 +4,7 @@ const ROLE_ROUTES: Array<{ prefix: string; allowed: string[] }> = [
   { prefix: '/praticien', allowed: ['practitioner', 'admin'] },
   { prefix: '/secretary', allowed: ['secretary', 'admin'] },
   { prefix: '/patient', allowed: ['patient'] },
+  { prefix: '/manager', allowed: ['admin', 'manager'] },
 ];
 
 const ROLE_HOME: Record<string, string> = {
