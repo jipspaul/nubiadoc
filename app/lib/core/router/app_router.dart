@@ -48,6 +48,7 @@ import 'package:nubia_patient/presentation/features/profile/pages/health_coverag
 import 'package:nubia_patient/presentation/features/profile/pages/profile_screen.dart';
 import 'package:nubia_patient/presentation/features/financial/bloc/wedge_bloc.dart';
 import 'package:nubia_patient/presentation/features/financial/pages/quote_detail_page.dart';
+import 'package:nubia_patient/presentation/features/financial/pages/quote_list_page.dart';
 import 'package:nubia_patient/presentation/features/reviews/pages/reviews_screen.dart';
 
 /// Top-level router.
@@ -322,6 +323,11 @@ class AppRouter {
               child: ClinicalSessionScreen(appointment: appointment),
             );
           },
+        ),
+        GoRoute(
+          path: RouteNames.quoteList,
+          name: 'quote-list',
+          builder: (_, __) => const QuoteListPage(),
         ),
         GoRoute(
           path: RouteNames.paymentFlow,

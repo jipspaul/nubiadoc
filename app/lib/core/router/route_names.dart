@@ -33,6 +33,7 @@ class RouteNames {
   static const String documentViewer = '/documents/:id/view';
   static const String documentUpload = '/documents/upload';
   static const String signatureFlow = '/documents/:id/sign';
+  static const String quoteList = '/billing/quotes';
   static const String paymentFlow = '/billing/quotes/:id/pay';
 
   // Clinical
