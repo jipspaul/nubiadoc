@@ -131,7 +131,13 @@ async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid) {
     (cabinet_id, prac_user_id, patient_id, appt_id)
 }
 
-async fn cleanup_fixture(db: &PgPool, cabinet_id: Uuid, prac_user_id: Uuid, patient_id: Uuid, appt_id: Uuid) {
+async fn cleanup_fixture(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    prac_user_id: Uuid,
+    patient_id: Uuid,
+    appt_id: Uuid,
+) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
@@ -148,13 +154,11 @@ async fn cleanup_fixture(db: &PgPool, cabinet_id: Uuid, prac_user_id: Uuid, pati
         .execute(&mut *tx)
         .await
         .ok();
-    sqlx::query(
-        "DELETE FROM practitioner WHERE cabinet_id = $1",
-    )
-    .bind(cabinet_id)
-    .execute(&mut *tx)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM cabinet WHERE id = $1")
         .bind(cabinet_id)
         .execute(&mut *tx)
@@ -292,9 +296,21 @@ async fn call_next_empty_queue_returns_called_false() {
 
     // Cleanup.
     let mut tx = owner_db.begin().await.unwrap();
-    sqlx::query("DELETE FROM practitioner WHERE id = $1").bind(prac_id).execute(&mut *tx).await.ok();
-    sqlx::query("DELETE FROM cabinet WHERE id = $1").bind(cabinet_id).execute(&mut *tx).await.ok();
-    sqlx::query("DELETE FROM app_user WHERE id = $1").bind(prac_user_id).execute(&mut *tx).await.ok();
+    sqlx::query("DELETE FROM practitioner WHERE id = $1")
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     tx.commit().await.ok();
 }
 

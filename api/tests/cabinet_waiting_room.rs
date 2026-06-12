@@ -132,14 +132,12 @@ async fn insert_cabinet(db: &PgPool) -> CabinetFixture {
     .await
     .unwrap();
 
-    sqlx::query(
-        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
-    )
-    .bind(cabinet_id)
-    .bind(format!("Cabinet WR {}", cabinet_id))
-    .execute(&mut *tx)
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet WR {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
 
     sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
         .bind(prac_id)
@@ -163,16 +161,17 @@ async fn insert_cabinet(db: &PgPool) -> CabinetFixture {
 
     tx.commit().await.unwrap();
 
-    CabinetFixture { cabinet_id, prac_id, prac_user_id, provider_id }
+    CabinetFixture {
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        provider_id,
+    }
 }
 
 /// Insère un RDV avec `checkin_at = now()` (patient arrivé) et `started_at = NULL`
 /// (consultation pas encore commencée). Retourne l'appointment_id.
-async fn insert_checked_in_appt(
-    db: &PgPool,
-    cabinet_id: Uuid,
-    prac_id: Uuid,
-) -> Uuid {
+async fn insert_checked_in_appt(db: &PgPool, cabinet_id: Uuid, prac_id: Uuid) -> Uuid {
     let appt_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
@@ -393,7 +392,11 @@ async fn waiting_room_secretary_other_secretariat_sees_empty() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let entries = v["entries"].as_array().unwrap();
-    assert_eq!(entries.len(), 0, "secrétaire d'un autre secrétariat ne doit voir aucun patient");
+    assert_eq!(
+        entries.len(),
+        0,
+        "secrétaire d'un autre secrétariat ne doit voir aucun patient"
+    );
 
     cleanup(&db, f.cabinet_id, f.prac_user_id).await;
 }
