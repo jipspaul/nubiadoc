@@ -20,9 +20,9 @@ fn db_available() -> bool {
     std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
 }
 
-async fn owner_pool() -> PgPool {
-    let url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://nubia_owner@localhost:5432/nubia".into());
+async fn seed_pool() -> PgPool {
+    let url = std::env::var("SEED_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://nubia_seed@localhost:5432/nubia".into());
     PgPool::connect(&url).await.unwrap()
 }
 
@@ -74,6 +74,7 @@ fn make_patient_token(sub: Uuid, account_id: Uuid) -> String {
 /// Insère les fixtures minimales : cabinet + praticien + patient + RDV.
 /// `status` est le statut initial du RDV inséré.
 /// Retourne `(cabinet_id, prac_id, prac_user_id, appt_id)`.
+/// Utilise `nubia_seed` (SEED_DATABASE_URL) qui a les droits DDL sur toutes les tables fixtures.
 async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
@@ -83,6 +84,7 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid) {
 
     let mut tx = db.begin().await.unwrap();
 
+    // Positionne le GUC tenant avant les INSERTs (tenant_isolation est sur {public}).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -144,13 +146,15 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid) {
 }
 
 async fn cleanup_fixture(
-    db: &PgPool,
+    seed_db: &PgPool,
+    app_db: &PgPool,
     cabinet_id: Uuid,
     prac_id: Uuid,
     prac_user_id: Uuid,
     appt_id: Uuid,
 ) {
-    let mut tx = db.begin().await.unwrap();
+    // audit_log et appointment sont sous RLS nubia_app avec cabinet GUC.
+    let mut tx = app_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -166,6 +170,10 @@ async fn cleanup_fixture(
         .execute(&mut *tx)
         .await
         .ok();
+    tx.commit().await.ok();
+
+    // Les autres tables fixtures sont accessibles via nubia_seed.
+    let mut tx = seed_db.begin().await.unwrap();
     sqlx::query("DELETE FROM patient WHERE cabinet_id = $1")
         .bind(cabinet_id)
         .execute(&mut *tx)
@@ -189,7 +197,7 @@ async fn cleanup_fixture(
     tx.commit().await.ok();
 }
 
-// ── Test 1 : secrétaire, RDV pending_confirmation → 200 + status confirmed ────
+// ── Test 1 : secrétaire, RDV requested → 200 + status confirmed ────
 
 #[tokio::test]
 async fn confirm_appointment_secretary_requested_returns_200() {
@@ -197,13 +205,13 @@ async fn confirm_appointment_secretary_requested_returns_200() {
         return;
     }
 
-    let owner_db = owner_pool().await;
+    let seed_db = seed_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&owner_db, "requested").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&seed_db, "requested").await;
 
     let state = AppState {
-        db: app_db,
+        db: app_db.clone(),
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
@@ -232,7 +240,15 @@ async fn confirm_appointment_secretary_requested_returns_200() {
     assert_eq!(body["status"], "confirmed");
     assert_eq!(body["appointment_id"], appt_id.to_string());
 
-    cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
 }
 
 // ── Test 2 : RDV déjà confirmed → 409 invalid_status ─────────────────────────
@@ -243,13 +259,13 @@ async fn confirm_appointment_already_confirmed_returns_409() {
         return;
     }
 
-    let owner_db = owner_pool().await;
+    let seed_db = seed_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&owner_db, "confirmed").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&seed_db, "confirmed").await;
 
     let state = AppState {
-        db: app_db,
+        db: app_db.clone(),
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
@@ -277,7 +293,15 @@ async fn confirm_appointment_already_confirmed_returns_409() {
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["error"], "invalid_status");
 
-    cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
 }
 
 // ── Test 3 : token patient → 403 ─────────────────────────────────────────────
@@ -288,13 +312,13 @@ async fn confirm_appointment_patient_token_returns_403() {
         return;
     }
 
-    let owner_db = owner_pool().await;
+    let seed_db = seed_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&owner_db, "requested").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&seed_db, "requested").await;
 
     let state = AppState {
-        db: app_db,
+        db: app_db.clone(),
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
@@ -317,5 +341,13 @@ async fn confirm_appointment_patient_token_returns_403() {
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
-    cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+    )
+    .await;
 }
