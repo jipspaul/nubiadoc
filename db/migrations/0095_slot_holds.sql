@@ -30,6 +30,33 @@ CREATE POLICY slot_holds_seed ON slot_holds
   FOR ALL TO nubia_seed
   USING (true) WITH CHECK (true);
 
--- availability_slot : nubia_app SELECT non restreint au statut 'open' pour le mécanisme de hold.
--- (La policy slot_public_read limite la lecture à status='open' pour les routes publiques,
--- mais le handler POST /v1/slots/:id/hold doit pouvoir distinguer "inexistant" de "déjà held".)
+-- SECURITY DEFINER : permet au handler hold_slot de claim un slot marketplace
+-- SANS s'appuyer sur policy permissive (slot_public_read filter status='open',
+-- slot_cabinet_write require cabinet_id=GUC qui bloque les writes marketplace
+-- sur les slots à cabinet_id=NULL).
+-- Owner = nubia_owner ; SET row_security=off pour bypasser FORCE RLS sur
+-- nubia_owner (cf. db/README §3 — nubia_owner sans BYPASSRLS attribute).
+-- Returns: status_after ('held' if claim succeeded, current status if not, NULL if slot doesn't exist).
+CREATE FUNCTION try_claim_slot(p_slot_id uuid)
+  RETURNS text
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET row_security = off
+AS $$
+DECLARE
+  current_status text;
+BEGIN
+  SELECT status INTO current_status FROM availability_slot WHERE id = p_slot_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN NULL;  -- 404
+  END IF;
+  IF current_status <> 'open' THEN
+    RETURN current_status;  -- 409
+  END IF;
+  UPDATE availability_slot SET status='held' WHERE id = p_slot_id;
+  RETURN 'held';  -- 200
+END;
+$$;
+ALTER FUNCTION try_claim_slot(uuid) OWNER TO nubia_owner;
+REVOKE ALL ON FUNCTION try_claim_slot(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION try_claim_slot(uuid) TO nubia_app;

@@ -888,30 +888,23 @@ pub async fn hold_slot(
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le slot existe et récupère son statut (lock FOR UPDATE pour éviter la race).
-    // Note : la RLS slot_public_read filtre sur status='open', donc on passe par nubia_app
-    // qui a le policy slot_app_update (USING true) → visible quel que soit le statut.
-    let slot_row = sqlx::query("SELECT status FROM availability_slot WHERE id = $1 FOR UPDATE")
+    // Atomic claim via try_claim_slot() SECURITY DEFINER (cf. migration 0095) :
+    // - NULL  → slot inexistant      (404)
+    // - 'held' → claim réussi         (200)
+    // - autre  → slot pas open        (409)
+    // Cette fonction bypasse slot_cabinet_write qui bloquerait UPDATE sur les
+    // slots marketplace à cabinet_id=NULL (la policy demande cabinet_id=GUC).
+    let claim_status: Option<String> = sqlx::query_scalar("SELECT try_claim_slot($1)")
         .bind(slot_id)
-        .fetch_optional(&mut *tx)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let slot_status: String = match slot_row {
+    match claim_status.as_deref() {
         None => return Err(AppError::NotFound),
-        Some(row) => row.try_get("status").map_err(|_| AppError::Internal)?,
+        Some("held") => {} // claim réussi, continue with INSERT
+        Some(_) => return Err(AppError::SlotTaken),
     };
-
-    if slot_status != "open" {
-        return Err(AppError::SlotTaken);
-    }
-
-    // Passe le slot en 'held'.
-    sqlx::query("UPDATE availability_slot SET status = 'held' WHERE id = $1")
-        .bind(slot_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
 
     // INSERT dans slot_holds — contrainte UNIQUE slot_id → 409 si race condition.
     let result = sqlx::query(
