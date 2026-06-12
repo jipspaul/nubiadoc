@@ -170,7 +170,52 @@ async fn coverage_patch_nss_returns_200_and_nss_masked() {
         .ok();
 }
 
-// ── Test 2 : sans JWT → 401 ───────────────────────────────────────────────────
+// ── Test 2 : token pro → 403 ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn coverage_patch_pro_jwt_returns_403() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    // account_id inclus (nil) pour que PatientAccountClaims désérialise — kind "pro" provoque le 403.
+    let pro_jwt = encode(
+        &Header::default(),
+        &json!({"sub": Uuid::new_v4(), "kind": "pro", "cabinet_id": Uuid::new_v4(), "role": "practitioner",
+                "account_id": Uuid::nil(), "exp": exp}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/coverage")
+                .header("Authorization", format!("Bearer {}", pro_jwt))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"regime_obligatoire":"regime_general"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Test 3 : sans JWT → 401 ───────────────────────────────────────────────────
 
 #[tokio::test]
 async fn coverage_patch_no_jwt_returns_401() {
@@ -200,7 +245,7 @@ async fn coverage_patch_no_jwt_returns_401() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-// ── Test 3 : regime invalide → 422 ───────────────────────────────────────────
+// ── Test 4 : regime invalide → 422 ───────────────────────────────────────────
 
 #[tokio::test]
 async fn coverage_patch_invalid_regime_returns_422() {
