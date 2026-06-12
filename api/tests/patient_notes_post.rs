@@ -101,23 +101,23 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
 
 /// Insère les fixtures minimales (cabinet + app_user + patient).
 /// Retourne `(cabinet_id, user_id, patient_id)`.
-async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
+async fn insert_fixtures(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
-    // app_user — hors RLS (pas de current_user_id requis pour INSERT depuis nubia_app
-    // tant qu'aucune FORCE policy n'existe sur app_user sans current_user_id).
+    // app_user : inséré via nubia_app (policy user_app_insert CHECK: true).
+    // nubia_owner est bloqué par FORCE RLS sur app_user (pas de policy owner).
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
     )
     .bind(user_id)
     .bind(format!("notes-prac+{}@nubia.test", user_id))
-    .execute(db)
+    .execute(app_db)
     .await
     .unwrap();
 
-    let mut tx = db.begin().await.unwrap();
+    let mut tx = owner_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -148,8 +148,14 @@ async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     (cabinet_id, user_id, patient_id)
 }
 
-async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_id: Uuid) {
-    let mut tx = db.begin().await.unwrap();
+async fn cleanup_fixtures(
+    owner_db: &PgPool,
+    app_db: &PgPool,
+    cabinet_id: Uuid,
+    user_id: Uuid,
+    patient_id: Uuid,
+) {
+    let mut tx = owner_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -171,11 +177,19 @@ async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_
         .await
         .ok();
     tx.commit().await.ok();
-    sqlx::query("DELETE FROM app_user WHERE id = $1")
-        .bind(user_id)
-        .execute(db)
+    // app_user : supprimé via nubia_app avec user_self_delete (app.current_user_id requis).
+    let mut app_tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *app_tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&mut *app_tx)
+        .await
+        .ok();
+    app_tx.commit().await.ok();
 }
 
 // ── Test 1 : POST .../notes avec token praticien → 201 ───────────────────────
@@ -185,8 +199,9 @@ async fn add_clinical_note_practitioner_returns_201() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
 
     let token = make_practitioner_token(user_id, cabinet_id);
     let body = json!({
@@ -224,7 +239,7 @@ async fn add_clinical_note_practitioner_returns_201() {
         "created_at doit être une chaîne"
     );
 
-    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
 }
 
 // ── Test 2 : Token secretary → 403 ───────────────────────────────────────────
@@ -234,8 +249,9 @@ async fn add_clinical_note_secretary_returns_403() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
 
     let secretary_id = Uuid::new_v4();
     let token = make_secretary_token(secretary_id, cabinet_id);
@@ -256,7 +272,7 @@ async fn add_clinical_note_secretary_returns_403() {
 
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 
-    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
 }
 
 // ── Test 3 : content_ciphertext en base ≠ texte en clair ─────────────────────
@@ -266,8 +282,9 @@ async fn add_clinical_note_content_is_encrypted_in_db() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
 
     let plain_text = "Carie mésiale dent 36, traitement endodontique prévu.";
     let token = make_practitioner_token(user_id, cabinet_id);
@@ -299,7 +316,7 @@ async fn add_clinical_note_content_is_encrypted_in_db() {
     let note_id: Uuid = v["note_id"].as_str().unwrap().parse().unwrap();
 
     // Lit directement le ciphertext depuis la DB (rôle owner — bypasse RLS).
-    let mut tx = db.begin().await.unwrap();
+    let mut tx = owner_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -324,5 +341,5 @@ async fn add_clinical_note_content_is_encrypted_in_db() {
     assert!(!ciphertext.is_empty(), "ciphertext ne doit pas être vide");
     assert_ne!(ciphertext, plain_text.as_bytes(), "ciphertext ≠ clair");
 
-    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
 }
