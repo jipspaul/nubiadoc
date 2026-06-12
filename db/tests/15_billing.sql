@@ -39,6 +39,10 @@ SELECT has_column('quote', 'signed_sha256', 'quote.signed_sha256 présent (empre
 SELECT has_column('quote', 'signature_id',  'quote.signature_id présent (FK optionnelle)');
 SELECT has_column('quote', 'created_at',    'quote.created_at présent');
 SELECT has_column('quote', 'deleted_at',    'quote.deleted_at présent (soft-delete)');
+SELECT has_column('quote', 'deposit_paid',  'quote.deposit_paid présent (0093)');
+SELECT col_not_null('quote', 'deposit_paid','quote.deposit_paid NOT NULL');
+SELECT has_column('quote', 'deposit_pct',   'quote.deposit_pct présent (0094)');
+SELECT col_type_is('quote', 'deposit_pct', 'numeric(5,2)', 'quote.deposit_pct numeric(5,2)');
 
 -- quote_item
 SELECT has_column('quote_item', 'cabinet_id',    'quote_item.cabinet_id présent (tenant)');
@@ -170,6 +174,23 @@ SELECT throws_ok(
              'invalid_status') $$,
   '23514', NULL,
   'quote.status invalide rejeté (CHECK)');
+
+-- quote.deposit_pct : valeur hors domaine
+SELECT throws_ok(
+  $$ INSERT INTO quote (cabinet_id, patient_id, deposit_pct)
+     VALUES ('f0000000-0000-0000-0000-000000000001',
+             'f0000000-0000-0000-0000-0000000000d1',
+             150.00) $$,
+  '23514', NULL,
+  'quote.deposit_pct > 100 rejeté (CHECK 0094)');
+
+SELECT throws_ok(
+  $$ INSERT INTO quote (cabinet_id, patient_id, deposit_pct)
+     VALUES ('f0000000-0000-0000-0000-000000000001',
+             'f0000000-0000-0000-0000-0000000000d1',
+             -1.00) $$,
+  '23514', NULL,
+  'quote.deposit_pct < 0 rejeté (CHECK 0094)');
 
 -- Quotes valides pour les tests suivants
 INSERT INTO quote (id, cabinet_id, patient_id) VALUES

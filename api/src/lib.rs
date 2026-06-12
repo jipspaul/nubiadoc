@@ -426,6 +426,7 @@ pub fn app_with_dispatcher(
         .route("/v1/devices", post(devices::register_device))
         .route("/v1/notifications", get(notifications::list_notifications))
         .route("/v1/reminders", get(reminders::list_reminders))
+        .route("/v1/cabinet/quotes", post(billing::create_cabinet_quote))
         .route(
             "/v1/cabinet/prescriptions",
             post(prescriptions::create_prescription),
