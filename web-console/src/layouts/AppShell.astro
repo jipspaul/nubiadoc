@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
-import ContextSelector from '../components/ContextSelector.astro';
+import ContextSwitcher from '../components/ContextSwitcher.astro';
+import type { MeContext } from '../lib/endpoints';
 
 export type Role = 'patient' | 'practitioner' | 'secretary' | 'admin';
 
@@ -55,6 +56,40 @@ const isActive = (href: string) => {
   const h = href.replace(/\/$/, '') || '/';
   return h === currentPath || currentPath.startsWith(h + '/');
 };
+
+// SSR — fetch GET /v1/me pour le ContextSwitcher (token lu depuis httpOnly cookie)
+const apiBase: string = (import.meta.env.API_BASE as string | undefined) ?? 'http://localhost:38030';
+const jwtCookie = Astro.cookies.get('nubia_jwt')?.value ?? '';
+let switcherContexts: Array<{ label: string; cabinet_id: string; secretariat_id?: string; current: boolean }> = [];
+
+if (jwtCookie) {
+  try {
+    const meRes = await fetch(`${apiBase}/v1/me`, {
+      headers: { Authorization: `Bearer ${jwtCookie}` },
+    });
+    if (meRes.ok) {
+      const me = await meRes.json() as { contexts?: MeContext[] };
+      const contexts = me.contexts ?? [];
+      if (contexts.length > 1) {
+        // Décode le JWT pour savoir quel contexte est actif
+        const ctxCookie = Astro.cookies.get('nubia_ctx')?.value ?? '';
+        const [activeCabinet, , activeSecretariat] = ctxCookie.split('|');
+        switcherContexts = contexts.map(ctx => ({
+          label: ctx.secretariat_name
+            ? `${ctx.secretariat_name} — ${ctx.cabinet_name ?? ctx.cabinet_id}`
+            : (ctx.cabinet_name ?? ctx.cabinet_id),
+          cabinet_id: ctx.cabinet_id,
+          secretariat_id: ctx.secretariat_id,
+          current:
+            ctx.cabinet_id === activeCabinet &&
+            (ctx.secretariat_id ?? '') === (activeSecretariat ?? ''),
+        }));
+      }
+    }
+  } catch {
+    // Erreur API (token expiré, réseau) → fallback silencieux, switcher absent
+  }
+}
 ---
 
 <!doctype html>
@@ -72,7 +107,7 @@ const isActive = (href: string) => {
         <div id="secretary-ctx-banner" class="secretary-banner" hidden aria-label="Contexte secrétariat actif"></div>
       )}
 
-      <ContextSelector />
+      <ContextSwitcher contexts={switcherContexts} />
 
       {role === 'admin' && (
         <nav class="space-switcher" aria-label="Sélecteur d'espace">
