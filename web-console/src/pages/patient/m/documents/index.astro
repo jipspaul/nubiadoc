@@ -1,0 +1,153 @@
+---
+import MobileShell from '../../../../layouts/MobileShell.astro';
+---
+<MobileShell title="Mes documents — Nubia">
+  <h1 class="mobile-title">Mes documents</h1>
+
+  <div id="docs-loading" class="mobile-loading" aria-live="polite">Chargement…</div>
+
+  <ul id="docs-list" class="mobile-list" hidden aria-label="Liste des documents"></ul>
+
+  <p id="docs-empty" class="mobile-empty" hidden>Aucun document enregistré.</p>
+
+  <p id="docs-error" class="mobile-error" hidden role="alert"></p>
+</MobileShell>
+
+<style>
+  .mobile-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    margin-bottom: var(--space-4);
+  }
+
+  .mobile-loading,
+  .mobile-empty,
+  .mobile-error {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    padding: var(--space-3) 0;
+  }
+
+  .mobile-error {
+    color: var(--color-error, #991b1b);
+  }
+
+  .mobile-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .mobile-doc-card {
+    display: block;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--color-text);
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+  }
+
+  .mobile-doc-card:active {
+    background: var(--color-border);
+  }
+
+  .mobile-doc-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .mobile-doc-title {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-doc-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .mobile-doc-type {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: var(--space-1) var(--space-2);
+    border-radius: 9999px;
+    background: var(--color-border);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .mobile-doc-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+  }
+</style>
+
+<script>
+  import { patientDocuments, type Document } from '../../../../lib/endpoints.ts';
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function renderDocuments(docs: Document[]): void {
+    const list = document.getElementById('docs-list') as HTMLUListElement;
+    const empty = document.getElementById('docs-empty') as HTMLParagraphElement;
+    list.innerHTML = '';
+    if (docs.length === 0) {
+      empty.hidden = false;
+      return;
+    }
+    for (const doc of docs) {
+      const title = doc.name ?? doc.id;
+      const type = doc.type ?? '—';
+      const date = doc.created_at
+        ? new Date(doc.created_at).toLocaleDateString('fr-FR')
+        : '';
+
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = `/patient/m/documents/${encodeURIComponent(doc.id)}`;
+      a.className = 'mobile-doc-card';
+      a.innerHTML = `
+        <span class="mobile-doc-info">
+          <span class="mobile-doc-title">${escHtml(title)}</span>
+          <span class="mobile-doc-meta">
+            <span class="mobile-doc-type">${escHtml(type)}</span>
+            ${date ? `<span class="mobile-doc-date">${escHtml(date)}</span>` : ''}
+          </span>
+        </span>`;
+      li.appendChild(a);
+      list.appendChild(li);
+    }
+    list.hidden = false;
+  }
+
+  (async () => {
+    const loading = document.getElementById('docs-loading') as HTMLElement;
+    const list = document.getElementById('docs-list') as HTMLUListElement;
+    const empty = document.getElementById('docs-empty') as HTMLParagraphElement;
+    const docsError = document.getElementById('docs-error') as HTMLParagraphElement;
+
+    const { status, data } = await patientDocuments.list();
+    loading.hidden = true;
+    if (status < 300 && Array.isArray(data)) {
+      renderDocuments(data as Document[]);
+    } else {
+      docsError.textContent = 'Impossible de charger les documents.';
+      docsError.hidden = false;
+    }
+  })();
+</script>
