@@ -1,0 +1,224 @@
+---
+import MobileShell from '../../../layouts/MobileShell.astro';
+import type { Dashboard } from '../../../lib/endpoints.ts';
+
+const API_BASE: string =
+  (import.meta.env.API_BASE as string | undefined) ??
+  (import.meta.env.PUBLIC_API_BASE as string | undefined) ??
+  'http://localhost:38030';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'patient') {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+
+let dashboard: Dashboard | null = null;
+let fetchError: string | null = null;
+
+try {
+  const res = await fetch(`${API_BASE}/v1/dashboard`, {
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+
+  if (res.status === 401) {
+    return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+  }
+
+  if (res.ok) {
+    const text = await res.text();
+    dashboard = text ? (JSON.parse(text) as Dashboard) : null;
+  } else {
+    fetchError = `Erreur serveur (HTTP ${res.status}).`;
+  }
+} catch (err) {
+  fetchError = `Erreur réseau : ${err instanceof Error ? err.message : String(err)}`;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('fr-FR', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+const nextAppt     = dashboard?.next_appointment ?? null;
+const nextApptDate = nextAppt?.scheduled_at ? formatDate(nextAppt.scheduled_at) : null;
+const nextApptId   = nextAppt?.id ?? null;
+const nextApptProv = nextAppt?.provider_name ?? null;
+
+const unreadMessages = dashboard?.unread_messages ?? 0;
+
+const pendingQuotes = dashboard?.to_sign?.length
+  ?? dashboard?.pending_quotes
+  ?? 0;
+
+const pendingPayments = dashboard?.to_pay?.length ?? 0;
+---
+
+<MobileShell title="Accueil — Nubia">
+  {fetchError && (
+    <div class="mobile-alert mobile-alert-error" role="alert">{fetchError}</div>
+  )}
+
+  {!fetchError && (
+    <div class="mobile-cards">
+
+      <a href={nextApptId ? `/patient/m/rdv/${encodeURIComponent(nextApptId)}` : '/patient/m/rdv'} class="mobile-card mobile-card-accent">
+        <div class="mobile-card-header">
+          <span class="mobile-card-icon">📅</span>
+          <span class="mobile-card-title">Prochain RDV</span>
+        </div>
+        {nextApptDate ? (
+          <div class="mobile-card-body">
+            <p class="mobile-card-value">{nextApptDate}</p>
+            {nextApptProv && <p class="mobile-card-sub">{nextApptProv}</p>}
+          </div>
+        ) : (
+          <p class="mobile-card-empty">Aucun rendez-vous à venir</p>
+        )}
+      </a>
+
+      <a href="/patient/m/messages" class="mobile-card">
+        <div class="mobile-card-header">
+          <span class="mobile-card-icon">💬</span>
+          <span class="mobile-card-title">Messages</span>
+        </div>
+        <div class="mobile-card-body">
+          <p class="mobile-counter">{unreadMessages}</p>
+          <p class="mobile-card-sub">
+            {unreadMessages === 0
+              ? 'Aucun non lu'
+              : `non lu${unreadMessages > 1 ? 's' : ''}`}
+          </p>
+        </div>
+      </a>
+
+      <a href="/patient/m/devis" class="mobile-card">
+        <div class="mobile-card-header">
+          <span class="mobile-card-icon">📋</span>
+          <span class="mobile-card-title">Devis</span>
+        </div>
+        <div class="mobile-card-body">
+          <p class="mobile-counter">{pendingQuotes}</p>
+          <p class="mobile-card-sub">
+            {pendingQuotes === 0
+              ? 'Aucun en attente'
+              : `en attente`}
+          </p>
+        </div>
+      </a>
+
+      <a href="/patient/m/devis" class="mobile-card">
+        <div class="mobile-card-header">
+          <span class="mobile-card-icon">💳</span>
+          <span class="mobile-card-title">Paiements</span>
+        </div>
+        <div class="mobile-card-body">
+          <p class="mobile-counter">{pendingPayments}</p>
+          <p class="mobile-card-sub">
+            {pendingPayments === 0
+              ? 'Aucun à régler'
+              : `à régler`}
+          </p>
+        </div>
+      </a>
+
+    </div>
+  )}
+</MobileShell>
+
+<style>
+  .mobile-cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .mobile-card {
+    display: block;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-decoration: none;
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+  }
+
+  .mobile-card:active {
+    background: var(--color-border);
+  }
+
+  .mobile-card-accent {
+    border-left: 3px solid var(--color-accent);
+  }
+
+  .mobile-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .mobile-card-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .mobile-card-title {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+
+  .mobile-card-body {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .mobile-card-value {
+    font-weight: 600;
+    margin: 0;
+    font-size: var(--font-size-base);
+  }
+
+  .mobile-counter {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    line-height: 1;
+    margin: 0;
+    color: var(--color-accent);
+  }
+
+  .mobile-card-sub {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+
+  .mobile-card-empty {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+
+  .mobile-alert {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-4);
+    font-size: var(--font-size-sm);
+  }
+
+  .mobile-alert-error {
+    background: var(--color-error, #fef2f2);
+    color: var(--color-error-fg, #991b1b);
+  }
+</style>
