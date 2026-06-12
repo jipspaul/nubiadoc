@@ -135,13 +135,12 @@ pub async fn put_provider_secretariats(
 
     // Insère les nouvelles assignations en validant l'appartenance au cabinet.
     for sec_id in &body.secretariat_ids {
-        let sec_exists =
-            sqlx::query("SELECT 1 FROM secretariat WHERE id = $1 AND cabinet_id = $2")
-                .bind(sec_id)
-                .bind(claims.cabinet_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+        let sec_exists = sqlx::query("SELECT 1 FROM secretariat WHERE id = $1 AND cabinet_id = $2")
+            .bind(sec_id)
+            .bind(claims.cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
         if sec_exists.is_none() {
             return Err(AppError::NotFound);
