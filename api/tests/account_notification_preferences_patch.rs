@@ -166,3 +166,47 @@ async fn patch_notification_preferences_no_auth_returns_401() {
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+// ── Test 3 : token pro → 403 ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn patch_notification_preferences_pro_token_returns_403() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    let pro_token = encode(
+        &Header::default(),
+        &json!({"sub": Uuid::new_v4(), "kind": "pro", "cabinet_id": Uuid::new_v4(),
+                "role": "admin", "account_id": Uuid::nil(), "exp": exp}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/notification-preferences")
+                .header("Authorization", format!("Bearer {}", pro_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"sms_rdv": false}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
