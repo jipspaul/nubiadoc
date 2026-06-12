@@ -1,0 +1,299 @@
+---
+import AppShell from '../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'admin' && role !== 'manager') {
+  return new Response('Accès interdit', { status: 403 });
+}
+---
+<AppShell title="Gestion du personnel — Nubia" role="admin">
+  <header>
+    <h1>Gestion du personnel</h1>
+    <p>Ajouter ou retirer des secrétaires dans un secrétariat. Rôle requis : <code>admin</code> ou <code>manager</code>.</p>
+  </header>
+
+  <!-- ── Sélection du secrétariat ─────────────────────────── -->
+  <section aria-labelledby="h-select">
+    <h2 id="h-select">Secrétariat</h2>
+    <form id="form-select-secretariat" novalidate>
+      <div class="form-row">
+        <label for="secretariat-id">ID du secrétariat</label>
+        <input id="secretariat-id" name="secretariat_id" type="text" required
+          placeholder="uuid du secrétariat" autocomplete="off" />
+      </div>
+      <button type="submit" class="btn-primary">Charger le personnel</button>
+    </form>
+    <div id="staff-status" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- ── Liste du personnel ───────────────────────────────── -->
+  <section aria-labelledby="h-list" id="section-staff" hidden>
+    <h2 id="h-list">Personnel du secrétariat</h2>
+    <table id="staff-table" aria-label="Liste du personnel">
+      <thead>
+        <tr>
+          <th scope="col">Utilisateur</th>
+          <th scope="col">Rôle</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="staff-tbody"></tbody>
+    </table>
+    <p id="staff-empty" hidden class="empty-hint">Aucun membre dans ce secrétariat.</p>
+  </section>
+
+  <!-- ── Ajouter un secrétaire ────────────────────────────── -->
+  <section aria-labelledby="h-add" id="section-add" hidden>
+    <h2 id="h-add">Ajouter un secrétaire</h2>
+    <form id="form-add-staff" novalidate>
+      <div class="form-row">
+        <label for="staff-email">Adresse e-mail <span aria-hidden="true">*</span></label>
+        <input id="staff-email" name="email" type="email" required
+          placeholder="secretaire@cabinet.fr" autocomplete="off" />
+      </div>
+      <div class="form-row">
+        <label for="staff-first-name">Prénom</label>
+        <input id="staff-first-name" name="first_name" type="text" placeholder="Marie" />
+      </div>
+      <div class="form-row">
+        <label for="staff-last-name">Nom</label>
+        <input id="staff-last-name" name="last_name" type="text" placeholder="Dupont" />
+      </div>
+      <button type="submit" class="btn-primary">Ajouter</button>
+      <p id="add-status" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</AppShell>
+
+<style>
+  h1 { margin-bottom: 0.25rem; }
+  h1 + p { color: var(--color-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-6); }
+
+  section { margin-bottom: var(--space-8); }
+  h2 { margin-bottom: var(--space-4); }
+
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-bottom: var(--space-3);
+    max-width: 360px;
+  }
+  label { font-size: var(--font-size-sm); font-weight: 600; }
+  input {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  .btn-primary {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+
+  [role="status"] {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    min-height: 1.25rem;
+  }
+  [role="status"].error   { color: var(--color-danger, #dc2626); }
+  [role="status"].success { color: var(--color-success, #16a34a); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+  th, td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+  th { font-weight: 600; background: var(--color-surface); }
+  tr:hover td { background: var(--color-surface); }
+
+  .btn-danger {
+    padding: var(--space-1) var(--space-3);
+    background: transparent;
+    border: 1px solid var(--color-danger, #dc2626);
+    color: var(--color-danger, #dc2626);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+  }
+  .btn-danger:hover { background: var(--color-danger, #dc2626); color: #fff; }
+
+  .empty-hint {
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    margin: 0;
+    padding: var(--space-3) 0;
+  }
+</style>
+
+<script>
+  import { proSecretariats } from '../../lib/endpoints.ts';
+  import type { SecretariatStaffMember } from '../../lib/endpoints.ts';
+
+  const loginRedirect = '/auth/login?next=/manager/personnel';
+
+  const formSelect    = document.getElementById('form-select-secretariat') as HTMLFormElement;
+  const staffStatus   = document.getElementById('staff-status') as HTMLElement;
+  const sectionStaff  = document.getElementById('section-staff') as HTMLElement;
+  const staffTbody    = document.getElementById('staff-tbody') as HTMLTableSectionElement;
+  const staffEmpty    = document.getElementById('staff-empty') as HTMLParagraphElement;
+  const sectionAdd    = document.getElementById('section-add') as HTMLElement;
+  const formAdd       = document.getElementById('form-add-staff') as HTMLFormElement;
+  const addStatus     = document.getElementById('add-status') as HTMLParagraphElement;
+
+  let currentSecretariatId = '';
+
+  function buildRow(member: SecretariatStaffMember): HTMLTableRowElement {
+    const tr = document.createElement('tr');
+    tr.dataset['userId'] = member.user_id;
+    const label = member.email ?? member.user_id;
+    const firstName = member.first_name ?? '';
+    const lastName = member.last_name ?? '';
+    const fullName = [firstName, lastName].filter(Boolean).join(' ');
+    tr.innerHTML = `
+      <td>${fullName ? `${fullName} (${label})` : label}</td>
+      <td>${member.role ?? 'secretary'}</td>
+      <td>
+        <button type="button" class="btn-danger"
+          data-remove="${member.user_id}"
+          aria-label="Retirer ${label}">Retirer</button>
+      </td>
+    `;
+    return tr;
+  }
+
+  async function loadStaff(secretariatId: string): Promise<void> {
+    staffStatus.textContent = 'Chargement…';
+    staffStatus.className = '';
+    sectionStaff.hidden = true;
+    sectionAdd.hidden = true;
+    staffTbody.innerHTML = '';
+    staffEmpty.hidden = true;
+
+    const { status, data } = await proSecretariats.getStaff(secretariatId);
+
+    if (status === 401) { window.location.href = loginRedirect; return; }
+    if (status === 403) {
+      staffStatus.textContent = 'Accès refusé (403).';
+      staffStatus.className = 'error';
+      return;
+    }
+    if (status !== 200) {
+      staffStatus.textContent = `Erreur serveur (HTTP ${status}).`;
+      staffStatus.className = 'error';
+      return;
+    }
+
+    staffStatus.textContent = '';
+    const members = (data as SecretariatStaffMember[]) ?? [];
+
+    if (members.length === 0) {
+      staffEmpty.hidden = false;
+    } else {
+      for (const m of members) {
+        staffTbody.appendChild(buildRow(m));
+      }
+    }
+    sectionStaff.hidden = false;
+    sectionAdd.hidden = false;
+  }
+
+  // ── Charger le personnel ───────────────────────────────────────────────────
+  formSelect.addEventListener('submit', async (e: Event) => {
+    e.preventDefault();
+    const fd = new FormData(formSelect);
+    currentSecretariatId = (fd.get('secretariat_id') as string).trim();
+    if (!currentSecretariatId) return;
+    await loadStaff(currentSecretariatId);
+  });
+
+  // ── Retirer un membre (délégation sur le tbody) ────────────────────────────
+  staffTbody.addEventListener('click', async (e: Event) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-remove]');
+    if (!btn || !currentSecretariatId) return;
+    const userId = btn.dataset['remove'];
+    if (!userId) return;
+
+    if (!confirm('Retirer ce membre du secrétariat ?')) return;
+
+    btn.disabled = true;
+    const { status } = await proSecretariats.removeMember(currentSecretariatId, userId);
+
+    if (status === 200 || status === 204) {
+      const row = staffTbody.querySelector(`tr[data-user-id="${userId}"]`);
+      row?.remove();
+      if (staffTbody.rows.length === 0) {
+        staffEmpty.hidden = false;
+      }
+    } else {
+      alert(`Erreur lors du retrait (HTTP ${status}).`);
+      btn.disabled = false;
+    }
+  });
+
+  // ── Ajouter un secrétaire ──────────────────────────────────────────────────
+  formAdd.addEventListener('submit', async (e: Event) => {
+    e.preventDefault();
+    if (!currentSecretariatId) return;
+
+    const emailInput     = document.getElementById('staff-email')      as HTMLInputElement;
+    const firstNameInput = document.getElementById('staff-first-name') as HTMLInputElement;
+    const lastNameInput  = document.getElementById('staff-last-name')  as HTMLInputElement;
+
+    const email     = emailInput.value.trim();
+    const firstName = firstNameInput.value.trim();
+    const lastName  = lastNameInput.value.trim();
+
+    if (!email) {
+      addStatus.textContent = 'L\'adresse e-mail est requise.';
+      addStatus.className = 'error';
+      return;
+    }
+
+    addStatus.textContent = 'Ajout en cours…';
+    addStatus.className = '';
+
+    const body: { email: string; first_name?: string; last_name?: string } = { email };
+    if (firstName) body.first_name = firstName;
+    if (lastName) body.last_name = lastName;
+
+    const { status, data } = await proSecretariats.postStaff(currentSecretariatId, body);
+
+    if (status === 201 || status === 200) {
+      addStatus.textContent = 'Secrétaire ajouté avec succès.';
+      addStatus.className = 'success';
+      emailInput.value = '';
+      firstNameInput.value = '';
+      lastNameInput.value = '';
+      const newMember = data as SecretariatStaffMember;
+      staffTbody.appendChild(buildRow(newMember));
+      staffEmpty.hidden = true;
+    } else if (status === 409) {
+      addStatus.textContent = 'Cette adresse e-mail est déjà membre de ce secrétariat.';
+      addStatus.className = 'error';
+    } else {
+      addStatus.textContent = `Erreur lors de l'ajout (HTTP ${status}).`;
+      addStatus.className = 'error';
+    }
+  });
+</script>
