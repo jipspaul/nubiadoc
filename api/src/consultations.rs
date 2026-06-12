@@ -374,6 +374,9 @@ pub struct AddActBody {
     pub label: String,
     pub tooth: Option<String>,
     pub amount_cents: Option<i32>,
+    /// Code acte sécurité sociale — accepté, non stocké (pas de colonne dédiée dans cette version).
+    #[allow(dead_code)]
+    pub secu_code: Option<String>,
     /// Réservé pour le devis (inclus/hors-nomenclature) — accepté, non stocké dans cette version.
     #[allow(dead_code)]
     pub included: Option<bool>,
@@ -420,9 +423,9 @@ pub async fn add_consultation_act(
         .map_err(|_| AppError::Internal)?;
 
     // Vérifie que la séance existe, appartient au cabinet et récupère appointment_id +
-    // practitioner_id pour la ligne consultation_act.
+    // practitioner_id + statut pour les gardes métier.
     let session_row = sqlx::query(
-        "SELECT cs.appointment_id, cs.practitioner_id, a.patient_id \
+        "SELECT cs.appointment_id, cs.practitioner_id, cs.status, a.patient_id \
          FROM consultation_session cs \
          JOIN appointment a ON a.id = cs.appointment_id \
          WHERE cs.id = $1 AND cs.cabinet_id = $2",
@@ -440,9 +443,32 @@ pub async fn add_consultation_act(
     let practitioner_id: Uuid = session_row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
+    let session_status: String = session_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
     let patient_id: Uuid = session_row
         .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
+
+    // Seul le praticien qui a démarré la séance peut y ajouter des actes.
+    // On compare le practitioner.user_id avec claims.sub.
+    let prac_row = sqlx::query(
+        "SELECT id FROM practitioner WHERE id = $1 AND user_id = $2 AND cabinet_id = $3",
+    )
+    .bind(practitioner_id)
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if prac_row.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
+    // La séance doit être en cours pour accepter de nouveaux actes.
+    if session_status != "in_progress" {
+        return Err(AppError::InvalidStatus);
+    }
 
     let amount_cents = body.amount_cents.unwrap_or(0);
 
