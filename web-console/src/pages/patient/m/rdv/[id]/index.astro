@@ -1,0 +1,414 @@
+---
+import MobileShell from '../../../../../layouts/MobileShell.astro';
+
+const { id } = Astro.params;
+---
+<MobileShell title="Détail rendez-vous — Nubia">
+  <nav aria-label="Retour" class="mobile-back">
+    <a href="/patient/m/rdv">← Mes rendez-vous</a>
+  </nav>
+  <h1 class="mobile-title">Détail du rendez-vous</h1>
+
+  <section aria-labelledby="h-rdv-detail">
+    <h2 id="h-rdv-detail" class="sr-only">Informations</h2>
+    <div id="rdv-loading" class="mobile-loading" aria-live="polite">Chargement…</div>
+    <article id="rdv-card" class="mobile-detail-card" hidden>
+      <dl class="mobile-fields">
+        <div class="mobile-field">
+          <dt>Date</dt>
+          <dd id="rdv-date">—</dd>
+        </div>
+        <div class="mobile-field">
+          <dt>Praticien</dt>
+          <dd id="rdv-provider">—</dd>
+        </div>
+        <div class="mobile-field">
+          <dt>Statut</dt>
+          <dd><span id="rdv-status-badge" class="mobile-badge">—</span></dd>
+        </div>
+        <div class="mobile-field" id="rdv-notes-row" hidden>
+          <dt>Notes</dt>
+          <dd id="rdv-notes">—</dd>
+        </div>
+      </dl>
+    </article>
+    <p id="rdv-error" hidden class="mobile-error">Impossible de charger ce rendez-vous.</p>
+  </section>
+
+  <section aria-labelledby="h-actions" id="actions-section" hidden>
+    <h2 id="h-actions" class="mobile-section-title">Actions</h2>
+
+    <section class="mobile-action-card">
+      <h3>Modifier le rendez-vous</h3>
+      <form id="form-modify" novalidate>
+        <label for="input-scheduled-at" class="mobile-label">Nouvelle date et heure</label>
+        <input type="datetime-local" id="input-scheduled-at" name="scheduled_at" required class="mobile-input" />
+        <label for="input-notes" class="mobile-label">Notes (optionnel)</label>
+        <textarea id="input-notes" name="notes" rows="3" class="mobile-input"></textarea>
+        <button type="submit" class="mobile-btn mobile-btn-primary">Enregistrer</button>
+        <p id="msg-modify" class="mobile-action-msg" aria-live="polite" hidden></p>
+      </form>
+    </section>
+
+    <section class="mobile-action-card mobile-action-card--danger">
+      <h3>Annuler le rendez-vous</h3>
+      <p class="mobile-action-desc">Cette action est irréversible.</p>
+      <button type="button" id="btn-cancel" class="mobile-btn mobile-btn-danger">Annuler</button>
+      <p id="msg-cancel" class="mobile-action-msg" aria-live="polite" hidden></p>
+    </section>
+
+    <section class="mobile-action-card">
+      <h3>Check-in</h3>
+      <p class="mobile-action-desc">Signalez votre arrivée au cabinet.</p>
+      <button type="button" id="btn-checkin" class="mobile-btn mobile-btn-secondary">Effectuer le check-in</button>
+      <p id="msg-checkin" class="mobile-action-msg" aria-live="polite" hidden></p>
+    </section>
+
+    <section class="mobile-action-card">
+      <h3>Demande de rappel</h3>
+      <p class="mobile-action-desc">Demandez à être rappelé par le cabinet.</p>
+      <button type="button" id="btn-callback" class="mobile-btn mobile-btn-secondary">Demander un rappel</button>
+      <p id="msg-callback" class="mobile-action-msg" aria-live="polite" hidden></p>
+    </section>
+
+    <nav aria-label="Jour J" class="mobile-dayof-nav">
+      <a id="link-preparation" href="#" class="mobile-btn mobile-btn-secondary">Préparation</a>
+      <a id="link-salle-attente" href="#" class="mobile-btn mobile-btn-secondary">Salle d'attente</a>
+    </nav>
+  </section>
+</MobileShell>
+
+<style>
+  .mobile-back {
+    margin-bottom: var(--space-3);
+  }
+  .mobile-back a {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+
+  .mobile-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    margin-bottom: var(--space-4);
+  }
+
+  .mobile-section-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+    color: var(--color-muted);
+  }
+
+  .mobile-loading {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    padding: var(--space-3) 0;
+  }
+
+  .mobile-error {
+    font-size: var(--font-size-sm);
+    color: var(--color-error);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+  }
+
+  .mobile-detail-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .mobile-fields {
+    margin: 0;
+    padding: 0;
+  }
+
+  .mobile-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .mobile-field:last-child {
+    border-bottom: none;
+  }
+
+  .mobile-field dt {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+  }
+
+  .mobile-field dd {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    text-align: right;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-badge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: var(--space-1) var(--space-2);
+    border-radius: 9999px;
+    text-transform: capitalize;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+  .mobile-badge[data-status="confirmed"] { background: var(--color-accent); color: var(--color-accent-fg); border-color: var(--color-accent); }
+  .mobile-badge[data-status="pending"]   { background: transparent; color: var(--color-muted); }
+  .mobile-badge[data-status="completed"] { background: var(--color-border); color: var(--color-text); }
+  .mobile-badge[data-status="cancelled"] { background: var(--color-error); color: var(--color-error-fg); border-color: var(--color-error); }
+  .mobile-badge[data-status="checked_in"] { background: var(--color-accent); color: var(--color-accent-fg); border-color: var(--color-accent); }
+
+  #actions-section {
+    margin-top: var(--space-6);
+  }
+
+  .mobile-action-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  .mobile-action-card h3 {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+  }
+  .mobile-action-desc {
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+    margin-bottom: var(--space-3);
+  }
+  .mobile-action-card--danger {
+    border-color: var(--color-error);
+  }
+
+  .mobile-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+    margin-top: var(--space-2);
+  }
+
+  .mobile-input {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-sizing: border-box;
+  }
+
+  .mobile-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 44px;
+    width: 100%;
+    margin-top: var(--space-2);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .mobile-btn-primary { background: var(--color-accent); color: var(--color-accent-fg); }
+  .mobile-btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
+  .mobile-btn-danger { background: var(--color-error); color: var(--color-error-fg); }
+
+  .mobile-action-msg {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-xs);
+  }
+  .mobile-action-msg:global(.ok) { color: var(--color-accent); }
+  .mobile-action-msg:global(.err) { color: var(--color-error); }
+
+  .mobile-dayof-nav {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .mobile-dayof-nav .mobile-btn {
+    flex: 1;
+    margin-top: 0;
+  }
+</style>
+
+<script define:vars={{ appointmentId: id }}>
+  import { patientAppointments, type Appointment } from '../../../../../lib/endpoints.ts';
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleString('fr-FR', {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  function showMsg(el: HTMLElement, text: string, isOk: boolean): void {
+    el.textContent = text;
+    el.className = `mobile-action-msg ${isOk ? 'ok' : 'err'}`;
+    el.hidden = false;
+  }
+
+  const id = appointmentId as string;
+
+  const loadingEl  = document.getElementById('rdv-loading') as HTMLElement;
+  const cardEl     = document.getElementById('rdv-card') as HTMLElement;
+  const errorEl    = document.getElementById('rdv-error') as HTMLElement;
+  const actionsEl  = document.getElementById('actions-section') as HTMLElement;
+
+  const dateEl     = document.getElementById('rdv-date') as HTMLElement;
+  const providerEl = document.getElementById('rdv-provider') as HTMLElement;
+  const badgeEl    = document.getElementById('rdv-status-badge') as HTMLElement;
+  const notesRowEl = document.getElementById('rdv-notes-row') as HTMLElement;
+  const notesEl    = document.getElementById('rdv-notes') as HTMLElement;
+
+  const linkPrep   = document.getElementById('link-preparation') as HTMLAnchorElement;
+  const linkSalle  = document.getElementById('link-salle-attente') as HTMLAnchorElement;
+
+  linkPrep.href  = `/patient/m/rdv/${encodeURIComponent(id)}/preparation`;
+  linkSalle.href = `/patient/m/rdv/${encodeURIComponent(id)}/salle-attente`;
+
+  let appt: Appointment | null = null;
+  (async () => {
+    const res = await patientAppointments.get(id);
+    loadingEl.hidden = true;
+
+    if (res.status < 300 && res.data && typeof res.data === 'object') {
+      appt = res.data as Appointment;
+      dateEl.textContent     = formatDate(appt.scheduled_at);
+      providerEl.textContent = appt.provider_id ? `Praticien ${appt.provider_id}` : 'Praticien inconnu';
+      badgeEl.textContent    = appt.status ?? '';
+      badgeEl.setAttribute('data-status', appt.status ?? '');
+      if (appt.notes) {
+        notesEl.textContent = appt.notes;
+        notesRowEl.hidden = false;
+      }
+      cardEl.hidden = false;
+      actionsEl.hidden = false;
+
+      const inputDate = document.getElementById('input-scheduled-at') as HTMLInputElement;
+      if (appt.scheduled_at) {
+        inputDate.value = appt.scheduled_at.slice(0, 16);
+      }
+    } else {
+      errorEl.hidden = false;
+    }
+  })();
+
+  const formModify  = document.getElementById('form-modify') as HTMLFormElement;
+  const msgModify   = document.getElementById('msg-modify') as HTMLElement;
+
+  formModify.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = formModify.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+    msgModify.hidden = true;
+
+    const fd = new FormData(formModify);
+    const body: Partial<Appointment> = {};
+    const scheduledAt = fd.get('scheduled_at') as string | null;
+    const notes       = fd.get('notes') as string | null;
+    if (scheduledAt) body.scheduled_at = new Date(scheduledAt).toISOString();
+    if (notes !== null && notes !== '') body.notes = notes;
+
+    const res = await patientAppointments.patch(id, body);
+    btn.disabled = false;
+
+    if (res.status < 300 && res.data && typeof res.data === 'object') {
+      const updated = res.data as Appointment;
+      dateEl.textContent  = formatDate(updated.scheduled_at);
+      badgeEl.textContent = updated.status ?? '';
+      badgeEl.setAttribute('data-status', updated.status ?? '');
+      showMsg(msgModify, 'Modification enregistrée.', true);
+    } else {
+      showMsg(msgModify, 'Erreur lors de la modification. Veuillez réessayer.', false);
+    }
+  });
+
+  const btnCancel = document.getElementById('btn-cancel') as HTMLButtonElement;
+  const msgCancel = document.getElementById('msg-cancel') as HTMLElement;
+
+  btnCancel.addEventListener('click', async () => {
+    if (!confirm('Confirmer l\'annulation de ce rendez-vous ?')) return;
+    btnCancel.disabled = true;
+    msgCancel.hidden = true;
+
+    const res = await patientAppointments.cancel(id);
+    btnCancel.disabled = false;
+
+    if (res.status < 300) {
+      badgeEl.textContent = 'cancelled';
+      badgeEl.setAttribute('data-status', 'cancelled');
+      showMsg(msgCancel, 'Rendez-vous annulé.', true);
+      btnCancel.disabled = true;
+    } else {
+      showMsg(msgCancel, 'Erreur lors de l\'annulation. Veuillez réessayer.', false);
+    }
+  });
+
+  const btnCheckin = document.getElementById('btn-checkin') as HTMLButtonElement;
+  const msgCheckin = document.getElementById('msg-checkin') as HTMLElement;
+
+  btnCheckin.addEventListener('click', async () => {
+    btnCheckin.disabled = true;
+    msgCheckin.hidden = true;
+
+    const res = await patientAppointments.checkin(id);
+    btnCheckin.disabled = false;
+
+    if (res.status < 300) {
+      badgeEl.textContent = 'checked_in';
+      badgeEl.setAttribute('data-status', 'checked_in');
+      showMsg(msgCheckin, 'Check-in effectué avec succès.', true);
+      btnCheckin.disabled = true;
+    } else {
+      showMsg(msgCheckin, 'Erreur lors du check-in. Veuillez réessayer.', false);
+    }
+  });
+
+  const btnCallback = document.getElementById('btn-callback') as HTMLButtonElement;
+  const msgCallback = document.getElementById('msg-callback') as HTMLElement;
+
+  btnCallback.addEventListener('click', async () => {
+    btnCallback.disabled = true;
+    msgCallback.hidden = true;
+
+    const res = await patientAppointments.callbackRequest(id);
+    btnCallback.disabled = false;
+
+    if (res.status < 300) {
+      showMsg(msgCallback, 'Demande de rappel envoyée.', true);
+      btnCallback.disabled = true;
+    } else {
+      showMsg(msgCallback, 'Erreur lors de la demande. Veuillez réessayer.', false);
+    }
+  });
+</script>

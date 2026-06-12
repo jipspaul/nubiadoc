@@ -1,0 +1,209 @@
+---
+import MobileShell from '../../../../layouts/MobileShell.astro';
+---
+<MobileShell title="Mes rendez-vous — Nubia">
+  <h1 class="mobile-title">Mes rendez-vous</h1>
+
+  <section aria-labelledby="h-upcoming">
+    <h2 id="h-upcoming" class="mobile-section-title">À venir</h2>
+    <div id="upcoming-loading" class="mobile-loading" aria-live="polite">Chargement…</div>
+    <ul id="upcoming-list" class="mobile-list" hidden aria-label="Rendez-vous à venir"></ul>
+    <p id="upcoming-empty" class="mobile-empty" hidden>Aucun rendez-vous à venir.</p>
+  </section>
+
+  <section aria-labelledby="h-past">
+    <h2 id="h-past" class="mobile-section-title">Historique</h2>
+    <div id="past-loading" class="mobile-loading" aria-live="polite">Chargement…</div>
+    <ul id="past-list" class="mobile-list" hidden aria-label="Rendez-vous passés"></ul>
+    <p id="past-empty" class="mobile-empty" hidden>Aucun rendez-vous passé.</p>
+  </section>
+</MobileShell>
+
+<style>
+  .mobile-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    margin-bottom: var(--space-4);
+  }
+
+  .mobile-section-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+    color: var(--color-muted);
+  }
+
+  .mobile-loading,
+  .mobile-empty {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    padding: var(--space-3) 0;
+  }
+
+  section {
+    margin-bottom: var(--space-6);
+  }
+
+  .mobile-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .mobile-rdv-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--color-text);
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+  }
+
+  .mobile-rdv-card:active {
+    background: var(--color-border);
+  }
+
+  .mobile-rdv-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .mobile-rdv-date {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+  }
+
+  .mobile-rdv-provider {
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-rdv-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: var(--space-1) var(--space-2);
+    border-radius: 9999px;
+    white-space: nowrap;
+    text-transform: capitalize;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+    flex-shrink: 0;
+  }
+  .mobile-rdv-badge[data-status="confirmed"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+  .mobile-rdv-badge[data-status="pending"] {
+    background: transparent;
+    color: var(--color-muted);
+  }
+  .mobile-rdv-badge[data-status="completed"] {
+    background: var(--color-border);
+    color: var(--color-text);
+  }
+  .mobile-rdv-badge[data-status="cancelled"] {
+    background: var(--color-error);
+    color: var(--color-error-fg);
+    border-color: var(--color-error);
+  }
+</style>
+
+<script>
+  import { patientAppointments, type Appointment } from '../../../../lib/endpoints.ts';
+
+  function escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleString('fr-FR', {
+      weekday: 'short', day: 'numeric', month: 'short',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  function renderList(listEl: HTMLUListElement, emptyEl: HTMLParagraphElement, items: Appointment[]): void {
+    listEl.innerHTML = '';
+    if (items.length === 0) {
+      emptyEl.hidden = false;
+      return;
+    }
+    for (const appt of items) {
+      const date = formatDate(appt.starts_at ?? appt.scheduled_at);
+      const status = appt.status ?? '';
+      const providerName = appt.provider?.display_name
+        ?? (appt.provider_id ? `Praticien ${appt.provider_id}` : 'Praticien inconnu');
+      const provider = escHtml(providerName);
+
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = `/patient/m/rdv/${encodeURIComponent(appt.id)}`;
+      a.className = 'mobile-rdv-card';
+      a.innerHTML = `
+        <span class="mobile-rdv-info">
+          <span class="mobile-rdv-date">${escHtml(date)}</span>
+          <span class="mobile-rdv-provider">${provider}</span>
+        </span>
+        <span class="mobile-rdv-badge" data-status="${escHtml(status)}">${escHtml(status)}</span>`;
+      li.appendChild(a);
+      listEl.appendChild(li);
+    }
+    listEl.hidden = false;
+  }
+
+  const upcomingLoading = document.getElementById('upcoming-loading') as HTMLElement;
+  const upcomingList = document.getElementById('upcoming-list') as HTMLUListElement;
+  const upcomingEmpty = document.getElementById('upcoming-empty') as HTMLParagraphElement;
+
+  const pastLoading = document.getElementById('past-loading') as HTMLElement;
+  const pastList = document.getElementById('past-list') as HTMLUListElement;
+  const pastEmpty = document.getElementById('past-empty') as HTMLParagraphElement;
+
+  function unwrap(payload: unknown): Appointment[] | null {
+    if (Array.isArray(payload)) return payload as Appointment[];
+    if (payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)) {
+      return (payload as { data: Appointment[] }).data;
+    }
+    return null;
+  }
+
+  (async () => {
+    const [upcomingRes, pastRes] = await Promise.all([
+      patientAppointments.list({ status: 'upcoming' }),
+      patientAppointments.list({ status: 'past' }),
+    ]);
+
+    upcomingLoading.hidden = true;
+    const upcoming = upcomingRes.status < 300 ? unwrap(upcomingRes.data) : null;
+    if (upcoming) {
+      renderList(upcomingList, upcomingEmpty, upcoming);
+    } else {
+      upcomingLoading.textContent = 'Impossible de charger les rendez-vous à venir.';
+      upcomingLoading.hidden = false;
+    }
+
+    pastLoading.hidden = true;
+    const past = pastRes.status < 300 ? unwrap(pastRes.data) : null;
+    if (past) {
+      renderList(pastList, pastEmpty, past);
+    } else {
+      pastLoading.textContent = 'Impossible de charger les rendez-vous passés.';
+      pastLoading.hidden = false;
+    }
+  })();
+</script>
