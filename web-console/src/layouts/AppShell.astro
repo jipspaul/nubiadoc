@@ -17,6 +17,11 @@ interface Props {
 
 const { title = 'Nubia', role } = Astro.props;
 
+// Erreur de changement de contexte propagée par /api/select-context via ?ctx_error=
+const ctxErrorParam = Astro.url.searchParams.get('ctx_error');
+const ctxError: '403' | '500' | null =
+  ctxErrorParam === '403' ? '403' : ctxErrorParam === '500' ? '500' : null;
+
 const NAV: Record<Role, NavItem[]> = {
   patient: [
     { href: '/patient/accueil',              label: 'Accueil' },
@@ -107,7 +112,7 @@ if (jwtCookie) {
         <div id="secretary-ctx-banner" class="secretary-banner" hidden aria-label="Contexte secrétariat actif"></div>
       )}
 
-      <ContextSwitcher contexts={switcherContexts} />
+      <ContextSwitcher contexts={switcherContexts} error={ctxError} />
 
       {role === 'admin' && (
         <nav class="space-switcher" aria-label="Sélecteur d'espace">

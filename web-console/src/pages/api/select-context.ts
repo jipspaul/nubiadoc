@@ -42,8 +42,22 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     secretariat_id = body.secretariat_id;
   }
 
+  // Détermine l'URL de retour (Referer ou fallback role-home)
+  const referer = request.headers.get('referer') ?? '';
+
+  function errorRedirect(code: '401' | '403' | '500'): Response {
+    if (code === '401') return redirect('/auth/login', 303);
+    // Redirige vers la page d'origine avec ?ctx_error=<code> pour affichage inline
+    if (referer) {
+      const u = new URL(referer);
+      u.searchParams.set('ctx_error', code);
+      return redirect(u.pathname + u.search, 303);
+    }
+    return redirect(`/auth/select-context?error=1`, 303);
+  }
+
   if (!cabinet_id) {
-    return redirect('/auth/select-context?error=1', 303);
+    return errorRedirect('500');
   }
 
   // Lire le JWT courant depuis le cookie httpOnly
@@ -67,21 +81,25 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       body: JSON.stringify(apiBody),
     });
   } catch {
-    return redirect('/auth/select-context?error=1', 303);
+    return errorRedirect('500');
   }
 
   if (res.status === 401) {
-    return redirect('/auth/login', 303);
+    return errorRedirect('401');
+  }
+
+  if (res.status === 403) {
+    return errorRedirect('403');
   }
 
   if (!res.ok) {
-    return redirect('/auth/select-context?error=1', 303);
+    return errorRedirect('500');
   }
 
   const json = await res.json() as { access_token?: string };
   const newToken = json.access_token;
   if (!newToken) {
-    return redirect('/auth/select-context?error=1', 303);
+    return errorRedirect('500');
   }
 
   // Poser le nouveau JWT en cookie httpOnly Secure SameSite=Lax
