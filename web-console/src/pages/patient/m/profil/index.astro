@@ -1,0 +1,240 @@
+---
+import MobileShell from '../../../../layouts/MobileShell.astro';
+---
+<MobileShell title="Mon profil — Nubia">
+  <h1 class="mobile-title">Mon profil</h1>
+
+  <nav class="m-subnav" aria-label="Sous-navigation profil">
+    <ul>
+      <li><a href="/patient/m/profil" aria-current="page">Informations</a></li>
+      <li><a href="/patient/m/profil/couverture">Couverture</a></li>
+      <li><a href="/patient/m/profil/proches">Proches</a></li>
+      <li><a href="/patient/m/profil/consentements">Consentements</a></li>
+      <li><a href="/patient/m/profil/notifications">Notifications</a></li>
+    </ul>
+  </nav>
+
+  <section class="m-card">
+    <h2 class="m-section-title">Informations du compte</h2>
+
+    <div id="profil-loading" class="mobile-loading" aria-live="polite">Chargement…</div>
+
+    <form id="profil-form" class="mobile-form" novalidate hidden>
+      <label>
+        Prénom <span aria-hidden="true">*</span>
+        <input type="text" name="first_name" required autocomplete="given-name" />
+      </label>
+
+      <label>
+        Nom <span aria-hidden="true">*</span>
+        <input type="text" name="last_name" required autocomplete="family-name" />
+      </label>
+
+      <label>
+        Adresse e-mail <span aria-hidden="true">*</span>
+        <input type="email" name="email" required autocomplete="email" />
+      </label>
+
+      <label>
+        Téléphone
+        <input type="tel" name="phone" autocomplete="tel" inputmode="tel" />
+      </label>
+
+      <label>
+        Date de naissance
+        <input type="date" name="date_of_birth" autocomplete="bday" />
+      </label>
+
+      <button type="submit" class="m-btn-primary">Enregistrer</button>
+    </form>
+
+    <p id="profil-toast" class="mobile-toast" aria-live="polite" role="status" hidden></p>
+  </section>
+</MobileShell>
+
+<style>
+  .mobile-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    margin-bottom: var(--space-4);
+  }
+
+  .m-subnav {
+    margin-bottom: var(--space-4);
+  }
+  .m-subnav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .m-subnav a {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    color: var(--color-text);
+    text-decoration: none;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .m-subnav a[aria-current="page"] {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border-color: var(--color-accent);
+  }
+  .m-subnav a:not([aria-current="page"]):active {
+    background: var(--color-border);
+  }
+
+  .m-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+  }
+
+  .m-section-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    margin: 0 0 var(--space-4);
+  }
+
+  .mobile-loading {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    padding: var(--space-3) 0;
+  }
+
+  .mobile-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .mobile-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+  }
+
+  .mobile-form input {
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-base);
+    width: 100%;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    min-height: 44px;
+  }
+  .mobile-form input:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  .m-btn-primary {
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    margin-top: var(--space-2);
+  }
+  .m-btn-primary:active { opacity: 0.85; }
+
+  .mobile-toast {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+  .mobile-toast.success {
+    background: var(--color-success);
+    color: var(--color-success-fg);
+  }
+  .mobile-toast.error {
+    background: var(--color-error);
+    color: var(--color-error-fg);
+  }
+</style>
+
+<script>
+  import { patientAccount, type PatientAccount } from '../../../../lib/endpoints.ts';
+
+  const loading = document.getElementById('profil-loading') as HTMLElement;
+  const form = document.getElementById('profil-form') as HTMLFormElement;
+  const toast = document.getElementById('profil-toast') as HTMLParagraphElement;
+
+  function showToast(message: string, type: 'success' | 'error'): void {
+    toast.textContent = message;
+    toast.className = `mobile-toast ${type}`;
+    toast.hidden = false;
+    setTimeout(() => { toast.hidden = true; }, 4000);
+  }
+
+  function fillForm(account: PatientAccount): void {
+    (form.elements.namedItem('first_name') as HTMLInputElement).value = account.first_name;
+    (form.elements.namedItem('last_name') as HTMLInputElement).value = account.last_name;
+    (form.elements.namedItem('email') as HTMLInputElement).value = account.email;
+    (form.elements.namedItem('phone') as HTMLInputElement).value = account.phone ?? '';
+    (form.elements.namedItem('date_of_birth') as HTMLInputElement).value =
+      account.birth_date ?? account.date_of_birth ?? '';
+  }
+
+  function normalizePhone(raw: string): string {
+    const cleaned = raw.replace(/[\s.\-()]/g, '');
+    if (/^0\d{9}$/.test(cleaned)) return `+33${cleaned.slice(1)}`;
+    if (/^0033\d{9}$/.test(cleaned)) return `+33${cleaned.slice(4)}`;
+    return cleaned;
+  }
+
+  (async () => {
+    const { status, data } = await patientAccount.get();
+    loading.hidden = true;
+    if (status < 300 && data) {
+      fillForm(data as PatientAccount);
+      form.hidden = false;
+    } else {
+      loading.textContent = 'Impossible de charger le profil.';
+      loading.hidden = false;
+    }
+  })();
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const phoneRaw = (fd.get('phone') as string).trim();
+    const body: Partial<PatientAccount> = {
+      first_name: (fd.get('first_name') as string).trim(),
+      last_name: (fd.get('last_name') as string).trim(),
+      phone: phoneRaw ? normalizePhone(phoneRaw) : undefined,
+    };
+
+    const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+
+    const { status, data } = await patientAccount.patch(body);
+    btn.disabled = false;
+
+    if (status < 300 && data) {
+      fillForm(data as PatientAccount);
+      showToast('Profil mis à jour.', 'success');
+    } else {
+      showToast('Erreur lors de la mise à jour.', 'error');
+    }
+  });
+</script>
