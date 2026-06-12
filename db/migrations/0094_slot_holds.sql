@@ -33,6 +33,3 @@ CREATE POLICY slot_holds_seed ON slot_holds
 -- availability_slot : nubia_app SELECT non restreint au statut 'open' pour le mécanisme de hold.
 -- (La policy slot_public_read limite la lecture à status='open' pour les routes publiques,
 -- mais le handler POST /v1/slots/:id/hold doit pouvoir distinguer "inexistant" de "déjà held".)
-CREATE POLICY slot_app_select ON availability_slot
-  FOR SELECT TO nubia_app
-  USING (true);
