@@ -455,3 +455,238 @@ async fn add_act_cross_tenant_returns_404() {
         .await
         .ok();
 }
+
+// ── Test 4 : autre praticien du même cabinet → 403 ────────────────────────────
+
+#[tokio::test]
+async fn add_act_other_practitioner_same_cabinet_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    // Second praticien dans le même cabinet.
+    let other_prac_user_id = Uuid::new_v4();
+    let other_prac_id = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(other_prac_user_id)
+        .bind(format!("other-same+{}@nubia.test", other_prac_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(other_prac_id)
+            .bind(cabinet_id)
+            .bind(other_prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = serde_json::json!({
+        "ccam_code": "HBLD001",
+        "label": "Détartrage",
+        "amount_cents": 2500
+    });
+
+    // Token du second praticien — il appartient au même cabinet mais n'est pas
+    // celui qui a démarré la séance.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(other_prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(other_prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(other_prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test 5 : consultation non démarrée (status != 'in_progress') → 409 ────────
+
+#[tokio::test]
+async fn add_act_session_not_started_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let appt_id = Uuid::new_v4();
+    let session_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(prac_user_id)
+        .bind(format!("nostatus-prac+{}@nubia.test", prac_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) \
+             VALUES ($1, 'Cabinet NoStatus Test', 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Patient', 'NoStatus')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+             VALUES ($1, $2, $3, $4, now(), now() + interval '1 hour', 'scheduled', 'détartrage')",
+        )
+        .bind(appt_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        // Séance avec statut 'completed' — non démarrée (pour les actes).
+        sqlx::query(
+            "INSERT INTO consultation_session \
+             (id, cabinet_id, appointment_id, practitioner_id, status) \
+             VALUES ($1, $2, $3, $4, 'completed')",
+        )
+        .bind(session_id)
+        .bind(cabinet_id)
+        .bind(appt_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = serde_json::json!({
+        "ccam_code": "HBLD001",
+        "label": "Détartrage",
+        "amount_cents": 2500
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    // Cleanup
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
