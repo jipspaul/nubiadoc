@@ -1,4 +1,5 @@
-//! Handlers pour la facturation patient : GET /v1/quotes, GET /v1/quotes/:id, POST /v1/payments/intent.
+//! Handlers facturation : GET /v1/quotes, GET /v1/quotes/:id, POST /v1/payments/intent,
+//! POST /v1/cabinet/quotes (création devis côté cabinet).
 
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -8,7 +9,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, PatientAccountClaims},
+    auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
     AppState,
 };
 
@@ -590,6 +591,116 @@ pub async fn create_payment_intent(
         Json(PaymentIntentResponse {
             payment_id,
             client_secret,
+        }),
+    ))
+}
+
+// ── POST /v1/cabinet/quotes ──────────────────────────────────────────────────
+
+/// Un item du devis dans le body de création.
+#[derive(Deserialize)]
+pub struct QuoteItemInput {
+    pub label: String,
+    pub amount_cents: i64,
+}
+
+/// Body de `POST /v1/cabinet/quotes`.
+#[derive(Deserialize)]
+pub struct CreateCabinetQuoteBody {
+    pub patient_id: Uuid,
+    pub items: Vec<QuoteItemInput>,
+    pub deposit_pct: Option<f64>,
+}
+
+/// Réponse de `POST /v1/cabinet/quotes`.
+#[derive(Serialize)]
+pub struct CreateCabinetQuoteResponse {
+    pub quote_id: Uuid,
+    pub total_amount_cents: i64,
+}
+
+/// `POST /v1/cabinet/quotes` — crée un devis (statut `draft`) avec ses lignes.
+///
+/// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403, patient → 403.
+/// - `cabinet_id` extrait du JWT.
+/// - `items` vide → 422.
+/// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
+/// - `total_amount` calculé depuis les items (`sum(amount_cents) / 100`).
+/// - Insert `quote` + N `quote_item` dans une transaction RLS-scopée.
+/// - Retourne `201 { quote_id, total_amount_cents }`.
+pub async fn create_cabinet_quote(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Json(body): Json<CreateCabinetQuoteBody>,
+) -> Result<(StatusCode, Json<CreateCabinetQuoteResponse>), AppError> {
+    if body.items.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    if let Some(pct) = body.deposit_pct {
+        if !(0.0..=100.0).contains(&pct) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let total_cents: i64 = body.items.iter().map(|i| i.amount_cents).sum();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope RLS tenant.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Insère le devis.
+    let quote_row = sqlx::query(
+        "INSERT INTO quote \
+         (cabinet_id, patient_id, status, total_amount, currency, deposit_pct) \
+         VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR', $4) \
+         RETURNING id",
+    )
+    .bind(claims.cabinet_id)
+    .bind(body.patient_id)
+    .bind(total_cents)
+    .bind(body.deposit_pct)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let quote_id: Uuid = quote_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Insère les lignes.
+    for item in &body.items {
+        sqlx::query(
+            "INSERT INTO quote_item \
+             (cabinet_id, quote_id, label, unit_amount) \
+             VALUES ($1, $2, $3, $4::numeric / 100)",
+        )
+        .bind(claims.cabinet_id)
+        .bind(quote_id)
+        .bind(&item.label)
+        .bind(item.amount_cents)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        user_id = %claims.sub,
+        cabinet_id = %claims.cabinet_id,
+        quote_id = %quote_id,
+        total_cents,
+        "cabinet quote created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateCabinetQuoteResponse {
+            quote_id,
+            total_amount_cents: total_cents,
         }),
     ))
 }
