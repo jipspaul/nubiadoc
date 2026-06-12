@@ -134,6 +134,7 @@ pub(crate) enum AppError {
     ReviewAlreadyExists,
     AlreadyOnWaitingList,
     NoActiveMembership,
+    LastAdminCannotBeRemoved,
 }
 
 impl IntoResponse for AppError {
@@ -250,6 +251,11 @@ impl IntoResponse for AppError {
             AppError::NoActiveMembership => (
                 StatusCode::FORBIDDEN,
                 Json(json!({"error": "no_active_membership"})),
+            )
+                .into_response(),
+            AppError::LastAdminCannotBeRemoved => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "last_admin_cannot_be_removed"})),
             )
                 .into_response(),
         }
@@ -1753,6 +1759,36 @@ pub async fn delete_cabinet_member(
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+
+    // Bloque la suppression du dernier admin actif du cabinet → 409.
+    let admin_count_row = sqlx::query(
+        "SELECT COUNT(*) AS cnt FROM cabinet_membership \
+         WHERE cabinet_id = $1 AND role = 'admin' AND active = true",
+    )
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let admin_count: i64 = admin_count_row
+        .try_get("cnt")
+        .map_err(|_| AppError::Internal)?;
+
+    let target_role_row = sqlx::query(
+        "SELECT role FROM cabinet_membership \
+         WHERE cabinet_id = $1 AND user_id = $2",
+    )
+    .bind(claims.cabinet_id)
+    .bind(target_user_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let target_role: String = target_role_row
+        .try_get("role")
+        .map_err(|_| AppError::Internal)?;
+
+    if target_role == "admin" && admin_count <= 1 {
+        return Err(AppError::LastAdminCannotBeRemoved);
+    }
 
     sqlx::query(
         "UPDATE cabinet_membership \
