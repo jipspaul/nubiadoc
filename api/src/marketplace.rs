@@ -891,13 +891,11 @@ pub async fn hold_slot(
     // Vérifie que le slot existe et récupère son statut (lock FOR UPDATE pour éviter la race).
     // Note : la RLS slot_public_read filtre sur status='open', donc on passe par nubia_app
     // qui a le policy slot_app_update (USING true) → visible quel que soit le statut.
-    let slot_row = sqlx::query(
-        "SELECT status FROM availability_slot WHERE id = $1 FOR UPDATE",
-    )
-    .bind(slot_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let slot_row = sqlx::query("SELECT status FROM availability_slot WHERE id = $1 FOR UPDATE")
+        .bind(slot_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     let slot_status: String = match slot_row {
         None => return Err(AppError::NotFound),
