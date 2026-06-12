@@ -1,196 +1,228 @@
-# Plan d'exécution atomique — état après audit (07/06)
+# Plan d'exécution atomique — état après audit (12/06)
 
-> Audit du **code réel** (pas du backlog) : `git log` + fichiers sur disque + `api/src` + `db/seed`.
-> **Bilan : 42 tâches livrées · 38 restantes** (dont **1 régression critique** et la **suite E2E parcours**).
+> Audit du **code réel** : `git log` + fichiers sur disque + `api/src/lib.rs` (97 routes enregistrées) + `web-console/src/pages/` + `web-console/tests/flows/`.
+> **Bilan : 80+ tâches livrées · 3 vraies tâches restantes + dette routes API**.
 > Convention : `P#`=`db/`, `R#`=`api/`, `W#`=`web-console/`, `E*`=tests E2E parcours. `[postgre]` `[rust]` `[web]`.
+>
+> ⚠️ **Lecteur planner** : ce fichier est ta SOURCE DE VÉRITÉ. Tout ce qui est en section A ne doit JAMAIS être re-dispatché. Si tu vois une ligne avec ✅, l'agent va produire un PR vide. Lis bien sections C, D, E qui contiennent le vrai TODO.
 
 ---
 
-## A. ✅ Déjà livré — ne plus refaire
+## A. ✅ Déjà livré — NE PLUS DISPATCHER
 
-| Équipe | Tâches livrées |
-|---|---|
-| `[postgre]` | **P1–P9** (table membership, seed comptes/agenda/docs/messagerie/engagement, sanity RLS) — **complet** |
-| `[rust]` | **R2** (refresh porte cabinet_id+role via `user_active_membership()`), **R4** (`POST /v1/cabinet/appointments`), **R5** (`POST /v1/quotes/:id/sign`), **R6** (`GET /v1/quotes/:id`) |
-| `[web]` fondations | **W1** tokens · **W2** session role-aware · **W3** api Bearer/401 · **W4** endpoints · **W5** middleware garde-rôle · **W6** kit (10 composants) · **W7** AppShell |
-| `[web]` auth | **W8** login+MFA · **W9** register+password · **W10** onboarding pro · **W11** routage par rôle |
-| `[web]` patient | **W13** search · **W14** rdv/index · **W19** messages · **W21** devis · **W22** soins · **W23** profil · **W24** couverture · **W25** proches · **W26** consentements |
-| `[web]` praticien | **W28** dashboard · **W29** agenda+créneaux · **W33** ordonnances · **W34** profil-public |
-| `[web]` secrétaire | **W38** patients · **W39** équipe · **W40** cabinet · **W42** messagerie |
-| `[web]` finition | **W44** alignement ports |
+### A.1 `[postgre]` (intégral)
+- **P1–P9** — table membership, seed comptes/agenda/docs/messagerie/engagement, sanity RLS
+- **P10** — table `secretariat` + RLS cabinet-scoped + backfill + seed 2 (commit P10.c #1403 mergé 11/06)
+- **P11** — table `secretariat_membership` + RLS + seed
+- **P12** — table `provider_secretariat` + seed A→A, B→B
+- **P13** — `user_active_memberships()` + GUC `app.current_secretariat_id` + policies scoped
+- **P14** — pgTAP isolation secrétariat (831/831 tests verts au 11/06)
 
-> ⚠️ **Caveat** : les pages **praticien/secrétaire livrées s'affichent mais leurs appels `/v1/cabinet/*` renvoient 401** tant que **R1** (ci-dessous) n'est pas restauré. Elles ne sont « vraiment » fonctionnelles qu'après B.
+### A.2 `[rust]` (régression R1 corrigée + socle complet)
+- **R1 ✅ RESTORED (11/06)** — `auth/login.rs` ligne 165 : `SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1)` → encode `ProRegisterClaims{cabinet_id, role, secretariat_id?}`. Multi-contexte : 1 appartenance → token embarqué ; n appartenances → `ProClaims` nu + `context_required:true`.
+- **R2** — refresh porte `cabinet_id+role+secretariat_id` (via `user_all_memberships`)
+- **R3** — test `tests/auth_login_pro.rs` présent (PARTIAL : couvre happy path mais pas tous les bords ; voir section D si besoin de durcir)
+- **R4** — `POST /v1/cabinet/appointments` (secrétaire crée RDV)
+- **R5** — `POST /v1/quotes/:id/sign` (alias `/sign`, voir D.2 pour aligner avec doc12 `/signature`)
+- **R6** — `GET /v1/quotes/:id`
+- **R7** — `GET /v1/me` multi-contextes
+- **R9** — login/refresh multi-contexte (intégré dans R1/R2)
+- **R12** — `cabinet_secretariats.rs` CRUD secrétariats + membres
+- **R13** — `POST /v1/cabinet/secretariats/:id/staff` provisionner secrétaire
+
+### A.3 `[web]` fondations + auth (intégral)
+- **W1–W7** — tokens · session role-aware · api Bearer/401 · endpoints · middleware garde-rôle · kit (10 composants) · AppShell
+- **W8–W11** — login+MFA · register+password · onboarding pro · routage par rôle
+- **W44** — alignement ports
+
+### A.4 `[web]` Espace patient (intégral)
+- **W12** ✅ `patient/accueil` (dashboard agrégé, 186 lignes)
+- **W13** ✅ `search`
+- **W14** ✅ `patient/rdv/index`
+- **W15** ✅ `patient/rdv/[id]/index` (341 lignes, GET/PATCH/cancel/checkin/callback-request)
+- **W16** ✅ `patient/rdv/[id]/preparation` (138 lignes)
+- **W17** ✅ `patient/rdv/[id]/salle-attente` (97 lignes)
+- **W18** ✅ `patient/rdv/reserver` (241 lignes, mergé 11/06 #1442)
+- **W19** ✅ `patient/messages`
+- **W20** ✅ `patient/documents` index+[id] (166 lignes)
+- **W21** ✅ `patient/devis`
+- **W22** ✅ `patient/soins`
+- **W23** ✅ `patient/profil`
+- **W24** ✅ `patient/profil/couverture`
+- **W25** ✅ `patient/profil/proches`
+- **W26** ✅ `patient/profil/consentements`
+- **W27** ✅ `patient/profil/notifications` (409 lignes)
+
+### A.5 `[web]` Espace praticien (intégral)
+- **W28** ✅ `praticien/dashboard`
+- **W29** ✅ `praticien/agenda`
+- **W30** ✅ `praticien/file` salle d'attente (210 lignes)
+- **W31** ✅ `praticien/patients` index + [id] (136 + 389 lignes)
+- **W32** ✅ `praticien/consultation/[id]` (357 lignes)
+- **W33** ✅ `praticien/ordonnances`
+- **W34** ✅ `praticien/profil-public`
+
+### A.6 `[web]` Espace secrétaire (intégral)
+- **W35** ✅ `secretary/dashboard` (299 lignes)
+- **W36** ✅ `secretary/agenda` (400 lignes)
+- **W37** ✅ `secretary/liste-attente` (239 lignes)
+- **W38** ✅ `secretary/patients`
+- **W39** ✅ `secretary/equipe`
+- **W40** ✅ `secretary/cabinet`
+- **W41** ✅ `secretary/facturation` (195 lignes)
+- **W42** ✅ `secretary/messagerie`
+
+### A.7 `[web]` Multi-établissement (partiel)
+- **W53** ✅ `auth/select-context` (179 lignes)
+- **W54** ✅ `praticien/secretariats` (351 lignes, assignation docteur→secrétariat)
+- **W56** ✅ middleware garde contexte (`nubia_ctx` cookie + check dans `middleware.ts`)
+- **W57** ✅ `admin/secretariats` index + [id] (374 lignes)
+
+### A.8 `[web]` Finition
+- **W43** ✅ `src/pages/test/` supprimé (commit `8c1c78a` via #1315)
+- **W45** ✅ `scripts/dev-stack.sh` imprime 3 URLs + 3 comptes démo (mergé 11/06 #1450)
+- **W50** ✅ `web-console/README.md` complet 161 lignes (mergé 11/06 #1444)
+
+### A.9 `[web]` E2E tous les parcours (intégral, 21 flows livrés)
+- **E0** ✅ `tests/flows/E0.harness.spec.ts` — harnais Playwright multi-rôle + helpers
+- **EP1–EP7** ✅ — Onboarding (200L), Recherche→réservation (232L), Gestion RDV+jour J (386L), Messagerie (121L), Documents+devis (277L), Soins+profil (336L), Auth bords (306L)
+- **ED1–ED5** ✅ — Dashboard+agenda (191L), Salle d'attente (125L), Patient+consultation (284L), Ordonnance+profil public (173L), Docteur multi-établissement (326L)
+- **ES1–ES4 + ES5** ✅ — Agenda (180L), Liste attente+patients (164L), Équipe+cabinet+facturation (154L), Cloisonnement (103L), Secrétaire multi-secrétariat (380L)
+- **EX1–EX4** ✅ — Réservation E2E (302L), RDV créé par secrétaire (189L), Wedge devis (259L), Docteur assigne patient-list scoped (350L)
 
 ---
 
-## B. ⛔ RÉGRESSION CRITIQUE — à traiter en premier
+## B. ⛔ Régression critique — RIEN
 
-| ID | Tâche | Constat d'audit | Correctif |
-|---|---|---|---|
-| **R1** | `[rust]` login pro doit porter `cabinet_id`+`role` | **PR #1093 mergée puis écrasée par un merge ultérieur.** `api/src/auth/login.rs` (branche `else`, l.154-163) émet encore `ProClaims{sub,kind,exp}` — **sans `cabinet_id` ni `role`**. Le struct `ProClaims` (mod.rs:97) n'a que 3 champs. | Répliquer dans `login.rs` la logique **déjà présente dans `refresh.rs`** : `SELECT cabinet_id, role FROM user_active_membership($1)` → encoder `ProRegisterClaims{cabinet_id, role}`. ~15 lignes. |
-| **R3** | `[rust]` test garde login pro → cabinet | **N'a jamais existé** → rien n'a détecté la régression R1. `tests/auth_login.rs` ne teste que le cas MFA. | `tests/auth_login_pro.rs` : login `practitioner`/`secretary` via `/v1/auth/login` → `GET /v1/cabinet/agenda` = 200 ; `secretary` sur conversation `scope=clinical` filtré ; pro sans membership → token nu. **Doit échouer aujourd'hui, passer après R1.** |
-
-> **Pourquoi P0** : `R1` débloque **TOUTES** les tâches praticien + secrétaire (réelles) et **tous** les parcours E2E pro/cross (D*, S*, X*). `R2` étant déjà bon, le risque est minime (copier-coller du lookup existant).
+**B.1** R1 a été restauré le 11/06. Plus de régression critique connue. Si une régression apparaît, ajouter une ligne ici avec verdict + correctif AVANT toute autre tâche.
 
 ---
 
-## C. ⬜ Reste à faire — pages & écrans
+## C. ⬜ Vraies tâches web restantes
 
-### C.1 `[web]` Espace patient (7 écrans)
-| ID | Écran | Route(s) API | Dépend de |
-|---|---|---|---|
-| **W12** | `patient/accueil` (dashboard agrégé) | `GET /v1/dashboard` | (fond. ✅) |
-| **W15** | `patient/rdv/[id]` + actions | `GET/PATCH /v1/appointments/:id`, `…/cancel`, `…/checkin`, `…/callback-request` | W14 ✅ |
-| **W16** | `patient/rdv/[id]/preparation` | `GET …/preparation`, `…/directions` | W15 |
-| **W17** | `patient/rdv/[id]/salle-attente` | `GET …/queue` (polling) | W15 |
-| **W18** | `patient/rdv/reserver` | `POST /v1/appointments` (depuis search slots) | W13 ✅ |
-| **W20** | `patient/documents` index+détail | `GET /v1/documents`, `…/:id`, `…/:id/download` | (fond. ✅) |
-| **W27** | `patient/profil/notifications` | `GET/PATCH /v1/account/notification-preferences`, `GET /v1/notifications`, `GET /v1/reminders` | W23 ✅ |
-
-### C.2 `[web]` Espace praticien (3 écrans) — **dépend de R1**
-| ID | Écran | Route(s) API | Dépend de |
-|---|---|---|---|
-| **W30** | `praticien/file` (salle d'attente) | `GET /v1/cabinet/waiting-room` (polling), `POST …/call-next` | **R1** |
-| **W31** | `praticien/patients` index+dossier | `GET /v1/cabinet/patients` (+`/:id`,`/notes`,`/medical-record`,`/dental-chart`,`/documents`) | **R1** |
-| **W32** | `praticien/consultation/[id]` | `GET /v1/cabinet/consultations/:id`, `POST …/acts`, `…/complete`, `POST /v1/cabinet/appointments/:id/start` | **R1** |
-
-### C.3 `[web]` Espace secrétaire (4 écrans) — **dépend de R1**
-| ID | Écran | Route(s) API | Dépend de |
-|---|---|---|---|
-| **W35** | `secretary/dashboard` | `GET /v1/cabinet/appointments`, `…/agenda`, `…/waiting-room` | **R1** |
-| **W36** | `secretary/agenda` (gestion RDV) | `POST /v1/cabinet/appointments` (R4 ✅), `…/:id/confirm`, `PATCH …/:id`, créneaux | **R1** |
-| **W37** | `secretary/liste-attente` | `GET /v1/cabinet/waiting-list`, `POST …/:id/offer` | **R1** |
-| **W41** | `secretary/facturation` | `GET /v1/quotes` (vue cabinet) | **R1** |
-
-### C.4 `[web]` Finition
 | ID | Tâche | Détail | Dépend de |
 |---|---|---|---|
-| **W43** | Consolidation/nettoyage | supprimer `src/pages/test/*` (≈70) + doublons (`app/`,`scheduling/`,`appointments/`,`cabinet/`,`clinical/`,`documents/`,`marketplace/`,`me/`,`dashboard/`,`account/`,`pro/`,`notifications/`,`devices/`,`implant-passport/`,`reviews/`,`providers/`,`login.astro`,`register.astro`) ; remplacer `NavMenu` par les navs de rôle | C.1–C.3 finies |
-| **W45** | dev-stack publie 3 URLs + creds | `scripts/dev-stack.sh` (racine ⚠️ hors sparse web) imprime `/patient` `/praticien` `/secretary` + comptes démo | — |
-| **W50** | Docs | `README.md` (rôles/URLs/creds/run) + `ARCHITECTURE.md` (flux auth, matrice écran↔route↔rôle) | W43, EX1, EP5 |
+| **W52** | sélecteur de contexte (AppShell) | Bouton dans AppShell qui ouvre dropdown des contextes (cabinet × secrétariat) ; click → `POST /v1/auth/select-context` + reload. Affiché seulement si user a >1 contexte (lu via `GET /v1/me`). | R8 (manquant) |
+| **W58** | manager — gestion du personnel | Page CRUD pour `{admin,manager}` : créer/inviter secrétaire (`POST /v1/cabinet/secretariats/:id/staff` = R13 ✅), affecter/retirer membre, lister. | R13 ✅, W51 |
+| **ES6** | flow E2E manager provisionne secrétaire | `tests/flows/ES6.flow.spec.ts` : manager login → ajoute secrétaire dans secrétariat A → la secrétaire se connecte → voit secrétariat A scoped. | E0 ✅, R13 ✅, W58 |
 
----
-
-## D. 🧪 Suite E2E « tous les parcours utilisateur » (NOUVEAU)
-
-> **Constat** : 134 specs existent mais **toutes au niveau page** (`tests/e2e/*.spec.ts`), **aucun parcours bout-en-bout**. Voici la suite de **parcours** demandée. 1 tâche = 1 fichier `tests/flows/<id>.flow.spec.ts`. Sur **vraie API + seed** via `dev-stack`.
-
-### D.0 Harnais (prérequis)
-| ID | Tâche | Détail | Dépend de |
-|---|---|---|---|
-| **E0** | Harnais parcours + fixtures | Playwright `projects` par rôle, helpers `loginAs(role)`, comptes seed (P2), `baseURL :38040`, reset d'état entre parcours | (fond. ✅) |
-
-### D.1 Parcours **Patient** (indépendants de R1)
-| ID | Parcours bout-en-bout | Couvre | Dépend de |
-|---|---|---|---|
-| **EP1** | Onboarding | register → login → profil → couverture(+carte) → proches CRUD | E0, W8✅, W23✅, W24✅, W25✅ |
-| **EP2** | Recherche → réservation | search → profil praticien → slot → `POST appointment` → visible dans Mes RDV | E0, W13✅, **W18**, W14✅ |
-| **EP3** | Gestion RDV + jour J | détail → modifier → annuler ; check-in → salle d'attente → préparation | E0, **W15**, **W16**, **W17** |
-| **EP4** | Messagerie | créer conversation → envoyer → marquer lu → relire | E0, W19✅ |
-| **EP5** | Documents + devis | docs liste→détail→download ; devis liste→signer→acompte | E0, **W20**, W21✅ |
-| **EP6** | Soins + profil | plan→passeport(export) ; consentements ; notifications | E0, W22✅, W26✅, **W27** |
-| **EP7** | Auth bords | MFA login ; mot de passe oublié→reset | E0, W8✅ |
-
-### D.2 Parcours **Praticien** — **dépendent de R1**
-| ID | Parcours | Couvre | Dépend de |
-|---|---|---|---|
-| **ED1** | Dashboard + agenda | login → dashboard → créneaux (créer/éditer/supprimer/en ligne) | E0, **R1**, W28✅, W29✅ |
-| **ED2** | Salle d'attente | file → call-next (polling) | E0, **R1**, **W30** |
-| **ED3** | Patient + consultation | dossier(med-record/dental-chart/notes/docs) ; start→acte→complete | E0, **R1**, **W31**, **W32** |
-| **ED4** | Ordonnance + profil public | créer→signer ; provider patch/listing + vérif RPPS | E0, **R1**, W33✅, W34✅ |
-
-### D.3 Parcours **Secrétaire** — **dépendent de R1**
-| ID | Parcours | Couvre | Dépend de |
-|---|---|---|---|
-| **ES1** | Agenda | login → dashboard → créer RDV(R4) → confirmer → modifier | E0, **R1**, R4✅, **W35**, **W36** |
-| **ES2** | Liste d'attente + patients | liste d'attente→offer ; patients vue admin (sans clinique) | E0, **R1**, **W37**, W38✅ |
-| **ES3** | Équipe + cabinet + facturation | inviter→modifier→retirer membre ; réglages cabinet ; devis cabinet | E0, **R1**, W39✅, W40✅, **W41** |
-| **ES4** | Cloisonnement | 403/redirect sur route praticien-only ; messagerie scope clinique masqué | E0, **R1**, W42✅, W5✅ |
-
-### D.4 Parcours **Cross-rôle** — **dépendent de R1**
-| ID | Parcours | Couvre | Dépend de |
-|---|---|---|---|
-| **EX1** | Réservation bout-en-bout | patient réserve → praticien voit dans agenda → secrétaire confirme | E0, **R1**, **W18**, W28✅, **W36** |
-| **EX2** | RDV créé par secrétaire | secrétaire crée RDV → patient le voit dans Mes RDV | E0, **R1**, R4✅, **W36**, W14✅ |
-| **EX3** | Wedge devis | praticien pousse devis → patient signe → secrétaire voit règlement | E0, **R1**, W33✅, W21✅, **W41** |
-
----
-
-## E. Dépendances qui restent (les seules qui comptent)
-- **R1 → W30, W31, W32, W35, W36, W37, W41** (écrans pro réels) **et → ED*, ES*, EX*** (parcours pro/cross). **C'est le goulot unique.**
-- **Pages C.1–C.3 → leurs parcours E2E** (D.1–D.4) : un parcours ne peut passer que si ses écrans existent.
-- `[postgre]` et `[rust]` (hors R1/R3) : **terminés** — plus de blocage amont.
-
-## F. Definition of Done (mise à jour)
-- **`[rust]`** : R1 restauré + R3 vert (login pro → cabinet 200) ; `fmt`/`clippy`/`sqlx prepare --check`/`nextest` verts.
-- **`[web]` écrans** : C.1–C.3 livrés ; `npm run build` + `tsc --noEmit` verts.
-- **`[web]` E2E** : `tests/flows/` couvre **EP1–EP7, ED1–ED4, ES1–ES4, EX1–EX3** au vert sur vraie API + seed.
-- **`[web]` finition** : doublons/`test` supprimés (W43) ; dev-stack imprime 3 URLs+creds (W45) ; docs (W50).
-
-## G. Ordre conseillé
-1. **R1** (déblocage) → **R3** (garde anti-régression).
-2. `[web]` patient C.1 (W12,W15,W16,W17,W18,W20,W27) — **en parallèle**, sans attendre R1.
-3. `[web]` pro C.2/C.3 (W30→W32, W35→W41) — après R1.
-4. **E0** puis parcours E2E (D) au fur et à mesure que les écrans tombent.
-5. **W43** nettoyage → **W45** dev-stack → **W50** docs.
-
----
-
-## H. Évolution — multi-établissement & secrétariats (NOUVEAU, 07/06)
-
-> **Besoin métier** : un **docteur exerce dans plusieurs établissements** ; il **assigne sa liste de patients + son agenda à un secrétariat précis** ; les **utilisateurs (secrétaires, managers)** sont **rattachés à un secrétariat** et peuvent appartenir à **plusieurs établissements/secrétariats** ; chaque secrétaire est **différenciée** selon son secrétariat et peut avoir **des docteurs/patients différents** ; un **directeur/manager peut créer/assigner des comptes secrétaires**.
-
-### Décisions de modélisation (autonome — Option A, à valider)
-- **Établissement = `cabinet` existant** (reste la frontière tenant/RLS ; pas de renommage).
-- **`secretariat`** = sous-unité d'un établissement (**1..n par cabinet**).
-- **3 catégories d'utilisateurs distinctes** : `patient` · `provider` (docteur) · **personnel de secrétariat** (`secretary`, `manager`). Le personnel = `app_user(kind=pro)` rattaché par `secretariat_membership`, **sans** ligne `provider`.
-- **Scoping secrétaire** : ne voit que les **docteurs assignés à son secrétariat** (`provider_secretariat`) + leurs patients (dérivé via RDV) → cloisonnement **intra-établissement**.
-- **Contexte actif** : un user multi-appartenance **choisit son contexte** (établissement + secrétariat) ; le JWT porte `cabinet_id`+`role`(+`secretariat_id`). **Remplace le `LIMIT 1` de R1** (R9).
-- **Patient↔secrétariat** : dérivé (via docteur assigné) pour la démo ; table explicite `patient_secretariat` = post-démo si besoin.
-- **Manager** : rôle au niveau **secrétariat** (`secretariat_membership.role='manager'`) ; l'**admin** établissement a le sur-ensemble. Provisioning de comptes secrétaires autorisé pour `{admin, manager}`.
-
-### H.1 `[postgre]`
-| ID | Tâche | Détail | Dépend de |
-|---|---|---|---|
-| **P10** | table `secretariat` | `(id, cabinet_id FK, name, created_at)` ; RLS cabinet-scoped ; backfill 1/cabinet + seed 2 sur cabinet démo | — |
-| **P11** | table `secretariat_membership` | `(secretariat_id, user_id, role∈{secretary,manager}, active)` ; RLS ; seed 1 manager + 2 secrétaires | P10 |
-| **P12** | table `provider_secretariat` | `(provider_id, secretariat_id, active)` — assignation docteur→secrétariat ; seed A→A, B→B | P10 |
-| **P13** | contexte actif + RLS secrétaire | `user_active_memberships()` (cabinet_id, role, secretariat_id) + GUC `app.current_secretariat_id` ; policies agenda/patients/waiting-room/conversations filtrées par secrétariat | P11, P12 |
-| **P14** | pgTAP isolation secrétariat | secrétaire A ≠ voit secrétariat B (même établissement) ; docteur voit ses 2 établissements | P13 |
-
-### H.2 `[rust]`
-| ID | Tâche | Détail | Dépend de |
-|---|---|---|---|
-| **R7** | `GET /v1/me` tous contextes | établissements + secrétariats + rôles (multi-appartenance) | P11 |
-| **R8** | `POST /v1/auth/select-context` | `{cabinet_id, secretariat_id?}` → JWT scoped ; role ∈ {admin,practitioner,secretary,manager} | P11, P13 |
-| **R9** | login/refresh multi-contexte | révise R1/R2 : 1 contexte→embarqué ; n→token nu + `context_required` | **R1**, R8, P13 |
-| **R10** | endpoints cabinet **secretary-scoped** | agenda/patients/waiting-room/appointments/conversations filtrés par `secretariat_id` ; claim porte `secretariat_id` | R8, R9, P13 |
-| **R11** | assignation docteur→secrétariat | `GET/PUT /v1/cabinet/providers/:id/secretariats` | P12 |
-| **R12** | CRUD secrétariats + membres | `GET/POST /v1/cabinet/secretariats`, `PATCH/DELETE :id`, `POST/DELETE :id/members` (admin/manager) | P10, P11 |
-| **R13** | provisionner un compte secrétaire | `POST /v1/cabinet/secretariats/:id/staff` : crée app_user(pro,secretary) ou rattache existant + membership ; `{admin,manager}` ; audité | P11, P12, R12 |
-
-### H.3 `[web]`
-| ID | Tâche | Détail | Dépend de |
-|---|---|---|---|
-| **W51** | session contexte | `secretariat_id` + cookie `nubia_ctx` + helpers | R8 |
-| **W52** | sélecteur de contexte (AppShell) | établissement + secrétariat ; `/v1/auth/select-context` ; affiché si >1 ; nom du secrétariat visible | R7, R8, W51, W7 |
-| **W53** | écran choix de contexte post-login | si `context_required` → choisir établissement+secrétariat | R7, R8, W51 |
-| **W54** | praticien — mes secrétariats / assignation | assigner patients+agenda à un secrétariat par établissement (`PUT providers/:id/secretariats`) | R11, W51 |
-| **W55** | secrétaire — bandeau contexte + données scoped | « Secrétariat X — Établissement Y » ; agenda/patients filtrés ; adapte W35/W36/W38 | R10, W51, W35 |
-| **W56** | middleware garde contexte | `secretariat_id` ; user sans contexte → W53 | W5, W51 |
-| **W57** | admin — gestion des secrétariats | CRUD secrétariats + affectation membres (R12) | R12, W51 |
-| **W58** | manager — gestion du personnel | créer/inviter secrétaire + affecter/retirer (R13) ; visible `{admin,manager}` | R13, W51, W52 |
-
-### H.4 `[web][e2e]` parcours
-| ID | Parcours | Dépend de |
+### Items à confirmer (PARTIAL)
+| ID | Tâche | Notes |
 |---|---|---|
-| **ED5** | docteur multi-établissement : choisit A puis B → assigne agenda au secrétariat de chacun → bonne secrétaire le voit | E0, R9, W54, R11 |
-| **ES5** | secrétaire multi-secrétariat : 2 secrétariats → sélection contexte → patients/docteurs différents (cloisonnement) | E0, R10, W52, W55, P11, P12 |
-| **ES6** | manager provisionne une secrétaire → assigne au secrétariat A → la secrétaire se connecte, scoped A | E0, R13, R10, W58, W55 |
-| **EX4** | docteur assigne patient-list à secrétariat A → secrétaire A voit, secrétaire B ne voit pas | E0, R10, R11, W54, W55 |
+| **W51** | session contexte | Cookie `nubia_ctx` + parsing dans `middleware.ts` existent ; vérifier qu'il n'y a pas besoin d'une page SSR `/contexts` dédiée. Probablement OK en l'état. |
+| **W55** | bandeau contexte sur dashboard secrétaire | Dashboard livré (W35 ✅) mais bandeau « Secrétariat X — Établissement Y » à confirmer présent. Si absent : 1 issue ~30 lignes. |
 
-### H.5 Dépendances inter-équipes & séquencement
-- **Chemin** : `P10→P11/P12→P13→R8→R9/R10→W51→W52/W55→ES5/EX4`. Manager : `R12→R13→W58→ES6`.
-- **R9 supersede la simplification `LIMIT 1` de R1** : faire **R1** (restaurer le contexte simple) d'abord, **puis** R9 (multi-contexte) — pas l'un sans l'autre en prod.
-- `[rust]` R7/R8 et `[web]` W51/W52/W53 sont le **socle contexte** : tout le scoping secrétaire en dépend.
-- **Ordre conseillé épique** : P10→P14 · R7→R13 · W51→W58 · ED5/ES5/ES6/EX4. Démarre dès que **R1** est restauré (section B).
+---
+
+## D. ⬜ Vraies tâches rust restantes
+
+### D.1 R## manquants (multi-contexte)
+| ID | Tâche | Détail | Dépend de |
+|---|---|---|---|
+| **R8** | `POST /v1/auth/select-context` | Handler dans `api/src/auth/select_context.rs` (fichier déjà créé, vérifier qu'il expose une route. La doc12 §3 dit `{ cabinet_id, secretariat_id? } → JWT scoped`). | P11 ✅, P13 ✅ |
+| **R10-complete** | endpoints cabinet secretary-scoped | Filtrage par `secretariat_id` du JWT sur `agenda/patients/waiting-room/appointments/conversations`. Code partiellement présent — auditer chaque handler. | R8 |
+| **R11** | `GET/PUT /v1/cabinet/providers/:id/secretariats` | Assignation docteur→secrétariat (admin/manager). Handler à créer dans `provider_secretariat.rs` (fichier existe, vérifier route enregistrée). | P12 ✅ |
+
+### D.2 Cohérence contrat / code
+| ID | Tâche | Détail |
+|---|---|---|
+| **R5-rename** | route signature devis | Doc12 §10 dit `POST /v1/quotes/:id/signature`. Code expose `/sign`. Soit aligner doc, soit ajouter alias. Issue ≤30 lignes. |
+| **R3-strict** | bords du test login pro | `tests/auth_login_pro.rs` existe mais cas non couverts : `secretary` filtre conversation `scope=clinical`, pro sans membership renvoie token nu, role `manager`. À durcir si on veut une vraie garde anti-régression. |
+
+---
+
+## E. ⬜ Dette routes API — 45 routes documentées sans handler
+
+> Source : diff `docs/12-api-reference.md` ↔ `api/src/lib.rs` (97 routes en prod, ~140 documentées). Les routes ci-dessous sont **documentées dans le contrat** mais **n'ont pas de handler**.
+>
+> ⚠️ Note pour le planner : **1 route = 1 issue rust-agent atomique** (handler + 2-3 tests). Vise diff ≤200 lignes.
+
+### E.1 P0 — bloquent E2E patient (8 routes)
+1. `POST /v1/appointments` — créer RDV depuis le patient
+2. `PATCH /v1/appointments/:id` — modifier
+3. `POST /v1/appointments/:id/cancel` — annuler (gère 409 too_late)
+4. `POST /v1/appointments/:id/checkin` — check-in jour J
+5. `POST /v1/appointments/:id/callback-request` — demande rappel
+6. `GET /v1/appointments/:id/preparation` — préparation (bring list dérivée)
+7. `GET /v1/appointments/:id/directions?mode=car` — deeplink itinéraire (non stocké)
+8. `GET /v1/appointments/:id/queue` — file d'attente (polling, WebSocket plus tard)
+
+### E.2 P0 — bloquent E2E pro (12 routes)
+9. `POST /v1/cabinet/members` — inviter membre
+10. `PATCH /v1/cabinet/members/:user_id` — modifier rôle
+11. `DELETE /v1/cabinet/members/:user_id` — retirer
+12. `POST /v1/cabinet/appointments/:id/confirm` — secrétaire confirme RDV
+13. `POST /v1/cabinet/appointments/:id/start` — praticien démarre consultation
+14. `GET /v1/cabinet/waiting-room` — salle d'attente (polling)
+15. `POST /v1/cabinet/waiting-room/call-next` — call-next
+16. `GET /v1/cabinet/patients/:id/notes` — journal clinique
+17. `POST /v1/cabinet/patients/:id/notes` — créer note (chiffrée, signée)
+18. `GET /v1/cabinet/consultations/:id` — détail consultation
+19. `POST /v1/cabinet/consultations/:id/acts` — ajouter acte
+20. `POST /v1/cabinet/consultations/:id/complete` — finaliser
+
+### E.3 P1 — marketplace (3 routes)
+21. `POST /v1/slots/:id/hold` — bloquer slot 5 min + hold_token
+22. `POST /v1/bookings` — consomme hold_token, crée appointment + idempotency-key
+23. `GET /v1/providers/:id/availability` — créneaux open d'un praticien
+
+### E.4 P1 — webhooks (3 routes)
+24. `POST /v1/webhooks/yousign` — signature.completed → quote signed
+25. `POST /v1/webhooks/gocardless` — payments.confirmed → payment paid
+26. `POST /v1/webhooks/sentry` (déjà spécifié ailleurs ? à confirmer)
+
+### E.5 P1 — devis cabinet (2 routes)
+27. `POST /v1/cabinet/quotes` — créer devis (items, deposit_pct)
+28. `PATCH /v1/cabinet/quotes/:id` — éditer (409 quote_locked si signé)
+
+### E.6 P2 — messagerie cabinet (2 routes)
+29. `GET /v1/cabinet/conversations/:id/messages`
+30. `POST /v1/cabinet/conversations/:id/messages`
+
+### E.7 P2 — autres (15 routes restantes)
+31. `PATCH /v1/account/coverage` — MAJ couverture (NSS chiffré)
+32. `PATCH /v1/account/notification-preferences`
+33. `PUT /v1/account/consents/:purpose` — toggle consent
+34. `POST /v1/conversations` — créer fil patient
+35. `GET /v1/documents` (list)
+36. `POST /v1/documents` — upload
+37. `GET /v1/documents/:id/download` — URL signée 302
+38. `POST /v1/waiting-list` — patient s'inscrit
+39. `POST /v1/payments/intent` — Stripe/GoCardless intent
+40. `POST /v1/quotes/:id/signature` — démarre flow Yousign (alias /sign)
+41. `POST /v1/reviews` (déjà /reviews ? vérifier owner check)
+42. `GET /v1/cabinet/search?q=` — annexe A spotlight
+43. `POST /v1/cabinet/assistant/ask` — annexe A (post-traction)
+44. `GET /v1/ws` — WebSocket (handshake JWT)
+45. `POST /v1/pro/verification` — RPPS/ADELI async
+
+---
+
+## F. Definition of Done (mise à jour 12/06)
+
+- **`[postgre]`** : terminé (831/831 pgTAP verts, RLS+migrations OK).
+- **`[rust]`** : R1-R7+R9+R12+R13 ✅, manque R8/R10-complete/R11 (~3 issues) + 45 routes contrat E.1-E.7 (priorité P0 d'abord).
+- **`[web]` écrans** : terminé (47 pages + 21 flows E2E livrés), manque W52/W58 (~2 issues) + W51/W55 à confirmer.
+- **`[web]` finition** : W43, W45, W50 ✅.
+
+## G. Ordre d'attaque conseillé (planner)
+
+> Priorité dispatch (du plus contraint au moins) :
+
+1. **R8 (select-context)** → débloque W52 et test ES5/ES6
+2. **R11** + **W58** → débloque ES6
+3. **W52** + **W58** (web pur)
+4. **ES6** (test E2E)
+5. **R10-complete** (durcissement filtrage secretary-scoped)
+6. **R5-rename / R3-strict** (cohérence + garde)
+7. **Section E P0** (routes API bloquantes — 20 routes)
+8. **Section E P1** (marketplace + webhooks — 8 routes)
+9. **Section E P2** (le reste — 15 routes)
+
+## H. Notes pour le planner (LIRE AVANT DE GÉNÉRER)
+
+- **Ne JAMAIS dispatcher un item de section A** (=✅). L'agent produira un PR vide. Si tu vois un item là, c'est livré.
+- **Avant de créer une issue à partir d'une ligne C/D/E** : `curl -s $FORGEJO/jips/nubiadoc/raw/branch/main/<fichier cible>` pour vérifier que la cible existe / n'existe pas selon le contexte (deletion vs création).
+- **1 issue = 1 deliverable testable** : 1 route + 2 tests OU 1 page + check build OU 1 flow + run vert. JAMAIS de "+/et".
+- Auto-split rule de l'agent-planner-oc : si tu vois un titre avec "+", "ET", ou ≥2 deliverables → split d'abord.
+- Cap planner = **15 issues max par run** (cluster mono-nœud, voir POSTMORTEM-2026-06-03).

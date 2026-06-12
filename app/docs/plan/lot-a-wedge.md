@@ -13,14 +13,18 @@
 
 ## Backlog atomique
 
-| ID | Titre | Critères d'acceptation (résumé) | Tests | → |
-|----|-------|----------------------------------|-------|---|
-| **A1** | `flutter(app): domain billing — AmountCents + QuoteStatus + usecases (GetPendingQuotes/GetQuoteById/InitiateSignature/InitiateDeposit)` | `AmountCents` rejette négatifs/format ; usecases renvoient `Either<Failure,_>` ; aucun `import flutter` | unit (AmountCents edge cases, chaque usecase succès/échec) | — |
-| **A2** | `flutter(app): data billing — QuoteDto + BillingApi (Dio/retrofit) + BillingRepositoryImpl` | mapping DTO↔entité ; 4 routes câblées ; erreurs → `Failure` | unit (mapping, 401/500→Failure) | A1 |
-| **A3** | `flutter(app): QuoteListPage + QuoteDetailPage (lignes repliables, badge statut, CTA Signer)` | total + reste à charge en gras ; CTA désactivé si signé | widget (3 statuts, CTA disabled) | A2 |
-| **A4** | `flutter(app): SignatureWebViewPage (InAppWebView Yousign + deep link callback)` | reprise si interrompu (statut reste `sent`) | widget (callback simulé → succès) | A3 |
-| **A5** | `flutter(app): DepositPaymentPage (Stripe PaymentSheet + Apple/Google Pay + Idempotency-Key)` | clé idempotence générée avant 1er tap, réutilisée au retry ; états loading/disabled/error | unit (idempotency), widget (états) | A2 |
-| **A6** | `flutter(app): PaymentSuccessPage + wiring wedge end-to-end + cas limites (RAC=0, devis expiré, paiement KO)` | RAC=0 → skip paiement ; expiré → CTA nouveau devis | widget (branches) | A4,A5 |
-| **A7** | `flutter(app): deps pubspec — flutter_stripe + pay + flutter_inappwebview (versions épinglées)` | `flutter pub get` OK, build passe | — | — |
+> **État au 12/06** : A1-A5 + A7 ✅ mergés sur `main` (commits 4bb12aa, da95208, 9167d8d, 380f101, 274d3ab, 7153bee). A6 🟡 PARTIAL (PaymentSuccessPage existe mais wiring E2E à confirmer). **NE PLUS DISPATCHER A1-A5/A7 — un agent re-essayant produira un PR vide (cf. POSTMORTEM 2026-06-12).**
 
-**Séquence interne** : `A1→A2→{A3→A4, A5}→A6`. `A7` indépendant mais prérequis build de `A5`.
+| ID | Statut | Titre | Commit |
+|----|--------|-------|--------|
+| **A1** | ✅ DONE | domain billing — AmountCents + QuoteStatus + usecases | `4bb12aa` (PR #1441, issue #1410) |
+| **A2** | ✅ DONE | data billing — QuoteDto + BillingApi + BillingRepositoryImpl | `da95208` (PR #1448, issue #1411) |
+| **A3** | ✅ DONE | QuoteListPage + QuoteDetailPage | `9167d8d` (issue #1412) |
+| **A4** | ✅ DONE | SignatureWebViewPage (InAppWebView Yousign + deep link callback) | `380f101` (issue #1350 / T14) |
+| **A5** | ✅ DONE | DepositPaymentPage (Stripe PaymentSheet + Apple/Google Pay + Idempotency-Key) | `274d3ab` (issue #1414) |
+| **A6** | 🟡 PARTIAL | PaymentSuccessPage + wiring wedge end-to-end + cas limites (RAC=0, devis expiré, paiement KO) | partiel `4bb12aa`. **À FAIRE** : vérifier wiring `wedge_bloc` (RAC=0 skip, devis expiré CTA, retry KO). 1 issue ≤80 lignes. |
+| **A7** | ✅ DONE | deps pubspec — flutter_stripe + flutter_inappwebview (versions épinglées) | `7153bee` (PR #1434, issue #1416). Note: `pay:` peut être absent (Stripe seul suffit MVP). |
+
+**Reste à faire (lot A)** : finir A6 uniquement.
+
+**Séquence interne** : `A1→A2→{A3→A4, A5}→A6`. `A7` indépendant.

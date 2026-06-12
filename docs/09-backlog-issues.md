@@ -1,6 +1,17 @@
 # 09 — Backlog d'issues prêtes à créer
 
-> Backlog **issue-ready** : chaque brique de `08-plan-action-deploiement.md` est éclatée en issues granulaires. Copie un bloc → crée l'issue → traite ses micro-étapes une par une → coche la gate → passe à la suivante.
+> ⚠️ **MISE À JOUR 12/06** : ce fichier est un backlog **historique** (T0→T24 du plan d'origine, scaffold de l'API Rust). La majorité des items T0-T9 sont **livrés** (cf. `PROGRESS.md` section « État par brique » + 97 routes enregistrées dans `api/src/lib.rs`). **Le planner agent ne lit pas ce fichier** — il lit `web-console/PLAN-ATOMIC.md`, qui est désormais la source de vérité unique pour les vraies tâches restantes.
+>
+> **Vrais TODOs rust restants** (synthèse audit 12/06) :
+> - **3 endpoints multi-contexte manquants** : R8 (`POST /v1/auth/select-context`), R10-complete (filtrage secretary-scoped), R11 (`GET/PUT /v1/cabinet/providers/:id/secretariats`)
+> - **45 routes contrat sans handler** : voir `web-console/PLAN-ATOMIC.md` section E (P0/P1/P2)
+> - **Cohérence doc** : `R5-rename` (`/quotes/:id/sign` vs `/quotes/:id/signature`) ; `R3-strict` (bords du test login pro)
+>
+> Cf. `web-console/PLAN-ATOMIC.md` pour la liste complète et priorisée. **NE PAS dispatcher depuis ce fichier directement** — la majorité de T0→T9 y est marquée non-livré alors que tout est en `main`.
+
+---
+
+> Backlog **issue-ready** (HISTORIQUE — 06/2026, état pré-R1-restore) : chaque brique de `08-plan-action-deploiement.md` est éclatée en issues granulaires. Copie un bloc → crée l'issue → traite ses micro-étapes une par une → coche la gate → passe à la suivante.
 > Ordre = celui de `08` §3 (T0→T24). **Ne démarre jamais une issue dont le « Bloquée par » n'est pas Done.**
 
 ## Comment utiliser ce backlog
