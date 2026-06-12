@@ -290,5 +290,5 @@ async fn cabinet_quotes_post_patient_token_returns_403() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
