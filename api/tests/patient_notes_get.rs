@@ -100,21 +100,23 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
 
 /// Insère les fixtures minimales (cabinet + app_user + patient).
 /// Retourne `(cabinet_id, user_id, patient_id)`.
-async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
+async fn insert_fixtures(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
+    // app_user : inséré via nubia_app (policy user_app_insert CHECK: true).
+    // nubia_owner est bloqué par FORCE RLS sur app_user (pas de policy owner).
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
     )
     .bind(user_id)
     .bind(format!("notes-get+{}@nubia.test", user_id))
-    .execute(db)
+    .execute(app_db)
     .await
     .unwrap();
 
-    let mut tx = db.begin().await.unwrap();
+    let mut tx = owner_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -145,8 +147,14 @@ async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     (cabinet_id, user_id, patient_id)
 }
 
-async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_id: Uuid) {
-    let mut tx = db.begin().await.unwrap();
+async fn cleanup_fixtures(
+    owner_db: &PgPool,
+    app_db: &PgPool,
+    cabinet_id: Uuid,
+    user_id: Uuid,
+    patient_id: Uuid,
+) {
+    let mut tx = owner_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -168,11 +176,19 @@ async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_
         .await
         .ok();
     tx.commit().await.ok();
-    sqlx::query("DELETE FROM app_user WHERE id = $1")
-        .bind(user_id)
-        .execute(db)
+    // app_user : supprimé via nubia_app avec user_self_delete (app.current_user_id requis).
+    let mut app_tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *app_tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&mut *app_tx)
+        .await
+        .ok();
+    app_tx.commit().await.ok();
 }
 
 // ── Test 1 : GET .../notes avec token secretary → 403 ────────────────────────
@@ -182,8 +198,9 @@ async fn list_patient_notes_secretary_returns_403() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
 
     let secretary_id = Uuid::new_v4();
     let token = make_secretary_token(secretary_id, cabinet_id);
@@ -202,7 +219,7 @@ async fn list_patient_notes_secretary_returns_403() {
 
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 
-    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
 }
 
 // ── Test 2 : GET .../notes praticien → 200, notes non-supprimées, text déchiffré ─
@@ -212,8 +229,9 @@ async fn list_patient_notes_practitioner_returns_200_with_decrypted_text() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
 
     // Insère une note via POST (chiffrement stub).
     let plain_text = "Examen de contrôle, aucune anomalie.";
@@ -249,7 +267,7 @@ async fn list_patient_notes_practitioner_returns_200_with_decrypted_text() {
         c.extend(b"deleted note".iter().map(|b| b ^ 0xFF));
         c
     };
-    let mut tx = db.begin().await.unwrap();
+    let mut tx = owner_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -314,5 +332,5 @@ async fn list_patient_notes_practitioner_returns_200_with_decrypted_text() {
     // Vérifie que page est présent.
     assert!(v["page"].is_object(), "page doit être un objet");
 
-    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
 }
