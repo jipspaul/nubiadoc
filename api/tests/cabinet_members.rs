@@ -450,6 +450,150 @@ async fn delete_cabinet_member_last_admin_returns_409() {
         .ok();
 }
 
+// ── Test 8 : PATCH /v1/cabinet/members/:user_id admin OK → 200 ───────────────
+
+#[tokio::test]
+async fn patch_cabinet_member_admin_ok_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let admin_email = format!("patch_admin_{}@test.local", Uuid::new_v4());
+    let member_email = format!("patch_member_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &admin_email).await;
+
+    // Invite a secretary
+    let member_body = json!({
+        "email": member_email,
+        "role": "secretary",
+        "first_name": "Eve",
+        "last_name": "Durand"
+    });
+    let r_post = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/members")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(member_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r_post.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(r_post.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let member_id = v["user_id"].as_str().unwrap().to_string();
+
+    // PATCH → promote to manager
+    let patch_body = json!({ "role": "manager" });
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/members/{}", member_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(patch_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["role"], "manager");
+    assert_eq!(v["user_id"].as_str().unwrap(), member_id);
+
+    let owner = owner_pool().await;
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&admin_email)
+        .execute(&owner)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&member_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
+// ── Test 9 : PATCH /v1/cabinet/members/:user_id non-admin → 403 ──────────────
+
+#[tokio::test]
+async fn patch_cabinet_member_non_admin_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("patch_secretary_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (_, account_id, cabinet_id) = register_pro(db.clone(), &email).await;
+
+    let secretary_token = make_secretary_token(account_id, cabinet_id);
+    let patch_body = json!({ "role": "admin" });
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/members/{}", account_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", secretary_token))
+                .body(Body::from(patch_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
+// ── Test 10 : PATCH /v1/cabinet/members/:user_id user not member → 404 ────────
+
+#[tokio::test]
+async fn patch_cabinet_member_not_member_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let admin_email = format!("patch_notmember_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &admin_email).await;
+
+    let unknown_user_id = Uuid::new_v4();
+    let patch_body = json!({ "role": "secretary" });
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/members/{}", unknown_user_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(patch_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&admin_email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
 // ── Test 7 : DELETE /v1/cabinet/members/:user_id non-admin → 403 ─────────────
 
 #[tokio::test]
