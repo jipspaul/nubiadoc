@@ -29,6 +29,35 @@ fn db_available() -> bool {
     std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
 }
 
+/// Crée un JWT signé avec le rôle `manager` (même secret que le stub).
+fn make_manager_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    #[derive(serde::Serialize)]
+    struct Claims {
+        sub: Uuid,
+        kind: String,
+        cabinet_id: Uuid,
+        role: String,
+        exp: u64,
+    }
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    encode(
+        &Header::default(),
+        &Claims {
+            sub,
+            kind: "pro".into(),
+            cabinet_id,
+            role: "manager".into(),
+            exp,
+        },
+        &EncodingKey::from_secret(b"test-secret"),
+    )
+    .unwrap()
+}
+
 /// Crée un JWT signé avec le rôle `secretary` (même secret que le stub).
 fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
     #[derive(serde::Serialize)]
@@ -623,6 +652,109 @@ async fn delete_cabinet_member_non_admin_returns_403() {
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
         .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
+// ── Test 11 : POST /v1/cabinet/members admin → 201 ───────────────────────────
+
+#[tokio::test]
+async fn post_cabinet_members_admin_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let admin_email = format!("post201_admin_{}@test.local", Uuid::new_v4());
+    let member_email = format!("post201_member_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &admin_email).await;
+
+    let body = json!({
+        "email": member_email,
+        "role": "doctor",
+        "first_name": "Frank",
+        "last_name": "Leblanc"
+    });
+
+    let resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/members")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["role"], "doctor");
+    assert_eq!(v["email"], member_email);
+
+    let owner = owner_pool().await;
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&admin_email)
+        .execute(&owner)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&member_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
+// ── Test 12 : POST /v1/cabinet/members manager → 201 ─────────────────────────
+
+#[tokio::test]
+async fn post_cabinet_members_manager_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let admin_email = format!("post201_mgr_admin_{}@test.local", Uuid::new_v4());
+    let member_email = format!("post201_mgr_member_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (_, account_id, cabinet_id) = register_pro(db.clone(), &admin_email).await;
+
+    let manager_token = make_manager_token(account_id, cabinet_id);
+
+    let body = json!({
+        "email": member_email,
+        "role": "secretary",
+        "first_name": "Grace",
+        "last_name": "Morin"
+    });
+
+    let resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/members")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", manager_token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let owner = owner_pool().await;
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&admin_email)
+        .execute(&owner)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&member_email)
+        .execute(&owner)
         .await
         .ok();
 }
