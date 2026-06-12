@@ -335,22 +335,40 @@ pub async fn call_next_patient(
         .map_err(|_| AppError::Internal)?;
 
     let pat_row = sqlx::query(
-        "SELECT first_name, last_name FROM patient WHERE id = $1 AND deleted_at IS NULL",
+        "SELECT first_name, last_name, app_user_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(patient_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let patient_display_name = if let Some(row) = pat_row {
+    let (patient_display_name, patient_app_user_id) = if let Some(row) = pat_row {
         let first: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
         let last: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
-        format!("{first} {last}")
+        let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+        (format!("{first} {last}"), uid)
     } else {
-        String::new()
+        (String::new(), None)
     };
 
-    // Stub : notification push + event WebSocket (NUB-T3).
+    // Notification in-app au patient (si compte rattaché).
+    if let Some(uid) = patient_app_user_id {
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(uid.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        sqlx::query(
+            "INSERT INTO notification \
+             (app_user_id, kind, title, body_ciphertext, body_key_ref, data) \
+             VALUES ($1, 'waiting_room_called', 'C''est votre tour', '\\x00'::bytea, 'stub', $2)",
+        )
+        .bind(uid)
+        .bind(serde_json::json!({ "appointment_id": appointment_id }))
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -387,13 +405,14 @@ pub struct WaitingRoomResponse {
     pub entries: Vec<WaitingRoomEntry>,
 }
 
-/// `GET /v1/cabinet/waiting-room` — file d'attente temps-réel du cabinet (§13).
+/// `GET /v1/cabinet/waiting-room` — file d'attente temps-réel du cabinet (§13 E.2.14).
 ///
-/// Retourne les rendez-vous du jour en statut `checked_in` ou `in_progress`,
-/// triés FIFO (checkin_at ASC NULLS LAST, starts_at ASC).
+/// Retourne les rendez-vous du jour avec `checkin_at IS NOT NULL AND started_at IS NULL`
+/// (patients arrivés mais consultation non encore commencée), triés FIFO (checkin_at ASC NULLS LAST).
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
 /// Pas de PII dans le payload (patient_id uniquement, pas de nom).
+/// R10 : secrétaires scopées au secrétariat JWT (`secretariat_id`).
 pub async fn get_waiting_room(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -413,7 +432,8 @@ pub async fn get_waiting_room(
                 "SELECT a.id, a.patient_id, a.status, a.checkin_at \
                  FROM appointment a \
                  WHERE a.deleted_at IS NULL \
-                   AND a.status IN ('checked_in', 'in_progress') \
+                   AND a.checkin_at IS NOT NULL \
+                   AND a.started_at IS NULL \
                    AND a.starts_at >= date_trunc('day', now()) \
                    AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
                    AND EXISTS ( \
@@ -437,7 +457,8 @@ pub async fn get_waiting_room(
             "SELECT id, patient_id, status, checkin_at \
              FROM appointment \
              WHERE deleted_at IS NULL \
-               AND status IN ('checked_in', 'in_progress') \
+               AND checkin_at IS NOT NULL \
+               AND started_at IS NULL \
                AND starts_at >= date_trunc('day', now()) \
                AND starts_at < date_trunc('day', now()) + interval '1 day' \
              ORDER BY checkin_at ASC NULLS LAST, starts_at ASC",
