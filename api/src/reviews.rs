@@ -89,14 +89,16 @@ pub async fn create_review(
     }
 
     // Vérifie que l'appointment appartient au patient et est dans un statut honoré.
+    // Jointure sur patient (pas patient_account) car la RLS patient_account_read
+    // utilise app.patient_account_id qui est déjà posé, et patient.first_name/last_name
+    // sont disponibles directement sans nécessiter app.current_account_id.
     let appt_row = sqlx::query(
         "SELECT a.id, a.status, a.cabinet_id, \
                 pr.id AS provider_id, \
-                pa.first_name, pa.last_name \
+                pt.first_name, pt.last_name \
          FROM appointment a \
-         JOIN patient pt   ON pt.id = a.patient_id \
-         JOIN patient_account pa ON pa.id = pt.patient_account_id \
-         JOIN provider pr  ON pr.practitioner_id = a.practitioner_id \
+         JOIN patient pt  ON pt.id = a.patient_id \
+         JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
          WHERE a.id = $1 AND a.deleted_at IS NULL",
     )
     .bind(body.appointment_id)
