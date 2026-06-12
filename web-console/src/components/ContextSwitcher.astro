@@ -1,0 +1,183 @@
+---
+/**
+ * W52.a — Sélecteur de contexte (UI pure, server-first).
+ * Reçoit la liste des contextes en props ; dropdown <details>/<summary>
+ * + <form> natif POST /api/select-context. Aucun JS client.
+ * Caché si contexts.length <= 1.
+ */
+
+interface Context {
+  label: string;
+  cabinet_id: string;
+  secretariat_id?: string;
+  current: boolean;
+}
+
+interface Props {
+  contexts: Context[];
+}
+
+const { contexts } = Astro.props;
+
+const current = contexts.find(c => c.current);
+---
+
+{contexts.length > 1 && (
+  <div class="ctx-switcher">
+    <details class="ctx-switcher__details">
+      <summary class="ctx-switcher__trigger" aria-haspopup="listbox" aria-label="Changer de contexte">
+        <span class="ctx-switcher__label">{current?.label ?? '—'}</span>
+        <span class="ctx-switcher__chevron" aria-hidden="true">▾</span>
+      </summary>
+      <ul class="ctx-switcher__list" role="listbox" aria-label="Contextes disponibles">
+        {contexts.map(ctx => (
+          <li class="ctx-switcher__item" role="option" aria-selected={ctx.current}>
+            {ctx.current ? (
+              <span class="ctx-switcher__option ctx-switcher__option--current">
+                <span class="ctx-switcher__check" aria-hidden="true">✓</span>
+                {ctx.label}
+              </span>
+            ) : (
+              <form method="POST" action="/api/select-context">
+                <input type="hidden" name="cabinet_id" value={ctx.cabinet_id} />
+                {ctx.secretariat_id && (
+                  <input type="hidden" name="secretariat_id" value={ctx.secretariat_id} />
+                )}
+                <button type="submit" class="ctx-switcher__option">
+                  <span class="ctx-switcher__check ctx-switcher__check--empty" aria-hidden="true" />
+                  {ctx.label}
+                </button>
+              </form>
+            )}
+          </li>
+        ))}
+      </ul>
+    </details>
+  </div>
+)}
+
+<style>
+  .ctx-switcher {
+    position: relative;
+    display: inline-block;
+  }
+
+  .ctx-switcher__details {
+    position: relative;
+  }
+
+  /* Ferme le dropdown en cliquant en dehors via le mécanisme natif details */
+  .ctx-switcher__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+
+  .ctx-switcher__trigger::-webkit-details-marker {
+    display: none;
+  }
+
+  .ctx-switcher__trigger:hover {
+    background: var(--color-border);
+  }
+
+  .ctx-switcher__details[open] .ctx-switcher__trigger {
+    border-color: var(--color-accent);
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  .ctx-switcher__details[open] .ctx-switcher__chevron {
+    display: inline-block;
+    transform: rotate(180deg);
+  }
+
+  .ctx-switcher__label {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ctx-switcher__chevron {
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+    flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+
+  .ctx-switcher__list {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    z-index: 100;
+    min-width: 220px;
+    margin: 0;
+    padding: var(--space-1) 0;
+    list-style: none;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .ctx-switcher__item {
+    display: block;
+  }
+
+  .ctx-switcher__item form {
+    display: block;
+    margin: 0;
+  }
+
+  .ctx-switcher__option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    border: none;
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ctx-switcher__option:hover {
+    background: var(--color-border);
+  }
+
+  .ctx-switcher__option--current {
+    color: var(--color-accent);
+    font-weight: 600;
+    cursor: default;
+  }
+
+  .ctx-switcher__check {
+    font-size: var(--font-size-xs);
+    width: 1em;
+    flex-shrink: 0;
+    color: var(--color-accent);
+  }
+
+  .ctx-switcher__check--empty {
+    display: inline-block;
+    width: 1em;
+  }
+</style>
