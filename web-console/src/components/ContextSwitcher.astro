@@ -38,7 +38,7 @@ const errorMessages: Record<string, string> = {
       </summary>
       <ul class="ctx-switcher__list" role="listbox" aria-label="Contextes disponibles">
         {contexts.map(ctx => (
-          <li class="ctx-switcher__item" role="option" aria-selected={ctx.current}>
+          <li class="ctx-switcher__item" role="option" aria-selected={ctx.current} aria-current={ctx.current ? 'true' : undefined}>
             {ctx.current ? (
               <span class="ctx-switcher__option ctx-switcher__option--current">
                 <span class="ctx-switcher__check" aria-hidden="true">✓</span>

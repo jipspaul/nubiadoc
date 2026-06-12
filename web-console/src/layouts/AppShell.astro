@@ -81,7 +81,7 @@ if (jwtCookie) {
         const [activeCabinet, , activeSecretariat] = ctxCookie.split('|');
         switcherContexts = contexts.map(ctx => ({
           label: ctx.secretariat_name
-            ? `${ctx.secretariat_name} — ${ctx.cabinet_name ?? ctx.cabinet_id}`
+            ? `${ctx.cabinet_name ?? ctx.cabinet_id} — ${ctx.secretariat_name}`
             : (ctx.cabinet_name ?? ctx.cabinet_id),
           cabinet_id: ctx.cabinet_id,
           secretariat_id: ctx.secretariat_id,
