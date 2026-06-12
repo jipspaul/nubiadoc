@@ -1362,10 +1362,10 @@ pub struct PostCabinetMemberBody {
 /// Si `rpps` est fourni et `role=practitioner` → crée une entrée `provider`. Rôle `admin` requis.
 pub async fn post_cabinet_members(
     State(state): State<AppState>,
-    claims: ProAdminClaims,
+    claims: ProAdminOrManagerClaims,
     Json(body): Json<PostCabinetMemberBody>,
 ) -> Result<(StatusCode, Json<CabinetMemberItem>), AppError> {
-    if !["practitioner", "secretary", "admin"].contains(&body.role.as_str()) {
+    if !["practitioner", "secretary", "admin", "manager", "doctor"].contains(&body.role.as_str()) {
         return Err(AppError::ValidationError);
     }
 
