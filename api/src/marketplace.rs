@@ -1,12 +1,16 @@
 //! Référentiels marketplace : routes publiques (pas de JWT requis).
 
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::{auth::AppError, AppState};
+use crate::{
+    auth::{AppError, PatientAccountClaims},
+    AppState,
+};
 
 #[derive(Serialize)]
 pub struct ProfessionItem {
@@ -858,4 +862,94 @@ pub async fn get_provider_availability(
         .collect();
 
     Ok(Json(ProviderAvailabilityResponse { data }))
+}
+
+// ── Slot hold ─────────────────────────────────────────────────────────────────
+
+/// Réponse de `POST /v1/slots/:id/hold`.
+#[derive(Serialize)]
+pub struct SlotHoldResponse {
+    pub hold_token: String,
+    pub expires_at: String,
+}
+
+/// `POST /v1/slots/:id/hold` — bloque un créneau 5 min (marketplace, issue #1659).
+///
+/// JWT patient requis. Génère un `hold_token` UUID aléatoire, INSERT dans
+/// `slot_holds`, passe le slot en `status='held'`. Contrainte UNIQUE sur
+/// `slot_id` → `409 slot_taken` si déjà held par un autre patient.
+/// Slot inexistant → `404`. Slot `held` ou `booked` → `409 slot_taken`.
+pub async fn hold_slot(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(slot_id): Path<Uuid>,
+) -> Result<(StatusCode, Json<SlotHoldResponse>), AppError> {
+    let hold_token = Uuid::new_v4().to_string();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le slot existe et récupère son statut (lock FOR UPDATE pour éviter la race).
+    // Note : la RLS slot_public_read filtre sur status='open', donc on passe par nubia_app
+    // qui a le policy slot_app_update (USING true) → visible quel que soit le statut.
+    let slot_row = sqlx::query(
+        "SELECT status FROM availability_slot WHERE id = $1 FOR UPDATE",
+    )
+    .bind(slot_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let slot_status: String = match slot_row {
+        None => return Err(AppError::NotFound),
+        Some(row) => row.try_get("status").map_err(|_| AppError::Internal)?,
+    };
+
+    if slot_status != "open" {
+        return Err(AppError::SlotTaken);
+    }
+
+    // Passe le slot en 'held'.
+    sqlx::query("UPDATE availability_slot SET status = 'held' WHERE id = $1")
+        .bind(slot_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // INSERT dans slot_holds — contrainte UNIQUE slot_id → 409 si race condition.
+    let result = sqlx::query(
+        "INSERT INTO slot_holds (slot_id, user_id, hold_token, expires_at) \
+         VALUES ($1, $2, $3, now() + interval '5 minutes') \
+         RETURNING expires_at",
+    )
+    .bind(slot_id)
+    .bind(claims.sub)
+    .bind(&hold_token)
+    .fetch_one(&mut *tx)
+    .await;
+
+    let row = match result {
+        Ok(row) => row,
+        Err(e) if is_unique_violation(&e) => return Err(AppError::SlotTaken),
+        Err(_) => return Err(AppError::Internal),
+    };
+
+    let expires_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("expires_at").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(SlotHoldResponse {
+            hold_token,
+            expires_at: expires_at.to_rfc3339(),
+        }),
+    ))
+}
+
+fn is_unique_violation(e: &sqlx::Error) -> bool {
+    matches!(
+        e,
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505")
+    )
 }
