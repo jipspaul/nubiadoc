@@ -1125,7 +1125,7 @@ pub async fn start_consultation(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, status FROM appointment \
+        "SELECT id, status, practitioner_id FROM appointment \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(appt_id)
@@ -1137,8 +1137,11 @@ pub async fn start_consultation(
 
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
 
-    if status != "confirmed" {
+    if status != "confirmed" && status != "checked_in" {
         return Err(AppError::InvalidStatus);
     }
 
@@ -1156,6 +1159,19 @@ pub async fn start_consultation(
     let started_at: chrono::DateTime<chrono::Utc> = updated
         .try_get("started_at")
         .map_err(|_| AppError::Internal)?;
+
+    // Crée la séance de consultation liée à ce rendez-vous.
+    sqlx::query(
+        "INSERT INTO consultation_session \
+         (cabinet_id, appointment_id, practitioner_id) \
+         VALUES ($1, $2, $3)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(id)
+    .bind(practitioner_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO audit_log \

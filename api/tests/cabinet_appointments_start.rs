@@ -177,6 +177,11 @@ async fn cleanup_fixture(
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM consultation_session WHERE appointment_id = $1")
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM appointment WHERE id = $1")
         .bind(appt_id)
         .execute(&mut *tx)
