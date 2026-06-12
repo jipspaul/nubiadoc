@@ -1652,7 +1652,7 @@ pub async fn patch_cabinet_member(
     }
 
     if let Some(ref role) = body.role {
-        if !["practitioner", "secretary", "admin"].contains(&role.as_str()) {
+        if !["admin", "manager", "doctor", "secretary"].contains(&role.as_str()) {
             return Err(AppError::ValidationError);
         }
     }
