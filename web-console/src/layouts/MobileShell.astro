@@ -1,0 +1,203 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+}
+
+const { title = 'Nubia' } = Astro.props;
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+const TABS = [
+  { href: '/patient/m/accueil',   label: 'Accueil',   icon: 'home' },
+  { href: '/patient/m/rdv',       label: 'RDV',       icon: 'calendar' },
+  { href: '/patient/m/documents', label: 'Documents', icon: 'doc' },
+  { href: '/patient/m/messages',  label: 'Messages',  icon: 'chat' },
+  { href: '/patient/m/profil',    label: 'Profil',    icon: 'user' },
+];
+
+const isActive = (href: string) => {
+  const h = href.replace(/\/$/, '') || '/';
+  return h === currentPath || currentPath.startsWith(h + '/');
+};
+---
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="m-header">
+      <a href="/patient/m/accueil" class="m-logo" aria-label="Nubia — accueil">Nubia</a>
+      <button id="m-logout-btn" type="button" class="m-logout" aria-label="Déconnexion">Déconnexion</button>
+    </header>
+
+    <main class="m-main">
+      <slot />
+    </main>
+
+    <nav class="m-tabbar" aria-label="Navigation principale">
+      {TABS.map(tab => (
+        <a
+          href={tab.href}
+          class:list={['m-tab', { active: isActive(tab.href) }]}
+          aria-current={isActive(tab.href) ? 'page' : undefined}
+        >
+          {tab.icon === 'home' && (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          )}
+          {tab.icon === 'calendar' && (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          )}
+          {tab.icon === 'doc' && (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          )}
+          {tab.icon === 'chat' && (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          )}
+          {tab.icon === 'user' && (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          )}
+          <span class="m-tab-label">{tab.label}</span>
+        </a>
+      ))}
+    </nav>
+  </body>
+</html>
+
+<script>
+  import { isAuthenticated, logout } from '../lib/session.ts';
+
+  if (!isAuthenticated()) {
+    window.location.href = '/login';
+  }
+
+  const btn = document.getElementById('m-logout-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      logout();
+      window.location.href = '/';
+    });
+  }
+</script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  body {
+    font-family: 'Inter', var(--font-sans);
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .m-header {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-2) var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 3rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .m-logo {
+    font-weight: 700;
+    text-decoration: none;
+    color: var(--color-accent);
+    font-size: var(--font-size-lg);
+  }
+
+  .m-logout {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+  }
+
+  .m-logout:hover {
+    background: var(--color-border);
+    color: var(--color-text);
+  }
+
+  .m-main {
+    flex: 1;
+    padding: var(--space-4);
+    overflow-y: auto;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+
+  .m-tabbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 10;
+  }
+
+  .m-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: var(--space-1) var(--space-2);
+    text-decoration: none;
+    color: var(--color-muted);
+    font-size: var(--font-size-xs);
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s;
+  }
+
+  .m-tab:active {
+    opacity: 0.7;
+  }
+
+  .m-tab.active {
+    color: var(--color-accent);
+  }
+
+  .m-tab-label {
+    line-height: 1;
+  }
+</style>
