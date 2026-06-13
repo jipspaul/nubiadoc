@@ -171,7 +171,13 @@ if [ -f "$ROOT/db/seed/seed_e2e.sql" ]; then
     -U nubia_seed -d nubia < "$ROOT/db/seed/seed_e2e.sql" >/dev/null \
     || fail "seed e2e a échoué — voir la sortie ci-dessus"
 fi
-ok "seed chargé (Cabinet Lyon, comptes démo)"
+# Réapprovisionne un pool de créneaux ouverts (rôle owner — traverse la RLS).
+if [ -f "$ROOT/db/seed/seed_slots.sql" ]; then
+  podman exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 --no-psqlrc \
+    -U nubia_owner -d nubia < "$ROOT/db/seed/seed_slots.sql" >/dev/null \
+    || fail "seed créneaux a échoué — voir la sortie ci-dessus"
+fi
+ok "seed chargé (Cabinet Lyon, comptes démo, créneaux)"
 
 # ---------------------------------------------------------------------------
 # 5. API Rust

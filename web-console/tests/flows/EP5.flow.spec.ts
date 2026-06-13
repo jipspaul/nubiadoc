@@ -41,8 +41,10 @@ test('documents : liste UI → détail UI → /download 200 + URL reçue', async
   // ── 1. UI : page /patient/documents — liste ───────────────────────────────
   await page.goto('/patient/documents');
   await expect(page.locator('#docs-loading')).toBeHidden({ timeout: 15_000 });
+  // L'un des trois états (liste / vide / erreur) est rendu : on ne cible que
+  // l'élément visible (`:visible`) pour éviter une violation de mode strict.
   await expect(
-    page.locator('#docs-list, #docs-empty, #docs-error'),
+    page.locator('#docs-list:visible, #docs-empty:visible, #docs-error:visible').first(),
   ).toBeVisible({ timeout: 10_000 });
 
   // ── 2. API : GET /v1/documents → confirme la liste ────────────────────────
@@ -52,9 +54,13 @@ test('documents : liste UI → détail UI → /download 200 + URL reçue', async
       const resp = await fetch(`${apiBase}/v1/documents`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      const data = resp.ok
-        ? ((await resp.json()) as Array<{ id: string; category?: string; filename?: string; created_at?: string }>)
-        : [];
+      const json = resp.ok ? await resp.json() : null;
+      const data = (Array.isArray(json) ? json : (json?.data ?? [])) as Array<{
+        id: string;
+        category?: string;
+        filename?: string;
+        created_at?: string;
+      }>;
       return { status: resp.status, documents: data };
     },
     API_BASE,
@@ -102,33 +108,33 @@ test('documents : liste UI → détail UI → /download 200 + URL reçue', async
   await expect(btnDownload).toBeEnabled({ timeout: 10_000 });
 
   // ── 6. API : GET /v1/documents/:id/download → URL signée reçue ───────────
-  // L'API répond 200 avec { url } ou effectue un 302 → on suit les redirections
-  // et on vérifie que la réponse finale est OK (fichier reçu ou URL présente).
+  // L'API répond 200 avec { url } OU un 302 vers le stockage (URL signée stub
+  // `storage.example.com` non résolvable). On utilise `redirect: 'manual'`
+  // pour ne pas suivre la redirection (qui échouerait au DNS) et on accepte
+  // soit la redirection opaque, soit un 200 JSON { url }.
   const downloadResp = await page.evaluate(
     async ({ apiBase, docId }: { apiBase: string; docId: string }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
       const resp = await fetch(`${apiBase}/v1/documents/${docId}/download`, {
         headers: { Authorization: `Bearer ${jwt}` },
-        redirect: 'follow',
+        redirect: 'manual',
       });
-      // Tenter de lire le corps (peut être JSON { url } ou binaire)
       let url: string | null = null;
-      const ct = resp.headers.get('Content-Type') ?? '';
-      if (ct.includes('application/json')) {
-        const body = (await resp.json()) as { url?: string };
-        url = body.url ?? null;
-      } else {
-        // Corps binaire ou texte → le téléchargement a été suivi
-        url = resp.url; // URL finale après redirect
+      if (resp.type !== 'opaqueredirect') {
+        const ct = resp.headers.get('Content-Type') ?? '';
+        if (ct.includes('application/json')) {
+          const body = (await resp.json()) as { url?: string };
+          url = body.url ?? null;
+        }
       }
-      return { status: resp.status, url };
+      return { status: resp.status, type: resp.type, url };
     },
     { apiBase: API_BASE, docId: firstDoc.id },
   );
 
-  // 200 (JSON { url }) ou 200 après redirect 302 : les deux sont acceptables
-  expect(downloadResp.status).toBeLessThan(300);
-  expect(downloadResp.url).toBeTruthy();
+  // Redirection 302 vers le stockage (opaqueredirect) OU 200 JSON { url } : OK
+  const isRedirect = downloadResp.type === 'opaqueredirect';
+  expect(isRedirect || (downloadResp.status === 200 && !!downloadResp.url)).toBe(true);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,9 +152,13 @@ test('devis : GET /v1/quotes liste → POST signature 202 → GET statut → POS
       const resp = await fetch(`${apiBase}/v1/quotes`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      const data = resp.ok
-        ? ((await resp.json()) as Array<{ id: string; status: string; total_amount?: number; created_at?: string }>)
-        : [];
+      const json = resp.ok ? await resp.json() : null;
+      const data = (Array.isArray(json) ? json : (json?.data ?? [])) as Array<{
+        id: string;
+        status: string;
+        total_amount?: number;
+        created_at?: string;
+      }>;
       return { status: resp.status, quotes: data };
     },
     API_BASE,
@@ -161,7 +171,7 @@ test('devis : GET /v1/quotes liste → POST signature 202 → GET statut → POS
   await page.goto('/patient/devis');
   await expect(page.locator('#quotes-loading')).toBeHidden({ timeout: 15_000 });
   await expect(
-    page.locator('#quotes-list, #quotes-empty, #quotes-error'),
+    page.locator('#quotes-list:visible, #quotes-empty:visible, #quotes-error:visible').first(),
   ).toBeVisible({ timeout: 10_000 });
 
   // ── 3. Chercher un devis en statut signable (pending ou sent) ────────────

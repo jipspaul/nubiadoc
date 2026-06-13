@@ -1454,6 +1454,21 @@ pub async fn create_appointment(
     let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
 
+    // Consomme le créneau : il ne doit plus apparaître dans la recherche de
+    // disponibilités (`/v1/search/slots` filtre `status = 'open'`). Symétrique de
+    // l'annulation qui le repasse à 'open'. Scopé cabinet (slot_cabinet_write).
+    if let Some(slot_id) = body.slot_id {
+        sqlx::query(
+            "UPDATE availability_slot SET status = 'booked', updated_at = now() \
+             WHERE id = $1 AND cabinet_id = $2",
+        )
+        .bind(slot_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(

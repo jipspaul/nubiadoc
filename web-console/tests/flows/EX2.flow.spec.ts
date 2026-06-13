@@ -47,7 +47,9 @@ const SEED_OTHER_PATIENT_ID =
  */
 function randomFutureWindow(): { startsAt: string; endsAt: string } {
   const start = new Date();
-  start.setDate(start.getDate() + 2 + Math.floor(Math.random() * 38));
+  // Au-delà de l'horizon du pool de créneaux générés (30 j) pour éviter toute
+  // collision EXCLUDE avec ces créneaux lors de la création (POST /v1/cabinet/slots).
+  start.setDate(start.getDate() + 35 + Math.floor(Math.random() * 30));
   start.setHours(8 + Math.floor(Math.random() * 10), Math.floor(Math.random() * 4) * 15, 0, 0);
   const end = new Date(start.getTime() + 15 * 60 * 1000);
   return { startsAt: start.toISOString(), endsAt: end.toISOString() };
@@ -154,7 +156,9 @@ test('EX2 : secrétaire crée un RDV → patient le voit dans GET /v1/appointmen
   const patientListResult = await page.evaluate(
     async ({ apiBase, appointmentId }: { apiBase: string; appointmentId: string }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
-      const resp = await fetch(`${apiBase}/v1/appointments`, {
+      // Le RDV créé est dans le futur → filtre `upcoming` (la liste par défaut
+      // est paginée à 20 et saturée de RDV passés/annulés accumulés).
+      const resp = await fetch(`${apiBase}/v1/appointments?status=upcoming&limit=100`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       const body = resp.ok

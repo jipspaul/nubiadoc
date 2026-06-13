@@ -374,7 +374,7 @@ pub async fn sign_quote(
     // Vérifie que le devis appartient au patient (JOIN patient → patient_account_id).
     // RLS fail-closed : si le devis n'existe pas ou hors tenant → 404.
     let row = sqlx::query(
-        "SELECT q.cabinet_id \
+        "SELECT q.cabinet_id, q.status, q.signed_at \
          FROM quote q \
          JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.deleted_at IS NULL \
@@ -388,6 +388,22 @@ pub async fn sign_quote(
     .ok_or(AppError::NotFound)?;
 
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    // Idempotence : un devis déjà signé est immuable (trigger `quote_signed_immutable`).
+    // On renvoie 200 avec la date de signature existante plutôt que de heurter le
+    // trigger (qui provoquerait une 500).
+    if current_status == "signed" {
+        let existing_signed_at: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("signed_at").map_err(|_| AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Ok(Json(SignQuoteResponse {
+            signed: true,
+            signed_at: existing_signed_at
+                .map(|d| d.to_rfc3339())
+                .unwrap_or_default(),
+        }));
+    }
 
     // Scope cabinet pour l'UPDATE (tenant_isolation policy sur quote).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")

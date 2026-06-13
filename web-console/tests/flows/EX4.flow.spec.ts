@@ -50,6 +50,13 @@ const SEED_SECRETARY_B_EMAIL =
 const SEED_SECRETARY_B_PASSWORD =
   process.env.SEED_SECRETARY_B_PASSWORD ?? 'NubiaDemo1!';
 
+// L'assignation docteur→secrétariat (PUT …/secretariats) est réservée aux
+// rôles admin/manager (R11, docs/12 §back-office) ; un praticien reçoit 403.
+const SEED_ADMIN_EMAIL =
+  process.env.SEED_MANAGER_EMAIL ?? 'admin@cabinet-lyon.test';
+const SEED_ADMIN_PASSWORD =
+  process.env.SEED_MANAGER_PASSWORD ?? 'Nubia2026!';
+
 /** Login with explicit credentials. Used for secretary B. */
 async function loginWithCredentials(
   page: Page,
@@ -138,10 +145,10 @@ test.afterEach(async ({ page }) => {
 test('EX4 : docteur assigne patient-list au secrétariat A → secrétaire A voit, secrétaire B ne voit pas', async ({
   page,
 }) => {
-  // ── 1. Connexion praticien ────────────────────────────────────────────────
-  await loginAs(page, 'practitioner');
+  // ── 1. Connexion admin (l'assignation est admin/manager-only, R11) ────────
+  await loginWithCredentials(page, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD);
 
-  // ── 2. Praticien : PUT /v1/cabinet/providers/:id/secretariats → 200 ───────
+  // ── 2. Admin : PUT /v1/cabinet/providers/:id/secretariats → 200 ───────────
   //    Assigne le praticien au secrétariat A (et retire l'éventuelle assignation
   //    au secrétariat B pour garantir l'isolation).
   const assignResult = await page.evaluate(
@@ -190,7 +197,8 @@ test('EX4 : docteur assigne patient-list au secrétariat A → secrétaire A voi
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!resp.ok) return [] as string[];
-      const list = (await resp.json()) as Array<{ id: string }>;
+      const json = await resp.json();
+      const list = (Array.isArray(json) ? json : (json?.data ?? [])) as Array<{ id: string }>;
       return list.map((p) => p.id);
     },
     API_BASE,
@@ -209,7 +217,8 @@ test('EX4 : docteur assigne patient-list au secrétariat A → secrétaire A voi
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!resp.ok) return { status: resp.status, ids: [] as string[] };
-      const list = (await resp.json()) as Array<{ id: string }>;
+      const _j = await resp.json();
+      const list = (Array.isArray(_j) ? _j : (_j?.data ?? [])) as Array<{ id: string }>;
       return { status: resp.status, ids: list.map((p) => p.id) };
     },
     API_BASE,
@@ -250,7 +259,8 @@ test('EX4 : docteur assigne patient-list au secrétariat A → secrétaire A voi
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!resp.ok) return { status: resp.status, ids: [] as string[] };
-      const list = (await resp.json()) as Array<{ id: string }>;
+      const _j = await resp.json();
+      const list = (Array.isArray(_j) ? _j : (_j?.data ?? [])) as Array<{ id: string }>;
       return { status: resp.status, ids: list.map((p) => p.id) };
     },
     API_BASE,
@@ -291,7 +301,8 @@ test('EX4 : cloisonnement RLS — GET /v1/cabinet/patients retourne des scopes d
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!resp.ok) return { status: resp.status, ids: [] as string[] };
-      const patients = (await resp.json()) as Array<{ id: string }>;
+      const json = await resp.json();
+      const patients = (Array.isArray(json) ? json : (json?.data ?? [])) as Array<{ id: string }>;
       return { status: resp.status, ids: patients.map((p) => p.id) };
     },
     API_BASE,
@@ -314,7 +325,8 @@ test('EX4 : cloisonnement RLS — GET /v1/cabinet/patients retourne des scopes d
         headers: { Authorization: `Bearer ${jwt}` },
       });
       if (!resp.ok) return { status: resp.status, ids: [] as string[] };
-      const patients = (await resp.json()) as Array<{ id: string }>;
+      const json = await resp.json();
+      const patients = (Array.isArray(json) ? json : (json?.data ?? [])) as Array<{ id: string }>;
       return { status: resp.status, ids: patients.map((p) => p.id) };
     },
     API_BASE,

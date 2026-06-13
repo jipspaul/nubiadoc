@@ -19,6 +19,21 @@ export interface ApiResponse<T = unknown> {
   data: T;
 }
 
+/**
+ * Déballe une réponse de liste paginée. L'API renvoie les collections sous la
+ * forme `{ data: [...], page: {...} }` ; les pages consommatrices attendent un
+ * tableau nu via `Array.isArray(data)`. On normalise donc en `{ status, data: [] }`.
+ * Accepte aussi une réponse déjà sous forme de tableau (endpoints non paginés).
+ */
+function unwrapList<T>(res: { status: number; data: unknown }): ApiResponse<T[]> {
+  const d = res.data;
+  if (Array.isArray(d)) return { status: res.status, data: d as T[] };
+  if (d && typeof d === 'object' && Array.isArray((d as { data?: unknown }).data)) {
+    return { status: res.status, data: (d as { data: T[] }).data };
+  }
+  return { status: res.status, data: [] };
+}
+
 // Auth
 export interface AuthTokens {
   access_token: string;
@@ -548,8 +563,7 @@ export const patientAppointments = {
 // ---------------------------------------------------------------------------
 
 export const patientDocuments = {
-  list: () =>
-    apiFetch('/v1/documents') as Promise<ApiResponse<Document[]>>,
+  list: async () => unwrapList<Document>(await apiFetch('/v1/documents')),
 
   post: (body: FormData) =>
     apiFetch('/v1/documents', { method: 'POST', body }) as Promise<ApiResponse<Document>>,
@@ -591,11 +605,15 @@ export const patientDashboard = {
   get: () =>
     apiFetch('/v1/dashboard') as Promise<ApiResponse<Dashboard>>,
 
-  getNotifications: () =>
-    apiFetch('/v1/notifications') as Promise<ApiResponse<Array<{ id: string; type: string; read: boolean; created_at: string }>>>,
+  getNotifications: async () =>
+    unwrapList<{ id: string; type: string; read: boolean; created_at: string }>(
+      await apiFetch('/v1/notifications'),
+    ),
 
-  getReminders: () =>
-    apiFetch('/v1/reminders') as Promise<ApiResponse<Array<{ id: string; message: string; due_at: string }>>>,
+  getReminders: async () =>
+    unwrapList<{ id: string; message: string; due_at: string }>(
+      await apiFetch('/v1/reminders'),
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -603,8 +621,7 @@ export const patientDashboard = {
 // ---------------------------------------------------------------------------
 
 export const patientQuotes = {
-  list: () =>
-    apiFetch('/v1/quotes') as Promise<ApiResponse<Quote[]>>,
+  list: async () => unwrapList<Quote>(await apiFetch('/v1/quotes')),
 
   sign: (id: string) =>
     apiFetch(`/v1/quotes/${id}/signature`, { method: 'POST' }) as Promise<ApiResponse<{ signature_id: string; redirect_url?: string; embed_token?: string }>>,
@@ -618,8 +635,7 @@ export const patientQuotes = {
 // ---------------------------------------------------------------------------
 
 export const patientTreatmentPlans = {
-  list: () =>
-    apiFetch('/v1/treatment-plans') as Promise<ApiResponse<TreatmentPlan[]>>,
+  list: async () => unwrapList<TreatmentPlan>(await apiFetch('/v1/treatment-plans')),
 
   get: (id: string) =>
     apiFetch(`/v1/treatment-plans/${id}`) as Promise<ApiResponse<TreatmentPlan>>,

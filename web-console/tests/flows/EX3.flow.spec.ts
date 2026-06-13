@@ -69,9 +69,10 @@ test('EX3 : praticien crée devis → patient voit + signe → secrétaire voit 
   );
 
   // ── 5. POST /v1/cabinet/prescriptions/:id/sign → 2xx ─────────────────────
+  // NB : il n'existe pas de GET /v1/cabinet/prescriptions/:id (cf. sign.astro) ;
+  // la page affiche directement le formulaire de signature.
   await page.goto(`/praticien/ordonnances/${prescriptionId}/sign`);
   await expect(page.locator('form#form-sign')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('#result-get')).toHaveClass(/success/, { timeout: 10_000 });
 
   await page.locator('#btn-sign').click();
   await expect(page.locator('#badge-sign')).toContainText(/HTTP 2/, { timeout: 20_000 });
@@ -114,9 +115,12 @@ test('EX3 : praticien crée devis → patient voit + signe → secrétaire voit 
       const resp = await fetch(`${apiBase}/v1/quotes`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      const data = resp.ok
-        ? ((await resp.json()) as Array<{ id: string; status: string; total_amount?: number }>)
-        : [];
+      const json = resp.ok ? await resp.json() : null;
+      const data = (Array.isArray(json) ? json : (json?.data ?? [])) as Array<{
+        id: string;
+        status: string;
+        total_amount?: number;
+      }>;
       return { status: resp.status, quotes: data };
     },
     API_BASE,
@@ -129,7 +133,7 @@ test('EX3 : praticien crée devis → patient voit + signe → secrétaire voit 
   await page.goto('/patient/devis');
   await expect(page.locator('#quotes-loading')).toBeHidden({ timeout: 15_000 });
   await expect(
-    page.locator('#quotes-list, #quotes-empty, #quotes-error'),
+    page.locator('#quotes-list:visible, #quotes-empty:visible, #quotes-error:visible').first(),
   ).toBeVisible({ timeout: 10_000 });
 
   // ── 10. Patient : signer un devis signable (pending/sent) ────────────────
@@ -162,8 +166,8 @@ test('EX3 : praticien crée devis → patient voit + signe → secrétaire voit 
       { apiBase: API_BASE, id: targetQuoteId },
     );
 
-    // 202 = signature initiée (stub Yousign) ; 409 = déjà signé/verrouillé
-    expect([202, 409]).toContain(signResult.status);
+    // 200 = signée (stub Yousign synchrone) ; 202 = initiée ; 409 = déjà signé/verrouillé
+    expect([200, 202, 409]).toContain(signResult.status);
 
     // ── 11. GET /v1/quotes/:id → statut mis à jour ───────────────────────────
     const quoteDetailResult = await page.evaluate(
@@ -211,7 +215,7 @@ test('EX3 : praticien crée devis → patient voit + signe → secrétaire voit 
   await page.goto('/secretary/facturation');
   await expect(page.locator('h1')).toBeVisible({ timeout: 10_000 });
   await expect(
-    page.locator('#quotes-status, #quotes-table, #quotes-empty'),
+    page.locator('#quotes-status:visible, #quotes-table:visible, #quotes-empty:visible').first(),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -229,15 +233,20 @@ test('EX3 : aucune fuite cross-rôle — GET /v1/quotes retourne uniquement les 
     const meResp = await fetch(`${apiBase}/v1/me`, {
       headers: { Authorization: `Bearer ${jwt}` },
     });
-    const me = meResp.ok ? ((await meResp.json()) as { id?: string }) : {};
-    const myId = me.id ?? '';
+    // GET /v1/me (patient) renvoie { user_id, account_id, ... } — pas de `id`.
+    const me = meResp.ok
+      ? ((await meResp.json()) as { account_id?: string; user_id?: string })
+      : {};
+    const myId = me.account_id ?? me.user_id ?? '';
 
     const listResp = await fetch(`${apiBase}/v1/quotes`, {
       headers: { Authorization: `Bearer ${jwt}` },
     });
-    const list = listResp.ok
-      ? ((await listResp.json()) as Array<{ id: string; patient_id?: string }>)
-      : [];
+    const listJson = listResp.ok ? await listResp.json() : null;
+    const list = (Array.isArray(listJson) ? listJson : (listJson?.data ?? [])) as Array<{
+      id: string;
+      patient_id?: string;
+    }>;
 
     const foreignQuotes = list.filter(
       (q) => q.patient_id !== undefined && q.patient_id !== myId,

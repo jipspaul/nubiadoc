@@ -51,7 +51,9 @@ const SEED_OTHER_PATIENT_ID =
  */
 function randomFutureStart(): Date {
   const start = new Date();
-  start.setDate(start.getDate() + 2 + Math.floor(Math.random() * 38));
+  // Au-delà de l'horizon du pool de créneaux générés (30 j) pour éviter toute
+  // collision EXCLUDE avec ces créneaux lors de la création (POST /v1/cabinet/slots).
+  start.setDate(start.getDate() + 35 + Math.floor(Math.random() * 30));
   start.setHours(8 + Math.floor(Math.random() * 10), Math.floor(Math.random() * 4) * 15, 0, 0);
   return start;
 }
@@ -128,7 +130,9 @@ test('EX1 : patient réserve → praticien voit agenda → secrétaire confirme 
   const patientListResult = await page.evaluate(
     async ({ apiBase, appointmentId }: { apiBase: string; appointmentId: string }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
-      const resp = await fetch(`${apiBase}/v1/appointments`, {
+      // RDV futur → filtre `upcoming` + grande limite (la liste par défaut est
+      // paginée à 20 et saturée de RDV passés/annulés accumulés).
+      const resp = await fetch(`${apiBase}/v1/appointments?status=upcoming&limit=100`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       const body = resp.ok
