@@ -95,14 +95,12 @@ async fn insert_provider_with_open_slot(db: &PgPool, suffix: &str) -> (Uuid, Uui
     let provider_id = Uuid::new_v4();
     let slot_id = Uuid::new_v4();
 
-    sqlx::query(
-        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
-    )
-    .bind(cabinet_id)
-    .bind(format!("Cabinet SHP {}", suffix))
-    .execute(db)
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet SHP {}", suffix))
+        .execute(db)
+        .await
+        .unwrap();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
@@ -190,7 +188,10 @@ async fn hold_slot_happy_path_returns_200_and_token() {
         .await
         .unwrap();
     let status: String = sqlx::Row::try_get(&row, "status").unwrap();
-    assert_eq!(status, "held", "le slot doit être en statut 'held' après hold");
+    assert_eq!(
+        status, "held",
+        "le slot doit être en statut 'held' après hold"
+    );
 
     // Nettoyage
     sqlx::query("DELETE FROM slot_holds WHERE slot_id = $1")
