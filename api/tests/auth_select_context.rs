@@ -142,6 +142,135 @@ async fn select_context_valid_returns_200_with_token() {
         .ok();
 }
 
+// ── Test 1b : user multi-contexte → 200, JWT scoped contient cabinet_id + role ──────────────
+
+#[tokio::test]
+async fn select_context_multicontext_jwt_contains_cabinet_and_role() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let cabinet_a = Uuid::new_v4();
+    let cabinet_b = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("sc-multi+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    for (cid, name) in [(cabinet_a, "Cabinet Multi A"), (cabinet_b, "Cabinet Multi B")] {
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentiste')",
+        )
+        .bind(cid)
+        .bind(name)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    // user membre des deux cabinets avec des rôles différents.
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'admin', true)",
+    )
+    .bind(cabinet_a)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'practitioner', true)",
+    )
+    .bind(cabinet_b)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Sélectionne cabinet_a (rôle admin).
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/select-context")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
+                .body(Body::from(json!({"cabinet_id": cabinet_a}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Vérifie Set-Cookie nubia_jwt présent et HttpOnly.
+    let set_cookie = response.headers().get("set-cookie");
+    assert!(set_cookie.is_some(), "Set-Cookie header must be present");
+    let cookie_val = set_cookie.unwrap().to_str().unwrap();
+    assert!(
+        cookie_val.starts_with("nubia_jwt="),
+        "cookie name must be nubia_jwt"
+    );
+    assert!(cookie_val.contains("HttpOnly"), "cookie must be HttpOnly");
+
+    // Décode le JWT retourné et vérifie cabinet_id + role.
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let token_str = v["access_token"].as_str().expect("access_token must be a string");
+
+    let key = jsonwebtoken::DecodingKey::from_secret(JWT_SECRET.as_bytes());
+    let mut validation = jsonwebtoken::Validation::default();
+    validation.validate_exp = true;
+    let decoded = jsonwebtoken::decode::<serde_json::Value>(token_str, &key, &validation)
+        .expect("JWT must be decodable with the test secret");
+    let claims = decoded.claims;
+
+    assert_eq!(
+        claims["cabinet_id"].as_str().unwrap(),
+        cabinet_a.to_string(),
+        "JWT cabinet_id must match the requested cabinet"
+    );
+    assert_eq!(
+        claims["role"].as_str().unwrap(),
+        "admin",
+        "JWT role must reflect the membership role"
+    );
+
+    // Cleanup.
+    for cid in [cabinet_a, cabinet_b] {
+        sqlx::query("DELETE FROM cabinet_membership WHERE user_id = $1 AND cabinet_id = $2")
+            .bind(user_id)
+            .bind(cid)
+            .execute(&db)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cid)
+            .execute(&db)
+            .await
+            .ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 2 : cabinet_id inconnu → 403 no_active_membership ───────────────────
 
 #[tokio::test]
