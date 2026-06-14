@@ -578,20 +578,23 @@ pub async fn send_message(
 #[derive(Deserialize)]
 pub struct CreateConversationBody {
     pub cabinet_id: Uuid,
+    pub subject: Option<String>,
 }
 
 /// Réponse de `POST /v1/conversations`.
 #[derive(Serialize)]
 pub struct CreateConversationResponse {
-    pub conversation_id: Uuid,
-    pub existing: bool,
+    pub id: Uuid,
+    pub cabinet_id: Uuid,
+    pub subject: Option<String>,
+    pub created_at: String,
 }
 
-/// `POST /v1/conversations` — démarre un fil de messagerie patient ↔ cabinet.
+/// `POST /v1/conversations` — crée un fil de messagerie patient ↔ cabinet.
 ///
-/// Idempotent : un seul fil par couple `(patient_account_id, cabinet_id)` — contrainte
-/// DB unique. Cabinet inexistant ou non listé (`is_listed=false`) → `404`.
-/// Fil existant → `200 + existing:true`. Nouveau fil → `201 + existing:false`.
+/// Token `kind:"patient"` requis. Body : `{ cabinet_id, subject? }`.
+/// Cabinet inexistant → `404`. Idempotent sur `(patient_account_id, cabinet_id)`.
+/// Retourne `201 + { id, cabinet_id, subject, created_at }`.
 pub async fn create_conversation(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -599,74 +602,74 @@ pub async fn create_conversation(
 ) -> Result<impl IntoResponse, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le cabinet a au moins un praticien listé (lecture publique sans GUC).
-    let listed =
-        sqlx::query("SELECT 1 FROM provider WHERE cabinet_id = $1 AND is_listed = true LIMIT 1")
-            .bind(body.cabinet_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-
-    if listed.is_none() {
-        return Err(AppError::NotFound);
-    }
-
-    // Scope RLS au cabinet cible pour la table conversation (SET LOCAL — scoped à tx).
+    // Scope RLS au cabinet cible (SET LOCAL — scoped à tx).
+    // Doit être positionné AVANT la lecture de `cabinet` (RLS tenant_isolation s'y applique).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(body.cabinet_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Tente l'insertion — ON CONFLICT DO NOTHING pour l'idempotence.
-    let row = sqlx::query(
-        "INSERT INTO conversation (patient_account_id, cabinet_id) \
-         VALUES ($1, $2) \
+    // Vérifie que le cabinet existe (RLS tenant_isolation filtre sur app.current_cabinet_id).
+    let cabinet_exists = sqlx::query("SELECT 1 FROM cabinet WHERE id = $1 LIMIT 1")
+        .bind(body.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    if cabinet_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // ON CONFLICT DO NOTHING pour l'idempotence (contrainte unique patient_account × cabinet).
+    let inserted = sqlx::query(
+        "INSERT INTO conversation (patient_account_id, cabinet_id, subject) \
+         VALUES ($1, $2, $3) \
          ON CONFLICT (patient_account_id, cabinet_id) DO NOTHING \
-         RETURNING id",
+         RETURNING id, cabinet_id, subject, created_at",
     )
     .bind(claims.account_id)
     .bind(body.cabinet_id)
+    .bind(body.subject.as_deref())
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let (conversation_id, existing) = if let Some(r) = row {
-        let id: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
-        (id, false)
-    } else {
-        // Fil existant — le récupérer (RLS via GUC déjà positionné).
-        let existing_row = sqlx::query(
-            "SELECT id FROM conversation \
+    let row = match inserted {
+        Some(r) => r,
+        None => sqlx::query(
+            "SELECT id, cabinet_id, subject, created_at FROM conversation \
              WHERE patient_account_id = $1 AND cabinet_id = $2",
         )
         .bind(claims.account_id)
         .bind(body.cabinet_id)
         .fetch_one(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal)?;
-        let id: Uuid = existing_row.try_get("id").map_err(|_| AppError::Internal)?;
-        (id, true)
+        .map_err(|_| AppError::Internal)?,
     };
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let subject: Option<String> = row.try_get("subject").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         patient_account_id = %claims.account_id,
         cabinet_id = %body.cabinet_id,
-        conversation_id = %conversation_id,
-        existing,
-        "conversation created or fetched"
+        conversation_id = %id,
+        "conversation created"
     );
 
-    let response = CreateConversationResponse {
-        conversation_id,
-        existing,
-    };
-
-    if existing {
-        Ok((StatusCode::OK, Json(response)).into_response())
-    } else {
-        Ok((StatusCode::CREATED, Json(response)).into_response())
-    }
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateConversationResponse {
+            id,
+            cabinet_id,
+            subject,
+            created_at: created_at.to_rfc3339(),
+        }),
+    ))
 }

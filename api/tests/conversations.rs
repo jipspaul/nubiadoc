@@ -320,7 +320,7 @@ async fn conversations_with_unread_message_returns_correct_data() {
         .ok();
 }
 
-/// Crée un cabinet avec un praticien listé, retourne `cabinet_id`.
+/// Crée un cabinet (sans praticien listé nécessaire), retourne `cabinet_id`.
 async fn setup_listed_cabinet(db: &PgPool) -> Uuid {
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
@@ -347,16 +347,6 @@ async fn setup_listed_cabinet(db: &PgPool) -> Uuid {
         .execute(&mut *tx)
         .await
         .unwrap();
-
-    sqlx::query(
-        "INSERT INTO provider (id, cabinet_id, user_id, display_name, rpps_verified, is_listed) \
-         VALUES (gen_random_uuid(), $1, $2, 'Dr Test', true, true)",
-    )
-    .bind(cabinet_id)
-    .bind(user_id)
-    .execute(&mut *tx)
-    .await
-    .unwrap();
 
     tx.commit().await.unwrap();
     cabinet_id
@@ -389,7 +379,7 @@ async fn setup_patient(db: &PgPool) -> (Uuid, Uuid) {
     (user_id, account_id)
 }
 
-// ── Test 1 : cabinet listé → 201 + conversation_id ───────────────────────────
+// ── Test 1 : cabinet existant → 201 + id + cabinet_id + subject + created_at ──
 
 #[tokio::test]
 async fn conversations_create_returns_201() {
@@ -416,7 +406,9 @@ async fn conversations_create_returns_201() {
                     "Authorization",
                     format!("Bearer {}", make_patient_jwt(user_id, account_id)),
                 )
-                .body(Body::from(json!({ "cabinet_id": cabinet_id }).to_string()))
+                .body(Body::from(
+                    json!({ "cabinet_id": cabinet_id, "subject": "Question prothèse" }).to_string(),
+                ))
                 .unwrap(),
         )
         .await
@@ -429,11 +421,14 @@ async fn conversations_create_returns_201() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(
-        v["conversation_id"].is_string(),
-        "conversation_id doit être présent"
+    assert!(v["id"].is_string(), "id doit être présent");
+    assert_eq!(
+        v["cabinet_id"],
+        cabinet_id.to_string(),
+        "cabinet_id correct"
     );
-    assert_eq!(v["existing"], false, "existing doit être false");
+    assert_eq!(v["subject"], "Question prothèse", "subject correct");
+    assert!(v["created_at"].is_string(), "created_at doit être présent");
 
     // Cleanup
     {
@@ -444,11 +439,6 @@ async fn conversations_create_returns_201() {
             .await
             .ok();
         sqlx::query("DELETE FROM conversation WHERE cabinet_id = $1")
-            .bind(cabinet_id)
-            .execute(&mut *tx)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
             .bind(cabinet_id)
             .execute(&mut *tx)
             .await
@@ -472,7 +462,7 @@ async fn conversations_create_returns_201() {
         .ok();
 }
 
-// ── Test 2 : re-POST même cabinet → 200 + même conversation_id + existing:true ─
+// ── Test 2 : re-POST même cabinet → 201 + même id (idempotence) ───────────────
 
 #[tokio::test]
 async fn conversations_create_idempotent() {
@@ -510,21 +500,20 @@ async fn conversations_create_idempotent() {
         .await
         .unwrap();
     let v1: serde_json::Value = serde_json::from_slice(&b1).unwrap();
-    let conv_id = v1["conversation_id"].as_str().unwrap().to_string();
+    let conv_id = v1["id"].as_str().unwrap().to_string();
 
     let r2 = router.oneshot(make_request()).await.unwrap();
-    assert_eq!(r2.status(), StatusCode::OK);
+    assert_eq!(r2.status(), StatusCode::CREATED);
     let b2 = axum::body::to_bytes(r2.into_body(), usize::MAX)
         .await
         .unwrap();
     let v2: serde_json::Value = serde_json::from_slice(&b2).unwrap();
 
     assert_eq!(
-        v2["conversation_id"].as_str().unwrap(),
+        v2["id"].as_str().unwrap(),
         conv_id,
-        "conversation_id doit être identique"
+        "id doit être identique au 2e appel"
     );
-    assert_eq!(v2["existing"], true, "existing doit être true au 2e appel");
 
     // Cleanup
     {
@@ -535,11 +524,6 @@ async fn conversations_create_idempotent() {
             .await
             .ok();
         sqlx::query("DELETE FROM conversation WHERE cabinet_id = $1")
-            .bind(cabinet_id)
-            .execute(&mut *tx)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
             .bind(cabinet_id)
             .execute(&mut *tx)
             .await
