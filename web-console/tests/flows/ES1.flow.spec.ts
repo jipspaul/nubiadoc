@@ -44,7 +44,9 @@ const SEED_PATIENT_ID =
  */
 function randomFutureWindow(): { startsAt: string; endsAt: string } {
   const start = new Date();
-  start.setDate(start.getDate() + 2 + Math.floor(Math.random() * 38));
+  // Au-delà de l'horizon du pool de créneaux générés (30 j) pour éviter toute
+  // collision EXCLUDE lors de la création (POST /v1/cabinet/slots).
+  start.setDate(start.getDate() + 35 + Math.floor(Math.random() * 30));
   start.setHours(8 + Math.floor(Math.random() * 10), Math.floor(Math.random() * 4) * 15, 0, 0);
   const end = new Date(start.getTime() + 15 * 60 * 1000);
   return { startsAt: start.toISOString(), endsAt: end.toISOString() };
