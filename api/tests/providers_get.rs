@@ -120,7 +120,10 @@ async fn get_provider_happy_path_returns_200_with_profile() {
     );
     assert!(v["rpps_verified"].as_bool().unwrap(), "rpps_verified=true");
     assert!(v["is_listed"].as_bool().unwrap(), "is_listed=true");
-    assert!(v["review_count"].is_number(), "review_count doit être présent");
+    assert!(
+        v["review_count"].is_number(),
+        "review_count doit être présent"
+    );
 
     cleanup_provider(&db, provider_id).await;
 }
