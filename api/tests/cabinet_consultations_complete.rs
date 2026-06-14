@@ -306,17 +306,18 @@ async fn complete_consultation_with_acts_returns_200_and_invoice() {
     .await
     .unwrap();
     let has_completed_at: bool = session_check.try_get("has_completed_at").unwrap();
-    assert!(has_completed_at, "completed_at doit être posé sur la séance");
+    assert!(
+        has_completed_at,
+        "completed_at doit être posé sur la séance"
+    );
 
     // Vérifie que le total du devis est correct (1 acte à 2500 cents → 25.00 EUR).
     let invoice_uuid: Uuid = v["invoice_id"].as_str().unwrap().parse().unwrap();
-    let total_row = sqlx::query(
-        "SELECT total_amount::text AS total FROM quote WHERE id = $1",
-    )
-    .bind(invoice_uuid)
-    .fetch_one(&db)
-    .await
-    .unwrap();
+    let total_row = sqlx::query("SELECT total_amount::text AS total FROM quote WHERE id = $1")
+        .bind(invoice_uuid)
+        .fetch_one(&db)
+        .await
+        .unwrap();
     let total: String = total_row.try_get("total").unwrap();
     assert_eq!(total, "25.00", "total du devis attendu 25.00 EUR");
 
