@@ -602,7 +602,15 @@ pub async fn create_conversation(
 ) -> Result<impl IntoResponse, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le cabinet existe (lecture publique sans GUC).
+    // Scope RLS au cabinet cible (SET LOCAL — scoped à tx).
+    // Doit être positionné AVANT la lecture de `cabinet` (RLS tenant_isolation s'y applique).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(body.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le cabinet existe (RLS tenant_isolation filtre sur app.current_cabinet_id).
     let cabinet_exists = sqlx::query("SELECT 1 FROM cabinet WHERE id = $1 LIMIT 1")
         .bind(body.cabinet_id)
         .fetch_optional(&mut *tx)
@@ -612,13 +620,6 @@ pub async fn create_conversation(
     if cabinet_exists.is_none() {
         return Err(AppError::NotFound);
     }
-
-    // Scope RLS au cabinet cible pour la table conversation (SET LOCAL — scoped à tx).
-    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(body.cabinet_id.to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
 
     // ON CONFLICT DO NOTHING pour l'idempotence (contrainte unique patient_account × cabinet).
     let inserted = sqlx::query(
