@@ -163,7 +163,10 @@ async fn select_context_multicontext_jwt_contains_cabinet_and_role() {
     .await
     .unwrap();
 
-    for (cid, name) in [(cabinet_a, "Cabinet Multi A"), (cabinet_b, "Cabinet Multi B")] {
+    for (cid, name) in [
+        (cabinet_a, "Cabinet Multi A"),
+        (cabinet_b, "Cabinet Multi B"),
+    ] {
         sqlx::query(
             "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentiste')",
         )
@@ -230,7 +233,9 @@ async fn select_context_multicontext_jwt_contains_cabinet_and_role() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let token_str = v["access_token"].as_str().expect("access_token must be a string");
+    let token_str = v["access_token"]
+        .as_str()
+        .expect("access_token must be a string");
 
     let key = jsonwebtoken::DecodingKey::from_secret(JWT_SECRET.as_bytes());
     let mut validation = jsonwebtoken::Validation::default();
