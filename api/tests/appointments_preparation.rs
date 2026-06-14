@@ -17,12 +17,12 @@ use nubia_api::{app, AppState, StubMailer};
 const JWT_SECRET: &str = "test-jwt-secret-appt-preparation";
 
 fn db_available() -> bool {
-    std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("SEED_DATABASE_URL").is_ok()
+    std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
 }
 
 async fn seed_pool() -> PgPool {
-    let url = std::env::var("SEED_DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://nubia_seed@localhost:5432/nubia".into());
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://nubia_owner@localhost:5432/nubia".into());
     PgPool::connect(&url).await.unwrap()
 }
 
