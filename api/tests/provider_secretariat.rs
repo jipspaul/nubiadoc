@@ -317,3 +317,42 @@ async fn put_provider_secretariats_replaces_assignments() {
         .await
         .ok();
 }
+
+// ── Test 4 : PUT secretary → 403 ─────────────────────────────────────────────
+
+#[tokio::test]
+async fn put_provider_secretariats_secretary_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("r11_put_sec_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (_, account_id, cabinet_id, provider_id) = register_pro(db.clone(), &email).await;
+
+    let secretary_token = make_secretary_token(account_id, cabinet_id);
+    let body = json!({ "secretariat_ids": [] });
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!(
+                    "/v1/cabinet/providers/{}/secretariats",
+                    provider_id
+                ))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", secretary_token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
