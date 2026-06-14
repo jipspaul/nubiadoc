@@ -121,10 +121,21 @@ async fn search_slots_happy_path_returns_grouped_slots() {
         .expect("le provider inséré doit apparaître dans data");
 
     // Structure correcte
-    assert!(entry["provider_id"].is_string(), "provider_id doit être une string");
-    assert!(entry["display_name"].is_string(), "display_name doit être une string");
-    assert!(entry["first_slot_at"].is_string(), "first_slot_at doit être une string");
-    let slots = entry["slots"].as_array().expect("slots doit être un tableau");
+    assert!(
+        entry["provider_id"].is_string(),
+        "provider_id doit être une string"
+    );
+    assert!(
+        entry["display_name"].is_string(),
+        "display_name doit être une string"
+    );
+    assert!(
+        entry["first_slot_at"].is_string(),
+        "first_slot_at doit être une string"
+    );
+    let slots = entry["slots"]
+        .as_array()
+        .expect("slots doit être un tableau");
     assert_eq!(slots.len(), 2, "2 slots open attendus pour ce provider");
 
     // Tri ASC : first_slot_at == le plus ancien des deux slots
@@ -138,8 +149,14 @@ async fn search_slots_happy_path_returns_grouped_slots() {
     );
 
     // Structure d'un slot
-    assert!(slots[0]["slot_id"].is_string(), "slot_id doit être une string");
-    assert!(slots[0]["starts_at"].is_string(), "starts_at doit être une string");
+    assert!(
+        slots[0]["slot_id"].is_string(),
+        "slot_id doit être une string"
+    );
+    assert!(
+        slots[0]["starts_at"].is_string(),
+        "starts_at doit être une string"
+    );
 
     // Nettoyage
     sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
@@ -257,7 +274,10 @@ async fn search_slots_held_slot_excluded() {
     let found = data
         .iter()
         .any(|e| e["provider_id"].as_str() == Some(&provider_id.to_string()));
-    assert!(!found, "provider avec slot held seulement ne doit pas apparaître dans data");
+    assert!(
+        !found,
+        "provider avec slot held seulement ne doit pas apparaître dans data"
+    );
 
     // Nettoyage
     sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
