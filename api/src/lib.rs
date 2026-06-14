@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 mod appointments;
 mod auth;
+mod bookings;
 mod billing;
 mod cabinet_info;
 mod cabinet_messaging;
@@ -405,6 +406,7 @@ pub fn app_with_dispatcher(
             get(marketplace::get_provider_availability),
         )
         .route("/v1/slots/:id/hold", post(marketplace::hold_slot))
+        .route("/v1/bookings", post(bookings::create_booking))
         .route("/v1/cabinets/:id/info", get(cabinet_info::get_cabinet_info))
         .route("/v1/reviews", post(reviews::create_review))
         .route(
