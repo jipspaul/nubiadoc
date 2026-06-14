@@ -386,6 +386,9 @@ pub fn app_with_dispatcher(
         .route("/v1/cabinet/quotes", get(billing::list_cabinet_quotes))
         .route("/v1/quotes/:id", get(billing::get_quote))
         .route("/v1/quotes/:id/sign", post(billing::sign_quote))
+        // Alias contractuel (docs/12 §10) : la console et l'app appellent
+        // `/signature` ; on garde `/sign` pour rétro-compatibilité.
+        .route("/v1/quotes/:id/signature", post(billing::sign_quote))
         .route(
             "/v1/payments/intent",
             axum::routing::post(billing::create_payment_intent),

@@ -760,6 +760,18 @@ pub async fn create_cabinet_appointment(
     let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
 
+    // Consomme le créneau pour qu'il disparaisse de la recherche de dispo
+    // (`/v1/search/slots` filtre `status = 'open'`).
+    sqlx::query(
+        "UPDATE availability_slot SET status = 'booked', updated_at = now() \
+         WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(body.slot_id)
+    .bind(claims.cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     sqlx::query(
         "INSERT INTO audit_log \
          (cabinet_id, actor_id, actor_role, action, entity, entity_id) \

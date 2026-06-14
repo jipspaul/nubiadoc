@@ -50,6 +50,26 @@ async function refreshTokens(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Requête d'authentification SANS la logique de refresh/redirect d'`apiFetch`.
+ *
+ * `apiFetch` interprète tout `401` comme un token expiré : il tente un refresh
+ * et, à défaut, purge la session et redirige vers `/auth/login`. Or pour
+ * `POST /v1/auth/login`, un `401` est une réponse métier légitime
+ * (`mfa_required` ou identifiants incorrects) qui doit être traitée sur place.
+ * On utilise donc un `fetch` brut. Aucun token n'est joint (l'utilisateur
+ * n'est pas encore connecté).
+ */
+export async function authFetch(
+  path: string,
+  options: RequestInit = {},
+): Promise<{ status: number; data: unknown }> {
+  const res = await fetch(`${API_BASE}${path}`, options);
+  const text = await res.text();
+  const data: unknown = text ? JSON.parse(text) : null;
+  return { status: res.status, data };
+}
+
 export async function apiFetch(
   path: string,
   options: RequestInit = {},

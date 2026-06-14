@@ -132,6 +132,7 @@ pub async fn list_cabinet_patients(
            JOIN provider_secretariat ps ON ps.provider_id = pr.id \
            WHERE a.patient_id = p.id \
              AND a.deleted_at IS NULL \
+             AND a.status <> 'cancelled' \
              AND ps.secretariat_id = $5 \
              AND ps.active = true\
          )"

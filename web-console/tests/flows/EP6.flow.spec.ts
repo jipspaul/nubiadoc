@@ -48,9 +48,12 @@ test('plan de traitement : GET /v1/treatment-plans liste → détail ; export pa
       const resp = await fetch(`${apiBase}/v1/treatment-plans`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
-      const data = resp.ok
-        ? ((await resp.json()) as Array<{ id: string; title?: string; status?: string }>)
-        : [];
+      const json = resp.ok ? await resp.json() : null;
+      const data = (Array.isArray(json) ? json : (json?.data ?? [])) as Array<{
+        id: string;
+        title?: string;
+        status?: string;
+      }>;
       return { status: resp.status, plans: data };
     },
     API_BASE,
@@ -63,9 +66,9 @@ test('plan de traitement : GET /v1/treatment-plans liste → détail ; export pa
   await page.goto('/patient/soins/plan');
   // Attendre la fin du chargement (spinner masqué)
   await expect(page.locator('#plans-loading')).toBeHidden({ timeout: 15_000 });
-  // La liste ou le message vide doit être visible
+  // La liste ou le message vide doit être visible (cible l'état rendu uniquement)
   await expect(
-    page.locator('#plans-list, #plans-empty, #plans-error'),
+    page.locator('#plans-list:visible, #plans-empty:visible, #plans-error:visible').first(),
   ).toBeVisible({ timeout: 10_000 });
 
   // ── 3. Si au moins un plan : ouvrir le détail ─────────────────────────────
@@ -101,19 +104,24 @@ test('plan de traitement : GET /v1/treatment-plans liste → détail ; export pa
   }
 
   // ── 4. GET /v1/implant-passport/export → fichier reçu ─────────────────────
+  // L'export renvoie un 302 vers le stockage (URL signée stub non résolvable) ;
+  // `redirect: 'manual'` évite de suivre la redirection (échec DNS).
   const exportResp = await page.evaluate(
     async (apiBase: string) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
       const resp = await fetch(`${apiBase}/v1/implant-passport/export`, {
         headers: { Authorization: `Bearer ${jwt}` },
+        redirect: 'manual',
       });
-      return { status: resp.status };
+      return { status: resp.status, type: resp.type };
     },
     API_BASE,
   );
 
-  // L'export doit répondre (200 avec URL ou 204 si pas de données)
-  expect(exportResp.status).toBeLessThan(300);
+  // 302 vers le stockage (opaqueredirect, status 0) OU 2xx direct : les deux OK
+  expect(
+    exportResp.type === 'opaqueredirect' || exportResp.status < 300,
+  ).toBe(true);
 
   // ── 5. Page /patient/soins/passeport : bouton export cliquable ─────────────
   await page.goto('/patient/soins/passeport');
@@ -219,7 +227,7 @@ test('consentements : GET /v1/account/consents liste ; PUT /v1/account/consents/
   await page.goto('/patient/profil/consentements');
   await expect(page.locator('#consents-loading')).toBeHidden({ timeout: 15_000 });
   await expect(
-    page.locator('#consents-list, #consents-error'),
+    page.locator('#consents-list:visible, #consents-error:visible').first(),
   ).toBeVisible({ timeout: 10_000 });
 });
 
@@ -321,7 +329,11 @@ test('notifications : GET/PATCH notification-preferences → 200 ; GET notificat
   );
 
   expect(remindersResp.status).toBeLessThan(300);
-  expect(Array.isArray(remindersResp.data)).toBe(true);
+  // L'API renvoie soit un tableau nu, soit `{ data: [...] }`.
+  const remindersList = Array.isArray(remindersResp.data)
+    ? remindersResp.data
+    : (remindersResp.data as { data?: unknown } | null)?.data;
+  expect(Array.isArray(remindersList)).toBe(true);
 
   // ── 5. Page /patient/profil/notifications : centre de notifications visible ─
   await page.goto('/patient/profil/notifications');
@@ -331,6 +343,6 @@ test('notifications : GET/PATCH notification-preferences → 200 ; GET notificat
   await expect(page.locator('#reminders-loading')).toBeHidden({ timeout: 15_000 });
   // Le formulaire de préférences ou la section notifications doit être présent
   await expect(
-    page.locator('#prefs-form, #notifs-list, #notifs-empty, #notifs-error'),
+    page.locator('#prefs-form:visible, #notifs-list:visible, #notifs-empty:visible, #notifs-error:visible').first(),
   ).toBeVisible({ timeout: 10_000 });
 });

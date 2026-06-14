@@ -89,8 +89,11 @@ async function api(
  * d'éventuels runs précédents.
  */
 async function createCheckedInAppointment(proToken: string, patientToken: string): Promise<string> {
-  // Fenêtre check-in : starts_at ∈ [now − 60 min, now + 30 min].
-  const offsetsMin = [3, 9, 15, 21, 27, -10, -16, -22, -28, -34];
+  // Fenêtre check-in : starts_at ∈ [now − 60 min, now + 30 min]. On balaie
+  // densément la fenêtre (toutes les ~2 min) pour trouver un créneau libre
+  // malgré les RDV du jour accumulés.
+  const offsetsMin: number[] = [];
+  for (let m = 28; m >= -58; m -= 2) offsetsMin.push(m);
 
   for (const offset of offsetsMin) {
     const startsAt = new Date(Date.now() + offset * 60_000);

@@ -92,19 +92,36 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
   await expect(page.locator('#slots-list .muted')).toBeHidden({
     timeout: 15_000,
   });
-  const firstSlotLink = page.locator('#slots-list .slot-item a').first();
-  await expect(firstSlotLink).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#slots-list .slot-item a').first()).toBeVisible({
+    timeout: 10_000,
+  });
+  // On réserve un créneau à partir de demain : les créneaux du jour (horaires
+  // « maintenant + ε » du seed) chevauchent des RDV en cours et seraient refusés
+  // (409). On collecte tous les liens ≥ demain et on tente la réservation sur
+  // chacun jusqu'à obtenir 201 — robuste si un créneau a été pris entre-temps.
+  const tomorrowMidnight = new Date();
+  tomorrowMidnight.setHours(0, 0, 0, 0);
+  tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+  const futureSlots = await page.evaluate((tomorrowIso: string) => {
+    const links = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>('#slots-list .slot-item a'),
+    );
+    const future = links.filter((a) => (a.dataset['startsAt'] ?? '') >= tomorrowIso);
+    const chosen = future.length ? future : links;
+    return chosen
+      .map((a) => a.getAttribute('href') ?? '')
+      .filter((h) => h.includes('slot_id=') && h.includes('provider_id='))
+      .map((h) => {
+        const u = new URL(h, 'http://x');
+        return {
+          slotId: u.searchParams.get('slot_id') ?? '',
+          providerId: u.searchParams.get('provider_id') ?? '',
+        };
+      });
+  }, tomorrowMidnight.toISOString());
+  expect(futureSlots.length, 'au moins un créneau réservable').toBeGreaterThan(0);
 
-  // Extraire slot_id et provider_id depuis le href du lien créneau
-  const slotHref = await firstSlotLink.getAttribute('href');
-  expect(slotHref).toBeTruthy();
-  expect(slotHref).toContain('slot_id=');
-  expect(slotHref).toContain('provider_id=');
-
-  const slotUrl = new URL(slotHref as string, 'http://x');
-  const slotId = slotUrl.searchParams.get('slot_id') ?? '';
-  const providerId = slotUrl.searchParams.get('provider_id') ?? '';
-  expect(slotId).not.toBe('');
+  const providerId = futureSlots[0].providerId;
   expect(providerId).not.toBe('');
 
   // ── 7.a GET /v1/search/slots?provider_id=… → 200 ─────────────────────────
@@ -118,46 +135,48 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
   );
   expect(slotsApiStatus).toBe(200);
 
-  // ── 8. POST /v1/appointments → 201 avec un id ─────────────────────────────
+  // ── 8. POST /v1/appointments → 201 (essaie chaque créneau jusqu'au succès) ─
   const { postStatus, appointmentId } = await page.evaluate(
     async ({
       apiBase,
-      slotId,
-      providerId,
+      slots,
     }: {
       apiBase: string;
-      slotId: string;
-      providerId: string;
+      slots: Array<{ slotId: string; providerId: string }>;
     }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
-      const idempotencyKey = crypto.randomUUID();
-      const resp = await fetch(`${apiBase}/v1/appointments`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          'Content-Type': 'application/json',
-          'Idempotency-Key': idempotencyKey,
-        },
-        // Contrat API (appointments.rs) : motif est requis ; statut initial "requested".
-        body: JSON.stringify({
-          slot_id: slotId,
-          provider_id: providerId,
-          motif: 'Consultation de contrôle',
-        }),
-      });
-      const text = await resp.text();
-      let data: Record<string, unknown> = {};
-      try {
-        data = JSON.parse(text) as Record<string, unknown>;
-      } catch {
-        data = {};
+      let last = { postStatus: 0, appointmentId: '' };
+      for (const { slotId, providerId } of slots) {
+        const resp = await fetch(`${apiBase}/v1/appointments`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': crypto.randomUUID(),
+          },
+          // Contrat API (appointments.rs) : motif requis ; statut initial "requested".
+          body: JSON.stringify({
+            slot_id: slotId,
+            provider_id: providerId,
+            motif: 'Consultation de contrôle',
+          }),
+        });
+        const text = await resp.text();
+        let data: Record<string, unknown> = {};
+        try {
+          data = JSON.parse(text) as Record<string, unknown>;
+        } catch {
+          data = {};
+        }
+        last = {
+          postStatus: resp.status,
+          appointmentId: (data['id'] ?? data['appointment_id'] ?? '') as string,
+        };
+        if (resp.status === 201) break; // créneau réservé
       }
-      return {
-        postStatus: resp.status,
-        appointmentId: (data['id'] ?? data['appointment_id'] ?? '') as string,
-      };
+      return last;
     },
-    { apiBase: API_BASE, slotId, providerId },
+    { apiBase: API_BASE, slots: futureSlots },
   );
 
   expect(postStatus).toBe(201);
@@ -175,7 +194,9 @@ test('search → profil praticien → créneau → POST appointment → RDV visi
       appointmentId: string;
     }) => {
       const jwt = localStorage.getItem('nubia_jwt') ?? '';
-      const resp = await fetch(`${apiBase}/v1/appointments`, {
+      // RDV futur → filtre `upcoming` + grande limite (la liste par défaut est
+      // paginée à 20 et saturée de RDV passés/annulés accumulés).
+      const resp = await fetch(`${apiBase}/v1/appointments?status=upcoming&limit=100`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       // Contrat API : enveloppe { data: [...], page: {...} }

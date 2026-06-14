@@ -50,7 +50,7 @@ import Default from '../../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../../lib/api.ts';
+  import { authFetch } from '../../../lib/api.ts';
 
   const form = document.getElementById('login-form') as HTMLFormElement;
   const result = document.getElementById('result') as HTMLPreElement;
@@ -80,7 +80,7 @@ import Default from '../../../layouts/Default.astro';
     decodedSection.hidden = true;
 
     try {
-      const { status, data } = await apiFetch('/v1/auth/login', {
+      const { status, data } = await authFetch('/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, cabinet_id }),

@@ -227,7 +227,7 @@ const { id } = Astro.params;
           : slotId;
         const li = document.createElement('li');
         li.className = 'slot-item';
-        li.innerHTML = `<a href="/patient/rdv/reserver?slot_id=${encodeURIComponent(slotId)}&provider_id=${encodeURIComponent(providerId)}" aria-label="Réserver le ${displayDate}">${displayDate}${duration ? `<br><small>${duration}</small>` : ''}</a>`;
+        li.innerHTML = `<a href="/patient/rdv/reserver?slot_id=${encodeURIComponent(slotId)}&provider_id=${encodeURIComponent(providerId)}" data-starts-at="${startsAt}" aria-label="Réserver le ${displayDate}">${displayDate}${duration ? `<br><small>${duration}</small>` : ''}</a>`;
         slotsList.appendChild(li);
       }
     } catch (err) {

@@ -1658,8 +1658,11 @@ pub async fn patch_cabinet_member(
         return Err(AppError::Forbidden);
     }
 
+    // Rôles valides pour `cabinet_membership` (cf. CHECK en base : migration
+    // 0002). `manager` est un rôle de secrétariat, pas de cabinet ; le rôle
+    // praticien s'appelle `practitioner` (pas `doctor`).
     if let Some(ref role) = body.role {
-        if !["admin", "manager", "doctor", "secretary"].contains(&role.as_str()) {
+        if !["admin", "practitioner", "secretary"].contains(&role.as_str()) {
             return Err(AppError::ValidationError);
         }
     }

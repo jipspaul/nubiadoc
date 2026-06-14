@@ -37,7 +37,7 @@ BASE_ENV=(
   SEED_SECRETARY_B_PASSWORD='NubiaDemo1!'
   SEED_MFA_EMAIL=patient.mfa@nubia.test
   SEED_MFA_PASSWORD='NubiaDemo1!'
-  SEED_MFA_TOTP_SECRET=JBSWY3DPEHPK3PXP
+  SEED_MFA_TOTP_SECRET=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP
   SEED_RESET_EMAIL=patient.reset@nubia.test
   SEED_RESET_PASSWORD='NubiaDemo1!'
 )
@@ -45,14 +45,16 @@ BASE_ENV=(
 FAIL=0
 
 echo "── Pass 1/3 : flows mono-contexte ─────────────────────────────────"
-env "${BASE_ENV[@]}" npx playwright test --project=flows \
+# --workers=1 : les flows mutent un état backend partagé (cabinet, créneaux,
+# assignations) ; les exécuter en série évite les courses inter-tests.
+env "${BASE_ENV[@]}" npx playwright test --project=flows --workers=1 \
   --grep-invert 'ED5|ES5|EW52' "$@" || FAIL=1
 
 echo "── Pass 2/3 : multi-secrétariat (ES5 + EW52) ──────────────────────"
 env "${BASE_ENV[@]}" \
   SEED_SECRETARY_EMAIL=secretaire-multi.demo@nubia.test \
   SEED_SECRETARY_PASSWORD='NubiaDemo1!' \
-  npx playwright test --project=flows --grep 'ES5|EW52' "$@" || FAIL=1
+  npx playwright test --project=flows --workers=1 --grep 'ES5|EW52' "$@" || FAIL=1
 
 echo "── Pass 3/3 : multi-établissement (ED5) ───────────────────────────"
 env "${BASE_ENV[@]}" \
@@ -66,6 +68,6 @@ env "${BASE_ENV[@]}" \
   SEED_SECRETARY_A_PASSWORD='NubiaDemo1!' \
   SEED_SECRETARY_B_EMAIL=secretaire-annecy.demo@nubia.test \
   SEED_SECRETARY_B_PASSWORD='NubiaDemo1!' \
-  npx playwright test --project=flows --grep 'ED5' "$@" || FAIL=1
+  npx playwright test --project=flows --workers=1 --grep 'ED5' "$@" || FAIL=1
 
 exit $FAIL

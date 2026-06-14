@@ -19,7 +19,7 @@ import Default from '../../layouts/Default.astro';
       <legend style="padding:0 0.25rem;font-size:0.875rem;color:var(--muted);">MFA requis</legend>
       <label>
         Code MFA (6 chiffres)
-        <input type="text" name="mfa_code" inputmode="numeric" maxlength="6" pattern="\d{6}"
+        <input type="text" name="mfa_code" inputmode="numeric" maxlength="6" pattern="\\d{6}"
           autocomplete="one-time-code"
           style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
       </label>
@@ -38,7 +38,7 @@ import Default from '../../layouts/Default.astro';
 </style>
 
 <script>
-  import { apiFetch } from '../../lib/api.ts';
+  import { authFetch } from '../../lib/api.ts';
   import { login } from '../../lib/session.ts';
 
   const form = document.getElementById('login-form') as HTMLFormElement;
@@ -59,7 +59,7 @@ import Default from '../../layouts/Default.astro';
     if (mfa_code) body.mfa_code = mfa_code;
 
     try {
-      const { status, data } = await apiFetch('/v1/auth/login', {
+      const { status, data } = await authFetch('/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
