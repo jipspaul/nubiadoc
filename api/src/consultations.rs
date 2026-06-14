@@ -208,9 +208,9 @@ pub async fn complete_consultation(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Récupère la séance + appointment_id, vérifie tenant et statut.
+    // Récupère la séance + appointment_id + practitioner_id, vérifie tenant et statut.
     let session_row = sqlx::query(
-        "SELECT cs.id, cs.appointment_id, cs.status \
+        "SELECT cs.id, cs.appointment_id, cs.practitioner_id, cs.status \
          FROM consultation_session cs \
          WHERE cs.id = $1 AND cs.cabinet_id = $2",
     )
@@ -227,6 +227,23 @@ pub async fn complete_consultation(
     let appointment_id: Uuid = session_row
         .try_get("appointment_id")
         .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = session_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Seul le praticien propriétaire de la séance peut la clôturer.
+    let prac_row = sqlx::query(
+        "SELECT id FROM practitioner WHERE id = $1 AND user_id = $2 AND cabinet_id = $3",
+    )
+    .bind(practitioner_id)
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if prac_row.is_none() {
+        return Err(AppError::Forbidden);
+    }
 
     if session_status != "in_progress" {
         return Err(AppError::InvalidStatus);
