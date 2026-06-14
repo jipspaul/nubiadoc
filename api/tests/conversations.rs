@@ -379,6 +379,29 @@ async fn setup_patient(db: &PgPool) -> (Uuid, Uuid) {
     (user_id, account_id)
 }
 
+/// Lie un patient (account_id) à un cabinet, retourne `patient_id`.
+async fn setup_patient_link(db: &PgPool, cabinet_id: Uuid, account_id: Uuid) -> Uuid {
+    let patient_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Alice', 'Conv', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    patient_id
+}
+
 // ── Test 1 : cabinet existant → 201 + id + cabinet_id + subject + created_at ──
 
 #[tokio::test]
@@ -389,6 +412,7 @@ async fn conversations_create_returns_201() {
     let db = owner_pool().await;
     let cabinet_id = setup_listed_cabinet(&db).await;
     let (user_id, account_id) = setup_patient(&db).await;
+    let patient_id = setup_patient_link(&db, cabinet_id, account_id).await;
 
     let state = AppState {
         db: app_pool().await,
@@ -443,6 +467,11 @@ async fn conversations_create_returns_201() {
             .execute(&mut *tx)
             .await
             .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
         sqlx::query("DELETE FROM cabinet WHERE id = $1")
             .bind(cabinet_id)
             .execute(&mut *tx)
@@ -472,6 +501,7 @@ async fn conversations_create_idempotent() {
     let db = owner_pool().await;
     let cabinet_id = setup_listed_cabinet(&db).await;
     let (user_id, account_id) = setup_patient(&db).await;
+    let patient_id = setup_patient_link(&db, cabinet_id, account_id).await;
 
     let state = AppState {
         db: app_pool().await,
@@ -525,6 +555,11 @@ async fn conversations_create_idempotent() {
             .ok();
         sqlx::query("DELETE FROM conversation WHERE cabinet_id = $1")
             .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
             .execute(&mut *tx)
             .await
             .ok();
@@ -584,6 +619,69 @@ async fn conversations_cabinet_not_found_returns_404() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // Cleanup
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 4 : cabinet non lié au patient → 403 ─────────────────────────────────
+
+#[tokio::test]
+async fn conversations_create_unlinked_cabinet_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    // Cabinet existant mais sans lien `patient` pour ce compte.
+    let cabinet_id = setup_listed_cabinet(&db).await;
+    let (user_id, account_id) = setup_patient(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/conversations")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::from(json!({ "cabinet_id": cabinet_id }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
         .bind(account_id)
         .execute(&db)

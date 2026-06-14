@@ -621,6 +621,20 @@ pub async fn create_conversation(
         return Err(AppError::NotFound);
     }
 
+    // Vérifie que le patient est lié à ce cabinet (enregistrement `patient` avec patient_account_id).
+    let patient_linked = sqlx::query(
+        "SELECT 1 FROM patient WHERE cabinet_id = $1 AND patient_account_id = $2 LIMIT 1",
+    )
+    .bind(body.cabinet_id)
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_linked.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
     // ON CONFLICT DO NOTHING pour l'idempotence (contrainte unique patient_account × cabinet).
     let inserted = sqlx::query(
         "INSERT INTO conversation (patient_account_id, cabinet_id, subject) \
