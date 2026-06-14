@@ -525,7 +525,10 @@ async fn post_booking_unknown_hold_token_returns_409() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["code"], "hold_invalid", "code JSON doit être hold_invalid");
+    assert_eq!(
+        v["code"], "hold_invalid",
+        "code JSON doit être hold_invalid"
+    );
 
     cleanup_slot_fixtures(&db, cabinet_id, slot_id).await;
     sqlx::query("DELETE FROM patient_account WHERE app_user_id = $1")
@@ -607,7 +610,10 @@ async fn post_booking_expired_hold_returns_409() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["code"], "hold_invalid", "code JSON doit être hold_invalid");
+    assert_eq!(
+        v["code"], "hold_invalid",
+        "code JSON doit être hold_invalid"
+    );
 
     cleanup_slot_fixtures(&db, cabinet_id, slot_id).await;
     sqlx::query("DELETE FROM patient_account WHERE app_user_id = $1")
