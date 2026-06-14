@@ -422,7 +422,11 @@ async fn conversations_create_returns_201() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert!(v["id"].is_string(), "id doit être présent");
-    assert_eq!(v["cabinet_id"], cabinet_id.to_string(), "cabinet_id correct");
+    assert_eq!(
+        v["cabinet_id"],
+        cabinet_id.to_string(),
+        "cabinet_id correct"
+    );
     assert_eq!(v["subject"], "Question prothèse", "subject correct");
     assert!(v["created_at"].is_string(), "created_at doit être présent");
 
