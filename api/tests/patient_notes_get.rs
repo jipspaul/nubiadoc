@@ -98,11 +98,12 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
-/// Insère les fixtures minimales (cabinet + app_user + patient).
-/// Retourne `(cabinet_id, user_id, patient_id)`.
-async fn insert_fixtures(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uuid) {
+/// Insère les fixtures : cabinet + app_user + practitioner + patient + appointment.
+/// Retourne `(cabinet_id, user_id, prac_id, patient_id)`.
+async fn insert_fixtures(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
     // app_user : inséré via nubia_app (policy user_app_insert CHECK: true).
@@ -132,6 +133,14 @@ async fn insert_fixtures(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uui
     .await
     .unwrap();
 
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
     sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
          VALUES ($1, $2, 'Alice', 'Test')",
@@ -142,9 +151,79 @@ async fn insert_fixtures(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uui
     .await
     .unwrap();
 
+    // Appointment passé : le praticien a consulté ce patient (requis par E.2.16.c).
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'completed', 'contrôle')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
-    (cabinet_id, user_id, patient_id)
+    (cabinet_id, user_id, prac_id, patient_id)
+}
+
+/// Insère les fixtures sans appointment (pour tester le 403 du praticien sans consultation).
+/// Retourne `(cabinet_id, user_id, prac_id, patient_id)`.
+async fn insert_fixtures_no_appt(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid) {
+    let cabinet_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("notes-noappt+{}@nubia.test", user_id))
+    .execute(app_db)
+    .await
+    .unwrap();
+
+    let mut tx = owner_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) \
+         VALUES ($1, 'Cabinet Notes NoAppt Test', 'dentaire')",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+         VALUES ($1, $2, 'Bob', 'Test')",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    (cabinet_id, user_id, prac_id, patient_id)
 }
 
 async fn cleanup_fixtures(
@@ -160,6 +239,11 @@ async fn cleanup_fixtures(
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM clinical_note WHERE patient_id = $1")
         .bind(patient_id)
         .execute(&mut *tx)
@@ -167,6 +251,11 @@ async fn cleanup_fixtures(
         .ok();
     sqlx::query("DELETE FROM patient WHERE id = $1")
         .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(cabinet_id)
         .execute(&mut *tx)
         .await
         .ok();
@@ -200,7 +289,7 @@ async fn list_patient_notes_secretary_returns_403() {
     }
     let owner_db = owner_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
+    let (cabinet_id, user_id, _prac_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
 
     let secretary_id = Uuid::new_v4();
     let token = make_secretary_token(secretary_id, cabinet_id);
@@ -231,7 +320,7 @@ async fn list_patient_notes_practitioner_returns_200_with_decrypted_text() {
     }
     let owner_db = owner_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
+    let (cabinet_id, user_id, _prac_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
 
     // Insère une note via POST (chiffrement stub).
     let plain_text = "Examen de contrôle, aucune anomalie.";
@@ -349,6 +438,85 @@ async fn list_patient_notes_practitioner_returns_200_with_decrypted_text() {
 
     // Vérifie que page est présent.
     assert!(v["page"].is_object(), "page doit être un objet");
+
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
+}
+
+// ── Test 3 : praticien sans consultation → 403 (E.2.16.c) ────────────────────
+
+#[tokio::test]
+async fn list_patient_notes_practitioner_no_appointment_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, _prac_id, patient_id) =
+        insert_fixtures_no_appt(&owner_db, &app_db).await;
+
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/notes", patient_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
+}
+
+// ── Test 4 : rôle patient → 403 ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn list_patient_notes_patient_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, _prac_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
+
+    // Token patient : kind=patient (pas pro).
+    #[derive(serde::Serialize)]
+    struct PatientClaims {
+        sub: Uuid,
+        kind: String,
+        account_id: Uuid,
+        exp: u64,
+    }
+    let patient_token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &PatientClaims {
+            sub: Uuid::new_v4(),
+            kind: "patient".into(),
+            account_id: Uuid::new_v4(),
+            exp: exp(),
+        },
+        &jsonwebtoken::EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/notes", patient_id))
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 
     cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
 }
