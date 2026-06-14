@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 mod appointments;
 mod auth;
-mod bookings;
 mod billing;
+mod bookings;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_secretariats;
