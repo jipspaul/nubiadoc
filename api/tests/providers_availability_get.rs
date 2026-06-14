@@ -136,7 +136,10 @@ async fn availability_get_happy_path_returns_200_with_slots() {
         slot_id.to_string(),
         "slot_id doit correspondre"
     );
-    assert!(data[0]["starts_at"].is_string(), "starts_at doit être présent");
+    assert!(
+        data[0]["starts_at"].is_string(),
+        "starts_at doit être présent"
+    );
     assert!(data[0]["ends_at"].is_string(), "ends_at doit être présent");
 
     cleanup_provider(&db, provider_id).await;
