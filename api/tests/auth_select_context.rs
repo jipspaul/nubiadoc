@@ -105,6 +105,15 @@ async fn select_context_valid_returns_200_with_token() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
+    let set_cookie = response.headers().get("set-cookie");
+    assert!(set_cookie.is_some(), "Set-Cookie header must be present");
+    let cookie_val = set_cookie.unwrap().to_str().unwrap();
+    assert!(
+        cookie_val.starts_with("nubia_jwt="),
+        "cookie name must be nubia_jwt"
+    );
+    assert!(cookie_val.contains("HttpOnly"), "cookie must be HttpOnly");
+
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();

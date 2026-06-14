@@ -1,6 +1,7 @@
 //! Handler `POST /v1/auth/select-context`.
 
 use axum::extract::{Json, State};
+use axum::http::{header, HeaderMap, HeaderValue};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -43,7 +44,7 @@ pub async fn select_context(
     State(state): State<AppState>,
     claims: ProClaims,
     Json(body): Json<SelectContextBody>,
-) -> Result<Json<SelectContextResponse>, AppError> {
+) -> Result<(HeaderMap, Json<SelectContextResponse>), AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
@@ -124,9 +125,22 @@ pub async fn select_context(
         "context selected"
     );
 
-    Ok(Json(SelectContextResponse {
-        access_token,
-        token_type: "Bearer".to_string(),
-        expires_in: EXPIRES_IN,
-    }))
+    let cookie = format!(
+        "nubia_jwt={}; HttpOnly; Path=/; SameSite=Strict",
+        access_token
+    );
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&cookie).map_err(|_| AppError::Internal)?,
+    );
+
+    Ok((
+        headers,
+        Json(SelectContextResponse {
+            access_token,
+            token_type: "Bearer".to_string(),
+            expires_in: EXPIRES_IN,
+        }),
+    ))
 }
