@@ -125,7 +125,7 @@ async fn create_secretariat(db: PgPool, token: &str) -> Uuid {
     v["id"].as_str().unwrap().parse().unwrap()
 }
 
-// ── Test 1 : GET admin → 200, tableau vide initialement ─────────────────────
+// ── Test 1 : GET admin → 200, liste non vide après assignation ──────────────
 
 #[tokio::test]
 async fn get_provider_secretariats_admin_returns_200() {
@@ -135,6 +135,26 @@ async fn get_provider_secretariats_admin_returns_200() {
     let email = format!("r11_get_admin_{}@test.local", Uuid::new_v4());
     let db = app_pool().await;
     let (token, _, _, provider_id) = register_pro(db.clone(), &email).await;
+
+    // Crée un secrétariat et l'assigne au praticien.
+    let sec_id = create_secretariat(db.clone(), &token).await;
+    let put_body = json!({ "secretariat_ids": [sec_id] });
+    let put_resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!(
+                    "/v1/cabinet/providers/{}/secretariats",
+                    provider_id
+                ))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(put_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(put_resp.status(), StatusCode::OK);
 
     let resp = app(make_state(db))
         .oneshot(
@@ -156,7 +176,8 @@ async fn get_provider_secretariats_admin_returns_200() {
         .await
         .unwrap();
     let arr: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert!(arr.as_array().is_some(), "réponse doit être un tableau");
+    let items = arr.as_array().expect("réponse doit être un tableau");
+    assert!(!items.is_empty(), "liste doit être non vide après assignation");
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
