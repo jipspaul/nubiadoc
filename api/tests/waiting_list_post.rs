@@ -307,7 +307,11 @@ async fn post_waiting_list_duplicate_returns_409() {
         )
         .await
         .unwrap();
-    assert_eq!(r1.status(), StatusCode::CREATED, "premier appel doit être 201");
+    assert_eq!(
+        r1.status(),
+        StatusCode::CREATED,
+        "premier appel doit être 201"
+    );
 
     // Deuxième appel avec le même provider → 409.
     let r2 = app(make_state())
