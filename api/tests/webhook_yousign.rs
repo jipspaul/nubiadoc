@@ -3,7 +3,7 @@
 //! 4 cas :
 //!   1. Happy path : signature.completed → quote.signed_at != NULL, status = 'signed'.
 //!   2. HMAC invalide → 401.
-//!   2b. HMAC absent ou incorrect → 401, quotes.status non modifié en base.
+//!      2b. HMAC absent ou incorrect → 401, quotes.status non modifié en base.
 //!   3. Événement ignoré (non signature.completed) → 200, quote non touchée.
 
 use axum::{
@@ -357,8 +357,14 @@ async fn yousign_webhook_hmac_absent_or_invalid_does_not_modify_quote() {
         .unwrap();
     let status: String = row.try_get("status").unwrap();
     let signed_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("signed_at").unwrap();
-    assert_eq!(status, "sent", "quotes.status ne doit pas changer après un 401 HMAC");
-    assert!(signed_at.is_none(), "signed_at doit rester null après un 401 HMAC");
+    assert_eq!(
+        status, "sent",
+        "quotes.status ne doit pas changer après un 401 HMAC"
+    );
+    assert!(
+        signed_at.is_none(),
+        "signed_at doit rester null après un 401 HMAC"
+    );
 
     // Cleanup
     {
