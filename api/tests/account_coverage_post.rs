@@ -133,7 +133,13 @@ async fn coverage_card_post_jpeg_returns_201() {
     // Octets JPEG minimaux (magic bytes)
     let jpeg_stub = b"\xff\xd8\xff\xe0\x00\x10JFIF";
     let boundary = "bound-cpost-happy";
-    let body = make_multipart(boundary, "recto", jpeg_stub, "mutuelle_recto.jpg", "image/jpeg");
+    let body = make_multipart(
+        boundary,
+        "recto",
+        jpeg_stub,
+        "mutuelle_recto.jpg",
+        "image/jpeg",
+    );
 
     let response = app(state)
         .oneshot(
@@ -187,13 +193,7 @@ async fn coverage_card_post_no_jwt_returns_401() {
     };
 
     let boundary = "bound-cpost-nojwt";
-    let body = make_multipart(
-        boundary,
-        "recto",
-        b"\xff\xd8\xff",
-        "test.jpg",
-        "image/jpeg",
-    );
+    let body = make_multipart(boundary, "recto", b"\xff\xd8\xff", "test.jpg", "image/jpeg");
 
     let response = app(state)
         .oneshot(
@@ -230,13 +230,7 @@ async fn coverage_card_post_pro_jwt_returns_403() {
 
     let pro_jwt = make_pro_jwt(Uuid::new_v4());
     let boundary = "bound-cpost-projwt";
-    let body = make_multipart(
-        boundary,
-        "recto",
-        b"\xff\xd8\xff",
-        "test.jpg",
-        "image/jpeg",
-    );
+    let body = make_multipart(boundary, "recto", b"\xff\xd8\xff", "test.jpg", "image/jpeg");
 
     let response = app(state)
         .oneshot(
@@ -296,13 +290,7 @@ async fn coverage_card_post_invalid_side_returns_422() {
 
     // "front" n'est pas une valeur autorisée — seuls "recto" et "verso" le sont
     let boundary = "bound-cpost-side";
-    let body = make_multipart(
-        boundary,
-        "front",
-        b"\xff\xd8\xff",
-        "test.jpg",
-        "image/jpeg",
-    );
+    let body = make_multipart(boundary, "front", b"\xff\xd8\xff", "test.jpg", "image/jpeg");
 
     let response = app(state)
         .oneshot(
