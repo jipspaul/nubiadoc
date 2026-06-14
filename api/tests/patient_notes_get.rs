@@ -329,7 +329,11 @@ async fn list_patient_notes_practitioner_returns_200_with_decrypted_text() {
         "note_kind doit être présent"
     );
     assert_eq!(
-        note_item["author_id"].as_str().unwrap().parse::<uuid::Uuid>().unwrap(),
+        note_item["author_id"]
+            .as_str()
+            .unwrap()
+            .parse::<uuid::Uuid>()
+            .unwrap(),
         user_id,
         "author_id doit correspondre à l'utilisateur praticien"
     );
