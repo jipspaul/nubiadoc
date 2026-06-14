@@ -337,6 +337,78 @@ async fn select_context_unknown_cabinet_returns_403() {
         .ok();
 }
 
+// ── Test 2b : token absent → 401 ─────────────────────────────────────────────
+
+#[tokio::test]
+async fn select_context_no_token_returns_401() {
+    let Some(state) = (async {
+        let url = std::env::var("APP_DATABASE_URL").ok()?;
+        let pool = sqlx::PgPool::connect(&url).await.ok()?;
+        Some(AppState {
+            db: pool,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        })
+    })
+    .await
+    else {
+        return;
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/select-context")
+                .header("content-type", "application/json")
+                // Pas d'en-tête Authorization → 401
+                .body(Body::from(
+                    json!({"cabinet_id": Uuid::new_v4()}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test 2c : body JSON invalide (cabinet_id manquant) → 422 ─────────────────
+
+#[tokio::test]
+async fn select_context_invalid_body_returns_422() {
+    let Some(state) = (async {
+        let url = std::env::var("APP_DATABASE_URL").ok()?;
+        let pool = sqlx::PgPool::connect(&url).await.ok()?;
+        Some(AppState {
+            db: pool,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        })
+    })
+    .await
+    else {
+        return;
+    };
+
+    // Génère un JWT pro valide mais envoie un body sans `cabinet_id`.
+    let user_id = Uuid::new_v4();
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/select-context")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
+                .body(Body::from(r#"{}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 // ── Test 3 : secretariat_id appartenant à un autre cabinet → 403 ─────────────
 
 #[tokio::test]
