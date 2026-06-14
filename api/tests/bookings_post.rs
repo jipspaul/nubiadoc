@@ -232,13 +232,14 @@ async fn post_booking_happy_path_returns_201_and_removes_hold() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let row =
-            sqlx::query("SELECT patient_id, status FROM appointment WHERE id = $1 AND cabinet_id = $2")
-                .bind(appt_id)
-                .bind(cabinet_id)
-                .fetch_one(&mut *tx)
-                .await
-                .unwrap();
+        let row = sqlx::query(
+            "SELECT patient_id, status FROM appointment WHERE id = $1 AND cabinet_id = $2",
+        )
+        .bind(appt_id)
+        .bind(cabinet_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
         tx.commit().await.unwrap();
 
         let db_patient_id: Uuid = row.try_get("patient_id").unwrap();
