@@ -29,12 +29,6 @@ async fn owner_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-async fn app_pool() -> PgPool {
-    let url = std::env::var("APP_DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
-    PgPool::connect(&url).await.unwrap()
-}
-
 fn make_patient_jwt(user_id: Uuid, account_id: Uuid) -> String {
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
