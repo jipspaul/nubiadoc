@@ -902,6 +902,270 @@ async fn post_appointment_invalid_guardianship_returns_422() {
         .ok();
 }
 
+// ── Test : slot_id déjà réservé → 409 slot_taken + aucune row insérée ────────
+
+#[tokio::test]
+async fn post_appointment_slot_already_booked_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let slot_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("post-appt-slot-taken+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Slot', 'Taken')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("post-appt-slot-taken-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet SlotTaken {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, $4, 'Dr. SlotTaken', true, true)",
+        )
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Slot', 'Taken', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(patient_account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Créneau déjà marqué 'booked' (slot pris).
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, \
+                     now() + interval '5 days', \
+                     now() + interval '5 days 30 minutes', \
+                     'booked')",
+        )
+        .bind(slot_id)
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // RDV existant qui occupe ce créneau (contrainte d'exclusion appointment_no_overlap).
+        sqlx::query(
+            "INSERT INTO appointment \
+             (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, slot_id) \
+             VALUES ($1, $2, $3, \
+                     now() + interval '5 days', \
+                     now() + interval '5 days 30 minutes', \
+                     'requested', 'détartrage', $4)",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .bind(slot_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    // Compte initial de rows dans appointment pour ce cabinet.
+    let count_before: i64 = {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let row = sqlx::query("SELECT COUNT(*) AS cnt FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        row.try_get("cnt").unwrap()
+    };
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "provider_id": provider_id,
+                        "slot_id": slot_id,
+                        "motif": "détartrage doublon"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::CONFLICT,
+        "slot déjà réservé doit retourner 409"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "slot_taken", "message d'erreur doit être slot_taken");
+
+    // Aucune row supplémentaire insérée dans appointments.
+    let count_after: i64 = {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let row = sqlx::query("SELECT COUNT(*) AS cnt FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        row.try_get("cnt").unwrap()
+    };
+    assert_eq!(
+        count_after, count_before,
+        "aucune row supplémentaire ne doit être insérée dans appointment"
+    );
+
+    // Cleanup.
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM availability_slot WHERE id = $1")
+            .bind(slot_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test : token pro → 403 Forbidden ────────────────────────────────────────
 
 #[tokio::test]
