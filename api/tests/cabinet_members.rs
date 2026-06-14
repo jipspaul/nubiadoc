@@ -517,8 +517,9 @@ async fn patch_cabinet_member_admin_ok_returns_200() {
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let member_id = v["user_id"].as_str().unwrap().to_string();
 
-    // PATCH → promote to manager
-    let patch_body = json!({ "role": "manager" });
+    // PATCH → promotion vers un rôle cabinet VALIDE ("manager" est un
+    // rôle de secrétariat, refusé par la contrainte cabinet_membership).
+    let patch_body = json!({ "role": "practitioner" });
     let resp = app(make_state(db))
         .oneshot(
             Request::builder()
@@ -537,7 +538,7 @@ async fn patch_cabinet_member_admin_ok_returns_200() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(v["role"], "manager");
+    assert_eq!(v["role"], "practitioner");
     assert_eq!(v["user_id"].as_str().unwrap(), member_id);
 
     let owner = owner_pool().await;

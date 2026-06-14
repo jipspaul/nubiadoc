@@ -148,12 +148,13 @@ async fn insert_cabinet(db: &PgPool) -> CabinetFixture {
         .unwrap();
 
     sqlx::query(
-        "INSERT INTO provider (id, cabinet_id, practitioner_id, display_name, specialite, is_listed) \
-         VALUES ($1, $2, $3, $4, 'dentaire', false)",
+        "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
+         VALUES ($1, $2, $3, $4, $5, 'dentaire', false)",
     )
     .bind(provider_id)
     .bind(cabinet_id)
     .bind(prac_id)
+    .bind(prac_user_id)
     .bind(format!("Dr WR {}", prac_id))
     .execute(&mut *tx)
     .await
@@ -171,7 +172,12 @@ async fn insert_cabinet(db: &PgPool) -> CabinetFixture {
 
 /// Insère un RDV avec `checkin_at = now()` (patient arrivé) et `started_at = NULL`
 /// (consultation pas encore commencée). Retourne l'appointment_id.
-async fn insert_checked_in_appt(db: &PgPool, cabinet_id: Uuid, prac_id: Uuid) -> Uuid {
+async fn insert_checked_in_appt(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    prac_id: Uuid,
+    offset_min: i64,
+) -> Uuid {
     let appt_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
@@ -193,15 +199,22 @@ async fn insert_checked_in_appt(db: &PgPool, cabinet_id: Uuid, prac_id: Uuid) ->
     .await
     .unwrap();
 
+    // Décalage horaire pour éviter la contrainte d'exclusion praticien
+    // (`appointment_no_overlap`) quand plusieurs RDV sont créés pour le même
+    // praticien dans un même test.
     sqlx::query(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) \
-         VALUES ($1, $2, $3, $4, now(), now() + interval '30 min', 'checked_in', 'test', now())",
+         VALUES ($1, $2, $3, $4, \
+                 now() + make_interval(mins => $5::int), \
+                 now() + make_interval(mins => $5::int + 30), \
+                 'checked_in', 'test', now())",
     )
     .bind(appt_id)
     .bind(cabinet_id)
     .bind(patient_id)
     .bind(prac_id)
+    .bind(offset_min)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -275,9 +288,9 @@ async fn waiting_room_three_checkins_returns_three_entries() {
     let f = insert_cabinet(&db).await;
 
     // 3 RDV checked-in, started_at IS NULL.
-    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id).await;
-    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id).await;
-    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id).await;
+    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id, 0).await;
+    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id, 35).await;
+    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id, 70).await;
 
     let state = AppState {
         db: app_db,
@@ -362,7 +375,7 @@ async fn waiting_room_secretary_other_secretariat_sees_empty() {
     tx.commit().await.unwrap();
 
     // Un check-in dans ce cabinet.
-    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id).await;
+    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id, 0).await;
 
     let state = AppState {
         db: app_db,

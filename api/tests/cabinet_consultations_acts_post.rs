@@ -620,7 +620,7 @@ async fn add_act_session_not_started_returns_409() {
         sqlx::query(
             "INSERT INTO appointment \
              (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
-             VALUES ($1, $2, $3, $4, now(), now() + interval '1 hour', 'scheduled', 'détartrage')",
+             VALUES ($1, $2, $3, $4, now(), now() + interval '1 hour', 'confirmed', 'détartrage')",
         )
         .bind(appt_id)
         .bind(cabinet_id)
