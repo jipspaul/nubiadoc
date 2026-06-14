@@ -213,18 +213,19 @@ async fn post_appointment_happy_path_returns_201() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let row = sqlx::query(
-            "SELECT patient_id, status FROM appointment WHERE id = $1",
-        )
-        .bind(appt_id)
-        .fetch_one(&mut *tx)
-        .await
-        .unwrap();
+        let row = sqlx::query("SELECT patient_id, status FROM appointment WHERE id = $1")
+            .bind(appt_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
         tx.commit().await.unwrap();
 
         let db_patient_id: uuid::Uuid = row.try_get("patient_id").unwrap();
         let db_status: String = row.try_get("status").unwrap();
-        assert_eq!(db_patient_id, patient_id, "patient_id DB doit correspondre au dossier du JWT");
+        assert_eq!(
+            db_patient_id, patient_id,
+            "patient_id DB doit correspondre au dossier du JWT"
+        );
         assert_eq!(db_status, "requested", "status DB doit être requested");
     }
 
