@@ -627,3 +627,291 @@ async fn post_booking_expired_hold_returns_409() {
         .await
         .ok();
 }
+
+// ── Test : idempotence — 2 appels avec même idempotency_key → même 201, pas de doublon ──
+
+#[tokio::test]
+async fn post_booking_idempotency_key_returns_same_201() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let idempotency_key = Uuid::new_v4().to_string();
+
+    // IDs fixtures
+    let cabinet_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let slot_id = Uuid::new_v4();
+    let patient_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let hold_token = Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("idem-prac-{}@nubia.test", suffix))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("idem-patient-{}@nubia.test", suffix))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Idem', 'Patient')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Idem {}", suffix))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, $4, 'Dr. Idem', true, true)",
+        )
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Idem', 'Patient', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(patient_account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, \
+                     now() + interval '4 days', \
+                     now() + interval '4 days 30 minutes', \
+                     'held')",
+        )
+        .bind(slot_id)
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    // Insère le hold valide
+    sqlx::query(
+        "INSERT INTO slot_holds (slot_id, user_id, hold_token, expires_at) \
+         VALUES ($1, $2, $3, now() + interval '5 minutes')",
+    )
+    .bind(slot_id)
+    .bind(patient_user_id)
+    .bind(&hold_token)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let body_json = serde_json::to_string(&json!({
+        "slot_id": slot_id,
+        "hold_token": hold_token,
+        "idempotency_key": idempotency_key,
+    }))
+    .unwrap();
+    let jwt = make_patient_jwt(patient_user_id, patient_account_id);
+
+    // Premier appel — crée l'appointment et consomme le hold.
+    let state1 = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let resp1 = app(state1)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/bookings")
+                .header("Authorization", format!("Bearer {}", jwt))
+                .header("Content-Type", "application/json")
+                .body(Body::from(body_json.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp1.status(),
+        StatusCode::CREATED,
+        "1er appel doit retourner 201"
+    );
+    let b1 = axum::body::to_bytes(resp1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&b1).unwrap();
+    let appt_id_1: Uuid = v1["appointment_id"].as_str().unwrap().parse().unwrap();
+
+    // Deuxième appel — même idempotency_key, hold déjà consommé.
+    let state2 = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let resp2 = app(state2)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/bookings")
+                .header("Authorization", format!("Bearer {}", jwt))
+                .header("Content-Type", "application/json")
+                .body(Body::from(body_json))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp2.status(),
+        StatusCode::CREATED,
+        "2ème appel doit retourner 201"
+    );
+    let b2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&b2).unwrap();
+    let appt_id_2: Uuid = v2["appointment_id"].as_str().unwrap().parse().unwrap();
+
+    // Les deux appels doivent retourner le même appointment_id.
+    assert_eq!(
+        appt_id_1, appt_id_2,
+        "les deux appels doivent retourner le même appointment_id"
+    );
+
+    // Vérification DB : un seul appointment pour cette idempotency_key.
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let count: i64 = sqlx::query(
+            "SELECT COUNT(*) AS cnt FROM appointment \
+             WHERE cabinet_id = $1 AND idempotency_key = $2",
+        )
+        .bind(cabinet_id)
+        .bind(&idempotency_key)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+        .try_get("cnt")
+        .unwrap();
+        tx.commit().await.unwrap();
+
+        assert_eq!(
+            count, 1,
+            "un seul appointment doit exister pour cette idempotency_key"
+        );
+    }
+
+    // Cleanup.
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM slot_holds WHERE slot_id = $1")
+            .bind(slot_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM availability_slot WHERE id = $1")
+            .bind(slot_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
