@@ -923,7 +923,10 @@ async fn post_appointment_slot_already_booked_returns_409() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
     )
     .bind(patient_user_id)
-    .bind(format!("post-appt-slot-taken+{}@nubia.test", patient_user_id))
+    .bind(format!(
+        "post-appt-slot-taken+{}@nubia.test",
+        patient_user_id
+    ))
     .execute(&db)
     .await
     .unwrap();
@@ -942,7 +945,10 @@ async fn post_appointment_slot_already_booked_returns_409() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
     )
     .bind(prac_user_id)
-    .bind(format!("post-appt-slot-taken-prac+{}@nubia.test", prac_user_id))
+    .bind(format!(
+        "post-appt-slot-taken-prac+{}@nubia.test",
+        prac_user_id
+    ))
     .execute(&db)
     .await
     .unwrap();
@@ -1090,7 +1096,10 @@ async fn post_appointment_slot_already_booked_returns_409() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["code"], "slot_taken", "message d'erreur doit être slot_taken");
+    assert_eq!(
+        v["code"], "slot_taken",
+        "message d'erreur doit être slot_taken"
+    );
 
     // Aucune row supplémentaire insérée dans appointments.
     let count_after: i64 = {
