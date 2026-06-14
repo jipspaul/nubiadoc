@@ -177,7 +177,10 @@ async fn get_provider_secretariats_admin_returns_200() {
         .unwrap();
     let arr: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let items = arr.as_array().expect("réponse doit être un tableau");
-    assert!(!items.is_empty(), "liste doit être non vide après assignation");
+    assert!(
+        !items.is_empty(),
+        "liste doit être non vide après assignation"
+    );
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
