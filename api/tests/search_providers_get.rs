@@ -58,7 +58,10 @@ async fn search_providers_no_filter_returns_200() {
         v["facets"]["sector"].is_array(),
         "facets.sector doit être un tableau"
     );
-    assert!(v["page"]["page"].is_number(), "page.page doit être un nombre");
+    assert!(
+        v["page"]["page"].is_number(),
+        "page.page doit être un nombre"
+    );
     assert!(
         v["page"]["per_page"].is_number(),
         "page.per_page doit être un nombre"
