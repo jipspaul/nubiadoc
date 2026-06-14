@@ -6,7 +6,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -203,6 +203,30 @@ async fn post_appointment_happy_path_returns_201() {
         "appointment_id doit être présent"
     );
     assert_eq!(v["status"], "requested", "status doit être requested");
+
+    // Vérification DB : row insérée + patient_id correspond au JWT.
+    let appt_id: uuid::Uuid = v["appointment_id"].as_str().unwrap().parse().unwrap();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let row = sqlx::query(
+            "SELECT patient_id, status FROM appointment WHERE id = $1",
+        )
+        .bind(appt_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+
+        let db_patient_id: uuid::Uuid = row.try_get("patient_id").unwrap();
+        let db_status: String = row.try_get("status").unwrap();
+        assert_eq!(db_patient_id, patient_id, "patient_id DB doit correspondre au dossier du JWT");
+        assert_eq!(db_status, "requested", "status DB doit être requested");
+    }
 
     // Cleanup.
     {
