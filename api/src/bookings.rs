@@ -117,7 +117,7 @@ pub async fn create_booking(
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::LinkExpired)?;
+    .ok_or(AppError::HoldInvalid)?;
 
     let hold_id: Uuid = hold_row.try_get("id").map_err(|_| AppError::Internal)?;
 

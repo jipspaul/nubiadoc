@@ -128,6 +128,7 @@ pub(crate) enum AppError {
     OutOfWindow,
     TooLate,
     LinkExpired,
+    HoldInvalid,
     TooManyRequests,
     MissingIdempotencyKey,
     AppointmentNotHonored,
@@ -222,6 +223,9 @@ impl IntoResponse for AppError {
             }
             AppError::LinkExpired => {
                 (StatusCode::GONE, Json(json!({"code": "link_expired"}))).into_response()
+            }
+            AppError::HoldInvalid => {
+                (StatusCode::CONFLICT, Json(json!({"code": "hold_invalid"}))).into_response()
             }
             AppError::TooManyRequests => (
                 StatusCode::TOO_MANY_REQUESTS,
