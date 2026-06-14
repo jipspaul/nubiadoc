@@ -1431,8 +1431,8 @@ pub async fn create_appointment(
     // INSERT — 23P01 (appointment_no_overlap) → 409 slot_taken.
     let result = sqlx::query(
         "INSERT INTO appointment \
-         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, idempotency_key) \
-         VALUES ($1, $2, $3, $4, $5, 'requested', $6, $7) \
+         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, slot_id, idempotency_key) \
+         VALUES ($1, $2, $3, $4, $5, 'requested', $6, $7, $8) \
          RETURNING id, status",
     )
     .bind(cabinet_id)
@@ -1441,6 +1441,7 @@ pub async fn create_appointment(
     .bind(starts_at)
     .bind(ends_at)
     .bind(&body.motif)
+    .bind(body.slot_id)
     .bind(&idempotency_key)
     .fetch_one(&mut *tx)
     .await;
