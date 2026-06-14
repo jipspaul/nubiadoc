@@ -286,6 +286,7 @@ impl FromRequestParts<AppState> for ProClaims {
         let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
         let mut validation = Validation::default();
         validation.validate_exp = true;
+        validation.leeway = 0;
 
         let data =
             decode::<ProClaims>(token, &key, &validation).map_err(|_| AppError::Unauthorized)?;

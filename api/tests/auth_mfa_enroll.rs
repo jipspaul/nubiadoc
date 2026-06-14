@@ -107,7 +107,42 @@ async fn mfa_enroll_no_jwt_returns_401() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-// ── Test 3 : JWT patient → 403 ────────────────────────────────────────────
+// ── Test 3 : JWT expiré → 401 ─────────────────────────────────────────────
+// Valide que `validate_exp = true` est bien actif dans ProClaims.
+
+#[tokio::test]
+async fn mfa_enroll_expired_jwt_returns_401() {
+    let user_id = Uuid::new_v4();
+    // exp dans le passé (il y a 1 seconde)
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        - 1;
+    let claims = serde_json::json!({"sub": user_id, "kind": "pro", "exp": exp});
+    let token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &claims,
+        &jsonwebtoken::EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = nubia_api::app(test_state())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/mfa/enroll")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test 4 : JWT patient → 403 ────────────────────────────────────────────
 
 #[tokio::test]
 async fn mfa_enroll_patient_jwt_returns_403() {
