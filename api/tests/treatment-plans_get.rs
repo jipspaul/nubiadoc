@@ -62,17 +62,18 @@ fn make_pro_jwt(user_id: Uuid, cabinet_id: Uuid) -> String {
 }
 
 /// Insère le jeu de fixtures minimal pour un plan de traitement.
-/// Retourne (cabinet_id, prac_id, patient_id, plan_id, phase_id).
+/// Retourne (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id).
 async fn insert_treatment_plan_fixture(
     db: &PgPool,
     prac_user_id: Uuid,
     patient_account_id: Uuid,
-) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+) -> (Uuid, Uuid, Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
     let plan_id = Uuid::new_v4();
     let phase_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
 
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -81,14 +82,12 @@ async fn insert_treatment_plan_fixture(
         .await
         .unwrap();
 
-    sqlx::query(
-        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
-    )
-    .bind(cabinet_id)
-    .bind(format!("Cabinet TP Test {}", cabinet_id))
-    .execute(&mut *tx)
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet TP Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
 
     sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
         .bind(prac_id)
@@ -122,6 +121,15 @@ async fn insert_treatment_plan_fixture(
     .await
     .unwrap();
 
+    // Quote rattaché au plan (quote_item.quote_id est NOT NULL)
+    sqlx::query("INSERT INTO quote (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+        .bind(quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
     sqlx::query(
         "INSERT INTO treatment_phase \
          (id, cabinet_id, plan_id, position, title, status) \
@@ -138,17 +146,18 @@ async fn insert_treatment_plan_fixture(
     sqlx::query(
         "INSERT INTO quote_item \
          (id, cabinet_id, quote_id, phase_id, label, ccam_code, unit_amount, amo_part, amc_part) \
-         VALUES ($1, $2, NULL, $3, 'Détartrage', 'HBMD001', 35.00, 12.50, 8.00)",
+         VALUES ($1, $2, $3, $4, 'Détartrage', 'HBMD001', 35.00, 12.50, 8.00)",
     )
     .bind(Uuid::new_v4())
     .bind(cabinet_id)
+    .bind(quote_id)
     .bind(phase_id)
     .execute(&mut *tx)
     .await
     .unwrap();
 
     tx.commit().await.unwrap();
-    (cabinet_id, prac_id, patient_id, plan_id, phase_id)
+    (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id)
 }
 
 async fn cleanup_fixture(
@@ -158,6 +167,7 @@ async fn cleanup_fixture(
     patient_id: Uuid,
     plan_id: Uuid,
     phase_id: Uuid,
+    quote_id: Uuid,
 ) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -167,6 +177,11 @@ async fn cleanup_fixture(
         .ok();
     sqlx::query("DELETE FROM quote_item WHERE phase_id = $1")
         .bind(phase_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE id = $1")
+        .bind(quote_id)
         .execute(&mut *tx)
         .await
         .ok();
@@ -239,7 +254,7 @@ async fn treatment_plan_get_owner_returns_200() {
     .await
     .unwrap();
 
-    let (cabinet_id, prac_id, patient_id, plan_id, phase_id) =
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
         insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
 
     let state = AppState {
@@ -273,7 +288,10 @@ async fn treatment_plan_get_owner_returns_200() {
     assert_eq!(v["id"], plan_id.to_string(), "id doit correspondre");
     assert_eq!(v["title"], "Plan implant");
     assert_eq!(v["status"], "proposed");
-    assert!(v["total_cost_cents"].is_number(), "total_cost_cents présent");
+    assert!(
+        v["total_cost_cents"].is_number(),
+        "total_cost_cents présent"
+    );
     assert!(v["remaining_cents"].is_number(), "remaining_cents présent");
     assert!(v["amo_part_cents"].is_number(), "amo_part_cents présent");
     assert!(v["amc_part_cents"].is_number(), "amc_part_cents présent");
@@ -290,8 +308,14 @@ async fn treatment_plan_get_owner_returns_200() {
     assert_eq!(items.len(), 1, "un acte attendu");
     assert_eq!(items[0]["label"], "Détartrage");
     assert_eq!(items[0]["ccam_code"], "HBMD001");
-    assert_eq!(items[0]["unit_amount_cents"], 3500, "35.00 EUR = 3500 centimes");
-    assert_eq!(items[0]["amo_part_cents"], 1250, "12.50 EUR = 1250 centimes");
+    assert_eq!(
+        items[0]["unit_amount_cents"], 3500,
+        "35.00 EUR = 3500 centimes"
+    );
+    assert_eq!(
+        items[0]["amo_part_cents"], 1250,
+        "12.50 EUR = 1250 centimes"
+    );
     assert_eq!(items[0]["amc_part_cents"], 800, "8.00 EUR = 800 centimes");
 
     // total = 3500, amo = 1250, amc = 800, remaining = 3500 - 1250 - 800 = 1450
@@ -300,7 +324,10 @@ async fn treatment_plan_get_owner_returns_200() {
     assert_eq!(v["amc_part_cents"], 800);
     assert_eq!(v["remaining_cents"], 1450);
 
-    cleanup_fixture(&db, cabinet_id, prac_id, patient_id, plan_id, phase_id).await;
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
     sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
         .bind(user_id)
         .bind(prac_user_id)
@@ -500,7 +527,7 @@ async fn treatment_plan_get_other_patient_returns_404() {
     .unwrap();
 
     // Crée le plan de traitement de Patient B
-    let (cabinet_id, prac_id, patient_id, plan_b_id, phase_id) =
+    let (cabinet_id, prac_id, patient_id, plan_b_id, phase_id, quote_id) =
         insert_treatment_plan_fixture(&db, prac_user_id, account_b_id).await;
 
     let state = AppState {
@@ -532,7 +559,10 @@ async fn treatment_plan_get_other_patient_returns_404() {
     );
 
     // Cleanup
-    cleanup_fixture(&db, cabinet_id, prac_id, patient_id, plan_b_id, phase_id).await;
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_b_id, phase_id, quote_id,
+    )
+    .await;
     sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2 OR id = $3")
         .bind(user_a_id)
         .bind(user_b_id)
