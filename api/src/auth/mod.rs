@@ -1508,7 +1508,6 @@ pub async fn post_cabinet_members(
 pub(crate) struct PatientAccountClaims {
     pub(crate) sub: Uuid,
     pub(crate) account_id: Uuid,
-    kind: String,
 }
 
 #[async_trait]
@@ -1531,13 +1530,20 @@ impl FromRequestParts<AppState> for PatientAccountClaims {
         let mut validation = Validation::default();
         validation.validate_exp = true;
 
-        let claims = decode::<PatientAccountClaims>(token, &key, &validation)
+        // Première passe : extrait `kind` pour renvoyer 403 (pas 401)
+        // si le token est valide mais n'appartient pas à un patient (ex. token pro).
+        let basic = decode::<KindClaims>(token, &key, &validation)
             .map(|d| d.claims)
             .map_err(|_| AppError::Unauthorized)?;
 
-        if claims.kind != "patient" {
+        if basic.kind != "patient" {
             return Err(AppError::Forbidden);
         }
+
+        // Deuxième passe : décode les champs patient obligatoires (account_id).
+        let claims = decode::<PatientAccountClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
 
         Ok(claims)
     }
