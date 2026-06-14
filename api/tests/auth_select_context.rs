@@ -176,6 +176,10 @@ async fn select_context_unknown_cabinet_returns_403() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(
+        response.headers().get("set-cookie").is_none(),
+        "pas de cookie nubia_jwt émis sur 403"
+    );
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
@@ -263,6 +267,10 @@ async fn select_context_secretariat_from_other_cabinet_returns_403() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(
+        response.headers().get("set-cookie").is_none(),
+        "pas de cookie nubia_jwt émis sur 403"
+    );
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
