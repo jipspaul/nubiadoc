@@ -341,7 +341,106 @@ async fn post_checkin_invalid_status_returns_409() {
         .ok();
 }
 
-// ── Test 3 : RDV demain (hors fenêtre) → 422 {"error":"out_of_window"} ──────
+// ── Test 3 : trop tard (starts_at il y a 2 h, fenêtre expirée) → 422 ────────
+
+#[tokio::test]
+async fn post_checkin_too_late_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = seed_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("checkin-toolate+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Checkin', 'TooLate')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("checkin-toolate-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // starts_at = il y a 2 h → hors fenêtre check-in (now > starts_at + 60 min).
+    let (cabinet_id, prac_id, patient_id, appt_id) = insert_fixture(
+        &db,
+        prac_user_id,
+        patient_account_id,
+        "confirmed",
+        "now() - INTERVAL '2 hours'",
+    )
+    .await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/appointments/{}/checkin", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"method": "manual"})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["error"], "out_of_window");
+
+    cleanup(&db, cabinet_id, patient_id, prac_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 4 : RDV demain (hors fenêtre) → 422 {"error":"out_of_window"} ──────
 
 #[tokio::test]
 async fn post_checkin_tomorrow_returns_422() {
