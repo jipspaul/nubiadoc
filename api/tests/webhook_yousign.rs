@@ -314,7 +314,7 @@ async fn yousign_webhook_ignored_event_returns_200_no_update() {
     }
 
     let body = serde_json::to_vec(&json!({
-        "event_type": "signature.started",
+        "event_type": "signature.expired",
         "data": { "quote_id": quote_id.to_string() }
     }))
     .unwrap();
