@@ -38,9 +38,7 @@ async fn reset_password_too_short_returns_422_password_policy() {
                 .method("POST")
                 .uri("/v1/auth/password/reset")
                 .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"token":"some-token","new_password":"Ab1"}"#,
-                ))
+                .body(Body::from(r#"{"token":"some-token","new_password":"Ab1"}"#))
                 .unwrap(),
         )
         .await
