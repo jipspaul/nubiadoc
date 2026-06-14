@@ -784,8 +784,14 @@ async fn post_booking_idempotency_key_returns_same_201() {
         .await
         .unwrap();
 
-    assert_eq!(resp1.status(), StatusCode::CREATED, "1er appel doit retourner 201");
-    let b1 = axum::body::to_bytes(resp1.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(
+        resp1.status(),
+        StatusCode::CREATED,
+        "1er appel doit retourner 201"
+    );
+    let b1 = axum::body::to_bytes(resp1.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let v1: serde_json::Value = serde_json::from_slice(&b1).unwrap();
     let appt_id_1: Uuid = v1["appointment_id"].as_str().unwrap().parse().unwrap();
 
@@ -808,13 +814,22 @@ async fn post_booking_idempotency_key_returns_same_201() {
         .await
         .unwrap();
 
-    assert_eq!(resp2.status(), StatusCode::CREATED, "2ème appel doit retourner 201");
-    let b2 = axum::body::to_bytes(resp2.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(
+        resp2.status(),
+        StatusCode::CREATED,
+        "2ème appel doit retourner 201"
+    );
+    let b2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let v2: serde_json::Value = serde_json::from_slice(&b2).unwrap();
     let appt_id_2: Uuid = v2["appointment_id"].as_str().unwrap().parse().unwrap();
 
     // Les deux appels doivent retourner le même appointment_id.
-    assert_eq!(appt_id_1, appt_id_2, "les deux appels doivent retourner le même appointment_id");
+    assert_eq!(
+        appt_id_1, appt_id_2,
+        "les deux appels doivent retourner le même appointment_id"
+    );
 
     // Vérification DB : un seul appointment pour cette idempotency_key.
     {
@@ -837,7 +852,10 @@ async fn post_booking_idempotency_key_returns_same_201() {
         .unwrap();
         tx.commit().await.unwrap();
 
-        assert_eq!(count, 1, "un seul appointment doit exister pour cette idempotency_key");
+        assert_eq!(
+            count, 1,
+            "un seul appointment doit exister pour cette idempotency_key"
+        );
     }
 
     // Cleanup.
