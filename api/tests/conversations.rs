@@ -757,10 +757,7 @@ async fn conversations_list_pro_token_returns_403() {
                 .uri("/v1/conversations")
                 .header(
                     "Authorization",
-                    format!(
-                        "Bearer {}",
-                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4())
-                    ),
+                    format!("Bearer {}", make_pro_jwt(Uuid::new_v4(), Uuid::new_v4())),
                 )
                 .body(Body::empty())
                 .unwrap(),
