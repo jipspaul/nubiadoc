@@ -637,10 +637,7 @@ async fn list_patient_documents_no_token_returns_401() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!(
-                    "/v1/cabinet/patients/{}/documents",
-                    Uuid::new_v4()
-                ))
+                .uri(format!("/v1/cabinet/patients/{}/documents", Uuid::new_v4()))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -661,10 +658,7 @@ async fn list_patient_documents_patient_token_returns_403() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!(
-                    "/v1/cabinet/patients/{}/documents",
-                    Uuid::new_v4()
-                ))
+                .uri(format!("/v1/cabinet/patients/{}/documents", Uuid::new_v4()))
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
