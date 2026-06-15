@@ -3,7 +3,7 @@
 //! 4 cas :
 //!   1. Happy path : payments.confirmed → payment.status = 'paid' + paid_at != NULL.
 //!   2. HMAC invalide → 401.
-//!   2b. Header Webhook-Signature absent → 401.
+//!      2b. Header Webhook-Signature absent → 401.
 //!   3. Événement ignoré (non payments.confirmed) → 200, payment non touché.
 
 use axum::{

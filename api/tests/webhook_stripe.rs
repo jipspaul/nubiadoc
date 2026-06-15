@@ -22,8 +22,8 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use nubia_api::{
-    app_with_dispatcher, AppState, StubJobDispatcher, StubMailer, StubStorageSigner,
-    StripeWebhookSecret,
+    app_with_dispatcher, AppState, StripeWebhookSecret, StubJobDispatcher, StubMailer,
+    StubStorageSigner,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -131,9 +131,8 @@ async fn stripe_webhook_invalid_hmac_returns_401() {
 
     let ts = now_ts();
     // Signature hexadécimale incorrecte (bon format t=..,v1=.. mais mauvais HMAC).
-    let bad_sig = format!(
-        "t={ts},v1=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-    );
+    let bad_sig =
+        format!("t={ts},v1=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
 
     let response = build_app(db)
         .oneshot(
@@ -331,13 +330,11 @@ async fn stripe_webhook_payment_intent_succeeded_marks_paid() {
         .execute(&db)
         .await
         .ok();
-    sqlx::query(
-        "DELETE FROM webhook_event_log WHERE provider = 'stripe' AND event_id = $1",
-    )
-    .bind(&event_id)
-    .execute(&db)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM webhook_event_log WHERE provider = 'stripe' AND event_id = $1")
+        .bind(&event_id)
+        .execute(&db)
+        .await
+        .ok();
 }
 
 // ── Test 5 : replay attack — même event_id deux fois → 200 idempotent ─────────
@@ -463,7 +460,10 @@ async fn stripe_webhook_replay_attack_idempotent() {
         .await
         .unwrap();
     let status: String = row.try_get("status").unwrap();
-    assert_eq!(status, "paid", "payment doit être 'paid' après les deux appels");
+    assert_eq!(
+        status, "paid",
+        "payment doit être 'paid' après les deux appels"
+    );
 
     // Une seule entrée dans webhook_event_log (idempotence garantie par UNIQUE).
     let count_row = sqlx::query(
@@ -515,13 +515,11 @@ async fn stripe_webhook_replay_attack_idempotent() {
         .execute(&db)
         .await
         .ok();
-    sqlx::query(
-        "DELETE FROM webhook_event_log WHERE provider = 'stripe' AND event_id = $1",
-    )
-    .bind(&event_id)
-    .execute(&db)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM webhook_event_log WHERE provider = 'stripe' AND event_id = $1")
+        .bind(&event_id)
+        .execute(&db)
+        .await
+        .ok();
 }
 
 // ── Test 6 : événement ignoré → 200, payment non touché ──────────────────────
@@ -671,11 +669,9 @@ async fn stripe_webhook_ignored_event_returns_200_no_update() {
         .execute(&db)
         .await
         .ok();
-    sqlx::query(
-        "DELETE FROM webhook_event_log WHERE provider = 'stripe' AND event_id = $1",
-    )
-    .bind(&event_id)
-    .execute(&db)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM webhook_event_log WHERE provider = 'stripe' AND event_id = $1")
+        .bind(&event_id)
+        .execute(&db)
+        .await
+        .ok();
 }

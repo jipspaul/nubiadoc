@@ -649,8 +649,7 @@ async fn yousign_webhook_signature_completed_idempotent() {
         .fetch_one(&db)
         .await
         .unwrap();
-    let signed_at_first: Option<chrono::DateTime<chrono::Utc>> =
-        row1.try_get("signed_at").unwrap();
+    let signed_at_first: Option<chrono::DateTime<chrono::Utc>> = row1.try_get("signed_at").unwrap();
     assert!(
         signed_at_first.is_some(),
         "signed_at doit être positionné après le 1er appel"
