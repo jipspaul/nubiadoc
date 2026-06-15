@@ -187,8 +187,10 @@ async fn select_context_multicontext_jwt_contains_cabinet_and_role() {
     .await
     .unwrap();
 
+    // cabinet_b avec active=false : la contrainte cabinet_membership_one_active_per_user
+    // interdit d'avoir deux memberships active=true pour le même user_id.
     sqlx::query(
-        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'practitioner', true)",
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'practitioner', false)",
     )
     .bind(cabinet_b)
     .bind(user_id)
