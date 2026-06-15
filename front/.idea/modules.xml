@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+<module fileurl="file://$PROJECT_DIR$/apps/app_patient/melos_app_patient.iml" filepath="$PROJECT_DIR$/apps/app_patient/melos_app_patient.iml"/>
+<module fileurl="file://$PROJECT_DIR$/apps/app_practicien/melos_app_practicien.iml" filepath="$PROJECT_DIR$/apps/app_practicien/melos_app_practicien.iml"/>
+<module fileurl="file://$PROJECT_DIR$/apps/app_secretariat/melos_app_secretariat.iml" filepath="$PROJECT_DIR$/apps/app_secretariat/melos_app_secretariat.iml"/>
+<module fileurl="file://$PROJECT_DIR$/packages/nubia_a2ui/melos_nubia_a2ui.iml" filepath="$PROJECT_DIR$/packages/nubia_a2ui/melos_nubia_a2ui.iml"/>
+<module fileurl="file://$PROJECT_DIR$/packages/nubia_core/melos_nubia_core.iml" filepath="$PROJECT_DIR$/packages/nubia_core/melos_nubia_core.iml"/>
+<module fileurl="file://$PROJECT_DIR$/packages/nubia_data/melos_nubia_data.iml" filepath="$PROJECT_DIR$/packages/nubia_data/melos_nubia_data.iml"/>
+<module fileurl="file://$PROJECT_DIR$/packages/nubia_design_system/melos_nubia_design_system.iml" filepath="$PROJECT_DIR$/packages/nubia_design_system/melos_nubia_design_system.iml"/>
+<module fileurl="file://$PROJECT_DIR$/packages/nubia_domain/melos_nubia_domain.iml" filepath="$PROJECT_DIR$/packages/nubia_domain/melos_nubia_domain.iml"/>
+<module fileurl="file://$PROJECT_DIR$/melos_nubia_workspace.iml" filepath="$PROJECT_DIR$/melos_nubia_workspace.iml"/>
+    </modules>
+  </component>
+</project>
