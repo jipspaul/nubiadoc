@@ -1,0 +1,17 @@
+name: nubia_workspace
+description: Nubia Flutter monorepo — patient / praticien / secrétariat apps + shared packages.
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+# Native Dart pub workspace: one lockfile, one .dart_tool for all members.
+workspace:
+  - packages/nubia_domain
+  - packages/nubia_design_system
+  - packages/nubia_core
+  - packages/nubia_data
+  - packages/nubia_a2ui
+  - apps/app_patient
+  - apps/app_practicien
+  - apps/app_secretariat

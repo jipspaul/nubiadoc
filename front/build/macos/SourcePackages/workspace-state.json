@@ -1,0 +1,55 @@
+{
+  "object" : {
+    "artifacts" : [
+
+    ],
+    "dependencies" : [
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "flutterframework",
+          "kind" : "fileSystem",
+          "location" : "/Users/jean-paul.jacquot/dev/private/nubiadoc/front/apps/app_patient/macos/Flutter/ephemeral/Packages/.packages/FlutterFramework",
+          "name" : "FlutterFramework"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/jean-paul.jacquot/dev/private/nubiadoc/front/apps/app_patient/macos/Flutter/ephemeral/Packages/.packages/FlutterFramework"
+        },
+        "subpath" : "flutterframework"
+      },
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "sqflite_darwin-2.4.3",
+          "kind" : "fileSystem",
+          "location" : "/Users/jean-paul.jacquot/dev/private/nubiadoc/front/apps/app_patient/macos/Flutter/ephemeral/Packages/.packages/sqflite_darwin-2.4.3",
+          "name" : "sqflite_darwin"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/jean-paul.jacquot/dev/private/nubiadoc/front/apps/app_patient/macos/Flutter/ephemeral/Packages/.packages/sqflite_darwin-2.4.3"
+        },
+        "subpath" : "sqflite_darwin-2.4.3"
+      },
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "url_launcher_macos-3.2.5",
+          "kind" : "fileSystem",
+          "location" : "/Users/jean-paul.jacquot/dev/private/nubiadoc/front/apps/app_patient/macos/Flutter/ephemeral/Packages/.packages/url_launcher_macos-3.2.5",
+          "name" : "url_launcher_macos"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/Users/jean-paul.jacquot/dev/private/nubiadoc/front/apps/app_patient/macos/Flutter/ephemeral/Packages/.packages/url_launcher_macos-3.2.5"
+        },
+        "subpath" : "url_launcher_macos-3.2.5"
+      }
+    ],
+    "prebuilts" : [
+
+    ]
+  },
+  "version" : 7
+}

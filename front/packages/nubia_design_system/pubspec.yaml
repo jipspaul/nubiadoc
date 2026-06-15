@@ -1,0 +1,20 @@
+name: nubia_design_system
+description: Nubia design system — theme, tokens and Nubia* widgets (A2UI-mappable).
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.17
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+
+dev_dependencies:
+  flutter_lints: ^5.0.0

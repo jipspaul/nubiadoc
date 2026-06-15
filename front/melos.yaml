@@ -1,0 +1,15 @@
+name: nubia
+packages:
+  - packages/**
+  - apps/**
+
+scripts:
+  analyze:
+    run: dart analyze .
+    description: Static analysis across the whole workspace.
+  test:
+    exec: flutter test
+    packageFilters: { dirExists: test }
+    description: Run tests in every package that has a test dir.
+  format:
+    run: dart format .

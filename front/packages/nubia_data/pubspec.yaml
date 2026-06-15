@@ -1,0 +1,24 @@
+name: nubia_data
+description: Data layer — DTOs, Dio APIs, repository implementations, DI registration.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.8.0
+  hive_flutter: ^1.1.0
+  dartz: ^0.10.1
+  get_it: ^8.0.0
+  nubia_domain:
+    path: ../nubia_domain
+  nubia_core:
+    path: ../nubia_core
+
+dev_dependencies:
+  flutter_lints: ^5.0.0

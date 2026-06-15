@@ -7,6 +7,7 @@ web-console/node_modules/
 web-console/.astro/
 web-console/dist/
 /.dev-stack-logs/
+web-console/blob-flows/
 
 # Per-agent runtime config, never commit (LITELLM_KEY leaks)
 opencode.json
