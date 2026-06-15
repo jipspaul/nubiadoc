@@ -1,16 +1,27 @@
-# Flutter test workflow — uses custom flutter-ci image baked with Flutter SDK
-# (arm64-friendly via Cirrus Labs build) + Node.js (required by Forgejo Actions
-# to run JS actions like actions/checkout@v4).
+# Flutter test workflow — runs in front/ (Dart pub workspace + Melos 7 embedded).
 #
+# Layout: front/ holds a native Dart pub workspace (pubspec.yaml has `workspace:`)
+# with 3 apps (app_patient, app_practicien, app_secretariat) + 5 packages
+# (nubia_a2ui/core/data/design_system/domain). Melos config is INLINE in
+# front/pubspec.yaml (Melos 7 dropped the standalone melos.yaml).
+#
+# Why we install Melos globally: `melos test` runs `melos exec -- flutter test`
+# via `/bin/sh eval`, which requires the `melos` binary on PATH. The workspace
+# dev_dependency makes it reachable via `dart run melos` only — fine for the
+# outer call, broken for the inner exec shell. `dart pub global activate melos`
+# puts the binary in $PUB_CACHE/bin.
+#
+# Why we resolve PUB_CACHE at runtime: the flutter-ci:stable image bakes
+# PUB_CACHE=/workspace/.pub-cache. We can't override that reliably via job-
+# level `env:`. Just read whatever the image set and prepend it to PATH.
+#
+# Uses custom flutter-ci image baked with Flutter SDK (arm64-friendly via Cirrus
+# Labs build) + Node.js (required by Forgejo Actions for actions/checkout@v4).
 # Build & load the image into the runner DinD with:
 #   ./ci/flutter/load-into-runner.sh
-#
-# Image is local-only (loaded into DinD via docker load, not pushed to any
-# registry). The runner config has force_pull: false so it uses the local cache.
 on: [pull_request]
 
 # Cancel old in-progress runs when new commits push to the same PR/branch.
-# Saves runner time on auto-rebase + force-push cycles.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
@@ -21,15 +32,31 @@ jobs:
       image: flutter-ci:stable
     steps:
       - uses: actions/checkout@v4
-      - name: Flutter version
-        working-directory: flutter_demo
-        run: flutter --version
-      - name: Pub get
-        working-directory: flutter_demo
+      - name: Show toolchain
+        working-directory: front
+        run: |
+          echo "PUB_CACHE=${PUB_CACHE:-(unset, falls back to \$HOME/.pub-cache)}"
+          echo "HOME=$HOME"
+          which dart && dart --version
+          which flutter && flutter --version | head -1
+      - name: Install Melos + extend PATH (persisted for next steps)
+        working-directory: front
+        run: |
+          dart pub global activate melos
+          BIN_DIR="${PUB_CACHE:-$HOME/.pub-cache}/bin"
+          echo "Melos installed at: $BIN_DIR/melos"
+          ls -la "$BIN_DIR/melos"
+          echo "$BIN_DIR" >> $GITHUB_PATH
+      - name: Pub get (workspace root resolves all members)
+        working-directory: front
         run: flutter pub get
-      - name: Analyze
-        working-directory: flutter_demo
-        run: flutter analyze --fatal-infos
-      - name: Test
-        working-directory: flutter_demo
-        run: flutter test
+      - name: Analyze (melos)
+        working-directory: front
+        run: |
+          export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
+          melos analyze
+      - name: Test (melos — packages with test/ dir)
+        working-directory: front
+        run: |
+          export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
+          melos test

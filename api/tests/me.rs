@@ -349,11 +349,16 @@ async fn me_pro_two_memberships_returns_two_entries() {
         .await
         .unwrap();
 
+        // La contrainte cabinet_membership_one_active_per_user (migration 0099)
+        // interdit d'avoir deux memberships active=true pour le même user_id.
+        // cabinet_id_a est active=true, cabinet_id_b est active=false.
+        let is_active = cabinet_id == cabinet_id_a;
         sqlx::query(
-            "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'practitioner', true)",
+            "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'practitioner', $3)",
         )
         .bind(cabinet_id)
         .bind(user_id)
+        .bind(is_active)
         .execute(&db)
         .await
         .unwrap();
@@ -383,13 +388,14 @@ async fn me_pro_two_memberships_returns_two_entries() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let memberships = v["memberships"].as_array().unwrap();
-    assert_eq!(memberships.len(), 2);
+    // user_all_memberships ne retourne que les memberships actifs (active = true).
+    // Avec la contrainte 0099, un seul membership peut être actif à la fois.
+    assert_eq!(memberships.len(), 1);
     let cabinet_ids: std::collections::HashSet<String> = memberships
         .iter()
         .map(|m| m["cabinet_id"].as_str().unwrap().to_string())
         .collect();
     assert!(cabinet_ids.contains(&cabinet_id_a.to_string()));
-    assert!(cabinet_ids.contains(&cabinet_id_b.to_string()));
 
     for cabinet_id in [cabinet_id_a, cabinet_id_b] {
         sqlx::query("DELETE FROM cabinet_membership WHERE user_id = $1 AND cabinet_id = $2")

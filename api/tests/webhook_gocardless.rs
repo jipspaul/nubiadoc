@@ -1,8 +1,9 @@
 //! Tests d'intégration : POST /v1/webhooks/gocardless
 //!
-//! 3 cas :
+//! 4 cas :
 //!   1. Happy path : payments.confirmed → payment.status = 'paid' + paid_at != NULL.
 //!   2. HMAC invalide → 401.
+//!      2b. Header Webhook-Signature absent → 401.
 //!   3. Événement ignoré (non payments.confirmed) → 200, payment non touché.
 
 use axum::{
@@ -243,6 +244,40 @@ async fn gocardless_webhook_invalid_hmac_returns_401() {
                 .uri("/v1/webhooks/gocardless")
                 .header("content-type", "application/json")
                 .header("webhook-signature", "invalidsignaturebase64==")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test 2b : header Webhook-Signature absent → 401 ───────────────────────────
+
+#[tokio::test]
+async fn gocardless_webhook_absent_signature_header_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+
+    let body = serde_json::to_vec(&json!({
+        "event": {
+            "action": "payments.confirmed",
+            "links": { "payment": "PM_noheader" }
+        }
+    }))
+    .unwrap();
+
+    let response = build_app(db)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/webhooks/gocardless")
+                .header("content-type", "application/json")
+                // Pas de header Webhook-Signature
                 .body(Body::from(body))
                 .unwrap(),
         )
