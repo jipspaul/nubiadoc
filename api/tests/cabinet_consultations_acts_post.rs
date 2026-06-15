@@ -5,7 +5,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -679,6 +679,245 @@ async fn add_act_session_not_started_returns_409() {
     assert_eq!(response.status(), StatusCode::CONFLICT);
 
     // Cleanup
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test 6 : sans token → 401 ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn add_act_no_token_returns_401() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = serde_json::json!({
+        "ccam_code": "HBLD001",
+        "label": "Détartrage",
+        "amount_cents": 2500
+    });
+
+    // UUID fictif — 401 retourné avant toute requête DB.
+    let session_id = Uuid::new_v4();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test 7 : ccam_code vide → 422 ─────────────────────────────────────────────
+
+#[tokio::test]
+async fn add_act_empty_ccam_code_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = serde_json::json!({
+        "ccam_code": "   ",
+        "label": "Détartrage",
+        "amount_cents": 2500
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test 8 : amount_cents négatif → 422 ───────────────────────────────────────
+
+#[tokio::test]
+async fn add_act_negative_amount_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = serde_json::json!({
+        "ccam_code": "HBLD001",
+        "label": "Détartrage",
+        "amount_cents": -1
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test 9 : DB state — l'acte est bien inséré en base après 201 ──────────────
+
+#[tokio::test]
+async fn add_act_db_state_row_exists_after_201() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = serde_json::json!({
+        "ccam_code": "HBQK002",
+        "label": "Composite",
+        "tooth": "21",
+        "amount_cents": 12000
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let resp_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&resp_bytes).unwrap();
+    let act_id: uuid::Uuid = v["act_id"].as_str().unwrap().parse().unwrap();
+
+    // Vérifie que la ligne existe réellement en DB avec les bons champs.
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let row = sqlx::query(
+        "SELECT ccam_code, label, tooth, amount_cents \
+         FROM consultation_act WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(act_id)
+    .bind(cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let ccam: String = row.try_get("ccam_code").unwrap();
+    let label: String = row.try_get("label").unwrap();
+    let tooth: Option<String> = row.try_get("tooth").unwrap();
+    let amount: i32 = row.try_get("amount_cents").unwrap();
+    assert_eq!(ccam, "HBQK002");
+    assert_eq!(label, "Composite");
+    assert_eq!(tooth.as_deref(), Some("21"));
+    assert_eq!(amount, 12000);
+
     cleanup_fixture(
         &db,
         cabinet_id,
