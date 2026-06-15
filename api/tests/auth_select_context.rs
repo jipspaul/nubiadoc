@@ -450,7 +450,9 @@ async fn select_context_patient_jwt_returns_403() {
                 .uri("/v1/auth/select-context")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {}", patient_token))
-                .body(Body::from(serde_json::json!({"cabinet_id": Uuid::new_v4()}).to_string()))
+                .body(Body::from(
+                    serde_json::json!({"cabinet_id": Uuid::new_v4()}).to_string(),
+                ))
                 .unwrap(),
         )
         .await

@@ -219,7 +219,10 @@ async fn logout_revoke_all_returns_204_and_revokes_all_tokens() {
     .await
     .unwrap();
     let remaining: i64 = row.try_get("cnt").unwrap();
-    assert_eq!(remaining, 0, "X-Revoke-All doit révoquer tous les tokens actifs");
+    assert_eq!(
+        remaining, 0,
+        "X-Revoke-All doit révoquer tous les tokens actifs"
+    );
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)
