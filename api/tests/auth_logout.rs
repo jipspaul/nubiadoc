@@ -152,7 +152,84 @@ async fn logout_without_jwt_returns_401() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-// ── Test 3 : token d'un autre utilisateur → 403 ──────────────────────────────
+// ── Test 4 : X-Revoke-All: true → 204 + tous les tokens révoqués ─────────────
+// La branche `revoke_all` dans le handler révoque toutes les sessions actives
+// en une seule UPDATE. Vérifie que tous les tokens de l'utilisateur ont
+// `revoked_at IS NOT NULL` après l'appel.
+
+#[tokio::test]
+async fn logout_revoke_all_returns_204_and_revokes_all_tokens() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("logout-revoke-all+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Insère 3 tokens actifs pour ce user.
+    for _ in 0..3 {
+        let raw = Uuid::new_v4().to_string();
+        sqlx::query(
+            r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
+               VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
+        )
+        .bind(user_id)
+        .bind(&raw)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/logout")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .header("X-Revoke-All", "true")
+                .header("Content-Type", "application/json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let row = sqlx::query(
+        "SELECT COUNT(*) AS cnt FROM refresh_token \
+         WHERE app_user_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(user_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let remaining: i64 = row.try_get("cnt").unwrap();
+    assert_eq!(
+        remaining, 0,
+        "X-Revoke-All doit révoquer tous les tokens actifs"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
 
 #[tokio::test]
 async fn logout_other_user_refresh_token_returns_403() {
