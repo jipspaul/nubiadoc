@@ -225,7 +225,74 @@ async fn search_slots_bbox_malformed_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
-// ── Test 4 : slot `held` exclu — status != 'open' → absent de data ────────────
+// ── Test 4 (edge) : slot passé (starts_at < now()) exclu même si status='open' ──
+
+#[tokio::test]
+async fn search_slots_past_slot_excluded() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let provider_id = insert_provider(&db, &Uuid::new_v4().to_string()).await;
+
+    // Slot open dans le passé — ne doit pas apparaître (filtre `starts_at > now()`).
+    sqlx::query(
+        "INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, now() - interval '1 day', now() - interval '23 hours', 'open')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(provider_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/slots")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    // Ce provider ne doit PAS apparaître : son seul slot est passé.
+    let found = data
+        .iter()
+        .any(|e| e["provider_id"].as_str() == Some(&provider_id.to_string()));
+    assert!(
+        !found,
+        "provider avec slot passé seulement ne doit pas apparaître dans data"
+    );
+
+    // Nettoyage
+    sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 5 : slot `held` exclu — status != 'open' → absent de data ────────────
 
 #[tokio::test]
 async fn search_slots_held_slot_excluded() {
