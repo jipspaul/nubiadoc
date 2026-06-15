@@ -359,8 +359,16 @@ async fn implant_passport_get_cross_patient_isolation() {
     let implant_id = Uuid::new_v4();
 
     for (uid, email, kind) in [
-        (user_a_id, format!("ip-cross-a+{}@nubia.test", user_a_id), "patient"),
-        (user_b_id, format!("ip-cross-b+{}@nubia.test", user_b_id), "patient"),
+        (
+            user_a_id,
+            format!("ip-cross-a+{}@nubia.test", user_a_id),
+            "patient",
+        ),
+        (
+            user_b_id,
+            format!("ip-cross-b+{}@nubia.test", user_b_id),
+            "patient",
+        ),
     ] {
         sqlx::query(
             "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
