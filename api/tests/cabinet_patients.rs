@@ -668,6 +668,347 @@ async fn list_patient_documents_patient_token_returns_403() {
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
 
+// ── Tests supplémentaires T-API-AUDIT-A003 ────────────────────────────────────
+
+/// Secrétaire → 200 sur `GET /v1/cabinet/patients/:id` MAIS sans champs cliniques
+/// (`medical_record`, `notes` absents — R.4127-72 §07 §4.1).
+#[tokio::test]
+async fn get_cabinet_patient_secretary_sees_admin_only_200() {
+    if !db_available() {
+        return;
+    }
+    let pro_email = format!("sec_admin_pro_{}@test.local", Uuid::new_v4());
+    let patient_email = format!("sec_admin_patient_{}@test.local", Uuid::new_v4());
+    let owner = owner_pool().await;
+    let db = app_pool().await;
+
+    let (pro_token, _, cabinet_id) = register_pro(db.clone(), &pro_email).await;
+    let patient_account_id = create_patient_account(&owner, &patient_email).await;
+
+    // Crée le patient dans ce cabinet via le token pro.
+    let body = json!({ "patient_account_id": patient_account_id });
+    let resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/patients")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", pro_token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let patient_id = v["patient_id"].as_str().unwrap().to_string();
+
+    // Token secrétaire pour le même cabinet.
+    let sec_token = make_pro_token(Uuid::new_v4(), cabinet_id, "secretary");
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}", patient_id))
+                .header("Authorization", format!("Bearer {}", sec_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    // R.4127-72 : la secrétaire ne voit PAS les sections cliniques.
+    assert!(
+        v.get("medical_record").is_none(),
+        "secretary should not see medical_record"
+    );
+    assert!(
+        v.get("notes").is_none(),
+        "secretary should not see notes"
+    );
+    // Mais les champs admin sont présents.
+    assert!(v["first_name"].is_string(), "first_name should be present");
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
+        .bind(&pro_email)
+        .bind(&patient_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
+/// `GET /v1/cabinet/patients/:id/notes` — patient inconnu → 404.
+#[tokio::test]
+async fn list_patient_notes_unknown_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token(Uuid::new_v4(), Uuid::new_v4(), "practitioner");
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/notes", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+/// `GET /v1/cabinet/patients/:id/notes` — patient existe mais aucun RDV avec ce praticien
+/// → 403 (E.2.16.c, §14 accès journal clinique).
+#[tokio::test]
+async fn list_patient_notes_no_appointment_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let pro_email = format!("notes_no_appt_pro_{}@test.local", Uuid::new_v4());
+    let patient_email = format!("notes_no_appt_patient_{}@test.local", Uuid::new_v4());
+    let owner = owner_pool().await;
+    let db = app_pool().await;
+
+    let (token, _, _) = register_pro(db.clone(), &pro_email).await;
+    let patient_account_id = create_patient_account(&owner, &patient_email).await;
+
+    // Crée le patient dans le cabinet (sans créer de RDV).
+    let body = json!({ "patient_account_id": patient_account_id });
+    let resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/patients")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let patient_id = v["patient_id"].as_str().unwrap().to_string();
+
+    // Aucun appointment → E.2.16.c : 403.
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/notes", patient_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
+        .bind(&pro_email)
+        .bind(&patient_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
+/// `GET /v1/cabinet/patients/:id/medical-record` — patient inconnu → 404.
+#[tokio::test]
+async fn get_medical_record_unknown_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token(Uuid::new_v4(), Uuid::new_v4(), "practitioner");
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    Uuid::new_v4()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+/// `GET /v1/cabinet/patients/:id/dental-chart` — patient inconnu → 404.
+#[tokio::test]
+async fn get_dental_chart_unknown_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token(Uuid::new_v4(), Uuid::new_v4(), "practitioner");
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/dental-chart",
+                    Uuid::new_v4()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+/// `GET /v1/cabinet/patients/:id/documents` — patient inconnu → 404.
+#[tokio::test]
+async fn list_patient_documents_unknown_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token(Uuid::new_v4(), Uuid::new_v4(), "practitioner");
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/documents", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+/// `POST /v1/cabinet/patients` idempotent : deux appels successifs retournent le même `patient_id`.
+#[tokio::test]
+async fn create_cabinet_patient_idempotent_same_id() {
+    if !db_available() {
+        return;
+    }
+    let pro_email = format!("idem_pro_{}@test.local", Uuid::new_v4());
+    let patient_email = format!("idem_patient_{}@test.local", Uuid::new_v4());
+    let owner = owner_pool().await;
+    let db = app_pool().await;
+
+    let (token, _, _) = register_pro(db.clone(), &pro_email).await;
+    let patient_account_id = create_patient_account(&owner, &patient_email).await;
+
+    let body = json!({ "patient_account_id": patient_account_id });
+
+    // Premier appel.
+    let resp1 = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/patients")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), StatusCode::CREATED);
+    let bytes1 = axum::body::to_bytes(resp1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&bytes1).unwrap();
+    let patient_id_1 = v1["patient_id"].as_str().unwrap().to_string();
+
+    // Deuxième appel identique (idempotence).
+    let resp2 = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/patients")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp2.status(), StatusCode::CREATED);
+    let bytes2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&bytes2).unwrap();
+    let patient_id_2 = v2["patient_id"].as_str().unwrap().to_string();
+
+    assert_eq!(
+        patient_id_1, patient_id_2,
+        "idempotent POST should return same patient_id"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
+        .bind(&pro_email)
+        .bind(&patient_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
+/// `GET /v1/cabinet/patients?limit=0` → clamped à 1, `page.limit == 1` (edge case pagination).
+#[tokio::test]
+async fn list_cabinet_patients_limit_clamp_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("limit_clamp_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &email).await;
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/patients?limit=0")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    // limit=0 est clampé à 1 par le handler.
+    assert_eq!(
+        v["page"]["limit"].as_i64().unwrap(),
+        1,
+        "limit=0 should be clamped to 1"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
 /// Catégorie inconnue → 200 avec `data: []` (early return avant toute requête DB).
 #[tokio::test]
 async fn list_patient_documents_unknown_category_returns_200_empty() {
