@@ -731,10 +731,7 @@ async fn get_cabinet_patient_secretary_sees_admin_only_200() {
         v.get("medical_record").is_none(),
         "secretary should not see medical_record"
     );
-    assert!(
-        v.get("notes").is_none(),
-        "secretary should not see notes"
-    );
+    assert!(v.get("notes").is_none(), "secretary should not see notes");
     // Mais les champs admin sont présents.
     assert!(v["first_name"].is_string(), "first_name should be present");
 
