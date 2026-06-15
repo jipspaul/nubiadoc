@@ -288,7 +288,32 @@ async fn search_providers_bbox_malformed_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
-// ── Test 5 : pagination par défaut (page=1, per_page=20) ─────────────────────
+// ── Test 6 : `near` avec lat seule (pas de virgule, pas de lng) → 422 ─────────
+
+#[tokio::test]
+async fn search_providers_near_lat_only_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // "near=48.85" contient un float valide comme lat, mais aucun séparateur → lng absente → 422.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?near=48.85")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
 
 #[tokio::test]
 async fn search_providers_default_pagination() {

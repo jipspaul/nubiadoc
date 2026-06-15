@@ -399,12 +399,73 @@ async fn hold_slot_already_held_returns_409() {
         "code d'erreur doit être slot_taken"
     );
 
-    // Nettoyage
+    // Nettoyage — test 5 (held)
     sqlx::query("DELETE FROM slot_holds WHERE slot_id = $1")
         .bind(slot_id)
         .execute(&db)
         .await
         .ok();
+    sqlx::query("DELETE FROM availability_slot WHERE id = $1")
+        .bind(slot_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 6 : slot `booked` (déjà réservé) → 409 slot_taken ───────────────────
+
+#[tokio::test]
+async fn hold_slot_booked_slot_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let (_, slot_id) = insert_provider_with_open_slot(&db, &suffix).await;
+
+    // Force le slot en 'booked' directement en DB.
+    sqlx::query("UPDATE availability_slot SET status = 'booked' WHERE id = $1")
+        .bind(slot_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let suffix2 = Uuid::new_v4().to_string();
+    let (user_id, account_id) = insert_patient(&db, &suffix2).await;
+    let token = make_patient_jwt(user_id, account_id);
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/slots/{}/hold", slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Slot booked → try_claim_slot() retourne 'booked' (pas 'held') → 409.
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        v["code"].as_str(),
+        Some("slot_taken"),
+        "code d'erreur doit être slot_taken"
+    );
+
+    // Nettoyage
     sqlx::query("DELETE FROM availability_slot WHERE id = $1")
         .bind(slot_id)
         .execute(&db)
