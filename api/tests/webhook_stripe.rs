@@ -65,6 +65,7 @@ fn now_ts() -> i64 {
 }
 
 fn build_app(db: PgPool) -> axum::Router {
+    std::env::set_var("STRIPE_WEBHOOK_SECRET", STRIPE_SECRET);
     let state = AppState {
         db,
         jwt_secret: "unused".to_string(),

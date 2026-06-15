@@ -51,6 +51,7 @@ fn make_sig(secret: &str, body: &[u8]) -> String {
 }
 
 fn build_app(db: PgPool) -> axum::Router {
+    std::env::set_var("YOUSIGN_WEBHOOK_SECRET", YOUSIGN_SECRET);
     let state = AppState {
         db,
         jwt_secret: "unused".to_string(),
@@ -553,6 +554,9 @@ async fn yousign_webhook_ignored_event_returns_200_no_update() {
 
 #[tokio::test]
 async fn yousign_webhook_unknown_quote_returns_200_no_op() {
+    if !db_available() {
+        return;
+    }
     let db = PgPool::connect_lazy(
         &std::env::var("APP_DATABASE_URL")
             .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),

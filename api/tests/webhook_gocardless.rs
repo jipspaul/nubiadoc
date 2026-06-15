@@ -52,6 +52,7 @@ fn make_sig(secret: &str, body: &[u8]) -> String {
 }
 
 fn build_app(db: PgPool) -> axum::Router {
+    std::env::set_var("GOCARDLESS_WEBHOOK_SECRET", GC_SECRET);
     let state = AppState {
         db,
         jwt_secret: "unused".to_string(),
