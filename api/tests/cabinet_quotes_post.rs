@@ -292,3 +292,165 @@ async fn cabinet_quotes_post_patient_token_returns_403() {
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
+
+// ── Test 3 : sans JWT → 401 ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn cabinet_quotes_post_no_jwt_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": [{ "label": "Soin", "amount_cents": 1000 }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test 4 : rôle secretary → 403 ────────────────────────────────────────────
+
+#[tokio::test]
+async fn cabinet_quotes_post_secretary_returns_403() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": [{ "label": "Soin", "amount_cents": 1000 }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "secretary")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Test 5 : items vide → 422 ────────────────────────────────────────────────
+
+#[tokio::test]
+async fn cabinet_quotes_post_empty_items_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": []
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+// ── Test 6 : deposit_pct hors borne → 422 ────────────────────────────────────
+
+#[tokio::test]
+async fn cabinet_quotes_post_invalid_deposit_pct_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": [{ "label": "Soin", "amount_cents": 1000 }],
+        "deposit_pct": 150.0
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
