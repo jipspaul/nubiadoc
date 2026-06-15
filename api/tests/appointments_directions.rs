@@ -137,8 +137,16 @@ async fn get_directions_wrong_patient_returns_404() {
     let prac_user_id = Uuid::new_v4();
 
     for (uid, email, kind) in [
-        (user_id, format!("appt-dir-wp+{}@nubia.test", user_id), "patient"),
-        (prac_user_id, format!("appt-dir-wp-prac+{}@nubia.test", prac_user_id), "pro"),
+        (
+            user_id,
+            format!("appt-dir-wp+{}@nubia.test", user_id),
+            "patient",
+        ),
+        (
+            prac_user_id,
+            format!("appt-dir-wp-prac+{}@nubia.test", prac_user_id),
+            "pro",
+        ),
     ] {
         sqlx::query(
             "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
@@ -172,14 +180,12 @@ async fn get_directions_wrong_patient_returns_404() {
         .execute(&mut *tx)
         .await
         .unwrap();
-    sqlx::query(
-        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
-    )
-    .bind(cabinet_id)
-    .bind(format!("Cabinet DirWP {}", cabinet_id))
-    .execute(&mut *tx)
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet DirWP {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
     sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
         .bind(prac_id)
         .bind(cabinet_id)
@@ -229,7 +235,10 @@ async fn get_directions_wrong_patient_returns_404() {
                 .uri(format!("/v1/appointments/{}/directions", appt_id))
                 .header(
                     "Authorization",
-                    format!("Bearer {}", make_patient_jwt(wrong_user_id, wrong_account_id)),
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(wrong_user_id, wrong_account_id)
+                    ),
                 )
                 .body(Body::empty())
                 .unwrap(),
@@ -246,12 +255,32 @@ async fn get_directions_wrong_patient_returns_404() {
         .execute(&mut *tx)
         .await
         .ok();
-    sqlx::query("DELETE FROM appointment WHERE id = $1").bind(appt_id).execute(&mut *tx).await.ok();
-    sqlx::query("DELETE FROM patient WHERE id = $1").bind(patient_id).execute(&mut *tx).await.ok();
-    sqlx::query("DELETE FROM practitioner WHERE id = $1").bind(prac_id).execute(&mut *tx).await.ok();
-    sqlx::query("DELETE FROM cabinet WHERE id = $1").bind(cabinet_id).execute(&mut *tx).await.ok();
+    sqlx::query("DELETE FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE id = $1")
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     tx.commit().await.ok();
-    sqlx::query("DELETE FROM patient_account WHERE id = $1").bind(account_id).execute(&db).await.ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
     sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
         .bind(user_id)
         .bind(prac_user_id)

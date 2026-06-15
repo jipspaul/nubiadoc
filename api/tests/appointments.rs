@@ -647,11 +647,7 @@ async fn appointments_cursor_pagination_returns_next_cursor() {
         .unwrap();
 
         // 3 RDV futurs confirmés.
-        for (appt_id, offset_days) in [
-            (appt1_id, 1i64),
-            (appt2_id, 2i64),
-            (appt3_id, 3i64),
-        ] {
+        for (appt_id, offset_days) in [(appt1_id, 1i64), (appt2_id, 2i64), (appt3_id, 3i64)] {
             sqlx::query(&format!(
                 "INSERT INTO appointment \
                  (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \

@@ -296,7 +296,10 @@ async fn get_queue_wrong_patient_returns_404() {
                 .uri(format!("/v1/appointments/{}/queue", appt_id))
                 .header(
                     "Authorization",
-                    format!("Bearer {}", make_patient_jwt(wrong_user_id, wrong_account_id)),
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(wrong_user_id, wrong_account_id)
+                    ),
                 )
                 .body(Body::empty())
                 .unwrap(),
