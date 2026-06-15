@@ -1,11 +1,12 @@
 //! Tests d'intégration : POST /v1/webhooks/yousign
 //!
-//! 5 cas :
+//! 6 cas :
 //!   1. Happy path : signature.completed → quote.signed_at != NULL, status = 'signed'.
 //!   2. HMAC invalide → 401.
 //!      2b. HMAC absent ou incorrect → 401, quotes.status non modifié en base.
 //!   3. Événement ignoré (non signature.completed) → 200, quote non touchée.
 //!   4. Idempotence : signature.completed rejoué → 200, signed_at non réécrit.
+//!   5. Quote inconnue (quote_id inexistant) → 200 silencieux (no-op).
 
 use axum::{
     body::Body,
@@ -546,6 +547,43 @@ async fn yousign_webhook_ignored_event_returns_200_no_update() {
         .execute(&db)
         .await
         .ok();
+}
+
+// ── Test 5 : quote inconnue → 200 silencieux (no-op) ──────────────────────────
+
+#[tokio::test]
+async fn yousign_webhook_unknown_quote_returns_200_no_op() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+
+    // quote_id aléatoire qui n'existe pas en base.
+    let unknown_quote_id = Uuid::new_v4();
+
+    let body = serde_json::to_vec(&json!({
+        "event_type": "signature.completed",
+        "data": { "quote_id": unknown_quote_id.to_string() }
+    }))
+    .unwrap();
+    let sig = make_sig(YOUSIGN_SECRET, &body);
+
+    let response = build_app(db)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/webhooks/yousign")
+                .header("content-type", "application/json")
+                .header("x-yousign-signature", &sig)
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Handler retourne 200 silencieux quand la quote n'existe pas (no-op défensif).
+    assert_eq!(response.status(), StatusCode::OK);
 }
 
 // ── Test 4 : idempotence — signature.completed rejoué → 200, signed_at stable ─

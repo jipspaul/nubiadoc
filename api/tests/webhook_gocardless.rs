@@ -1,10 +1,11 @@
 //! Tests d'intégration : POST /v1/webhooks/gocardless
 //!
-//! 4 cas :
+//! 5 cas :
 //!   1. Happy path : payments.confirmed → payment.status = 'paid' + paid_at != NULL.
 //!   2. HMAC invalide → 401.
 //!      2b. Header Webhook-Signature absent → 401.
 //!   3. Événement ignoré (non payments.confirmed) → 200, payment non touché.
+//!   4. Idempotence replay : payments.confirmed × 2 → 2ᵉ appel 200, status reste 'paid'.
 
 use axum::{
     body::Body,
@@ -402,6 +403,170 @@ async fn gocardless_webhook_ignored_event_returns_200_no_update() {
         paid_at.is_none(),
         "paid_at doit rester null pour un événement ignoré"
     );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM payment WHERE id = $1")
+            .bind(payment_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 4 : idempotence replay — payments.confirmed × 2 → 200, status stable ─
+
+#[tokio::test]
+async fn gocardless_webhook_payments_confirmed_idempotent() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let payment_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let gc_payment_id = format!("PM{}", Uuid::new_v4().simple());
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(prac_user_id)
+        .bind(format!("gc-idem+{}@nubia.test", prac_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet GC Idem {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Pat', 'GCI')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO payment \
+             (id, cabinet_id, patient_id, amount, currency, kind, provider, provider_ref, status) \
+             VALUES ($1, $2, $3, 40.00, 'EUR', 'full', 'gocardless', $4, 'pending')",
+        )
+        .bind(payment_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(&gc_payment_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let body = serde_json::to_vec(&json!({
+        "event": {
+            "action": "payments.confirmed",
+            "links": { "payment": gc_payment_id }
+        }
+    }))
+    .unwrap();
+
+    // Premier appel : passe de 'pending' à 'paid'.
+    let sig1 = make_sig(GC_SECRET, &body);
+    let resp1 = build_app(app_pool().await)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/webhooks/gocardless")
+                .header("content-type", "application/json")
+                .header("webhook-signature", &sig1)
+                .body(Body::from(body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), StatusCode::OK);
+
+    // Deuxième appel : WHERE status = 'pending' ne matche plus → no-op.
+    let sig2 = make_sig(GC_SECRET, &body);
+    let resp2 = build_app(app_pool().await)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/webhooks/gocardless")
+                .header("content-type", "application/json")
+                .header("webhook-signature", &sig2)
+                .body(Body::from(body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp2.status(), StatusCode::OK);
+
+    // Après les deux appels : status = 'paid' et paid_at non nul.
+    let row = sqlx::query("SELECT status, paid_at FROM payment WHERE id = $1")
+        .bind(payment_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let status: String = row.try_get("status").unwrap();
+    let paid_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("paid_at").unwrap();
+    assert_eq!(status, "paid", "status doit rester 'paid' après replay");
+    assert!(paid_at.is_some(), "paid_at doit rester non nul après replay");
 
     // Cleanup
     {

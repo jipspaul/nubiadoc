@@ -1,6 +1,6 @@
 //! Tests d'intégration : POST /v1/webhooks/stripe
 //!
-//! 6 cas :
+//! 7 cas :
 //!   1. Header Stripe-Signature absent → 401.
 //!   2. HMAC invalide (mauvaise signature) → 401.
 //!   3. Signature expirée (ts > 300 s) → 401.
@@ -8,6 +8,7 @@
 //!   5. Replay attack : même event_id deux fois → 2ᵉ appel 200, idempotent
 //!      (une seule entrée dans webhook_event_log).
 //!   6. Événement ignoré (customer.subscription.created) → 200, payment non touché.
+//!   7. payment_intent.payment_failed → payment.status = 'failed'.
 
 use axum::{
     body::Body,
@@ -479,6 +480,156 @@ async fn stripe_webhook_replay_attack_idempotent() {
         count, 1,
         "une seule entrée webhook_event_log attendue pour un event_id rejoué"
     );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM payment WHERE id = $1")
+            .bind(payment_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM webhook_event_log WHERE provider = 'stripe' AND event_id = $1")
+        .bind(&event_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 7 : payment_intent.payment_failed → payment.status = 'failed' ───────
+
+#[tokio::test]
+async fn stripe_webhook_payment_intent_failed_marks_failed() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let payment_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let pi_id = format!("pi_{}", Uuid::new_v4().simple());
+    let event_id = format!("evt_{}", Uuid::new_v4().simple());
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(prac_user_id)
+        .bind(format!("stripe-failed+{}@nubia.test", prac_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Stripe Failed {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Pat', 'F')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO payment \
+             (id, cabinet_id, patient_id, amount, currency, kind, provider, provider_ref, status) \
+             VALUES ($1, $2, $3, 55.00, 'EUR', 'full', 'stripe', $4, 'pending')",
+        )
+        .bind(payment_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(&pi_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let body = serde_json::to_vec(&json!({
+        "id": event_id,
+        "type": "payment_intent.payment_failed",
+        "data": { "object": { "id": pi_id } }
+    }))
+    .unwrap();
+    let sig = make_stripe_sig(STRIPE_SECRET, &body, now_ts());
+
+    let response = build_app(app_pool().await)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/webhooks/stripe")
+                .header("content-type", "application/json")
+                .header("stripe-signature", &sig)
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let row = sqlx::query("SELECT status FROM payment WHERE id = $1")
+        .bind(payment_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let status: String = row.try_get("status").unwrap();
+    assert_eq!(status, "failed");
 
     // Cleanup
     {
