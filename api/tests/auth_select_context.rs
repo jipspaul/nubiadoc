@@ -410,7 +410,57 @@ async fn select_context_invalid_body_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
-// ── Test 3 : secretariat_id appartenant à un autre cabinet → 403 ─────────────
+// ── Test 4 : JWT patient → 403 ───────────────────────────────────────────────
+// ProClaims extractor : kind != "pro" → AppError::Forbidden.
+// select-context est pro-only ; un patient ne doit pas pouvoir l'appeler.
+
+#[tokio::test]
+async fn select_context_patient_jwt_returns_403() {
+    let Some(state) = (async {
+        let url = std::env::var("APP_DATABASE_URL").ok()?;
+        let pool = sqlx::PgPool::connect(&url).await.ok()?;
+        Some(AppState {
+            db: pool,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        })
+    })
+    .await
+    else {
+        return;
+    };
+
+    // JWT patient valide (kind = "patient"), NON pro.
+    let user_id = Uuid::new_v4();
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    let patient_token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &serde_json::json!({"sub": user_id, "kind": "patient", "account_id": user_id, "exp": exp}),
+        &jsonwebtoken::EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/select-context")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .body(Body::from(
+                    serde_json::json!({"cabinet_id": Uuid::new_v4()}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
 
 #[tokio::test]
 async fn select_context_secretariat_from_other_cabinet_returns_403() {
