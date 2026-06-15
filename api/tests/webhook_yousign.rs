@@ -1,10 +1,11 @@
 //! Tests d'intégration : POST /v1/webhooks/yousign
 //!
-//! 4 cas :
+//! 5 cas :
 //!   1. Happy path : signature.completed → quote.signed_at != NULL, status = 'signed'.
 //!   2. HMAC invalide → 401.
 //!      2b. HMAC absent ou incorrect → 401, quotes.status non modifié en base.
 //!   3. Événement ignoré (non signature.completed) → 200, quote non touchée.
+//!   4. Idempotence : signature.completed rejoué → 200, signed_at non réécrit.
 
 use axum::{
     body::Body,
@@ -509,6 +510,180 @@ async fn yousign_webhook_ignored_event_returns_200_no_update() {
 
     assert_eq!(status, "sent", "status ne doit pas avoir changé");
     assert!(signed_at.is_none(), "signed_at doit rester null");
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote WHERE id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 4 : idempotence — signature.completed rejoué → 200, signed_at stable ─
+
+#[tokio::test]
+async fn yousign_webhook_signature_completed_idempotent() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(prac_user_id)
+        .bind(format!("yousign-idem+{}@nubia.test", prac_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Yousign Idem {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'PatI', 'Z')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, $3, 'sent', 70.00, 'EUR')",
+        )
+        .bind(quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let body = serde_json::to_vec(&json!({
+        "event_type": "signature.completed",
+        "data": { "quote_id": quote_id.to_string() }
+    }))
+    .unwrap();
+    let sig = make_sig(YOUSIGN_SECRET, &body);
+
+    // Premier appel : signe la quote.
+    let resp1 = build_app(app_pool().await)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/webhooks/yousign")
+                .header("content-type", "application/json")
+                .header("x-yousign-signature", &sig)
+                .body(Body::from(body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), StatusCode::OK);
+
+    // Capture signed_at après le premier appel.
+    let row1 = sqlx::query("SELECT signed_at FROM quote WHERE id = $1")
+        .bind(quote_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let signed_at_first: Option<chrono::DateTime<chrono::Utc>> =
+        row1.try_get("signed_at").unwrap();
+    assert!(
+        signed_at_first.is_some(),
+        "signed_at doit être positionné après le 1er appel"
+    );
+
+    // Deuxième appel : même body → WHERE signed_at IS NULL ne matche plus, no-op.
+    let sig2 = make_sig(YOUSIGN_SECRET, &body);
+    let resp2 = build_app(app_pool().await)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/webhooks/yousign")
+                .header("content-type", "application/json")
+                .header("x-yousign-signature", &sig2)
+                .body(Body::from(body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp2.status(), StatusCode::OK);
+
+    // signed_at ne doit pas avoir changé (idempotence via WHERE signed_at IS NULL).
+    let row2 = sqlx::query("SELECT signed_at FROM quote WHERE id = $1")
+        .bind(quote_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let signed_at_second: Option<chrono::DateTime<chrono::Utc>> =
+        row2.try_get("signed_at").unwrap();
+    assert_eq!(
+        signed_at_first, signed_at_second,
+        "signed_at ne doit pas changer lors d'un replay (idempotence)"
+    );
 
     // Cleanup
     {
