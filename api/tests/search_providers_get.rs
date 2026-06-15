@@ -142,7 +142,10 @@ async fn search_providers_happy_path_returns_listed_provider() {
     let data = v["data"].as_array().expect("data doit être un tableau");
     assert!(v["facets"].is_object(), "facets doit être un objet");
     assert!(v["page"].is_object(), "page doit être un objet");
-    assert!(v["page"]["page"].is_number(), "page.page doit être un nombre");
+    assert!(
+        v["page"]["page"].is_number(),
+        "page.page doit être un nombre"
+    );
     assert!(
         v["page"]["per_page"].is_number(),
         "page.per_page doit être un nombre"
