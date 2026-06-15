@@ -1,6 +1,10 @@
 //! Handler `POST /v1/auth/password/forgot`.
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{rejection::JsonRejection, State},
+    http::StatusCode,
+    Json,
+};
 use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
@@ -20,8 +24,12 @@ pub struct ForgotPasswordBody {
 /// avec une expiration d'une heure, puis notifie via le mailer.
 pub async fn forgot_password(
     State(state): State<AppState>,
-    Json(body): Json<ForgotPasswordBody>,
+    body: Result<Json<ForgotPasswordBody>, JsonRejection>,
 ) -> StatusCode {
+    let Json(body) = match body {
+        Ok(b) => b,
+        Err(_) => return StatusCode::UNPROCESSABLE_ENTITY,
+    };
     let token = Uuid::new_v4().to_string();
 
     // Pose app.current_login_email pour satisfaire user_login_select (migration 0065).
