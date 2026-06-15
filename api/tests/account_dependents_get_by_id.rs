@@ -350,7 +350,10 @@ async fn dependent_get_by_id_inactive_returns_404() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
     )
     .bind(guardian_user_id)
-    .bind(format!("guardian-inactive-byid+{}@nubia.test", guardian_user_id))
+    .bind(format!(
+        "guardian-inactive-byid+{}@nubia.test",
+        guardian_user_id
+    ))
     .execute(&db)
     .await
     .unwrap();
@@ -369,7 +372,10 @@ async fn dependent_get_by_id_inactive_returns_404() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
     )
     .bind(dependent_user_id)
-    .bind(format!("dep-inactive-byid+{}@nubia.test", dependent_user_id))
+    .bind(format!(
+        "dep-inactive-byid+{}@nubia.test",
+        dependent_user_id
+    ))
     .execute(&db)
     .await
     .unwrap();

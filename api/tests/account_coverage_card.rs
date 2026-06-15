@@ -80,7 +80,12 @@ fn make_multipart(
 }
 
 /// Construit un multipart sans champ `side` (file uniquement).
-fn make_multipart_file_only(boundary: &str, file_bytes: &[u8], filename: &str, mime: &str) -> Vec<u8> {
+fn make_multipart_file_only(
+    boundary: &str,
+    file_bytes: &[u8],
+    filename: &str,
+    mime: &str,
+) -> Vec<u8> {
     let mut body: Vec<u8> = Vec::new();
     body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
     body.extend_from_slice(
@@ -452,7 +457,13 @@ async fn coverage_card_invalid_side_returns_422() {
     let jwt = make_patient_jwt(user_id, account_id);
     let boundary = "testboundarybadside";
     // "front" n'est ni "recto" ni "verso"
-    let body = make_multipart(boundary, "front", b"\xff\xd8\xff", "carte.jpg", "image/jpeg");
+    let body = make_multipart(
+        boundary,
+        "front",
+        b"\xff\xd8\xff",
+        "carte.jpg",
+        "image/jpeg",
+    );
 
     let response = app(state)
         .oneshot(
