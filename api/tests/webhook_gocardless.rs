@@ -566,7 +566,10 @@ async fn gocardless_webhook_payments_confirmed_idempotent() {
     let status: String = row.try_get("status").unwrap();
     let paid_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("paid_at").unwrap();
     assert_eq!(status, "paid", "status doit rester 'paid' après replay");
-    assert!(paid_at.is_some(), "paid_at doit rester non nul après replay");
+    assert!(
+        paid_at.is_some(),
+        "paid_at doit rester non nul après replay"
+    );
 
     // Cleanup
     {
