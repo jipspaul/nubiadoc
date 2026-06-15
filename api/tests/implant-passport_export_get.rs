@@ -12,7 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use nubia_api::{app, app_with_dispatcher, AppState, StubJobDispatcher, StubMailer, StorageSigner};
+use nubia_api::{app, app_with_dispatcher, AppState, StorageSigner, StubJobDispatcher, StubMailer};
 
 const JWT_SECRET: &str = "test-jwt-secret-implant-passport-export";
 
