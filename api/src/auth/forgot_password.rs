@@ -1,6 +1,10 @@
 //! Handler `POST /v1/auth/password/forgot`.
 
-use axum::{extract::rejection::JsonRejection, extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{rejection::JsonRejection, State},
+    http::StatusCode,
+    Json,
+};
 use serde::Deserialize;
 use sqlx::Row;
 use uuid::Uuid;
