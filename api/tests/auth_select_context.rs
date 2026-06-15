@@ -177,7 +177,8 @@ async fn select_context_multicontext_jwt_contains_cabinet_and_role() {
         .unwrap();
     }
 
-    // user membre des deux cabinets avec des rôles différents.
+    // user membre actif de cabinet_a (admin) + ancien membre de cabinet_b (inactif).
+    // Contrainte 0099 : un seul active=true AND left_at IS NULL par user_id.
     sqlx::query(
         "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'admin', true)",
     )
@@ -188,7 +189,7 @@ async fn select_context_multicontext_jwt_contains_cabinet_and_role() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'practitioner', true)",
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'practitioner', false)",
     )
     .bind(cabinet_b)
     .bind(user_id)
