@@ -222,14 +222,12 @@ async fn cleanup_fixture(db: &PgPool, f: &Fixture) {
         .await
         .ok();
     // reviews d'abord (FK sur appointment)
-    sqlx::query(
-        "DELETE FROM review WHERE appointment_id = $1 OR appointment_id = $2",
-    )
-    .bind(f.appointment_id)
-    .bind(f.appointment2_id)
-    .execute(&mut *tx)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM review WHERE appointment_id = $1 OR appointment_id = $2")
+        .bind(f.appointment_id)
+        .bind(f.appointment2_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM appointment WHERE id = $1 OR id = $2")
         .bind(f.appointment_id)
         .bind(f.appointment2_id)
@@ -280,7 +278,15 @@ async fn get_provider_reviews_happy_path_returns_200_with_data() {
     }
     let db = owner_pool().await;
     let f = setup_fixture(&db, "happy").await;
-    insert_review(&db, f.provider_id, f.patient_account_id, f.appointment_id, 5, "published").await;
+    insert_review(
+        &db,
+        f.provider_id,
+        f.patient_account_id,
+        f.appointment_id,
+        5,
+        "published",
+    )
+    .await;
 
     let state = AppState {
         db: app_pool().await,
@@ -316,7 +322,11 @@ async fn get_provider_reviews_happy_path_returns_200_with_data() {
 
     assert_eq!(v["page"]["total"].as_i64().unwrap(), 1, "total=1");
     assert_eq!(v["page"]["page"].as_i64().unwrap(), 1, "page=1 par défaut");
-    assert_eq!(v["page"]["per_page"].as_i64().unwrap(), 20, "per_page=20 par défaut");
+    assert_eq!(
+        v["page"]["per_page"].as_i64().unwrap(),
+        20,
+        "per_page=20 par défaut"
+    );
 
     cleanup_fixture(&db, &f).await;
 }
@@ -405,8 +415,24 @@ async fn get_provider_reviews_pending_reviews_not_exposed() {
     let f = setup_fixture(&db, "pending").await;
 
     // 1 avis publié + 1 avis en attente de modération.
-    insert_review(&db, f.provider_id, f.patient_account_id, f.appointment_id, 5, "published").await;
-    insert_review(&db, f.provider_id, f.patient_account_id, f.appointment2_id, 2, "pending").await;
+    insert_review(
+        &db,
+        f.provider_id,
+        f.patient_account_id,
+        f.appointment_id,
+        5,
+        "published",
+    )
+    .await;
+    insert_review(
+        &db,
+        f.provider_id,
+        f.patient_account_id,
+        f.appointment2_id,
+        2,
+        "pending",
+    )
+    .await;
 
     let state = AppState {
         db: app_pool().await,
@@ -455,7 +481,15 @@ async fn get_provider_reviews_no_jwt_is_public() {
     }
     let db = owner_pool().await;
     let f = setup_fixture(&db, "public").await;
-    insert_review(&db, f.provider_id, f.patient_account_id, f.appointment_id, 4, "published").await;
+    insert_review(
+        &db,
+        f.provider_id,
+        f.patient_account_id,
+        f.appointment_id,
+        4,
+        "published",
+    )
+    .await;
 
     let state = AppState {
         db: app_pool().await,
