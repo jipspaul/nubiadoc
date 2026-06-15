@@ -321,6 +321,86 @@ async fn appointment_get_by_id_unknown_returns_404() {
         .ok();
 }
 
+// ── Test auth scope : sans JWT → 401 ─────────────────────────────────────────────
+
+#[tokio::test]
+async fn appointment_get_by_id_no_jwt_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}", Uuid::new_v4()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test auth scope : token pro → 403 ────────────────────────────────────────────
+
+fn make_pro_jwt_getbyid(user_id: Uuid, cabinet_id: Uuid) -> String {
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &json!({"sub": user_id, "kind": "pro", "cabinet_id": cabinet_id, "role": "admin",
+                "account_id": Uuid::nil(), "exp": exp}),
+        &jsonwebtoken::EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn appointment_get_by_id_pro_token_returns_403() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}", Uuid::new_v4()))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt_getbyid(Uuid::new_v4(), Uuid::new_v4())
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
 // ── Test 3 : RDV d'un autre patient → 404 (anti-énumération) ─────────────────────
 
 #[tokio::test]

@@ -200,6 +200,130 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid) {
     tx.commit().await.ok();
 }
 
+// ── Test auth scope : sans JWT → 401 ─────────────────────────────────────────
+
+#[tokio::test]
+async fn get_queue_no_jwt_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}/queue", Uuid::new_v4()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test auth scope : wrong patient → 404 (anti-énumération) ─────────────────
+
+#[tokio::test]
+async fn get_queue_wrong_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = seed_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("queue-wrongpt+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Queue', 'WrongPt')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("queue-wrongpt-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // RDV appartenant à patient_account_id (checkin_at = now).
+    let (cabinet_id, _prac_id, _patient_id, appt_id) = insert_fixture(
+        &db,
+        prac_user_id,
+        patient_account_id,
+        "checked_in",
+        Some("now()"),
+    )
+    .await;
+
+    // JWT d'un autre patient.
+    let wrong_user_id = Uuid::new_v4();
+    let wrong_account_id = Uuid::new_v4();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}/queue", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(wrong_user_id, wrong_account_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // RLS policy 0029 → 404 (anti-énumération).
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    cleanup(&db, cabinet_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 1 : patient en tête de file → position = 1 ─────────────────────────
 
 #[tokio::test]
