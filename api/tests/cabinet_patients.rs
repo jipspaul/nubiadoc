@@ -307,3 +307,396 @@ async fn create_cabinet_patient_patient_token_returns_403() {
 
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
+
+// ── Helper : JWT pro (practitioner/admin/secretary) sans passer par register ──
+
+fn make_pro_token(sub: Uuid, cabinet_id: Uuid, role: &str) -> String {
+    #[derive(serde::Serialize)]
+    struct Claims {
+        sub: Uuid,
+        kind: String,
+        cabinet_id: Uuid,
+        role: String,
+        exp: u64,
+    }
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    encode(
+        &Header::default(),
+        &Claims {
+            sub,
+            kind: "pro".into(),
+            cabinet_id,
+            role: role.to_string(),
+            exp,
+        },
+        &EncodingKey::from_secret(b"test-secret"),
+    )
+    .unwrap()
+}
+
+// ── Tests GET /v1/cabinet/patients/:id ────────────────────────────────────────
+
+#[tokio::test]
+async fn get_cabinet_patient_no_token_returns_401() {
+    if !db_available() {
+        return;
+    }
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}", Uuid::new_v4()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn get_cabinet_patient_patient_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let account_id = Uuid::new_v4();
+    let token = make_patient_token(account_id, account_id);
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn get_cabinet_patient_unknown_id_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("get_patient_404_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &email).await;
+    let unknown_id = Uuid::new_v4();
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}", unknown_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
+// ── Tests GET /v1/cabinet/patients/:id/notes ──────────────────────────────────
+
+#[tokio::test]
+async fn list_patient_notes_no_token_returns_401() {
+    if !db_available() {
+        return;
+    }
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/notes", Uuid::new_v4()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn list_patient_notes_patient_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let account_id = Uuid::new_v4();
+    let token = make_patient_token(account_id, account_id);
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/notes", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+/// Secretary → 403 sur les notes cliniques (ProPractitionerClaims, §07 R.4127-72).
+#[tokio::test]
+async fn list_patient_notes_secretary_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token(Uuid::new_v4(), Uuid::new_v4(), "secretary");
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/notes", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Tests GET /v1/cabinet/patients/:id/medical-record ─────────────────────────
+
+#[tokio::test]
+async fn get_medical_record_no_token_returns_401() {
+    if !db_available() {
+        return;
+    }
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    Uuid::new_v4()
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn get_medical_record_patient_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let account_id = Uuid::new_v4();
+    let token = make_patient_token(account_id, account_id);
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    Uuid::new_v4()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+/// Secretary → 403 sur le dossier médical (ProPractitionerClaims, §07 R.4127-72).
+#[tokio::test]
+async fn get_medical_record_secretary_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token(Uuid::new_v4(), Uuid::new_v4(), "secretary");
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    Uuid::new_v4()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Tests GET /v1/cabinet/patients/:id/dental-chart ───────────────────────────
+
+#[tokio::test]
+async fn get_dental_chart_no_token_returns_401() {
+    if !db_available() {
+        return;
+    }
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/dental-chart",
+                    Uuid::new_v4()
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn get_dental_chart_patient_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let account_id = Uuid::new_v4();
+    let token = make_patient_token(account_id, account_id);
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/dental-chart",
+                    Uuid::new_v4()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+/// Secretary → 403 sur l'odontogramme (ProPractitionerClaims, §07 R.4127-72).
+#[tokio::test]
+async fn get_dental_chart_secretary_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token(Uuid::new_v4(), Uuid::new_v4(), "secretary");
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/dental-chart",
+                    Uuid::new_v4()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Tests GET /v1/cabinet/patients/:id/documents ──────────────────────────────
+
+#[tokio::test]
+async fn list_patient_documents_no_token_returns_401() {
+    if !db_available() {
+        return;
+    }
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/documents", Uuid::new_v4()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn list_patient_documents_patient_token_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let account_id = Uuid::new_v4();
+    let token = make_patient_token(account_id, account_id);
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/documents", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+/// Catégorie inconnue → 200 avec `data: []` (early return avant toute requête DB).
+#[tokio::test]
+async fn list_patient_documents_unknown_category_returns_200_empty() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token(Uuid::new_v4(), Uuid::new_v4(), "practitioner");
+    let db = app_pool().await;
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/documents?category=inconnue",
+                    Uuid::new_v4()
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        v["data"].as_array().unwrap().is_empty(),
+        "data doit être vide pour une catégorie inconnue"
+    );
+}
