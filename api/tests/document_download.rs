@@ -46,6 +46,86 @@ fn make_patient_jwt(user_id: Uuid, account_id: Uuid) -> String {
     .unwrap()
 }
 
+fn make_pro_jwt(user_id: Uuid, cabinet_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    encode(
+        &Header::default(),
+        &json!({"sub": user_id, "kind": "pro", "cabinet_id": cabinet_id, "role": "admin",
+                "account_id": Uuid::nil(), "exp": exp}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+// ── Test : sans Authorization → 401 ──────────────────────────────────────────
+
+#[tokio::test]
+async fn document_download_no_auth_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/documents/{}/download", Uuid::new_v4()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test : token pro (kind:"pro") → 403 ──────────────────────────────────────
+
+#[tokio::test]
+async fn document_download_pro_token_returns_403() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/documents/{}/download", Uuid::new_v4()))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4())
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
 // ── Test 1 : happy-path — document existant → 302 avec Location non vide ─────
 
 #[tokio::test]
