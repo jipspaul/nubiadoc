@@ -84,7 +84,10 @@ async fn reminders_list_returns_200_with_data() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(v["data"].is_array(), "la réponse doit contenir un champ data tableau");
+    assert!(
+        v["data"].is_array(),
+        "la réponse doit contenir un champ data tableau"
+    );
     assert!(
         !v["data"].as_array().unwrap().is_empty(),
         "data ne doit pas être vide (rappels mockés attendus)"
