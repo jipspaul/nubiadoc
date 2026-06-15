@@ -1,7 +1,12 @@
-# Flutter test workflow — uses custom flutter-ci image baked with Flutter SDK
-# (arm64-friendly via Cirrus Labs build) + Node.js (required by Forgejo Actions
-# to run JS actions like actions/checkout@v4).
+# Flutter test workflow — runs in front/ (Dart pub workspace + Melos 7 embedded).
 #
+# Layout: front/ holds a native Dart pub workspace (pubspec.yaml has `workspace:`)
+# with 3 apps (app_patient, app_practicien, app_secretariat) + 5 packages
+# (nubia_a2ui/core/data/design_system/domain). Melos config is INLINE in
+# front/pubspec.yaml (Melos 7 dropped the standalone melos.yaml).
+#
+# Uses custom flutter-ci image baked with Flutter SDK (arm64-friendly via Cirrus
+# Labs build) + Node.js (required by Forgejo Actions for actions/checkout@v4).
 # Build & load the image into the runner DinD with:
 #   ./ci/flutter/load-into-runner.sh
 #
@@ -22,14 +27,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Flutter version
-        working-directory: flutter_demo
+        working-directory: front
         run: flutter --version
-      - name: Pub get
-        working-directory: flutter_demo
+      - name: Pub get (workspace root resolves all members)
+        working-directory: front
         run: flutter pub get
-      - name: Analyze
-        working-directory: flutter_demo
-        run: flutter analyze --fatal-infos
-      - name: Test
-        working-directory: flutter_demo
-        run: flutter test
+      - name: Analyze (melos)
+        working-directory: front
+        run: dart run melos analyze
+      - name: Test (melos — packages with test/ dir)
+        working-directory: front
+        run: dart run melos test
