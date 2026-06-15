@@ -444,7 +444,37 @@ async fn consultation_get_patient_token_returns_403() {
     cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
 }
 
-// ── Test 5 : séance inexistante → 404 ─────────────────────────────────────────
+// ── Test 5 : sans token → 401 ──────────────────────────────────────────────────
+
+#[tokio::test]
+async fn consultation_get_no_token_returns_401() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // UUID fictif — 401 retourné avant toute requête DB.
+    let session_id = Uuid::new_v4();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test 6 : séance inexistante → 404 ─────────────────────────────────────────
 
 #[tokio::test]
 async fn consultation_get_unknown_returns_404() {
