@@ -88,6 +88,67 @@ async fn suggest_too_short_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+/// q absent (aucun query param) → 422 (champ obligatoire manquant dans le désérialiseur Query).
+#[tokio::test]
+async fn suggest_missing_q_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Aucun ?q= → Axum QueryRejection FailedToDeserializeQueryString → 422.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/suggest")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+/// q exactement 2 chars (limite basse valide) → 200 + structure correcte.
+#[tokio::test]
+async fn suggest_q_exactly_two_chars_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/suggest?q=ab")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(
+        v["specialties"].is_array(),
+        "specialties doit être un tableau"
+    );
+    assert!(v["acts"].is_array(), "acts doit être un tableau");
+}
+
 /// Terme inconnu → 200 avec listes vides.
 #[tokio::test]
 async fn suggest_unknown_term_returns_empty() {

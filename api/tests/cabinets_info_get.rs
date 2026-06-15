@@ -376,3 +376,47 @@ async fn get_cabinet_info_with_pro_jwt_ignores_token_is_current_patient_null() {
 
     cleanup_cabinet(&db, cabinet_id).await;
 }
+
+// ── Test 6 (edge) : token malformé → is_current_patient null, route reste 200 ──
+
+#[tokio::test]
+async fn get_cabinet_info_malformed_jwt_still_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let cabinet_id = insert_cabinet(&db, &suffix).await;
+
+    let response = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinets/{}/info", cabinet_id))
+                // JWT syntaxiquement invalide (pas de '.' séparateur)
+                .header("Authorization", "Bearer notavalidjwt")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Route publique → 200 même si le token est corrompu.
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "JWT malformé → 200 (token ignoré silencieusement)"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert!(
+        v["is_current_patient"].is_null(),
+        "JWT malformé → is_current_patient doit être null"
+    );
+
+    cleanup_cabinet(&db, cabinet_id).await;
+}

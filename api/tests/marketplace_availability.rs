@@ -299,6 +299,69 @@ async fn availability_booked_slot_excluded() {
         "slot booked doit être exclu de la disponibilité"
     );
 
+    // Nettoyage — test 4 (booked)
+    sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 5 : slot passé (starts_at < now()) exclu même si status='open' ────────
+
+#[tokio::test]
+async fn availability_past_slot_excluded() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let provider_id = insert_provider(&db, &Uuid::new_v4().to_string()).await;
+
+    // Slot open dans le passé — doit être exclu (filtre `starts_at > now()`).
+    sqlx::query(
+        "INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, now() - interval '1 day', now() - interval '23 hours', 'open')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(provider_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/providers/{}/availability", provider_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(
+        v["data"],
+        serde_json::json!([]),
+        "slot passé doit être exclu même si status='open'"
+    );
+
     // Nettoyage
     sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
         .bind(provider_id)

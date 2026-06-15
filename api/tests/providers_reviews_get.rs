@@ -527,3 +527,76 @@ async fn get_provider_reviews_no_jwt_is_public() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+// ── Test 6 (edge) : per_page=1 avec 2 avis publiés → data.len()=1, total=2 ───
+
+#[tokio::test]
+async fn get_provider_reviews_pagination_per_page_1() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db, "paginate").await;
+
+    // 2 avis publiés sur 2 RDV distincts.
+    insert_review(
+        &db,
+        f.provider_id,
+        f.patient_account_id,
+        f.appointment_id,
+        5,
+        "published",
+    )
+    .await;
+    insert_review(
+        &db,
+        f.provider_id,
+        f.patient_account_id,
+        f.appointment2_id,
+        3,
+        "published",
+    )
+    .await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/v1/providers/{}/reviews?per_page=1",
+                    f.provider_id
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    // per_page=1 → une seule entrée dans data
+    assert_eq!(
+        v["data"].as_array().unwrap().len(),
+        1,
+        "data doit contenir 1 avis avec per_page=1"
+    );
+    // mais total reflète les 2 avis publiés
+    assert_eq!(
+        v["page"]["total"].as_i64().unwrap(),
+        2,
+        "total doit être 2 (les 2 avis publiés)"
+    );
+    assert_eq!(v["page"]["per_page"].as_i64().unwrap(), 1, "per_page=1");
+
+    cleanup_fixture(&db, &f).await;
+}

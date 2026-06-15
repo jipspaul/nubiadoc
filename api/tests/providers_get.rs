@@ -263,3 +263,51 @@ async fn get_provider_no_jwt_is_public_returns_200() {
 
     cleanup_provider(&db, provider_id).await;
 }
+
+// ── Test 6 (edge) : provider sans avis → rating_avg null + review_count = 0 ──
+
+#[tokio::test]
+async fn get_provider_no_reviews_rating_avg_null() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let provider_id = insert_provider(&db, &Uuid::new_v4().to_string(), true).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/providers/{}", provider_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    // rating_avg doit être null (pas de division par zéro, pas de 500)
+    assert!(
+        v["rating_avg"].is_null(),
+        "rating_avg doit être null sans avis (pas de 500)"
+    );
+    // review_count doit être 0
+    assert_eq!(
+        v["review_count"].as_i64(),
+        Some(0),
+        "review_count doit être 0 sans avis"
+    );
+
+    cleanup_provider(&db, provider_id).await;
+}
