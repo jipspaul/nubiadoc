@@ -308,3 +308,41 @@ async fn consent_put_pro_token_returns_403() {
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
+
+// ── Test 6 : body JSON malformé → 422 ────────────────────────────────────────
+
+#[tokio::test]
+async fn consent_put_malformed_body_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id) = setup_patient(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // `granted` doit être un booléen — envoyer une chaîne de caractères → 422
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/account/consents/soins")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::from(r#"{"granted":"yes"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, user_id).await;
+}

@@ -79,6 +79,22 @@ fn make_multipart(
     body
 }
 
+/// Construit un multipart sans champ `side` (file uniquement).
+fn make_multipart_file_only(boundary: &str, file_bytes: &[u8], filename: &str, mime: &str) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n")
+            .as_bytes(),
+    );
+    body.extend_from_slice(format!("Content-Type: {mime}\r\n").as_bytes());
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(file_bytes);
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    body
+}
+
 // ── Test 1 : upload JPEG valide → 201 + document_id UUID ─────────────────────
 
 #[tokio::test]
@@ -372,6 +388,135 @@ async fn coverage_card_oversized_returns_422() {
     let oversized = vec![0u8; 10 * 1024 * 1024 + 1];
     let boundary = "testboundaryoversize";
     let body = make_multipart(boundary, "verso", &oversized, "big.jpg", "image/jpeg");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/coverage/card")
+                .header("Authorization", format!("Bearer {jwt}"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 6 : side invalide → 422 ─────────────────────────────────────────────
+
+#[tokio::test]
+async fn coverage_card_invalid_side_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("card-side+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Sam', 'Side')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(user_id, account_id);
+    let boundary = "testboundarybadside";
+    // "front" n'est ni "recto" ni "verso"
+    let body = make_multipart(boundary, "front", b"\xff\xd8\xff", "carte.jpg", "image/jpeg");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/coverage/card")
+                .header("Authorization", format!("Bearer {jwt}"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 7 : champ `side` absent → 422 ───────────────────────────────────────
+
+#[tokio::test]
+async fn coverage_card_missing_side_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("card-noside+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'No', 'Side')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(user_id, account_id);
+    let boundary = "testboundarynoside";
+    let body = make_multipart_file_only(boundary, b"\xff\xd8\xff", "carte.jpg", "image/jpeg");
 
     let response = app(state)
         .oneshot(

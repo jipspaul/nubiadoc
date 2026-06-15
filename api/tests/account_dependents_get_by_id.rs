@@ -331,3 +331,93 @@ async fn dependent_get_by_id_no_auth_returns_401() {
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+// ── Test 5 : proche avec active=false → 404 ───────────────────────────────────
+
+#[tokio::test]
+async fn dependent_get_by_id_inactive_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+    let dependent_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!("guardian-inactive-byid+{}@nubia.test", guardian_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Gardien')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(dependent_user_id)
+    .bind(format!("dep-inactive-byid+{}@nubia.test", dependent_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Bob', 'Inactif')",
+    )
+    .bind(dependent_account_id)
+    .bind(dependent_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Tutelle inactive (active=false)
+    {
+        let rls_db = app_pool().await;
+        sqlx::query(
+            "INSERT INTO account_guardianship \
+             (guardian_account_id, dependent_account_id, relationship, active) \
+             VALUES ($1, $2, 'enfant', false)",
+        )
+        .bind(guardian_account_id)
+        .bind(dependent_account_id)
+        .execute(&rls_db)
+        .await
+        .unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(guardian_user_id, guardian_account_id);
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/account/dependents/{}", dependent_account_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // La tutelle inactive ne doit pas être visible → 404
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
