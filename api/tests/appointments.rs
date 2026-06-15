@@ -566,7 +566,188 @@ async fn appointments_pro_token_returns_403() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
-// ── Test 5 : sans JWT → 401 ───────────────────────────────────────────────────
+// ── Test 6 : pagination cursor → next_cursor non null quand limit < total ────
+
+#[tokio::test]
+async fn appointments_cursor_pagination_returns_next_cursor() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let appt1_id = Uuid::new_v4();
+    let appt2_id = Uuid::new_v4();
+    let appt3_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("appts-cursor+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Cursor', 'Patient')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("appts-cursor-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Cursor {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Cursor', 'Patient', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // 3 RDV futurs confirmés.
+        for (appt_id, offset_days) in [
+            (appt1_id, 1i64),
+            (appt2_id, 2i64),
+            (appt3_id, 3i64),
+        ] {
+            sqlx::query(&format!(
+                "INSERT INTO appointment \
+                 (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+                 VALUES ($1, $2, $3, $4, \
+                         now() + interval '{offset_days} days', \
+                         now() + interval '{offset_days} days 1 hour', \
+                         'confirmed', 'rdv {offset_days}')"
+            ))
+            .bind(appt_id)
+            .bind(cabinet_id)
+            .bind(patient_id)
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // limit=2 → next_cursor non null car 3 RDV existent.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/appointments?status=upcoming&limit=2")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 2, "limit=2 doit retourner exactement 2 items");
+    assert!(
+        !v["page"]["next_cursor"].is_null(),
+        "next_cursor doit être non null quand il reste des pages"
+    );
+    assert_eq!(v["page"]["limit"], 2_i64);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM appointment WHERE id IN ($1, $2, $3)")
+            .bind(appt1_id)
+            .bind(appt2_id)
+            .bind(appt3_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
 
 #[tokio::test]
 async fn appointments_no_jwt_returns_401() {
