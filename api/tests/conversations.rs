@@ -1142,6 +1142,177 @@ async fn conversations_read_unknown_conversation_returns_404() {
         .ok();
 }
 
+// ── GET /v1/conversations : isolation RLS cross-patient ───────────────────────
+
+/// Le patient B ne voit pas les conversations du patient A dans le même cabinet.
+/// Valide que `app.patient_account_id` filtre correctement (policy 0029).
+#[tokio::test]
+async fn conversations_list_does_not_leak_other_patient_data() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_a_id = Uuid::new_v4();
+    let account_a_id = Uuid::new_v4();
+    let user_b_id = Uuid::new_v4();
+    let account_b_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_a_id = Uuid::new_v4();
+    let patient_b_id = Uuid::new_v4();
+    let conv_a_id = Uuid::new_v4();
+    let conv_b_id = Uuid::new_v4();
+
+    // Entités plateforme (hors RLS cabinet).
+    for (uid, email) in [
+        (user_a_id, format!("conv-rls-a+{}@nubia.test", user_a_id)),
+        (user_b_id, format!("conv-rls-b+{}@nubia.test", user_b_id)),
+    ] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+        )
+        .bind(uid)
+        .bind(email)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+    for (acc_id, uid, fname) in [
+        (account_a_id, user_a_id, "Eve"),
+        (account_b_id, user_b_id, "Frank"),
+    ] {
+        sqlx::query(
+            "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+             VALUES ($1, $2, $3, 'RLS')",
+        )
+        .bind(acc_id)
+        .bind(uid)
+        .bind(fname)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    // Entités tenant : même cabinet, deux patients, deux conversations.
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet RLS Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        for (pid, acc_id, fname) in [
+            (patient_a_id, account_a_id, "Eve"),
+            (patient_b_id, account_b_id, "Frank"),
+        ] {
+            sqlx::query(
+                "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+                 VALUES ($1, $2, $3, 'RLS', $4)",
+            )
+            .bind(pid)
+            .bind(cabinet_id)
+            .bind(fname)
+            .bind(acc_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+
+        for (cid, pid) in [(conv_a_id, patient_a_id), (conv_b_id, patient_b_id)] {
+            sqlx::query(
+                "INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)",
+            )
+            .bind(cid)
+            .bind(cabinet_id)
+            .bind(pid)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Requête en tant que patient A.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/conversations")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_a_id, account_a_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1, "patient A ne doit voir que sa propre conversation");
+    assert_eq!(
+        data[0]["id"],
+        conv_a_id.to_string(),
+        "la conversation visible est bien celle du patient A"
+    );
+
+    // Cleanup.
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for q in &[
+            ("DELETE FROM conversation WHERE id = $1", conv_a_id),
+            ("DELETE FROM conversation WHERE id = $1", conv_b_id),
+            ("DELETE FROM patient WHERE id = $1", patient_a_id),
+            ("DELETE FROM patient WHERE id = $1", patient_b_id),
+            ("DELETE FROM cabinet WHERE id = $1", cabinet_id),
+        ] {
+            sqlx::query(q.0).bind(q.1).execute(&mut *tx).await.ok();
+        }
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1 OR id = $2")
+        .bind(account_a_id)
+        .bind(account_b_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_a_id)
+        .bind(user_b_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 /// happy path 204 + état DB : `read_at IS NOT NULL` après marquage.
 #[tokio::test]
 async fn conversations_read_marks_messages_and_returns_204() {
