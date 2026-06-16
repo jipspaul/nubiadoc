@@ -35,7 +35,7 @@ class AuthApi {
   }
 
   Future<PatientAccountDto> getMe() async {
-    final response = await _dio.get<Map<String, dynamic>>('/account/me');
+    final response = await _dio.get<Map<String, dynamic>>('/me');
     return PatientAccountDto.fromJson(response.data!);
   }
 

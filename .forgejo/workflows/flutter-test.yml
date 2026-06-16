@@ -59,4 +59,4 @@ jobs:
         working-directory: front
         run: |
           export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
-          melos test
+          melos test --no-select
