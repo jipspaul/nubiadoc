@@ -4,6 +4,7 @@
     "app_practicien",
     "app_secretariat",
     "nubia_a2ui",
+    "nubia_app_shell",
     "nubia_core",
     "nubia_data",
     "nubia_design_system",
@@ -85,6 +86,20 @@
         "nubia_core",
         "nubia_design_system",
         "web_socket_channel"
+      ],
+      "devDependencies": [
+        "flutter_lints",
+        "flutter_test"
+      ]
+    },
+    {
+      "name": "nubia_app_shell",
+      "version": "0.1.0",
+      "dependencies": [
+        "flutter",
+        "flutter_bloc",
+        "go_router",
+        "nubia_core"
       ],
       "devDependencies": [
         "flutter_lints",

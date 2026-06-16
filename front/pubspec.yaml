@@ -12,6 +12,7 @@ workspace:
   - packages/nubia_core
   - packages/nubia_data
   - packages/nubia_a2ui
+  - packages/nubia_app_shell
   - apps/app_patient
   - apps/app_practicien
   - apps/app_secretariat
