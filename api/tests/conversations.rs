@@ -774,6 +774,50 @@ async fn conversations_list_pro_token_returns_403() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
+/// 401 : token patient bien formé (bonne signature) mais expiré.
+/// Vérifie que `PatientAccountClaims` respecte `validate_exp = true`
+/// et ne laisse pas passer un token dont le `exp` est dépassé.
+#[tokio::test]
+async fn conversations_list_expired_token_returns_401() {
+    let state = AppState {
+        db: lazy_app_pool(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // exp fixé à 2 h dans le passé — dépasse le leeway par défaut (60 s).
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        - 7200;
+    let token = encode(
+        &Header::default(),
+        &json!({
+            "sub": Uuid::new_v4(),
+            "kind": "patient",
+            "account_id": Uuid::new_v4(),
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/conversations")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
 // ── GET /v1/conversations/:id/messages : auth scope ───────────────────────────
 
 /// 401 : requête sans token.
