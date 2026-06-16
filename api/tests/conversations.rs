@@ -1519,6 +1519,193 @@ async fn conversations_list_does_not_leak_other_patient_data() {
         .ok();
 }
 
+/// Idempotence : 2e appel → 204 sans erreur, `read_at` reste stable (pas écrasé).
+#[tokio::test]
+async fn conversations_read_idempotent_double_call_returns_204() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let conv_id = Uuid::new_v4();
+    let msg_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("conv-read-idem+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Dave', 'Idem')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("conv-read-idem-pro+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Idem Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Dave', 'Idem', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+            .bind(conv_id)
+            .bind(cabinet_id)
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO message \
+             (id, cabinet_id, conversation_id, sender_kind, sender_id, \
+              body_ciphertext, body_key_ref) \
+             VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+        )
+        .bind(msg_id)
+        .bind(cabinet_id)
+        .bind(conv_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let make_request = || {
+        Request::builder()
+            .method("POST")
+            .uri(format!("/v1/conversations/{}/read", conv_id))
+            .header("content-type", "application/json")
+            .header(
+                "Authorization",
+                format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+            )
+            .body(Body::from("{}"))
+            .unwrap()
+    };
+
+    let router = app(state);
+
+    // Premier appel → 204.
+    let r1 = router.clone().oneshot(make_request()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::NO_CONTENT);
+
+    let row = sqlx::query("SELECT read_at FROM message WHERE id = $1")
+        .bind(msg_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let read_at_1: Option<chrono::DateTime<chrono::Utc>> = row.try_get("read_at").unwrap();
+    assert!(read_at_1.is_some(), "read_at défini après 1er appel");
+
+    // Second appel → 204 (idempotent, pas d'erreur).
+    let r2 = router.oneshot(make_request()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::NO_CONTENT);
+
+    // read_at ne doit pas avoir changé (UPDATE WHERE read_at IS NULL ne touche rien).
+    let row2 = sqlx::query("SELECT read_at FROM message WHERE id = $1")
+        .bind(msg_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let read_at_2: Option<chrono::DateTime<chrono::Utc>> = row2.try_get("read_at").unwrap();
+    assert_eq!(
+        read_at_1, read_at_2,
+        "read_at stable après 2e appel (idempotence)"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for q in &[
+            ("DELETE FROM message WHERE id = $1", msg_id),
+            ("DELETE FROM conversation WHERE id = $1", conv_id),
+            ("DELETE FROM patient WHERE id = $1", patient_id),
+            ("DELETE FROM practitioner WHERE id = $1", prac_id),
+            ("DELETE FROM cabinet WHERE id = $1", cabinet_id),
+        ] {
+            sqlx::query(q.0).bind(q.1).execute(&mut *tx).await.ok();
+        }
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 /// happy path 204 + état DB : `read_at IS NOT NULL` après marquage.
 #[tokio::test]
 async fn conversations_read_marks_messages_and_returns_204() {
