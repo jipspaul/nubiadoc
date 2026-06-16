@@ -1728,8 +1728,16 @@ async fn conversations_read_cross_patient_returns_404() {
     let conv_a_id = Uuid::new_v4();
 
     for (uid, email, kind) in [
-        (user_a_id, format!("conv-cross-a+{}@nubia.test", user_a_id), "patient"),
-        (user_b_id, format!("conv-cross-b+{}@nubia.test", user_b_id), "patient"),
+        (
+            user_a_id,
+            format!("conv-cross-a+{}@nubia.test", user_a_id),
+            "patient",
+        ),
+        (
+            user_b_id,
+            format!("conv-cross-b+{}@nubia.test", user_b_id),
+            "patient",
+        ),
     ] {
         sqlx::query(
             "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
