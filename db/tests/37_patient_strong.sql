@@ -278,5 +278,115 @@ SELECT throws_ok(
     '23505', NULL,
     '⭐ AG3 UNIQUE index active tutelle : double lien actif même paire → 23505');
 
+-- ===========================================================================
+-- T-DB-D002.b — Invariants structurels : NOT NULL, CHECK, FK, soft-delete,
+-- transition d'état. Issue #1912.
+-- ===========================================================================
+
+-- Fixture supplémentaire pour PC-CH1 : compte patient D sans couverture,
+-- nécessaire pour tester le CHECK regime_obligatoire sans interférence UNIQUE.
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a4', 'patient.strong.d@example.test', '$argon2id$fixture', 'patient');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e4', '18280000-0000-0000-0000-0000000000a4', 'Patient', 'StrongD');
+
+-- ===========================================================================
+-- PA-NN1. patient_account.first_name NOT NULL :
+-- INSERT avec first_name=NULL refusé (23502).
+-- Policy account_app_insert : WITH CHECK (true) → RLS ne bloque pas.
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO patient_account (app_user_id, first_name, last_name)
+       VALUES ('18280000-0000-0000-0000-0000000000a4', NULL, 'NullTest') $$,
+    '23502', NULL,
+    '⭐ PA-NN1 patient_account.first_name NOT NULL : NULL refusé (23502)');
+
+-- ===========================================================================
+-- AG-CH1. account_guardianship.guardianship_not_self CHECK (0010) :
+-- Insérer un lien de tutelle où guardian_account_id = dependent_account_id → 23514.
+-- Policy guardianship_app_insert : WITH CHECK (true) → RLS ne bloque pas.
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO account_guardianship
+           (guardian_account_id, dependent_account_id, relationship, active)
+       VALUES ('18280000-0000-0000-0000-0000000000e1',
+               '18280000-0000-0000-0000-0000000000e1',
+               'enfant', true) $$,
+    '23514', NULL,
+    '⭐ AG-CH1 guardianship_not_self : guardian = dependent refusé (23514)');
+
+-- ===========================================================================
+-- AG-CH2. account_guardianship.relationship CHECK (0010) :
+-- Valeur hors de (enfant, conjoint, parent, autre) → violation 23514.
+-- active=false pour ne pas déclencher l'index UNIQUE partial (vérifié en AG3).
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO account_guardianship
+           (guardian_account_id, dependent_account_id, relationship, active)
+       VALUES ('18280000-0000-0000-0000-0000000000e1',
+               '18280000-0000-0000-0000-0000000000e2',
+               'inconnu', false) $$,
+    '23514', NULL,
+    '⭐ AG-CH2 account_guardianship.relationship CHECK : valeur invalide refusée (23514)');
+
+-- ===========================================================================
+-- PC-CH1. patient_coverage.regime_obligatoire CHECK (0023) :
+-- Valeur hors de (regime_general, ame, css) → violation 23514.
+-- GUC = e4 (sans couverture) pour passer le WITH CHECK sans déclencher UNIQUE.
+-- ===========================================================================
+SET LOCAL app.patient_account_id = '18280000-0000-0000-0000-0000000000e4';
+SELECT throws_ok(
+    $$ INSERT INTO patient_coverage (patient_account_id, regime_obligatoire, tiers_payant)
+       VALUES ('18280000-0000-0000-0000-0000000000e4', 'inconnu', false) $$,
+    '23514', NULL,
+    '⭐ PC-CH1 patient_coverage.regime_obligatoire CHECK : valeur invalide refusée (23514)');
+
+-- ===========================================================================
+-- PC-FK1. patient_coverage FK : patient_account inexistant → violation 23503.
+-- GUC = UUID inexistant → WITH CHECK passe (uuid = uuid), FK échoue ensuite.
+-- ===========================================================================
+SET LOCAL app.patient_account_id = '18280000-0000-0000-0000-000000009999';
+SELECT throws_ok(
+    $$ INSERT INTO patient_coverage (patient_account_id, tiers_payant)
+       VALUES ('18280000-0000-0000-0000-000000009999', false) $$,
+    '23503', NULL,
+    '⭐ PC-FK1 patient_coverage FK : patient_account_id inexistant refusé (23503)');
+
+-- ===========================================================================
+-- AG-SD1. Soft-delete account_guardianship : UPDATE deleted_at = now() OK.
+-- guardianship_app_update : USING(true) → pas de restriction RLS sur UPDATE.
+-- Vérification via SELECT sous GUC e2 (dependent_account_id = e2 → visible).
+-- ===========================================================================
+SELECT lives_ok(
+    $$ UPDATE account_guardianship
+       SET deleted_at = now()
+       WHERE id = '18280000-0000-0000-0000-000000000020' $$,
+    '⭐ AG-SD1 account_guardianship soft-delete : UPDATE deleted_at = now() OK');
+
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e2';
+SELECT is(
+    (SELECT deleted_at IS NOT NULL
+     FROM account_guardianship
+     WHERE id = '18280000-0000-0000-0000-000000000020'),
+    true,
+    'AG-SD1b account_guardianship : deleted_at non NULL après soft-delete confirmé');
+
+-- ===========================================================================
+-- AG-TR1. Transition d'état active → inactive → re-active autorisée.
+-- L'index UNIQUE partial (0025) ne porte que sur (guardian, dependent) WHERE active=true.
+-- Désactiver le lien e1→e2 existant, puis réinsérer un nouveau lien actif → OK.
+-- ===========================================================================
+UPDATE account_guardianship SET active = false
+WHERE id = '18280000-0000-0000-0000-000000000020';
+
+SELECT lives_ok(
+    $$ INSERT INTO account_guardianship
+           (id, guardian_account_id, dependent_account_id, relationship, active)
+       VALUES ('18280000-0000-0000-0000-000000000022',
+               '18280000-0000-0000-0000-0000000000e1',
+               '18280000-0000-0000-0000-0000000000e2',
+               'parent', true) $$,
+    '⭐ AG-TR1 transition active=false : nouveau lien actif e1→e2 autorisé après désactivation (UNIQUE partial)');
+
 SELECT * FROM finish();
 ROLLBACK;
