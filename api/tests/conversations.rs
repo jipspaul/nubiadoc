@@ -2069,6 +2069,243 @@ async fn conversations_read_partial_with_last_message_id_marks_only_earlier_mess
         .ok();
 }
 
+/// 401 : token patient bien formé (bonne signature) mais expiré.
+/// Miroir de `conversations_list_expired_token_returns_401` pour la route messages.
+#[tokio::test]
+async fn conversations_messages_expired_token_returns_401() {
+    let state = AppState {
+        db: lazy_app_pool(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // exp fixé à 2 h dans le passé — dépasse le leeway par défaut (60 s).
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        - 7200;
+    let token = encode(
+        &Header::default(),
+        &json!({
+            "sub": Uuid::new_v4(),
+            "kind": "patient",
+            "account_id": Uuid::new_v4(),
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/conversations/{}/messages", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// RLS cross-patient : patient B ne peut pas lire les messages de la conversation de patient A.
+/// La conversation existe mais le RLS `message_patient_read` la masque → 404.
+/// Valide l'isolation RGPD sur `GET /v1/conversations/:id/messages`.
+#[tokio::test]
+async fn conversations_messages_cross_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    // Patient A (propriétaire de la conversation).
+    let user_a_id = Uuid::new_v4();
+    let account_a_id = Uuid::new_v4();
+    // Patient B (l'attaquant).
+    let user_b_id = Uuid::new_v4();
+    let account_b_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_a_id = Uuid::new_v4();
+    let patient_b_id = Uuid::new_v4();
+    let conv_a_id = Uuid::new_v4();
+    let msg_id = Uuid::new_v4();
+
+    for (uid, email, kind) in [
+        (
+            user_a_id,
+            format!("conv-msgs-cross-a+{}@nubia.test", user_a_id),
+            "patient",
+        ),
+        (
+            user_b_id,
+            format!("conv-msgs-cross-b+{}@nubia.test", user_b_id),
+            "patient",
+        ),
+        (
+            prac_user_id,
+            format!("conv-msgs-cross-pro+{}@nubia.test", prac_user_id),
+            "pro",
+        ),
+    ] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
+        )
+        .bind(uid)
+        .bind(email)
+        .bind(kind)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+    for (acc_id, uid, fname) in [
+        (account_a_id, user_a_id, "Alice"),
+        (account_b_id, user_b_id, "Bob"),
+    ] {
+        sqlx::query(
+            "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+             VALUES ($1, $2, $3, 'MsgsCross')",
+        )
+        .bind(acc_id)
+        .bind(uid)
+        .bind(fname)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet MsgsCross Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        for (pid, acc_id, fname) in [
+            (patient_a_id, account_a_id, "Alice"),
+            (patient_b_id, account_b_id, "Bob"),
+        ] {
+            sqlx::query(
+                "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+                 VALUES ($1, $2, $3, 'MsgsCross', $4)",
+            )
+            .bind(pid)
+            .bind(cabinet_id)
+            .bind(fname)
+            .bind(acc_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+
+        // Seule la conversation du patient A est créée, avec un message.
+        sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+            .bind(conv_a_id)
+            .bind(cabinet_id)
+            .bind(patient_a_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO message \
+             (id, cabinet_id, conversation_id, sender_kind, sender_id, \
+              body_ciphertext, body_key_ref) \
+             VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+        )
+        .bind(msg_id)
+        .bind(cabinet_id)
+        .bind(conv_a_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Patient B tente de lire les messages de la conversation du patient A → RLS masque → 404.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/conversations/{}/messages", conv_a_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_b_id, account_b_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for q in &[
+            ("DELETE FROM message WHERE id = $1", msg_id),
+            ("DELETE FROM conversation WHERE id = $1", conv_a_id),
+            ("DELETE FROM patient WHERE id = $1", patient_a_id),
+            ("DELETE FROM patient WHERE id = $1", patient_b_id),
+            ("DELETE FROM practitioner WHERE id = $1", prac_id),
+            ("DELETE FROM cabinet WHERE id = $1", cabinet_id),
+        ] {
+            sqlx::query(q.0).bind(q.1).execute(&mut *tx).await.ok();
+        }
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1 OR id = $2")
+        .bind(account_a_id)
+        .bind(account_b_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2 OR id = $3")
+        .bind(user_a_id)
+        .bind(user_b_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 /// happy path 204 + état DB : `read_at IS NOT NULL` après marquage.
 #[tokio::test]
 async fn conversations_read_marks_messages_and_returns_204() {
