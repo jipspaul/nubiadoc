@@ -395,7 +395,10 @@ pub async fn checkin_appointment(
 
 #[derive(Deserialize)]
 pub struct AppointmentsQuery {
+    /// Filtre par statut (`upcoming` | `past`). Alias pour rétro-compatibilité front.
     pub status: Option<String>,
+    /// Alias `filter=upcoming|history` (convention Flutter nubia_data). `history` → `past`.
+    pub filter: Option<String>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
 }
@@ -450,9 +453,17 @@ pub async fn list_appointments(
     Query(params): Query<AppointmentsQuery>,
 ) -> Result<Json<AppointmentsResponse>, AppError> {
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
-    let is_past = params.status.as_deref() == Some("past");
 
-    let status_clause = match params.status.as_deref() {
+    // `filter` est l'alias Flutter (history → past). `status` garde la rétro-compat.
+    let effective_status = params
+        .filter
+        .as_deref()
+        .map(|f| if f == "history" { "past" } else { f })
+        .or(params.status.as_deref());
+
+    let is_past = effective_status == Some("past");
+
+    let status_clause = match effective_status {
         Some("upcoming") => {
             " AND a.starts_at > now() \
               AND a.status IN ('requested','confirmed','checked_in','in_progress')"
