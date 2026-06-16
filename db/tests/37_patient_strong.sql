@@ -388,5 +388,62 @@ SELECT lives_ok(
                'parent', true) $$,
     '⭐ AG-TR1 transition active=false : nouveau lien actif e1→e2 autorisé après désactivation (UNIQUE partial)');
 
+-- ===========================================================================
+-- Matrice rôles — couverture RLS catalogue (issue #1911 — T-DB-D002.a)
+-- Vérifie que chaque rôle dispose d'au moins une policy sur les 3 tables clés.
+-- Exécutable sous nubia_app via pg_policies (readable par tout rôle).
+-- ===========================================================================
+
+-- patient_account — nubia_app
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'patient_account' AND roles @> ARRAY['nubia_app']::name[]),
+    '⭐ MAT-PA-APP patient_account : au moins une policy pour nubia_app');
+
+-- patient_account — nubia_seed
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'patient_account' AND roles @> ARRAY['nubia_seed']::name[]),
+    '⭐ MAT-PA-SEED patient_account : policy nubia_seed présente (account_seed, 0045)');
+
+-- patient_account — FORCE RLS protège même nubia_owner (bypassrls=t)
+SELECT ok(
+    (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'patient_account'),
+    '⭐ MAT-PA-OWNER patient_account : FORCE RLS bloque nubia_owner en runtime (0045)');
+
+-- patient_coverage — nubia_app
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'patient_coverage' AND roles @> ARRAY['nubia_app']::name[]),
+    '⭐ MAT-PC-APP patient_coverage : au moins une policy pour nubia_app');
+
+-- patient_coverage — nubia_seed
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'patient_coverage' AND roles @> ARRAY['nubia_seed']::name[]),
+    '⭐ MAT-PC-SEED patient_coverage : policy nubia_seed présente (patient_coverage_seed, 0084)');
+
+-- patient_coverage — FORCE RLS
+SELECT ok(
+    (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'patient_coverage'),
+    '⭐ MAT-PC-OWNER patient_coverage : FORCE RLS bloque nubia_owner en runtime (0023)');
+
+-- account_guardianship — nubia_app
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'account_guardianship' AND roles @> ARRAY['nubia_app']::name[]),
+    '⭐ MAT-AG-APP account_guardianship : au moins une policy pour nubia_app');
+
+-- account_guardianship — nubia_seed
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'account_guardianship' AND roles @> ARRAY['nubia_seed']::name[]),
+    '⭐ MAT-AG-SEED account_guardianship : policy nubia_seed présente (guardianship_seed, 0025)');
+
+-- account_guardianship — RLS activée
+SELECT ok(
+    (SELECT relrowsecurity FROM pg_class WHERE relname = 'account_guardianship'),
+    '⭐ MAT-AG-OWNER account_guardianship : ROW LEVEL SECURITY activée (0025)');
+
 SELECT * FROM finish();
 ROLLBACK;
