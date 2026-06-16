@@ -74,7 +74,8 @@
         "nubia_domain"
       ],
       "devDependencies": [
-        "flutter_lints"
+        "flutter_lints",
+        "flutter_test"
       ]
     },
     {

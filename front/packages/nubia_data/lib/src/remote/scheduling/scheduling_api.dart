@@ -43,7 +43,7 @@ class SchedulingApi {
 
   Future<AppointmentDto> cancel(String id) async {
     final response =
-        await _dio.delete<Map<String, dynamic>>('/appointments/$id');
+        await _dio.post<Map<String, dynamic>>('/appointments/$id/cancel');
     return AppointmentDto.fromJson(response.data!);
   }
 
