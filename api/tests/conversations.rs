@@ -1706,6 +1706,160 @@ async fn conversations_read_idempotent_double_call_returns_204() {
         .ok();
 }
 
+/// RLS cross-patient : patient B ne peut pas marquer lue la conversation de patient A.
+/// La conversation existe en DB mais le RLS `conversation_patient_read` la masque → 404.
+/// Valide que `mark_conversation_read` ne fuit pas de données cross-patient.
+#[tokio::test]
+async fn conversations_read_cross_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    // Patient A (propriétaire de la conversation).
+    let user_a_id = Uuid::new_v4();
+    let account_a_id = Uuid::new_v4();
+    // Patient B (l'attaquant).
+    let user_b_id = Uuid::new_v4();
+    let account_b_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_a_id = Uuid::new_v4();
+    let patient_b_id = Uuid::new_v4();
+    let conv_a_id = Uuid::new_v4();
+
+    for (uid, email, kind) in [
+        (user_a_id, format!("conv-cross-a+{}@nubia.test", user_a_id), "patient"),
+        (user_b_id, format!("conv-cross-b+{}@nubia.test", user_b_id), "patient"),
+    ] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
+        )
+        .bind(uid)
+        .bind(email)
+        .bind(kind)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+    for (acc_id, uid, fname) in [
+        (account_a_id, user_a_id, "Alice"),
+        (account_b_id, user_b_id, "Bob"),
+    ] {
+        sqlx::query(
+            "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+             VALUES ($1, $2, $3, 'Cross')",
+        )
+        .bind(acc_id)
+        .bind(uid)
+        .bind(fname)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Cross Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        for (pid, acc_id, fname) in [
+            (patient_a_id, account_a_id, "Alice"),
+            (patient_b_id, account_b_id, "Bob"),
+        ] {
+            sqlx::query(
+                "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+                 VALUES ($1, $2, $3, 'Cross', $4)",
+            )
+            .bind(pid)
+            .bind(cabinet_id)
+            .bind(fname)
+            .bind(acc_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+
+        // Seule la conversation de patient A est créée.
+        sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+            .bind(conv_a_id)
+            .bind(cabinet_id)
+            .bind(patient_a_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Patient B tente de marquer lue la conversation de patient A → RLS masque → 404.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/conversations/{}/read", conv_a_id))
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_b_id, account_b_id)),
+                )
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for q in &[
+            ("DELETE FROM conversation WHERE id = $1", conv_a_id),
+            ("DELETE FROM patient WHERE id = $1", patient_a_id),
+            ("DELETE FROM patient WHERE id = $1", patient_b_id),
+            ("DELETE FROM cabinet WHERE id = $1", cabinet_id),
+        ] {
+            sqlx::query(q.0).bind(q.1).execute(&mut *tx).await.ok();
+        }
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1 OR id = $2")
+        .bind(account_a_id)
+        .bind(account_b_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_a_id)
+        .bind(user_b_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 /// happy path 204 + état DB : `read_at IS NOT NULL` après marquage.
 #[tokio::test]
 async fn conversations_read_marks_messages_and_returns_204() {
