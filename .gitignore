@@ -9,5 +9,8 @@ web-console/dist/
 /.dev-stack-logs/
 web-console/blob-flows/
 
+#flutter
+**/*.dart_tool
+
 # Per-agent runtime config, never commit (LITELLM_KEY leaks)
 opencode.json
