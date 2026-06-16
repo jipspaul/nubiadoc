@@ -1868,6 +1868,207 @@ async fn conversations_read_cross_patient_returns_404() {
         .ok();
 }
 
+/// Lecture partielle : `last_read_message_id` fourni → seuls les messages dont
+/// l'`id <= last_read_message_id` sont marqués lus ; les autres restent non lus.
+/// Valide la branche `Some(last_read_message_id)` du handler `mark_conversation_read`.
+#[tokio::test]
+async fn conversations_read_partial_with_last_message_id_marks_only_earlier_messages() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let conv_id = Uuid::new_v4();
+    let msg1_id = Uuid::new_v4();
+    let msg2_id = Uuid::new_v4();
+
+    // Détermine lequel des deux UUIDs est le plus petit (comparaison binaire).
+    // L'UPDATE filtre `id <= last_read_message_id` : seul smaller_id sera marqué lu.
+    let (smaller_id, larger_id) = if msg1_id < msg2_id {
+        (msg1_id, msg2_id)
+    } else {
+        (msg2_id, msg1_id)
+    };
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("conv-partial+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Grace', 'Partial')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("conv-partial-pro+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Partial Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Grace', 'Partial', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+            .bind(conv_id)
+            .bind(cabinet_id)
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        // Deux messages praticien non lus.
+        for mid in [msg1_id, msg2_id] {
+            sqlx::query(
+                "INSERT INTO message \
+                 (id, cabinet_id, conversation_id, sender_kind, sender_id, \
+                  body_ciphertext, body_key_ref) \
+                 VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+            )
+            .bind(mid)
+            .bind(cabinet_id)
+            .bind(conv_id)
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // POST avec last_read_message_id = smaller_id → seul ce message doit être marqué lu.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/conversations/{}/read", conv_id))
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::from(
+                    json!({ "last_read_message_id": smaller_id }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // smaller_id : read_at doit être renseigné (id <= last_read_message_id).
+    let row_s = sqlx::query("SELECT read_at FROM message WHERE id = $1")
+        .bind(smaller_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let read_at_s: Option<chrono::DateTime<chrono::Utc>> = row_s.try_get("read_at").unwrap();
+    assert!(read_at_s.is_some(), "smaller_id doit être marqué lu");
+
+    // larger_id : read_at doit rester NULL (id > last_read_message_id, non touché).
+    let row_l = sqlx::query("SELECT read_at FROM message WHERE id = $1")
+        .bind(larger_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let read_at_l: Option<chrono::DateTime<chrono::Utc>> = row_l.try_get("read_at").unwrap();
+    assert!(
+        read_at_l.is_none(),
+        "larger_id doit rester non lu (id > last_read_message_id)"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for q in &[
+            ("DELETE FROM message WHERE id = $1", msg1_id),
+            ("DELETE FROM message WHERE id = $1", msg2_id),
+            ("DELETE FROM conversation WHERE id = $1", conv_id),
+            ("DELETE FROM patient WHERE id = $1", patient_id),
+            ("DELETE FROM practitioner WHERE id = $1", prac_id),
+            ("DELETE FROM cabinet WHERE id = $1", cabinet_id),
+        ] {
+            sqlx::query(q.0).bind(q.1).execute(&mut *tx).await.ok();
+        }
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 /// happy path 204 + état DB : `read_at IS NOT NULL` après marquage.
 #[tokio::test]
 async fn conversations_read_marks_messages_and_returns_204() {
