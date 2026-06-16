@@ -2490,6 +2490,51 @@ async fn conversations_messages_pagination_returns_next_cursor() {
         .ok();
 }
 
+/// 401 : token patient bien formé (bonne signature) mais expiré.
+/// Miroir de `conversations_list_expired_token_returns_401` et
+/// `conversations_messages_expired_token_returns_401` pour la route mark-read.
+#[tokio::test]
+async fn conversations_read_expired_token_returns_401() {
+    let state = AppState {
+        db: lazy_app_pool(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // exp fixé à 2 h dans le passé — dépasse le leeway par défaut (60 s).
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        - 7200;
+    let token = encode(
+        &Header::default(),
+        &json!({
+            "sub": Uuid::new_v4(),
+            "kind": "patient",
+            "account_id": Uuid::new_v4(),
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/conversations/{}/read", Uuid::new_v4()))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
 /// happy path 204 + état DB : `read_at IS NOT NULL` après marquage.
 #[tokio::test]
 async fn conversations_read_marks_messages_and_returns_204() {
