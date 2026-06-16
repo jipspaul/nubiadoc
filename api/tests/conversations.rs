@@ -1431,7 +1431,11 @@ async fn conversations_list_does_not_leak_other_patient_data() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let data = v["data"].as_array().unwrap();
-    assert_eq!(data.len(), 1, "patient A ne doit voir que sa propre conversation");
+    assert_eq!(
+        data.len(),
+        1,
+        "patient A ne doit voir que sa propre conversation"
+    );
     assert_eq!(
         data[0]["id"],
         conv_a_id.to_string(),
