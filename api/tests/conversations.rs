@@ -1043,6 +1043,164 @@ async fn conversations_messages_returns_200_with_data() {
         .ok();
 }
 
+/// Conversation accessible mais sans aucun message → 200 + data:[] + page conforme.
+#[tokio::test]
+async fn conversations_messages_empty_conversation_returns_200_with_empty_data() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let conv_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("conv-msgs-empty+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Eve', 'Empty')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("conv-msgs-empty-pro+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Msgs Empty Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Eve', 'Empty', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Conversation sans aucun message.
+        sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+            .bind(conv_id)
+            .bind(cabinet_id)
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/conversations/{}/messages", conv_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(v["data"], json!([]), "data doit être vide");
+    assert!(
+        v["page"]["next_cursor"].is_null(),
+        "next_cursor doit être null"
+    );
+    assert_eq!(v["page"]["limit"], 20);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for q in &[
+            ("DELETE FROM conversation WHERE id = $1", conv_id),
+            ("DELETE FROM patient WHERE id = $1", patient_id),
+            ("DELETE FROM practitioner WHERE id = $1", prac_id),
+            ("DELETE FROM cabinet WHERE id = $1", cabinet_id),
+        ] {
+            sqlx::query(q.0).bind(q.1).execute(&mut *tx).await.ok();
+        }
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── POST /v1/conversations/:id/read : auth scope + état DB ────────────────────
 
 /// 401 : requête sans token.
