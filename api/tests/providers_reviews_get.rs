@@ -317,7 +317,7 @@ async fn get_provider_reviews_happy_path_returns_200_with_data() {
 
     let item = &data[0];
     assert_eq!(item["rating"].as_i64().unwrap(), 5, "rating=5");
-    assert!(item["author_display"].is_string(), "author_display présent");
+    assert!(item["author_name"].is_string(), "author_name présent");
     assert!(item["created_at"].is_string(), "created_at présent");
 
     assert_eq!(v["page"]["total"].as_i64().unwrap(), 1, "total=1");
