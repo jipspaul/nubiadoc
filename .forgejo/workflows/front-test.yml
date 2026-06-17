@@ -1,0 +1,27 @@
+name: front-test
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  front-test:
+    runs-on: docker
+    container:
+      image: flutter-ci:stable
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v4
+      - run: flutter pub get
+      - name: Install Melos + extend PATH
+        run: |
+          dart pub global activate melos
+          echo "${PUB_CACHE:-$HOME/.pub-cache}/bin" >> $GITHUB_PATH
+      - run: |
+          export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
+          melos analyze
+      - run: |
+          export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
+          melos test --no-select
