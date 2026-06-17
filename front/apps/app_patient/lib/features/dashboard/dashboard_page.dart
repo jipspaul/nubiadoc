@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../session/auth_cubit.dart';
+import '../home/home_bloc.dart';
+import '../home/home_event.dart';
+import '../home/home_page.dart';
 import '../profile/profile_bloc.dart';
 import '../profile/profile_event.dart';
 import '../profile/profile_page.dart';
@@ -31,11 +34,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AuthCubit>().state;
-    final name = state is AuthAuthenticated
-        ? (state.session.displayName ?? 'Patient')
-        : 'Patient';
-
     return Scaffold(
       appBar: NubiaAppBar(
         title: _tabs[_index].label,
@@ -53,7 +51,11 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       body: switch (_index) {
-        0 => _HomeTab(name: name),
+        0 => BlocProvider(
+            create: (_) => GetIt.instance<HomeBloc>()
+              ..add(const HomeLoadRequested()),
+            child: const HomePage(),
+          ),
         4 => BlocProvider(
             create: (_) => GetIt.instance<ProfileBloc>()
               ..add(const ProfileLoadRequested()),
@@ -78,39 +80,3 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class _HomeTab extends StatelessWidget {
-  const _HomeTab({required this.name});
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('Bonjour $name 👋',
-            style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 16),
-        NubiaCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const StatusPill(label: 'Connecté', variant: StatusPillVariant.success),
-              const SizedBox(height: 8),
-              Text(
-                'Session active via le stack partagé '
-                '(nubia_core · nubia_data · GET /v1/me).',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        NubiaButton(
-          label: 'Voir la démo A2UI',
-          variant: NubiaButtonVariant.secondary,
-          onPressed: () => context.push('/a2ui-demo'),
-        ),
-      ],
-    );
-  }
-}
