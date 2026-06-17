@@ -284,8 +284,5 @@ pub async fn mark_all_notifications_read(
 
     tracing::info!(user_id = %claims.sub, updated, "notifications marked all read");
 
-    Ok((
-        StatusCode::OK,
-        Json(MarkAllReadResponse { updated }),
-    ))
+    Ok((StatusCode::OK, Json(MarkAllReadResponse { updated })))
 }
