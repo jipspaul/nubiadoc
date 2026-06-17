@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../session/auth_cubit.dart';
+import '../mes_rdv/mes_rdv_page.dart';
 
 /// Patient home shell: a 5-tab bottom nav (Rechercher / Mes RDV / Messages /
 /// Documents / Profil) with stubbed tabs. Proves theming + session + nav.
@@ -48,14 +49,16 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ],
       ),
-      body: _index == 0
-          ? _HomeTab(name: name)
-          : Center(
-              child: NubiaEmptyState(
-                message: '${_tabs[_index].label} — écran à porter depuis app/ '
-                    '(référence patient).',
-              ),
+      body: switch (_index) {
+        0 => _HomeTab(name: name),
+        1 => const MesRdvPage(),
+        _ => Center(
+            child: NubiaEmptyState(
+              message: '${_tabs[_index].label} — écran à porter depuis app/ '
+                  '(référence patient).',
             ),
+          ),
+      },
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),

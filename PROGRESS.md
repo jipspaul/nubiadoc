@@ -54,6 +54,8 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 
 ## Dernier point
 
+2026-06-17 — **[flutter-front] FR1.3 — Mes RDV : liste/détail/cancel/checkin (issue #1963).** Nouveau feature `front/apps/app_patient/lib/features/mes_rdv/` : `MesRdvBloc` (events + states) + `MesRdvPage` (onglets "À venir" / "Historique", cartes avec boutons cancel/modify/checkin). Use cases utilisés : `GetUpcomingAppointmentsUseCase`, `GetAppointmentHistoryUseCase`, `CancelAppointmentUseCase`, `CheckinAppointmentUseCase`. `MesRdvBloc` enregistré dans `patient_di.dart`. Route `/mes-rdv` ajoutée dans `app_router.dart`. DashboardPage Tab 1 ("Mes RDV") câblé sur `MesRdvPage` (remplace le stub `NubiaEmptyState`). Widget test + bloc tests (7 tests, tous verts) dans `test/features/mes_rdv_test.dart`. `melos analyze` + `flutter test` verts.
+
 2026-06-17 — **[flutter-front] FR1.2 — Recherche praticien + booking (issue #1962).** Flux complet dans `front/apps/app_patient/lib/features/appointments/` : `AppointmentsBloc` (events + states) + `AppointmentsPage` (recherche → liste → créneaux → hold → confirmation). Domaine étendu : entité `ProviderResult`, `SearchRepository` (abstract), 3 nouveaux UC (`SearchProvidersUseCase`, `SearchSlotsUseCase`, `HoldSlotUseCase`) dans `nubia_domain` ; `SearchApi`, `SearchRepositoryImpl` dans `nubia_data` (DI câblé). `AppointmentsBloc` enregistré dans `patient_di.dart`. Route `/appointments` ajoutée dans `app_router.dart`. Widget test + bloc tests (6 tests, tous verts) dans `test/features/appointments_test.dart`. `melos analyze` + `flutter test` verts.
 
 
