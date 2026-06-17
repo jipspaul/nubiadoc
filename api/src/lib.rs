@@ -451,6 +451,10 @@ pub fn app_with_dispatcher(
             post(prescriptions::create_prescription),
         )
         .route(
+            "/v1/cabinet/prescriptions/:id",
+            get(prescriptions::get_prescription),
+        )
+        .route(
             "/v1/cabinet/prescriptions/:id/sign",
             post(prescriptions::sign_prescription),
         )
