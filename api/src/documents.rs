@@ -4,10 +4,8 @@
 use std::sync::Arc;
 
 use axum::{
-    body::Body,
     extract::{Extension, Multipart, Path, Query, State},
-    http::{header, StatusCode},
-    response::Response,
+    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -375,10 +373,18 @@ pub async fn get_document(
     }))
 }
 
-/// `GET /v1/documents/{id}/download` — redirection 302 vers l'URL signée expirante.
+const PRESIGN_TTL_SECS: i64 = 300;
+
+/// Réponse de `GET /v1/documents/:id/download`.
+#[derive(Serialize)]
+pub struct DownloadUrlResponse {
+    pub download_url: String,
+    pub expires_at: String,
+}
+
+/// `GET /v1/documents/{id}/download` — URL signée expirante (TTL = 300 s).
 ///
-/// Génère une URL fraîche à chaque appel (ne réutilise pas celle du GET /{id}).
-/// `Cache-Control: no-store` obligatoire dans la réponse 302.
+/// Génère une URL fraîche à chaque appel. Pas de 302 : le front lit le JSON.
 /// Doc inexistant → `404`. Signer inaccessible → `410 link_expired`.
 /// Audit : action `read_document` (zéro PII).
 pub async fn download_document(
@@ -386,7 +392,7 @@ pub async fn download_document(
     claims: PatientAccountClaims,
     Extension(signer): Extension<Arc<dyn StorageSigner>>,
     Path(id): Path<Uuid>,
-) -> Result<Response, AppError> {
+) -> Result<Json<DownloadUrlResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope patient — RLS document_patient_read (migration 0034).
@@ -436,18 +442,18 @@ pub async fn download_document(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
+    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(PRESIGN_TTL_SECS);
+
     tracing::info!(
         account_id = %claims.account_id,
         doc_id = %id,
-        "document download redirected"
+        "document download url generated"
     );
 
-    Response::builder()
-        .status(StatusCode::FOUND)
-        .header(header::LOCATION, &signed_url)
-        .header(header::CACHE_CONTROL, "no-store")
-        .body(Body::empty())
-        .map_err(|_| AppError::Internal)
+    Ok(Json(DownloadUrlResponse {
+        download_url: signed_url,
+        expires_at: expires_at.to_rfc3339(),
+    }))
 }
 
 const MAX_UPLOAD_SIZE: usize = 20 * 1024 * 1024;
