@@ -3,6 +3,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/appointments/appointments_bloc.dart';
+import '../features/home/home_bloc.dart';
 import '../features/profile/profile_bloc.dart';
 import 'auth_cubit.dart';
 
@@ -28,5 +29,9 @@ void registerPatient(GetIt gi) {
 
   gi.registerFactory<ProfileBloc>(
     () => ProfileBloc(getAccount: gi<GetAccountUseCase>()),
+  );
+
+  gi.registerFactory<HomeBloc>(
+    () => HomeBloc(getDashboardSummary: gi<GetDashboardSummaryUseCase>()),
   );
 }
