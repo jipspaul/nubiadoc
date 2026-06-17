@@ -204,7 +204,7 @@ pub async fn list_documents(
     let mut data: Vec<DocumentItem> = Vec::with_capacity(visible.len());
     let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
     let mut last_id: Option<Uuid> = None;
-    // (cabinet_id, doc_id) pour l'audit
+    // (cabinet_id, doc_id) pour l'audit — nil UUID pour les docs plateforme (cabinet_id IS NULL)
     let mut audit_entries: Vec<(Uuid, Uuid)> = Vec::with_capacity(visible.len());
 
     for row in visible {
@@ -214,11 +214,11 @@ pub async fn list_documents(
         let mime_type: String = row.try_get("mime_type").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
-        let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+        let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
 
         last_created_at = Some(created_at);
         last_id = Some(id);
-        audit_entries.push((cabinet_id, id));
+        audit_entries.push((cabinet_id.unwrap_or(Uuid::nil()), id));
 
         data.push(DocumentItem {
             id,
@@ -408,14 +408,16 @@ pub async fn download_document(
     .ok_or(AppError::NotFound)?;
 
     let storage_key: String = row.try_get("storage_key").map_err(|_| AppError::Internal)?;
-    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let audit_cab_id = cabinet_id.unwrap_or(Uuid::nil());
 
     // Génère une URL signée fraîche — 410 si le signer ne peut pas produire de lien.
     let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
 
     // Audit — action read_document, zéro PII.
+    // Pour les docs plateforme (cabinet_id IS NULL) on utilise le nil UUID comme convention.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(cabinet_id.to_string())
+        .bind(audit_cab_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -425,7 +427,7 @@ pub async fn download_document(
          (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
          VALUES ($1, $2, 'patient', 'read_document', 'document', $3)",
     )
-    .bind(cabinet_id)
+    .bind(audit_cab_id)
     .bind(claims.sub)
     .bind(id)
     .execute(&mut *tx)

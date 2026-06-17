@@ -588,3 +588,209 @@ async fn documents_unknown_category_returns_empty() {
         "next_cursor doit être null"
     );
 }
+
+// ── Test : pagination cursor-based — 2 documents, limit=1 ───────────────────
+
+#[tokio::test]
+async fn documents_list_pagination_cursor_works() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let doc1_id = Uuid::new_v4();
+    let doc2_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("docs-page+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'Page', 'Test')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Page {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Page', 'Test', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Plus récent (sera retourné en premier, ORDER BY created_at DESC)
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256, created_at) \
+             VALUES ($1, $2, $3, 'radio', 'key/pg1', 'radio1.pdf', 'application/pdf', $4, \
+                     '2025-06-01 12:00:00+00')",
+        )
+        .bind(doc1_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("d".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Plus ancien (sera retourné en second)
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256, created_at) \
+             VALUES ($1, $2, $3, 'radio', 'key/pg2', 'radio2.pdf', 'application/pdf', $4, \
+                     '2025-06-01 10:00:00+00')",
+        )
+        .bind(doc2_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("e".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let db_pool = app_pool().await;
+    let jwt = make_patient_jwt(user_id, account_id);
+
+    // Page 1 : limit=1 → doc1_id (le plus récent) + next_cursor présent
+    let resp1 = app(AppState {
+        db: db_pool.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    })
+    .oneshot(
+        Request::builder()
+            .method("GET")
+            .uri("/v1/documents?limit=1")
+            .header("Authorization", format!("Bearer {jwt}"))
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(resp1.status(), StatusCode::OK);
+    let body1 = axum::body::to_bytes(resp1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&body1).unwrap();
+    assert_eq!(
+        v1["data"].as_array().unwrap().len(),
+        1,
+        "page 1 doit contenir 1 document"
+    );
+    assert_eq!(
+        v1["data"][0]["id"],
+        doc1_id.to_string(),
+        "page 1 doit contenir le doc le plus récent"
+    );
+    let cursor = v1["page"]["next_cursor"]
+        .as_str()
+        .expect("next_cursor doit être présent en page 1")
+        .to_owned();
+
+    // Page 2 : cursor → doc2_id + next_cursor null
+    let resp2 = app(AppState {
+        db: db_pool.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    })
+    .oneshot(
+        Request::builder()
+            .method("GET")
+            .uri(format!("/v1/documents?limit=1&cursor={cursor}"))
+            .header("Authorization", format!("Bearer {jwt}"))
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(resp2.status(), StatusCode::OK);
+    let body2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
+    assert_eq!(
+        v2["data"].as_array().unwrap().len(),
+        1,
+        "page 2 doit contenir 1 document"
+    );
+    assert_eq!(
+        v2["data"][0]["id"],
+        doc2_id.to_string(),
+        "page 2 doit contenir le doc le plus ancien"
+    );
+    assert!(
+        v2["page"]["next_cursor"].is_null(),
+        "next_cursor doit être null en page 2"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for doc_id in [doc1_id, doc2_id] {
+            sqlx::query("DELETE FROM document WHERE id = $1")
+                .bind(doc_id)
+                .execute(&mut *tx)
+                .await
+                .ok();
+        }
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
