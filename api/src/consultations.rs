@@ -522,3 +522,262 @@ pub async fn add_consultation_act(
 
     Ok((StatusCode::CREATED, Json(AddActResponse { act_id })))
 }
+
+// ── GET /v1/cabinet/consultations/:id/acts ────────────────────────────────────
+
+/// Réponse de `GET /v1/cabinet/consultations/:id/acts`.
+#[derive(Serialize)]
+pub struct ListActsResponse {
+    pub data: Vec<ConsultationActItem>,
+}
+
+/// `GET /v1/cabinet/consultations/:id/acts` — liste les actes CCAM d'une séance.
+///
+/// Praticien uniquement. `cabinet_id` extrait du JWT (invariant tenancy).
+/// RLS tenant-scoped via `app.current_cabinet_id`. 404 si séance absente ou hors tenant.
+pub async fn list_consultation_acts(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ListActsResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que la séance existe et appartient au cabinet (RLS + filtre explicite).
+    let session_row = sqlx::query(
+        "SELECT appointment_id FROM consultation_session \
+         WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let appointment_id: Uuid = session_row
+        .try_get("appointment_id")
+        .map_err(|_| AppError::Internal)?;
+
+    let act_rows = sqlx::query(
+        "SELECT id, ccam_code, label, tooth, amount_cents \
+         FROM consultation_act \
+         WHERE appointment_id = $1 AND cabinet_id = $2 \
+         ORDER BY created_at ASC",
+    )
+    .bind(appointment_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut data: Vec<ConsultationActItem> = Vec::with_capacity(act_rows.len());
+    for row in act_rows {
+        let act_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let ccam_code: String = row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
+        let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
+        let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
+        let amount_cents: i32 = row
+            .try_get("amount_cents")
+            .map_err(|_| AppError::Internal)?;
+        data.push(ConsultationActItem {
+            id: act_id,
+            ccam_code,
+            label,
+            tooth,
+            amount_cents,
+        });
+    }
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        consultation_id = %id,
+        count = data.len(),
+        "consultation acts listed"
+    );
+
+    Ok(Json(ListActsResponse { data }))
+}
+
+// ── PATCH /v1/cabinet/consultations/:id/acts/:act_id ─────────────────────────
+
+/// Corps de `PATCH /v1/cabinet/consultations/:id/acts/:act_id`.
+#[derive(Deserialize)]
+pub struct PatchActBody {
+    pub label: Option<String>,
+    pub tooth: Option<String>,
+    pub amount_cents: Option<i32>,
+}
+
+/// Réponse de `PATCH /v1/cabinet/consultations/:id/acts/:act_id`.
+#[derive(Serialize)]
+pub struct PatchActResponse {
+    pub act_id: Uuid,
+}
+
+/// `PATCH /v1/cabinet/consultations/:id/acts/:act_id` — modifie un acte CCAM.
+///
+/// Praticien uniquement. Séance doit être `in_progress`.
+/// `cabinet_id` extrait du JWT. RLS tenant-scoped.
+/// 404 si séance ou acte absents ou hors tenant.
+pub async fn patch_consultation_act(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path((id, act_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<PatchActBody>,
+) -> Result<Json<PatchActResponse>, AppError> {
+    if let Some(cents) = body.amount_cents {
+        if cents < 0 {
+            return Err(AppError::ValidationError);
+        }
+    }
+    if body.label.as_deref().is_some_and(|s| s.trim().is_empty()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie séance + statut in_progress.
+    let session_row = sqlx::query(
+        "SELECT appointment_id, status FROM consultation_session \
+         WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let session_status: String = session_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    if session_status != "in_progress" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let appointment_id: Uuid = session_row
+        .try_get("appointment_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Met à jour l'acte (filtre sur appointment_id et cabinet_id pour la tenancy).
+    let updated = sqlx::query(
+        "UPDATE consultation_act \
+         SET label        = COALESCE($1, label), \
+             tooth        = COALESCE($2, tooth), \
+             amount_cents = COALESCE($3, amount_cents) \
+         WHERE id = $4 AND appointment_id = $5 AND cabinet_id = $6 \
+         RETURNING id",
+    )
+    .bind(body.label.as_deref())
+    .bind(body.tooth.as_deref())
+    .bind(body.amount_cents)
+    .bind(act_id)
+    .bind(appointment_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let updated_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        consultation_id = %id,
+        act_id = %updated_id,
+        "consultation act patched"
+    );
+
+    Ok(Json(PatchActResponse { act_id: updated_id }))
+}
+
+// ── DELETE /v1/cabinet/consultations/:id/acts/:act_id ────────────────────────
+
+/// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` — supprime un acte CCAM.
+///
+/// Praticien uniquement. Séance doit être `in_progress`.
+/// `cabinet_id` extrait du JWT. RLS tenant-scoped.
+/// 404 si séance ou acte absents ou hors tenant.
+pub async fn delete_consultation_act(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path((id, act_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie séance + statut in_progress.
+    let session_row = sqlx::query(
+        "SELECT appointment_id, status FROM consultation_session \
+         WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let session_status: String = session_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    if session_status != "in_progress" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let appointment_id: Uuid = session_row
+        .try_get("appointment_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Supprime l'acte (filtre tenancy).
+    let result = sqlx::query(
+        "DELETE FROM consultation_act \
+         WHERE id = $1 AND appointment_id = $2 AND cabinet_id = $3 \
+         RETURNING id",
+    )
+    .bind(act_id)
+    .bind(appointment_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if result.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        consultation_id = %id,
+        act_id = %act_id,
+        "consultation act deleted"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
+}

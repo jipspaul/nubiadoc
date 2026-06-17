@@ -322,7 +322,12 @@ pub fn app_with_dispatcher(
         )
         .route(
             "/v1/cabinet/consultations/:id/acts",
-            post(consultations::add_consultation_act),
+            get(consultations::list_consultation_acts).post(consultations::add_consultation_act),
+        )
+        .route(
+            "/v1/cabinet/consultations/:id/acts/:act_id",
+            patch(consultations::patch_consultation_act)
+                .delete(consultations::delete_consultation_act),
         )
         .route(
             "/v1/cabinet/consultations/:id/complete",

@@ -1113,6 +1113,7 @@ fn is_exclusion_violation(e: &sqlx::Error) -> bool {
 #[derive(Serialize)]
 pub struct StartConsultationResponse {
     pub appointment_id: Uuid,
+    pub consultation_id: Uuid,
     pub status: String,
     pub started_at: String,
 }
@@ -1173,17 +1174,20 @@ pub async fn start_consultation(
         .map_err(|_| AppError::Internal)?;
 
     // Crée la séance de consultation liée à ce rendez-vous.
-    sqlx::query(
+    let session_row = sqlx::query(
         "INSERT INTO consultation_session \
          (cabinet_id, appointment_id, practitioner_id) \
-         VALUES ($1, $2, $3)",
+         VALUES ($1, $2, $3) \
+         RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(id)
     .bind(practitioner_id)
-    .execute(&mut *tx)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    let consultation_id: Uuid = session_row.try_get("id").map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO audit_log \
@@ -1203,11 +1207,13 @@ pub async fn start_consultation(
         cabinet_id = %claims.cabinet_id,
         user_id = %claims.sub,
         appointment_id = %id,
+        consultation_id = %consultation_id,
         "consultation started"
     );
 
     Ok(Json(StartConsultationResponse {
         appointment_id: id,
+        consultation_id,
         status: "in_progress".to_string(),
         started_at: started_at.to_rfc3339(),
     }))
