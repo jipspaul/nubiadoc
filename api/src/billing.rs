@@ -1,5 +1,8 @@
 //! Handlers facturation : GET /v1/quotes, GET /v1/quotes/:id, POST /v1/payments/intent,
 //! POST /v1/cabinet/quotes (création devis côté cabinet).
+//!
+//! Alias patient `/v1/billing/quotes/*` (BR5) : les handlers `billing_*` délèguent
+//! aux handlers pro-existants via redirection logique (même code, alias contractuel).
 
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -719,6 +722,59 @@ pub async fn create_cabinet_quote(
             total_amount_cents: total_cents,
         }),
     ))
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/billing/quotes/:id/deposit (BR5)
+// Alias patient : crée un PaymentIntent de type `deposit` pour le devis.
+// Délègue à `create_payment_intent` avec kind="deposit" injecté dans le body.
+// ---------------------------------------------------------------------------
+
+/// Corps de `POST /v1/billing/quotes/:id/deposit`.
+#[derive(Deserialize)]
+pub struct DepositBody {
+    pub amount_cents: i64,
+    pub method: String,
+}
+
+/// `POST /v1/billing/quotes/:id/deposit` — acompte patient (BR5).
+///
+/// Token `kind:"patient"` requis.
+/// Header `Idempotency-Key` obligatoire → `422` si absent.
+/// Le devis doit être dans l'état `signed` → `409` sinon.
+/// Délègue au handler `create_payment_intent` avec `kind = "deposit"`.
+pub async fn billing_deposit(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(body): Json<DepositBody>,
+) -> Result<(StatusCode, Json<PaymentIntentResponse>), AppError> {
+    let intent_body = PaymentIntentBody {
+        quote_id: id,
+        kind: "deposit".to_string(),
+        amount_cents: body.amount_cents,
+        method: body.method,
+    };
+    create_payment_intent(State(state), claims, headers, Json(intent_body)).await
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/billing/quotes/:id/confirm_signature (BR5)
+// Alias patient : confirme la signature d'un devis (idempotent avec sign_quote).
+// ---------------------------------------------------------------------------
+
+/// `POST /v1/billing/quotes/:id/confirm_signature` — confirmation signature patient (BR5).
+///
+/// Token `kind:"patient"` requis.
+/// Délègue à `sign_quote` : met `status = 'signed'`, `signed_at = now()`.
+/// Idempotent : un devis déjà signé renvoie `200` sans erreur.
+pub async fn billing_confirm_signature(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<SignQuoteResponse>, AppError> {
+    sign_quote(State(state), claims, Path(id)).await
 }
 
 // ---------------------------------------------------------------------------
