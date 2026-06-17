@@ -54,6 +54,26 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 
 ## Dernier point
 
+2026-06-17 — **[flutter-front] FR0.6.d — Branch protection : required check `front-test` (issue #2014).** Le token agent (`flutter-agent`) ne dispose que de droits `push/pull`, pas `admin`. L'API Forgejo (`PATCH /repos/{owner}/{repo}/branch_protections/{name}`) nécessite des droits admin sur le dépôt pour modifier les required status checks. Script `scripts/setup-branch-protection.sh` créé : récupère la protection `main` existante, fusionne `/ front-test (pull_request)` dans la liste des contexts requis de manière idempotente, applique via POST (si aucune protection) ou PATCH. Doit être exécuté par un propriétaire du dépôt avec `FORGEJO_TOKEN=<token-admin>`. `front-test.yml` est bien présent sur `main` (sha `148e449c`).
+
+**Marche à suivre manuelle (nécessite un token admin Forgejo) :**
+```sh
+FORGEJO_TOKEN=<token-propriétaire> ./scripts/setup-branch-protection.sh
+```
+Ou manuellement :
+```sh
+# 1. Lister la protection existante
+curl -s -H "Authorization: token $FORGEJO_TOKEN" \
+  "http://forgejo.forgejo.svc.cluster.local:3000/api/v1/repos/jips/nubiadoc/branch_protections/main"
+
+# 2. Ajouter / front-test (pull_request) aux required checks (fusionner avec contexts existants)
+curl -X PATCH \
+  "http://forgejo.forgejo.svc.cluster.local:3000/api/v1/repos/jips/nubiadoc/branch_protections/main" \
+  -H "Authorization: token $FORGEJO_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"required_status_check_contexts": ["/ front-test (pull_request)"], "enable_status_check": true}'
+```
+
 2026-06-17 — **[flutter-front] FR0.5.b — Package `nubia_app_shell` + `ProShell` (issue #2004).** Package `front/packages/nubia_app_shell` créé from scratch : `ProNavDestination` (label/icon/route/requiresClinical) + `ProConfig` (appTitle/spaceLabel/destinations) dans `lib/src/config.dart` ; widget `ProShell` dans `lib/src/pro_shell.dart` — desktop (width ≥ 720) : `NavigationRail` gauche + `Scaffold` avec `NubiaAppBar` à droite ; mobile : `Drawer` + `AppBar` hamburger. Garde clinique : destinations `requiresClinical` filtrées si `!session.canAccessClinical`. `lib/nubia_app_shell.dart` exporte les deux symboles. Package ajouté au workspace `front/pubspec.yaml`. `app_practicien` et `app_secretariat` : `pubspec.yaml` mis à jour (dépendance `nubia_app_shell`) ; `pro_config.dart` refactoré (classe locale `ProConfig` conservée comme namespace avec `shellConfig` const utilisant les types du package via `as shell`) ; `DashboardPage` remplacé par un wrapper `ProShell` (import `hide ProConfig` pour éviter le conflit de nom). `melos run analyze` vert (0 issue).
 
 2026-06-17 — **[flutter-front] FR1.6 — Profil patient (issue #1966).** Feature `profile/` créée dans `front/apps/app_patient/lib/features/` : `ProfileBloc` (events + states) + `ProfilePage` (header avatar/initiales, section infos perso, tuiles de navigation vers couverture/proches/consentements/préférences notif, déconnexion). Domaine étendu : entité `Consent`, méthode `getConsents()` sur `AccountRepository`, 4 nouveaux UC (`GetAccountUseCase`, `ListDependentsUseCase`, `ListConsentsUseCase`, `GetNotificationPreferencesUseCase`) dans `nubia_domain` ; `ConsentDto`, `getConsents()` dans `nubia_data` (DI câblé). `ProfileBloc` enregistré dans `patient_di.dart`. Route `/profile` ajoutée dans `app_router.dart`. Tab 4 (Profil) du `DashboardPage` câblé avec `ProfilePage`. 5 tests (3 widget + 2 bloc), tous verts. `melos analyze` + `flutter test` verts (11/11).
