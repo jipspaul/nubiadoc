@@ -451,6 +451,14 @@ pub fn app_with_dispatcher(
         // Alias BR10 : le front appelle `/v1/device-tokens` → même handler.
         .route("/v1/device-tokens", post(devices::register_device))
         .route("/v1/notifications", get(notifications::list_notifications))
+        .route(
+            "/v1/notifications/read-all",
+            post(notifications::mark_all_notifications_read),
+        )
+        .route(
+            "/v1/notifications/:id/read",
+            post(notifications::mark_notification_read),
+        )
         .route("/v1/reminders", get(reminders::list_reminders))
         .route("/v1/cabinet/quotes", post(billing::create_cabinet_quote))
         .route(
