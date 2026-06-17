@@ -357,9 +357,7 @@ pub async fn get_prescription(
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let signed_at: Option<chrono::DateTime<chrono::Utc>> =
         row.try_get("signed_at").map_err(|_| AppError::Internal)?;
-    let document_id: Option<Uuid> = row
-        .try_get("document_id")
-        .map_err(|_| AppError::Internal)?;
+    let document_id: Option<Uuid> = row.try_get("document_id").map_err(|_| AppError::Internal)?;
     let created_at: chrono::DateTime<chrono::Utc> =
         row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
