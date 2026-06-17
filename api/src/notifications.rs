@@ -1,7 +1,8 @@
-//! Handler `GET /v1/notifications` — centre de notifications in-app.
+//! Handlers `/v1/notifications` — centre de notifications in-app.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
+    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -178,4 +179,110 @@ pub async fn list_notifications(
         data,
         page: NotificationsPage { next_cursor },
     }))
+}
+
+/// Réponse de `POST /v1/notifications/:id/read`.
+#[derive(Serialize)]
+pub struct NotificationDto {
+    pub id: Uuid,
+    pub kind: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    pub is_read: bool,
+    pub created_at: String,
+    pub read_at: Option<String>,
+}
+
+/// Réponse de `POST /v1/notifications/read-all`.
+#[derive(Serialize)]
+pub struct MarkAllReadResponse {
+    pub updated: u64,
+}
+
+/// `POST /v1/notifications/:id/read` — marque une notification comme lue.
+///
+/// RLS `notification_owner_update` : seule la notification du porteur du token est accessible.
+/// Retourne 404 si la notification n'appartient pas à l'utilisateur courant.
+pub async fn mark_notification_read(
+    State(state): State<AppState>,
+    claims: MeClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<NotificationDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE notification \
+         SET is_read = true, read_at = now() \
+         WHERE id = $1 AND app_user_id = $2 \
+         RETURNING id, kind, title, is_read, created_at, read_at",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let notification_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let kind: String = row.try_get("kind").map_err(|_| AppError::Internal)?;
+    let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
+    let is_read: bool = row.try_get("is_read").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let read_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("read_at").map_err(|_| AppError::Internal)?;
+
+    Ok(Json(NotificationDto {
+        id: notification_id,
+        kind,
+        title,
+        body: None,
+        is_read,
+        created_at: created_at.to_rfc3339(),
+        read_at: read_at.map(|dt| dt.to_rfc3339()),
+    }))
+}
+
+/// `POST /v1/notifications/read-all` — marque toutes les notifications non-lues comme lues.
+///
+/// RLS `notification_owner_update` : scope sur `app.current_user_id`.
+/// Retourne `{ updated: <count> }`.
+pub async fn mark_all_notifications_read(
+    State(state): State<AppState>,
+    claims: MeClaims,
+) -> Result<(StatusCode, Json<MarkAllReadResponse>), AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let result = sqlx::query(
+        "UPDATE notification \
+         SET is_read = true, read_at = now() \
+         WHERE app_user_id = $1 AND is_read = false",
+    )
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let updated = result.rows_affected();
+
+    tracing::info!(user_id = %claims.sub, updated, "notifications marked all read");
+
+    Ok((StatusCode::OK, Json(MarkAllReadResponse { updated })))
 }
