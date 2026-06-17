@@ -26,6 +26,8 @@ export 'src/remote/reviews/review_api.dart';
 export 'src/remote/reviews/review_dto.dart';
 export 'src/remote/scheduling/appointment_dto.dart';
 export 'src/remote/scheduling/scheduling_api.dart';
+export 'src/remote/search/search_api.dart';
+export 'src/remote/search/search_dto.dart';
 
 // Repository implementations
 export 'src/repositories/account_repository_impl.dart';
@@ -39,3 +41,4 @@ export 'src/repositories/message_repository_impl.dart';
 export 'src/repositories/notification_repository_impl.dart';
 export 'src/repositories/prescription_repository_impl.dart';
 export 'src/repositories/review_repository_impl.dart';
+export 'src/repositories/search_repository_impl.dart';

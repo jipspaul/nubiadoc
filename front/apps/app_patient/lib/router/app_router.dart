@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 
+import '../features/appointments/appointments_bloc.dart';
+import '../features/appointments/appointments_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/login/login_page.dart';
 
@@ -15,6 +19,7 @@ class AppRouter {
   static const login = '/login';
   static const home = '/';
   static const a2uiDemo = '/a2ui-demo';
+  static const appointments = '/appointments';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -36,6 +41,16 @@ class AppRouter {
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
+        GoRoute(
+          path: appointments,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<AppointmentsBloc>(),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Prendre un rendez-vous')),
+              body: const AppointmentsPage(),
+            ),
+          ),
+        ),
       ],
     );
   }

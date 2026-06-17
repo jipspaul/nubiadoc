@@ -54,6 +54,10 @@ Légende : ⬜ à faire · 🟨 en cours · ✅ fait
 
 ## Dernier point
 
+2026-06-17 — **[flutter-front] FR1.2 — Recherche praticien + booking (issue #1962).** Flux complet dans `front/apps/app_patient/lib/features/appointments/` : `AppointmentsBloc` (events + states) + `AppointmentsPage` (recherche → liste → créneaux → hold → confirmation). Domaine étendu : entité `ProviderResult`, `SearchRepository` (abstract), 3 nouveaux UC (`SearchProvidersUseCase`, `SearchSlotsUseCase`, `HoldSlotUseCase`) dans `nubia_domain` ; `SearchApi`, `SearchRepositoryImpl` dans `nubia_data` (DI câblé). `AppointmentsBloc` enregistré dans `patient_di.dart`. Route `/appointments` ajoutée dans `app_router.dart`. Widget test + bloc tests (6 tests, tous verts) dans `test/features/appointments_test.dart`. `melos analyze` + `flutter test` verts.
+
+
+
 2026-06-17 — **BR3.c — pgTAP RLS documents créé (issue #2053).** Fichier `db/tests/documents.sql` créé (manquait malgré l'entrée du log précédent). 3 tests pgTAP sous `nubia_app` (NOSUPERUSER, NOBYPASSRLS) : (1) patient A ne voit pas le document de patient B via `document_patient_read` → 0 ligne ; (2) patient B voit son propre document via `patient_account_read` + `document_patient_read` → 1 ligne ; (3) GUC `app.patient_account_id` vide → fail-closed → 0 ligne. Données de test entièrement dans la transaction (ROLLBACK, sans trace). `cargo check --quiet` vert.
 
 2026-06-17 — **BR3.b — GET /v1/documents/:id/download — URL signée JSON (issue #2052).** Handler `download_document` modifié : retourne désormais `200 { download_url, expires_at }` au lieu d'une redirection 302. TTL = 300 s (`PRESIGN_TTL_SECS`). Struct `DownloadUrlResponse` ajoutée. Imports `Body`, `header`, `Response` supprimés. Route déjà présente dans `lib.rs` et tests d'intégration (401/404/410) déjà verts (issue #2053). `cargo check --quiet` vert.
