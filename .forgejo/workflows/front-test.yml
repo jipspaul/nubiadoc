@@ -13,8 +13,15 @@ jobs:
       run:
         working-directory: front
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: flutter pub get
-      - run: dart pub global activate melos
-      - run: melos analyze
-      - run: melos test
+      - name: Install Melos + extend PATH
+        run: |
+          dart pub global activate melos
+          echo "${PUB_CACHE:-$HOME/.pub-cache}/bin" >> $GITHUB_PATH
+      - run: |
+          export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
+          melos analyze
+      - run: |
+          export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
+          melos test --no-select
