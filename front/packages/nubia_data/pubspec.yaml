@@ -15,6 +15,8 @@ dependencies:
   hive_flutter: ^1.1.0
   dartz: ^0.10.1
   get_it: ^8.0.0
+  drift: ^2.34.0
+  drift_sqflite: ^2.0.1
   nubia_domain:
     path: ../nubia_domain
   nubia_core:
@@ -24,3 +26,4 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  mocktail: ^1.0.4
