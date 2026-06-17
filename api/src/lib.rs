@@ -443,6 +443,8 @@ pub fn app_with_dispatcher(
             get(implant_passport::export_implant_passport),
         )
         .route("/v1/devices", post(devices::register_device))
+        // Alias BR10 : le front appelle `/v1/device-tokens` → même handler.
+        .route("/v1/device-tokens", post(devices::register_device))
         .route("/v1/notifications", get(notifications::list_notifications))
         .route("/v1/reminders", get(reminders::list_reminders))
         .route("/v1/cabinet/quotes", post(billing::create_cabinet_quote))
