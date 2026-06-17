@@ -390,6 +390,18 @@ pub fn app_with_dispatcher(
         // Alias contractuel (docs/12 §10) : la console et l'app appellent
         // `/signature` ; on garde `/sign` pour rétro-compatibilité.
         .route("/v1/quotes/:id/signature", post(billing::sign_quote))
+        // Alias patient BR5 : `/v1/billing/quotes/*` (front patient) → handlers existants.
+        // Décision : option (a) alias côté backend (diff minimal, pas de refactor Flutter).
+        .route("/v1/billing/quotes", get(billing::list_quotes))
+        .route("/v1/billing/quotes/:id", get(billing::get_quote))
+        .route(
+            "/v1/billing/quotes/:id/deposit",
+            post(billing::billing_deposit),
+        )
+        .route(
+            "/v1/billing/quotes/:id/confirm_signature",
+            post(billing::billing_confirm_signature),
+        )
         .route(
             "/v1/payments/intent",
             axum::routing::post(billing::create_payment_intent),
