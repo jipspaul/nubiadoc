@@ -12,7 +12,9 @@ import '../remote/notifications/notification_api.dart';
 import '../remote/prescriptions/prescription_api.dart';
 import '../remote/reviews/review_api.dart';
 import '../remote/scheduling/scheduling_api.dart';
+import '../remote/search/search_api.dart';
 import '../repositories/account_repository_impl.dart';
+import '../repositories/search_repository_impl.dart';
 import '../repositories/appointment_repository_impl.dart';
 import '../repositories/auth_repository_impl.dart';
 import '../repositories/billing_repository_impl.dart';
@@ -43,7 +45,8 @@ void registerData(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<MessagingApi>(() => MessagingApi(gi()))
     ..registerLazySingleton<NotificationApi>(() => NotificationApi(gi()))
     ..registerLazySingleton<ReviewApi>(() => ReviewApi(gi()))
-    ..registerLazySingleton<SchedulingApi>(() => SchedulingApi(gi()));
+    ..registerLazySingleton<SchedulingApi>(() => SchedulingApi(gi()))
+    ..registerLazySingleton<SearchApi>(() => SearchApi(gi()));
 
   // --- Repositories ---------------------------------------------------------
   gi
@@ -73,6 +76,9 @@ void registerData(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<ReviewRepository>(
       () => ReviewRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<SearchRepository>(
+      () => SearchRepositoryImpl(gi()),
     );
 
   // --- Use cases ------------------------------------------------------------
@@ -117,7 +123,11 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => SendMessageUseCase(gi()))
     // reviews
     ..registerFactory(() => GetProviderReviewsUseCase(gi()))
-    ..registerFactory(() => SubmitReviewUseCase(gi()));
+    ..registerFactory(() => SubmitReviewUseCase(gi()))
+    // search
+    ..registerFactory(() => SearchProvidersUseCase(gi()))
+    ..registerFactory(() => SearchSlotsUseCase(gi()))
+    ..registerFactory(() => HoldSlotUseCase(gi()));
 }
 
 void _registerClinical(GetIt gi) {
