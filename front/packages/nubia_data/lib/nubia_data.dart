@@ -29,6 +29,13 @@ export 'src/remote/scheduling/scheduling_api.dart';
 export 'src/remote/search/search_api.dart';
 export 'src/remote/search/search_dto.dart';
 
+// Cache layer (Drift + pattern repo décoré)
+export 'src/cache/cached_data.dart';
+export 'src/cache/appointments_cache.dart';
+export 'src/cache/cached_repository.dart';
+export 'src/cache/drift/nubia_database.dart';
+export 'src/cache/drift/drift_appointments_cache.dart';
+
 // Repository implementations
 export 'src/repositories/account_repository_impl.dart';
 export 'src/repositories/appointment_repository_impl.dart';
@@ -41,4 +48,5 @@ export 'src/repositories/message_repository_impl.dart';
 export 'src/repositories/notification_repository_impl.dart';
 export 'src/repositories/prescription_repository_impl.dart';
 export 'src/repositories/review_repository_impl.dart';
+export 'src/repositories/cached_appointments_repository_impl.dart';
 export 'src/repositories/search_repository_impl.dart';
