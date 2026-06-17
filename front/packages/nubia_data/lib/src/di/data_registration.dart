@@ -97,7 +97,11 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => RegisterUseCase(gi()))
     ..registerFactory(() => GetMeUseCase(gi()))
     // account
+    ..registerFactory(() => GetAccountUseCase(gi()))
     ..registerFactory(() => GetCoverageUseCase(gi()))
+    ..registerFactory(() => GetNotificationPreferencesUseCase(gi()))
+    ..registerFactory(() => ListConsentsUseCase(gi()))
+    ..registerFactory(() => ListDependentsUseCase(gi()))
     ..registerFactory(() => UploadCoverageCardUseCase(gi()))
     // appointments
     ..registerFactory(() => BookAppointmentUseCase(gi()))

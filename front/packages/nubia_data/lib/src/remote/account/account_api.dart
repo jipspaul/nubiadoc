@@ -65,4 +65,12 @@ class AccountApi {
   Future<void> deleteDependent(String id) async {
     await _dio.delete<void>('/account/dependents/$id');
   }
+
+  Future<List<ConsentDto>> getConsents() async {
+    final response = await _dio.get<List<dynamic>>('/account/consents');
+    return (response.data ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(ConsentDto.fromJson)
+        .toList();
+  }
 }

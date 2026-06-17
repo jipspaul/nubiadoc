@@ -1,8 +1,9 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
+import 'package:nubia_domain/src/entities/consent.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
 
-/// PORT — account boundary (profil patient, couverture, proches).
+/// PORT — account boundary (profil patient, couverture, proches, consentements).
 abstract class AccountRepository {
   Future<Either<Failure, PatientAccount>> getAccount();
 
@@ -40,6 +41,8 @@ abstract class AccountRepository {
     required String mimeType,
     required CoverageCardSide side,
   });
+
+  Future<Either<Failure, List<Consent>>> getConsents();
 }
 
 enum CoverageCardSide { recto, verso }

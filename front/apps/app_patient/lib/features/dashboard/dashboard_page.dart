@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../session/auth_cubit.dart';
+import '../profile/profile_bloc.dart';
+import '../profile/profile_event.dart';
+import '../profile/profile_page.dart';
 
 /// Patient home shell: a 5-tab bottom nav (Rechercher / Mes RDV / Messages /
 /// Documents / Profil) with stubbed tabs. Proves theming + session + nav.
@@ -48,14 +52,20 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ],
       ),
-      body: _index == 0
-          ? _HomeTab(name: name)
-          : Center(
-              child: NubiaEmptyState(
-                message: '${_tabs[_index].label} — écran à porter depuis app/ '
-                    '(référence patient).',
-              ),
+      body: switch (_index) {
+        0 => _HomeTab(name: name),
+        4 => BlocProvider(
+            create: (_) => GetIt.instance<ProfileBloc>()
+              ..add(const ProfileLoadRequested()),
+            child: const ProfilePage(),
+          ),
+        _ => Center(
+            child: NubiaEmptyState(
+              message: '${_tabs[_index].label} — écran à porter depuis app/ '
+                  '(référence patient).',
             ),
+          ),
+      },
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),

@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/account/account_api.dart';
+import 'package:nubia_domain/src/entities/consent.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
 import 'package:nubia_domain/src/repositories/account_repository.dart';
 
@@ -129,6 +130,16 @@ class AccountRepositoryImpl implements AccountRepository {
         side: sideString,
       );
       return Right(documentId);
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<Consent>>> getConsents() async {
+    try {
+      final dtos = await _api.getConsents();
+      return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapError(e));
     }
