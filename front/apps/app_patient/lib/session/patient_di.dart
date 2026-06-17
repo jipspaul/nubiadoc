@@ -3,6 +3,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/appointments/appointments_bloc.dart';
+import '../features/profile/profile_bloc.dart';
 import 'auth_cubit.dart';
 
 /// Registers patient-app blocs/cubits on top of registerCore + registerData.
@@ -23,5 +24,9 @@ void registerPatient(GetIt gi) {
       holdSlot: gi<HoldSlotUseCase>(),
       bookAppointment: gi<BookAppointmentUseCase>(),
     ),
+  );
+
+  gi.registerFactory<ProfileBloc>(
+    () => ProfileBloc(getAccount: gi<GetAccountUseCase>()),
   );
 }

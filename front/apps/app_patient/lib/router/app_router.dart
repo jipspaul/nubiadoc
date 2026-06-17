@@ -9,6 +9,9 @@ import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/login/login_page.dart';
+import '../features/profile/profile_bloc.dart';
+import '../features/profile/profile_event.dart';
+import '../features/profile/profile_page.dart';
 
 /// Patient router. Route names are app-owned; the auth guard is the shared
 /// [buildAuthGuard] from nubia_core.
@@ -20,6 +23,7 @@ class AppRouter {
   static const home = '/';
   static const a2uiDemo = '/a2ui-demo';
   static const appointments = '/appointments';
+  static const profile = '/profile';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -48,6 +52,17 @@ class AppRouter {
             child: Scaffold(
               appBar: AppBar(title: const Text('Prendre un rendez-vous')),
               body: const AppointmentsPage(),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: profile,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<ProfileBloc>()
+              ..add(const ProfileLoadRequested()),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Mon profil')),
+              body: const ProfilePage(),
             ),
           ),
         ),
