@@ -8,6 +8,9 @@ import 'package:nubia_core/nubia_core.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/financial/financial_bloc.dart';
+import '../features/financial/financial_event.dart';
+import '../features/financial/financial_page.dart';
 import '../features/login/login_page.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
@@ -26,6 +29,7 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const appointments = '/appointments';
   static const mesRdv = '/mes-rdv';
+  static const financial = '/financial';
   static const profile = '/profile';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -64,6 +68,17 @@ class AppRouter {
             create: (_) => GetIt.instance<MesRdvBloc>(),
             child: const Scaffold(
               body: MesRdvPage(),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: financial,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<FinancialBloc>()
+              ..add(const FinancialLoadRequested()),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Mes devis')),
+              body: const FinancialPage(),
             ),
           ),
         ),
