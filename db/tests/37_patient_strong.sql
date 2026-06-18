@@ -445,5 +445,77 @@ SELECT ok(
     (SELECT relrowsecurity FROM pg_class WHERE relname = 'account_guardianship'),
     '⭐ MAT-AG-OWNER account_guardianship : ROW LEVEL SECURITY activée (0025)');
 
+-- ===========================================================================
+-- TRG-ABS. Aucun trigger utilisateur sur les 3 tables (T-DB-D002.b) :
+-- patient_account / patient_coverage / account_guardianship n'ont ni trigger
+-- d'audit ni de colonne calculée — confirmé par pg_trigger (tgisinternal=false).
+-- ===========================================================================
+SELECT is(
+    (SELECT count(*)::int
+     FROM pg_trigger t
+     JOIN pg_class c ON c.oid = t.tgrelid
+     WHERE c.relname IN ('patient_account', 'patient_coverage', 'account_guardianship')
+       AND NOT t.tgisinternal),
+    0,
+    '⭐ TRG-ABS : aucun trigger utilisateur sur patient_account / patient_coverage / account_guardianship');
+
+-- ===========================================================================
+-- PA-SD1. Soft-delete patient_account : filtrage applicatif WHERE deleted_at IS NULL.
+-- L'application filtre toujours deleted_at IS NULL ; la RLS ne l'enforcer pas.
+-- ===========================================================================
+-- Utilise e4 (sans couverture, pas de tutelle liée).
+RESET app.patient_account_id;
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e4';
+SELECT lives_ok(
+    $$ UPDATE patient_account SET deleted_at = now()
+       WHERE id = '18280000-0000-0000-0000-0000000000e4' $$,
+    '⭐ PA-SD1a patient_account soft-delete : UPDATE deleted_at OK (account_self_update policy)');
+
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e4'
+       AND deleted_at IS NULL),
+    0,
+    '⭐ PA-SD1b patient_account soft-delete : compte e4 invisible via filtre applicatif deleted_at IS NULL');
+
+-- ===========================================================================
+-- AG-EXP1. Expiration de tutelle (« token expiration » simulée) :
+-- La policy account_guardian_read (AND active = true) bloque l'accès
+-- du tuteur au compte du dépendant dès que la tutelle passe active = false.
+-- ===========================================================================
+-- Fixtures e5 (tuteur) / e6 (dépendant), tutelle active 000030.
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a5', 'guardian.exp1828@example.test', '$argon2id$fixture', 'patient');
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a6', 'dependent.exp1828@example.test', '$argon2id$fixture', 'patient');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e5', '18280000-0000-0000-0000-0000000000a5', 'Tuteur', 'Exp');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e6', '18280000-0000-0000-0000-0000000000a6', 'Dependant', 'Exp');
+INSERT INTO account_guardianship (id, guardian_account_id, dependent_account_id, relationship, active)
+    VALUES ('18280000-0000-0000-0000-000000000030',
+            '18280000-0000-0000-0000-0000000000e5',
+            '18280000-0000-0000-0000-0000000000e6',
+            'parent', true);
+
+-- e5 voit e6 quand active = true (tutelle en cours).
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e5';
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e6'),
+    1,
+    '⭐ AG-EXP1a tutelle active : tuteur (e5) voit le dépendant (e6) — active=true');
+
+-- Désactivation : la tutelle "expire" (active → false).
+UPDATE account_guardianship SET active = false
+WHERE id = '18280000-0000-0000-0000-000000000030';
+
+-- Après expiration, account_guardian_read (AND active = true) bloque : 0 ligne visible.
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e6'),
+    0,
+    '⭐ AG-EXP1b expiration tutelle : tuteur (e5) ne voit PLUS le dépendant (e6) — active=false');
+
 SELECT * FROM finish();
 ROLLBACK;
