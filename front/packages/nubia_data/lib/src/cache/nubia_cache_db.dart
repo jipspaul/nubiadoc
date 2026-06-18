@@ -2,24 +2,12 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:drift_sqflite/drift_sqflite.dart';
 
-part 'nubia_cache_db.g.dart';
-
-@DataClassName('AppointmentCacheRow')
-@TableIndex(name: 'idx_ac_updated_at', columns: {#updatedAt})
-class AppointmentsCacheTable extends Table {
-  @override
-  String get tableName => 'appointments_cache';
-
-  TextColumn get id => text()();
-  TextColumn get payload => text()();
-  DateTimeColumn get updatedAt => dateTime()();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-@DriftDatabase(tables: [AppointmentsCacheTable])
-class NubiaCacheDb extends _$NubiaCacheDb {
+/// Drift database for the appointments offline cache.
+///
+/// Uses raw SQL (no code generation) so the schema can be committed without
+/// a build_runner step in CI.  Table: appointments_cache (id TEXT PK,
+/// payload TEXT, updated_at INTEGER epoch-ms) + index idx_ac_updated_at.
+class NubiaCacheDb extends GeneratedDatabase {
   NubiaCacheDb(super.e);
 
   factory NubiaCacheDb.production() => NubiaCacheDb(
@@ -32,5 +20,28 @@ class NubiaCacheDb extends _$NubiaCacheDb {
   factory NubiaCacheDb.inMemory() => NubiaCacheDb(NativeDatabase.memory());
 
   @override
+  Iterable<TableInfo<Table, dynamic>> get allTables => const [];
+
+  @override
   int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => _createSchema(),
+        onUpgrade: (m, from, to) async {},
+      );
+
+  Future<void> _createSchema() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS appointments_cache (
+        id         TEXT NOT NULL PRIMARY KEY,
+        payload    TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+    await customStatement('''
+      CREATE INDEX IF NOT EXISTS idx_ac_updated_at
+        ON appointments_cache(updated_at)
+    ''');
+  }
 }
