@@ -44,6 +44,7 @@ export 'src/repositories/members_repository.dart';
 export 'src/repositories/secretariat_repository.dart';
 export 'src/repositories/slots_repository.dart';
 export 'src/repositories/waiting_repository.dart';
+export 'src/repositories/session_port.dart';
 
 // Use cases
 export 'src/usecases/account/get_account_use_case.dart';
@@ -89,3 +90,32 @@ export 'src/repositories/search_repository.dart';
 export 'src/usecases/search/search_providers_use_case.dart';
 export 'src/usecases/search/search_slots_use_case.dart';
 export 'src/usecases/search/hold_slot_use_case.dart';
+// agenda pro
+export 'src/usecases/agenda/get_cabinet_agenda_use_case.dart';
+export 'src/usecases/agenda/confirm_appointment_use_case.dart';
+export 'src/usecases/agenda/start_consultation_use_case.dart';
+// cabinet patients pro
+export 'src/usecases/cabinet_patients/list_cabinet_patients_use_case.dart';
+export 'src/usecases/cabinet_patients/get_cabinet_patient_use_case.dart';
+export 'src/usecases/cabinet_patients/update_patient_notes_use_case.dart';
+// consultation pro (gated clinical)
+export 'src/usecases/consultation/get_consultation_context_use_case.dart';
+export 'src/usecases/consultation/add_consultation_act_use_case.dart';
+export 'src/usecases/consultation/complete_consultation_use_case.dart';
+// waiting room pro
+export 'src/usecases/waiting_room/list_waiting_room_use_case.dart';
+export 'src/usecases/waiting_room/call_next_use_case.dart';
+// slots pro
+export 'src/usecases/slots/list_bookable_slots_use_case.dart';
+export 'src/usecases/slots/create_slot_use_case.dart';
+// members pro
+export 'src/usecases/members/list_members_use_case.dart';
+export 'src/usecases/members/invite_member_use_case.dart';
+export 'src/usecases/members/update_member_role_use_case.dart';
+// secretariats pro
+export 'src/usecases/secretariats/list_secretariats_use_case.dart';
+export 'src/usecases/secretariats/add_secretariat_use_case.dart';
+// cabinet quotes pro
+export 'src/usecases/cabinet_quotes/list_cabinet_quotes_use_case.dart';
+export 'src/usecases/cabinet_quotes/create_cabinet_quote_use_case.dart';
+export 'src/usecases/cabinet_quotes/update_cabinet_quote_use_case.dart';
