@@ -256,14 +256,14 @@ class _LineItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final euros =
-        (item.patientShareCents / 100).toStringAsFixed(2).replaceAll('.', ',');
+    final euros = (item.patientShareCents / 100).toStringAsFixed(2).replaceAll('.', ',');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Expanded(child: Text(item.label)),
-          Text('$euros €', style: Theme.of(context).textTheme.bodySmall),
+          Text('$euros €',
+              style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
@@ -283,13 +283,10 @@ class _TotalRow extends StatelessWidget {
         Expanded(
             child: Text('Acompte demandé',
                 style: Theme.of(context).textTheme.titleSmall)),
-        Text(
-          '$euros €',
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
-              ?.copyWith(fontWeight: FontWeight.bold),
-        ),
+        Text('$euros €',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                )),
       ],
     );
   }
@@ -402,7 +399,10 @@ class _ErrorView extends StatelessWidget {
           children: [
             const Icon(Icons.error_outline, size: 48),
             const SizedBox(height: 8),
-            Text(state.message, textAlign: TextAlign.center),
+            Text(
+              state.message,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             TextButton(
               onPressed: () => context

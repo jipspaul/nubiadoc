@@ -7,12 +7,12 @@ sealed class FinancialEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Charge la liste des devis en attente d'action.
+/// Charge la liste des devis en attente.
 final class FinancialLoadRequested extends FinancialEvent {
   const FinancialLoadRequested();
 }
 
-/// Sélectionne un devis pour afficher son détail.
+/// Sélectionne un devis par son identifiant (charge le détail).
 final class FinancialQuoteSelected extends FinancialEvent {
   const FinancialQuoteSelected(this.quoteId);
 
@@ -22,22 +22,23 @@ final class FinancialQuoteSelected extends FinancialEvent {
   List<Object?> get props => [quoteId];
 }
 
-/// Retourne à la liste des devis.
+/// Retour arrière vers la liste depuis le détail.
 final class FinancialBackToList extends FinancialEvent {
   const FinancialBackToList();
 }
 
-/// Lance le flux de signature Yousign pour le devis courant.
+/// Lance le flux de signature Yousign pour le devis sélectionné.
 final class FinancialSignatureRequested extends FinancialEvent {
   const FinancialSignatureRequested();
 }
 
-/// Confirme que la signature Yousign est terminée (retour deep-link).
+/// Signature confirmée (retour deep-link ou bouton de confirmation).
 final class FinancialSignatureCompleted extends FinancialEvent {
   const FinancialSignatureCompleted();
 }
 
 /// Lance le paiement de l'acompte.
+/// [idempotencyKey] doit être fixé par l'écran avant le premier appel.
 final class FinancialPaymentRequested extends FinancialEvent {
   const FinancialPaymentRequested({required this.idempotencyKey});
 

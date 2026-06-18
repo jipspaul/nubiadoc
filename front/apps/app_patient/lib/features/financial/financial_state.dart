@@ -8,15 +8,17 @@ sealed class FinancialState extends Equatable {
   List<Object?> get props => [];
 }
 
+/// État initial avant tout chargement.
 final class FinancialInitial extends FinancialState {
   const FinancialInitial();
 }
 
+/// Chargement en cours (liste ou détail).
 final class FinancialLoading extends FinancialState {
   const FinancialLoading();
 }
 
-/// Liste des devis chargée.
+/// Liste de devis chargée avec succès.
 final class FinancialLoaded extends FinancialState {
   const FinancialLoaded(this.quotes);
 
@@ -26,7 +28,7 @@ final class FinancialLoaded extends FinancialState {
   List<Object?> get props => [quotes];
 }
 
-/// Détail d'un devis affiché. [quotes] est conservé pour revenir à la liste.
+/// Détail d'un devis affiché — affiche CTA « Signer » ou « Payer ».
 final class FinancialQuoteDetail extends FinancialState {
   const FinancialQuoteDetail({required this.quote, required this.quotes});
 
@@ -37,7 +39,7 @@ final class FinancialQuoteDetail extends FinancialState {
   List<Object?> get props => [quote, quotes];
 }
 
-/// Signature Yousign en cours (URL ouverte, attente du callback).
+/// URL Yousign obtenue, attente de la confirmation de signature.
 final class FinancialSignatureInProgress extends FinancialState {
   const FinancialSignatureInProgress({
     required this.quote,
@@ -53,7 +55,7 @@ final class FinancialSignatureInProgress extends FinancialState {
   List<Object?> get props => [quote, quotes, signatureUrl];
 }
 
-/// Paiement de l'acompte en cours.
+/// Paiement en cours.
 final class FinancialPaymentInProgress extends FinancialState {
   const FinancialPaymentInProgress({
     required this.quote,
@@ -69,7 +71,10 @@ final class FinancialPaymentInProgress extends FinancialState {
 
 /// Paiement réussi.
 final class FinancialPaymentSuccess extends FinancialState {
-  const FinancialPaymentSuccess({required this.quote, required this.quotes});
+  const FinancialPaymentSuccess({
+    required this.quote,
+    required this.quotes,
+  });
 
   final Quote quote;
   final List<Quote> quotes;
@@ -78,13 +83,11 @@ final class FinancialPaymentSuccess extends FinancialState {
   List<Object?> get props => [quote, quotes];
 }
 
-/// Erreur avec message utilisateur.
+/// Erreur avec message user-facing.
 final class FinancialError extends FinancialState {
   const FinancialError({required this.message, this.quotes = const []});
 
   final String message;
-
-  /// Conservé pour permettre un retour à la liste sans rechargement.
   final List<Quote> quotes;
 
   @override
