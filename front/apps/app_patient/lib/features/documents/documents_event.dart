@@ -29,3 +29,20 @@ final class DocumentsDownloadRequested extends DocumentsEvent {
   @override
   List<Object?> get props => [documentId];
 }
+
+final class DocumentsUploadRequested extends DocumentsEvent {
+  final String filePath;
+  final String filename;
+  final String mimeType;
+  final DocumentCategory category;
+
+  const DocumentsUploadRequested({
+    required this.filePath,
+    required this.filename,
+    required this.mimeType,
+    required this.category,
+  });
+
+  @override
+  List<Object?> get props => [filePath, filename, mimeType, category];
+}

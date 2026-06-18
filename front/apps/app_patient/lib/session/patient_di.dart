@@ -60,6 +60,7 @@ void registerPatient(GetIt gi) {
     () => DocumentsBloc(
       getDocuments: gi<GetDocumentsUseCase>(),
       getSignedUrl: gi<GetDocumentSignedUrlUseCase>(),
+      upload: gi<UploadDocumentUseCase>(),
     ),
   );
 }
