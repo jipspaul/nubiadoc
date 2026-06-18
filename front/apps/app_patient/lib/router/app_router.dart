@@ -8,12 +8,21 @@ import 'package:nubia_core/nubia_core.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/financial/financial_bloc.dart';
+import '../features/financial/financial_event.dart';
+import '../features/financial/financial_page.dart';
 import '../features/login/login_page.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
+import '../features/notifications/notifications_bloc.dart';
+import '../features/notifications/notifications_event.dart';
+import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/profile/profile_page.dart';
+import '../features/reviews/reviews_bloc.dart';
+import '../features/reviews/reviews_event.dart';
+import '../features/reviews/reviews_page.dart';
 
 /// Patient router. Route names are app-owned; the auth guard is the shared
 /// [buildAuthGuard] from nubia_core.
@@ -26,7 +35,10 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const appointments = '/appointments';
   static const mesRdv = '/mes-rdv';
+  static const financial = '/financial';
   static const profile = '/profile';
+  static const reviews = '/reviews';
+  static const notifications = '/notifications';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -68,6 +80,17 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: financial,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<FinancialBloc>()
+              ..add(const FinancialLoadRequested()),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Mes devis')),
+              body: const FinancialPage(),
+            ),
+          ),
+        ),
+        GoRoute(
           path: profile,
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<ProfileBloc>()
@@ -75,6 +98,32 @@ class AppRouter {
             child: Scaffold(
               appBar: AppBar(title: const Text('Mon profil')),
               body: const ProfilePage(),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: reviews,
+          builder: (context, state) {
+            final providerId =
+                state.uri.queryParameters['providerId'] ?? '';
+            return BlocProvider(
+              create: (_) => GetIt.instance<ReviewsBloc>()
+                ..add(ReviewsLoadRequested(providerId)),
+              child: Scaffold(
+                appBar: AppBar(title: const Text('Avis')),
+                body: const ReviewsPage(),
+              ),
+            );
+          },
+        ),
+        GoRoute(
+          path: notifications,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<NotificationsBloc>()
+              ..add(const NotificationsLoadRequested()),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Notifications')),
+              body: const NotificationsPage(),
             ),
           ),
         ),
