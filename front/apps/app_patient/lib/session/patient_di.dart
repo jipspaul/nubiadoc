@@ -3,6 +3,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/appointments/appointments_bloc.dart';
+import '../features/documents/documents_bloc.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/home/home_bloc.dart';
@@ -52,6 +53,13 @@ void registerPatient(GetIt gi) {
       getQuoteById: gi<GetQuoteByIdUseCase>(),
       initiateSignature: gi<InitiateSignatureUseCase>(),
       initiateDeposit: gi<InitiateDepositUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<DocumentsBloc>(
+    () => DocumentsBloc(
+      getDocuments: gi<GetDocumentsUseCase>(),
+      getSignedUrl: gi<GetDocumentSignedUrlUseCase>(),
     ),
   );
 }
