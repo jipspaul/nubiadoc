@@ -35,6 +35,7 @@ export 'src/remote/search/search_dto.dart';
 export 'src/cache/cached_data.dart';
 export 'src/cache/appointments_cache.dart';
 export 'src/cache/cached_repository.dart';
+export 'src/cache/nubia_cache_db.dart' hide AppointmentsCache;
 export 'src/cache/drift/nubia_database.dart';
 export 'src/cache/drift/drift_appointments_cache.dart';
 
