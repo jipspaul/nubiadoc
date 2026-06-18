@@ -1,0 +1,66 @@
+import 'package:dio/dio.dart';
+import 'package:nubia_core/src/network/api_client.dart';
+import 'package:nubia_data/src/remote/cabinet_quotes/cabinet_quotes_dto.dart';
+import 'package:nubia_domain/src/entities/cabinet_quote.dart';
+
+class CabinetQuotesApi {
+  final Dio _dio;
+
+  CabinetQuotesApi(ApiClient client) : _dio = client.dio;
+
+  Future<List<CabinetQuoteDto>> list({int page = 1}) async {
+    final response = await _dio.get<List<dynamic>>(
+      '/cabinet/quotes',
+      queryParameters: {'page': page},
+    );
+    return (response.data!)
+        .map((e) => CabinetQuoteDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<CabinetQuoteDto> getById(String id) async {
+    final response =
+        await _dio.get<Map<String, dynamic>>('/cabinet/quotes/$id');
+    return CabinetQuoteDto.fromJson(response.data!);
+  }
+
+  Future<CabinetQuoteDto> create(CabinetQuote quote) async {
+    final dto = CabinetQuoteDto(
+      id: '',
+      cabinetId: quote.cabinetId,
+      patientId: quote.patientId,
+      patientName: quote.patientName,
+      totalCents: quote.totalCents,
+      patientShareCents: quote.patientShareCents,
+      status: quote.status.name,
+      createdAt: quote.createdAt.toIso8601String(),
+      signedAt: quote.signedAt?.toIso8601String(),
+      expiresAt: quote.expiresAt?.toIso8601String(),
+    );
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/quotes',
+      data: dto.toJson(),
+    );
+    return CabinetQuoteDto.fromJson(response.data!);
+  }
+
+  Future<CabinetQuoteDto> update(CabinetQuote quote) async {
+    final dto = CabinetQuoteDto(
+      id: quote.id,
+      cabinetId: quote.cabinetId,
+      patientId: quote.patientId,
+      patientName: quote.patientName,
+      totalCents: quote.totalCents,
+      patientShareCents: quote.patientShareCents,
+      status: quote.status.name,
+      createdAt: quote.createdAt.toIso8601String(),
+      signedAt: quote.signedAt?.toIso8601String(),
+      expiresAt: quote.expiresAt?.toIso8601String(),
+    );
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/cabinet/quotes/${quote.id}',
+      data: dto.toJson(),
+    );
+    return CabinetQuoteDto.fromJson(response.data!);
+  }
+}
