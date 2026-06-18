@@ -22,6 +22,8 @@ pubspec.lock
 # --- Generated code (build_runner: injectable / retrofit / json / freezed) -
 *.config.dart
 *.g.dart
+# Exception : fichier Drift généré committé (CI ne lance pas build_runner)
+!**/nubia_cache_db.g.dart
 *.freezed.dart
 *.gr.dart
 *.mocks.dart
