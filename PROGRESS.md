@@ -3,6 +3,8 @@
 > Porteur de contexte entre machines. Lu en premier à chaque session (voir `CLAUDE.md`).
 > Branche par défaut : `main`. Git : **Forgejo** (remote `origin`). CI : `.forgejo/workflows/`.
 
+2026-06-18 — **[DB] T-DB-D002.c — Audit pgTAP Patient data invariants : isolation, account guardianship, coverage (issue #1913).** `make test` était déjà vert en T-DB-D002.b (1050/1050). Vérifié from scratch : 1050/1050 verts (47 fichiers). Aucune migration corrective nécessaire. Ce ticket se clôture sans livrable — tous les invariants patient_account / patient_coverage / account_guardianship (isolation RLS, FK CASCADE, UNIQUE, RLS bypass-impossible, soft-delete, expiration tutelle) étaient déjà couverts et fonctionnels.
+
 2026-06-18 — **[DB] T-DB-D002.b — pgTAP audit Patient data invariants : triggers + expiration + soft-delete (issue #1912).** Fichier `db/tests/37_patient_strong.sql` complété : 5 assertions supplémentaires. (1) `TRG-ABS` — vérifie via `pg_trigger` qu'aucun trigger utilisateur n'existe sur `patient_account` / `patient_coverage` / `account_guardianship` (absence confirmée) ; (2) `PA-SD1a/b` — soft-delete `patient_account.deleted_at` : UPDATE OK via `account_self_update`, puis filtre applicatif `deleted_at IS NULL` exclut la ligne ; (3) `AG-EXP1a/b` — expiration de tutelle simulée : tuteur voit le dépendant (`active=true`), puis tutelle passée `active=false` → `account_guardian_read (AND active = true)` bloque l'accès (0 ligne). Total fichier : 43 assertions. `make test` : 1050/1050 verts.
 
 ## En cours
