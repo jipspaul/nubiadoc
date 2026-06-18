@@ -75,6 +75,7 @@ export 'src/usecases/clinical/start_session_use_case.dart';
 export 'src/usecases/dashboard/get_dashboard_summary_use_case.dart';
 export 'src/usecases/documents/get_document_signed_url_use_case.dart';
 export 'src/usecases/documents/get_documents_use_case.dart';
+export 'src/usecases/documents/upload_document_use_case.dart';
 export 'src/usecases/messaging/get_conversation_messages_use_case.dart';
 export 'src/usecases/messaging/get_conversations_use_case.dart';
 export 'src/usecases/messaging/mark_conversation_read_use_case.dart';

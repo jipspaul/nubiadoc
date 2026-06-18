@@ -11,6 +11,7 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/financial/financial_event.dart';
 import '../features/financial/financial_page.dart';
+import '../features/documents/documents_page.dart';
 import '../features/login/login_page.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
@@ -36,6 +37,7 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const appointments = '/appointments';
   static const mesRdv = '/mes-rdv';
+  static const documents = '/documents';
   static const financial = '/financial';
   static const profile = '/profile';
   static const messaging = '/messaging';
@@ -79,6 +81,13 @@ class AppRouter {
             child: const Scaffold(
               body: MesRdvPage(),
             ),
+          ),
+        ),
+        GoRoute(
+          path: documents,
+          builder: (_, __) => Scaffold(
+            appBar: AppBar(title: const Text('Mes documents')),
+            body: const DocumentsPage(),
           ),
         ),
         GoRoute(
