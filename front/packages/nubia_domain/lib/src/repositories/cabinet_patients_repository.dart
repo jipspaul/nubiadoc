@@ -7,4 +7,5 @@ abstract class CabinetPatientsRepository {
   Future<Either<Failure, CabinetPatient>> getById(String id);
   Future<Either<Failure, CabinetPatient>> create(CabinetPatient patient);
   Future<Either<Failure, CabinetPatient>> update(CabinetPatient patient);
+  Future<Either<Failure, CabinetPatient>> updateNotes(String id, String note);
 }

@@ -46,3 +46,8 @@ class CacheFailure extends Failure {
 class OfflineFailure extends Failure {
   const OfflineFailure() : super('Pas de connexion Internet.');
 }
+
+class ClinicalAccessDenied extends Failure {
+  const ClinicalAccessDenied()
+      : super('Accès clinique non autorisé pour ce rôle.');
+}
