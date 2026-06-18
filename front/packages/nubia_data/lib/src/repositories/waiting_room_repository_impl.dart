@@ -89,6 +89,9 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
       final dto = await _api.callNext();
       return Right(dto.toDomain());
     } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure("Aucun patient en attente."));
+      }
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }
