@@ -81,4 +81,14 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, CabinetPatient>> updateNotes(String id, String note) async {
+    // TODO(FR2.x): wire to backend PATCH /v1/cabinet/patients/:id/notes.
+    // Stubbed for melos analyze (FR0.6.b unblock).
+    return const Left(ServerFailure(
+      message: 'updateNotes() not implemented yet',
+      statusCode: 501,
+    ));
+  }
 }

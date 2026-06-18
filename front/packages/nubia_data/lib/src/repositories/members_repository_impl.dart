@@ -79,4 +79,22 @@ class MembersRepositoryImpl implements MembersRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, Member>> invite(String email, MemberRole role) async {
+    // TODO(FR3.7): wire to backend POST /v1/secretariat/members/invite.
+    return const Left(ServerFailure(
+      message: 'invite() not implemented yet',
+      statusCode: 501,
+    ));
+  }
+
+  @override
+  Future<Either<Failure, Member>> updateRole(String id, MemberRole role) async {
+    // TODO(FR3.7): wire to backend PATCH /v1/secretariat/members/:id/role.
+    return const Left(ServerFailure(
+      message: 'updateRole() not implemented yet',
+      statusCode: 501,
+    ));
+  }
 }

@@ -79,4 +79,13 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, Secretariat>> invite(String email) async {
+    // TODO(FR3.7): wire to backend POST /v1/secretariat/invite.
+    return const Left(ServerFailure(
+      message: 'invite() not implemented yet',
+      statusCode: 501,
+    ));
+  }
 }

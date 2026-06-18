@@ -82,6 +82,15 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, WaitingRoomEntry>> callNext() async {
+    // TODO(FR3.4): wire to backend POST /v1/secretariat/waiting-room/call-next.
+    return const Left(ServerFailure(
+      message: 'callNext() not implemented yet',
+      statusCode: 501,
+    ));
+  }
 }
 
 class WaitingListRepositoryImpl implements WaitingListRepository {

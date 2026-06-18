@@ -83,4 +83,14 @@ class CabinetAppointmentsRepositoryImpl
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, CabinetAppointment>> confirm(String id) async {
+    // TODO(FR2.x): wire to backend POST /v1/cabinet/appointments/:id/confirm
+    // once the route lands. Stubbed for melos analyze (FR0.6.b unblock).
+    return const Left(ServerFailure(
+      message: 'confirm() not implemented yet',
+      statusCode: 501,
+    ));
+  }
 }
