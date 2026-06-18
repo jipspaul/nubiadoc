@@ -122,6 +122,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetDocumentSignedUrlUseCase(gi()))
     ..registerFactory(() => GetDocumentsUseCase(gi()))
     // messaging
+    ..registerFactory(() => GetConversationMessagesUseCase(gi()))
     ..registerFactory(() => GetConversationsUseCase(gi()))
     ..registerFactory(() => MarkConversationReadUseCase(gi()))
     ..registerFactory(() => SendMessageUseCase(gi()))

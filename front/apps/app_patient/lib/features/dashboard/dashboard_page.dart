@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../session/auth_cubit.dart';
 import '../mes_rdv/mes_rdv_page.dart';
+import '../messaging/messaging_page.dart';
 import '../home/home_bloc.dart';
 import '../home/home_event.dart';
 import '../home/home_page.dart';
@@ -58,6 +59,7 @@ class _DashboardPageState extends State<DashboardPage> {
             child: const HomePage(),
           ),
         1 => const MesRdvPage(),
+        2 => const MessagingPage(),
         4 => BlocProvider(
             create: (_) => GetIt.instance<ProfileBloc>()
               ..add(const ProfileLoadRequested()),
