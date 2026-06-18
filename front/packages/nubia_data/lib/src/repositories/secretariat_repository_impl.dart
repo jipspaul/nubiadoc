@@ -79,4 +79,20 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, Secretariat>> invite(String email) async {
+    try {
+      final dto = await _api.invite(email);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible d'inviter le secrétariat.",
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
 }

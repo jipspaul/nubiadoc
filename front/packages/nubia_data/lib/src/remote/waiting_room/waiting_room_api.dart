@@ -44,6 +44,13 @@ class WaitingRoomApi {
     return WaitingRoomEntryDto.fromJson(response.data!);
   }
 
+  Future<WaitingRoomEntryDto> callNext() async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/waiting-room/call-next',
+    );
+    return WaitingRoomEntryDto.fromJson(response.data!);
+  }
+
   Future<WaitingRoomEntryDto> updateWaitingRoomEntry(
       WaitingRoomEntry entry) async {
     final dto = WaitingRoomEntryDto(

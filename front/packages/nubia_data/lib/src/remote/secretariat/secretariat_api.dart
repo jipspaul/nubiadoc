@@ -55,4 +55,12 @@ class SecretariatApi {
     );
     return SecretariatDto.fromJson(response.data!);
   }
+
+  Future<SecretariatDto> invite(String email) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/secretariats/invite',
+      data: {'email': email},
+    );
+    return SecretariatDto.fromJson(response.data!);
+  }
 }

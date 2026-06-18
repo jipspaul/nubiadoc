@@ -79,4 +79,39 @@ class MembersRepositoryImpl implements MembersRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, Member>> invite(String email, MemberRole role) async {
+    try {
+      final dto = await _api.invite(email, role);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible d'inviter le membre.",
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Member>> updateRole(String id, MemberRole role) async {
+    try {
+      final dto = await _api.updateRole(id, role);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Membre introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de changer le rôle du membre.',
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
 }

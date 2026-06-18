@@ -82,6 +82,25 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, WaitingRoomEntry>> callNext() async {
+    try {
+      final dto = await _api.callNext();
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure("Aucun patient en attente."));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible d'appeler le prochain patient.",
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
 }
 
 class WaitingListRepositoryImpl implements WaitingListRepository {

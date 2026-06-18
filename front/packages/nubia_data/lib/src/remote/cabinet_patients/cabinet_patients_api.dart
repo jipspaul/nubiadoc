@@ -39,4 +39,12 @@ class CabinetPatientsApi {
     );
     return CabinetPatientDto.fromJson(response.data!);
   }
+
+  Future<CabinetPatientDto> updateNotes(String id, String note) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/cabinet/patients/$id/notes',
+      data: {'note': note},
+    );
+    return CabinetPatientDto.fromJson(response.data!);
+  }
 }

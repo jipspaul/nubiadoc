@@ -81,4 +81,24 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, CabinetPatient>> updateNotes(
+      String id, String note) async {
+    try {
+      final dto = await _api.updateNotes(id, note);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Patient introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de mettre à jour les notes.',
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
 }
