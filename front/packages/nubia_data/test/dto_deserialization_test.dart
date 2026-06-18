@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nubia_data/src/remote/scheduling/appointment_dto.dart';
 import 'package:nubia_data/src/remote/auth/auth_dto.dart';
 import 'package:nubia_data/src/remote/account/account_dto.dart';
+import 'package:nubia_data/src/remote/quotes_api.dart';
+import 'package:nubia_data/src/remote/payments_api.dart';
 
 void main() {
   group('AppointmentDto (POST /v1/appointments/:id/cancel response)', () {
@@ -54,6 +56,34 @@ void main() {
       expect(dto.id, 'acc-7');
       expect(dto.firstName, 'Alex');
       expect(dto.phone, isNull);
+    });
+  });
+
+  group('QuoteSignDto (POST /v1/quotes/:id/sign response)', () {
+    test('fromJson désérialise une réponse de signature eIDAS Yousign', () {
+      final json = {
+        'signature_id': 'sig-abc-123',
+        'provider': 'yousign',
+        'redirect_url': 'https://yousign.com/procedure/abc',
+        'embed_token': null,
+      };
+      final dto = QuoteSignDto.fromJson(json);
+      expect(dto.signatureId, 'sig-abc-123');
+      expect(dto.provider, 'yousign');
+      expect(dto.redirectUrl, 'https://yousign.com/procedure/abc');
+      expect(dto.embedToken, isNull);
+    });
+  });
+
+  group('PaymentIntentDto (POST /v1/payments/intent response)', () {
+    test('fromJson désérialise un PaymentIntent Stripe', () {
+      final json = {
+        'payment_id': 'pi-stripe-xyz',
+        'client_secret': 'pi_xyz_secret_abc',
+      };
+      final dto = PaymentIntentDto.fromJson(json);
+      expect(dto.paymentId, 'pi-stripe-xyz');
+      expect(dto.clientSecret, 'pi_xyz_secret_abc');
     });
   });
 }
