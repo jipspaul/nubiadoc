@@ -3,6 +3,8 @@
 > Porteur de contexte entre machines. Lu en premier à chaque session (voir `CLAUDE.md`).
 > Branche par défaut : `main`. Git : **Forgejo** (remote `origin`). CI : `.forgejo/workflows/`.
 
+2026-06-18 — **[DB] T-DB-D002.b — pgTAP audit Patient data invariants : triggers + expiration + soft-delete (issue #1912).** Fichier `db/tests/37_patient_strong.sql` complété : 5 assertions supplémentaires. (1) `TRG-ABS` — vérifie via `pg_trigger` qu'aucun trigger utilisateur n'existe sur `patient_account` / `patient_coverage` / `account_guardianship` (absence confirmée) ; (2) `PA-SD1a/b` — soft-delete `patient_account.deleted_at` : UPDATE OK via `account_self_update`, puis filtre applicatif `deleted_at IS NULL` exclut la ligne ; (3) `AG-EXP1a/b` — expiration de tutelle simulée : tuteur voit le dépendant (`active=true`), puis tutelle passée `active=false` → `account_guardian_read (AND active = true)` bloque l'accès (0 ligne). Total fichier : 43 assertions. `make test` : 1050/1050 verts.
+
 ## En cours
 - **🆕 SCOPE RÉVISÉ (02/06) : marketplace santé globale.** Plateforme deux faces — patient (trouver/réserver tout praticien, recherche multi-axes adresse/GPS/spécialité/besoin, carte, salle d'attente virtuelle, téléconsult) + logiciel cabinet. Cadré dans **`docs/11-marketplace-recherche.md`**. Impacts actés : PostGIS (géo), Meilisearch (recherche), **compte patient global** (ADR-011, révise `05`).
 - **⭐ Univers UNIFIÉ** : l'app patient = UN seul univers (marketplace + espace perso), pas deux apps. Architecture d'info dans **`design/ia-navigation.md`** (nav 5 onglets : Rechercher/Mes RDV/Messages/Documents/Profil). Maquette de référence : **`design/mockups/nubia-univers.html`** (fait foi ; `nubia-maquettes.html` + `nubia-marketplace.html` = vues détaillées).
