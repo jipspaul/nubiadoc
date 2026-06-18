@@ -83,4 +83,23 @@ class CabinetAppointmentsRepositoryImpl
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, CabinetAppointment>> confirm(String id) async {
+    try {
+      final dto = await _api.confirm(id);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Rendez-vous introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de confirmer le rendez-vous.',
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
 }

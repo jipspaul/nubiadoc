@@ -64,4 +64,10 @@ class CabinetAppointmentsApi {
     );
     return CabinetAppointmentDto.fromJson(response.data!);
   }
+
+  Future<CabinetAppointmentDto> confirm(String id) async {
+    final response = await _dio
+        .post<Map<String, dynamic>>('/cabinet/appointments/$id/confirm');
+    return CabinetAppointmentDto.fromJson(response.data!);
+  }
 }
