@@ -13,6 +13,7 @@ workspace:
   - packages/nubia_data
   - packages/nubia_a2ui
   - packages/nubia_app_shell
+  - packages/nubia_test_harness
   - apps/app_patient
   - apps/app_practicien
   - apps/app_secretariat
