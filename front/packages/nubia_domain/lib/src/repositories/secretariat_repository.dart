@@ -7,4 +7,5 @@ abstract class SecretariatRepository {
   Future<Either<Failure, Secretariat>> getById(String id);
   Future<Either<Failure, Secretariat>> create(Secretariat secretariat);
   Future<Either<Failure, Secretariat>> update(Secretariat secretariat);
+  Future<Either<Failure, Secretariat>> invite(String email);
 }

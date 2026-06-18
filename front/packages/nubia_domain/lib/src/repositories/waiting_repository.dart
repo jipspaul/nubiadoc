@@ -8,6 +8,7 @@ abstract class WaitingRoomRepository {
   Future<Either<Failure, WaitingRoomEntry>> getById(String id);
   Future<Either<Failure, WaitingRoomEntry>> create(WaitingRoomEntry entry);
   Future<Either<Failure, WaitingRoomEntry>> update(WaitingRoomEntry entry);
+  Future<Either<Failure, WaitingRoomEntry>> callNext();
 }
 
 abstract class WaitingListRepository {

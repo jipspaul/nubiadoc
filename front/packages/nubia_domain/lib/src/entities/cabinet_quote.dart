@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:nubia_domain/src/entities/quote.dart';
 
 enum CabinetQuoteStatus { draft, sent, signed, expired, cancelled }
 
@@ -15,6 +16,7 @@ class CabinetQuote extends Equatable {
   final DateTime createdAt;
   final DateTime? signedAt;
   final DateTime? expiresAt;
+  final List<QuoteLineItem>? items;
 
   const CabinetQuote({
     required this.id,
@@ -27,6 +29,7 @@ class CabinetQuote extends Equatable {
     required this.createdAt,
     this.signedAt,
     this.expiresAt,
+    this.items,
   });
 
   bool get isSigned => status == CabinetQuoteStatus.signed;
