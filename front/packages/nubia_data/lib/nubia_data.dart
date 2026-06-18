@@ -37,17 +37,45 @@ export 'src/cache/nubia_cache_db.dart';
 export 'src/cache/drift/nubia_database.dart';
 export 'src/cache/drift/drift_appointments_cache.dart';
 
+// Remote APIs & DTOs (pro/cabinet surface)
+export 'src/remote/cabinet_agenda/cabinet_agenda_api.dart';
+export 'src/remote/cabinet_agenda/cabinet_agenda_dto.dart';
+export 'src/remote/cabinet_appointments/cabinet_appointments_api.dart';
+export 'src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
+export 'src/remote/cabinet_patients/cabinet_patients_api.dart';
+export 'src/remote/cabinet_patients/cabinet_patients_dto.dart';
+export 'src/remote/cabinet_quotes/cabinet_quotes_api.dart';
+export 'src/remote/cabinet_quotes/cabinet_quotes_dto.dart';
+export 'src/remote/consultation/consultation_api.dart';
+export 'src/remote/consultation/consultation_dto.dart';
+export 'src/remote/members/members_api.dart';
+export 'src/remote/members/members_dto.dart';
+export 'src/remote/secretariat/secretariat_api.dart';
+export 'src/remote/secretariat/secretariat_dto.dart';
+export 'src/remote/slots/slots_api.dart';
+export 'src/remote/waiting_room/waiting_room_api.dart';
+export 'src/remote/waiting_room/waiting_room_dto.dart';
+
 // Repository implementations
 export 'src/repositories/account_repository_impl.dart';
 export 'src/repositories/appointment_repository_impl.dart';
 export 'src/repositories/auth_repository_impl.dart';
 export 'src/repositories/billing_repository_impl.dart';
+export 'src/repositories/cabinet_agenda_repository_impl.dart';
+export 'src/repositories/cabinet_appointments_repository_impl.dart';
+export 'src/repositories/cabinet_patients_repository_impl.dart';
+export 'src/repositories/cabinet_quotes_repository_impl.dart';
 export 'src/repositories/clinical_session_repository_impl.dart';
+export 'src/repositories/consultation_repository_impl.dart';
 export 'src/repositories/dashboard_repository_impl.dart';
 export 'src/repositories/document_repository_impl.dart';
+export 'src/repositories/members_repository_impl.dart';
 export 'src/repositories/message_repository_impl.dart';
 export 'src/repositories/notification_repository_impl.dart';
 export 'src/repositories/prescription_repository_impl.dart';
 export 'src/repositories/review_repository_impl.dart';
+export 'src/repositories/secretariat_repository_impl.dart';
+export 'src/repositories/slots_repository_impl.dart';
+export 'src/repositories/waiting_room_repository_impl.dart';
 export 'src/repositories/cached_appointments_repository_impl.dart';
 export 'src/repositories/search_repository_impl.dart';
