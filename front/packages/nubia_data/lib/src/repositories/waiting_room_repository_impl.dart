@@ -96,7 +96,7 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
         return const Left(UnauthorizedFailure());
       }
       return Left(ServerFailure(
-        message: "Impossible d'appeler le prochain patient.",
+        message: "Impossible d'appeler le patient suivant.",
         statusCode: e.response?.statusCode,
       ));
     }

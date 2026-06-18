@@ -61,7 +61,7 @@ class MembersApi {
 
   Future<MemberDto> invite(String email, MemberRole role) async {
     final response = await _dio.post<Map<String, dynamic>>(
-      '/cabinet/members/invite',
+      '/cabinet/members',
       data: {'email': email, 'role': role.name},
     );
     return MemberDto.fromJson(response.data!);
@@ -69,7 +69,7 @@ class MembersApi {
 
   Future<MemberDto> updateRole(String id, MemberRole role) async {
     final response = await _dio.patch<Map<String, dynamic>>(
-      '/cabinet/members/$id/role',
+      '/cabinet/members/$id',
       data: {'role': role.name},
     );
     return MemberDto.fromJson(response.data!);

@@ -90,14 +90,15 @@ class MembersRepositoryImpl implements MembersRepository {
         return const Left(UnauthorizedFailure());
       }
       return Left(ServerFailure(
-        message: "Impossible d'inviter le membre.",
+        message: 'Impossible d\'inviter le membre.',
         statusCode: e.response?.statusCode,
       ));
     }
   }
 
   @override
-  Future<Either<Failure, Member>> updateRole(String id, MemberRole role) async {
+  Future<Either<Failure, Member>> updateRole(
+      String id, MemberRole role) async {
     try {
       final dto = await _api.updateRole(id, role);
       return Right(dto.toDomain());
@@ -109,7 +110,7 @@ class MembersRepositoryImpl implements MembersRepository {
         return const Left(UnauthorizedFailure());
       }
       return Left(ServerFailure(
-        message: 'Impossible de changer le rôle du membre.',
+        message: 'Impossible de mettre à jour le rôle.',
         statusCode: e.response?.statusCode,
       ));
     }

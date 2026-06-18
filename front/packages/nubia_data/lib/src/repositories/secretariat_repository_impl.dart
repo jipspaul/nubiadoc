@@ -90,7 +90,7 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
         return const Left(UnauthorizedFailure());
       }
       return Left(ServerFailure(
-        message: "Impossible d'inviter le secrétariat.",
+        message: 'Impossible d\'inviter le secrétariat.',
         statusCode: e.response?.statusCode,
       ));
     }

@@ -58,7 +58,7 @@ class SecretariatApi {
 
   Future<SecretariatDto> invite(String email) async {
     final response = await _dio.post<Map<String, dynamic>>(
-      '/cabinet/secretariats/invite',
+      '/cabinet/secretariats',
       data: {'email': email},
     );
     return SecretariatDto.fromJson(response.data!);

@@ -41,10 +41,12 @@ class CabinetPatientsApi {
   }
 
   Future<CabinetPatientDto> updateNotes(String id, String note) async {
-    final response = await _dio.patch<Map<String, dynamic>>(
+    await _dio.post<void>(
       '/cabinet/patients/$id/notes',
-      data: {'note': note},
+      data: {'note_kind': 'observation', 'text': note},
     );
+    final response =
+        await _dio.get<Map<String, dynamic>>('/cabinet/patients/$id');
     return CabinetPatientDto.fromJson(response.data!);
   }
 }
