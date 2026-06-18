@@ -123,6 +123,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetDocumentsUseCase(gi()))
     ..registerFactory(() => UploadDocumentUseCase(gi()))
     // messaging
+    ..registerFactory(() => GetConversationMessagesUseCase(gi()))
     ..registerFactory(() => GetConversationsUseCase(gi()))
     ..registerFactory(() => MarkConversationReadUseCase(gi()))
     ..registerFactory(() => SendMessageUseCase(gi()))

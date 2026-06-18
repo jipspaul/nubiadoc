@@ -6,6 +6,7 @@ import '../features/appointments/appointments_bloc.dart';
 import '../features/documents/documents_bloc.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
+import '../features/messaging/messaging_bloc.dart';
 import '../features/home/home_bloc.dart';
 import '../features/profile/profile_bloc.dart';
 import 'auth_cubit.dart';
@@ -53,6 +54,15 @@ void registerPatient(GetIt gi) {
       getQuoteById: gi<GetQuoteByIdUseCase>(),
       initiateSignature: gi<InitiateSignatureUseCase>(),
       initiateDeposit: gi<InitiateDepositUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<MessagingBloc>(
+    () => MessagingBloc(
+      getConversations: gi<GetConversationsUseCase>(),
+      getMessages: gi<GetConversationMessagesUseCase>(),
+      sendMessage: gi<SendMessageUseCase>(),
+      markRead: gi<MarkConversationReadUseCase>(),
     ),
   );
 

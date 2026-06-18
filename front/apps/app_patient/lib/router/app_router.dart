@@ -21,6 +21,7 @@ import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/profile/profile_page.dart';
+import '../features/messaging/messaging_page.dart';
 import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
 import '../features/reviews/reviews_page.dart';
@@ -39,6 +40,7 @@ class AppRouter {
   static const documents = '/documents';
   static const financial = '/financial';
   static const profile = '/profile';
+  static const messaging = '/messaging';
   static const reviews = '/reviews';
   static const notifications = '/notifications';
 
@@ -108,6 +110,12 @@ class AppRouter {
               appBar: AppBar(title: const Text('Mon profil')),
               body: const ProfilePage(),
             ),
+          ),
+        ),
+        GoRoute(
+          path: messaging,
+          builder: (_, __) => const Scaffold(
+            body: MessagingPage(),
           ),
         ),
         GoRoute(
