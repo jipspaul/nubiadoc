@@ -7,16 +7,20 @@ import 'documents_state.dart';
 class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
   final GetDocumentsUseCase _getDocuments;
   final GetDocumentSignedUrlUseCase _getSignedUrl;
+  final UploadDocumentUseCase _upload;
 
   DocumentsBloc({
     required GetDocumentsUseCase getDocuments,
     required GetDocumentSignedUrlUseCase getSignedUrl,
+    required UploadDocumentUseCase upload,
   })  : _getDocuments = getDocuments,
         _getSignedUrl = getSignedUrl,
+        _upload = upload,
         super(const DocumentsInitial()) {
     on<DocumentsLoadRequested>(_onLoadRequested);
     on<DocumentsCategorySelected>(_onCategorySelected);
     on<DocumentsDownloadRequested>(_onDownloadRequested);
+    on<DocumentsUploadRequested>(_onUpload);
   }
 
   Future<void> _onLoadRequested(
@@ -51,6 +55,23 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
       (url) => emit(
         DocumentsDownloadReady(documentId: event.documentId, url: url),
       ),
+    );
+  }
+
+  Future<void> _onUpload(
+    DocumentsUploadRequested event,
+    Emitter<DocumentsState> emit,
+  ) async {
+    emit(const DocumentsUploading());
+    final result = await _upload(
+      filePath: event.filePath,
+      filename: event.filename,
+      mimeType: event.mimeType,
+      category: event.category,
+    );
+    result.fold(
+      (failure) => emit(DocumentsUploadFailure(failure.message)),
+      (doc) => emit(DocumentsUploadSuccess(doc)),
     );
   }
 }

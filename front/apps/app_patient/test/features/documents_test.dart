@@ -19,6 +19,8 @@ class MockGetDocumentsUseCase extends Mock implements GetDocumentsUseCase {}
 class MockGetDocumentSignedUrlUseCase extends Mock
     implements GetDocumentSignedUrlUseCase {}
 
+class MockUploadDocumentUseCase extends Mock implements UploadDocumentUseCase {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -35,10 +37,12 @@ final _doc = Document(
 DocumentsBloc _makeBloc({
   required MockGetDocumentsUseCase getDocuments,
   required MockGetDocumentSignedUrlUseCase getSignedUrl,
+  required MockUploadDocumentUseCase upload,
 }) =>
     DocumentsBloc(
       getDocuments: getDocuments,
       getSignedUrl: getSignedUrl,
+      upload: upload,
     );
 
 /// Inline body widget that consumes the BlocProvider from the test without
@@ -95,12 +99,18 @@ Widget _wrap(DocumentsBloc bloc) => MaterialApp(
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(DocumentCategory.other);
+  });
+
   late MockGetDocumentsUseCase mockGetDocuments;
   late MockGetDocumentSignedUrlUseCase mockGetSignedUrl;
+  late MockUploadDocumentUseCase mockUpload;
 
   setUp(() {
     mockGetDocuments = MockGetDocumentsUseCase();
     mockGetSignedUrl = MockGetDocumentSignedUrlUseCase();
+    mockUpload = MockUploadDocumentUseCase();
   });
 
   group('DocumentsPage widget', () {
@@ -108,6 +118,7 @@ void main() {
       final bloc = _makeBloc(
         getDocuments: mockGetDocuments,
         getSignedUrl: mockGetSignedUrl,
+        upload: mockUpload,
       );
 
       await tester.pumpWidget(_wrap(bloc));
@@ -124,6 +135,7 @@ void main() {
       final bloc = _makeBloc(
         getDocuments: mockGetDocuments,
         getSignedUrl: mockGetSignedUrl,
+        upload: mockUpload,
       )..add(const DocumentsLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -141,6 +153,7 @@ void main() {
       final bloc = _makeBloc(
         getDocuments: mockGetDocuments,
         getSignedUrl: mockGetSignedUrl,
+        upload: mockUpload,
       )..add(const DocumentsLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -158,6 +171,7 @@ void main() {
       final bloc = _makeBloc(
         getDocuments: mockGetDocuments,
         getSignedUrl: mockGetSignedUrl,
+        upload: mockUpload,
       )..add(const DocumentsLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -178,6 +192,7 @@ void main() {
         return _makeBloc(
           getDocuments: mockGetDocuments,
           getSignedUrl: mockGetSignedUrl,
+          upload: mockUpload,
         );
       },
       act: (bloc) => bloc.add(const DocumentsLoadRequested()),
@@ -196,6 +211,7 @@ void main() {
         return _makeBloc(
           getDocuments: mockGetDocuments,
           getSignedUrl: mockGetSignedUrl,
+          upload: mockUpload,
         );
       },
       act: (bloc) => bloc.add(const DocumentsLoadRequested()),
@@ -215,6 +231,7 @@ void main() {
         return _makeBloc(
           getDocuments: mockGetDocuments,
           getSignedUrl: mockGetSignedUrl,
+          upload: mockUpload,
         );
       },
       seed: () => DocumentsLoaded([_doc]),
@@ -227,6 +244,64 @@ void main() {
               'url',
               'https://storage.example.com/signed',
             ),
+      ],
+    );
+
+    blocTest<DocumentsBloc, DocumentsState>(
+      "émet [Uploading, UploadSuccess] lors d'un upload réussi",
+      build: () {
+        when(() => mockUpload(
+              filePath: any(named: 'filePath'),
+              filename: any(named: 'filename'),
+              mimeType: any(named: 'mimeType'),
+              category: any(named: 'category'),
+            )).thenAnswer((_) async => Right(_doc));
+        return _makeBloc(
+          getDocuments: mockGetDocuments,
+          getSignedUrl: mockGetSignedUrl,
+          upload: mockUpload,
+        );
+      },
+      act: (bloc) => bloc.add(const DocumentsUploadRequested(
+        filePath: '/tmp/test.pdf',
+        filename: 'test.pdf',
+        mimeType: 'application/pdf',
+        category: DocumentCategory.quote,
+      )),
+      expect: () => [
+        const DocumentsUploading(),
+        isA<DocumentsUploadSuccess>()
+            .having((s) => s.document.id, 'id', 'doc-1'),
+      ],
+    );
+
+    blocTest<DocumentsBloc, DocumentsState>(
+      "émet [Uploading, UploadFailure] lors d'un upload en échec",
+      build: () {
+        when(() => mockUpload(
+              filePath: any(named: 'filePath'),
+              filename: any(named: 'filename'),
+              mimeType: any(named: 'mimeType'),
+              category: any(named: 'category'),
+            )).thenAnswer(
+          (_) async => const Left(NetworkFailure('Upload impossible.')),
+        );
+        return _makeBloc(
+          getDocuments: mockGetDocuments,
+          getSignedUrl: mockGetSignedUrl,
+          upload: mockUpload,
+        );
+      },
+      act: (bloc) => bloc.add(const DocumentsUploadRequested(
+        filePath: '/tmp/test.pdf',
+        filename: 'test.pdf',
+        mimeType: 'application/pdf',
+        category: DocumentCategory.quote,
+      )),
+      expect: () => [
+        const DocumentsUploading(),
+        isA<DocumentsUploadFailure>()
+            .having((s) => s.message, 'message', 'Upload impossible.'),
       ],
     );
   });

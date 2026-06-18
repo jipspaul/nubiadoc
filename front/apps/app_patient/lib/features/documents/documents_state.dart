@@ -57,3 +57,25 @@ final class DocumentsDownloadError extends DocumentsState {
   @override
   List<Object?> get props => [message];
 }
+
+final class DocumentsUploading extends DocumentsState {
+  const DocumentsUploading();
+}
+
+final class DocumentsUploadSuccess extends DocumentsState {
+  final Document document;
+
+  const DocumentsUploadSuccess(this.document);
+
+  @override
+  List<Object?> get props => [document];
+}
+
+final class DocumentsUploadFailure extends DocumentsState {
+  final String message;
+
+  const DocumentsUploadFailure(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
