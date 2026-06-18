@@ -1,6 +1,9 @@
 import 'package:get_it/get_it.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../cache/appointments_cache.dart';
+import '../cache/drift/drift_appointments_cache.dart';
+import '../cache/drift/nubia_database.dart';
 import '../remote/account/account_api.dart';
 import '../remote/auth/auth_api.dart';
 import '../remote/billing/billing_api.dart';
@@ -18,6 +21,7 @@ import '../repositories/search_repository_impl.dart';
 import '../repositories/appointment_repository_impl.dart';
 import '../repositories/auth_repository_impl.dart';
 import '../repositories/billing_repository_impl.dart';
+import '../repositories/cached_appointments_repository_impl.dart';
 import '../repositories/clinical_session_repository_impl.dart';
 import '../repositories/dashboard_repository_impl.dart';
 import '../repositories/document_repository_impl.dart';
@@ -34,7 +38,15 @@ import '../repositories/review_repository_impl.dart';
 /// [includeClinical] gates the clinical + prescription stacks. The secretariat
 /// app passes `false`, guaranteeing no clinical repository/use case is ever
 /// registered in its container (no code path to clinical data).
-void registerData(GetIt gi, {bool includeClinical = true}) {
+///
+/// [useCache] enables the offline cache layer for appointments. When `true`,
+/// [AppointmentRepository] is backed by [CachedAppointmentsRepositoryImpl]
+/// wrapping the remote implementation via a Drift SQLite cache.
+void registerData(
+  GetIt gi, {
+  bool includeClinical = true,
+  bool useCache = false,
+}) {
   // --- APIs (each takes ApiClient) -----------------------------------------
   gi
     ..registerLazySingleton<AccountApi>(() => AccountApi(gi()))
@@ -49,12 +61,25 @@ void registerData(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<SearchApi>(() => SearchApi(gi()));
 
   // --- Repositories ---------------------------------------------------------
+  if (useCache) {
+    gi
+      ..registerLazySingleton<NubiaDatabase>(NubiaDatabase.production)
+      ..registerLazySingleton<AppointmentsCache>(
+        () => DriftAppointmentsCache(gi()),
+      );
+  }
+
   gi
     ..registerLazySingleton<AccountRepository>(
       () => AccountRepositoryImpl(gi()),
     )
     ..registerLazySingleton<AppointmentRepository>(
-      () => AppointmentRepositoryImpl(gi()),
+      () => useCache
+          ? CachedAppointmentsRepositoryImpl(
+              remote: AppointmentRepositoryImpl(gi()),
+              cache: gi(),
+            )
+          : AppointmentRepositoryImpl(gi()),
     )
     ..registerLazySingleton<AuthRepository>(
       () => AuthRepositoryImpl(gi(), gi()),
