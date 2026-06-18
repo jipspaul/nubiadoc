@@ -9,6 +9,8 @@ import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/login/login_page.dart';
+import '../features/mes_rdv/mes_rdv_bloc.dart';
+import '../features/mes_rdv/mes_rdv_page.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/profile/profile_page.dart';
@@ -23,6 +25,7 @@ class AppRouter {
   static const home = '/';
   static const a2uiDemo = '/a2ui-demo';
   static const appointments = '/appointments';
+  static const mesRdv = '/mes-rdv';
   static const profile = '/profile';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -52,6 +55,15 @@ class AppRouter {
             child: Scaffold(
               appBar: AppBar(title: const Text('Prendre un rendez-vous')),
               body: const AppointmentsPage(),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: mesRdv,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<MesRdvBloc>(),
+            child: const Scaffold(
+              body: MesRdvPage(),
             ),
           ),
         ),

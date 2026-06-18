@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../session/auth_cubit.dart';
+import '../mes_rdv/mes_rdv_page.dart';
 import '../home/home_bloc.dart';
 import '../home/home_event.dart';
 import '../home/home_page.dart';
@@ -56,6 +57,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ..add(const HomeLoadRequested()),
             child: const HomePage(),
           ),
+        1 => const MesRdvPage(),
         4 => BlocProvider(
             create: (_) => GetIt.instance<ProfileBloc>()
               ..add(const ProfileLoadRequested()),

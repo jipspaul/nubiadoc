@@ -3,6 +3,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/appointments/appointments_bloc.dart';
+import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/home/home_bloc.dart';
 import '../features/profile/profile_bloc.dart';
 import 'auth_cubit.dart';
@@ -24,6 +25,15 @@ void registerPatient(GetIt gi) {
       searchSlots: gi<SearchSlotsUseCase>(),
       holdSlot: gi<HoldSlotUseCase>(),
       bookAppointment: gi<BookAppointmentUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<MesRdvBloc>(
+    () => MesRdvBloc(
+      getUpcoming: gi<GetUpcomingAppointmentsUseCase>(),
+      getHistory: gi<GetAppointmentHistoryUseCase>(),
+      cancel: gi<CancelAppointmentUseCase>(),
+      checkin: gi<CheckinAppointmentUseCase>(),
     ),
   );
 
