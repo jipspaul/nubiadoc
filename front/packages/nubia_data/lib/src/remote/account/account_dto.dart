@@ -1,3 +1,4 @@
+import 'package:nubia_domain/src/entities/consent.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
 
 class HealthCoverageDto {
@@ -96,6 +97,34 @@ class DependentDto {
         return DependentRelationship.autre;
     }
   }
+}
+
+class ConsentDto {
+  final String purpose;
+  final bool granted;
+  final String? grantedAt;
+  final String? revokedAt;
+
+  const ConsentDto({
+    required this.purpose,
+    required this.granted,
+    this.grantedAt,
+    this.revokedAt,
+  });
+
+  factory ConsentDto.fromJson(Map<String, dynamic> json) => ConsentDto(
+        purpose: json['purpose'] as String,
+        granted: json['granted'] as bool,
+        grantedAt: json['granted_at'] as String?,
+        revokedAt: json['revoked_at'] as String?,
+      );
+
+  Consent toDomain() => Consent(
+        purpose: purpose,
+        granted: granted,
+        grantedAt: grantedAt != null ? DateTime.tryParse(grantedAt!) : null,
+        revokedAt: revokedAt != null ? DateTime.tryParse(revokedAt!) : null,
+      );
 }
 
 class AccountDto {
