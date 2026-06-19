@@ -1,15 +1,17 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Stores JWT access + refresh tokens in the device keychain.
+/// Stores JWT access + refresh tokens and FCM device token in the device keychain.
 class TokenStorage {
   static const _accessKey = 'nubia_access_token';
   static const _refreshKey = 'nubia_refresh_token';
+  static const _fcmKey = 'nubia_fcm_token';
 
   final FlutterSecureStorage _storage;
   const TokenStorage(this._storage);
 
   Future<String?> getAccessToken() => _storage.read(key: _accessKey);
   Future<String?> getRefreshToken() => _storage.read(key: _refreshKey);
+  Future<String?> getFcmToken() => _storage.read(key: _fcmKey);
 
   Future<void> saveTokens({required String access, required String refresh}) async {
     await Future.wait([
@@ -18,10 +20,15 @@ class TokenStorage {
     ]);
   }
 
+  Future<void> saveFcmToken(String token) =>
+      _storage.write(key: _fcmKey, value: token);
+
   Future<void> clearTokens() async {
     await Future.wait([
       _storage.delete(key: _accessKey),
       _storage.delete(key: _refreshKey),
     ]);
   }
+
+  Future<void> clearFcmToken() => _storage.delete(key: _fcmKey);
 }

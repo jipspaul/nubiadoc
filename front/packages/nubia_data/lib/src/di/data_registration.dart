@@ -109,7 +109,7 @@ void registerData(
           : AppointmentRepositoryImpl(gi()),
     )
     ..registerLazySingleton<AuthRepository>(
-      () => AuthRepositoryImpl(gi(), gi()),
+      () => AuthRepositoryImpl(gi(), gi(), gi()),
     )
     ..registerLazySingleton<BillingRepository>(
       () => BillingRepositoryImpl(gi()),

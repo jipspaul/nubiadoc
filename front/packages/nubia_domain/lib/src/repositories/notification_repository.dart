@@ -16,6 +16,9 @@ abstract class NotificationRepository {
   /// Registers the device FCM token on the backend.
   Future<Either<Failure, void>> registerFcmToken(String token);
 
+  /// Deregisters the device FCM token on the backend (called on logout).
+  Future<Either<Failure, void>> unregisterFcmToken(String token);
+
   /// Returns the user's notification opt-in preferences.
   Future<Either<Failure, NotificationPreferences>> getPreferences();
 
