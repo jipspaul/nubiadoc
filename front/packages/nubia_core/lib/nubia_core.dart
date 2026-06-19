@@ -27,3 +27,6 @@ export 'src/utils/file_picker_service.dart';
 
 // Session
 export 'src/session/fcm_token_provider.dart';
+
+// i18n
+export 'src/l10n/nubia_l10n.dart';

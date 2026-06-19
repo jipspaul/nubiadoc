@@ -32,7 +32,7 @@ class AppRouter {
   static const agenda = '/agenda';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
-  static const agenda = '/agenda';
+  static const bookableSlots = '/bookable-slots';
   static const patients = '/patients';
   static const appointments = '/appointments';
   static const listeAttente = '/liste-attente';
@@ -71,7 +71,7 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: agenda,
+          path: bookableSlots,
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<BookableSlotsBloc>(),
             child: const BookableSlotsPage(),
