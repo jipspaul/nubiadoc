@@ -101,10 +101,19 @@ class _HomeContent extends StatelessWidget {
             label: 'Questionnaires en attente',
             value: '${s.pendingQuestionnaires}',
           ),
+        if (s.pendingPaymentsCents > 0)
+          _SummaryCard(
+            key: const Key('card_financial'),
+            icon: Icons.receipt_long_outlined,
+            label: 'Devis en attente',
+            value: '${(s.pendingPaymentsCents / 100).toStringAsFixed(2).replaceAll('.', ',')} €',
+            onTap: () => context.push('/financial'),
+          ),
         if (s.upcomingAppointments == 0 &&
             s.documentsToSign == 0 &&
             s.unreadMessages == 0 &&
-            s.pendingQuestionnaires == 0)
+            s.pendingQuestionnaires == 0 &&
+            s.pendingPaymentsCents == 0)
           const NubiaEmptyState(
             key: Key('home_empty'),
             message: 'Tout est à jour — aucune action en attente.',
