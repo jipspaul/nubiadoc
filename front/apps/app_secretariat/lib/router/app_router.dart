@@ -13,6 +13,8 @@ import '../features/devis/devis_page.dart';
 import '../features/login/login_page.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/patients/patients_page.dart';
+import '../features/waiting_list/waiting_list_bloc.dart';
+import '../features/waiting_list/waiting_list_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 
@@ -25,6 +27,7 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
   static const patients = '/patients';
+  static const listeAttente = '/liste-attente';
   static const devis = '/devis';
   static const adminMembres = '/admin-membres';
 
@@ -60,6 +63,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<PatientsBloc>(),
             child: const PatientsPage(),
+          ),
+        ),
+        GoRoute(
+          path: listeAttente,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<WaitingListBloc>(),
+            child: const WaitingListPage(),
           ),
         ),
         GoRoute(

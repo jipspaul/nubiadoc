@@ -16,4 +16,5 @@ abstract class WaitingListRepository {
   Future<Either<Failure, WaitingListEntry>> getById(String id);
   Future<Either<Failure, WaitingListEntry>> create(WaitingListEntry entry);
   Future<Either<Failure, WaitingListEntry>> update(WaitingListEntry entry);
+  Future<Either<Failure, Unit>> offerSlot(String id);
 }
