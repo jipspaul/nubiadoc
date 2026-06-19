@@ -1,12 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import '../network/api_client.dart';
 
-/// Registers the FCM push token with the backend after a successful login.
+/// Registers this device's FCM push token with the backend after login.
 ///
-/// Fire-and-forget: errors are silenced so they never block the login flow.
+/// Fire-and-forget: errors are silenced so login is never blocked.
 class DeviceRegistrationService {
-  DeviceRegistrationService(this._dio);
+  DeviceRegistrationService(ApiClient client) : _dio = client.dio;
 
   final Dio _dio;
 
@@ -14,28 +15,22 @@ class DeviceRegistrationService {
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null) return;
-
-      final platform = _platformName();
-      if (platform == null) return;
-
       await _dio.post<void>(
-        '/v1/devices',
-        data: {'token': token, 'platform': platform, 'app': app},
+        '/devices',
+        data: {'token': token, 'platform': _platform(), 'app': app},
       );
     } catch (_) {
-      // Intentionally silent — device registration must not block login.
+      // Don't block login on FCM/network errors.
     }
   }
 
-  String? _platformName() {
+  String _platform() {
     if (kIsWeb) return 'web';
     switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return 'android';
       case TargetPlatform.iOS:
         return 'ios';
       default:
-        return null;
+        return 'android';
     }
   }
 }

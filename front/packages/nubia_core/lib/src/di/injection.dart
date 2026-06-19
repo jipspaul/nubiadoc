@@ -29,6 +29,6 @@ void registerCore(GetIt gi) {
       () => const DefaultFilePickerService(),
     )
     ..registerLazySingleton<DeviceRegistrationService>(
-      () => DeviceRegistrationService(gi<ApiClient>().dio),
+      () => DeviceRegistrationService(gi()),
     );
 }

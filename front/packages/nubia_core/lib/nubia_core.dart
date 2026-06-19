@@ -18,7 +18,7 @@ export 'src/router/router_notifier.dart';
 // Auth session
 export 'src/auth/auth_session.dart';
 
-// Session helpers
+// Session services
 export 'src/session/device_registration_service.dart';
 
 // Utils
