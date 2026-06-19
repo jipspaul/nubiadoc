@@ -41,6 +41,8 @@ export 'src/cache/drift/drift_appointments_cache.dart';
 
 // Remote APIs & DTOs (pro/cabinet surface)
 export 'src/remote/cabinet_agenda/cabinet_agenda_api.dart';
+export 'src/remote/cabinet_messaging/cabinet_messaging_api.dart';
+export 'src/remote/cabinet_messaging/cabinet_messaging_dto.dart';
 export 'src/remote/cabinet_agenda/cabinet_agenda_dto.dart';
 export 'src/remote/cabinet_appointments/cabinet_appointments_api.dart';
 export 'src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
@@ -65,6 +67,7 @@ export 'src/repositories/auth_repository_impl.dart';
 export 'src/repositories/billing_repository_impl.dart';
 export 'src/repositories/cabinet_agenda_repository_impl.dart';
 export 'src/repositories/cabinet_appointments_repository_impl.dart';
+export 'src/repositories/cabinet_message_repository_impl.dart';
 export 'src/repositories/cabinet_patients_repository_impl.dart';
 export 'src/repositories/cabinet_quotes_repository_impl.dart';
 export 'src/repositories/clinical_session_repository_impl.dart';
