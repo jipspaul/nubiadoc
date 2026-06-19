@@ -292,6 +292,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
     ..registerFactory(() => CallNextUseCase(gi()))
     ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
+    ..registerFactory(() => GetCabinetQuoteUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
     ..registerFactory(() => ListWaitingListUseCase(gi()))
     ..registerFactory(() => OfferSlotToWaitingPatientUseCase(gi()))

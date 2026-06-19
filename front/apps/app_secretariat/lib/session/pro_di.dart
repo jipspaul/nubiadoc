@@ -48,7 +48,10 @@ void registerPro(GetIt gi) {
       ),
     )
     ..registerFactory<DevisBloc>(
-      () => DevisBloc(listQuotes: gi<ListCabinetQuotesUseCase>()),
+      () => DevisBloc(
+        listQuotes: gi<ListCabinetQuotesUseCase>(),
+        getQuote: gi<GetCabinetQuoteUseCase>(),
+      ),
     )
     ..registerFactory<BookableSlotsBloc>(
       () => BookableSlotsBloc(listSlots: gi<ListBookableSlotsUseCase>()),

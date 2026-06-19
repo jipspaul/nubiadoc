@@ -124,8 +124,10 @@ export 'src/usecases/secretariats/list_secretariats_use_case.dart';
 export 'src/usecases/secretariats/add_secretariat_use_case.dart';
 // cabinet quotes pro
 export 'src/usecases/cabinet_quotes/list_cabinet_quotes_use_case.dart';
+export 'src/usecases/cabinet_quotes/get_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/create_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/update_cabinet_quote_use_case.dart';
+// cabinet appointments pro — use cases are in agenda/ (create + reschedule)
 // cabinet messaging pro
 export 'src/entities/cabinet_conversation.dart';
 export 'src/repositories/cabinet_message_repository.dart';

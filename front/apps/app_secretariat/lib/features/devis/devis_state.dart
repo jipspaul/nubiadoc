@@ -52,3 +52,29 @@ class DevisError extends DevisState {
   @override
   int get hashCode => message.hashCode;
 }
+
+class DevisDetailLoaded extends DevisState {
+  const DevisDetailLoaded(this.quote);
+
+  final CabinetQuote quote;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisDetailLoaded && other.quote == quote;
+
+  @override
+  int get hashCode => quote.hashCode;
+}
+
+class DevisDetailError extends DevisState {
+  const DevisDetailError(this.message);
+
+  final String message;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisDetailError && other.message == message;
+
+  @override
+  int get hashCode => message.hashCode;
+}
