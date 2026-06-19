@@ -5,9 +5,11 @@ import 'package:nubia_core/nubia_core.dart';
 
 import '../features/agenda/agenda_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
+import '../features/consultation_clinique/consultation_clinique_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/login/login_page.dart';
 import '../features/waiting_room/waiting_room_page.dart';
+import '../pro_config.dart';
 
 class AppRouter {
   AppRouter._();
@@ -18,6 +20,7 @@ class AppRouter {
   static const agenda = '/agenda';
   static const waitingRoom = '/waiting-room';
   static const messages = '/messages';
+  static const consultation = '/consultation';
   static const a2uiDemo = '/a2ui-demo';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -50,6 +53,15 @@ class AppRouter {
         GoRoute(
           path: messages,
           builder: (_, __) => const Scaffold(body: CabinetMessagingPage()),
+        ),
+        GoRoute(
+          path: consultation,
+          redirect: (_, __) => ProConfig.includeClinical ? null : home,
+          builder: (_, state) => Scaffold(
+            body: ConsultationCliniquePage(
+              consultationId: state.uri.queryParameters['id'],
+            ),
+          ),
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
       ],
