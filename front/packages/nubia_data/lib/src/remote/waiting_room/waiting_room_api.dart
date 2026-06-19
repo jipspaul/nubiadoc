@@ -121,4 +121,8 @@ class WaitingRoomApi {
     );
     return WaitingListEntryDto.fromJson(response.data!);
   }
+
+  Future<void> offerSlot(String id) async {
+    await _dio.post<void>('/cabinet/waiting-list/$id/offer');
+  }
 }
