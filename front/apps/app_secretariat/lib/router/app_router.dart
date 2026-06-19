@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 
+import '../features/bookable_slots/bookable_slots_bloc.dart';
+import '../features/bookable_slots/bookable_slots_page.dart';
 import '../features/agenda/agenda_page.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
@@ -30,6 +32,7 @@ class AppRouter {
   static const agenda = '/agenda';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
+  static const agenda = '/agenda';
   static const patients = '/patients';
   static const appointments = '/appointments';
   static const listeAttente = '/liste-attente';
@@ -65,6 +68,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<WaitingRoomBloc>(),
             child: const WaitingRoomPage(),
+          ),
+        ),
+        GoRoute(
+          path: agenda,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<BookableSlotsBloc>(),
+            child: const BookableSlotsPage(),
           ),
         ),
         GoRoute(
