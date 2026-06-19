@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
@@ -44,7 +45,10 @@ class _DevisPageState extends State<DevisPage> {
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: quotes.length,
-              itemBuilder: (_, i) => _DevisTile(quote: quotes[i]),
+              itemBuilder: (ctx, i) => _DevisTile(
+                quote: quotes[i],
+                onTap: () => ctx.go('/devis/${quotes[i].id}'),
+              ),
             );
           }
           if (state is DevisError) {
@@ -63,9 +67,10 @@ class _DevisPageState extends State<DevisPage> {
 }
 
 class _DevisTile extends StatelessWidget {
-  const _DevisTile({required this.quote});
+  const _DevisTile({required this.quote, this.onTap});
 
   final CabinetQuote quote;
+  final VoidCallback? onTap;
 
   String _statusLabel(CabinetQuoteStatus status) {
     switch (status) {
@@ -102,6 +107,7 @@ class _DevisTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      onTap: onTap,
       leading: const Icon(Icons.receipt_long_outlined),
       title: Text(quote.patientName),
       subtitle: Text(
