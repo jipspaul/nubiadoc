@@ -14,6 +14,7 @@ import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/devis/devis_bloc.dart';
+import '../features/devis/devis_detail_page.dart';
 import '../features/devis/devis_page.dart';
 import '../features/login/login_page.dart';
 import '../features/patients/patients_bloc.dart';
@@ -30,13 +31,15 @@ class AppRouter {
   static const login = '/login';
   static const home = '/';
   static const agenda = '/agenda';
+  static const bookableSlots = '/bookable-slots';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
-  static const bookableSlots = '/bookable-slots';
+
   static const patients = '/patients';
   static const appointments = '/appointments';
   static const listeAttente = '/liste-attente';
   static const devis = '/devis';
+  static const devisDetail = '/devis/:id';
   static const adminMembres = '/admin-membres';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -104,6 +107,17 @@ class AppRouter {
             create: (_) => GetIt.instance<DevisBloc>(),
             child: const DevisPage(),
           ),
+          routes: [
+            GoRoute(
+              path: ':id',
+              builder: (_, state) => BlocProvider(
+                create: (_) => GetIt.instance<DevisBloc>(),
+                child: DevisDetailPage(
+                  id: state.pathParameters['id']!,
+                ),
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: adminMembres,

@@ -6,11 +6,16 @@ import 'devis_state.dart';
 
 class DevisBloc extends Bloc<DevisEvent, DevisState> {
   final ListCabinetQuotesUseCase _list;
+  final GetCabinetQuoteUseCase _getById;
 
-  DevisBloc({required ListCabinetQuotesUseCase listQuotes})
-      : _list = listQuotes,
+  DevisBloc({
+    required ListCabinetQuotesUseCase listQuotes,
+    required GetCabinetQuoteUseCase getQuote,
+  })  : _list = listQuotes,
+        _getById = getQuote,
         super(const DevisInitial()) {
     on<DevisLoadRequested>(_onLoad);
+    on<DevisDetailLoadRequested>(_onDetailLoad);
   }
 
   Future<void> _onLoad(
@@ -22,6 +27,18 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     result.fold(
       (failure) => emit(DevisError(failure.message)),
       (quotes) => emit(DevisLoaded(quotes)),
+    );
+  }
+
+  Future<void> _onDetailLoad(
+    DevisDetailLoadRequested event,
+    Emitter<DevisState> emit,
+  ) async {
+    emit(const DevisLoading());
+    final result = await _getById(event.id);
+    result.fold(
+      (failure) => emit(DevisDetailError(failure.message)),
+      (quote) => emit(DevisDetailLoaded(quote)),
     );
   }
 }
