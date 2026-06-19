@@ -283,6 +283,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
 
   // Pro use cases (non-clinical — available to both praticien and secrétariat)
   gi
+    ..registerFactory(() => GetCabinetAgendaUseCase(gi()))
+    ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
     ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
@@ -301,7 +303,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       )
       ..registerLazySingleton<ConsultationRepository>(
         () => ConsultationRepositoryImpl(gi()),
-      );
+      )
+      ..registerFactory(() => StartConsultationUseCase(gi()));
   }
 
   // cabinet messaging use cases
