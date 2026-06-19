@@ -276,7 +276,10 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
-    ..registerFactory(() => CallNextUseCase(gi()));
+    ..registerFactory(() => CallNextUseCase(gi()))
+    ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
+    ..registerFactory(() => CreateCabinetAppointmentUseCase(gi()))
+    ..registerFactory(() => RescheduleAppointmentUseCase(gi()));
 
   if (includeClinical) {
     gi
@@ -287,9 +290,4 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
         () => ConsultationRepositoryImpl(gi()),
       );
   }
-
-  // pro use cases (available whenever includePro == true)
-  gi
-    ..registerFactory(() => ListWaitingRoomUseCase(gi()))
-    ..registerFactory(() => CallNextUseCase(gi()));
 }

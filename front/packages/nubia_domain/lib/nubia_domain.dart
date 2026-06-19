@@ -119,3 +119,6 @@ export 'src/usecases/secretariats/add_secretariat_use_case.dart';
 export 'src/usecases/cabinet_quotes/list_cabinet_quotes_use_case.dart';
 export 'src/usecases/cabinet_quotes/create_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/update_cabinet_quote_use_case.dart';
+// cabinet appointments pro
+export 'src/usecases/cabinet_appointments/create_cabinet_appointment_use_case.dart';
+export 'src/usecases/cabinet_appointments/reschedule_appointment_use_case.dart';
