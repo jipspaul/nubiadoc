@@ -27,6 +27,10 @@ class NotificationApi {
     await _dio.put<void>('/device-tokens', data: {'token': token, 'platform': 'fcm'});
   }
 
+  Future<void> unregisterDevice(String token) async {
+    await _dio.delete<void>('/devices/$token');
+  }
+
   Future<NotificationPreferencesDto> getPreferences() async {
     final response = await _dio
         .get<Map<String, dynamic>>('/account/notification-preferences');
