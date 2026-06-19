@@ -85,6 +85,7 @@ export 'src/usecases/prescription/create_prescription_use_case.dart';
 export 'src/usecases/prescription/sign_prescription_use_case.dart';
 export 'src/usecases/reviews/get_provider_reviews_use_case.dart';
 export 'src/usecases/reviews/submit_review_use_case.dart';
+export 'src/usecases/notifications/register_device_use_case.dart';
 export 'src/entities/provider_result.dart';
 export 'src/repositories/search_repository.dart';
 export 'src/usecases/search/search_providers_use_case.dart';

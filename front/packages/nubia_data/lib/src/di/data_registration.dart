@@ -109,7 +109,7 @@ void registerData(
           : AppointmentRepositoryImpl(gi()),
     )
     ..registerLazySingleton<AuthRepository>(
-      () => AuthRepositoryImpl(gi(), gi()),
+      () => AuthRepositoryImpl(gi(), gi(), gi()),
     )
     ..registerLazySingleton<BillingRepository>(
       () => BillingRepositoryImpl(gi()),
@@ -189,7 +189,9 @@ void _registerUseCases(GetIt gi) {
     // search
     ..registerFactory(() => SearchProvidersUseCase(gi()))
     ..registerFactory(() => SearchSlotsUseCase(gi()))
-    ..registerFactory(() => HoldSlotUseCase(gi()));
+    ..registerFactory(() => HoldSlotUseCase(gi()))
+    // notifications / devices
+    ..registerFactory(() => RegisterDeviceUseCase(gi()));
 }
 
 void _registerClinical(GetIt gi) {
@@ -284,7 +286,13 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
-    ..registerFactory(() => CallNextUseCase(gi()));
+    ..registerFactory(() => CallNextUseCase(gi()))
+    ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
+    ..registerFactory(() => ListMembersUseCase(gi()))
+    ..registerFactory(() => InviteMemberUseCase(gi()))
+    ..registerFactory(() => UpdateMemberRoleUseCase(gi()))
+    ..registerFactory(() => ListSecretiariatsUseCase(gi()))
+    ..registerFactory(() => AddSecretariatUseCase(gi()));
 
   if (includeClinical) {
     gi
