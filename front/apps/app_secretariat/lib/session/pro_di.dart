@@ -6,6 +6,7 @@ import 'pro_auth_cubit.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
+import '../features/waiting_list/waiting_list_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 
 void registerPro(GetIt gi) {
@@ -27,6 +28,12 @@ void registerPro(GetIt gi) {
     )
     ..registerFactory<PatientsBloc>(
       () => PatientsBloc(listPatients: gi<ListCabinetPatientsUseCase>()),
+    )
+    ..registerFactory<WaitingListBloc>(
+      () => WaitingListBloc(
+        listWaitingList: gi<ListWaitingListUseCase>(),
+        offerSlot: gi<OfferSlotToWaitingPatientUseCase>(),
+      ),
     )
     ..registerFactory<DevisBloc>(
       () => DevisBloc(listQuotes: gi<ListCabinetQuotesUseCase>()),

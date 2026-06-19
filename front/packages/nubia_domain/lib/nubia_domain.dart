@@ -106,6 +106,9 @@ export 'src/usecases/consultation/complete_consultation_use_case.dart';
 // waiting room pro
 export 'src/usecases/waiting_room/list_waiting_room_use_case.dart';
 export 'src/usecases/waiting_room/call_next_use_case.dart';
+// waiting list pro (liste d'attente — offer slot)
+export 'src/usecases/waiting_list/list_waiting_list_use_case.dart';
+export 'src/usecases/waiting_list/offer_slot_use_case.dart';
 // slots pro
 export 'src/usecases/slots/list_bookable_slots_use_case.dart';
 export 'src/usecases/slots/create_slot_use_case.dart';
