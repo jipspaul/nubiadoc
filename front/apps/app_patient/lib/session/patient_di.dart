@@ -13,12 +13,16 @@ import 'auth_cubit.dart';
 
 /// Registers patient-app blocs/cubits on top of registerCore + registerData.
 void registerPatient(GetIt gi) {
+  gi.registerLazySingleton<FcmTokenProvider>(() => const NoopFcmTokenProvider());
+
   gi.registerFactory<AuthCubit>(
     () => AuthCubit(
       login: gi<LoginUseCase>(),
       getMe: gi<GetMeUseCase>(),
       logout: gi<LogoutUseCase>(),
       tokenStorage: gi<TokenStorage>(),
+      registerDevice: gi<RegisterDeviceUseCase>(),
+      fcmTokenProvider: gi<FcmTokenProvider>(),
     ),
   );
 
