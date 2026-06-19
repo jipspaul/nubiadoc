@@ -44,6 +44,11 @@ class ProConfig {
         icon: Icons.chat_bubble_outline,
         route: '/messages',
       ),
+      shell.ProNavDestination(
+        label: 'Membres',
+        icon: Icons.group_outlined,
+        route: '/admin-membres',
+      ),
     ],
   );
 }

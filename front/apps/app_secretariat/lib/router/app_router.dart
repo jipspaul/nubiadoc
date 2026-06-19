@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 
+import '../features/admin_membres/admin_membres_bloc.dart';
+import '../features/admin_membres/admin_membres_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/devis_page.dart';
@@ -24,6 +26,7 @@ class AppRouter {
   static const salleAttente = '/salle-attente';
   static const patients = '/patients';
   static const devis = '/devis';
+  static const adminMembres = '/admin-membres';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -64,6 +67,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<DevisBloc>(),
             child: const DevisPage(),
+          ),
+        ),
+        GoRoute(
+          path: adminMembres,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<AdminMembresBloc>(),
+            child: const AdminMembresPage(),
           ),
         ),
       ],
