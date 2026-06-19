@@ -284,7 +284,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
-    ..registerFactory(() => CallNextUseCase(gi()));
+    ..registerFactory(() => CallNextUseCase(gi()))
+    ..registerFactory(() => ListCabinetQuotesUseCase(gi()));
 
   if (includeClinical) {
     gi
