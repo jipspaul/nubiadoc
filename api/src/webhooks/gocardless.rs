@@ -108,22 +108,16 @@ pub async fn gocardless_webhook(
     // ── 5. Résout cabinet_id + met à jour payment ─────────────────────────────
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Lecture cabinet_id depuis payment (sans RLS — on pose nil le temps de lire).
-    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(Uuid::nil().to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-    let row = sqlx::query(
-        "SELECT id, cabinet_id FROM payment \
-         WHERE provider = 'gocardless' AND provider_ref = $1 \
-         LIMIT 1",
-    )
-    .bind(gc_payment_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    // Lit cabinet_id via la fonction SECURITY DEFINER payment_find_by_provider_ref
+    // (migration 0103), exécutée avec les droits nubia_owner (BYPASSRLS).
+    // Un SELECT direct sur payment serait bloqué par la RLS tenant_isolation car
+    // le webhook arrive sans cabinet_id connu (hors contexte JWT).
+    let row =
+        sqlx::query("SELECT id, cabinet_id FROM payment_find_by_provider_ref('gocardless', $1)")
+            .bind(gc_payment_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
     let Some(row) = row else {
         tracing::warn!(gc_payment_id = %gc_payment_id, "gocardless webhook: no matching payment found");

@@ -4,6 +4,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/agenda/agenda_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
+import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
@@ -38,6 +39,14 @@ void registerPro(GetIt gi) {
       listConversations: gi<ListCabinetConversationsUseCase>(),
       getMessages: gi<GetCabinetConversationUseCase>(),
       sendMessage: gi<SendMessageCabinetUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<ConsultationCliniqueBloc>(
+    () => ConsultationCliniqueBloc(
+      getSession: gi<GetSessionUseCase>(),
+      addAct: gi<AddActUseCase>(),
+      completeSession: gi<CompleteSessionUseCase>(),
     ),
   );
 }
