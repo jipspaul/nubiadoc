@@ -285,23 +285,24 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
   gi
     ..registerFactory(() => GetCabinetAgendaUseCase(gi()))
     ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
+    ..registerFactory(() => CreateCabinetAppointmentUseCase(gi()))
+    ..registerFactory(() => RescheduleAppointmentUseCase(gi()))
     ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
     ..registerFactory(() => CallNextUseCase(gi()))
     ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
-    ..registerFactory(() => ListBookableSlotsUseCase(gi()));
-    ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
-    ..registerFactory(() => CreateCabinetAppointmentUseCase(gi()))
-    ..registerFactory(() => RescheduleAppointmentUseCase(gi()))
+    ..registerFactory(() => ListBookableSlotsUseCase(gi()))
     ..registerFactory(() => ListWaitingListUseCase(gi()))
     ..registerFactory(() => OfferSlotToWaitingPatientUseCase(gi()))
-    ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
     ..registerFactory(() => ListMembersUseCase(gi()))
     ..registerFactory(() => InviteMemberUseCase(gi()))
     ..registerFactory(() => UpdateMemberRoleUseCase(gi()))
     ..registerFactory(() => ListSecretiariatsUseCase(gi()))
-    ..registerFactory(() => AddSecretariatUseCase(gi()));
+    ..registerFactory(() => AddSecretariatUseCase(gi()))
+    ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
+    ..registerFactory(() => GetCabinetConversationUseCase(gi()))
+    ..registerFactory(() => SendMessageCabinetUseCase(gi()));
 
   if (includeClinical) {
     gi
@@ -314,14 +315,4 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       ..registerFactory(() => StartConsultationUseCase(gi()));
   }
 
-  // cabinet messaging use cases
-  gi
-    ..registerFactory(() => GetCabinetAgendaUseCase(gi()))
-    ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
-    ..registerFactory(() => CreateCabinetAppointmentUseCase(gi()))
-    ..registerFactory(() => RescheduleAppointmentUseCase(gi()))
-    ..registerFactory(() => ListBookableSlotsUseCase(gi()))
-    ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
-    ..registerFactory(() => GetCabinetConversationUseCase(gi()))
-    ..registerFactory(() => SendMessageCabinetUseCase(gi()));
 }

@@ -95,8 +95,6 @@ export 'src/usecases/search/hold_slot_use_case.dart';
 export 'src/usecases/agenda/get_cabinet_agenda_use_case.dart';
 export 'src/usecases/agenda/confirm_appointment_use_case.dart';
 export 'src/usecases/agenda/start_consultation_use_case.dart';
-export 'src/usecases/agenda/create_cabinet_appointment_use_case.dart';
-export 'src/usecases/agenda/reschedule_appointment_use_case.dart';
 // cabinet patients pro
 export 'src/usecases/cabinet_patients/list_cabinet_patients_use_case.dart';
 export 'src/usecases/cabinet_patients/get_cabinet_patient_use_case.dart';

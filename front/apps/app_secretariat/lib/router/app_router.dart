@@ -5,13 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 
-import '../features/bookable_slots/bookable_slots_bloc.dart';
-import '../features/bookable_slots/bookable_slots_page.dart';
 import '../features/agenda/agenda_page.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
+import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
+import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/devis_page.dart';
@@ -32,11 +32,11 @@ class AppRouter {
   static const agenda = '/agenda';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
-  static const agenda = '/agenda';
   static const patients = '/patients';
   static const appointments = '/appointments';
   static const listeAttente = '/liste-attente';
   static const devis = '/devis';
+  static const messages = '/messages';
   static const adminMembres = '/admin-membres';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -71,13 +71,6 @@ class AppRouter {
           ),
         ),
         GoRoute(
-          path: agenda,
-          builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<BookableSlotsBloc>(),
-            child: const BookableSlotsPage(),
-          ),
-        ),
-        GoRoute(
           path: patients,
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<PatientsBloc>(),
@@ -103,6 +96,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<DevisBloc>(),
             child: const DevisPage(),
+          ),
+        ),
+        GoRoute(
+          path: messages,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<CabinetMessagingBloc>(),
+            child: const CabinetMessagingPage(),
           ),
         ),
         GoRoute(
