@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 
 import '../network/api_client.dart';
 import '../network/auth_interceptor.dart';
+import '../session/device_registration_service.dart';
 import '../storage/token_storage.dart';
 import '../utils/file_picker_service.dart';
 
@@ -26,5 +27,8 @@ void registerCore(GetIt gi) {
     ..registerLazySingleton<ApiClient>(() => ApiClient(gi()))
     ..registerLazySingleton<FilePickerService>(
       () => const DefaultFilePickerService(),
+    )
+    ..registerLazySingleton<DeviceRegistrationService>(
+      () => DeviceRegistrationService(gi<ApiClient>().dio),
     );
 }

@@ -18,6 +18,9 @@ export 'src/router/router_notifier.dart';
 // Auth session
 export 'src/auth/auth_session.dart';
 
+// Session helpers
+export 'src/session/device_registration_service.dart';
+
 // Utils
 export 'src/utils/document_opener.dart';
 export 'src/utils/file_picker_service.dart';

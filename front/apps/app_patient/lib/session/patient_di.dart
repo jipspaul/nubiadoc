@@ -19,6 +19,7 @@ void registerPatient(GetIt gi) {
       getMe: gi<GetMeUseCase>(),
       logout: gi<LogoutUseCase>(),
       tokenStorage: gi<TokenStorage>(),
+      deviceRegistration: gi<DeviceRegistrationService>(),
     ),
   );
 
