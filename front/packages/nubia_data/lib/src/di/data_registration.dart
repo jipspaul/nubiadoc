@@ -271,6 +271,11 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       () => CabinetQuotesRepositoryImpl(gi()),
     );
 
+  // Pro use cases (non-clinical — available to both praticien and secrétariat)
+  gi
+    ..registerFactory(() => ListWaitingRoomUseCase(gi()))
+    ..registerFactory(() => CallNextUseCase(gi()));
+
   if (includeClinical) {
     gi
       ..registerLazySingleton<ConsultationApi>(
