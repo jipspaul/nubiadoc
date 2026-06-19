@@ -23,8 +23,18 @@ class NotificationApi {
     await _dio.post<void>('/notifications/read-all');
   }
 
-  Future<void> registerFcmToken(String token) async {
-    await _dio.put<void>('/device-tokens', data: {'token': token, 'platform': 'fcm'});
+  Future<void> registerDevice({
+    required String fcmToken,
+    required String platform,
+  }) async {
+    await _dio.post<void>(
+      '/devices',
+      data: {'fcm_token': fcmToken, 'platform': platform},
+    );
+  }
+
+  Future<void> unregisterDevice(String token) async {
+    await _dio.delete<void>('/devices/$token');
   }
 
   Future<NotificationPreferencesDto> getPreferences() async {
