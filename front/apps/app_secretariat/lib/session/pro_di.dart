@@ -12,6 +12,7 @@ import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
+
 void registerPro(GetIt gi) {
   gi
     ..registerFactory<ProAuthCubit>(
