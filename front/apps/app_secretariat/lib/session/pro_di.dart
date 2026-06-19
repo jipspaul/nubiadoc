@@ -3,6 +3,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'pro_auth_cubit.dart';
+import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
@@ -32,5 +33,8 @@ void registerPro(GetIt gi) {
         listWaitingList: gi<ListWaitingListUseCase>(),
         offerSlot: gi<OfferSlotToWaitingPatientUseCase>(),
       ),
+    )
+    ..registerFactory<DevisBloc>(
+      () => DevisBloc(listQuotes: gi<ListCabinetQuotesUseCase>()),
     );
 }
