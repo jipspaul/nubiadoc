@@ -27,6 +27,7 @@ dependencies:
     path: ../../packages/nubia_data
   nubia_a2ui:
     path: ../../packages/nubia_a2ui
+  firebase_messaging: ^15.2.0
 
 dev_dependencies:
   flutter_test:

@@ -75,10 +75,8 @@ dart analyze .                          # whole workspace (currently: no issues)
 cd packages/nubia_a2ui && flutter test  # catalog↔registry parity + binding
 ```
 
-## Relationship to `app/`
+## Historique
 
-The shared packages were extracted from the original single patient app at `../app`,
-which stays intact as the **reference** and as the source to port remaining patient
-**feature screens** (appointments, messaging, documents, financial wedge, …) from
-`app/lib/presentation/features/` into `apps/app_patient/lib/features/`. Retire `app/`
-once `app_patient` reaches feature parity.
+Les packages partagés ont été extraits de l'ancienne app patient `../app/`. Cette app
+de référence a été supprimée (FR1.9) une fois la parité atteinte : toutes les
+features patient (FR1.1 → FR1.8) vivent désormais dans `apps/app_patient/`.

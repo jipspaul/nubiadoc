@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import 'features/notifications/notification_deep_link_handler.dart';
 import 'router/app_router.dart';
 import 'session/auth_cubit.dart';
 
@@ -18,6 +19,7 @@ class _NubiaPatientAppState extends State<NubiaPatientApp> {
   late final AuthCubit _auth;
   late final RouterNotifier _notifier;
   late final GoRouter _router;
+  late final NotificationDeepLinkHandler _deepLinkHandler;
 
   @override
   void initState() {
@@ -34,10 +36,13 @@ class _NubiaPatientAppState extends State<NubiaPatientApp> {
     });
     _auth.restore();
     _router = AppRouter.create(_notifier);
+    _deepLinkHandler = NotificationDeepLinkHandler(_router);
+    _deepLinkHandler.init();
   }
 
   @override
   void dispose() {
+    _deepLinkHandler.dispose();
     _auth.close();
     _notifier.dispose();
     super.dispose();
