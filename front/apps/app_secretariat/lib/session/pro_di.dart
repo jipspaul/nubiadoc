@@ -4,9 +4,10 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'pro_auth_cubit.dart';
 import '../features/agenda/agenda_bloc.dart';
-import '../features/bookable_slots/bookable_slots_bloc.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/appointments/appointments_bloc.dart';
+import '../features/bookable_slots/bookable_slots_bloc.dart';
+import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
@@ -66,6 +67,13 @@ void registerPro(GetIt gi) {
         create: gi<CreateCabinetAppointmentUseCase>(),
         confirm: gi<ConfirmAppointmentUseCase>(),
         reschedule: gi<RescheduleAppointmentUseCase>(),
+      ),
+    )
+    ..registerFactory<CabinetMessagingBloc>(
+      () => CabinetMessagingBloc(
+        listConversations: gi<ListCabinetConversationsUseCase>(),
+        getMessages: gi<GetCabinetConversationUseCase>(),
+        sendMessage: gi<SendMessageCabinetUseCase>(),
       ),
     );
 }
