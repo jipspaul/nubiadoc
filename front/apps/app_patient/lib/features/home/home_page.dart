@@ -116,7 +116,9 @@ class _HomeContent extends StatelessWidget {
             s.pendingPaymentsCents == 0)
           const NubiaEmptyState(
             key: Key('home_empty'),
-            message: 'Tout est à jour — aucune action en attente.',
+            icon: Icons.check_circle_outline,
+            title: 'Tout est à jour',
+            subtitle: 'Aucune action en attente.',
           ),
       ],
     );

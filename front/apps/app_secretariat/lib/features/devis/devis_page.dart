@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
@@ -24,10 +26,10 @@ class _DevisPageState extends State<DevisPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Devis'),
+        title: Text(NubiaL10n.quotes),
         actions: [
           IconButton(
-            tooltip: 'Actualiser',
+            tooltip: NubiaL10n.refresh,
             icon: const Icon(Icons.refresh),
             onPressed: () =>
                 context.read<DevisBloc>().add(const DevisLoadRequested()),
@@ -39,7 +41,11 @@ class _DevisPageState extends State<DevisPage> {
           if (state is DevisLoaded) {
             final quotes = state.quotes;
             if (quotes.isEmpty) {
-              return const Center(child: Text('Aucun devis enregistré.'));
+              return const NubiaEmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: 'Aucun devis',
+                subtitle: NubiaL10n.noQuotes,
+              );
             }
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -48,14 +54,13 @@ class _DevisPageState extends State<DevisPage> {
             );
           }
           if (state is DevisError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () =>
+                  context.read<DevisBloc>().add(const DevisLoadRequested()),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          return const _LoadingView();
         },
       ),
     );
@@ -115,6 +120,22 @@ class _DevisTile extends StatelessWidget {
         ),
         backgroundColor: _statusColor(quote.status),
         padding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      itemCount: 5,
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: NubiaSkeletonLoader(height: 72),
       ),
     );
   }
