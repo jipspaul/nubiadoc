@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'patients_bloc.dart';
@@ -24,10 +26,10 @@ class _PatientsPageState extends State<PatientsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Patients'),
+        title: Text(NubiaL10n.patients),
         actions: [
           IconButton(
-            tooltip: 'Actualiser',
+            tooltip: NubiaL10n.refresh,
             icon: const Icon(Icons.refresh),
             onPressed: () =>
                 context.read<PatientsBloc>().add(const PatientsLoadRequested()),
@@ -39,7 +41,11 @@ class _PatientsPageState extends State<PatientsPage> {
           if (state is PatientsLoaded) {
             final patients = state.patients;
             if (patients.isEmpty) {
-              return const Center(child: Text('Aucun patient enregistré.'));
+              return const NubiaEmptyState(
+                icon: Icons.person_outline,
+                title: 'Aucun patient',
+                subtitle: NubiaL10n.noPatients,
+              );
             }
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -48,14 +54,14 @@ class _PatientsPageState extends State<PatientsPage> {
             );
           }
           if (state is PatientsError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<PatientsBloc>()
+                  .add(const PatientsLoadRequested()),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          return const _LoadingView();
         },
       ),
     );
@@ -79,6 +85,22 @@ class _PatientTile extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             )
           : null,
+    );
+  }
+}
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      itemCount: 5,
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: NubiaSkeletonLoader(height: 72),
+      ),
     );
   }
 }

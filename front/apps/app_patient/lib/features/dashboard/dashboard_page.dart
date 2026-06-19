@@ -69,8 +69,9 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         _ => Center(
             child: NubiaEmptyState(
-              message: '${_tabs[_index].label} — écran à porter depuis app/ '
-                  '(référence patient).',
+              icon: Icons.construction_outlined,
+              title: _tabs[_index].label,
+              subtitle: 'Écran en cours de développement.',
             ),
           ),
       },

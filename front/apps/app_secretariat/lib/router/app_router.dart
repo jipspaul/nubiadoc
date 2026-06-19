@@ -10,6 +10,8 @@ import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
+import '../features/bookable_slots/bookable_slots_bloc.dart';
+import '../features/bookable_slots/bookable_slots_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/dashboard/dashboard_page.dart';
@@ -32,6 +34,7 @@ class AppRouter {
   static const agenda = '/agenda';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
+  static const bookableSlots = '/bookable-slots';
   static const patients = '/patients';
   static const appointments = '/appointments';
   static const listeAttente = '/liste-attente';
@@ -68,6 +71,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<WaitingRoomBloc>(),
             child: const WaitingRoomPage(),
+          ),
+        ),
+        GoRoute(
+          path: bookableSlots,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<BookableSlotsBloc>(),
+            child: const BookableSlotsPage(),
           ),
         ),
         GoRoute(
