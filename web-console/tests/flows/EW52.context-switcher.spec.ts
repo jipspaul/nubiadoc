@@ -4,29 +4,28 @@
  * Valide W52.d :
  *   1. User mono-contexte (patient) → le bouton ContextSwitcher est absent du DOM
  *   2. User multi-contexte (secrétaire) → bouton visible, clic ouvre le dropdown,
- *      sélection d'un contexte intercepte POST /api/select-context (page.route)
- *      et la page se recharge vers /secretary/dashboard
- *   3. Après le switch, le contexte actif affiché dans le header correspond au
- *      contexte sélectionné (label non vide dans .ctx-switcher__label)
+ *      sélection d'un contexte intercepte POST /v1/auth/select-context (page.route)
+ *      et la page se recharge
+ *   3. Après le switch, le ContextSwitcher est toujours rendu dans le header
+ *      avec un label non vide
  *
- * ContextSwitcher.astro soumet un <form method="POST" action="/api/select-context">
- * (BFF Astro) — c'est ce endpoint navigateur que page.route intercepte.
- * L'appel backend (/v1/auth/select-context) est fait côté serveur Astro et
- * n'est pas interceptable par page.route ; le mock retourne donc un 303 redirect.
+ * ContextSwitcher.tsx (Preact, client:load dans AppShell) appelle directement
+ * POST /v1/auth/select-context via apiFetch — c'est cet appel que page.route
+ * intercepte. Le mock retourne un 200 JSON { access_token } pour éviter toute
+ * mutation côté backend. Le JWT réel (obtenu via loginAs) est réutilisé comme
+ * access_token factice afin que la page reste valide après window.location.reload().
  *
  * Prérequis : dev-stack actif sur FLOWS_BASE_URL (défaut :38040) avec seed P2.
  *
  * Variables d'environnement :
  *   FLOWS_BASE_URL        URL de l'app web (défaut http://localhost:38040)
  *   SEED_CABINET_ID       UUID cabinet demo (défaut 00000000-0000-0000-0000-000000000100)
- *   SEED_SECRETARIAT_B_ID UUID secrétariat B (défaut 00000000-0000-0000-0000-000000000202)
  */
 
 import { test, expect } from '@playwright/test';
 import { loginAs, clearSession } from './helpers';
 
-const CABINET_ID       = process.env.SEED_CABINET_ID       ?? '00000000-0000-0000-0000-000000000100';
-const SECRETARIAT_B_ID = process.env.SEED_SECRETARIAT_B_ID ?? '00000000-0000-0000-0000-000000000202';
+const CABINET_ID = process.env.SEED_CABINET_ID ?? '00000000-0000-0000-0000-000000000100';
 
 test.afterEach(async ({ page }) => {
   await clearSession(page);
@@ -40,8 +39,10 @@ test('user mono-contexte (patient) → ContextSwitcher absent du DOM', async ({ 
 
   await page.waitForURL((u) => u.pathname.startsWith('/patient'), { timeout: 8_000 });
 
-  // Le ContextSwitcher ne se rend que si hasMultiple=true (contexts.length > 1).
-  // Un patient n'a aucun membership professionnel → composant absent.
+  // Le ContextSwitcher.tsx retourne null si contexts.length <= 1.
+  // Un patient n'a aucun membership professionnel → GET /v1/me retourne 0 contextes.
+  // Attendre la fin des appels réseau (incluant getMe()) avant d'asserter l'absence.
+  await page.waitForLoadState('networkidle', { timeout: 8_000 });
   await expect(
     page.locator('.ctx-switcher'),
     'Patient mono-contexte : le ContextSwitcher ne doit pas être rendu',
@@ -51,26 +52,12 @@ test('user mono-contexte (patient) → ContextSwitcher absent du DOM', async ({ 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scénario 2 : user multi-contexte → bouton visible, dropdown, POST mocké
 // ─────────────────────────────────────────────────────────────────────────────
-test('secrétaire multi-contexte : switcher visible → clic ouvre dropdown → POST /api/select-context intercepté → page recharge', async ({ page }) => {
-  // ── Intercepter le POST navigateur vers le BFF /api/select-context ────────
-  // ContextSwitcher.astro soumet un <form action="/api/select-context"> — c'est
-  // la requête browser qu'on intercepte ici (pas l'appel server→backend).
-  let interceptedBody = '';
-  await page.route('**/api/select-context', async (route) => {
-    if (route.request().method() === 'POST') {
-      interceptedBody = route.request().postData() ?? '';
-      await route.fulfill({
-        status:  303,
-        headers: { Location: '/secretary/dashboard' },
-      });
-    } else {
-      await route.continue();
-    }
-  });
+test('secrétaire multi-contexte : switcher visible → clic ouvre dropdown → POST /v1/auth/select-context intercepté → page recharge', async ({ page }) => {
+  // ── Connexion secrétaire ─────────────────────────────────────────────────
+  const realToken = await loginAs(page, 'secretary');
 
-  await loginAs(page, 'secretary');
-
-  // Passer l'éventuelle page select-context initiale
+  // Passer l'éventuelle page select-context initiale (Astro form vers /api/select-context,
+  // non affecté par notre route mock ciblant /v1/auth/select-context)
   await page.waitForURL(
     (u) => u.pathname === '/auth/select-context' || u.pathname.startsWith('/secretary'),
     { timeout: 10_000 },
@@ -80,73 +67,63 @@ test('secrétaire multi-contexte : switcher visible → clic ouvre dropdown → 
     await page.waitForURL((u) => u.pathname.startsWith('/secretary'), { timeout: 8_000 });
   }
 
-  // ── Le switcher est visible pour un user multi-contexte ──────────────────
+  // ── Intercepter POST /v1/auth/select-context (appel direct du composant TSX) ──
+  // ContextSwitcher.tsx → selectContext() → apiFetch('/v1/auth/select-context')
+  // Le mock retourne le JWT réel (inchangé) pour maintenir une session valide après reload.
+  let interceptedBody = '';
+  await page.route('**/v1/auth/select-context', async (route) => {
+    if (route.request().method() === 'POST') {
+      interceptedBody = route.request().postData() ?? '';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ access_token: realToken }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // ── Le switcher est visible une fois getMe() complété (secrétaire multi-contexte) ──
   await expect(
     page.locator('.ctx-switcher'),
     'Switcher visible en multi-contexte',
-  ).toHaveCount(1);
+  ).toHaveCount(1, { timeout: 8_000 });
 
-  // ── Clic sur le trigger → dropdown ouvert ────────────────────────────────
-  await page.locator('summary.ctx-switcher__trigger').click();
+  // ── Clic sur le trigger (button) → dropdown ouvert ────────────────────────
+  await page.locator('button.ctx-switcher__trigger').click();
   await expect(
     page.locator('ul.ctx-switcher__list'),
     'Liste des contextes visible après clic sur trigger',
   ).toBeVisible();
 
-  // ── Soumettre le form du contexte B → POST intercepté ────────────────────
-  const formB = page.locator(`ul.ctx-switcher__list form:has(input[name="secretariat_id"][value="${SECRETARIAT_B_ID}"])`);
-  await expect(formB, 'Form du secrétariat B présent dans la liste').toHaveCount(1);
+  // ── Clic sur la première option non-active → POST intercepté + reload ─────
+  const nonActiveOption = page
+    .locator('button.ctx-switcher__option:not(.ctx-switcher__option--current)')
+    .first();
+  await expect(nonActiveOption, 'Au moins une option non-active doit exister').toHaveCount(1);
 
-  const navigationPromise = page.waitForURL(
-    (u) => u.pathname === '/secretary/dashboard',
-    { timeout: 10_000 },
-  );
-  await formB.locator('button[type="submit"]').click();
-  await navigationPromise;
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10_000 }),
+    nonActiveOption.click(),
+  ]);
 
-  // ── Vérifier que le body du form contenait bien le secretariat_id B ────────
-  // Le form envoie des données URL-encodées (application/x-www-form-urlencoded).
+  // ── Vérifier que le corps du POST contenait bien le cabinet_id ────────────
+  expect(interceptedBody, 'Le corps du POST doit être non vide').toBeTruthy();
+  const parsedBody = JSON.parse(interceptedBody) as { cabinet_id?: string; secretariat_id?: string };
   expect(
-    interceptedBody,
-    'POST /api/select-context doit porter le secretariat_id B',
-  ).toContain(SECRETARIAT_B_ID);
-  expect(
-    interceptedBody,
-    'POST doit porter le cabinet_id',
-  ).toContain(CABINET_ID);
+    parsedBody.cabinet_id,
+    'POST /v1/auth/select-context doit porter le cabinet_id correct',
+  ).toBe(CABINET_ID);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scénario 3 : après context switch, le label dans le header correspond au
-// contexte sélectionné
+// Scénario 3 : après context switch, le ContextSwitcher est rendu et le label
+// dans le header est non vide
 // ─────────────────────────────────────────────────────────────────────────────
-test('après context switch, le contexte actif dans le header correspond au contexte sélectionné', async ({ page }) => {
-  // ── Intercepter le POST navigateur vers le BFF /api/select-context ────────
-  await page.route('**/api/select-context', async (route) => {
-    if (route.request().method() === 'POST') {
-      // Mettre à jour nubia_ctx pour refléter le nouveau contexte (secrétariat B).
-      // Le nubia_jwt existant (JWT réel) reste inchangé → l'AppShell SSR peut
-      // appeler GET /v1/me avec succès et afficher le bon label après redirection.
-      const hostname = new URL(page.url()).hostname;
-      await page.context().addCookies([{
-        name:     'nubia_ctx',
-        value:    `${CABINET_ID}|secretary|${SECRETARIAT_B_ID}`,
-        domain:   hostname,
-        path:     '/',
-        httpOnly: false,
-        secure:   false,
-        sameSite: 'Strict',
-      }]);
-      await route.fulfill({
-        status:  303,
-        headers: { Location: '/secretary/dashboard' },
-      });
-    } else {
-      await route.continue();
-    }
-  });
-
-  await loginAs(page, 'secretary');
+test('après context switch, le ContextSwitcher est rendu et le label est non vide', async ({ page }) => {
+  // ── Connexion secrétaire ─────────────────────────────────────────────────
+  const realToken = await loginAs(page, 'secretary');
 
   await page.waitForURL(
     (u) => u.pathname === '/auth/select-context' || u.pathname.startsWith('/secretary'),
@@ -157,29 +134,48 @@ test('après context switch, le contexte actif dans le header correspond au cont
     await page.waitForURL((u) => u.pathname.startsWith('/secretary'), { timeout: 8_000 });
   }
 
-  // ── Capturer le label du contexte actuel (secrétariat A) ─────────────────
+  // ── Intercepter POST /v1/auth/select-context ──────────────────────────────
+  // Le mock retourne le JWT réel → après reload, getMe() avec le même token
+  // retourne les mêmes contextes → le switcher reste affiché.
+  await page.route('**/v1/auth/select-context', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ access_token: realToken }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // ── Attendre que le switcher soit visible ─────────────────────────────────
+  await expect(page.locator('.ctx-switcher')).toHaveCount(1, { timeout: 8_000 });
+
+  // ── Capturer le label du contexte actuel avant le switch ──────────────────
   const labelBefore = await page.locator('.ctx-switcher__label').textContent();
   expect(labelBefore, 'Label du switcher doit être non vide avant le switch').toBeTruthy();
 
-  // ── Switcher vers le secrétariat B ────────────────────────────────────────
-  await page.locator('summary.ctx-switcher__trigger').click();
-  const formB = page.locator(`ul.ctx-switcher__list form:has(input[name="secretariat_id"][value="${SECRETARIAT_B_ID}"])`);
+  // ── Déclencher le switch ──────────────────────────────────────────────────
+  await page.locator('button.ctx-switcher__trigger').click();
+  const nonActiveOption = page
+    .locator('button.ctx-switcher__option:not(.ctx-switcher__option--current)')
+    .first();
+  await expect(nonActiveOption).toHaveCount(1);
 
-  const navPromise = page.waitForURL(
-    (u) => u.pathname === '/secretary/dashboard',
-    { timeout: 10_000 },
-  );
-  await formB.locator('button[type="submit"]').click();
-  await navPromise;
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10_000 }),
+    nonActiveOption.click(),
+  ]);
 
-  // ── Vérifier le label après switch ───────────────────────────────────────
-  // Le mock a mis à jour nubia_ctx → secrétariat B actif. L'AppShell SSR utilise
-  // le JWT réel pour GET /v1/me → switcher affiché avec le label du secrétariat B.
-  const labelAfter = await page.locator('.ctx-switcher__label').textContent();
-  expect(labelAfter, 'Le label du switcher doit être non vide après context switch').toBeTruthy();
-
+  // ── Vérifier le ContextSwitcher après switch ──────────────────────────────
+  // Le mock a retourné le JWT réel → session toujours valide → getMe() → même
+  // liste de contextes → switcher toujours rendu avec un label non vide.
   await expect(
     page.locator('.ctx-switcher'),
     'Le ContextSwitcher doit toujours être rendu après le switch',
-  ).toHaveCount(1);
+  ).toHaveCount(1, { timeout: 8_000 });
+
+  const labelAfter = await page.locator('.ctx-switcher__label').textContent();
+  expect(labelAfter, 'Le label du switcher doit être non vide après context switch').toBeTruthy();
 });
