@@ -25,6 +25,11 @@ class ProConfig {
         route: '/agenda',
       ),
       shell.ProNavDestination(
+        label: 'Salle d\'attente',
+        icon: Icons.event_seat_outlined,
+        route: '/waiting-room',
+      ),
+      shell.ProNavDestination(
         label: 'Patients',
         icon: Icons.groups_outlined,
         route: '/patients',
