@@ -1,0 +1,62 @@
+# front-test — CI Forgejo pour le workspace Flutter front/ (Melos 7 embarqué).
+# Déclenché uniquement sur les PRs ciblant main.
+# Le nom du job `front-test` est utilisé comme required status check sur main
+# (voir scripts/setup-branch-protection.sh).
+#
+# Layout: front/ = workspace pub natif (pubspec.yaml `workspace:`) avec 3 apps
+# (app_patient, app_practicien, app_secretariat) + packages partagés.
+# Config Melos INLINE dans front/pubspec.yaml (Melos 7 abandonne melos.yaml).
+#
+# Pourquoi on installe Melos globalement : `melos test` appelle
+# `melos exec -- flutter test` via `/bin/sh eval`, qui nécessite le binaire
+# `melos` sur PATH. La dev_dependency du workspace le rend accessible via
+# `dart run melos` seulement — OK pour l'appel outer, cassé dans le shell exec.
+# `dart pub global activate melos` pose le binaire dans $PUB_CACHE/bin.
+#
+# Pourquoi PUB_CACHE est résolu au runtime : l'image flutter-ci:stable bake
+# PUB_CACHE=/workspace/.pub-cache. On ne peut pas l'écraser de façon fiable
+# via un `env:` au niveau job. On lit ce que l'image a fixé et on prepend à PATH.
+on:
+  pull_request:
+    branches: [main]
+
+# Annule les runs en cours quand de nouveaux commits poussés sur la même PR/branche.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  front-test:
+    runs-on: docker
+    container:
+      image: flutter-ci:stable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        working-directory: front
+        run: |
+          echo "PUB_CACHE=${PUB_CACHE:-(unset, falls back to \$HOME/.pub-cache)}"
+          echo "HOME=$HOME"
+          which dart && dart --version
+          which flutter && flutter --version | head -1
+      - name: Install Melos + extend PATH (persisted for next steps)
+        working-directory: front
+        run: |
+          dart pub global activate melos
+          BIN_DIR="${PUB_CACHE:-$HOME/.pub-cache}/bin"
+          echo "Melos installed at: $BIN_DIR/melos"
+          ls -la "$BIN_DIR/melos"
+          echo "$BIN_DIR" >> $GITHUB_PATH
+      - name: Pub get (workspace root resolves all members)
+        working-directory: front
+        run: flutter pub get
+      - name: Analyze (melos)
+        working-directory: front
+        run: |
+          export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
+          melos analyze
+      - name: Test (melos — packages with test/ dir)
+        working-directory: front
+        run: |
+          export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
+          melos test --no-select

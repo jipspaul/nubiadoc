@@ -12,7 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use nubia_api::{app, AppState, StubMailer};
+use nubia_api::{app, app_with_dispatcher, AppState, StorageSigner, StubJobDispatcher, StubMailer};
 
 const JWT_SECRET: &str = "test-jwt-secret-documents";
 
@@ -168,6 +168,343 @@ async fn documents_happy_path_returns_document() {
     assert!(
         v["page"]["next_cursor"].is_null(),
         "next_cursor doit être null"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM document WHERE id = $1")
+            .bind(doc_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test : GET /v1/documents/:id/download sans token → 401 ───────────────────
+
+#[tokio::test]
+async fn download_no_auth_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/documents/{}/download", Uuid::new_v4()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test : patient A authentifié essaie de télécharger le document de patient B → 404 ──
+
+#[tokio::test]
+async fn download_wrong_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_a_id = Uuid::new_v4();
+    let account_a_id = Uuid::new_v4();
+    let user_b_id = Uuid::new_v4();
+    let account_b_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_b_id = Uuid::new_v4();
+    let doc_b_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_a_id)
+    .bind(format!("dl-cross-a+{}@nubia.test", user_a_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_b_id)
+    .bind(format!("dl-cross-b+{}@nubia.test", user_b_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'Alice', 'Cross')",
+    )
+    .bind(account_a_id)
+    .bind(user_a_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'Bob', 'Cross')",
+    )
+    .bind(account_b_id)
+    .bind(user_b_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Cross {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Bob', 'Cross', $3)",
+        )
+        .bind(patient_b_id)
+        .bind(cabinet_id)
+        .bind(account_b_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
+             VALUES ($1, $2, $3, 'ordonnance', 'key/cross', 'cross.pdf', 'application/pdf', $4)",
+        )
+        .bind(doc_b_id)
+        .bind(cabinet_id)
+        .bind(patient_b_id)
+        .bind("b".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Patient A essaie de télécharger le document de patient B → RLS → 404 (anti-énumération)
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/documents/{}/download", doc_b_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_a_id, account_a_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "patient A ne doit pas voir le document de patient B (anti-énumération : 404)"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM document WHERE id = $1")
+            .bind(doc_b_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_b_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    for uid in [user_a_id, user_b_id] {
+        sqlx::query("DELETE FROM app_user WHERE id = $1")
+            .bind(uid)
+            .execute(&db)
+            .await
+            .ok();
+    }
+}
+
+// ── Test : signer retourne None (TTL expiré / presigner indisponible) → 410 ───
+
+struct ExpiredStorageSigner;
+
+impl StorageSigner for ExpiredStorageSigner {
+    fn sign(&self, _storage_key: &str) -> Option<String> {
+        None
+    }
+}
+
+#[tokio::test]
+async fn download_signer_expired_returns_410() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("dl-exp+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'Alice', 'Exp')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Exp {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Alice', 'Exp', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
+             VALUES ($1, $2, $3, 'ordonnance', 'key/exp', 'exp.pdf', 'application/pdf', $4)",
+        )
+        .bind(doc_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("c".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Signer retournant None — simule un presigner expiré ou indisponible.
+    let response = app_with_dispatcher(
+        state,
+        Arc::new(StubJobDispatcher),
+        Arc::new(ExpiredStorageSigner),
+    )
+    .oneshot(
+        Request::builder()
+            .method("GET")
+            .uri(format!("/v1/documents/{}/download", doc_id))
+            .header(
+                "Authorization",
+                format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+            )
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::GONE,
+        "signer indisponible doit retourner 410 link_expired"
     );
 
     // Cleanup
@@ -390,6 +727,153 @@ async fn documents_upload_invalid_category_returns_422() {
     assert_eq!(v["code"], "validation_error");
 }
 
+fn make_pro_jwt(user_id: Uuid, cabinet_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    // account_id inclus pour que PatientAccountClaims tente de désérialiser ; kind:"pro" déclenche 403.
+    encode(
+        &Header::default(),
+        &json!({"sub": user_id, "kind": "pro", "cabinet_id": cabinet_id, "role": "admin",
+                "account_id": Uuid::nil(), "exp": exp}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+// ── Test : sans Authorization → 401 ──────────────────────────────────────────
+
+#[tokio::test]
+async fn documents_list_no_auth_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/documents")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test : token pro (kind:"pro") → 403 ──────────────────────────────────────
+
+#[tokio::test]
+async fn documents_list_pro_token_returns_403() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/documents")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_jwt(Uuid::new_v4(), Uuid::new_v4())),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Test : ?patient_account sans tutelle active → 403 ────────────────────────
+
+#[tokio::test]
+async fn documents_list_guardian_no_guardianship_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("docs-guardian+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Tuteur', 'Test')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // UUID tiers quelconque — aucune relation account_guardianship.
+    let other_account_id = Uuid::new_v4();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/documents?patient_account={other_account_id}"))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::FORBIDDEN,
+        "tutelle inexistante doit retourner 403"
+    );
+
+    // Cleanup
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 2 : catégorie inconnue → 200 liste vide ───────────────────────────────
 
 #[tokio::test]
@@ -440,4 +924,210 @@ async fn documents_unknown_category_returns_empty() {
         v["page"]["next_cursor"].is_null(),
         "next_cursor doit être null"
     );
+}
+
+// ── Test : pagination cursor-based — 2 documents, limit=1 ───────────────────
+
+#[tokio::test]
+async fn documents_list_pagination_cursor_works() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let doc1_id = Uuid::new_v4();
+    let doc2_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("docs-page+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'Page', 'Test')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Page {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Page', 'Test', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Plus récent (sera retourné en premier, ORDER BY created_at DESC)
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256, created_at) \
+             VALUES ($1, $2, $3, 'radio', 'key/pg1', 'radio1.pdf', 'application/pdf', $4, \
+                     '2025-06-01 12:00:00+00')",
+        )
+        .bind(doc1_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("d".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Plus ancien (sera retourné en second)
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256, created_at) \
+             VALUES ($1, $2, $3, 'radio', 'key/pg2', 'radio2.pdf', 'application/pdf', $4, \
+                     '2025-06-01 10:00:00+00')",
+        )
+        .bind(doc2_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("e".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let db_pool = app_pool().await;
+    let jwt = make_patient_jwt(user_id, account_id);
+
+    // Page 1 : limit=1 → doc1_id (le plus récent) + next_cursor présent
+    let resp1 = app(AppState {
+        db: db_pool.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    })
+    .oneshot(
+        Request::builder()
+            .method("GET")
+            .uri("/v1/documents?limit=1")
+            .header("Authorization", format!("Bearer {jwt}"))
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(resp1.status(), StatusCode::OK);
+    let body1 = axum::body::to_bytes(resp1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&body1).unwrap();
+    assert_eq!(
+        v1["data"].as_array().unwrap().len(),
+        1,
+        "page 1 doit contenir 1 document"
+    );
+    assert_eq!(
+        v1["data"][0]["id"],
+        doc1_id.to_string(),
+        "page 1 doit contenir le doc le plus récent"
+    );
+    let cursor = v1["page"]["next_cursor"]
+        .as_str()
+        .expect("next_cursor doit être présent en page 1")
+        .to_owned();
+
+    // Page 2 : cursor → doc2_id + next_cursor null
+    let resp2 = app(AppState {
+        db: db_pool.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    })
+    .oneshot(
+        Request::builder()
+            .method("GET")
+            .uri(format!("/v1/documents?limit=1&cursor={cursor}"))
+            .header("Authorization", format!("Bearer {jwt}"))
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(resp2.status(), StatusCode::OK);
+    let body2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
+    assert_eq!(
+        v2["data"].as_array().unwrap().len(),
+        1,
+        "page 2 doit contenir 1 document"
+    );
+    assert_eq!(
+        v2["data"][0]["id"],
+        doc2_id.to_string(),
+        "page 2 doit contenir le doc le plus ancien"
+    );
+    assert!(
+        v2["page"]["next_cursor"].is_null(),
+        "next_cursor doit être null en page 2"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for doc_id in [doc1_id, doc2_id] {
+            sqlx::query("DELETE FROM document WHERE id = $1")
+                .bind(doc_id)
+                .execute(&mut *tx)
+                .await
+                .ok();
+        }
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
 }

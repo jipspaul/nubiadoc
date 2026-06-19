@@ -143,6 +143,92 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid, prac_id: Uuid)
     tx.commit().await.ok();
 }
 
+fn make_pro_jwt_callback(user_id: Uuid, cabinet_id: Uuid) -> String {
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &json!({"sub": user_id, "kind": "pro", "cabinet_id": cabinet_id, "role": "admin",
+                "account_id": Uuid::nil(), "exp": exp}),
+        &jsonwebtoken::EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+// ── Test auth scope : sans JWT → 401 ────────────────────────────────────────
+
+#[tokio::test]
+async fn post_callback_request_no_jwt_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/appointments/{}/callback-request",
+                    Uuid::new_v4()
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test auth scope : token pro → 403 ───────────────────────────────────────
+
+#[tokio::test]
+async fn post_callback_request_pro_token_returns_403() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/appointments/{}/callback-request",
+                    Uuid::new_v4()
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt_callback(Uuid::new_v4(), Uuid::new_v4())
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
 // ── Test 1 : happy path → 200 {"appointment_id","callback_requested_at"} ─────
 
 #[tokio::test]

@@ -211,7 +211,7 @@ pub async fn get_treatment_plan(
 
     // Fetch the plan header (RLS ensures it belongs to this patient or returns nothing).
     let plan_row = sqlx::query(
-        "SELECT tp.id, tp.title, tp.status \
+        "SELECT tp.id, tp.cabinet_id, tp.title, tp.status \
          FROM treatment_plan tp \
          WHERE tp.id = $1 AND tp.deleted_at IS NULL",
     )
@@ -222,8 +222,18 @@ pub async fn get_treatment_plan(
     .ok_or(AppError::NotFound)?;
 
     let plan_id: Uuid = plan_row.try_get("id").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = plan_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
     let plan_title: String = plan_row.try_get("title").map_err(|_| AppError::Internal)?;
     let plan_status: String = plan_row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet — RLS treatment_phase / quote_item uses app.current_cabinet_id.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     // Fetch phases ordered by position.
     let phase_rows = sqlx::query(

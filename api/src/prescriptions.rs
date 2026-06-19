@@ -32,6 +32,7 @@ pub struct PrescriptionItemInput {
 /// Body de `POST /v1/cabinet/prescriptions`.
 #[derive(Deserialize)]
 pub struct CreatePrescriptionBody {
+    pub consultation_id: Option<Uuid>,
     pub patient_id: Uuid,
     pub items: Vec<PrescriptionItemInput>,
 }
@@ -82,13 +83,14 @@ pub async fn create_prescription(
 
     // Insère la prescription (statut draft).
     let presc_row = sqlx::query(
-        "INSERT INTO prescription (cabinet_id, patient_id, practitioner_id, status) \
-         VALUES ($1, $2, $3, 'draft') \
+        "INSERT INTO prescription (cabinet_id, patient_id, practitioner_id, consultation_id, status) \
+         VALUES ($1, $2, $3, $4, 'draft') \
          RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(body.patient_id)
     .bind(practitioner_id)
+    .bind(body.consultation_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -288,5 +290,112 @@ pub async fn sign_prescription(
     Ok(Json(SignPrescriptionResponse {
         signed_at: signed_at.to_rfc3339(),
         document_id,
+    }))
+}
+
+// ── GET /v1/cabinet/prescriptions/:id ────────────────────────────────────────
+
+/// Un item dans la réponse `PrescriptionDto`.
+#[derive(Serialize)]
+pub struct PrescriptionItemDto {
+    pub id: Uuid,
+    pub label: String,
+    pub form: Option<String>,
+    pub posology: String,
+    pub duration: String,
+    pub quantity: Option<String>,
+}
+
+/// DTO ordonnance — partagé par create (201) et get (200).
+#[derive(Serialize)]
+pub struct PrescriptionDto {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub consultation_id: Option<Uuid>,
+    pub status: String,
+    pub signed_at: Option<String>,
+    pub document_id: Option<Uuid>,
+    pub created_at: String,
+    pub items: Vec<PrescriptionItemDto>,
+}
+
+/// `GET /v1/cabinet/prescriptions/:id` — lecture d'une ordonnance avec ses lignes.
+///
+/// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403.
+/// - Prescription inexistante ou hors tenant → 404.
+/// - Retourne `200 PrescriptionDto`.
+pub async fn get_prescription(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(prescription_id): Path<Uuid>,
+) -> Result<Json<PrescriptionDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, patient_id, consultation_id, status, signed_at, document_id, created_at \
+         FROM prescription \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(prescription_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+    let consultation_id: Option<Uuid> = row
+        .try_get("consultation_id")
+        .map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let signed_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("signed_at").map_err(|_| AppError::Internal)?;
+    let document_id: Option<Uuid> = row.try_get("document_id").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+
+    let item_rows = sqlx::query(
+        "SELECT id, label, form, posology, duration, quantity \
+         FROM prescription_item \
+         WHERE prescription_id = $1 AND cabinet_id = $2",
+    )
+    .bind(prescription_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let items = item_rows
+        .into_iter()
+        .map(|r| {
+            Ok(PrescriptionItemDto {
+                id: r.try_get("id").map_err(|_| AppError::Internal)?,
+                label: r.try_get("label").map_err(|_| AppError::Internal)?,
+                form: r.try_get("form").map_err(|_| AppError::Internal)?,
+                posology: r.try_get("posology").map_err(|_| AppError::Internal)?,
+                duration: r.try_get("duration").map_err(|_| AppError::Internal)?,
+                quantity: r.try_get("quantity").map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(PrescriptionDto {
+        id,
+        patient_id,
+        consultation_id,
+        status,
+        signed_at: signed_at.map(|t| t.to_rfc3339()),
+        document_id,
+        created_at: created_at.to_rfc3339(),
+        items,
     }))
 }

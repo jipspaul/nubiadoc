@@ -165,7 +165,78 @@ async fn login_wrong_password_returns_401_unauthenticated() {
         .ok();
 }
 
-// ── Test 3 : pro avec MFA activée, sans mfa_code → 401 mfa_required ──────────
+// ── Test 4 : email inconnu → 401 unauthenticated (anti-énumération §1.8) ────
+// Le handler retourne Unauthenticated sur row.is_none(), sans distinguer
+// "email inconnu" de "mauvais mot de passe". Vérifie le code de la réponse.
+
+#[tokio::test]
+async fn login_unknown_email_returns_401_unauthenticated() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "email": format!("nobody_{}@test.local", uuid::Uuid::new_v4()),
+                        "password": "whatever"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "unauthenticated");
+}
+
+// ── Test 5 : body JSON manquant → 400 Bad Request ───────────────────────────
+// Axum retourne 400 pour un body vide (body absent ≠ JSON malformé),
+// avant d'atteindre le handler. Aucun DB requis.
+
+#[tokio::test]
+async fn login_missing_body_returns_400() {
+    let db = sqlx::PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
 
 #[tokio::test]
 async fn login_pro_mfa_enabled_without_code_returns_401_mfa_required() {

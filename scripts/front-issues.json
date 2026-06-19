@@ -1,0 +1,224 @@
+[
+  {
+    "id": "FR0.1",
+    "title": "[flutter-front] FR0.1 — Audit contrat nubia_data ↔ api",
+    "labels": ["area:flutter-front", "type:chore", "prio:P0"],
+    "body": "## Objectif\nAligner `nubia_data` sur les routes réelles de `api/`. Écarts repérés à corriger :\n- `appointments/:id/cancel` = `POST` (le code fait `DELETE`)\n- `documents/:id/download` (le code appelle `signed-url`)\n- `quotes/:id/sign` + `payments/intent` (le code appelle `/deposits` + `/signatures`)\n- `me` (le code appelle `auth/me`)\n- prefix `account/*`\n\n## Dépend de\n— (fondation)\n\n## Critères d'acceptation\n- [ ] Chemins/DTO alignés sur `docs/12-api-reference.md` + `api/src/lib.rs`\n- [ ] 1 test de désérialisation par DTO corrigé\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.1 — FR0.1 · Branche : `agent/front-fr0-1`"
+  },
+  {
+    "id": "FR0.2",
+    "title": "[flutter-front] FR0.2 — Domaine pro (entités + ports) dans nubia_domain",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nÉtendre `nubia_domain` avec la surface pro `/v1/cabinet/*` (absente aujourd'hui) :\nentités `CabinetPatient`, `AgendaEntry`, `CabinetAppointment`, `ConsultationContext`, `WaitingRoomEntry`, `WaitingListEntry`, `Member`, `Secretariat`, `Slot`, `CabinetQuote` + ports repo associés.\n\n## Dépend de\n— (fondation)\n\n## Critères d'acceptation\n- [ ] Entités + ports ajoutés (Dart pur, sans Flutter/Dio)\n- [ ] `dart analyze` vert\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.1 — FR0.2 · Branche : `agent/front-fr0-2`"
+  },
+  {
+    "id": "FR0.3",
+    "title": "[flutter-front] FR0.3 — Use cases pro (+ gating clinical) dans nubia_domain",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nUse cases pro : agenda, patients, consultation, waiting-room, slots, membres, secrétariats, devis-cabinet. Gating `includeClinical` sur consultation/acts.\n\n## Dépend de\nFR0.2\n\n## Critères d'acceptation\n- [ ] UC ajoutés + signatures cohérentes avec les ports FR0.2\n- [ ] `dart analyze` vert\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.1 — FR0.3 · Branche : `agent/front-fr0-3`"
+  },
+  {
+    "id": "FR0.4",
+    "title": "[flutter-front] FR0.4 — Data pro (DTO/API/repos + registerData) dans nubia_data",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nImplémenter la surface pro dans `nubia_data` : DTOs + `CabinetPatientsApi`/`CabinetAgendaApi`/`CabinetAppointmentsApi`/`ConsultationApi`/`WaitingRoomApi`/`SlotsApi`/`MembersApi`/`SecretariatApi`/`CabinetQuotesApi` + repo impls + extension `registerData(includeClinical, includePro)`.\n\n## Dépend de\nFR0.3 · Backend : section E.2 / E.5 (routes `/v1/cabinet/*`)\n\n## Critères d'acceptation\n- [ ] APIs + repos impls + DI étendue\n- [ ] Tests DTO (sérialisation)\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.1 — FR0.4 · Branche : `agent/front-fr0-4`"
+  },
+  {
+    "id": "FR0.5",
+    "title": "[flutter-front] FR0.5 — ProShell partagé (side-nav, route-par-destination)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nExtraire un scaffold pro réutilisable (NavigationRail desktop / drawer mobile) piloté par `ProConfig.nav`, garde `AuthSession.canAccessClinical`, route-par-destination. Mini-lib `packages/nubia_app_shell`.\n\n## Dépend de\n— (fondation)\n\n## Critères d'acceptation\n- [ ] `ProShell` réutilisable par app_practicien + app_secretariat\n- [ ] Widget test : destinations cliniques masquées si `canAccessClinical == false`\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.1 — FR0.5 · Branche : `agent/front-fr0-5`"
+  },
+  {
+    "id": "FR0.6",
+    "title": "[flutter-front] FR0.6 — Infra de test front + job CI Forgejo",
+    "labels": ["area:flutter-front", "type:test", "prio:P0"],
+    "body": "## Objectif\nHarness `pumpApp`, repos mock (mocktail), `melos test` câblé, et job CI Forgejo `flutter analyze` + `flutter test` workspace (bloquant merge).\n\n## Dépend de\n— (fondation)\n\n## Critères d'acceptation\n- [ ] Workflow `.forgejo/workflows/` front vert\n- [ ] Harness de test utilisable par les features\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.1 — FR0.6 · Branche : `agent/front-fr0-6`"
+  },
+  {
+    "id": "FR0.7",
+    "title": "[flutter-front] FR0.7 — Couche cache offline Drift (pattern repo décoré)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nBase **Drift** partagée + pattern repo décoré (cache-then-network) réutilisable par feature. Remplace l'approche Hive de `app/`.\n\n## Dépend de\n— (fondation)\n\n## Critères d'acceptation\n- [ ] Base Drift + 1 repo décoré de référence + test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.1 — FR0.7 · Branche : `agent/front-fr0-7`"
+  },
+  {
+    "id": "FR1.1",
+    "title": "[flutter-front] FR1.1 — Patient : dashboard réel",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nRemplacer le stub `_HomeTab` par un dashboard réel branché sur `GetDashboardSummary` (`GET /v1/dashboard`).\n\n## Dépend de\nFR0.1, FR0.6\n\n## Critères d'acceptation\n- [ ] Bloc + page + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.1 · Branche : `agent/front-fr1-1`"
+  },
+  {
+    "id": "FR1.2",
+    "title": "[flutter-front] FR1.2 — Patient : recherche praticien + booking",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nTab Rechercher : search providers/slots → `hold` → `POST /appointments`. Bloc + pages liste/détail/créneaux.\n\n## Dépend de\nFR0.1 · Backend : E.3 (21 hold, 22 bookings, 23 availability)\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.2 · Branche : `agent/front-fr1-2`"
+  },
+  {
+    "id": "FR1.3",
+    "title": "[flutter-front] FR1.3 — Patient : Mes RDV (liste/détail/cancel/modify/checkin)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nTab Mes RDV : upcoming/historique, détail, cancel/modify/checkin, directions/queue.\n\n## Dépend de\nFR0.1 · Backend : E.1 (routes 1-8)\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.3 · Branche : `agent/front-fr1-3`"
+  },
+  {
+    "id": "FR1.4",
+    "title": "[flutter-front] FR1.4 — Patient : Messages",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nTab Messages : conversations + thread + envoi + read. Bloc + 2 pages.\n\n## Dépend de\nFR0.1 · Backend : route 34 (`POST /conversations`)\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.4 · Branche : `agent/front-fr1-4`"
+  },
+  {
+    "id": "FR1.5",
+    "title": "[flutter-front] FR1.5 — Patient : Documents (liste/upload/download)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nTab Documents : liste, upload, download via URL signée.\n\n## Dépend de\nFR0.1 · Backend : routes 35, 36, 37\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.5 · Branche : `agent/front-fr1-5`"
+  },
+  {
+    "id": "FR1.6",
+    "title": "[flutter-front] FR1.6 — Patient : Profil (compte/couverture/dépendants/consentements/notif)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nTab Profil : compte, couverture/mutuelle, dépendants, consentements, préférences notif.\n\n## Dépend de\nFR0.1 · Backend : routes 31, 32, 33\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.6 · Branche : `agent/front-fr1-6`"
+  },
+  {
+    "id": "FR1.7",
+    "title": "[flutter-front] FR1.7 — Patient : wedge financier (devis→signature→paiement)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nDevis liste/détail → signature Yousign → `payments/intent`. Bloc multi-étapes + pages.\n\n## Dépend de\nFR0.1 · Backend : routes 39, 40\n\n## Critères d'acceptation\n- [ ] Bloc multi-étapes + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.7 · Branche : `agent/front-fr1-7`"
+  },
+  {
+    "id": "FR1.8",
+    "title": "[flutter-front] FR1.8 — Patient : avis + notifications inbox",
+    "labels": ["area:flutter-front", "type:feature", "prio:P2"],
+    "body": "## Objectif\nSubmit/list reviews + notifications/reminders inbox.\n\n## Dépend de\nFR0.1 · Backend : route 41\n\n## Critères d'acceptation\n- [ ] Blocs + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.8 · Branche : `agent/front-fr1-8`"
+  },
+  {
+    "id": "FR1.9",
+    "title": "[flutter-front] FR1.9 — Retrait de app/ (parité patient atteinte)",
+    "labels": ["area:flutter-front", "type:chore", "prio:P2"],
+    "body": "## Objectif\nAprès parité de app_patient avec la référence : supprimer `app/`, MAJ README/PROGRESS.\n\n## Dépend de\nFR1.1 → FR1.8\n\n## Critères d'acceptation\n- [ ] `app/` supprimé, aucune dépendance restante\n- [ ] README/PROGRESS à jour\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.2 — FR1.9 · Branche : `agent/front-fr1-9`"
+  },
+  {
+    "id": "FR2.1",
+    "title": "[flutter-front] FR2.1 — Praticien : shell + dashboard pro",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nBrancher `ProShell` (FR0.5) + routes par destination + dashboard pro.\n\n## Dépend de\nFR0.5\n\n## Critères d'acceptation\n- [ ] Shell + dashboard + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.3 — FR2.1 · Branche : `agent/front-fr2-1`"
+  },
+  {
+    "id": "FR2.2",
+    "title": "[flutter-front] FR2.2 — Praticien : agenda",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nVue semaine/jour, confirm/start.\n\n## Dépend de\nFR0.4, FR2.1 · Backend : E.2 (12 confirm, 13 start)\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.3 — FR2.2 · Branche : `agent/front-fr2-2`"
+  },
+  {
+    "id": "FR2.3",
+    "title": "[flutter-front] FR2.3 — Praticien : patients liste + fiche",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nListe cabinet + fiche (notes, dossier, schéma dentaire).\n\n## Dépend de\nFR0.4, FR2.1 · Backend : E.2 (16 notes get, 17 notes post)\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.3 — FR2.3 · Branche : `agent/front-fr2-3`"
+  },
+  {
+    "id": "FR2.4",
+    "title": "[flutter-front] FR2.4 — Praticien : consultation clinique (gated)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nActs CCAM + complete. Code gated par `includeClinical`.\n\n## Dépend de\nFR0.4, FR2.1 · Backend : E.2 (18 détail, 19 acts, 20 complete)\n\n## Critères d'acceptation\n- [ ] Bloc + page + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.3 — FR2.4 · Branche : `agent/front-fr2-4`"
+  },
+  {
+    "id": "FR2.5",
+    "title": "[flutter-front] FR2.5 — Praticien : ordonnances (gated)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nCréer + signer ordonnance. Code gated par `includeClinical`.\n\n## Dépend de\nFR0.4, FR2.1 · Backend : prescriptions ✅\n\n## Critères d'acceptation\n- [ ] Bloc + page + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.3 — FR2.5 · Branche : `agent/front-fr2-5`"
+  },
+  {
+    "id": "FR2.6",
+    "title": "[flutter-front] FR2.6 — Praticien : devis cabinet",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nCréer/éditer devis cabinet.\n\n## Dépend de\nFR0.4, FR2.1 · Backend : E.5 (27 create, 28 patch)\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.3 — FR2.6 · Branche : `agent/front-fr2-6`"
+  },
+  {
+    "id": "FR2.7",
+    "title": "[flutter-front] FR2.7 — Praticien : messages cabinet",
+    "labels": ["area:flutter-front", "type:feature", "prio:P2"],
+    "body": "## Objectif\n`/cabinet/conversations` : liste + thread + envoi.\n\n## Dépend de\nFR0.4, FR2.1 · Backend : E.6 (29, 30)\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.3 — FR2.7 · Branche : `agent/front-fr2-7`"
+  },
+  {
+    "id": "FR2.8",
+    "title": "[flutter-front] FR2.8 — Praticien : salle d'attente",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nWaiting-room + call-next.\n\n## Dépend de\nFR0.4, FR2.1 · Backend : E.2 (14 waiting-room, 15 call-next)\n\n## Critères d'acceptation\n- [ ] Bloc + page + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.3 — FR2.8 · Branche : `agent/front-fr2-8`"
+  },
+  {
+    "id": "FR3.1",
+    "title": "[flutter-front] FR3.1 — Secrétariat : shell (includeClinical:false) + garde",
+    "labels": ["area:flutter-front", "type:feature", "prio:P0"],
+    "body": "## Objectif\nShell secrétariat `includeClinical:false`, nav admin + test garde de base.\n\n## Dépend de\nFR0.5\n\n## Critères d'acceptation\n- [ ] Shell + nav admin + widget test (aucune entrée clinique)\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.4 — FR3.1 · Branche : `agent/front-fr3-1`"
+  },
+  {
+    "id": "FR3.2",
+    "title": "[flutter-front] FR3.2 — Secrétariat : agenda + gestion RDV",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nCreate/confirm/reschedule, slots online.\n\n## Dépend de\nFR0.4, FR3.1 · Backend : E.2 (12 confirm), slots ✅\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.4 — FR3.2 · Branche : `agent/front-fr3-2`"
+  },
+  {
+    "id": "FR3.3",
+    "title": "[flutter-front] FR3.3 — Secrétariat : patients (vue admin scoped, sans clinique)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\nVue patients scope secrétariat, sans motif clinique.\n\n## Dépend de\nFR0.4, FR3.1 · Backend : patients ✅\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.4 — FR3.3 · Branche : `agent/front-fr3-3`"
+  },
+  {
+    "id": "FR3.4",
+    "title": "[flutter-front] FR3.4 — Secrétariat : liste d'attente (offer)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P2"],
+    "body": "## Objectif\n`/cabinet/waiting-list` + offer.\n\n## Dépend de\nFR0.4, FR3.1 · Backend : route 38, waiting-list ✅\n\n## Critères d'acceptation\n- [ ] Bloc + page + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.4 — FR3.4 · Branche : `agent/front-fr3-4`"
+  },
+  {
+    "id": "FR3.5",
+    "title": "[flutter-front] FR3.5 — Secrétariat : devis cabinet (liste/suivi)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P2"],
+    "body": "## Objectif\nListe + suivi devis cabinet.\n\n## Dépend de\nFR0.4, FR3.1 · Backend : devis ✅\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.4 — FR3.5 · Branche : `agent/front-fr3-5`"
+  },
+  {
+    "id": "FR3.6",
+    "title": "[flutter-front] FR3.6 — Secrétariat : messages cabinet (réutilise FR2.7)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P2"],
+    "body": "## Objectif\nCâbler la feature messages cabinet (FR2.7) dans app_secretariat.\n\n## Dépend de\nFR2.7 · Backend : E.6\n\n## Critères d'acceptation\n- [ ] Câblage + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.4 — FR3.6 · Branche : `agent/front-fr3-6`"
+  },
+  {
+    "id": "FR3.7",
+    "title": "[flutter-front] FR3.7 — Secrétariat : admin membres + secrétariats",
+    "labels": ["area:flutter-front", "type:feature", "prio:P1"],
+    "body": "## Objectif\n`/cabinet/members` + `/cabinet/secretariats` (CRUD admin).\n\n## Dépend de\nFR0.4, FR3.1 · Backend : E.2 (9-11), R12/R13 ✅\n\n## Critères d'acceptation\n- [ ] Bloc + pages + widget test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.4 — FR3.7 · Branche : `agent/front-fr3-7`"
+  },
+  {
+    "id": "FR3.8",
+    "title": "[flutter-front] FR3.8 — Secrétariat : test de cloisonnement (zéro clinique)",
+    "labels": ["area:flutter-front", "type:test", "prio:P1"],
+    "body": "## Objectif\nTest qui asserte que le binaire secrétariat n'enregistre **aucun** UC/repo clinique et que la nav n'a aucune entrée clinique.\n\n## Dépend de\nFR3.1\n\n## Critères d'acceptation\n- [ ] Test échoue si un repo/UC clinique est enregistré\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.4 — FR3.8 · Branche : `agent/front-fr3-8`"
+  },
+  {
+    "id": "FR4.1",
+    "title": "[flutter-front] FR4.1 — A2UI transport réel (SSE/WebSocket)",
+    "labels": ["area:flutter-front", "type:feature", "prio:P2"],
+    "body": "## Objectif\nBrancher le renderer A2UI sur un transport serveur réel (SSE/WebSocket) au lieu de la fixture locale.\n\n## Dépend de\nFR0.6 · Backend : route 44 (`GET /v1/ws`)\n\n## Critères d'acceptation\n- [ ] Transport réel branché + test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.5 — FR4.1 · Branche : `agent/front-fr4-1`"
+  },
+  {
+    "id": "FR4.2",
+    "title": "[flutter-front] FR4.2 — Push FCM + POST /devices + deep-links",
+    "labels": ["area:flutter-front", "type:feature", "prio:P2"],
+    "body": "## Objectif\nEnregistrement device (`POST /devices`) + réception push FCM + deep-links.\n\n## Dépend de\nFR0.6 · Backend : route 19/devices\n\n## Critères d'acceptation\n- [ ] Enregistrement device + routage deep-link + test\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.5 — FR4.2 · Branche : `agent/front-fr4-2`"
+  },
+  {
+    "id": "FR4.3",
+    "title": "[flutter-front] FR4.3 — i18n (fr) + états vides/erreur/skeleton homogènes",
+    "labels": ["area:flutter-front", "type:chore", "prio:P2"],
+    "body": "## Objectif\ni18n fr + uniformiser états vides/erreur/skeleton via le design system sur les 3 apps.\n\n## Dépend de\nI.2, I.3, I.4 (features livrées)\n\n## Critères d'acceptation\n- [ ] i18n branché + états homogènes\n- [ ] `dart analyze` + `flutter test` verts\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.5 — FR4.3 · Branche : `agent/front-fr4-3`"
+  },
+  {
+    "id": "FR4.4",
+    "title": "[flutter-front] FR4.4 — E2E integration_test (parcours clés des 3 apps)",
+    "labels": ["area:flutter-front", "type:test", "prio:P2"],
+    "body": "## Objectif\nParcours E2E `integration_test` couvrant les flux clés des 3 apps.\n\n## Dépend de\nI.2, I.3, I.4\n\n## Critères d'acceptation\n- [ ] Au moins 1 parcours E2E par app, vert en CI\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.5 — FR4.4 · Branche : `agent/front-fr4-4`"
+  },
+  {
+    "id": "FR4.5",
+    "title": "[flutter-front] FR4.5 — MAJ doc (PROGRESS + front/AGENTS.md + tableau d'état)",
+    "labels": ["area:flutter-front", "type:chore", "prio:P2"],
+    "body": "## Objectif\nMAJ `PROGRESS.md`, créer `front/AGENTS.md`, mettre à jour le tableau d'état.\n\n## Dépend de\n—\n\n## Critères d'acceptation\n- [ ] `front/AGENTS.md` créé + PROGRESS à jour\n\n## Refs\nPlan : `web-console/PLAN-ATOMIC.md` §I.5 — FR4.5 · Branche : `agent/front-fr4-5`"
+  }
+]

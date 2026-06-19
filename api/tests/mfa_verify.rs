@@ -141,7 +141,57 @@ async fn mfa_verify_invalid_totp_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
-// ── Test 3 : sans JWT → 401 ────────────────────────────────────────────────
+// ── Test 4 : JWT patient → 403 ────────────────────────────────────────────────
+// ProClaims extractor : `kind != "pro"` → AppError::Forbidden.
+// mfa/verify est pro-only ; un token patient valide doit retourner 403.
+
+#[tokio::test]
+async fn mfa_verify_patient_jwt_returns_403() {
+    // Pas besoin d'un vrai DB — ProClaims extractor rejette avant d'accéder à la DB.
+    let db = sqlx::PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = nubia_api::AppState {
+        db,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: std::sync::Arc::new(nubia_api::StubMailer),
+    };
+
+    let user_id = Uuid::new_v4();
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    let patient_token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &serde_json::json!({"sub": user_id, "kind": "patient", "account_id": user_id, "exp": exp}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let (secret_b32, _) = test_totp();
+
+    let response = nubia_api::app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/mfa/verify")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"totp_secret": secret_b32, "totp_code": "123456"})
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
 
 #[tokio::test]
 async fn mfa_verify_without_jwt_returns_401() {

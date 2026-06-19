@@ -286,6 +286,7 @@ impl FromRequestParts<AppState> for ProClaims {
         let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
         let mut validation = Validation::default();
         validation.validate_exp = true;
+        validation.leeway = 0;
 
         let data =
             decode::<ProClaims>(token, &key, &validation).map_err(|_| AppError::Unauthorized)?;
@@ -1507,7 +1508,6 @@ pub async fn post_cabinet_members(
 pub(crate) struct PatientAccountClaims {
     pub(crate) sub: Uuid,
     pub(crate) account_id: Uuid,
-    kind: String,
 }
 
 #[async_trait]
@@ -1530,13 +1530,20 @@ impl FromRequestParts<AppState> for PatientAccountClaims {
         let mut validation = Validation::default();
         validation.validate_exp = true;
 
-        let claims = decode::<PatientAccountClaims>(token, &key, &validation)
+        // Première passe : extrait `kind` pour renvoyer 403 (pas 401)
+        // si le token est valide mais n'appartient pas à un patient (ex. token pro).
+        let basic = decode::<KindClaims>(token, &key, &validation)
             .map(|d| d.claims)
             .map_err(|_| AppError::Unauthorized)?;
 
-        if claims.kind != "patient" {
+        if basic.kind != "patient" {
             return Err(AppError::Forbidden);
         }
+
+        // Deuxième passe : décode les champs patient obligatoires (account_id).
+        let claims = decode::<PatientAccountClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
 
         Ok(claims)
     }
@@ -2580,7 +2587,7 @@ pub async fn get_account_notification_preferences(
                 email_messagerie, push_messagerie, \
                 email_rappels, push_rappels \
          FROM notification_preference \
-         WHERE patient_account_id = $1",
+         WHERE patient_account_id = $1 AND channel IS NULL AND type IS NULL",
     )
     .bind(claims.account_id)
     .fetch_optional(&mut *tx)
@@ -2647,7 +2654,9 @@ pub async fn patch_account_notification_preferences(
          VALUES ($1, \
            COALESCE($2, true), COALESCE($3, true), COALESCE($4, true), \
            COALESCE($5, true), COALESCE($6, true), COALESCE($7, true), COALESCE($8, true)) \
-         ON CONFLICT (patient_account_id, channel, type) DO UPDATE SET \
+         ON CONFLICT (patient_account_id) \
+           WHERE channel IS NULL AND type IS NULL \
+         DO UPDATE SET \
            email_rdv        = CASE WHEN $2 IS NOT NULL THEN $2 \
                                    ELSE notification_preference.email_rdv END, \
            sms_rdv          = CASE WHEN $3 IS NOT NULL THEN $3 \

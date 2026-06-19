@@ -1,0 +1,27 @@
+name: nubia_a2ui
+description: A2UI (a2ui.org) catalog + Flutter renderer mapping catalog components to Nubia widgets.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  web_socket_channel: ^3.0.0
+  nubia_design_system:
+    path: ../nubia_design_system
+  nubia_core:
+    path: ../nubia_core
+
+flutter:
+  assets:
+    - assets/catalog.json
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

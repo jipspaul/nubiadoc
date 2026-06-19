@@ -322,7 +322,12 @@ pub fn app_with_dispatcher(
         )
         .route(
             "/v1/cabinet/consultations/:id/acts",
-            post(consultations::add_consultation_act),
+            get(consultations::list_consultation_acts).post(consultations::add_consultation_act),
+        )
+        .route(
+            "/v1/cabinet/consultations/:id/acts/:act_id",
+            patch(consultations::patch_consultation_act)
+                .delete(consultations::delete_consultation_act),
         )
         .route(
             "/v1/cabinet/consultations/:id/complete",
@@ -390,6 +395,18 @@ pub fn app_with_dispatcher(
         // Alias contractuel (docs/12 §10) : la console et l'app appellent
         // `/signature` ; on garde `/sign` pour rétro-compatibilité.
         .route("/v1/quotes/:id/signature", post(billing::sign_quote))
+        // Alias patient BR5 : `/v1/billing/quotes/*` (front patient) → handlers existants.
+        // Décision : option (a) alias côté backend (diff minimal, pas de refactor Flutter).
+        .route("/v1/billing/quotes", get(billing::list_quotes))
+        .route("/v1/billing/quotes/:id", get(billing::get_quote))
+        .route(
+            "/v1/billing/quotes/:id/deposit",
+            post(billing::billing_deposit),
+        )
+        .route(
+            "/v1/billing/quotes/:id/confirm_signature",
+            post(billing::billing_confirm_signature),
+        )
         .route(
             "/v1/payments/intent",
             axum::routing::post(billing::create_payment_intent),
@@ -431,12 +448,26 @@ pub fn app_with_dispatcher(
             get(implant_passport::export_implant_passport),
         )
         .route("/v1/devices", post(devices::register_device))
+        // Alias BR10 : le front appelle `/v1/device-tokens` → même handler.
+        .route("/v1/device-tokens", post(devices::register_device))
         .route("/v1/notifications", get(notifications::list_notifications))
+        .route(
+            "/v1/notifications/read-all",
+            post(notifications::mark_all_notifications_read),
+        )
+        .route(
+            "/v1/notifications/:id/read",
+            post(notifications::mark_notification_read),
+        )
         .route("/v1/reminders", get(reminders::list_reminders))
         .route("/v1/cabinet/quotes", post(billing::create_cabinet_quote))
         .route(
             "/v1/cabinet/prescriptions",
             post(prescriptions::create_prescription),
+        )
+        .route(
+            "/v1/cabinet/prescriptions/:id",
+            get(prescriptions::get_prescription),
         )
         .route(
             "/v1/cabinet/prescriptions/:id/sign",

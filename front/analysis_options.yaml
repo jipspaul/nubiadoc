@@ -1,0 +1,17 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    invalid_annotation_target: ignore
+    # First-party monorepo: sibling Nubia packages intentionally import each
+    # other's lib/src/ via deep paths (kept stable by the extraction scripts).
+    implementation_imports: ignore
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.config.dart"
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_final_locals: true
+    avoid_print: true

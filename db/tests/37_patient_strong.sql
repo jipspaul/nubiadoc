@@ -1,0 +1,521 @@
+-- 37_patient_strong.sql — TDD audit pgTAP : Patient data invariants
+-- Issue #1828 — T-DB-D002.
+--
+-- Invariants couverts :
+--   PA1.  patient_account : FORCE ROW LEVEL SECURITY activée (0045).
+--   PA2.  patient_account : fail-closed sans GUC → 0 ligne visible.
+--   PA3.  patient_account : account_self_select — GUC account A → voit son compte, pas celui de B.
+--   PA4.  patient_account : app_user_id ON DELETE CASCADE (0015) — DELETE app_user cascade à patient_account.
+--   PA5.  patient_account : contrainte crypto pair (0044) — first_name_ciphertext seul sans key_ref → refusé.
+--   PA6.  patient_account : account_auth_select (0069) — GUC login user A → voit son compte.
+--   PA7.  patient_account : account_guardian_read (0062) — tuteur voit le compte de son dépendant.
+--   PA8.  patient_account : account_guardian_update (0064) — tuteur peut UPDATE le compte de son dépendant.
+--   PC1.  patient_coverage : FORCE ROW LEVEL SECURITY activée (0023).
+--   PC2.  patient_coverage : fail-closed sans GUC → 0 ligne visible.
+--   PC3.  patient_coverage : patient_coverage_owner — GUC account A → voit sa couverture, pas celle de B.
+--   PC4.  patient_coverage : UNIQUE (patient_account_id) (0028) — double INSERT → erreur.
+--   AG1.  account_guardianship : ENABLE ROW LEVEL SECURITY activée (0025).
+--   AG2.  account_guardianship : guardianship_owner_select — GUC account guardian → voit le lien actif.
+--   AG3.  account_guardianship : UNIQUE index actif WHERE active=true (0025) — double tutelle active → erreur.
+--
+-- Exécuté par pg_prove sous nubia_app (NOSUPERUSER, NOBYPASSRLS).
+-- Fixtures auto-containées (BEGIN…ROLLBACK). Préfixe UUID 18280000.
+BEGIN;
+SELECT * FROM no_plan();
+
+-- ===========================================================================
+-- Pré-condition : exécuté sous nubia_app
+-- ===========================================================================
+SELECT is(current_user::text, 'nubia_app',
+    '⭐ tests patient_strong exécutés sous nubia_app');
+
+-- ===========================================================================
+-- Fixtures
+-- Deux utilisateurs platform + deux comptes patient + couvertures + tutelle.
+-- Les INSERTs ouverts sont autorisés par les policies WITH CHECK(true) existantes.
+-- Préfixe UUID 18280000 (propre à cette suite, issue #1828).
+-- ===========================================================================
+
+-- Deux app_user (platform, pas de cabinet_id)
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a1', 'patient.strong.a@example.test', '$argon2id$fixture', 'patient');
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a2', 'patient.strong.b@example.test', '$argon2id$fixture', 'patient');
+-- Troisième user pour tester le cascade FK : sera supprimé
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a3', 'patient.strong.c@example.test', '$argon2id$fixture', 'patient');
+
+-- Deux patient_account + un troisième (cascade cible)
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e1', '18280000-0000-0000-0000-0000000000a1', 'Patient', 'StrongA');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e2', '18280000-0000-0000-0000-0000000000a2', 'Patient', 'StrongB');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e3', '18280000-0000-0000-0000-0000000000a3', 'Patient', 'StrongC');
+
+-- Couverture pour account A (GUC requis par WITH CHECK de la policy patient_coverage_owner)
+SET LOCAL app.patient_account_id = '18280000-0000-0000-0000-0000000000e1';
+INSERT INTO patient_coverage (id, patient_account_id, regime_obligatoire, tiers_payant)
+    VALUES ('18280000-0000-0000-0000-000000000010', '18280000-0000-0000-0000-0000000000e1', 'regime_general', false);
+RESET app.patient_account_id;
+
+-- Tutelle : A est tuteur de E2
+INSERT INTO account_guardianship (id, guardian_account_id, dependent_account_id, relationship, active)
+    VALUES ('18280000-0000-0000-0000-000000000020',
+            '18280000-0000-0000-0000-0000000000e1',
+            '18280000-0000-0000-0000-0000000000e2',
+            'enfant',
+            true);
+
+-- ===========================================================================
+-- PA1. patient_account : FORCE ROW LEVEL SECURITY activée (0045).
+-- ===========================================================================
+SELECT ok(
+    (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'patient_account'),
+    'PA1 patient_account : FORCE ROW LEVEL SECURITY activée (0045)');
+
+-- ===========================================================================
+-- PA2. fail-closed : sans GUC positionné → 0 patient_account visible.
+-- ===========================================================================
+RESET app.current_account_id;
+RESET app.current_user_id;
+RESET app.current_login_user_id;
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id IN ('18280000-0000-0000-0000-0000000000e1',
+                  '18280000-0000-0000-0000-0000000000e2')),
+    0,
+    '⭐ PA2 fail-closed patient_account : 0 ligne sans GUC positionné');
+
+-- ===========================================================================
+-- PA3. account_self_select (0045) : GUC account A → voit son compte, pas celui de B.
+-- ===========================================================================
+-- ===========================================================================
+-- PA3. account_self_select (0045) + isolation inter-account.
+-- Contexte B ne peut pas voir le compte de A (B est dépendant de A, pas tuteur).
+-- ===========================================================================
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e1';
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e1'),
+    1,
+    '⭐ PA3a account_self_select : GUC account A → voit son propre compte');
+
+-- Account B n'est pas tuteur de A → ne peut pas voir le compte de A.
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e2';
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e1'),
+    0,
+    '⭐ PA3b account_self_select isolation : GUC account B → ne voit PAS le compte de A');
+
+-- ===========================================================================
+-- PA4. app_user_id ON DELETE CASCADE (0015) :
+-- La suppression de app_user entraîne la suppression du patient_account lié.
+-- ===========================================================================
+-- Confirme que e3 existe
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e3';
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e3'),
+    1,
+    'PA4 fixture OK : patient_account e3 présent avant DELETE');
+
+-- Supprimer l'app_user (ON DELETE CASCADE doit propager)
+DELETE FROM app_user WHERE id = '18280000-0000-0000-0000-0000000000a3';
+
+-- Après delete, plus de patient_account pour e3 (policy fail-closed — reset GUC pour un select direct)
+RESET app.current_account_id;
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE app_user_id = '18280000-0000-0000-0000-0000000000a3'),
+    0,
+    '⭐ PA4 ON DELETE CASCADE : patient_account supprimé quand app_user est supprimé');
+
+-- ===========================================================================
+-- PA5. Contrainte crypto pair (0044) :
+-- Insérer first_name_ciphertext sans first_name_key_ref → CHECK violation.
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO patient_account (id, app_user_id, first_name, last_name,
+                                    first_name_ciphertext, first_name_key_ref)
+       VALUES ('18280000-0000-0000-0000-0000000000e9',
+               '18280000-0000-0000-0000-0000000000a1',
+               'X', 'Y',
+               '\xDEADBEEF'::bytea, NULL) $$,
+    '23514', NULL,
+    '⭐ PA5 crypto pair : first_name_ciphertext sans key_ref → CHECK violation (23514)');
+
+-- ===========================================================================
+-- PA6. account_auth_select (0069) : GUC login user A → voit son patient_account.
+-- ===========================================================================
+RESET app.current_account_id;
+RESET app.current_login_user_id;
+SET LOCAL app.current_login_user_id = '18280000-0000-0000-0000-0000000000a1';
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e1'),
+    1,
+    '⭐ PA6 account_auth_select : GUC login user A → voit son patient_account');
+
+-- Isolation : login user A ne voit pas le compte de B
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e2'),
+    0,
+    '⭐ PA6b isolation account_auth_select : GUC login user A → ne voit PAS le compte de B');
+
+-- ===========================================================================
+-- PA7. account_guardian_read (0062) : tuteur voit le compte de son dépendant.
+-- ===========================================================================
+RESET app.current_login_user_id;
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e1';
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e2'),
+    1,
+    '⭐ PA7 account_guardian_read : tuteur (e1) voit le compte de son dépendant (e2)');
+
+-- ===========================================================================
+-- PA8. account_guardian_update (0064) : tuteur peut UPDATE le compte de son dépendant.
+-- ===========================================================================
+SELECT lives_ok(
+    $$ UPDATE patient_account
+       SET phone = '+33600000001'
+       WHERE id = '18280000-0000-0000-0000-0000000000e2' $$,
+    '⭐ PA8 account_guardian_update : tuteur (e1) peut modifier le compte de son dépendant (e2)');
+
+-- ===========================================================================
+-- PC1. patient_coverage : FORCE ROW LEVEL SECURITY activée (0023).
+-- ===========================================================================
+SELECT ok(
+    (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'patient_coverage'),
+    'PC1 patient_coverage : FORCE ROW LEVEL SECURITY activée (0023)');
+
+-- ===========================================================================
+-- PC2. fail-closed : sans GUC positionné → 0 ligne patient_coverage visible.
+-- ===========================================================================
+RESET app.current_account_id;
+RESET app.patient_account_id;
+SELECT is(
+    (SELECT count(*)::int FROM patient_coverage
+     WHERE id = '18280000-0000-0000-0000-000000000010'),
+    0,
+    '⭐ PC2 fail-closed patient_coverage : 0 ligne sans app.patient_account_id');
+
+-- ===========================================================================
+-- PC3. patient_coverage_owner : GUC account A → voit sa couverture, pas celle de B.
+-- ===========================================================================
+SET LOCAL app.patient_account_id = '18280000-0000-0000-0000-0000000000e1';
+SELECT is(
+    (SELECT count(*)::int FROM patient_coverage
+     WHERE patient_account_id = '18280000-0000-0000-0000-0000000000e1'),
+    1,
+    '⭐ PC3a patient_coverage_owner : GUC account A → voit sa propre couverture');
+
+-- Ajoute une couverture pour B pour tester l'isolation (GUC B requis par WITH CHECK)
+SET LOCAL app.patient_account_id = '18280000-0000-0000-0000-0000000000e2';
+INSERT INTO patient_coverage (id, patient_account_id, regime_obligatoire, tiers_payant)
+    VALUES ('18280000-0000-0000-0000-000000000011', '18280000-0000-0000-0000-0000000000e2', 'ame', false);
+
+-- Retour au contexte A pour vérifier l'isolation
+SET LOCAL app.patient_account_id = '18280000-0000-0000-0000-0000000000e1';
+SELECT is(
+    (SELECT count(*)::int FROM patient_coverage
+     WHERE patient_account_id = '18280000-0000-0000-0000-0000000000e2'),
+    0,
+    '⭐ PC3b patient_coverage isolation : GUC account A → ne voit PAS la couverture de B');
+
+-- ===========================================================================
+-- PC4. UNIQUE (patient_account_id) (0028) : double INSERT pour même account → erreur.
+-- GUC e1 : la policy laisse passer le WITH CHECK, c'est la contrainte UNIQUE qui explose.
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO patient_coverage (patient_account_id, tiers_payant)
+       VALUES ('18280000-0000-0000-0000-0000000000e1', true) $$,
+    '23505', NULL,
+    '⭐ PC4 UNIQUE patient_coverage : double INSERT pour même patient_account_id → 23505');
+
+-- ===========================================================================
+-- AG1. account_guardianship : ROW LEVEL SECURITY activée (0025).
+-- ===========================================================================
+SELECT ok(
+    (SELECT relrowsecurity FROM pg_class WHERE relname = 'account_guardianship'),
+    'AG1 account_guardianship : ROW LEVEL SECURITY activée (0025)');
+
+-- ===========================================================================
+-- AG2. guardianship_owner_select : GUC account guardian → voit le lien actif.
+-- ===========================================================================
+RESET app.patient_account_id;
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e1';
+SELECT is(
+    (SELECT count(*)::int FROM account_guardianship
+     WHERE id = '18280000-0000-0000-0000-000000000020'
+       AND active = true),
+    1,
+    '⭐ AG2 guardianship_owner_select : tuteur (e1) voit son lien de tutelle actif');
+
+-- Contexte B : ne doit pas voir le lien de tutelle de A→dépendant
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e2';
+SELECT is(
+    (SELECT count(*)::int FROM account_guardianship
+     WHERE id = '18280000-0000-0000-0000-000000000020'
+       AND guardian_account_id = '18280000-0000-0000-0000-0000000000e1'),
+    1,
+    'AG2b guardianship_owner_select : dépendant (e2) voit aussi le lien (en tant que dépendant)');
+
+-- ===========================================================================
+-- AG3. UNIQUE index WHERE active=true (0025) :
+-- Insérer un 2e lien actif avec la même paire guardian/dependent → erreur unique.
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO account_guardianship (id, guardian_account_id, dependent_account_id, relationship, active)
+       VALUES ('18280000-0000-0000-0000-000000000021',
+               '18280000-0000-0000-0000-0000000000e1',
+               '18280000-0000-0000-0000-0000000000e2',
+               'parent',
+               true) $$,
+    '23505', NULL,
+    '⭐ AG3 UNIQUE index active tutelle : double lien actif même paire → 23505');
+
+-- ===========================================================================
+-- T-DB-D002.b — Invariants structurels : NOT NULL, CHECK, FK, soft-delete,
+-- transition d'état. Issue #1912.
+-- ===========================================================================
+
+-- Fixture supplémentaire pour PC-CH1 : compte patient D sans couverture,
+-- nécessaire pour tester le CHECK regime_obligatoire sans interférence UNIQUE.
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a4', 'patient.strong.d@example.test', '$argon2id$fixture', 'patient');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e4', '18280000-0000-0000-0000-0000000000a4', 'Patient', 'StrongD');
+
+-- ===========================================================================
+-- PA-NN1. patient_account.first_name NOT NULL :
+-- INSERT avec first_name=NULL refusé (23502).
+-- Policy account_app_insert : WITH CHECK (true) → RLS ne bloque pas.
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO patient_account (app_user_id, first_name, last_name)
+       VALUES ('18280000-0000-0000-0000-0000000000a4', NULL, 'NullTest') $$,
+    '23502', NULL,
+    '⭐ PA-NN1 patient_account.first_name NOT NULL : NULL refusé (23502)');
+
+-- ===========================================================================
+-- AG-CH1. account_guardianship.guardianship_not_self CHECK (0010) :
+-- Insérer un lien de tutelle où guardian_account_id = dependent_account_id → 23514.
+-- Policy guardianship_app_insert : WITH CHECK (true) → RLS ne bloque pas.
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO account_guardianship
+           (guardian_account_id, dependent_account_id, relationship, active)
+       VALUES ('18280000-0000-0000-0000-0000000000e1',
+               '18280000-0000-0000-0000-0000000000e1',
+               'enfant', true) $$,
+    '23514', NULL,
+    '⭐ AG-CH1 guardianship_not_self : guardian = dependent refusé (23514)');
+
+-- ===========================================================================
+-- AG-CH2. account_guardianship.relationship CHECK (0010) :
+-- Valeur hors de (enfant, conjoint, parent, autre) → violation 23514.
+-- active=false pour ne pas déclencher l'index UNIQUE partial (vérifié en AG3).
+-- ===========================================================================
+SELECT throws_ok(
+    $$ INSERT INTO account_guardianship
+           (guardian_account_id, dependent_account_id, relationship, active)
+       VALUES ('18280000-0000-0000-0000-0000000000e1',
+               '18280000-0000-0000-0000-0000000000e2',
+               'inconnu', false) $$,
+    '23514', NULL,
+    '⭐ AG-CH2 account_guardianship.relationship CHECK : valeur invalide refusée (23514)');
+
+-- ===========================================================================
+-- PC-CH1. patient_coverage.regime_obligatoire CHECK (0023) :
+-- Valeur hors de (regime_general, ame, css) → violation 23514.
+-- GUC = e4 (sans couverture) pour passer le WITH CHECK sans déclencher UNIQUE.
+-- ===========================================================================
+SET LOCAL app.patient_account_id = '18280000-0000-0000-0000-0000000000e4';
+SELECT throws_ok(
+    $$ INSERT INTO patient_coverage (patient_account_id, regime_obligatoire, tiers_payant)
+       VALUES ('18280000-0000-0000-0000-0000000000e4', 'inconnu', false) $$,
+    '23514', NULL,
+    '⭐ PC-CH1 patient_coverage.regime_obligatoire CHECK : valeur invalide refusée (23514)');
+
+-- ===========================================================================
+-- PC-FK1. patient_coverage FK : patient_account inexistant → violation 23503.
+-- GUC = UUID inexistant → WITH CHECK passe (uuid = uuid), FK échoue ensuite.
+-- ===========================================================================
+SET LOCAL app.patient_account_id = '18280000-0000-0000-0000-000000009999';
+SELECT throws_ok(
+    $$ INSERT INTO patient_coverage (patient_account_id, tiers_payant)
+       VALUES ('18280000-0000-0000-0000-000000009999', false) $$,
+    '23503', NULL,
+    '⭐ PC-FK1 patient_coverage FK : patient_account_id inexistant refusé (23503)');
+
+-- ===========================================================================
+-- AG-SD1. Soft-delete account_guardianship : UPDATE deleted_at = now() OK.
+-- guardianship_app_update : USING(true) → pas de restriction RLS sur UPDATE.
+-- Vérification via SELECT sous GUC e2 (dependent_account_id = e2 → visible).
+-- ===========================================================================
+SELECT lives_ok(
+    $$ UPDATE account_guardianship
+       SET deleted_at = now()
+       WHERE id = '18280000-0000-0000-0000-000000000020' $$,
+    '⭐ AG-SD1 account_guardianship soft-delete : UPDATE deleted_at = now() OK');
+
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e2';
+SELECT is(
+    (SELECT deleted_at IS NOT NULL
+     FROM account_guardianship
+     WHERE id = '18280000-0000-0000-0000-000000000020'),
+    true,
+    'AG-SD1b account_guardianship : deleted_at non NULL après soft-delete confirmé');
+
+-- ===========================================================================
+-- AG-TR1. Transition d'état active → inactive → re-active autorisée.
+-- L'index UNIQUE partial (0025) ne porte que sur (guardian, dependent) WHERE active=true.
+-- Désactiver le lien e1→e2 existant, puis réinsérer un nouveau lien actif → OK.
+-- ===========================================================================
+UPDATE account_guardianship SET active = false
+WHERE id = '18280000-0000-0000-0000-000000000020';
+
+SELECT lives_ok(
+    $$ INSERT INTO account_guardianship
+           (id, guardian_account_id, dependent_account_id, relationship, active)
+       VALUES ('18280000-0000-0000-0000-000000000022',
+               '18280000-0000-0000-0000-0000000000e1',
+               '18280000-0000-0000-0000-0000000000e2',
+               'parent', true) $$,
+    '⭐ AG-TR1 transition active=false : nouveau lien actif e1→e2 autorisé après désactivation (UNIQUE partial)');
+
+-- ===========================================================================
+-- Matrice rôles — couverture RLS catalogue (issue #1911 — T-DB-D002.a)
+-- Vérifie que chaque rôle dispose d'au moins une policy sur les 3 tables clés.
+-- Exécutable sous nubia_app via pg_policies (readable par tout rôle).
+-- ===========================================================================
+
+-- patient_account — nubia_app
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'patient_account' AND roles @> ARRAY['nubia_app']::name[]),
+    '⭐ MAT-PA-APP patient_account : au moins une policy pour nubia_app');
+
+-- patient_account — nubia_seed
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'patient_account' AND roles @> ARRAY['nubia_seed']::name[]),
+    '⭐ MAT-PA-SEED patient_account : policy nubia_seed présente (account_seed, 0045)');
+
+-- patient_account — FORCE RLS protège même nubia_owner (bypassrls=t)
+SELECT ok(
+    (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'patient_account'),
+    '⭐ MAT-PA-OWNER patient_account : FORCE RLS bloque nubia_owner en runtime (0045)');
+
+-- patient_coverage — nubia_app
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'patient_coverage' AND roles @> ARRAY['nubia_app']::name[]),
+    '⭐ MAT-PC-APP patient_coverage : au moins une policy pour nubia_app');
+
+-- patient_coverage — nubia_seed
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'patient_coverage' AND roles @> ARRAY['nubia_seed']::name[]),
+    '⭐ MAT-PC-SEED patient_coverage : policy nubia_seed présente (patient_coverage_seed, 0084)');
+
+-- patient_coverage — FORCE RLS
+SELECT ok(
+    (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'patient_coverage'),
+    '⭐ MAT-PC-OWNER patient_coverage : FORCE RLS bloque nubia_owner en runtime (0023)');
+
+-- account_guardianship — nubia_app
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'account_guardianship' AND roles @> ARRAY['nubia_app']::name[]),
+    '⭐ MAT-AG-APP account_guardianship : au moins une policy pour nubia_app');
+
+-- account_guardianship — nubia_seed
+SELECT ok(
+    EXISTS(SELECT 1 FROM pg_policies
+           WHERE tablename = 'account_guardianship' AND roles @> ARRAY['nubia_seed']::name[]),
+    '⭐ MAT-AG-SEED account_guardianship : policy nubia_seed présente (guardianship_seed, 0025)');
+
+-- account_guardianship — RLS activée
+SELECT ok(
+    (SELECT relrowsecurity FROM pg_class WHERE relname = 'account_guardianship'),
+    '⭐ MAT-AG-OWNER account_guardianship : ROW LEVEL SECURITY activée (0025)');
+
+-- ===========================================================================
+-- TRG-ABS. Aucun trigger utilisateur sur les 3 tables (T-DB-D002.b) :
+-- patient_account / patient_coverage / account_guardianship n'ont ni trigger
+-- d'audit ni de colonne calculée — confirmé par pg_trigger (tgisinternal=false).
+-- ===========================================================================
+SELECT is(
+    (SELECT count(*)::int
+     FROM pg_trigger t
+     JOIN pg_class c ON c.oid = t.tgrelid
+     WHERE c.relname IN ('patient_account', 'patient_coverage', 'account_guardianship')
+       AND NOT t.tgisinternal),
+    0,
+    '⭐ TRG-ABS : aucun trigger utilisateur sur patient_account / patient_coverage / account_guardianship');
+
+-- ===========================================================================
+-- PA-SD1. Soft-delete patient_account : filtrage applicatif WHERE deleted_at IS NULL.
+-- L'application filtre toujours deleted_at IS NULL ; la RLS ne l'enforcer pas.
+-- ===========================================================================
+-- Utilise e4 (sans couverture, pas de tutelle liée).
+RESET app.patient_account_id;
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e4';
+SELECT lives_ok(
+    $$ UPDATE patient_account SET deleted_at = now()
+       WHERE id = '18280000-0000-0000-0000-0000000000e4' $$,
+    '⭐ PA-SD1a patient_account soft-delete : UPDATE deleted_at OK (account_self_update policy)');
+
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e4'
+       AND deleted_at IS NULL),
+    0,
+    '⭐ PA-SD1b patient_account soft-delete : compte e4 invisible via filtre applicatif deleted_at IS NULL');
+
+-- ===========================================================================
+-- AG-EXP1. Expiration de tutelle (« token expiration » simulée) :
+-- La policy account_guardian_read (AND active = true) bloque l'accès
+-- du tuteur au compte du dépendant dès que la tutelle passe active = false.
+-- ===========================================================================
+-- Fixtures e5 (tuteur) / e6 (dépendant), tutelle active 000030.
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a5', 'guardian.exp1828@example.test', '$argon2id$fixture', 'patient');
+INSERT INTO app_user (id, email, password_hash, kind)
+    VALUES ('18280000-0000-0000-0000-0000000000a6', 'dependent.exp1828@example.test', '$argon2id$fixture', 'patient');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e5', '18280000-0000-0000-0000-0000000000a5', 'Tuteur', 'Exp');
+INSERT INTO patient_account (id, app_user_id, first_name, last_name)
+    VALUES ('18280000-0000-0000-0000-0000000000e6', '18280000-0000-0000-0000-0000000000a6', 'Dependant', 'Exp');
+INSERT INTO account_guardianship (id, guardian_account_id, dependent_account_id, relationship, active)
+    VALUES ('18280000-0000-0000-0000-000000000030',
+            '18280000-0000-0000-0000-0000000000e5',
+            '18280000-0000-0000-0000-0000000000e6',
+            'parent', true);
+
+-- e5 voit e6 quand active = true (tutelle en cours).
+SET LOCAL app.current_account_id = '18280000-0000-0000-0000-0000000000e5';
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e6'),
+    1,
+    '⭐ AG-EXP1a tutelle active : tuteur (e5) voit le dépendant (e6) — active=true');
+
+-- Désactivation : la tutelle "expire" (active → false).
+UPDATE account_guardianship SET active = false
+WHERE id = '18280000-0000-0000-0000-000000000030';
+
+-- Après expiration, account_guardian_read (AND active = true) bloque : 0 ligne visible.
+SELECT is(
+    (SELECT count(*)::int FROM patient_account
+     WHERE id = '18280000-0000-0000-0000-0000000000e6'),
+    0,
+    '⭐ AG-EXP1b expiration tutelle : tuteur (e5) ne voit PLUS le dépendant (e6) — active=false');
+
+SELECT * FROM finish();
+ROLLBACK;

@@ -1,0 +1,113 @@
+{
+  "catalogId": "nubia.catalog.v1",
+  "version": "0.1.0",
+  "instructions": "Nubia design-system catalog for A2UI (a2ui.org). Each component maps 1:1 to a Nubia* widget via the Flutter renderer in package:nubia_a2ui. Enum prop values match package:nubia_design_system DsProps maps. Prefer Column/Row/List for layout; reference data via {\"path\": \"/x/y\"} bindings; trigger server work via action props.",
+  "components": {
+    "Text": {
+      "props": {
+        "value": { "type": "string" },
+        "maxLines": { "type": "integer" }
+      }
+    },
+    "Image": {
+      "props": {
+        "src": { "type": "string" },
+        "fit": { "enum": ["cover", "contain", "fill"] }
+      }
+    },
+    "Icon": {
+      "props": { "name": { "type": "string" } }
+    },
+    "Divider": { "props": { "inset": { "type": "boolean" } } },
+    "Row": {
+      "children": true,
+      "props": { "gap": { "type": "number" } }
+    },
+    "Column": {
+      "children": true,
+      "props": { "gap": { "type": "number" } }
+    },
+    "List": {
+      "props": {
+        "dataPath": { "type": "string" },
+        "itemTemplate": { "$ref": "common_types.json#/$defs/ComponentId" }
+      }
+    },
+    "Card": {
+      "children": true,
+      "props": { "state": { "enum": ["static", "interactive", "selected"] } },
+      "actions": ["onTap"]
+    },
+    "Tabs": {
+      "children": true,
+      "props": { "tabs": { "type": "array" } }
+    },
+    "Modal": {
+      "children": true,
+      "props": { "title": { "type": "string" }, "dismissible": { "type": "boolean" } }
+    },
+    "Button": {
+      "props": {
+        "label": { "type": "string" },
+        "variant": { "enum": ["primary", "secondary", "tertiary", "destructive"] },
+        "size": { "enum": ["sm", "md", "lg"] },
+        "isLoading": { "type": "boolean" }
+      },
+      "actions": ["onPressed"]
+    },
+    "TextField": {
+      "props": {
+        "label": { "type": "string" },
+        "hint": { "type": "string" },
+        "errorText": { "type": "string" },
+        "variant": { "enum": ["outlined", "filled", "search", "password", "multiline", "withSuffix"] },
+        "enabled": { "type": "boolean" }
+      },
+      "actions": ["onChanged"]
+    },
+    "CheckBox": {
+      "props": { "value": { "type": "boolean" }, "label": { "type": "string" } },
+      "actions": ["onChanged"]
+    },
+    "DateTimeInput": {
+      "props": { "value": { "type": "string" }, "label": { "type": "string" }, "withTime": { "type": "boolean" } },
+      "actions": ["onChanged"]
+    },
+    "ChoicePicker": {
+      "props": { "options": { "type": "array" }, "value": { "type": "string" } },
+      "actions": ["onChanged"]
+    },
+    "Slider": {
+      "props": { "value": { "type": "number" }, "min": { "type": "number" }, "max": { "type": "number" } },
+      "actions": ["onChanged"]
+    },
+    "Chip": {
+      "props": {
+        "label": { "type": "string" },
+        "variant": { "enum": ["filter", "choice", "input"] },
+        "selected": { "type": "boolean" }
+      },
+      "actions": ["onTap"]
+    },
+    "Badge": {
+      "props": {
+        "label": { "type": "string" },
+        "count": { "type": "integer" },
+        "variant": { "enum": ["neutral", "info", "success", "warning", "error"] }
+      }
+    },
+    "Avatar": {
+      "props": { "src": { "type": "string" }, "initials": { "type": "string" }, "radius": { "type": "number" } }
+    },
+    "StatusPill": {
+      "props": {
+        "label": { "type": "string" },
+        "status": { "enum": ["info", "success", "warning", "error"] }
+      }
+    }
+  },
+  "functions": {},
+  "surfaceProperties": {
+    "title": { "type": "string" }
+  }
+}

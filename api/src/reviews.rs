@@ -180,10 +180,14 @@ pub struct ListReviewsQuery {
 
 #[derive(Serialize)]
 pub struct ReviewItem {
+    pub id: Uuid,
+    pub provider_id: Uuid,
+    pub appointment_id: Uuid,
     pub rating: i32,
     pub comment: Option<String>,
+    pub author_name: String,
     pub created_at: String,
-    pub author_display: String,
+    pub status: String,
 }
 
 #[derive(Serialize)]
@@ -214,7 +218,8 @@ pub async fn list_provider_reviews(
     let offset = (page - 1) * per_page;
 
     let rows = sqlx::query(
-        "SELECT rating, comment, created_at, author_display, \
+        "SELECT id, provider_id, appointment_id, rating, comment, \
+                created_at, author_display, status, \
                 COUNT(*) OVER() AS total_count \
          FROM review \
          WHERE provider_id = $1 AND status = 'published' \
@@ -235,19 +240,29 @@ pub async fn list_provider_reviews(
         if let Ok(n) = row.try_get::<i64, _>("total_count") {
             total = n;
         }
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let provider_id: Uuid = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
+        let appointment_id: Uuid = row
+            .try_get("appointment_id")
+            .map_err(|_| AppError::Internal)?;
         let rating: i32 = row.try_get("rating").map_err(|_| AppError::Internal)?;
         let comment: Option<String> = row.try_get("comment").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
-        let author_display: String = row
+        let author_name: String = row
             .try_get("author_display")
             .map_err(|_| AppError::Internal)?;
+        let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
 
         data.push(ReviewItem {
+            id,
+            provider_id,
+            appointment_id,
             rating,
             comment,
+            author_name,
             created_at: created_at.to_rfc3339(),
-            author_display,
+            status,
         });
     }
 

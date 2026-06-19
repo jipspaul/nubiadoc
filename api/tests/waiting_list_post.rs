@@ -1,8 +1,11 @@
-//! Tests d'intégration : POST /v1/waiting-list (US-P12, issue #1670)
+//! Tests d'intégration : POST /v1/waiting-list (US-P12, issue #1670, #1821)
 //!
 //! Couvre :
 //! - 201 happy path (patient s'inscrit pour un provider valide).
 //! - 409 already_on_waiting_list (même patient + même provider, entrée active).
+//! - 401 sans token Authorization.
+//! - 403 token pro utilisé à la place d'un token patient.
+//! - 404 provider_id inconnu.
 
 use axum::{
     body::Body,
@@ -339,6 +342,124 @@ async fn post_waiting_list_duplicate_returns_409() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body2).unwrap();
     assert_eq!(v["code"], "already_on_waiting_list");
+
+    cleanup_fixture(&db, &f).await;
+}
+
+// ── Test 3 : 401 sans header Authorization ────────────────────────────────────
+
+#[tokio::test]
+async fn post_waiting_list_no_token_returns_401() {
+    let state = AppState {
+        db: PgPool::connect_lazy("postgres://nubia_app@localhost:5432/nubia").unwrap(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/waiting-list")
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "provider_id": Uuid::new_v4() })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test 4 : 403 token pro (kind:"pro") utilisé sur un endpoint patient ───────
+
+#[tokio::test]
+async fn post_waiting_list_pro_token_returns_403() {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    let pro_token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &json!({
+            "sub": Uuid::new_v4(),
+            "kind": "pro",
+            "cabinet_id": Uuid::new_v4(),
+            "role": "admin",
+            "exp": exp
+        }),
+        &jsonwebtoken::EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let state = AppState {
+        db: PgPool::connect_lazy("postgres://nubia_app@localhost:5432/nubia").unwrap(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/waiting-list")
+                .header("Authorization", format!("Bearer {pro_token}"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "provider_id": Uuid::new_v4() })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Test 5 : 404 provider_id inconnu ─────────────────────────────────────────
+
+#[tokio::test]
+async fn post_waiting_list_unknown_provider_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db, "404prov").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Provider UUID inexistant en base.
+    let unknown_provider_id = Uuid::new_v4();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/waiting-list")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "provider_id": unknown_provider_id })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     cleanup_fixture(&db, &f).await;
 }
