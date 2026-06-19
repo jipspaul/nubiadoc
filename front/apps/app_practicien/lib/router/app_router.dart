@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 
+import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/login/login_page.dart';
 import '../features/waiting_room/waiting_room_page.dart';
@@ -14,6 +15,7 @@ class AppRouter {
   static const login = '/login';
   static const home = '/';
   static const waitingRoom = '/waiting-room';
+  static const messages = '/messages';
   static const a2uiDemo = '/a2ui-demo';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -38,6 +40,10 @@ class AppRouter {
         GoRoute(
           path: waitingRoom,
           builder: (_, __) => const Scaffold(body: WaitingRoomPage()),
+        ),
+        GoRoute(
+          path: messages,
+          builder: (_, __) => const Scaffold(body: CabinetMessagingPage()),
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
       ],
