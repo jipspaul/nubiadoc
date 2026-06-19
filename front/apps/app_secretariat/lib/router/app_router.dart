@@ -7,6 +7,8 @@ import 'package:nubia_core/nubia_core.dart';
 
 import '../features/dashboard/dashboard_page.dart';
 import '../features/login/login_page.dart';
+import '../features/patients/patients_bloc.dart';
+import '../features/patients/patients_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 
@@ -18,6 +20,7 @@ class AppRouter {
   static const home = '/';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
+  static const patients = '/patients';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -44,6 +47,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<WaitingRoomBloc>(),
             child: const WaitingRoomPage(),
+          ),
+        ),
+        GoRoute(
+          path: patients,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<PatientsBloc>(),
+            child: const PatientsPage(),
           ),
         ),
       ],

@@ -273,6 +273,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
 
   // Pro use cases (non-clinical — available to both praticien and secrétariat)
   gi
+    ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
+    ..registerFactory(() => GetCabinetPatientUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
     ..registerFactory(() => CallNextUseCase(gi()));
 
