@@ -280,4 +280,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
         () => ConsultationRepositoryImpl(gi()),
       );
   }
+
+  // pro use cases (available whenever includePro == true)
+  gi
+    ..registerFactory(() => ListWaitingRoomUseCase(gi()))
+    ..registerFactory(() => CallNextUseCase(gi()));
 }
