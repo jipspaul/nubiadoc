@@ -45,12 +45,25 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
-  Future<Either<Failure, void>> registerFcmToken(String token) async {
+  Future<Either<Failure, void>> registerDevice({
+    required String fcmToken,
+    required String platform,
+  }) async {
     try {
-      await _api.registerFcmToken(token);
+      await _api.registerDevice(fcmToken: fcmToken, platform: platform);
       return const Right(null);
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors de l\'enregistrement du token.'));
+      return Left(_mapDioError(e, 'Erreur lors de l\'enregistrement du device.'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> unregisterFcmToken(String token) async {
+    try {
+      await _api.unregisterDevice(token);
+      return const Right(null);
+    } on DioException catch (e) {
+      return Left(_mapDioError(e, 'Erreur lors du désenregistrement du device.'));
     }
   }
 
