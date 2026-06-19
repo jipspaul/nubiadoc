@@ -41,6 +41,12 @@ class ProConfig {
         requiresClinical: true,
       ),
       shell.ProNavDestination(
+        label: 'Ordonnances',
+        icon: Icons.medication_outlined,
+        route: '/ordonnances',
+        requiresClinical: true,
+      ),
+      shell.ProNavDestination(
         label: 'Messages',
         icon: Icons.chat_bubble_outline,
         route: '/messages',
