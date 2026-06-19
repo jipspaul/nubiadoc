@@ -1,60 +1,57 @@
-// lib/presentation/widgets/nubia_empty_state.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
-/// Widget d'état vide transverse : illustration SVG + message + CTA optionnel.
+/// Widget d'état vide transverse : icône + titre + sous-titre optionnel + CTA optionnel.
 ///
-/// - [svgAsset] : chemin de l'asset SVG (ex. `assets/images/empty_state.svg`).
-///   Si null, l'illustration est omise.
-/// - [message] : texte principal affiché sous l'illustration.
-/// - [actionLabel] : libellé du bouton CTA. Requis si [onAction] est non null.
-/// - [onAction] : callback du CTA. Quand null, le bouton n'est pas affiché.
+/// - [icon] : icône Material à afficher.
+/// - [title] : texte principal affiché sous l'icône.
+/// - [subtitle] : texte secondaire optionnel.
+/// - [action] : widget CTA optionnel (ex. `FilledButton`).
 class NubiaEmptyState extends StatelessWidget {
   const NubiaEmptyState({
     super.key,
-    this.svgAsset,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  }) : assert(
-          onAction == null || actionLabel != null,
-          'actionLabel doit être fourni quand onAction est non null',
-        );
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.action,
+  });
 
-  final String? svgAsset;
-  final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (svgAsset != null)
-              SvgPicture.asset(
-                svgAsset!,
-                width: 160,
-                height: 160,
-                semanticsLabel: message,
-              ),
-            if (svgAsset != null) const SizedBox(height: 24),
+            Icon(icon, size: 64, color: cs.onSurfaceVariant),
+            const SizedBox(height: 16),
             Text(
-              message,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: cs.onSurface,
                   ),
               textAlign: TextAlign.center,
             ),
-            if (onAction != null) const SizedBox(height: 16),
-            if (onAction != null)
-              FilledButton(
-                onPressed: onAction,
-                child: Text(actionLabel!),
+            if (subtitle != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                subtitle!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                textAlign: TextAlign.center,
               ),
+            ],
+            if (action != null) ...[
+              const SizedBox(height: 24),
+              action!,
+            ],
           ],
         ),
       ),

@@ -68,8 +68,9 @@ class _ProShellState extends State<ProShell> {
     }
     return Center(
       child: NubiaEmptyState(
-        message: '${destination.label} — ${widget.config.spaceLabel}. '
-            'Écran à implémenter sur le stack partagé.',
+        icon: Icons.construction_outlined,
+        title: destination.label,
+        subtitle: '${widget.config.spaceLabel} — Écran à implémenter.',
       ),
     );
   }

@@ -34,6 +34,7 @@ class AppRouter {
   static const bookableSlots = '/bookable-slots';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
+
   static const patients = '/patients';
   static const appointments = '/appointments';
   static const listeAttente = '/liste-attente';
