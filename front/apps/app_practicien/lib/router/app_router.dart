@@ -7,6 +7,7 @@ import '../features/agenda/agenda_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/consultation_clinique/consultation_clinique_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/ordonnances/ordonnances_page.dart';
 import '../features/login/login_page.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 import '../pro_config.dart';
@@ -21,6 +22,7 @@ class AppRouter {
   static const waitingRoom = '/waiting-room';
   static const messages = '/messages';
   static const consultation = '/consultation';
+  static const ordonnances = '/ordonnances';
   static const a2uiDemo = '/a2ui-demo';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -60,6 +62,15 @@ class AppRouter {
           builder: (_, state) => Scaffold(
             body: ConsultationCliniquePage(
               consultationId: state.uri.queryParameters['id'],
+            ),
+          ),
+        ),
+        GoRoute(
+          path: ordonnances,
+          redirect: (_, __) => ProConfig.includeClinical ? null : home,
+          builder: (_, state) => Scaffold(
+            body: OrdonnancesPage(
+              patientId: state.uri.queryParameters['patientId'],
             ),
           ),
         ),
