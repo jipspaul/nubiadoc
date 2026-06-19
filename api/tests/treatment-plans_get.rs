@@ -1,4 +1,4 @@
-//! Tests d'intégration : GET /v1/treatment-plans/:id
+//! Tests d'intégration : GET /v1/treatment-plans (liste) et GET /v1/treatment-plans/:id
 
 use axum::{
     body::Body,
@@ -559,6 +559,348 @@ async fn treatment_plan_get_other_patient_returns_404() {
     );
 
     // Cleanup
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_b_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2 OR id = $3")
+        .bind(user_a_id)
+        .bind(user_b_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Tests : GET /v1/treatment-plans (liste paginée)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Test L1 : happy path — patient avec un plan → 200, champs conformes ───────
+
+#[tokio::test]
+async fn treatment_plans_list_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-list+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'List', 'Patient')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("tp-list-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_id).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    assert!(!data.is_empty(), "au moins un plan attendu");
+
+    let plan = data.iter().find(|p| p["id"] == plan_id.to_string());
+    assert!(plan.is_some(), "le plan inséré doit apparaître dans la liste");
+    let plan = plan.unwrap();
+    assert_eq!(plan["title"], "Plan implant");
+    assert_eq!(plan["status"], "proposed");
+    assert!(plan["created_at"].is_string(), "created_at doit être une chaîne ISO 8601");
+
+    let page = &v["page"];
+    assert!(page["limit"].is_number(), "page.limit présent");
+
+    cleanup_fixture(
+        &db, cabinet_id, prac_id, patient_id, plan_id, phase_id, quote_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test L2 : sans JWT → 401 ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn treatment_plans_list_no_jwt_returns_401() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test L3 : token pro → 403 ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn treatment_plans_list_pro_token_returns_403() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_jwt(Uuid::new_v4(), Uuid::new_v4())),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Test L4 : patient sans plan → 200, data vide ─────────────────────────────
+
+#[tokio::test]
+async fn treatment_plans_list_empty_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("tp-list-empty+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Empty', 'List')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    assert_eq!(data.len(), 0, "liste vide attendue pour patient sans plan");
+    assert!(v["page"]["limit"].is_number(), "page.limit présent");
+    assert!(v["page"]["next_cursor"].is_null(), "next_cursor null si aucun résultat");
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test L5 : RLS isolation — patient A ne voit pas les plans de patient B ────
+
+#[tokio::test]
+async fn treatment_plans_list_rls_own_only() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    // Patient A (requérant, aucun plan)
+    let user_a_id = Uuid::new_v4();
+    let account_a_id = Uuid::new_v4();
+
+    // Patient B (possède un plan)
+    let user_b_id = Uuid::new_v4();
+    let account_b_id = Uuid::new_v4();
+
+    let prac_user_id = Uuid::new_v4();
+
+    for (uid, email, kind) in [
+        (user_a_id, format!("tp-rls-a+{}@nubia.test", user_a_id), "patient"),
+        (user_b_id, format!("tp-rls-b+{}@nubia.test", user_b_id), "patient"),
+        (prac_user_id, format!("tp-rls-prac+{}@nubia.test", prac_user_id), "pro"),
+    ] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
+        )
+        .bind(uid)
+        .bind(&email)
+        .bind(kind)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alpha', 'A')",
+    )
+    .bind(account_a_id)
+    .bind(user_a_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Bravo', 'B')",
+    )
+    .bind(account_b_id)
+    .bind(user_b_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Crée un plan appartenant à Patient B
+    let (cabinet_id, prac_id, patient_id, plan_b_id, phase_id, quote_id) =
+        insert_treatment_plan_fixture(&db, prac_user_id, account_b_id).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Patient A liste ses plans — le plan de B ne doit pas apparaître
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/treatment-plans")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_a_id, account_a_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    let ids: Vec<&str> = data.iter().filter_map(|p| p["id"].as_str()).collect();
+    assert!(
+        !ids.contains(&plan_b_id.to_string().as_str()),
+        "le plan de Patient B ne doit pas apparaître dans la liste de Patient A (RLS)"
+    );
+
     cleanup_fixture(
         &db, cabinet_id, prac_id, patient_id, plan_b_id, phase_id, quote_id,
     )
