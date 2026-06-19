@@ -5,13 +5,15 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 
-import '../features/bookable_slots/bookable_slots_bloc.dart';
-import '../features/bookable_slots/bookable_slots_page.dart';
 import '../features/agenda/agenda_page.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
+import '../features/bookable_slots/bookable_slots_bloc.dart';
+import '../features/bookable_slots/bookable_slots_page.dart';
+import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
+import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/devis_detail_page.dart';
@@ -40,6 +42,7 @@ class AppRouter {
   static const listeAttente = '/liste-attente';
   static const devis = '/devis';
   static const devisDetail = '/devis/:id';
+  static const messages = '/messages';
   static const adminMembres = '/admin-membres';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -118,6 +121,13 @@ class AppRouter {
               ),
             ),
           ],
+        ),
+        GoRoute(
+          path: messages,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<CabinetMessagingBloc>(),
+            child: const CabinetMessagingPage(),
+          ),
         ),
         GoRoute(
           path: adminMembres,
