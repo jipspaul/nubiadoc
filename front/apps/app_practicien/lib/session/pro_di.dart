@@ -12,6 +12,8 @@ void registerPro(GetIt gi) {
       login: gi<LoginUseCase>(),
       logout: gi<LogoutUseCase>(),
       tokenStorage: gi<TokenStorage>(),
+      deviceRegistration: gi<DeviceRegistrationService>(),
+      app: 'practicien',
     ),
   );
 

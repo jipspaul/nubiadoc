@@ -32,16 +32,19 @@ class AuthCubit extends Cubit<AuthState> {
     required GetMeUseCase getMe,
     required LogoutUseCase logout,
     required TokenStorage tokenStorage,
+    required DeviceRegistrationService deviceRegistration,
   })  : _login = login,
         _getMe = getMe,
         _logout = logout,
         _tokenStorage = tokenStorage,
+        _deviceRegistration = deviceRegistration,
         super(const AuthUnknown());
 
   final LoginUseCase _login;
   final GetMeUseCase _getMe;
   final LogoutUseCase _logout;
   final TokenStorage _tokenStorage;
+  final DeviceRegistrationService _deviceRegistration;
 
   /// Called at startup: restore session from a stored token if present.
   Future<void> restore() async {
@@ -62,7 +65,10 @@ class AuthCubit extends Cubit<AuthState> {
     final result = await _login(email: email, password: password);
     result.fold(
       (failure) => emit(AuthUnauthenticated(failure.message)),
-      (account) => emit(AuthAuthenticated(_sessionFrom(account))),
+      (account) {
+        _deviceRegistration.registerOnLogin('patient');
+        emit(AuthAuthenticated(_sessionFrom(account)));
+      },
     );
   }
 
