@@ -179,4 +179,23 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, Unit>> offerSlot(String id) async {
+    try {
+      await _api.offerSlot(id);
+      return const Right(unit);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Entrée liste d\'attente introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible de proposer un créneau.",
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
 }

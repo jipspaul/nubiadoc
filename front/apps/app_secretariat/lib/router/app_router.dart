@@ -5,12 +5,18 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 
+import '../features/admin_membres/admin_membres_bloc.dart';
+import '../features/admin_membres/admin_membres_page.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/devis/devis_bloc.dart';
+import '../features/devis/devis_page.dart';
 import '../features/login/login_page.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/patients/patients_page.dart';
+import '../features/waiting_list/waiting_list_bloc.dart';
+import '../features/waiting_list/waiting_list_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 
@@ -24,6 +30,9 @@ class AppRouter {
   static const salleAttente = '/salle-attente';
   static const patients = '/patients';
   static const appointments = '/appointments';
+  static const listeAttente = '/liste-attente';
+  static const devis = '/devis';
+  static const adminMembres = '/admin-membres';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -64,6 +73,27 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<AppointmentsBloc>(),
             child: const AppointmentsPage(),
+          ),
+        ),
+        GoRoute(
+          path: listeAttente,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<WaitingListBloc>(),
+            child: const WaitingListPage(),
+          ),
+        ),
+        GoRoute(
+          path: devis,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<DevisBloc>(),
+            child: const DevisPage(),
+          ),
+        ),
+        GoRoute(
+          path: adminMembres,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<AdminMembresBloc>(),
+            child: const AdminMembresPage(),
           ),
         ),
       ],

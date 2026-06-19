@@ -85,6 +85,7 @@ export 'src/usecases/prescription/create_prescription_use_case.dart';
 export 'src/usecases/prescription/sign_prescription_use_case.dart';
 export 'src/usecases/reviews/get_provider_reviews_use_case.dart';
 export 'src/usecases/reviews/submit_review_use_case.dart';
+export 'src/usecases/notifications/register_device_use_case.dart';
 export 'src/entities/provider_result.dart';
 export 'src/repositories/search_repository.dart';
 export 'src/usecases/search/search_providers_use_case.dart';
@@ -105,6 +106,9 @@ export 'src/usecases/consultation/complete_consultation_use_case.dart';
 // waiting room pro
 export 'src/usecases/waiting_room/list_waiting_room_use_case.dart';
 export 'src/usecases/waiting_room/call_next_use_case.dart';
+// waiting list pro (liste d'attente — offer slot)
+export 'src/usecases/waiting_list/list_waiting_list_use_case.dart';
+export 'src/usecases/waiting_list/offer_slot_use_case.dart';
 // slots pro
 export 'src/usecases/slots/list_bookable_slots_use_case.dart';
 export 'src/usecases/slots/create_slot_use_case.dart';

@@ -24,3 +24,6 @@ export 'src/session/device_registration_service.dart';
 // Utils
 export 'src/utils/document_opener.dart';
 export 'src/utils/file_picker_service.dart';
+
+// Session
+export 'src/session/fcm_token_provider.dart';

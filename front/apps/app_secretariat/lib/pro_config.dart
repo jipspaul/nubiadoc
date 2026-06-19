@@ -25,6 +25,11 @@ class ProConfig {
         route: '/salle-attente',
       ),
       shell.ProNavDestination(
+        label: 'Liste d\'attente',
+        icon: Icons.format_list_bulleted_outlined,
+        route: '/liste-attente',
+      ),
+      shell.ProNavDestination(
         label: 'Agenda',
         icon: Icons.calendar_month_outlined,
         route: '/agenda',
@@ -43,6 +48,11 @@ class ProConfig {
         label: 'Messages',
         icon: Icons.chat_bubble_outline,
         route: '/messages',
+      ),
+      shell.ProNavDestination(
+        label: 'Membres',
+        icon: Icons.group_outlined,
+        route: '/admin-membres',
       ),
     ],
   );
