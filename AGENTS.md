@@ -5,7 +5,7 @@
 
 ## Routage par scope
 - `api/` → backend Rust/Axum/SQLx → lis `api/AGENTS.md`.
-- `app/` → app Flutter/Bloc → lis `app/AGENTS.md`.
+- `front/` → monorepo Flutter (app_patient / app_practicien / app_secretariat) → lis `front/AGENTS.md` (si présent) ou les `AGENTS.md` dans chaque sous-dossier.
 - `db/` → schéma PostgreSQL (migrations + pgTAP) → lis `db/AGENTS.md`.
 - `web-console/` → back-office Astro + Playwright → lis `web-console/AGENTS.md`.
 - `design/` → specs UX, design system, copy, a11y → lis `design/AGENTS.md`.
