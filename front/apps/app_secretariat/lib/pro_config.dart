@@ -20,6 +20,11 @@ class ProConfig {
     spaceLabel: spaceLabel,
     destinations: [
       shell.ProNavDestination(
+        label: 'Salle d\'attente',
+        icon: Icons.airline_seat_recline_normal_outlined,
+        route: '/salle-attente',
+      ),
+      shell.ProNavDestination(
         label: 'Agenda',
         icon: Icons.calendar_month_outlined,
         route: '/agenda',
