@@ -2,6 +2,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'pro_auth_cubit.dart';
 import '../features/agenda/agenda_bloc.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
