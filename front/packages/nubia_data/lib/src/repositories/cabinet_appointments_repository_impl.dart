@@ -117,6 +117,7 @@ class CabinetAppointmentsRepositoryImpl
         return const Left(UnauthorizedFailure());
       }
       return Left(ServerFailure(
+        message: 'Impossible de reporter le rendez-vous.',
         message: 'Impossible de reprogrammer le rendez-vous.',
         statusCode: e.response?.statusCode,
       ));

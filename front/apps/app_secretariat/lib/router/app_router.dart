@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
 
+import '../features/agenda/agenda_page.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
 import '../features/appointments/appointments_bloc.dart';
@@ -26,6 +27,7 @@ class AppRouter {
   static const splash = '/splash';
   static const login = '/login';
   static const home = '/';
+  static const agenda = '/agenda';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
   static const patients = '/patients';
@@ -53,6 +55,10 @@ class AppRouter {
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
+        GoRoute(
+          path: agenda,
+          builder: (_, __) => const Scaffold(body: AgendaPage()),
+        ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
           path: salleAttente,

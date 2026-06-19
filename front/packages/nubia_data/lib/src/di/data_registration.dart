@@ -314,6 +314,11 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
 
   // cabinet messaging use cases
   gi
+    ..registerFactory(() => GetCabinetAgendaUseCase(gi()))
+    ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
+    ..registerFactory(() => CreateCabinetAppointmentUseCase(gi()))
+    ..registerFactory(() => RescheduleAppointmentUseCase(gi()))
+    ..registerFactory(() => ListBookableSlotsUseCase(gi()))
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
     ..registerFactory(() => SendMessageCabinetUseCase(gi()));
