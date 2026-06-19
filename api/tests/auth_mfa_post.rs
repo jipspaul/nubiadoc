@@ -191,10 +191,7 @@ async fn mfa_verify_invalid_totp_secret_returns_422() {
             Request::builder()
                 .method("POST")
                 .uri("/v1/auth/mfa/verify")
-                .header(
-                    "Authorization",
-                    format!("Bearer {}", make_pro_jwt(user_id)),
-                )
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     json!({"totp_secret": "NOT-A-VALID-BASE32!!!", "totp_code": "123456"})
@@ -225,10 +222,7 @@ async fn mfa_verify_missing_body_field_returns_422() {
             Request::builder()
                 .method("POST")
                 .uri("/v1/auth/mfa/verify")
-                .header(
-                    "Authorization",
-                    format!("Bearer {}", make_pro_jwt(user_id)),
-                )
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
                 .header("Content-Type", "application/json")
                 .body(Body::from(r#"{"totp_secret":"JBSWY3DPEHPK3PXP"}"#))
                 .unwrap(),
@@ -251,10 +245,7 @@ async fn mfa_verify_wrong_totp_code_returns_422() {
             Request::builder()
                 .method("POST")
                 .uri("/v1/auth/mfa/verify")
-                .header(
-                    "Authorization",
-                    format!("Bearer {}", make_pro_jwt(user_id)),
-                )
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     json!({"totp_secret": secret_b32, "totp_code": "000000"}).to_string(),
