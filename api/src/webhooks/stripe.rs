@@ -218,13 +218,11 @@ async fn update_payment_status(
     // (migration 0103), exécutée avec les droits nubia_owner (BYPASSRLS).
     // Un SELECT direct sur payment serait bloqué par la RLS tenant_isolation car
     // le webhook arrive sans cabinet_id connu (hors contexte JWT).
-    let row = sqlx::query(
-        "SELECT id, cabinet_id FROM payment_find_by_provider_ref('stripe', $1)",
-    )
-    .bind(pi_id)
-    .fetch_optional(&mut **tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let row = sqlx::query("SELECT id, cabinet_id FROM payment_find_by_provider_ref('stripe', $1)")
+        .bind(pi_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     // Si aucun paiement correspondant : l'événement peut arriver avant le
     // PaymentIntent local (race) — on ignore silencieusement.

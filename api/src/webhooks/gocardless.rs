@@ -112,13 +112,12 @@ pub async fn gocardless_webhook(
     // (migration 0103), exécutée avec les droits nubia_owner (BYPASSRLS).
     // Un SELECT direct sur payment serait bloqué par la RLS tenant_isolation car
     // le webhook arrive sans cabinet_id connu (hors contexte JWT).
-    let row = sqlx::query(
-        "SELECT id, cabinet_id FROM payment_find_by_provider_ref('gocardless', $1)",
-    )
-    .bind(gc_payment_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let row =
+        sqlx::query("SELECT id, cabinet_id FROM payment_find_by_provider_ref('gocardless', $1)")
+            .bind(gc_payment_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
     let Some(row) = row else {
         tracing::warn!(gc_payment_id = %gc_payment_id, "gocardless webhook: no matching payment found");
