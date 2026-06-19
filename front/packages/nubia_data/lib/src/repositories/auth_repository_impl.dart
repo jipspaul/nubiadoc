@@ -5,12 +5,14 @@ import 'package:nubia_core/src/storage/token_storage.dart';
 import 'package:nubia_data/src/remote/auth/auth_api.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
 import 'package:nubia_domain/src/repositories/auth_repository.dart';
+import 'package:nubia_domain/src/repositories/notification_repository.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthApi _api;
   final TokenStorage _tokenStorage;
+  final NotificationRepository _notifications;
 
-  const AuthRepositoryImpl(this._api, this._tokenStorage);
+  const AuthRepositoryImpl(this._api, this._tokenStorage, this._notifications);
 
   @override
   Future<Either<Failure, PatientAccount>> login({
@@ -63,6 +65,12 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<Either<Failure, void>> logout() async {
+    final fcmToken = await _tokenStorage.getFcmToken();
+    if (fcmToken != null) {
+      // Best-effort: ignore failure so logout always completes.
+      await _notifications.unregisterFcmToken(fcmToken);
+      await _tokenStorage.clearFcmToken();
+    }
     await _tokenStorage.clearTokens();
     return const Right(null);
   }

@@ -109,7 +109,7 @@ void registerData(
           : AppointmentRepositoryImpl(gi()),
     )
     ..registerLazySingleton<AuthRepository>(
-      () => AuthRepositoryImpl(gi(), gi()),
+      () => AuthRepositoryImpl(gi(), gi(), gi()),
     )
     ..registerLazySingleton<BillingRepository>(
       () => BillingRepositoryImpl(gi()),
@@ -189,7 +189,9 @@ void _registerUseCases(GetIt gi) {
     // search
     ..registerFactory(() => SearchProvidersUseCase(gi()))
     ..registerFactory(() => SearchSlotsUseCase(gi()))
-    ..registerFactory(() => HoldSlotUseCase(gi()));
+    ..registerFactory(() => HoldSlotUseCase(gi()))
+    // notifications / devices
+    ..registerFactory(() => RegisterDeviceUseCase(gi()));
 }
 
 void _registerClinical(GetIt gi) {
