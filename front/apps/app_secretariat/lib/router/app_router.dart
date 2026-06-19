@@ -7,6 +7,8 @@ import 'package:nubia_core/nubia_core.dart';
 
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
+import '../features/appointments/appointments_bloc.dart';
+import '../features/appointments/appointments_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/devis/devis_page.dart';
@@ -27,6 +29,7 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
   static const patients = '/patients';
+  static const appointments = '/appointments';
   static const listeAttente = '/liste-attente';
   static const devis = '/devis';
   static const adminMembres = '/admin-membres';
@@ -63,6 +66,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<PatientsBloc>(),
             child: const PatientsPage(),
+          ),
+        ),
+        GoRoute(
+          path: appointments,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<AppointmentsBloc>(),
+            child: const AppointmentsPage(),
           ),
         ),
         GoRoute(

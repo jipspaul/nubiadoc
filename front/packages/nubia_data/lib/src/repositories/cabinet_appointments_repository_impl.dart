@@ -102,4 +102,24 @@ class CabinetAppointmentsRepositoryImpl
       ));
     }
   }
+
+  @override
+  Future<Either<Failure, CabinetAppointment>> reschedule(
+      String id, DateTime newStartsAt) async {
+    try {
+      final dto = await _api.reschedule(id, newStartsAt);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Rendez-vous introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de reprogrammer le rendez-vous.',
+        statusCode: e.response?.statusCode,
+      ));
+    }
+  }
 }
