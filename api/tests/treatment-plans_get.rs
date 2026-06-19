@@ -652,11 +652,17 @@ async fn treatment_plans_list_returns_200() {
     assert!(!data.is_empty(), "au moins un plan attendu");
 
     let plan = data.iter().find(|p| p["id"] == plan_id.to_string());
-    assert!(plan.is_some(), "le plan inséré doit apparaître dans la liste");
+    assert!(
+        plan.is_some(),
+        "le plan inséré doit apparaître dans la liste"
+    );
     let plan = plan.unwrap();
     assert_eq!(plan["title"], "Plan implant");
     assert_eq!(plan["status"], "proposed");
-    assert!(plan["created_at"].is_string(), "created_at doit être une chaîne ISO 8601");
+    assert!(
+        plan["created_at"].is_string(),
+        "created_at doit être une chaîne ISO 8601"
+    );
 
     let page = &v["page"];
     assert!(page["limit"].is_number(), "page.limit présent");
@@ -797,7 +803,10 @@ async fn treatment_plans_list_empty_returns_200() {
     let data = v["data"].as_array().expect("data doit être un tableau");
     assert_eq!(data.len(), 0, "liste vide attendue pour patient sans plan");
     assert!(v["page"]["limit"].is_number(), "page.limit présent");
-    assert!(v["page"]["next_cursor"].is_null(), "next_cursor null si aucun résultat");
+    assert!(
+        v["page"]["next_cursor"].is_null(),
+        "next_cursor null si aucun résultat"
+    );
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)
@@ -826,9 +835,21 @@ async fn treatment_plans_list_rls_own_only() {
     let prac_user_id = Uuid::new_v4();
 
     for (uid, email, kind) in [
-        (user_a_id, format!("tp-rls-a+{}@nubia.test", user_a_id), "patient"),
-        (user_b_id, format!("tp-rls-b+{}@nubia.test", user_b_id), "patient"),
-        (prac_user_id, format!("tp-rls-prac+{}@nubia.test", prac_user_id), "pro"),
+        (
+            user_a_id,
+            format!("tp-rls-a+{}@nubia.test", user_a_id),
+            "patient",
+        ),
+        (
+            user_b_id,
+            format!("tp-rls-b+{}@nubia.test", user_b_id),
+            "patient",
+        ),
+        (
+            prac_user_id,
+            format!("tp-rls-prac+{}@nubia.test", prac_user_id),
+            "pro",
+        ),
     ] {
         sqlx::query(
             "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', $3)",
