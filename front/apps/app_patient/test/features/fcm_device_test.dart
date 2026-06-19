@@ -19,9 +19,8 @@ class MockLogoutUseCase extends Mock implements LogoutUseCase {}
 
 class MockTokenStorage extends Mock implements TokenStorage {}
 
-class MockRegisterDeviceUseCase extends Mock implements RegisterDeviceUseCase {}
-
-class MockFcmTokenProvider extends Mock implements FcmTokenProvider {}
+class MockDeviceRegistrationService extends Mock
+    implements DeviceRegistrationService {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -34,8 +33,6 @@ const _account = PatientAccount(
   email: 'alice@example.com',
 );
 
-const _fcmToken = 'fcm-test-token-abc123';
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -45,27 +42,17 @@ void main() {
   late MockGetMeUseCase mockGetMe;
   late MockLogoutUseCase mockLogout;
   late MockTokenStorage mockStorage;
-  late MockRegisterDeviceUseCase mockRegisterDevice;
-  late MockFcmTokenProvider mockFcmProvider;
+  late MockDeviceRegistrationService mockDeviceReg;
 
   setUp(() {
     mockLogin = MockLoginUseCase();
     mockGetMe = MockGetMeUseCase();
     mockLogout = MockLogoutUseCase();
     mockStorage = MockTokenStorage();
-    mockRegisterDevice = MockRegisterDeviceUseCase();
-    mockFcmProvider = MockFcmTokenProvider();
+    mockDeviceReg = MockDeviceRegistrationService();
 
-    // Default stubs
-    when(() => mockFcmProvider.getToken())
-        .thenAnswer((_) async => _fcmToken);
-    when(() => mockFcmProvider.platform).thenReturn('android');
-    when(
-      () => mockRegisterDevice(
-        fcmToken: any(named: 'fcmToken'),
-        platform: any(named: 'platform'),
-      ),
-    ).thenAnswer((_) async => const Right(null));
+    when(() => mockDeviceReg.registerOnLogin(any()))
+        .thenAnswer((_) async {});
   });
 
   AuthCubit buildCubit() => AuthCubit(
@@ -73,13 +60,12 @@ void main() {
         getMe: mockGetMe,
         logout: mockLogout,
         tokenStorage: mockStorage,
-        registerDevice: mockRegisterDevice,
-        fcmTokenProvider: mockFcmProvider,
+        deviceRegistration: mockDeviceReg,
       );
 
   group('AuthCubit — enregistrement FCM au login', () {
     blocTest<AuthCubit, AuthState>(
-      'appelle RegisterDeviceUseCase avec le token FCM après une connexion réussie',
+      'appelle DeviceRegistrationService.registerOnLogin après une connexion réussie',
       build: () {
         when(
           () => mockLogin(
@@ -100,45 +86,12 @@ void main() {
         ),
       ],
       verify: (_) {
-        verify(
-          () => mockRegisterDevice(
-            fcmToken: _fcmToken,
-            platform: 'android',
-          ),
-        ).called(1);
+        verify(() => mockDeviceReg.registerOnLogin('patient')).called(1);
       },
     );
 
     blocTest<AuthCubit, AuthState>(
-      'ne panique pas si le provider FCM renvoie null (pas de token dispo)',
-      build: () {
-        when(() => mockFcmProvider.getToken()).thenAnswer((_) async => null);
-        when(
-          () => mockLogin(
-            email: any(named: 'email'),
-            password: any(named: 'password'),
-          ),
-        ).thenAnswer((_) async => const Right(_account));
-        return buildCubit();
-      },
-      act: (cubit) =>
-          cubit.signIn(email: 'alice@example.com', password: 's3cr3t'),
-      expect: () => [
-        const AuthLoading(),
-        isA<AuthAuthenticated>(),
-      ],
-      verify: (_) {
-        verifyNever(
-          () => mockRegisterDevice(
-            fcmToken: any(named: 'fcmToken'),
-            platform: any(named: 'platform'),
-          ),
-        );
-      },
-    );
-
-    blocTest<AuthCubit, AuthState>(
-      'émet AuthUnauthenticated si la connexion échoue (pas d\'appel FCM)',
+      "émet AuthUnauthenticated si la connexion échoue (pas d'appel FCM)",
       build: () {
         when(
           () => mockLogin(
@@ -162,12 +115,7 @@ void main() {
         ),
       ],
       verify: (_) {
-        verifyNever(
-          () => mockRegisterDevice(
-            fcmToken: any(named: 'fcmToken'),
-            platform: any(named: 'platform'),
-          ),
-        );
+        verifyNever(() => mockDeviceReg.registerOnLogin(any()));
       },
     );
   });

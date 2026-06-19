@@ -36,14 +36,20 @@ class ProAuthCubit extends Cubit<AuthState> {
     required LoginUseCase login,
     required LogoutUseCase logout,
     required TokenStorage tokenStorage,
+    required DeviceRegistrationService deviceRegistration,
+    required String app,
   })  : _login = login,
         _logout = logout,
         _tokenStorage = tokenStorage,
+        _deviceRegistration = deviceRegistration,
+        _app = app,
         super(const AuthUnknown());
 
   final LoginUseCase _login;
   final LogoutUseCase _logout;
   final TokenStorage _tokenStorage;
+  final DeviceRegistrationService _deviceRegistration;
+  final String _app;
 
   Future<void> restore() async {
     final token = await _tokenStorage.getAccessToken();
@@ -59,7 +65,10 @@ class ProAuthCubit extends Cubit<AuthState> {
     final result = await _login(email: email, password: password);
     result.fold(
       (failure) => emit(AuthUnauthenticated(failure.message)),
-      (_) => emit(AuthAuthenticated(_session())),
+      (_) {
+        _deviceRegistration.registerOnLogin(_app);
+        emit(AuthAuthenticated(_session()));
+      },
     );
   }
 
