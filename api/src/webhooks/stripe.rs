@@ -214,27 +214,15 @@ async fn update_payment_status(
         return Ok(());
     }
 
-    // Lit cabinet_id depuis payment (provider = 'stripe', provider_ref = pi_id).
-    // On ne peut pas poser le GUC avant de connaître cabinet_id, mais la lecture
-    // ne requiert pas de RLS (le rôle nubia_app a SELECT grâce aux GRANTs de 0011).
-    // La policy tenant_isolation bloque uniquement si le GUC est absent ou vide.
-    // On contourne en posant d'abord un GUC sentinel nil (lecture permissive),
-    // puis on repose le vrai cabinet_id pour l'UPDATE.
-    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(Uuid::nil().to_string())
-        .execute(&mut **tx)
+    // Lit cabinet_id via la fonction SECURITY DEFINER payment_find_by_provider_ref
+    // (migration 0103), exécutée avec les droits nubia_owner (BYPASSRLS).
+    // Un SELECT direct sur payment serait bloqué par la RLS tenant_isolation car
+    // le webhook arrive sans cabinet_id connu (hors contexte JWT).
+    let row = sqlx::query("SELECT id, cabinet_id FROM payment_find_by_provider_ref('stripe', $1)")
+        .bind(pi_id)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(|_| AppError::Internal)?;
-
-    let row = sqlx::query(
-        "SELECT id, cabinet_id FROM payment \
-         WHERE provider = 'stripe' AND provider_ref = $1 \
-         LIMIT 1",
-    )
-    .bind(pi_id)
-    .fetch_optional(&mut **tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
 
     // Si aucun paiement correspondant : l'événement peut arriver avant le
     // PaymentIntent local (race) — on ignore silencieusement.
