@@ -213,3 +213,56 @@ async fn mfa_verify_invalid_totp_secret_returns_422() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["code"], "validation_error");
 }
+
+// ── Test 5 : body JSON incomplet (champ manquant) → 422 ─────────────────────
+// Axum rejette la désérialisation avant d'appeler le handler.
+
+#[tokio::test]
+async fn mfa_verify_missing_body_field_returns_422() {
+    let user_id = Uuid::new_v4();
+    let response = nubia_api::app(lazy_app_state())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/mfa/verify")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_jwt(user_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"totp_secret":"JBSWY3DPEHPK3PXP"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+// ── Test 6 : code TOTP incorrect (mauvais chiffres, secret valide) → 422 ─────
+// Le handler valide le code avant tout accès DB ; pool lazy, pas de Postgres.
+
+#[tokio::test]
+async fn mfa_verify_wrong_totp_code_returns_422() {
+    let (secret_b32, _correct_code) = valid_totp_pair();
+    let user_id = Uuid::new_v4();
+    let response = nubia_api::app(lazy_app_state())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/mfa/verify")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_jwt(user_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({"totp_secret": secret_b32, "totp_code": "000000"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
