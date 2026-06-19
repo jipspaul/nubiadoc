@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'waiting_room_bloc.dart';
@@ -24,10 +26,10 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Salle d\'attente'),
+        title: Text(NubiaL10n.waitingRoom),
         actions: [
           IconButton(
-            tooltip: 'Actualiser',
+            tooltip: NubiaL10n.refresh,
             icon: const Icon(Icons.refresh),
             onPressed: () => context
                 .read<WaitingRoomBloc>()
@@ -40,15 +42,17 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
             .read<WaitingRoomBloc>()
             .add(const WaitingRoomCallNextRequested()),
         icon: const Icon(Icons.person_add_alt_1_outlined),
-        label: const Text('Appeler suivant'),
+        label: Text(NubiaL10n.callNext),
       ),
       body: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
         builder: (context, state) {
           if (state is WaitingRoomLoaded) {
             final entries = state.entries;
             if (entries.isEmpty) {
-              return const Center(
-                child: Text('Aucun patient en salle d\'attente.'),
+              return const NubiaEmptyState(
+                icon: Icons.people_outline,
+                title: 'Salle d\'attente vide',
+                subtitle: NubiaL10n.noWaitingRoom,
               );
             }
             return ListView.builder(
@@ -58,14 +62,14 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
             );
           }
           if (state is WaitingRoomError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<WaitingRoomBloc>()
+                  .add(const WaitingRoomLoadRequested()),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          return const _LoadingView();
         },
       ),
     );
@@ -94,6 +98,22 @@ class _WaitingEntryTile extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             )
           : null,
+    );
+  }
+}
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      itemCount: 5,
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: NubiaSkeletonLoader(height: 72),
+      ),
     );
   }
 }

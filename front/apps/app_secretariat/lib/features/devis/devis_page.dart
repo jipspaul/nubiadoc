@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
@@ -24,10 +27,10 @@ class _DevisPageState extends State<DevisPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Devis'),
+        title: Text(NubiaL10n.quotes),
         actions: [
           IconButton(
-            tooltip: 'Actualiser',
+            tooltip: NubiaL10n.refresh,
             icon: const Icon(Icons.refresh),
             onPressed: () =>
                 context.read<DevisBloc>().add(const DevisLoadRequested()),
@@ -39,23 +42,29 @@ class _DevisPageState extends State<DevisPage> {
           if (state is DevisLoaded) {
             final quotes = state.quotes;
             if (quotes.isEmpty) {
-              return const Center(child: Text('Aucun devis enregistré.'));
+              return const NubiaEmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: 'Aucun devis',
+                subtitle: NubiaL10n.noQuotes,
+              );
             }
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: quotes.length,
-              itemBuilder: (_, i) => _DevisTile(quote: quotes[i]),
-            );
-          }
-          if (state is DevisError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
+              itemBuilder: (ctx, i) => _DevisTile(
+                quote: quotes[i],
+                onTap: () => ctx.go('/devis/${quotes[i].id}'),
               ),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          if (state is DevisError) {
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () =>
+                  context.read<DevisBloc>().add(const DevisLoadRequested()),
+            );
+          }
+          return const _LoadingView();
         },
       ),
     );
@@ -63,9 +72,10 @@ class _DevisPageState extends State<DevisPage> {
 }
 
 class _DevisTile extends StatelessWidget {
-  const _DevisTile({required this.quote});
+  const _DevisTile({required this.quote, this.onTap});
 
   final CabinetQuote quote;
+  final VoidCallback? onTap;
 
   String _statusLabel(CabinetQuoteStatus status) {
     switch (status) {
@@ -102,6 +112,7 @@ class _DevisTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      onTap: onTap,
       leading: const Icon(Icons.receipt_long_outlined),
       title: Text(quote.patientName),
       subtitle: Text(
@@ -115,6 +126,22 @@ class _DevisTile extends StatelessWidget {
         ),
         backgroundColor: _statusColor(quote.status),
         padding: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      itemCount: 5,
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: NubiaSkeletonLoader(height: 72),
       ),
     );
   }

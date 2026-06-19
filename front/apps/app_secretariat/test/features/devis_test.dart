@@ -8,6 +8,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/devis/devis_bloc.dart';
+import 'package:app_secretariat/features/devis/devis_detail_page.dart';
 import 'package:app_secretariat/features/devis/devis_event.dart';
 import 'package:app_secretariat/features/devis/devis_page.dart';
 import 'package:app_secretariat/features/devis/devis_state.dart';
@@ -63,31 +64,35 @@ void main() {
   group('DevisBloc', () {
     late _MockCabinetQuotesRepository repo;
     late ListCabinetQuotesUseCase listUseCase;
+    late GetCabinetQuoteUseCase getUseCase;
 
-    final quotes = [
-      CabinetQuote(
-        id: 'q1',
-        cabinetId: 'c1',
-        patientId: 'p1',
-        patientName: 'Marie Curie',
-        totalCents: 20000,
-        patientShareCents: 10000,
-        status: CabinetQuoteStatus.sent,
-        createdAt: DateTime(2026, 1, 1),
-      ),
-    ];
+    final quote = CabinetQuote(
+      id: 'q1',
+      cabinetId: 'c1',
+      patientId: 'p1',
+      patientName: 'Marie Curie',
+      totalCents: 20000,
+      patientShareCents: 10000,
+      status: CabinetQuoteStatus.sent,
+      createdAt: DateTime(2026, 1, 1),
+    );
+    final quotes = [quote];
 
     setUp(() {
       repo = _MockCabinetQuotesRepository();
       listUseCase = ListCabinetQuotesUseCase(repo);
+      getUseCase = GetCabinetQuoteUseCase(repo);
     });
+
+    DevisBloc buildBloc() =>
+        DevisBloc(listQuotes: listUseCase, getQuote: getUseCase);
 
     blocTest<DevisBloc, DevisState>(
       'émet Loading puis Loaded sur succès',
       build: () {
         when(() => repo.list(page: any(named: 'page')))
             .thenAnswer((_) async => Right(quotes));
-        return DevisBloc(listQuotes: listUseCase);
+        return buildBloc();
       },
       act: (bloc) => bloc.add(const DevisLoadRequested()),
       expect: () => [
@@ -102,7 +107,7 @@ void main() {
         when(() => repo.list(page: any(named: 'page'))).thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
-        return DevisBloc(listQuotes: listUseCase);
+        return buildBloc();
       },
       act: (bloc) => bloc.add(const DevisLoadRequested()),
       expect: () => [
@@ -116,7 +121,7 @@ void main() {
       build: () {
         when(() => repo.list(page: any(named: 'page')))
             .thenAnswer((_) async => Right(quotes));
-        return DevisBloc(listQuotes: listUseCase);
+        return buildBloc();
       },
       act: (bloc) => bloc.add(const DevisLoadRequested()),
       verify: (bloc) {
@@ -129,6 +134,49 @@ void main() {
         }
       },
     );
+
+    // --- GetCabinetQuote ---
+    blocTest<DevisBloc, DevisState>(
+      'DevisDetailLoadRequested émet Loading puis DevisDetailLoaded sur succès',
+      build: () {
+        when(() => repo.getById('q1'))
+            .thenAnswer((_) async => Right(quote));
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const DevisDetailLoadRequested('q1')),
+      expect: () => [
+        const DevisLoading(),
+        DevisDetailLoaded(quote),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisDetailLoadRequested émet Loading puis DevisDetailError sur échec',
+      build: () {
+        when(() => repo.getById(any())).thenAnswer(
+          (_) async => Left(const NetworkFailure('Introuvable')),
+        );
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const DevisDetailLoadRequested('q999')),
+      expect: () => [
+        const DevisLoading(),
+        const DevisDetailError('Introuvable'),
+      ],
+    );
+
+    test('DevisDetailLoaded ne porte aucun champ clinique', () {
+      final state = DevisDetailLoaded(quote);
+      expect(state.quote.patientName, isNotEmpty);
+      // Garantie structurelle : CabinetQuote n'a pas de champ motif/notes.
+      final keys = {
+        'id': state.quote.id,
+        'patientName': state.quote.patientName,
+        'status': state.quote.status.name,
+      };
+      expect(keys.containsKey('motif'), isFalse);
+      expect(keys.containsKey('notesMedicales'), isFalse);
+    });
   });
 
   // --- DevisPage widget test ---------------------------------------------------
@@ -150,7 +198,7 @@ void main() {
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const DevisInitial());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
     testWidgets('affiche les devis — aucun champ clinique visible',
@@ -195,6 +243,64 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Erreur de connexion'), findsOneWidget);
+    });
+  });
+
+  // --- DevisDetailPage widget test --------------------------------------------
+  group('DevisDetailPage', () {
+    late _MockDevisBloc bloc;
+
+    final detailQuote = CabinetQuote(
+      id: 'q1',
+      cabinetId: 'c1',
+      patientId: 'p1',
+      patientName: 'Albert Einstein',
+      totalCents: 35000,
+      patientShareCents: 12000,
+      status: CabinetQuoteStatus.signed,
+      createdAt: DateTime(2026, 2, 1),
+      signedAt: DateTime(2026, 2, 10),
+    );
+
+    setUp(() {
+      bloc = _MockDevisBloc();
+    });
+
+    Widget buildDetailPage() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<DevisBloc>.value(
+            value: bloc,
+            child: const DevisDetailPage(id: 'q1'),
+          ),
+        );
+
+    testWidgets('affiche le chargement', (tester) async {
+      when(() => bloc.state).thenReturn(const DevisLoading());
+      await tester.pumpWidget(buildDetailPage());
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('affiche le détail — aucun champ clinique visible',
+        (tester) async {
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(detailQuote));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Albert Einstein'), findsOneWidget);
+      expect(find.text('350.00 €'), findsOneWidget);
+      // Cloisonnement : aucun libellé clinique
+      expect(find.text('Motif'), findsNothing);
+      expect(find.text('Notes médicales'), findsNothing);
+      expect(find.textContaining('motif'), findsNothing);
+    });
+
+    testWidgets('affiche l\'erreur de détail', (tester) async {
+      when(() => bloc.state)
+          .thenReturn(const DevisDetailError('Devis introuvable'));
+      await tester.pumpWidget(buildDetailPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Devis introuvable'), findsOneWidget);
     });
   });
 }
