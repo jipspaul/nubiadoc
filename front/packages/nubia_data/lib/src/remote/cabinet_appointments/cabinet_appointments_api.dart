@@ -70,4 +70,13 @@ class CabinetAppointmentsApi {
         .post<Map<String, dynamic>>('/cabinet/appointments/$id/confirm');
     return CabinetAppointmentDto.fromJson(response.data!);
   }
+
+  Future<CabinetAppointmentDto> reschedule(
+      String id, DateTime newStartsAt) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/cabinet/appointments/$id/reschedule',
+      data: {'starts_at': newStartsAt.toIso8601String()},
+    );
+    return CabinetAppointmentDto.fromJson(response.data!);
+  }
 }

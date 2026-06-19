@@ -2,6 +2,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../features/agenda/agenda_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
@@ -22,6 +23,14 @@ void registerPro(GetIt gi) {
     () => WaitingRoomBloc(
       listWaitingRoom: gi<ListWaitingRoomUseCase>(),
       callNext: gi<CallNextUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<AgendaBloc>(
+    () => AgendaBloc(
+      getAgenda: gi<GetCabinetAgendaUseCase>(),
+      confirmAppointment: gi<ConfirmAppointmentUseCase>(),
+      startConsultation: gi<StartConsultationUseCase>(),
     ),
   );
 
