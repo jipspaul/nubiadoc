@@ -13,8 +13,11 @@ abstract class NotificationRepository {
   /// Marks all notifications as read.
   Future<Either<Failure, void>> markAllRead();
 
-  /// Registers the device FCM token on the backend.
-  Future<Either<Failure, void>> registerFcmToken(String token);
+  /// Registers the device with the backend via `POST /v1/devices`.
+  Future<Either<Failure, void>> registerDevice({
+    required String fcmToken,
+    required String platform,
+  });
 
   /// Deregisters the device FCM token on the backend (called on logout).
   Future<Either<Failure, void>> unregisterFcmToken(String token);
