@@ -122,3 +122,9 @@ export 'src/usecases/cabinet_quotes/update_cabinet_quote_use_case.dart';
 // cabinet appointments pro
 export 'src/usecases/cabinet_appointments/create_cabinet_appointment_use_case.dart';
 export 'src/usecases/cabinet_appointments/reschedule_appointment_use_case.dart';
+// cabinet messaging pro
+export 'src/entities/cabinet_conversation.dart';
+export 'src/repositories/cabinet_message_repository.dart';
+export 'src/usecases/cabinet_messaging/list_cabinet_conversations_use_case.dart';
+export 'src/usecases/cabinet_messaging/get_cabinet_conversation_use_case.dart';
+export 'src/usecases/cabinet_messaging/send_message_cabinet_use_case.dart';

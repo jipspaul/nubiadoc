@@ -9,6 +9,7 @@ import '../remote/auth/auth_api.dart';
 import '../remote/billing/billing_api.dart';
 import '../remote/cabinet_agenda/cabinet_agenda_api.dart';
 import '../remote/cabinet_appointments/cabinet_appointments_api.dart';
+import '../remote/cabinet_messaging/cabinet_messaging_api.dart';
 import '../remote/cabinet_patients/cabinet_patients_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/clinical/clinical_session_api.dart';
@@ -32,6 +33,7 @@ import '../repositories/auth_repository_impl.dart';
 import '../repositories/billing_repository_impl.dart';
 import '../repositories/cabinet_agenda_repository_impl.dart';
 import '../repositories/cabinet_appointments_repository_impl.dart';
+import '../repositories/cabinet_message_repository_impl.dart';
 import '../repositories/cabinet_patients_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/cached_appointments_repository_impl.dart';
@@ -224,6 +226,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetAgendaApi>(
       () => CabinetAgendaApi(gi()),
     )
+    ..registerLazySingleton<CabinetMessagingApi>(
+      () => CabinetMessagingApi(gi()),
+    )
     ..registerLazySingleton<CabinetAppointmentsApi>(
       () => CabinetAppointmentsApi(gi()),
     )
@@ -269,6 +274,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<CabinetQuotesRepository>(
       () => CabinetQuotesRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CabinetMessageRepository>(
+      () => CabinetMessageRepositoryImpl(gi()),
     );
 
   // Pro use cases (non-clinical — available to both praticien and secrétariat)
@@ -290,4 +298,10 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
         () => ConsultationRepositoryImpl(gi()),
       );
   }
+
+  // cabinet messaging use cases
+  gi
+    ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
+    ..registerFactory(() => GetCabinetConversationUseCase(gi()))
+    ..registerFactory(() => SendMessageCabinetUseCase(gi()));
 }
