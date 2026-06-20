@@ -1102,7 +1102,10 @@ async fn list_cabinet_patients_pagination_offset() {
         .collect();
     assert_eq!(page2_ids.len(), 20, "offset=20 doit retourner 20 items");
     for id in &page2_ids {
-        assert!(!page1_ids.contains(id), "page 2 ne doit pas chevaucher page 1");
+        assert!(
+            !page1_ids.contains(id),
+            "page 2 ne doit pas chevaucher page 1"
+        );
     }
 
     // Cleanup.
