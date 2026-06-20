@@ -220,6 +220,32 @@ void main() {
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
 
+    testWidgets('pull-to-refresh déclenche WaitingListLoadRequested',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingListLoaded([
+          WaitingListEntry(
+            id: 'w1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            motif: 'Détartrage',
+            requestedAt: DateTime(2026, 6, 1),
+            position: 1,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.drag(find.byType(ListView), const Offset(0, 300));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      // 2 appels au total : 1 depuis initState + 1 depuis pull-to-refresh
+      verify(() => bloc.add(const WaitingListLoadRequested())).called(2);
+    });
+
     testWidgets(
         'le bouton offre déclenche WaitingListOfferSlotRequested — sans champ clinique',
         (tester) async {
