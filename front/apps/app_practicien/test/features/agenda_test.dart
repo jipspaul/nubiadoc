@@ -8,6 +8,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/agenda/agenda_bloc.dart';
 import 'package:app_practicien/features/agenda/agenda_event.dart';
+import 'package:app_practicien/features/agenda/agenda_page.dart';
 import 'package:app_practicien/features/agenda/agenda_state.dart';
 
 // ---------------------------------------------------------------------------
@@ -22,6 +23,9 @@ class MockConfirmAppointmentUseCase extends Mock
 
 class MockStartConsultationUseCase extends Mock
     implements StartConsultationUseCase {}
+
+class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
+    implements AgendaBloc {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -346,6 +350,79 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('agenda_error')), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // DateFilter widget tests
+  // ---------------------------------------------------------------------------
+
+  group('AgendaBody — filtre par date (widget)', () {
+    late MockAgendaBloc bloc;
+
+    final entryJuly = AgendaEntry(
+      id: 'ag-2',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      practitionerName: 'Dr. Dupont',
+      startsAt: DateTime(2026, 7, 1, 10, 0),
+      endsAt: DateTime(2026, 7, 1, 10, 30),
+      patientId: 'pat-2',
+      patientName: 'Paul Bernard',
+      motif: 'Examen',
+      isFree: false,
+    );
+
+    setUp(() {
+      bloc = MockAgendaBloc();
+    });
+
+    Widget buildBody() => MaterialApp(
+          home: BlocProvider<AgendaBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: AgendaBody()),
+          ),
+        );
+
+    testWidgets('affiche le bouton filtre date en état chargé', (tester) async {
+      when(() => bloc.state).thenReturn(
+        AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      );
+      await tester.pumpWidget(buildBody());
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('agenda_date_filter_button')), findsOneWidget);
+    });
+
+    testWidgets(
+        'filtre par date range — exclut les RDV hors range',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        AgendaLoaded(
+          entries: [_entry, entryJuly],
+          weekStart: _weekStart,
+        ),
+      );
+      await tester.pumpWidget(buildBody());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('entry_ag-1')), findsOneWidget);
+      expect(find.byKey(const Key('entry_ag-2')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('agenda_date_filter_button')));
+      await tester.pumpAndSettle();
+
+      // Sélectionne juin 16 → juin 16 (range d'un seul jour) dans le calendrier
+      await tester.tap(find.text('16').first);
+      await tester.pump();
+      await tester.tap(find.text('16').first);
+      await tester.pump();
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      // Seul le RDV du 16 juin est visible ; le RDV du 1er juillet est masqué
+      expect(find.byKey(const Key('entry_ag-1')), findsOneWidget);
+      expect(find.byKey(const Key('entry_ag-2')), findsNothing);
     });
   });
 }
