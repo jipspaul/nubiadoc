@@ -173,6 +173,7 @@ pub fn app_with_dispatcher(
         .route("/v1/health", get(health::health))
         .route("/v1/health/live", get(health::health_live))
         .route("/v1/health/ready", get(health::health_ready_db))
+        .route("/v1/health/db", get(health::health_db))
         .route("/v1/metrics", get(health::metrics))
         .route("/v1/auth/register", post(auth::register::register))
         .route("/v1/auth/login", post(auth::login::login))
