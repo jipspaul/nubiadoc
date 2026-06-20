@@ -439,23 +439,19 @@ async fn create_secretary_two_secretariats(
     .await
     .expect("insert cabinet_membership");
 
-    sqlx::query(
-        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat A')",
-    )
-    .bind(secretariat_a_id)
-    .bind(cabinet_id)
-    .execute(db)
-    .await
-    .expect("insert secretariat A");
+    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat A')")
+        .bind(secretariat_a_id)
+        .bind(cabinet_id)
+        .execute(db)
+        .await
+        .expect("insert secretariat A");
 
-    sqlx::query(
-        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat B')",
-    )
-    .bind(secretariat_b_id)
-    .bind(cabinet_id)
-    .execute(db)
-    .await
-    .expect("insert secretariat B");
+    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat B')")
+        .bind(secretariat_b_id)
+        .bind(cabinet_id)
+        .execute(db)
+        .await
+        .expect("insert secretariat B");
 
     sqlx::query(
         "INSERT INTO secretariat_membership (cabinet_id, secretariat_id, user_id, role, active) \
@@ -515,7 +511,11 @@ async fn select_context_secretary_multi_secretariat_encodes_requested_id() {
         .await
         .unwrap();
 
-    assert_eq!(login_resp.status(), StatusCode::OK, "login doit retourner 200");
+    assert_eq!(
+        login_resp.status(),
+        StatusCode::OK,
+        "login doit retourner 200"
+    );
 
     let body = axum::body::to_bytes(login_resp.into_body(), usize::MAX)
         .await
