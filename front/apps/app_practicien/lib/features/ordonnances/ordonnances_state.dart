@@ -34,6 +34,15 @@ class OrdonnancesSigned extends OrdonnancesState {
   List<Object?> get props => [prescription];
 }
 
+class OrdonnancesLoaded extends OrdonnancesState {
+  final List<Prescription> ordonnances;
+
+  const OrdonnancesLoaded(this.ordonnances);
+
+  @override
+  List<Object?> get props => [ordonnances];
+}
+
 class OrdonnancesError extends OrdonnancesState {
   final String message;
 

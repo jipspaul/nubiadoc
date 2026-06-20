@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'ordonnances_bloc.dart';
@@ -38,6 +40,18 @@ class _OrdonnancesBody extends StatelessWidget {
           return const Center(
             key: Key('ordonnances_loading'),
             child: CircularProgressIndicator(),
+          );
+        }
+        if (state is OrdonnancesLoaded && state.ordonnances.isEmpty) {
+          return NubiaEmptyState(
+            key: const Key('ordonnances_empty'),
+            icon: Icons.description,
+            title: 'Aucune ordonnance',
+            subtitle: 'Crée la première',
+            action: ElevatedButton(
+              onPressed: () => context.push('/ordonnances/new'),
+              child: const Text('Créer une ordonnance'),
+            ),
           );
         }
         if (state is OrdonnancesError) {
