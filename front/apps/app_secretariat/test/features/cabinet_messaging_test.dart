@@ -246,6 +246,39 @@ void main() {
       expect(find.text('Aucun message'), findsOneWidget);
     });
 
+    testWidgets('filtre les conversations par nom de patient', (tester) async {
+      when(() => bloc.state).thenReturn(
+        const CabinetMessagingConversationsLoaded([
+          CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          CabinetConversation(
+            id: 'conv2',
+            patientId: 'p2',
+            patientName: 'Albert Einstein',
+            unreadCount: 0,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Marie Curie'), findsOneWidget);
+      expect(find.text('Albert Einstein'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('cabinet_messaging_search')),
+        'marie',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Marie Curie'), findsOneWidget);
+      expect(find.text('Albert Einstein'), findsNothing);
+    });
+
     testWidgets('affiche le message d\'erreur', (tester) async {
       when(() => bloc.state).thenReturn(
         const CabinetMessagingConversationsError('Erreur de connexion'),
