@@ -71,6 +71,7 @@ void registerPro(GetIt gi) {
     )
     ..registerFactory<AppointmentsBloc>(
       () => AppointmentsBloc(
+        listAppointments: gi<ListCabinetAppointmentsUseCase>(),
         create: gi<CreateCabinetAppointmentUseCase>(),
         confirm: gi<ConfirmAppointmentUseCase>(),
         reschedule: gi<RescheduleAppointmentUseCase>(),

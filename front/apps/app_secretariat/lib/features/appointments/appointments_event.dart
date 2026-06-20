@@ -4,6 +4,10 @@ abstract class AppointmentsEvent {
   const AppointmentsEvent();
 }
 
+class AppointmentsLoadRequested extends AppointmentsEvent {
+  const AppointmentsLoadRequested();
+}
+
 class AppointmentCreateRequested extends AppointmentsEvent {
   const AppointmentCreateRequested({required this.appointment});
 
