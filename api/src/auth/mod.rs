@@ -17,7 +17,7 @@ use argon2::{
 use async_trait::async_trait;
 use axum::{
     extract::{Extension, FromRequestParts, Multipart, Path, State},
-    http::{request::Parts, StatusCode},
+    http::{header::RETRY_AFTER, request::Parts, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -129,7 +129,7 @@ pub(crate) enum AppError {
     TooLate,
     LinkExpired,
     HoldInvalid,
-    TooManyRequests,
+    TooManyRequests(u32),
     MissingIdempotencyKey,
     AppointmentNotHonored,
     ReviewAlreadyExists,
@@ -227,11 +227,17 @@ impl IntoResponse for AppError {
             AppError::HoldInvalid => {
                 (StatusCode::CONFLICT, Json(json!({"code": "hold_invalid"}))).into_response()
             }
-            AppError::TooManyRequests => (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(json!({"code": "too_many_requests"})),
-            )
-                .into_response(),
+            AppError::TooManyRequests(retry_after) => {
+                let mut resp = (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Json(json!({"code": "too_many_requests"})),
+                )
+                    .into_response();
+                if let Ok(val) = HeaderValue::from_str(&retry_after.to_string()) {
+                    resp.headers_mut().insert(RETRY_AFTER, val);
+                }
+                resp
+            }
             AppError::MissingIdempotencyKey => (
                 StatusCode::BAD_REQUEST,
                 Json(json!({"code": "missing_idempotency_key"})),
