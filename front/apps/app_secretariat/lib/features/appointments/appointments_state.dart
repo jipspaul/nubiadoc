@@ -37,6 +37,24 @@ class AppointmentSuccess extends AppointmentsState {
   int get hashCode => appointment.hashCode;
 }
 
+class AppointmentsLoaded extends AppointmentsState {
+  const AppointmentsLoaded(this.appointments);
+
+  final List<CabinetAppointment> appointments;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AppointmentsLoaded &&
+      other.appointments.length == appointments.length &&
+      List.generate(
+        appointments.length,
+        (i) => other.appointments[i] == appointments[i],
+      ).every((b) => b);
+
+  @override
+  int get hashCode => Object.hashAll(appointments);
+}
+
 class AppointmentsError extends AppointmentsState {
   const AppointmentsError(this.message);
 

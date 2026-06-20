@@ -37,12 +37,20 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context
-            .read<WaitingRoomBloc>()
-            .add(const WaitingRoomCallNextRequested()),
-        icon: const Icon(Icons.person_add_alt_1_outlined),
-        label: Text(NubiaL10n.callNext),
+      floatingActionButton: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+        builder: (context, state) {
+          final hasPatients =
+              state is WaitingRoomLoaded && state.entries.isNotEmpty;
+          return FloatingActionButton.extended(
+            onPressed: hasPatients
+                ? () => context
+                    .read<WaitingRoomBloc>()
+                    .add(const WaitingRoomCallNextRequested())
+                : null,
+            icon: const Icon(Icons.skip_next),
+            label: Text(NubiaL10n.callNext),
+          );
+        },
       ),
       body: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
         builder: (context, state) {
