@@ -120,6 +120,61 @@ apps/app_<x>/test/features/
 - **Pas de golden tests** sur les écrans métier (trop volatil) — réservés au design system.
 - **Smoke tests** : chaque package doit avoir un dossier `test/` (requis par `melos test`).
 
+## Widget test pattern (mocktail)
+
+Pattern répété dans 20+ fichiers de test. Squelette canonique.
+
+**Déclarer les mocks** (en haut du fichier de test) :
+
+```dart
+// Mock BLoC (bloc_test) : permet when(() => bloc.state).thenReturn(...)
+class MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
+    implements PatientsBloc {}
+
+// Mock repo/use-case (mocktail) : pour les tests Bloc
+class MockPatientRepository extends Mock implements PatientRepository {}
+```
+
+**Widget test avec pumpApp** :
+
+```dart
+testWidgets('affiche la liste quand Loaded', (tester) async {
+  final bloc = MockPatientsBloc();
+  when(() => bloc.state).thenReturn(PatientsLoaded(patients: [alice]));
+
+  await tester.pumpApp(
+    BlocProvider<PatientsBloc>.value(
+      value: bloc,
+      child: const PatientsPage(),
+    ),
+  );
+  await tester.pumpAndSettle();
+
+  expect(find.text('Alice Martin'), findsOneWidget);
+});
+```
+
+**Bloc test avec verify sur le repo** :
+
+```dart
+blocTest<PatientsBloc, PatientsState>(
+  'appelle le repo une seule fois sur LoadPatients',
+  build: () {
+    when(() => repo.list()).thenAnswer((_) async => Right([alice]));
+    return PatientsBloc(listPatients: ListPatientsUseCase(repo));
+  },
+  act: (bloc) => bloc.add(const LoadPatientsEvent()),
+  expect: () => [const PatientsLoading(), PatientsLoaded(patients: [alice])],
+  verify: (_) => verify(() => repo.list()).called(1),
+);
+```
+
+**Règles** :
+- `MockBloc<E, S>` (de `bloc_test`) pour les blocs ; `Mock` (de `mocktail`) pour les repos/use-cases.
+- `pumpApp` injecte le thème Nubia — ne jamais wrapper manuellement dans `MaterialApp`.
+- `when().thenReturn(...)` pour les getters sync ; `when().thenAnswer((_) async => ...)` pour les `Future`.
+- Résoudre les états `Loaded` **et** `Error` pour éviter un spinner bloqué sur erreur réseau.
+
 ## Tests d'intégration (E2E)
 
 Chaque app possède un dossier `integration_test/` couvert par `flutter test integration_test/` :
