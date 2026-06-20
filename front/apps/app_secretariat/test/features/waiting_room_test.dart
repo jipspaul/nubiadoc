@@ -184,5 +184,37 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('FAB désactivé quand liste vide', (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingRoomLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final fab = tester.widget<FloatingActionButton>(
+        find.byType(FloatingActionButton),
+      );
+      expect(fab.onPressed, isNull);
+    });
+
+    testWidgets('FAB actif quand patients présents', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 20, 8, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final fab = tester.widget<FloatingActionButton>(
+        find.byType(FloatingActionButton),
+      );
+      expect(fab.onPressed, isNotNull);
+    });
   });
 }
