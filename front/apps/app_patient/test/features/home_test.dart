@@ -22,6 +22,8 @@ class MockGetDashboardSummaryUseCase extends Mock
 
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
+class _MockHomeBloc extends MockBloc<HomeEvent, HomeState> implements HomeBloc {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -65,6 +67,10 @@ HomeBloc _makeBloc(MockGetDashboardSummaryUseCase uc) =>
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(const HomeLoadRequested());
+  });
+
   late MockGetDashboardSummaryUseCase mockGetSummary;
 
   setUp(() {
@@ -124,6 +130,30 @@ void main() {
 
       expect(find.text('Erreur réseau.'), findsOneWidget);
       expect(find.text('Réessayer'), findsOneWidget);
+    });
+
+    testWidgets('tap Réessayer dispatch HomeLoadRequested', (tester) async {
+      final mockBloc = _MockHomeBloc();
+      when(() => mockBloc.state).thenReturn(const HomeError('Erreur réseau.'));
+      when(() => mockBloc.stream).thenAnswer((_) => const Stream.empty());
+
+      final authCubit = MockAuthCubit();
+      when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<HomeBloc>.value(value: mockBloc),
+            BlocProvider<AuthCubit>(create: (_) => authCubit),
+          ],
+          child: const Scaffold(body: HomePage()),
+        ),
+      ));
+
+      await tester.tap(find.text('Réessayer'));
+
+      verify(() => mockBloc.add(const HomeLoadRequested())).called(1);
     });
   });
 
