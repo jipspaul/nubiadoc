@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import 'dashboard_bloc.dart';
+import 'dashboard_event.dart';
+import 'dashboard_state.dart';
 
 /// Entry point for the authenticated praticien home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile) with clinical
@@ -27,6 +32,22 @@ class DashboardPage extends StatelessWidget {
     return ProShell(
       config: ProConfig.shellConfig,
       session: session,
+      bodyBuilder: (ctx, destination) {
+        if (destination.route == ProConfig.dashboardRoute) {
+          return BlocProvider(
+            create: (_) => GetIt.instance<DashboardBloc>()
+              ..add(const DashboardLoadRequested()),
+            child: const _DashboardContent(),
+          );
+        }
+        return Center(
+          child: NubiaEmptyState(
+            icon: Icons.construction_outlined,
+            title: destination.label,
+            subtitle: 'Espace praticien — Écran à implémenter.',
+          ),
+        );
+      },
       trailingActions: [
         IconButton(
           tooltip: 'Démo A2UI',
@@ -35,6 +56,111 @@ class DashboardPage extends StatelessWidget {
         ),
       ],
       onSignOut: () => context.read<ProAuthCubit>().signOut(),
+    );
+  }
+}
+
+class _DashboardContent extends StatelessWidget {
+  const _DashboardContent();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      builder: (context, state) {
+        return switch (state) {
+          DashboardInitial() || DashboardLoading() => const Center(
+              key: Key('dashboard_loading'),
+              child: CircularProgressIndicator(),
+            ),
+          DashboardError(:final message) => Center(
+              key: const Key('dashboard_error'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, size: 48),
+                  const SizedBox(height: 12),
+                  Text(message),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () => context
+                        .read<DashboardBloc>()
+                        .add(const DashboardLoadRequested()),
+                    child: const Text('Réessayer'),
+                  ),
+                ],
+              ),
+            ),
+          DashboardLoaded(:final summary) => _SummaryGrid(summary: summary),
+        };
+      },
+    );
+  }
+}
+
+class _SummaryGrid extends StatelessWidget {
+  const _SummaryGrid({required this.summary});
+
+  final dynamic summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = [
+      (
+        label: 'RDV aujourd\'hui',
+        value: '${summary.todayAppointments}',
+        icon: Icons.calendar_today_outlined,
+      ),
+      (
+        label: 'Salle d\'attente',
+        value: '${summary.waitingRoomCount}',
+        icon: Icons.event_seat_outlined,
+      ),
+      (
+        label: 'Messages non lus',
+        value: '${summary.unreadMessages}',
+        icon: Icons.chat_bubble_outline,
+      ),
+      (
+        label: 'Confirmations en attente',
+        value: '${summary.pendingConfirmations}',
+        icon: Icons.pending_actions_outlined,
+      ),
+    ];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        children: [
+          for (final card in cards)
+            SizedBox(
+              width: 160,
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(card.icon, size: 32),
+                      const SizedBox(height: 8),
+                      Text(
+                        card.value,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        card.label,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
