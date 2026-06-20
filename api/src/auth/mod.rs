@@ -136,6 +136,7 @@ pub(crate) enum AppError {
     AlreadyOnWaitingList,
     NoActiveMembership,
     LastAdminCannotBeRemoved,
+    StartAtNotFuture,
 }
 
 impl IntoResponse for AppError {
@@ -260,6 +261,11 @@ impl IntoResponse for AppError {
             AppError::LastAdminCannotBeRemoved => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "last_admin_cannot_be_removed"})),
+            )
+                .into_response(),
+            AppError::StartAtNotFuture => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"error": "start_at must be at least 5 minutes in the future"})),
             )
                 .into_response(),
         }

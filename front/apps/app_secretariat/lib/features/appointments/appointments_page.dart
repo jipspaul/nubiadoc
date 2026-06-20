@@ -6,17 +6,48 @@ import 'appointments_bloc.dart';
 import 'appointments_event.dart';
 import 'appointments_state.dart';
 
-class AppointmentsPage extends StatelessWidget {
+class AppointmentsPage extends StatefulWidget {
   const AppointmentsPage({super.key});
+
+  @override
+  State<AppointmentsPage> createState() => _AppointmentsPageState();
+}
+
+class _AppointmentsPageState extends State<AppointmentsPage> {
+  String _statusFilter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<AppointmentsBloc>().add(const AppointmentsLoadRequested());
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Rendez-vous')),
+      appBar: AppBar(
+        title: const Text('Rendez-vous'),
+        actions: [
+          IconButton(
+            tooltip: 'Actualiser',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => context
+                .read<AppointmentsBloc>()
+                .add(const AppointmentsLoadRequested()),
+          ),
+        ],
+      ),
       body: BlocBuilder<AppointmentsBloc, AppointmentsState>(
         builder: (context, state) {
           if (state is AppointmentsLoading) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (state is AppointmentsLoaded) {
+            return _LoadedView(
+              appointments: state.appointments,
+              statusFilter: _statusFilter,
+              onFilterChanged: (f) => setState(() => _statusFilter = f),
+            );
           }
           if (state is AppointmentSuccess) {
             return _SuccessView(appointment: state.appointment);
@@ -31,6 +62,113 @@ class AppointmentsPage extends StatelessWidget {
           }
           return const _InitialView();
         },
+      ),
+    );
+  }
+}
+
+class _LoadedView extends StatelessWidget {
+  const _LoadedView({
+    required this.appointments,
+    required this.statusFilter,
+    required this.onFilterChanged,
+  });
+
+  final List<CabinetAppointment> appointments;
+  final String statusFilter;
+  final ValueChanged<String> onFilterChanged;
+
+  static const _chips = [
+    ('Tous', 'all'),
+    ('Confirmé', 'confirmed'),
+    ('En attente', 'requested'),
+    ('Annulé', 'cancelled'),
+  ];
+
+  List<CabinetAppointment> get _filtered {
+    if (statusFilter == 'all') return appointments;
+    return appointments.where((a) {
+      switch (statusFilter) {
+        case 'confirmed':
+          return a.status == CabinetAppointmentStatus.confirmed;
+        case 'requested':
+          return a.status == CabinetAppointmentStatus.requested;
+        case 'cancelled':
+          return a.status == CabinetAppointmentStatus.cancelled;
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Wrap(
+            spacing: 8,
+            children: [
+              for (final (label, value) in _chips)
+                FilterChip(
+                  label: Text(label),
+                  selected: statusFilter == value,
+                  onSelected: (_) => onFilterChanged(value),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? const Center(child: Text('Aucun rendez-vous'))
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) =>
+                      _AppointmentTile(appointment: filtered[i]),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AppointmentTile extends StatelessWidget {
+  const _AppointmentTile({required this.appointment});
+
+  final CabinetAppointment appointment;
+
+  String _statusLabel(CabinetAppointmentStatus status) {
+    switch (status) {
+      case CabinetAppointmentStatus.requested:
+        return 'En attente';
+      case CabinetAppointmentStatus.confirmed:
+        return 'Confirmé';
+      case CabinetAppointmentStatus.inProgress:
+        return 'En cours';
+      case CabinetAppointmentStatus.completed:
+        return 'Terminé';
+      case CabinetAppointmentStatus.cancelled:
+        return 'Annulé';
+      case CabinetAppointmentStatus.noShow:
+        return 'Absent';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.event_outlined),
+      title: Text(appointment.patientName),
+      subtitle: Text(appointment.practitionerName),
+      trailing: Chip(
+        label: Text(
+          _statusLabel(appointment.status),
+          style: const TextStyle(fontSize: 12),
+        ),
+        padding: EdgeInsets.zero,
       ),
     );
   }
