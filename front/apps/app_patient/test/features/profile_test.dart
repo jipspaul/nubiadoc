@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/profile/profile_bloc.dart';
@@ -57,13 +58,13 @@ void main() {
   });
 
   group('ProfilePage', () {
-    testWidgets('affiche un indicateur de chargement en état initial',
+    testWidgets('affiche le skeleton loader en état initial',
         (tester) async {
       final bloc = _makeBloc(mockGetAccount);
 
       await tester.pumpWidget(_wrap(bloc));
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
     testWidgets('affiche les informations du compte en état loaded',
