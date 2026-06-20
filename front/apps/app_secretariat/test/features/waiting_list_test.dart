@@ -219,5 +219,34 @@ void main() {
 
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
+
+    testWidgets(
+        'le bouton offre déclenche WaitingListOfferSlotRequested — sans champ clinique',
+        (tester) async {
+      registerFallbackValue(const WaitingListLoadRequested());
+      when(() => bloc.state).thenReturn(
+        WaitingListLoaded([
+          WaitingListEntry(
+            id: 'w1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            motif: 'Consultation urgente',
+            requestedAt: DateTime(2026, 6, 1),
+            position: 1,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.calendar_today_outlined));
+
+      // L'event ne porte que l'id — aucun champ clinique (motif, notes médicales).
+      final captured = verify(() => bloc.add(captureAny())).captured;
+      final offerEvent =
+          captured.whereType<WaitingListOfferSlotRequested>().single;
+      expect(offerEvent.id, 'w1');
+    });
   });
 }
