@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_app_shell/nubia_app_shell.dart' as shell;
+import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/waiting_room/waiting_room_bloc.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_event.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_state.dart';
+import 'package:app_practicien/pro_config.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -224,5 +228,43 @@ void main() {
       await tester.pump();
       expect(find.byKey(const Key('waiting_room_error')), findsOneWidget);
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gating — destination masquée quand canAccessClinical = false
+  // ---------------------------------------------------------------------------
+
+  group('ProConfig — gating requiresClinical', () {
+    test('la destination Salle d\'attente ne requiert pas d\'accès clinique',
+        () {
+      final dest = ProConfig.shellConfig.destinations.firstWhere(
+        (d) => d.route == '/waiting-room',
+      );
+      expect(dest.requiresClinical, isFalse);
+    });
+
+    testWidgets(
+      'Salle d\'attente visible et destinations cliniques masquées quand canAccessClinical = false',
+      (tester) async {
+        const nonClinicalSession = AuthSession(
+          kind: UserKind.pro,
+          userId: 'me',
+          role: ProRole.secretary,
+        );
+
+        await tester.pumpWidget(MaterialApp(
+          theme: NubiaTheme.light,
+          home: shell.ProShell(
+            config: ProConfig.shellConfig,
+            session: nonClinicalSession,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Salle d\'attente'), findsWidgets);
+        expect(find.text('Consultation'), findsNothing);
+        expect(find.text('Ordonnances'), findsNothing);
+      },
+    );
   });
 }
