@@ -23,13 +23,14 @@ class _MockAppointmentsBloc
 // Fixture — sans notes médicales, sans champ clinique au-delà du motif RDV.
 CabinetAppointment _appointment({
   String id = 'rdv-1',
+  String patientName = 'Jean Dupont',
   CabinetAppointmentStatus status = CabinetAppointmentStatus.confirmed,
 }) =>
     CabinetAppointment(
       id: id,
       cabinetId: 'cab-1',
       patientId: 'pat-1',
-      patientName: 'Jean Dupont',
+      patientName: patientName,
       practitionerId: 'prat-1',
       practitionerName: 'Dr Martin',
       startsAt: DateTime(2026, 7, 15, 9, 0),
@@ -77,7 +78,10 @@ void main() {
         when(() => repo.create(any()))
             .thenAnswer((_) async => Right(_appointment()));
         return AppointmentsBloc(
-            create: createUC, confirm: confirmUC, reschedule: rescheduleUC);
+            listAppointments: ListCabinetAppointmentsUseCase(repo),
+            create: createUC,
+            confirm: confirmUC,
+            reschedule: rescheduleUC);
       },
       act: (bloc) => bloc
           .add(AppointmentCreateRequested(appointment: _appointment(id: ''))),
@@ -94,7 +98,10 @@ void main() {
           (_) async => const Left(NetworkFailure('Erreur réseau')),
         );
         return AppointmentsBloc(
-            create: createUC, confirm: confirmUC, reschedule: rescheduleUC);
+            listAppointments: ListCabinetAppointmentsUseCase(repo),
+            create: createUC,
+            confirm: confirmUC,
+            reschedule: rescheduleUC);
       },
       act: (bloc) => bloc
           .add(AppointmentCreateRequested(appointment: _appointment(id: ''))),
@@ -110,7 +117,10 @@ void main() {
         when(() => repo.create(any()))
             .thenAnswer((_) async => Right(_appointment()));
         return AppointmentsBloc(
-            create: createUC, confirm: confirmUC, reschedule: rescheduleUC);
+            listAppointments: ListCabinetAppointmentsUseCase(repo),
+            create: createUC,
+            confirm: confirmUC,
+            reschedule: rescheduleUC);
       },
       act: (bloc) => bloc
           .add(AppointmentCreateRequested(appointment: _appointment(id: ''))),
@@ -135,6 +145,7 @@ void main() {
     setUp(() {
       repo = _MockCabinetAppointmentsRepository();
       buildBloc = AppointmentsBloc(
+        listAppointments: ListCabinetAppointmentsUseCase(repo),
         create: CreateCabinetAppointmentUseCase(repo),
         confirm: ConfirmAppointmentUseCase(repo),
         reschedule: RescheduleAppointmentUseCase(repo),
@@ -149,6 +160,7 @@ void main() {
         when(() => repo.confirm(any()))
             .thenAnswer((_) async => Right(_appointment()));
         return AppointmentsBloc(
+          listAppointments: ListCabinetAppointmentsUseCase(repo),
           create: CreateCabinetAppointmentUseCase(repo),
           confirm: ConfirmAppointmentUseCase(repo),
           reschedule: RescheduleAppointmentUseCase(repo),
@@ -170,6 +182,7 @@ void main() {
               const Left(NotFoundFailure('Rendez-vous introuvable.')),
         );
         return AppointmentsBloc(
+          listAppointments: ListCabinetAppointmentsUseCase(repo),
           create: CreateCabinetAppointmentUseCase(repo),
           confirm: ConfirmAppointmentUseCase(repo),
           reschedule: RescheduleAppointmentUseCase(repo),
@@ -198,6 +211,7 @@ void main() {
         when(() => repo.reschedule(any(), any()))
             .thenAnswer((_) async => Right(_appointment()));
         return AppointmentsBloc(
+          listAppointments: ListCabinetAppointmentsUseCase(repo),
           create: CreateCabinetAppointmentUseCase(repo),
           confirm: ConfirmAppointmentUseCase(repo),
           reschedule: RescheduleAppointmentUseCase(repo),
@@ -220,6 +234,7 @@ void main() {
           (_) async => const Left(NetworkFailure('Erreur réseau')),
         );
         return AppointmentsBloc(
+          listAppointments: ListCabinetAppointmentsUseCase(repo),
           create: CreateCabinetAppointmentUseCase(repo),
           confirm: ConfirmAppointmentUseCase(repo),
           reschedule: RescheduleAppointmentUseCase(repo),
@@ -290,6 +305,47 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Erreur de connexion'), findsOneWidget);
+    });
+
+    testWidgets(
+        'filtre par chip Confirmé — 1 rdv visible sur 3 de statuts différents',
+        (tester) async {
+      final appointments = [
+        _appointment(
+          id: 'rdv-1',
+          patientName: 'Jean Dupont',
+          status: CabinetAppointmentStatus.confirmed,
+        ),
+        _appointment(
+          id: 'rdv-2',
+          patientName: 'Marie Curie',
+          status: CabinetAppointmentStatus.requested,
+        ),
+        _appointment(
+          id: 'rdv-3',
+          patientName: 'Pierre Martin',
+          status: CabinetAppointmentStatus.cancelled,
+        ),
+      ];
+      when(() => bloc.state).thenReturn(AppointmentsLoaded(appointments));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // Les 4 FilterChips sont visibles
+      expect(find.byType(FilterChip), findsNWidgets(4));
+
+      // Tous les 3 patients visibles avant filtrage
+      expect(find.text('Jean Dupont'), findsOneWidget);
+      expect(find.text('Marie Curie'), findsOneWidget);
+      expect(find.text('Pierre Martin'), findsOneWidget);
+
+      // Tap chip 'Confirmé' dans le Wrap (premier widget FilterChip avec ce label)
+      await tester.tap(find.widgetWithText(FilterChip, 'Confirmé'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jean Dupont'), findsOneWidget);
+      expect(find.text('Marie Curie'), findsNothing);
+      expect(find.text('Pierre Martin'), findsNothing);
     });
   });
 }
