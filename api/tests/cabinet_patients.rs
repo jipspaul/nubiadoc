@@ -1006,6 +1006,120 @@ async fn list_cabinet_patients_limit_clamp_returns_200() {
         .ok();
 }
 
+/// Pagination offset : seed 60 patients, GET limit=20 → 20, GET limit=20 offset=20 → 20 différents.
+#[tokio::test]
+async fn list_cabinet_patients_pagination_offset() {
+    if !db_available() {
+        return;
+    }
+    let pro_email = format!("pag_pro_{}@test.local", Uuid::new_v4());
+    let owner = owner_pool().await;
+    let db = app_pool().await;
+
+    let (token, _, cabinet_id) = register_pro(db.clone(), &pro_email).await;
+
+    // Seed 60 patients directly (owner pool bypasses RLS).
+    let mut acct_emails: Vec<String> = Vec::new();
+    for i in 0..60i32 {
+        let user_id = Uuid::new_v4();
+        let acct_id = Uuid::new_v4();
+        let email = format!("pag_pat_{}_{}@test.local", i, Uuid::new_v4());
+        acct_emails.push(email.clone());
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'x', 'patient')",
+        )
+        .bind(user_id)
+        .bind(&email)
+        .execute(&owner)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'P', 'Q')",
+        )
+        .bind(acct_id)
+        .bind(user_id)
+        .execute(&owner)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO patient (cabinet_id, patient_account_id, first_name, last_name, contact) \
+             VALUES ($1, $2, 'P', 'Q', '{}'::jsonb)",
+        )
+        .bind(cabinet_id)
+        .bind(acct_id)
+        .execute(&owner)
+        .await
+        .unwrap();
+    }
+
+    // limit=20 → exactement 20 résultats.
+    let resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/patients?limit=20")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let page1_ids: Vec<String> = v["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(page1_ids.len(), 20, "limit=20 doit retourner 20 items");
+
+    // limit=20 offset=20 → 20 patients différents de la page 1.
+    let resp2 = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/patients?limit=20&offset=20")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp2.status(), StatusCode::OK);
+    let bytes2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&bytes2).unwrap();
+    let page2_ids: Vec<String> = v2["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(page2_ids.len(), 20, "offset=20 doit retourner 20 items");
+    for id in &page2_ids {
+        assert!(!page1_ids.contains(id), "page 2 ne doit pas chevaucher page 1");
+    }
+
+    // Cleanup.
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&pro_email)
+        .execute(&owner)
+        .await
+        .ok();
+    for email in &acct_emails {
+        sqlx::query("DELETE FROM app_user WHERE email = $1")
+            .bind(email)
+            .execute(&owner)
+            .await
+            .ok();
+    }
+}
+
 /// Catégorie inconnue → 200 avec `data: []` (early return avant toute requête DB).
 #[tokio::test]
 async fn list_patient_documents_unknown_category_returns_200_empty() {
