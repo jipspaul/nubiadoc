@@ -35,6 +35,7 @@ class ProConfig {
         label: 'Salle d\'attente',
         icon: Icons.event_seat_outlined,
         route: '/waiting-room',
+        requiresClinical: true,
       ),
       shell.ProNavDestination(
         label: 'Patients',

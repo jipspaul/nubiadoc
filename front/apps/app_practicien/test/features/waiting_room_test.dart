@@ -9,6 +9,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_bloc.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_event.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_state.dart';
+import 'package:app_practicien/pro_config.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -223,6 +224,28 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('waiting_room_error')), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gating tests — destination cachée quand canAccessClinical = false
+  // ---------------------------------------------------------------------------
+
+  group('ProConfig — gating includeClinical', () {
+    test('la destination Salle d\'attente requiert includeClinical', () {
+      final dest = ProConfig.shellConfig.destinations.firstWhere(
+        (d) => d.route == '/waiting-room',
+      );
+      expect(dest.requiresClinical, isTrue);
+    });
+
+    test(
+        'aucune destination sans requiresClinical n\'est sur /waiting-room',
+        () {
+      final nonClinical = ProConfig.shellConfig.destinations
+          .where((d) => !d.requiresClinical)
+          .map((d) => d.route);
+      expect(nonClinical, isNot(contains('/waiting-room')));
     });
   });
 }
