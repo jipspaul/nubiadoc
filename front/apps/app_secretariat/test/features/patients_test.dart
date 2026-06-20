@@ -205,5 +205,45 @@ void main() {
 
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
+
+    testWidgets('filtre les patients par nom via la barre de recherche',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+          CabinetPatient(
+            id: 'p2',
+            cabinetId: 'c1',
+            firstName: 'Bob',
+            lastName: 'Dupont',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+          CabinetPatient(
+            id: 'p3',
+            cabinetId: 'c1',
+            firstName: 'Charlie',
+            lastName: 'Bernard',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListTile), findsNWidgets(3));
+
+      await tester.enterText(find.byType(TextField), 'ali');
+      await tester.pump();
+
+      expect(find.text('Alice Martin'), findsOneWidget);
+      expect(find.text('Bob Dupont'), findsNothing);
+      expect(find.text('Charlie Bernard'), findsNothing);
+    });
   });
 }
