@@ -5,21 +5,37 @@ import 'appointments_event.dart';
 import 'appointments_state.dart';
 
 class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
+  final ListCabinetAppointmentsUseCase _list;
   final CreateCabinetAppointmentUseCase _create;
   final ConfirmAppointmentUseCase _confirm;
   final RescheduleAppointmentUseCase _reschedule;
 
   AppointmentsBloc({
+    required ListCabinetAppointmentsUseCase listAppointments,
     required CreateCabinetAppointmentUseCase create,
     required ConfirmAppointmentUseCase confirm,
     required RescheduleAppointmentUseCase reschedule,
-  })  : _create = create,
+  })  : _list = listAppointments,
+        _create = create,
         _confirm = confirm,
         _reschedule = reschedule,
         super(const AppointmentsInitial()) {
+    on<AppointmentsLoadRequested>(_onLoad);
     on<AppointmentCreateRequested>(_onCreate);
     on<AppointmentConfirmRequested>(_onConfirm);
     on<AppointmentRescheduleRequested>(_onReschedule);
+  }
+
+  Future<void> _onLoad(
+    AppointmentsLoadRequested event,
+    Emitter<AppointmentsState> emit,
+  ) async {
+    emit(const AppointmentsLoading());
+    final result = await _list();
+    result.fold(
+      (failure) => emit(AppointmentsError(failure.message)),
+      (appointments) => emit(AppointmentsLoaded(appointments)),
+    );
   }
 
   Future<void> _onCreate(
