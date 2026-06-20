@@ -51,10 +51,16 @@ class _WaitingListPageState extends State<WaitingListPage> {
                 child: Text('Aucun patient en liste d\'attente.'),
               );
             }
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: entries.length,
-              itemBuilder: (_, i) => _WaitingListTile(entry: entries[i]),
+            return RefreshIndicator(
+              onRefresh: () async => context
+                  .read<WaitingListBloc>()
+                  .add(const WaitingListLoadRequested()),
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: entries.length,
+                itemBuilder: (_, i) => _WaitingListTile(entry: entries[i]),
+              ),
             );
           }
           if (state is WaitingListError) {
