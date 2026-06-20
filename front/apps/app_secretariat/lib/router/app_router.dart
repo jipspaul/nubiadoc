@@ -8,6 +8,8 @@ import 'package:nubia_core/nubia_core.dart';
 import '../features/agenda/agenda_page.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
+import '../features/admin_secretariats/admin_secretariats_bloc.dart';
+import '../features/admin_secretariats/admin_secretariats_page.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
@@ -44,6 +46,7 @@ class AppRouter {
   static const devisDetail = '/devis/:id';
   static const messages = '/messages';
   static const adminMembres = '/admin-membres';
+  static const adminSecretariats = '/admin-secretariats';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -134,6 +137,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<AdminMembresBloc>(),
             child: const AdminMembresPage(),
+          ),
+        ),
+        GoRoute(
+          path: adminSecretariats,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
+            child: const AdminSecretiariatsPage(),
           ),
         ),
       ],
