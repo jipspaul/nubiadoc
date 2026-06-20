@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../session/auth_cubit.dart';
@@ -23,7 +24,7 @@ class ProfilePage extends StatelessWidget {
     return BlocBuilder<ProfileBloc, ProfileState>(
       builder: (context, state) {
         if (state is ProfileInitial || state is ProfileLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const _ProfileSkeleton();
         }
         if (state is ProfileError) {
           return Center(
@@ -46,6 +47,56 @@ class ProfilePage extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        // header: avatar + name/email
+        Row(
+          children: [
+            NubiaSkeletonLoader(width: 64, height: 64, borderRadius: 32),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  NubiaSkeletonLoader(height: 18),
+                  SizedBox(height: 8),
+                  NubiaSkeletonLoader(width: 140, height: 14),
+                ],
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 24),
+        // info section: 2 rows
+        NubiaSkeletonLoader(height: 14),
+        SizedBox(height: 12),
+        NubiaSkeletonLoader(height: 36),
+        SizedBox(height: 8),
+        NubiaSkeletonLoader(height: 36),
+        SizedBox(height: 24),
+        // account section: 4 tiles
+        NubiaSkeletonLoader(height: 14),
+        SizedBox(height: 12),
+        NubiaSkeletonLoader(height: 48),
+        SizedBox(height: 8),
+        NubiaSkeletonLoader(height: 48),
+        SizedBox(height: 8),
+        NubiaSkeletonLoader(height: 48),
+        SizedBox(height: 8),
+        NubiaSkeletonLoader(height: 48),
+      ],
     );
   }
 }
