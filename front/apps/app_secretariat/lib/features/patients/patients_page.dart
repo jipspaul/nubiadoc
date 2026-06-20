@@ -16,6 +16,8 @@ class PatientsPage extends StatefulWidget {
 }
 
 class _PatientsPageState extends State<PatientsPage> {
+  String _query = '';
+
   @override
   void initState() {
     super.initState();
@@ -39,18 +41,37 @@ class _PatientsPageState extends State<PatientsPage> {
       body: BlocBuilder<PatientsBloc, PatientsState>(
         builder: (context, state) {
           if (state is PatientsLoaded) {
-            final patients = state.patients;
-            if (patients.isEmpty) {
+            if (state.patients.isEmpty) {
               return const NubiaEmptyState(
                 icon: Icons.person_outline,
                 title: 'Aucun patient',
                 subtitle: NubiaL10n.noPatients,
               );
             }
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: patients.length,
-              itemBuilder: (_, i) => _PatientTile(patient: patients[i]),
+            final filtered = state.patients
+                .where((p) =>
+                    p.fullName.toLowerCase().contains(_query.toLowerCase()))
+                .toList();
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Rechercher un patient',
+                    ),
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) => _PatientTile(patient: filtered[i]),
+                  ),
+                ),
+              ],
             );
           }
           if (state is PatientsError) {
