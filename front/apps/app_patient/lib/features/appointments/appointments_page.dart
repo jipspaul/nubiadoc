@@ -118,16 +118,41 @@ class _SearchInputState extends State<_SearchInput> {
 // Providers list
 // ---------------------------------------------------------------------------
 
-class _ProvidersList extends StatelessWidget {
+class _ProvidersList extends StatefulWidget {
   const _ProvidersList({required this.state});
   final AppointmentsProvidersLoaded state;
 
   @override
+  State<_ProvidersList> createState() => _ProvidersListState();
+}
+
+class _ProvidersListState extends State<_ProvidersList> {
+  String _filterQuery = '';
+
+  @override
   Widget build(BuildContext context) {
-    if (state.providers.isEmpty) {
-      return Column(
-        children: [
-          _SearchHeader(query: state.query),
+    final filtered = _filterQuery.isEmpty
+        ? widget.state.providers
+        : widget.state.providers
+            .where((p) =>
+                p.displayName.toLowerCase().contains(_filterQuery.toLowerCase()))
+            .toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: TextField(
+            key: const Key('local_search_field'),
+            decoration: const InputDecoration(
+              hintText: 'Rechercher un praticien',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) => setState(() => _filterQuery = value),
+          ),
+        ),
+        if (filtered.isEmpty)
           const Expanded(
             child: Center(
               child: Text(
@@ -135,56 +160,28 @@ class _ProvidersList extends StatelessWidget {
                 'Aucun praticien trouvé.',
               ),
             ),
+          )
+        else
+          Expanded(
+            child: ListView.builder(
+              itemCount: filtered.length,
+              itemBuilder: (context, i) {
+                final provider = filtered[i];
+                return ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(provider.displayName),
+                  subtitle: Text(provider.specialty),
+                  trailing: provider.distanceKm != null
+                      ? Text('${provider.distanceKm!.toStringAsFixed(1)} km')
+                      : null,
+                  onTap: () => context
+                      .read<AppointmentsBloc>()
+                      .add(AppointmentsProviderSelected(provider)),
+                );
+              },
+            ),
           ),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        _SearchHeader(query: state.query),
-        Expanded(
-          child: ListView.builder(
-            itemCount: state.providers.length,
-            itemBuilder: (context, i) {
-              final provider = state.providers[i];
-              return ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: Text(provider.displayName),
-                subtitle: Text(provider.specialty),
-                trailing: provider.distanceKm != null
-                    ? Text('${provider.distanceKm!.toStringAsFixed(1)} km')
-                    : null,
-                onTap: () => context
-                    .read<AppointmentsBloc>()
-                    .add(AppointmentsProviderSelected(provider)),
-              );
-            },
-          ),
-        ),
       ],
-    );
-  }
-}
-
-class _SearchHeader extends StatelessWidget {
-  const _SearchHeader({required this.query});
-  final String query;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: TextField(
-        decoration: const InputDecoration(
-          prefixIcon: Icon(Icons.search),
-          border: OutlineInputBorder(),
-        ),
-        controller: TextEditingController(text: query),
-        onChanged: (value) => context
-            .read<AppointmentsBloc>()
-            .add(AppointmentsSearchChanged(value)),
-      ),
     );
   }
 }
