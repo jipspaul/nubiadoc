@@ -20,6 +20,10 @@ class MockSearchSlotsUseCase extends Mock implements SearchSlotsUseCase {}
 class MockHoldSlotUseCase extends Mock implements HoldSlotUseCase {}
 class MockBookAppointmentUseCase extends Mock implements BookAppointmentUseCase {}
 
+class _MockAppointmentsBloc
+    extends MockBloc<AppointmentsEvent, AppointmentsState>
+    implements AppointmentsBloc {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -118,6 +122,43 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Dr Dupont'), findsOneWidget);
+    });
+  });
+
+  group('filtre local praticiens', () {
+    late _MockAppointmentsBloc bloc;
+
+    const providers = [
+      ProviderResult(id: 'p1', displayName: 'Dr Martin', specialty: 'Dentiste'),
+      ProviderResult(id: 'p2', displayName: 'Dr Dupont', specialty: 'Chirurgien'),
+      ProviderResult(id: 'p3', displayName: 'Dr Bernard', specialty: 'Orthodontiste'),
+    ];
+
+    setUp(() {
+      bloc = _MockAppointmentsBloc();
+    });
+
+    testWidgets('filtre localement les praticiens par nom', (tester) async {
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(providers: providers, query: 'dentiste'),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        home: BlocProvider<AppointmentsBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListTile), findsNWidgets(3));
+
+      await tester.enterText(find.byKey(const Key('local_search_field')), 'mar');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListTile), findsOneWidget);
+      expect(find.text('Dr Martin'), findsOneWidget);
     });
   });
 

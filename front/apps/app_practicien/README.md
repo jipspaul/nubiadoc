@@ -1,17 +1,31 @@
 # app_practicien
 
-A new Flutter project.
+## Mission
 
-## Getting Started
+App **praticien** Nubia (tablette / desktop), accès clinique complet (`includeClinical: true`).
+Fonctionnalités : tableau de bord cabinet, agenda semaine, liste patients + fiche, consultation
+clinique CCAM (gated), ordonnances (gated), messagerie cabinet, salle d'attente. Les destinations
+marquées `requiresClinical` sont masquées si `session.canAccessClinical` est faux.
 
-This project is a starting point for a Flutter application.
+## Run local
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+cd front/apps/app_practicien
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080/v1
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Tests
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+# Depuis front/apps/app_practicien
+flutter test
+
+# Suite workspace complète (depuis front/)
+dart run melos test
+```
+
+## Plan
+
+Avancement FR2.x → [`PROGRESS.md`](../../../PROGRESS.md) — filtrer sur `[flutter-front] FR2`.
+
+Architecture, règles et commandes → [`front/AGENTS.md`](../../AGENTS.md).
