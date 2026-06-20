@@ -68,31 +68,41 @@ class _DashboardContent extends StatelessWidget {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
         return switch (state) {
-          DashboardInitial() || DashboardLoading() => const Center(
+          DashboardInitial() || DashboardLoading() => const _DashboardSkeleton(
               key: Key('dashboard_loading'),
-              child: CircularProgressIndicator(),
             ),
-          DashboardError(:final message) => Center(
+          DashboardError(:final message) => NubiaErrorWidget(
               key: const Key('dashboard_error'),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, size: 48),
-                  const SizedBox(height: 12),
-                  Text(message),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: () => context
-                        .read<DashboardBloc>()
-                        .add(const DashboardLoadRequested()),
-                    child: const Text('Réessayer'),
-                  ),
-                ],
-              ),
+              message: message,
+              onRetry: () => context
+                  .read<DashboardBloc>()
+                  .add(const DashboardLoadRequested()),
             ),
           DashboardLoaded(:final summary) => _SummaryGrid(summary: summary),
         };
       },
+    );
+  }
+}
+
+class _DashboardSkeleton extends StatelessWidget {
+  const _DashboardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        children: List.generate(
+          4,
+          (_) => const SizedBox(
+            width: 160,
+            child: NubiaSkeletonLoader(height: 96),
+          ),
+        ),
+      ),
     );
   }
 }
