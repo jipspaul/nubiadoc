@@ -294,6 +294,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetProDashboardSummaryUseCase(gi()))
     ..registerFactory(() => GetCabinetAgendaUseCase(gi()))
     ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
+    ..registerFactory(() => ListCabinetAppointmentsUseCase(gi()))
     ..registerFactory(() => CreateCabinetAppointmentUseCase(gi()))
     ..registerFactory(() => RescheduleAppointmentUseCase(gi()))
     ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
