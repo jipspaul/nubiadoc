@@ -52,6 +52,7 @@ class AppRouter {
         ),
         GoRoute(
           path: waitingRoom,
+          redirect: (_, __) => ProConfig.includeClinical ? null : home,
           builder: (_, __) => const Scaffold(body: WaitingRoomPage()),
         ),
         GoRoute(

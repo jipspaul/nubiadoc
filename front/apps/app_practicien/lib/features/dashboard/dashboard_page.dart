@@ -8,6 +8,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
@@ -39,6 +40,9 @@ class DashboardPage extends StatelessWidget {
               ..add(const DashboardLoadRequested()),
             child: const _DashboardContent(),
           );
+        }
+        if (destination.route == '/waiting-room') {
+          return const WaitingRoomPage();
         }
         return Center(
           child: NubiaEmptyState(
