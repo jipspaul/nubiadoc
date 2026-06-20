@@ -33,6 +33,10 @@ INSERT INTO conversation (id, cabinet_id, patient_account_id, scope, status) VAL
    '22360002-0000-0000-0000-000000000002',
    'patient_cabinet', 'open');
 
+-- Passage en contexte patient : on efface le GUC cabinet pour ne tester que
+-- la policy conversation_patient_read (tenant_isolation ne doit pas interférer).
+RESET app.current_cabinet_id;
+
 -- Test 1 : Patient A voit sa conversation uniquement (1 sur 2 UUIDs testés)
 SELECT set_config('app.patient_account_id', '22360002-0000-0000-0000-000000000001', true);
 SELECT is(
