@@ -398,3 +398,180 @@ async fn login_pro_without_membership_emits_naked_token() {
         .await
         .ok();
 }
+
+// ── Test 5 : select-context secrétaire multi-secrétariat → JWT porte secretariat_id=B ──
+
+/// Crée un secrétaire avec membership dans un cabinet et 2 secrétariats A et B.
+/// Retourne `(user_id, cabinet_id, secretariat_a_id, secretariat_b_id, email, password)`.
+async fn create_secretary_two_secretariats(
+    db: &PgPool,
+) -> (Uuid, Uuid, Uuid, Uuid, String, String) {
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let secretariat_a_id = Uuid::new_v4();
+    let secretariat_b_id = Uuid::new_v4();
+    let email = format!("select-ctx-multi-sec-{}@test.local", user_id);
+    let password = "password123";
+    let hash = hash_password(password);
+
+    sqlx::query("INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'pro')")
+        .bind(user_id)
+        .bind(&email)
+        .bind(&hash)
+        .execute(db)
+        .await
+        .expect("insert app_user");
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, 'Cabinet Multi-Sec', 'dentiste')",
+    )
+    .bind(cabinet_id)
+    .execute(db)
+    .await
+    .expect("insert cabinet");
+
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) VALUES ($1, $2, 'secretary', true)",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(db)
+    .await
+    .expect("insert cabinet_membership");
+
+    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat A')")
+        .bind(secretariat_a_id)
+        .bind(cabinet_id)
+        .execute(db)
+        .await
+        .expect("insert secretariat A");
+
+    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat B')")
+        .bind(secretariat_b_id)
+        .bind(cabinet_id)
+        .execute(db)
+        .await
+        .expect("insert secretariat B");
+
+    sqlx::query(
+        "INSERT INTO secretariat_membership (cabinet_id, secretariat_id, user_id, role, active) \
+         VALUES ($1, $2, $3, 'secretary', true)",
+    )
+    .bind(cabinet_id)
+    .bind(secretariat_a_id)
+    .bind(user_id)
+    .execute(db)
+    .await
+    .expect("insert secretariat_membership A");
+
+    sqlx::query(
+        "INSERT INTO secretariat_membership (cabinet_id, secretariat_id, user_id, role, active) \
+         VALUES ($1, $2, $3, 'secretary', true)",
+    )
+    .bind(cabinet_id)
+    .bind(secretariat_b_id)
+    .bind(user_id)
+    .execute(db)
+    .await
+    .expect("insert secretariat_membership B");
+
+    (
+        user_id,
+        cabinet_id,
+        secretariat_a_id,
+        secretariat_b_id,
+        email,
+        password.to_string(),
+    )
+}
+
+#[tokio::test]
+async fn select_context_secretary_multi_secretariat_encodes_requested_id() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, cabinet_id, _secretariat_a_id, secretariat_b_id, email, password) =
+        create_secretary_two_secretariats(&db).await;
+
+    let state = make_state().await;
+
+    // 1. Login → JWT (1 cabinet membership → ProRegisterClaims avec cabinet_id)
+    let login_resp = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"email": email, "password": password}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        login_resp.status(),
+        StatusCode::OK,
+        "login doit retourner 200"
+    );
+
+    let body = axum::body::to_bytes(login_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let token = v["access_token"].as_str().expect("access_token absent");
+
+    // 2. POST /v1/auth/select-context avec secretariat_id=B
+    let ctx_resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/select-context")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({
+                        "cabinet_id": cabinet_id,
+                        "secretariat_id": secretariat_b_id
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        ctx_resp.status(),
+        StatusCode::OK,
+        "select-context doit retourner 200"
+    );
+
+    let body = axum::body::to_bytes(ctx_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let ctx_token = v["access_token"]
+        .as_str()
+        .expect("access_token absent du contexte");
+
+    // 3. Décoder le JWT : secretariat_id doit être B (pas celui issu de user_all_memberships)
+    let key = DecodingKey::from_secret(JWT_SECRET.as_bytes());
+    let mut validation = Validation::default();
+    validation.validate_exp = false;
+    let claims: serde_json::Value = decode::<serde_json::Value>(ctx_token, &key, &validation)
+        .expect("JWT select-context invalide")
+        .claims;
+
+    assert_eq!(
+        claims["secretariat_id"]
+            .as_str()
+            .and_then(|s| s.parse::<Uuid>().ok()),
+        Some(secretariat_b_id),
+        "le JWT doit porter secretariat_id == B (pas le secretariat_id issu de la DB)"
+    );
+
+    cleanup_pro(&db, user_id, cabinet_id).await;
+}
