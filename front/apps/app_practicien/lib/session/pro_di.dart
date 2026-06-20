@@ -6,6 +6,7 @@ import '../features/agenda/agenda_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/ordonnances/ordonnances_bloc.dart';
+import '../features/patients/patients_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
@@ -55,6 +56,14 @@ void registerPro(GetIt gi) {
     () => OrdonnancesBloc(
       create: gi<CreatePrescriptionUseCase>(),
       sign: gi<SignPrescriptionUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<PatientsBloc>(
+    () => PatientsBloc(
+      listPatients: gi<ListCabinetPatientsUseCase>(),
+      getPatient: gi<GetCabinetPatientUseCase>(),
+      updateNotes: gi<UpdatePatientNotesUseCase>(),
     ),
   );
 }
