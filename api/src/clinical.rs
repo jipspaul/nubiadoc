@@ -28,6 +28,7 @@ pub struct ListPatientsQuery {
     /// `in_treatment` ou `to_review`.
     pub filter: Option<String>,
     pub limit: Option<i64>,
+    pub offset: Option<i64>,
     pub cursor: Option<String>,
 }
 
@@ -45,6 +46,7 @@ pub struct PatientItem {
 pub struct PageInfo {
     pub next_cursor: Option<String>,
     pub limit: i64,
+    pub offset: i64,
 }
 
 #[derive(Serialize)]
@@ -77,7 +79,8 @@ pub async fn list_cabinet_patients(
     claims: ProSecretaryPlusClaims,
     Query(params): Query<ListPatientsQuery>,
 ) -> Result<Json<ListPatientsResponse>, AppError> {
-    let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
+    let limit: i64 = params.limit.unwrap_or(50).clamp(1, 200);
+    let offset: i64 = params.offset.unwrap_or(0).max(0);
     let fetch_limit = limit + 1;
 
     let cursor = params.cursor.as_deref().and_then(decode_cursor);
@@ -123,6 +126,7 @@ pub async fn list_cabinet_patients(
                 page: PageInfo {
                     next_cursor: None,
                     limit,
+                    offset,
                 },
             }));
         }
@@ -133,7 +137,7 @@ pub async fn list_cabinet_patients(
            WHERE a.patient_id = p.id \
              AND a.deleted_at IS NULL \
              AND a.status <> 'cancelled' \
-             AND ps.secretariat_id = $5 \
+             AND ps.secretariat_id = $6 \
              AND ps.active = true\
          )"
     } else {
@@ -150,7 +154,7 @@ pub async fn list_cabinet_patients(
               OR p.created_at < $3 \
               OR (p.created_at = $3 AND p.id < $4)) \
          ORDER BY p.created_at DESC, p.id DESC \
-         LIMIT $1"
+         LIMIT $1 OFFSET $5"
     );
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -168,6 +172,7 @@ pub async fn list_cabinet_patients(
             .bind(search_pattern.as_deref())
             .bind(cursor_at)
             .bind(cursor_id)
+            .bind(offset)
             .bind(claims.secretariat_id)
             .fetch_all(&mut *tx)
             .await
@@ -178,6 +183,7 @@ pub async fn list_cabinet_patients(
             .bind(search_pattern.as_deref())
             .bind(cursor_at)
             .bind(cursor_id)
+            .bind(offset)
             .fetch_all(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?
@@ -236,7 +242,11 @@ pub async fn list_cabinet_patients(
 
     Ok(Json(ListPatientsResponse {
         data,
-        page: PageInfo { next_cursor, limit },
+        page: PageInfo {
+            next_cursor,
+            limit,
+            offset,
+        },
     }))
 }
 
@@ -545,7 +555,11 @@ pub async fn list_patient_notes(
 
     Ok(Json(ListNotesResponse {
         data,
-        page: PageInfo { next_cursor, limit },
+        page: PageInfo {
+            next_cursor,
+            limit,
+            offset: 0,
+        },
     }))
 }
 
@@ -993,6 +1007,7 @@ pub async fn list_patient_documents(
                 page: PageInfo {
                     next_cursor: None,
                     limit,
+                    offset: 0,
                 },
             }));
         }
@@ -1101,7 +1116,11 @@ pub async fn list_patient_documents(
 
     Ok(Json(ListPatientDocumentsResponse {
         data,
-        page: PageInfo { next_cursor, limit },
+        page: PageInfo {
+            next_cursor,
+            limit,
+            offset: 0,
+        },
     }))
 }
 

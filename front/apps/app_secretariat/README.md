@@ -1,17 +1,31 @@
 # app_secretariat
 
-A new Flutter project.
+## Mission
 
-## Getting Started
+App **secrétariat** Nubia (tablette / desktop), **zéro accès clinique** (`includeClinical: false` —
+constante dans `pro_config.dart`). Fonctionnalités : agenda RDV, créneaux bookables, salle d'attente,
+liste patients (sans motif ni notes), liste d'attente, devis cabinet, admin membres + secrétariats,
+messagerie cabinet. Aucun champ clinique n'est jamais affiché ni enregistré dans le DI.
 
-This project is a starting point for a Flutter application.
+## Run local
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+cd front/apps/app_secretariat
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080/v1
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Tests
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+# Depuis front/apps/app_secretariat
+flutter test
+
+# Suite workspace complète (depuis front/)
+dart run melos test
+```
+
+## Plan
+
+Avancement FR3.x → [`PROGRESS.md`](../../../PROGRESS.md) — filtrer sur `[flutter-front] FR3`.
+
+Architecture, règles et commandes → [`front/AGENTS.md`](../../AGENTS.md).
