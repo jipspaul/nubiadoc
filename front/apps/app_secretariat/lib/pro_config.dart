@@ -54,6 +54,11 @@ class ProConfig {
         icon: Icons.group_outlined,
         route: '/admin-membres',
       ),
+      shell.ProNavDestination(
+        label: 'Secrétariats',
+        icon: Icons.business_outlined,
+        route: '/admin-secretariats',
+      ),
     ],
   );
 }
