@@ -20,22 +20,20 @@ class HomePage extends StatelessWidget {
     return BlocBuilder<HomeBloc, HomeState>(
       builder: (context, state) {
         if (state is HomeInitial || state is HomeLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: 4,
+            itemBuilder: (_, __) => const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: NubiaSkeletonLoader(height: 72),
+            ),
+          );
         }
         if (state is HomeError) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(state.message),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () =>
-                      context.read<HomeBloc>().add(const HomeLoadRequested()),
-                  child: const Text('Réessayer'),
-                ),
-              ],
-            ),
+          return NubiaErrorWidget(
+            message: state.message,
+            onRetry: () =>
+                context.read<HomeBloc>().add(const HomeLoadRequested()),
           );
         }
         if (state is HomeLoaded) {

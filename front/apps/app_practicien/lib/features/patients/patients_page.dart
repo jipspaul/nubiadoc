@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'patients_bloc.dart';
 import 'patients_event.dart';
@@ -31,13 +32,18 @@ class _PatientsBody extends StatelessWidget {
     return BlocBuilder<PatientsBloc, PatientsState>(
       builder: (context, state) {
         if (state is PatientsInitial || state is PatientsLoading) {
-          return const Center(
-            key: Key('patients_loading'),
-            child: CircularProgressIndicator(),
+          return ListView.builder(
+            key: const Key('patients_loading'),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: 6,
+            itemBuilder: (_, __) => const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: NubiaSkeletonLoader(height: 56),
+            ),
           );
         }
         if (state is PatientsError) {
-          return _ErrorView(
+          return NubiaErrorWidget(
             key: const Key('patients_error'),
             message: state.message,
             onRetry: () => context
@@ -47,16 +53,10 @@ class _PatientsBody extends StatelessWidget {
         }
         if (state is PatientsLoaded) {
           if (state.patients.isEmpty) {
-            return const Center(
+            return const NubiaEmptyState(
               key: Key('patients_empty'),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.groups_outlined, size: 48),
-                  SizedBox(height: 12),
-                  Text('Aucun patient'),
-                ],
-              ),
+              icon: Icons.groups_outlined,
+              title: 'Aucun patient',
             );
           }
           return ListView.builder(
@@ -119,16 +119,20 @@ class _PatientDetailBody extends StatelessWidget {
       },
       builder: (context, state) {
         if (state is PatientsInitial || state is PatientsLoading) {
-          return const Center(
-            key: Key('patient_detail_loading'),
-            child: CircularProgressIndicator(),
+          return ListView.builder(
+            key: const Key('patient_detail_loading'),
+            padding: const EdgeInsets.all(16),
+            itemCount: 4,
+            itemBuilder: (_, __) => const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: NubiaSkeletonLoader(height: 56),
+            ),
           );
         }
         if (state is PatientDetailError) {
-          return _ErrorView(
+          return NubiaErrorWidget(
             key: const Key('patient_detail_error'),
             message: state.message,
-            onRetry: null,
           );
         }
         if (state is PatientDetailLoaded) {
@@ -260,28 +264,3 @@ class _DetailViewState extends State<_DetailView> {
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
 
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({super.key, required this.message, required this.onRetry});
-  final String message;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-          if (onRetry != null) ...[
-            const SizedBox(height: 16),
-            TextButton(onPressed: onRetry, child: const Text('Réessayer')),
-          ],
-        ],
-      ),
-    );
-  }
-}
