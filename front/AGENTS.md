@@ -84,6 +84,47 @@ apps/app_<x>/test/features/
 - **Pas de golden tests** sur les écrans métier (trop volatil) — réservés au design system.
 - **Smoke tests** : chaque package doit avoir un dossier `test/` (requis par `melos test`).
 
+## Tests d'intégration (E2E)
+
+Chaque app possède un dossier `integration_test/` couvert par `flutter test integration_test/` :
+
+```
+apps/app_<x>/integration_test/
+└── app_test.dart      # parcours clés : login + invariants de cloisonnement
+```
+
+**Pattern obligatoire** :
+
+```dart
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    await GetIt.instance.reset();
+    registerCore(GetIt.instance);
+    registerData(GetIt.instance, includeClinical: …, includePro: …);
+    registerPatient/registerPro(GetIt.instance); // selon l'app
+  });
+  tearDown(() async => GetIt.instance.reset());
+  // …
+}
+```
+
+**Règles** :
+- DI **réel** (pas de mocks) — on teste le câblage complet.
+- Viser les **invariants structurels** (textes du login, présence de pages, `ProConfig.includeClinical`) plutôt que des flux réseau qui nécessitent un backend live.
+- Aucun appel réseau réel attendu : les tests doivent passer sans serveur.
+- `includeClinical: false` **codé en dur** dans `app_secretariat/integration_test/app_test.dart`.
+
+**Lancement** (device nécessaire) :
+
+```bash
+cd apps/app_patient
+flutter test integration_test/app_test.dart -d chrome
+```
+
+Les tests d'intégration ne sont **pas** exécutés par `melos test` (pas de runner headless en CI) — ils sont réservés à la validation manuelle sur device/émulateur.
+
 ## Avant de committer
 
 ```bash
