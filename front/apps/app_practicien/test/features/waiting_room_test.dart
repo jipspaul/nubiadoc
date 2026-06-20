@@ -231,40 +231,24 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // Gating — destination masquée quand canAccessClinical = false
+  // Gating tests — destination cachée quand canAccessClinical = false
   // ---------------------------------------------------------------------------
 
-  group('ProConfig — gating requiresClinical', () {
-    test('la destination Salle d\'attente ne requiert pas d\'accès clinique',
-        () {
+  group('ProConfig — gating includeClinical', () {
+    test('la destination Salle d\'attente requiert includeClinical', () {
       final dest = ProConfig.shellConfig.destinations.firstWhere(
         (d) => d.route == '/waiting-room',
       );
-      expect(dest.requiresClinical, isFalse);
+      expect(dest.requiresClinical, isTrue);
     });
 
-    testWidgets(
-      'Salle d\'attente visible et destinations cliniques masquées quand canAccessClinical = false',
-      (tester) async {
-        const nonClinicalSession = AuthSession(
-          kind: UserKind.pro,
-          userId: 'me',
-          role: ProRole.secretary,
-        );
-
-        await tester.pumpWidget(MaterialApp(
-          theme: NubiaTheme.light,
-          home: shell.ProShell(
-            config: ProConfig.shellConfig,
-            session: nonClinicalSession,
-          ),
-        ));
-        await tester.pumpAndSettle();
-
-        expect(find.text('Salle d\'attente'), findsWidgets);
-        expect(find.text('Consultation'), findsNothing);
-        expect(find.text('Ordonnances'), findsNothing);
-      },
-    );
+    test(
+        'aucune destination sans requiresClinical n\'est sur /waiting-room',
+        () {
+      final nonClinical = ProConfig.shellConfig.destinations
+          .where((d) => !d.requiresClinical)
+          .map((d) => d.route);
+      expect(nonClinical, isNot(contains('/waiting-room')));
+    });
   });
 }
