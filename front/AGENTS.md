@@ -52,6 +52,42 @@ Le cloisonnement est défensif en profondeur :
 7. **Zéro PII dans les logs.** Pas de `print` commité en production.
 8. **`includeClinical: false`** dans `bootstrap.dart` de `app_secretariat` — ne jamais passer `true`.
 
+## Pull-to-refresh pattern
+
+Pour toutes les pages à liste rechargeable (patients, RDV, salles d'attente…), combine `RefreshIndicator` avec un `Completer` résolu dans un `BlocListener`.
+
+```dart
+class _MyListPageState extends State<MyListPage> {
+  Completer<void>? _refreshCompleter;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<MyBloc, MyState>(
+      listener: (context, state) {
+        if (state is MyLoaded || state is MyError) {
+          _refreshCompleter?.complete();
+          _refreshCompleter = null;
+        }
+      },
+      child: RefreshIndicator(
+        onRefresh: () {
+          _refreshCompleter = Completer<void>();
+          context.read<MyBloc>().add(const LoadEvent());
+          return _refreshCompleter!.future;
+        },
+        child: /* liste scrollable */,
+      ),
+    );
+  }
+}
+```
+
+**Règles** :
+- `onRefresh` retourne une `Future` qui se résout quand le chargement est terminé — sinon le spinner tourne indéfiniment.
+- Le `Completer` est résolu dans le `BlocListener`, jamais dans `onRefresh` lui-même.
+- Résoudre dans les deux branches (`MyLoaded` **et** `MyError`) pour éviter un spinner bloqué sur erreur réseau.
+- `StatefulWidget` est justifié ici : le `Completer` est un état UI local (cycle de vie de l'indicateur).
+
 ## Packages partagés — résumé des responsabilités
 
 | Package | Ce qu'il expose |
@@ -83,6 +119,61 @@ apps/app_<x>/test/features/
 - **Objectif** : ≥ 5 tests par feature (2–3 widget + 2–3 bloc). Viser la couverture des cas succès / vide / erreur.
 - **Pas de golden tests** sur les écrans métier (trop volatil) — réservés au design system.
 - **Smoke tests** : chaque package doit avoir un dossier `test/` (requis par `melos test`).
+
+## Widget test pattern (mocktail)
+
+Pattern répété dans 20+ fichiers de test. Squelette canonique.
+
+**Déclarer les mocks** (en haut du fichier de test) :
+
+```dart
+// Mock BLoC (bloc_test) : permet when(() => bloc.state).thenReturn(...)
+class MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
+    implements PatientsBloc {}
+
+// Mock repo/use-case (mocktail) : pour les tests Bloc
+class MockPatientRepository extends Mock implements PatientRepository {}
+```
+
+**Widget test avec pumpApp** :
+
+```dart
+testWidgets('affiche la liste quand Loaded', (tester) async {
+  final bloc = MockPatientsBloc();
+  when(() => bloc.state).thenReturn(PatientsLoaded(patients: [alice]));
+
+  await tester.pumpApp(
+    BlocProvider<PatientsBloc>.value(
+      value: bloc,
+      child: const PatientsPage(),
+    ),
+  );
+  await tester.pumpAndSettle();
+
+  expect(find.text('Alice Martin'), findsOneWidget);
+});
+```
+
+**Bloc test avec verify sur le repo** :
+
+```dart
+blocTest<PatientsBloc, PatientsState>(
+  'appelle le repo une seule fois sur LoadPatients',
+  build: () {
+    when(() => repo.list()).thenAnswer((_) async => Right([alice]));
+    return PatientsBloc(listPatients: ListPatientsUseCase(repo));
+  },
+  act: (bloc) => bloc.add(const LoadPatientsEvent()),
+  expect: () => [const PatientsLoading(), PatientsLoaded(patients: [alice])],
+  verify: (_) => verify(() => repo.list()).called(1),
+);
+```
+
+**Règles** :
+- `MockBloc<E, S>` (de `bloc_test`) pour les blocs ; `Mock` (de `mocktail`) pour les repos/use-cases.
+- `pumpApp` injecte le thème Nubia — ne jamais wrapper manuellement dans `MaterialApp`.
+- `when().thenReturn(...)` pour les getters sync ; `when().thenAnswer((_) async => ...)` pour les `Future`.
+- Résoudre les états `Loaded` **et** `Error` pour éviter un spinner bloqué sur erreur réseau.
 
 ## Tests d'intégration (E2E)
 

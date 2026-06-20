@@ -1,17 +1,30 @@
 # app_patient
 
-A new Flutter project.
+## Mission
 
-## Getting Started
+App mobile Nubia pour les **patients** (shell 5 onglets) : tableau de bord, mes rendez-vous,
+messagerie cabinet, documents, profil, financier (devis / paiement / signature Yousign) et
+notifications. `includeClinical: true` — le patient consulte ses propres données de soin.
 
-This project is a starting point for a Flutter application.
+## Run local
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+cd front/apps/app_patient
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080/v1
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Tests
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+# Depuis front/apps/app_patient
+flutter test
+
+# Suite workspace complète (depuis front/)
+dart run melos test
+```
+
+## Plan
+
+Avancement FR1.x → [`PROGRESS.md`](../../../PROGRESS.md) — filtrer sur `[flutter-front] FR1`.
+
+Architecture, règles et commandes → [`front/AGENTS.md`](../../AGENTS.md).
