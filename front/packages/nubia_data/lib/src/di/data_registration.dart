@@ -9,6 +9,7 @@ import '../remote/auth/auth_api.dart';
 import '../remote/billing/billing_api.dart';
 import '../remote/cabinet_agenda/cabinet_agenda_api.dart';
 import '../remote/cabinet_appointments/cabinet_appointments_api.dart';
+import '../remote/cabinet_dashboard/cabinet_dashboard_api.dart';
 import '../remote/cabinet_messaging/cabinet_messaging_api.dart';
 import '../remote/cabinet_patients/cabinet_patients_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
@@ -33,6 +34,7 @@ import '../repositories/auth_repository_impl.dart';
 import '../repositories/billing_repository_impl.dart';
 import '../repositories/cabinet_agenda_repository_impl.dart';
 import '../repositories/cabinet_appointments_repository_impl.dart';
+import '../repositories/cabinet_dashboard_repository_impl.dart';
 import '../repositories/cabinet_message_repository_impl.dart';
 import '../repositories/cabinet_patients_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
@@ -222,6 +224,9 @@ void _registerClinical(GetIt gi) {
 void _registerPro(GetIt gi, {bool includeClinical = true}) {
   gi
     // APIs
+    ..registerLazySingleton<CabinetDashboardApi>(
+      () => CabinetDashboardApi(gi()),
+    )
     ..registerLazySingleton<CabinetPatientsApi>(
       () => CabinetPatientsApi(gi()),
     )
@@ -250,6 +255,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       () => CabinetQuotesApi(gi()),
     )
     // Repositories
+    ..registerLazySingleton<CabinetDashboardRepository>(
+      () => CabinetDashboardRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<CabinetPatientsRepository>(
       () => CabinetPatientsRepositoryImpl(gi()),
     )
@@ -283,6 +291,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
 
   // Pro use cases (non-clinical — available to both praticien and secrétariat)
   gi
+    ..registerFactory(() => GetProDashboardSummaryUseCase(gi()))
     ..registerFactory(() => GetCabinetAgendaUseCase(gi()))
     ..registerFactory(() => ConfirmAppointmentUseCase(gi()))
     ..registerFactory(() => CreateCabinetAppointmentUseCase(gi()))

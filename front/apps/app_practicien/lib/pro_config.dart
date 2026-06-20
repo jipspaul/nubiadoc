@@ -15,10 +15,17 @@ class ProConfig {
   static const ProRole role = ProRole.practitioner;
   static const bool includeClinical = true;
 
+  static const String dashboardRoute = '/';
+
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
     spaceLabel: spaceLabel,
     destinations: [
+      shell.ProNavDestination(
+        label: 'Tableau de bord',
+        icon: Icons.dashboard_outlined,
+        route: dashboardRoute,
+      ),
       shell.ProNavDestination(
         label: 'Agenda',
         icon: Icons.calendar_month_outlined,
