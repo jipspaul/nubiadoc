@@ -4,11 +4,12 @@ use argon2::{
     password_hash::{PasswordHash, PasswordVerifier},
     Argon2,
 };
-use axum::extract::{Json, State};
+use axum::extract::{ConnectInfo, Json, State};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Deserialize;
 use sqlx::Row;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use totp_rs::{Algorithm, Secret, TOTP};
@@ -19,6 +20,25 @@ use crate::AppState;
 use super::{AppError, LoginResponse, PatientClaims, ProClaims, ProRegisterClaims};
 
 const RATE_WINDOW: Duration = Duration::from_secs(300);
+
+const IP_RATE_WINDOW: Duration = Duration::from_secs(60);
+const IP_RATE_MAX_ATTEMPTS: u32 = 5;
+
+static LOGIN_IP_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn is_ip_rate_limited(ip: &str) -> bool {
+    let mut map = LOGIN_IP_RATE.lock().unwrap_or_else(|e| e.into_inner());
+    let now = Instant::now();
+    let entry = map.entry(ip.to_string()).or_insert((0, now));
+    if now.duration_since(entry.1) >= IP_RATE_WINDOW {
+        *entry = (1, now);
+        false
+    } else {
+        entry.0 += 1;
+        entry.0 > IP_RATE_MAX_ATTEMPTS
+    }
+}
 
 /// Plafond de tentatives par email et par fenêtre. Surchargé via
 /// `LOGIN_RATE_MAX_ATTEMPTS` (dev/E2E : les flows Playwright se reconnectent
@@ -60,10 +80,18 @@ pub struct LoginBody {
 /// Si le compte pro a `totp_enabled = true` et qu'aucun `mfa_code` n'est fourni → `401 mfa_required`.
 pub async fn login(
     State(state): State<AppState>,
+    connect_info: Option<ConnectInfo<SocketAddr>>,
     Json(body): Json<LoginBody>,
 ) -> Result<Json<LoginResponse>, AppError> {
+    let ip_key = connect_info
+        .map(|ci| ci.0.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    if is_ip_rate_limited(&ip_key) {
+        return Err(AppError::TooManyRequests(60));
+    }
+
     if is_rate_limited(&body.email) {
-        return Err(AppError::TooManyRequests);
+        return Err(AppError::TooManyRequests(300));
     }
 
     let mut auth_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
