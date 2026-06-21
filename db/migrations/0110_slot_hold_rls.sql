@@ -1,4 +1,4 @@
--- 0108_slot_hold_rls.sql
+-- 0110_slot_hold_rls.sql
 -- Isolation cabinet sur slot_holds via availability_slot.cabinet_id (transitive).
 -- Migration 0095 avait posé ENABLE+FORCE RLS avec une policy permissive slot_holds_app
 -- (USING(true)). Cette migration remplace slot_holds_app par slot_hold_cabinet_isolation :
