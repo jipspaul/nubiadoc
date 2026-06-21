@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'cabinet_messaging_bloc.dart';
@@ -48,9 +49,11 @@ class _CabinetMessagingBody extends StatelessWidget {
         }
         if (state is CabinetMessagingConversationsLoaded) {
           if (state.conversations.isEmpty) {
-            return const Center(
+            return const NubiaEmptyState(
               key: Key('cabinet_messaging_empty'),
-              child: _EmptyConversations(),
+              icon: Icons.chat_bubble_outline,
+              title: 'Aucun message',
+              subtitle: 'Vos conversations cabinet apparaîtront ici',
             );
           }
           return _ConversationsList(conversations: state.conversations);
@@ -75,33 +78,6 @@ class _CabinetMessagingBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _EmptyConversations extends StatelessWidget {
-  const _EmptyConversations();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.chat_bubble_outline,
-          size: 56,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Aucun message',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-      ],
     );
   }
 }

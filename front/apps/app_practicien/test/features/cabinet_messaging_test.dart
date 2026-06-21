@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/cabinet_messaging/cabinet_messaging_bloc.dart';
@@ -93,9 +94,12 @@ class _Body extends StatelessWidget {
         }
         if (state is CabinetMessagingConversationsLoaded) {
           if (state.conversations.isEmpty) {
-            return const Center(
-                key: Key('cabinet_messaging_empty'),
-                child: Text('Aucun message'));
+            return const NubiaEmptyState(
+              key: Key('cabinet_messaging_empty'),
+              icon: Icons.chat_bubble_outline,
+              title: 'Aucun message',
+              subtitle: 'Vos conversations cabinet apparaîtront ici',
+            );
           }
           return ListView(
             key: const Key('cabinet_messaging_conversations_list'),
@@ -339,6 +343,16 @@ void main() {
       expect(find.byKey(const Key('conv_conv-2')), findsOneWidget);
       expect(find.text('Marie Dupont'), findsOneWidget);
       expect(find.text('Pierre Martin'), findsOneWidget);
+    });
+
+    testWidgets('Loaded([]) — NubiaEmptyState visible', (tester) async {
+      final mockBloc = MockCabinetMessagingBloc();
+      when(() => mockBloc.state)
+          .thenReturn(const CabinetMessagingConversationsLoaded([]));
+      await tester.pumpWidget(_wrapMock(mockBloc));
+      await tester.pump();
+      expect(find.byType(NubiaEmptyState), findsOneWidget);
+      expect(find.byKey(const Key('cabinet_messaging_empty')), findsOneWidget);
     });
 
     testWidgets('tap sur une tile — dispatch CabinetMessagingThreadOpened',
