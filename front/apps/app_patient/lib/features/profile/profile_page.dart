@@ -44,7 +44,10 @@ class ProfilePage extends StatelessWidget {
           );
         }
         if (state is ProfileLoaded) {
-          return _ProfileContent(account: state.account);
+          return _ProfileContent(
+            account: state.account,
+            biometricEnabled: state.biometricEnabled,
+          );
         }
         return const SizedBox.shrink();
       },
@@ -105,9 +108,13 @@ class _ProfileSkeleton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ProfileContent extends StatelessWidget {
-  const _ProfileContent({required this.account});
+  const _ProfileContent({
+    required this.account,
+    required this.biometricEnabled,
+  });
 
   final PatientAccount account;
+  final bool biometricEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +164,25 @@ class _ProfileContent extends StatelessWidget {
           key: const Key('tile_notifications'),
           icon: Icons.notifications_outlined,
           title: 'Préférences notifications',
+        ),
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            'Sécurité',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ),
+        SwitchListTile(
+          key: const Key('biometric_toggle'),
+          secondary: const Icon(Icons.fingerprint),
+          title: const Text('Authentification biométrique'),
+          value: biometricEnabled,
+          onChanged: (v) => context
+              .read<ProfileBloc>()
+              .add(BiometricToggleRequested(enabled: v)),
         ),
         const Divider(),
         _LogoutTile(),

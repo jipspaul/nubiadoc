@@ -84,3 +84,4 @@ export 'src/repositories/slots_repository_impl.dart';
 export 'src/repositories/waiting_room_repository_impl.dart';
 export 'src/repositories/cached_appointments_repository_impl.dart';
 export 'src/repositories/search_repository_impl.dart';
+export 'src/repositories/user_settings_repository_impl.dart';

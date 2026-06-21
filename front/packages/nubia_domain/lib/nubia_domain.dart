@@ -45,6 +45,7 @@ export 'src/repositories/secretariat_repository.dart';
 export 'src/repositories/slots_repository.dart';
 export 'src/repositories/waiting_repository.dart';
 export 'src/repositories/session_port.dart';
+export 'src/repositories/user_settings_repository.dart';
 
 // Use cases
 export 'src/usecases/account/get_account_use_case.dart';
