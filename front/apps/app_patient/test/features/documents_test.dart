@@ -21,6 +21,9 @@ class MockGetDocumentSignedUrlUseCase extends Mock
 
 class MockUploadDocumentUseCase extends Mock implements UploadDocumentUseCase {}
 
+class MockDocumentsBloc extends MockBloc<DocumentsEvent, DocumentsState>
+    implements DocumentsBloc {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -74,11 +77,17 @@ class _DocumentsBodyDirect extends StatelessWidget {
               child: Text('Aucun document'),
             );
           }
-          return ListView(
-            children: [
-              for (final d in docs)
-                Text(key: Key('document_${d.id}'), d.name),
-            ],
+          return RefreshIndicator(
+            onRefresh: () async => context
+                .read<DocumentsBloc>()
+                .add(const DocumentsLoadRequested()),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                for (final d in docs)
+                  Text(key: Key('document_${d.id}'), d.name),
+              ],
+            ),
           );
         }
         return const SizedBox.shrink();
@@ -101,6 +110,7 @@ Widget _wrap(DocumentsBloc bloc) => MaterialApp(
 void main() {
   setUpAll(() {
     registerFallbackValue(DocumentCategory.other);
+    registerFallbackValue(const DocumentsLoadRequested());
   });
 
   late MockGetDocumentsUseCase mockGetDocuments;
@@ -179,6 +189,26 @@ void main() {
 
       expect(find.byKey(const Key('documents_error')), findsOneWidget);
       expect(find.text('Erreur réseau.'), findsOneWidget);
+    });
+
+    testWidgets('pull-to-refresh dispatch DocumentsLoadRequested',
+        (tester) async {
+      final mockBloc = MockDocumentsBloc();
+      whenListen(
+        mockBloc,
+        Stream<DocumentsState>.empty(),
+        initialState: DocumentsLoaded([_doc]),
+      );
+
+      await tester.pumpWidget(_wrap(mockBloc));
+      await tester.pump();
+
+      await tester.drag(find.byType(ListView), const Offset(0, 400));
+      await tester.pumpAndSettle();
+
+      verify(
+        () => mockBloc.add(any(that: isA<DocumentsLoadRequested>())),
+      ).called(1);
     });
   });
 
