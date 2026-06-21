@@ -10,6 +10,9 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:app_patient/features/dashboard/dashboard_bloc.dart';
 import 'package:app_patient/features/dashboard/dashboard_event.dart';
 import 'package:app_patient/features/dashboard/dashboard_state.dart';
+import 'package:app_patient/features/messaging/messaging_bloc.dart';
+import 'package:app_patient/features/messaging/messaging_event.dart';
+import 'package:app_patient/features/messaging/messaging_state.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -20,6 +23,47 @@ class MockGetDashboardSummaryUseCase extends Mock
 
 class _MockDashboardBloc extends MockBloc<DashboardEvent, DashboardState>
     implements DashboardBloc {}
+
+class _MockMessagingBloc extends MockBloc<MessagingEvent, MessagingState>
+    implements MessagingBloc {}
+
+// ---------------------------------------------------------------------------
+// Badge test widget — mirrors the BlocSelector + Badge.count from DashboardPage
+// ---------------------------------------------------------------------------
+
+class _BadgeOnMessagesTab extends StatelessWidget {
+  const _BadgeOnMessagesTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocSelector<MessagingBloc, MessagingState, int>(
+      selector: (s) => s is MessagingConversationsLoaded
+          ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
+          : 0,
+      builder: (context, unreadCount) {
+        return NavigationBar(
+          selectedIndex: 0,
+          onDestinationSelected: (_) {},
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.search),
+              label: 'Rechercher',
+            ),
+            NavigationDestination(
+              key: const Key('tab_messages'),
+              icon: Badge.count(
+                count: unreadCount,
+                isLabelVisible: unreadCount > 0,
+                child: const Icon(Icons.chat_bubble_outline),
+              ),
+              label: 'Messages',
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -154,6 +198,48 @@ void main() {
       await tester.tap(find.text('Réessayer'));
 
       verify(() => mockBloc.add(const DashboardLoadRequested())).called(1);
+    });
+  });
+
+  group('badge unread messaging', () {
+    testWidgets('badge affiche "3" quand unreadCount total = 3', (tester) async {
+      final msgBloc = _MockMessagingBloc();
+      when(() => msgBloc.state).thenReturn(
+        MessagingConversationsLoaded([
+          Conversation(
+            id: 'c1',
+            cabinetId: 'cab-1',
+            cabinetName: 'Cabinet',
+            unreadCount: 3,
+          ),
+        ]),
+      );
+      when(() => msgBloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        home: BlocProvider<MessagingBloc>.value(
+          value: msgBloc,
+          child: const Scaffold(body: _BadgeOnMessagesTab()),
+        ),
+      ));
+
+      expect(find.text('3'), findsOneWidget);
+    });
+
+    testWidgets('badge invisible quand unreadCount = 0', (tester) async {
+      final msgBloc = _MockMessagingBloc();
+      when(() => msgBloc.state)
+          .thenReturn(MessagingConversationsLoaded(const []));
+      when(() => msgBloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        home: BlocProvider<MessagingBloc>.value(
+          value: msgBloc,
+          child: const Scaffold(body: _BadgeOnMessagesTab()),
+        ),
+      ));
+
+      expect(find.text('0'), findsNothing);
     });
   });
 }

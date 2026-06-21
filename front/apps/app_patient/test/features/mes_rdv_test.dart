@@ -134,6 +134,44 @@ class _SortBodyDirectState extends State<_SortBodyDirect> {
   }
 }
 
+/// Widget de test pour la dialog de confirmation d'annulation.
+class _CancelBodyDirect extends StatelessWidget {
+  const _CancelBodyDirect({required this.appointment});
+  final Appointment appointment;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      key: Key('cancel_${appointment.id}'),
+      onPressed: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Annuler ce RDV ?'),
+            content: const Text('Cette action est irréversible.'),
+            actions: [
+              TextButton(
+                key: const Key('dialog_dismiss'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                key: const Key('dialog_confirm'),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Confirmer'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true && context.mounted) {
+          context.read<MesRdvBloc>().add(MesRdvCancelRequested(appointment));
+        }
+      },
+      child: const Text('Annuler'),
+    );
+  }
+}
+
 /// Widget that injects the bloc without creating its own BlocProvider
 /// (MesRdvPage creates one via GetIt — use this in tests instead).
 class _MesRdvBodyDirect extends StatelessWidget {
@@ -436,6 +474,67 @@ void main() {
           .called(1);
 
       await tester.pumpAndSettle(); // let RefreshIndicator closing animation complete
+    });
+  });
+
+  group('cancel confirmation dialog', () {
+    Widget wrapCancel(MockMesRdvBloc bloc) => MaterialApp(
+          home: BlocProvider<MesRdvBloc>.value(
+            value: bloc,
+            child: Scaffold(body: _CancelBodyDirect(appointment: _appt)),
+          ),
+        );
+
+    testWidgets('tap cancel affiche la dialog de confirmation', (tester) async {
+      final mockBloc = MockMesRdvBloc();
+      whenListen<MesRdvState>(
+        mockBloc,
+        const Stream.empty(),
+        initialState: MesRdvLoaded(upcoming: [_appt], history: const []),
+      );
+
+      await tester.pumpWidget(wrapCancel(mockBloc));
+      await tester.tap(find.byKey(Key('cancel_${_appt.id}')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Annuler ce RDV ?'), findsOneWidget);
+      expect(find.text('Cette action est irréversible.'), findsOneWidget);
+    });
+
+    testWidgets('tap "Annuler" dans la dialog ne dispatche pas', (tester) async {
+      final mockBloc = MockMesRdvBloc();
+      whenListen<MesRdvState>(
+        mockBloc,
+        const Stream.empty(),
+        initialState: MesRdvLoaded(upcoming: [_appt], history: const []),
+      );
+
+      await tester.pumpWidget(wrapCancel(mockBloc));
+      await tester.tap(find.byKey(Key('cancel_${_appt.id}')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('dialog_dismiss')));
+      await tester.pumpAndSettle();
+
+      verifyNever(() => mockBloc.add(any(that: isA<MesRdvCancelRequested>())));
+    });
+
+    testWidgets('tap "Confirmer" dans la dialog dispatche MesRdvCancelRequested',
+        (tester) async {
+      final mockBloc = MockMesRdvBloc();
+      whenListen<MesRdvState>(
+        mockBloc,
+        const Stream.empty(),
+        initialState: MesRdvLoaded(upcoming: [_appt], history: const []),
+      );
+
+      await tester.pumpWidget(wrapCancel(mockBloc));
+      await tester.tap(find.byKey(Key('cancel_${_appt.id}')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('dialog_confirm')));
+      await tester.pumpAndSettle();
+
+      verify(() => mockBloc.add(any(that: isA<MesRdvCancelRequested>())))
+          .called(1);
     });
   });
 }

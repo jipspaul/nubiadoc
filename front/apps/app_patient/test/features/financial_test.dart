@@ -136,6 +136,40 @@ void main() {
       expect(find.text('Dr Lemaire'), findsOneWidget);
     });
 
+    testWidgets('pull-to-refresh déclenche FinancialLoadRequested',
+        (tester) async {
+      var callCount = 0;
+      when(() => mockGetPendingQuotes()).thenAnswer((_) async {
+        callCount++;
+        return Right([_quote]);
+      });
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 1);
+      expect(find.byKey(const Key('financial_list')), findsOneWidget);
+
+      await tester.fling(
+        find.byKey(const Key('financial_list')),
+        const Offset(0, 300),
+        1000,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      expect(callCount, 2);
+    });
+
     testWidgets('affiche le message d\'erreur en état erreur', (tester) async {
       when(() => mockGetPendingQuotes()).thenAnswer(
           (_) async => const Left(NetworkFailure('Erreur réseau.')));
