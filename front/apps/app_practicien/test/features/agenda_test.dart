@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -350,6 +351,33 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('agenda_error')), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // FAB consultation widget tests
+  // ---------------------------------------------------------------------------
+
+  group('AgendaPage — FAB consultation (widget)', () {
+    testWidgets('FAB tap ouvre le bottom sheet sélecteur patient', (tester) async {
+      final mockBloc = MockAgendaBloc();
+      when(() => mockBloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: _weekStart),
+      );
+
+      GetIt.instance.registerFactory<AgendaBloc>(() => mockBloc);
+      addTearDown(GetIt.instance.reset);
+
+      await tester.pumpWidget(const MaterialApp(home: AgendaPage()));
+      await tester.pump();
+
+      expect(find.byKey(const Key('agenda_fab_consultation')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('agenda_fab_consultation')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('patient_picker_title')), findsOneWidget);
+      expect(find.byKey(const Key('patient_pick_pat-1')), findsOneWidget);
     });
   });
 
