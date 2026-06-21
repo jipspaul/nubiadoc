@@ -19,3 +19,7 @@
 - Routing par dossier : `AGENTS.md` (racine).
 - État courant : `PROGRESS.md`.
 - Backlog : `docs/09-backlog-issues.md`.
+
+| Sujet | Où |
+|---|---|
+| PROGRESS.md auto-merger (orchestrator → Forgejo) | [`orchestrator/src/adapters/dev-forgejo/progress-resolver.ts`](orchestrator/src/adapters/dev-forgejo/progress-resolver.ts) |
