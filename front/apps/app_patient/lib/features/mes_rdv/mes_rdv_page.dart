@@ -65,22 +65,48 @@ class _MesRdvBody extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _LoadedView extends StatelessWidget {
+class _LoadedView extends StatefulWidget {
   const _LoadedView({required this.state});
   final MesRdvLoaded state;
 
   @override
+  State<_LoadedView> createState() => _LoadedViewState();
+}
+
+class _LoadedViewState extends State<_LoadedView> {
+  bool _sortAsc = false;
+
+  @override
   Widget build(BuildContext context) {
+    int compare(Appointment a, Appointment b) => _sortAsc
+        ? a.startsAt.compareTo(b.startsAt)
+        : b.startsAt.compareTo(a.startsAt);
+
+    final upcoming = [...widget.state.upcoming]..sort(compare);
+    final history = [...widget.state.history]..sort(compare);
+
     return DefaultTabController(
       length: 2,
       child: Column(
         children: [
-          if (state.actionInProgress)
+          if (widget.state.actionInProgress)
             const LinearProgressIndicator(key: Key('mes_rdv_action_progress')),
-          const TabBar(
-            tabs: [
-              Tab(text: 'À venir'),
-              Tab(text: 'Historique'),
+          Row(
+            children: [
+              const Expanded(
+                child: TabBar(
+                  tabs: [
+                    Tab(text: 'À venir'),
+                    Tab(text: 'Historique'),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: const Key('sort_button'),
+                icon: const Icon(Icons.sort),
+                tooltip: _sortAsc ? 'Plus récent d\'abord' : 'Plus ancien d\'abord',
+                onPressed: () => setState(() => _sortAsc = !_sortAsc),
+              ),
             ],
           ),
           Expanded(
@@ -88,13 +114,13 @@ class _LoadedView extends StatelessWidget {
               children: [
                 _AppointmentList(
                   key: const Key('upcoming_list'),
-                  appointments: state.upcoming,
+                  appointments: upcoming,
                   emptyLabel: 'Aucun rendez-vous à venir',
                   isUpcoming: true,
                 ),
                 _AppointmentList(
                   key: const Key('history_list'),
-                  appointments: state.history,
+                  appointments: history,
                   emptyLabel: 'Aucun historique',
                   isUpcoming: false,
                 ),
@@ -123,33 +149,47 @@ class _AppointmentList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (appointments.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              emptyLabel,
-              key: Key('empty_${isUpcoming ? 'upcoming' : 'history'}'),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return RefreshIndicator(
+      onRefresh: () {
+        context.read<MesRdvBloc>().add(const MesRdvLoadRequested());
+        return Future<void>.delayed(Duration.zero);
+      },
+      child: appointments.isEmpty
+          ? LayoutBuilder(
+              builder: (_, constraints) => SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          emptyLabel,
+                          key: Key('empty_${isUpcoming ? 'upcoming' : 'history'}'),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
+              ),
+            )
+          : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: appointments.length,
+              itemBuilder: (context, i) =>
+                  _AppointmentCard(appointment: appointments[i]),
             ),
-          ],
-        ),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: appointments.length,
-      itemBuilder: (context, i) =>
-          _AppointmentCard(appointment: appointments[i]),
     );
   }
 }
@@ -257,9 +297,32 @@ class _ActionButtons extends StatelessWidget {
               foregroundColor: Theme.of(context).colorScheme.error,
               side: BorderSide(color: Theme.of(context).colorScheme.error),
             ),
-            onPressed: () => context
-                .read<MesRdvBloc>()
-                .add(MesRdvCancelRequested(appointment)),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Annuler ce RDV ?'),
+                  content: const Text('Cette action est irréversible.'),
+                  actions: [
+                    TextButton(
+                      key: const Key('dialog_dismiss'),
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Annuler'),
+                    ),
+                    FilledButton(
+                      key: const Key('dialog_confirm'),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('Confirmer'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true && context.mounted) {
+                context
+                    .read<MesRdvBloc>()
+                    .add(MesRdvCancelRequested(appointment));
+              }
+            },
             icon: const Icon(Icons.cancel_outlined, size: 16),
             label: const Text('Annuler'),
           ),

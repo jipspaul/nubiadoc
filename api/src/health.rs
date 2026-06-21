@@ -31,6 +31,21 @@ pub(crate) async fn health_ready_db(State(state): State<AppState>) -> (StatusCod
     }
 }
 
+/// GET /v1/health/db — retourne 200 + `{ok, ms}` si SELECT 1 réussit, 503 sinon.
+pub(crate) async fn health_db(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
+    let start = std::time::Instant::now();
+    match sqlx::query("SELECT 1").execute(&state.db).await {
+        Ok(_) => {
+            let ms = start.elapsed().as_millis() as u64;
+            (StatusCode::OK, Json(json!({"ok": true, "ms": ms})))
+        }
+        Err(e) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"ok": false, "error": e.to_string()})),
+        ),
+    }
+}
+
 pub(crate) async fn metrics() -> &'static str {
     "# HELP api_up 1\n# TYPE api_up gauge\napi_up 1\n"
 }

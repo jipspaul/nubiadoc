@@ -53,3 +53,11 @@ class ConsultationCliniqueCompleted extends ConsultationCliniqueState {
   @override
   List<Object?> get props => [result];
 }
+
+class ConsultationHistoriqueLoaded extends ConsultationCliniqueState {
+  final List<ClinicalSession> sessions;
+  const ConsultationHistoriqueLoaded({required this.sessions});
+
+  @override
+  List<Object?> get props => [sessions];
+}

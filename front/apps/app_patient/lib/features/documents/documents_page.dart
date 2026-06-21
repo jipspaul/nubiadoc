@@ -78,31 +78,53 @@ class _DocumentsBody extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _DocumentsLoaded extends StatelessWidget {
+class _DocumentsLoaded extends StatefulWidget {
   const _DocumentsLoaded({required this.state});
 
   final DocumentsLoaded state;
 
-  static const _categories = <DocumentCategory?>[
-    null,
-    DocumentCategory.quote,
-    DocumentCategory.invoice,
-    DocumentCategory.prescription,
-    DocumentCategory.xray,
-    DocumentCategory.mutualCard,
+  @override
+  State<_DocumentsLoaded> createState() => _DocumentsLoadedState();
+}
+
+class _DocumentsLoadedState extends State<_DocumentsLoaded> {
+  DocumentCategory? _categoryFilter;
+
+  static const _chips = <(String, DocumentCategory)>[
+    ('Ordonnance', DocumentCategory.prescription),
+    ('Compte rendu', DocumentCategory.report),
+    ('Imagerie', DocumentCategory.xray),
+    ('Autres', DocumentCategory.other),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final docs = state.filtered;
+    final docs = _categoryFilter == null
+        ? widget.state.documents
+        : widget.state.documents
+            .where((d) => d.category == _categoryFilter)
+            .toList();
 
     return Stack(
       children: [
         Column(
           children: [
-            _CategoryBar(
-              categories: _categories,
-              selected: state.selectedCategory,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  for (final (label, cat) in _chips)
+                    FilterChip(
+                      label: Text(label),
+                      selected: _categoryFilter == cat,
+                      onSelected: (_) => setState(() {
+                        _categoryFilter =
+                            _categoryFilter == cat ? null : cat;
+                      }),
+                    ),
+                ],
+              ),
             ),
             Expanded(
               child: docs.isEmpty
@@ -117,28 +139,34 @@ class _DocumentsLoaded extends StatelessWidget {
                         ],
                       ),
                     )
-                  : ListView.separated(
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final doc = docs[index];
-                        return ListTile(
-                          key: Key('document_${doc.id}'),
-                          leading: const Icon(Icons.description_outlined),
-                          title: Text(doc.name),
-                          subtitle: Text(
-                            '${doc.category.name} · '
-                            '${(doc.fileSizeBytes / 1024).round()} Ko',
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.download_outlined),
-                            tooltip: 'Télécharger',
-                            onPressed: () => context
-                                .read<DocumentsBloc>()
-                                .add(DocumentsDownloadRequested(doc.id)),
-                          ),
-                        );
-                      },
+                  : RefreshIndicator(
+                      onRefresh: () async => context
+                          .read<DocumentsBloc>()
+                          .add(const DocumentsLoadRequested()),
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final doc = docs[index];
+                          return ListTile(
+                            key: Key('document_${doc.id}'),
+                            leading: const Icon(Icons.description_outlined),
+                            title: Text(doc.name),
+                            subtitle: Text(
+                              '${doc.category.name} · '
+                              '${(doc.fileSizeBytes / 1024).round()} Ko',
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.download_outlined),
+                              tooltip: 'Télécharger',
+                              onPressed: () => context
+                                  .read<DocumentsBloc>()
+                                  .add(DocumentsDownloadRequested(doc.id)),
+                            ),
+                          );
+                        },
+                      ),
                     ),
             ),
           ],
@@ -156,51 +184,6 @@ class _DocumentsLoaded extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _CategoryBar extends StatelessWidget {
-  const _CategoryBar({
-    required this.categories,
-    required this.selected,
-  });
-
-  final List<DocumentCategory?> categories;
-  final DocumentCategory? selected;
-
-  static String _label(DocumentCategory? cat) => switch (cat) {
-        null => 'Tous',
-        DocumentCategory.quote => 'Devis',
-        DocumentCategory.invoice => 'Factures',
-        DocumentCategory.prescription => 'Ordonnances',
-        DocumentCategory.xray => 'Radios',
-        DocumentCategory.mutualCard => 'Mutuelle',
-        _ => cat.name,
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          for (final cat in categories)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text(_label(cat)),
-                selected: selected == cat,
-                onSelected: (_) => context
-                    .read<DocumentsBloc>()
-                    .add(DocumentsCategorySelected(cat)),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

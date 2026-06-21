@@ -3,11 +3,13 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/documents/documents_bloc.dart';
 import 'package:app_patient/features/documents/documents_event.dart';
+import 'package:app_patient/features/documents/documents_page.dart';
 import 'package:app_patient/features/documents/documents_state.dart';
 
 // ---------------------------------------------------------------------------
@@ -20,6 +22,9 @@ class MockGetDocumentSignedUrlUseCase extends Mock
     implements GetDocumentSignedUrlUseCase {}
 
 class MockUploadDocumentUseCase extends Mock implements UploadDocumentUseCase {}
+
+class MockDocumentsBloc extends MockBloc<DocumentsEvent, DocumentsState>
+    implements DocumentsBloc {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,11 +79,17 @@ class _DocumentsBodyDirect extends StatelessWidget {
               child: Text('Aucun document'),
             );
           }
-          return ListView(
-            children: [
-              for (final d in docs)
-                Text(key: Key('document_${d.id}'), d.name),
-            ],
+          return RefreshIndicator(
+            onRefresh: () async => context
+                .read<DocumentsBloc>()
+                .add(const DocumentsLoadRequested()),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                for (final d in docs)
+                  Text(key: Key('document_${d.id}'), d.name),
+              ],
+            ),
           );
         }
         return const SizedBox.shrink();
@@ -101,6 +112,7 @@ Widget _wrap(DocumentsBloc bloc) => MaterialApp(
 void main() {
   setUpAll(() {
     registerFallbackValue(DocumentCategory.other);
+    registerFallbackValue(const DocumentsLoadRequested());
   });
 
   late MockGetDocumentsUseCase mockGetDocuments;
@@ -179,6 +191,96 @@ void main() {
 
       expect(find.byKey(const Key('documents_error')), findsOneWidget);
       expect(find.text('Erreur réseau.'), findsOneWidget);
+    });
+
+    testWidgets('pull-to-refresh dispatch DocumentsLoadRequested',
+        (tester) async {
+      final mockBloc = MockDocumentsBloc();
+      whenListen(
+        mockBloc,
+        Stream<DocumentsState>.empty(),
+        initialState: DocumentsLoaded([_doc]),
+      );
+
+      await tester.pumpWidget(_wrap(mockBloc));
+      await tester.pump();
+
+      await tester.drag(find.byType(ListView), const Offset(0, 400));
+      await tester.pumpAndSettle();
+
+      verify(
+        () => mockBloc.add(any(that: isA<DocumentsLoadRequested>())),
+      ).called(1);
+    });
+  });
+
+  group('DocumentsPage — filtre catégorie (local)', () {
+    late MockDocumentsBloc bloc;
+
+    setUp(() async {
+      bloc = MockDocumentsBloc();
+      await GetIt.instance.reset();
+      GetIt.instance.registerFactory<DocumentsBloc>(() => bloc);
+    });
+
+    tearDown(() async => GetIt.instance.reset());
+
+    testWidgets(
+        'tap chip Ordonnance — 1 doc visible sur 3 de catégories différentes',
+        (tester) async {
+      final docs = [
+        Document(
+          id: 'p1',
+          name: 'Ordonnance Dupont.pdf',
+          category: DocumentCategory.prescription,
+          createdAt: DateTime(2026, 1, 1),
+          fileSizeBytes: 1024,
+          mimeType: 'application/pdf',
+        ),
+        Document(
+          id: 'r1',
+          name: 'Compte rendu opération.pdf',
+          category: DocumentCategory.report,
+          createdAt: DateTime(2026, 1, 2),
+          fileSizeBytes: 2048,
+          mimeType: 'application/pdf',
+        ),
+        Document(
+          id: 'i1',
+          name: 'Radio panoramique.pdf',
+          category: DocumentCategory.xray,
+          createdAt: DateTime(2026, 1, 3),
+          fileSizeBytes: 4096,
+          mimeType: 'application/pdf',
+        ),
+      ];
+
+      whenListen(
+        bloc,
+        Stream<DocumentsState>.empty(),
+        initialState: DocumentsLoaded(docs),
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: DocumentsPage())),
+      );
+      await tester.pumpAndSettle();
+
+      // 4 chips visibles
+      expect(find.byType(FilterChip), findsNWidgets(4));
+
+      // 3 docs visibles avant filtrage
+      expect(find.byKey(const Key('document_p1')), findsOneWidget);
+      expect(find.byKey(const Key('document_r1')), findsOneWidget);
+      expect(find.byKey(const Key('document_i1')), findsOneWidget);
+
+      // Tap chip 'Ordonnance'
+      await tester.tap(find.widgetWithText(FilterChip, 'Ordonnance'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('document_p1')), findsOneWidget);
+      expect(find.byKey(const Key('document_r1')), findsNothing);
+      expect(find.byKey(const Key('document_i1')), findsNothing);
     });
   });
 
