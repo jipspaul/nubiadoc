@@ -59,28 +59,35 @@ class _QuoteListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.quotes.isEmpty) {
-      return const Center(
-        key: Key('financial_empty'),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.receipt_long_outlined, size: 48),
-            SizedBox(height: 12),
-            Text('Aucun devis en attente.'),
-          ],
-        ),
-      );
-    }
     return RefreshIndicator(
       onRefresh: () async =>
           context.read<FinancialBloc>().add(const FinancialLoadRequested()),
-      child: ListView.builder(
-        key: const Key('financial_list'),
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: state.quotes.length,
-        itemBuilder: (context, i) => _QuoteTile(quote: state.quotes[i]),
-      ),
+      child: state.quotes.isEmpty
+          ? LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: const Center(
+                    key: Key('financial_empty'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.receipt_long_outlined, size: 48),
+                        SizedBox(height: 12),
+                        Text('Aucun devis en attente.'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : ListView.builder(
+              key: const Key('financial_list'),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: state.quotes.length,
+              itemBuilder: (context, i) => _QuoteTile(quote: state.quotes[i]),
+            ),
     );
   }
 }
