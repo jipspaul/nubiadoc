@@ -171,7 +171,10 @@ pub async fn cancel_appointment(
     Path(appt_id): Path<Uuid>,
     body: Option<Json<CancelBody>>,
 ) -> Result<Json<CancelResponse>, AppError> {
-    let reason = body.as_ref().and_then(|b| b.reason.as_deref()).map(str::to_owned);
+    let reason = body
+        .as_ref()
+        .and_then(|b| b.reason.as_deref())
+        .map(str::to_owned);
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
