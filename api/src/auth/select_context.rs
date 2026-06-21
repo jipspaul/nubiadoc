@@ -19,12 +19,20 @@ pub struct SelectContextBody {
     secretariat_id: Option<Uuid>,
 }
 
+/// Contexte inclus dans la réponse de `POST /v1/auth/select-context`.
+#[derive(Serialize)]
+pub struct SelectContextContext {
+    cabinet_id: Uuid,
+    role: String,
+}
+
 /// Réponse de `POST /v1/auth/select-context`.
 #[derive(Serialize)]
 pub struct SelectContextResponse {
     access_token: String,
     token_type: String,
     expires_in: u64,
+    context: SelectContextContext,
 }
 
 /// `POST /v1/auth/select-context` — émet un JWT scopé sur le cabinet demandé.
@@ -37,7 +45,8 @@ pub struct SelectContextResponse {
 /// Si `secretariat_id` est fourni, valide qu'il appartient bien au même cabinet
 /// (via `secretariat_membership`) avant de l'inclure dans le JWT.
 ///
-/// Retourne `403 no_active_membership` si :
+/// Retourne `404` si `cabinet_id` n'existe pas (anti-énumération).
+/// Retourne `403 no_membership` si :
 /// - l'utilisateur n'est pas membre actif du `cabinet_id` demandé, ou
 /// - le `secretariat_id` fourni n'appartient pas au même cabinet.
 pub async fn select_context(
@@ -61,9 +70,29 @@ pub async fn select_context(
             .await
             .map_err(|_| AppError::Internal)?;
 
+    // 404 si le cabinet n'existe pas, 403 si l'utilisateur n'en est pas membre.
+    if row.is_none() {
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(body.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        let exists = sqlx::query("SELECT 1 FROM cabinet WHERE id = $1")
+            .bind(body.cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(if exists.is_none() {
+            AppError::NotFound
+        } else {
+            AppError::NoActiveMembership
+        });
+    }
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let row = row.ok_or(AppError::NoActiveMembership)?;
+    let row = row.expect("checked above");
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
     let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
     let secretariat_id: Option<Uuid> = row
@@ -111,7 +140,7 @@ pub async fn select_context(
             sub: claims.sub,
             kind: "pro".to_string(),
             cabinet_id,
-            role,
+            role: role.clone(),
             secretariat_id: body.secretariat_id.or(secretariat_id),
             exp,
         },
@@ -141,6 +170,7 @@ pub async fn select_context(
             access_token,
             token_type: "Bearer".to_string(),
             expires_in: EXPIRES_IN,
+            context: SelectContextContext { cabinet_id, role },
         }),
     ))
 }

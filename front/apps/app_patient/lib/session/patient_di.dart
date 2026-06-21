@@ -9,6 +9,7 @@ import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/home/home_bloc.dart';
+import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/profile/profile_bloc.dart';
 import 'auth_cubit.dart';
 
@@ -79,4 +80,6 @@ void registerPatient(GetIt gi) {
       upload: gi<UploadDocumentUseCase>(),
     ),
   );
+
+  gi.registerFactory<OubliettesBloc>(() => OubliettesBloc());
 }

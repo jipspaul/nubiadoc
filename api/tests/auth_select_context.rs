@@ -278,10 +278,10 @@ async fn select_context_multicontext_jwt_contains_cabinet_and_role() {
         .ok();
 }
 
-// ── Test 2 : cabinet_id inconnu → 403 no_active_membership ───────────────────
+// ── Test 2 : cabinet_id inconnu → 404 (anti-énumération) ────────────────────
 
 #[tokio::test]
-async fn select_context_unknown_cabinet_returns_403() {
+async fn select_context_unknown_cabinet_returns_404() {
     if !db_available() {
         return;
     }
@@ -320,6 +320,68 @@ async fn select_context_unknown_cabinet_returns_403() {
         .await
         .unwrap();
 
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert!(
+        response.headers().get("set-cookie").is_none(),
+        "pas de cookie nubia_jwt émis sur 404"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 2b : cabinet valide mais user non-membre → 403 no_membership ────────
+
+#[tokio::test]
+async fn select_context_not_member_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("sc-nomember+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, 'Cabinet Non Membre', 'dentiste')",
+    )
+    .bind(cabinet_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Pas d'entrée dans cabinet_membership → user non-membre
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/select-context")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
+                .body(Body::from(json!({"cabinet_id": cabinet_id}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     assert!(
         response.headers().get("set-cookie").is_none(),
@@ -330,8 +392,13 @@ async fn select_context_unknown_cabinet_returns_403() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "no_active_membership");
+    assert_eq!(v["error"], "no_membership");
 
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&db)
+        .await
+        .ok();
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)
         .execute(&db)
@@ -339,7 +406,7 @@ async fn select_context_unknown_cabinet_returns_403() {
         .ok();
 }
 
-// ── Test 2b : token absent → 401 ─────────────────────────────────────────────
+// ── Test 2d : token absent → 401 ─────────────────────────────────────────────
 
 #[tokio::test]
 async fn select_context_no_token_returns_401() {
@@ -375,7 +442,7 @@ async fn select_context_no_token_returns_401() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-// ── Test 2c : body JSON invalide (cabinet_id manquant) → 422 ─────────────────
+// ── Test 2e : body JSON invalide (cabinet_id manquant) → 422 ─────────────────
 
 #[tokio::test]
 async fn select_context_invalid_body_returns_422() {
@@ -543,7 +610,7 @@ async fn select_context_secretariat_from_other_cabinet_returns_403() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "no_active_membership");
+    assert_eq!(v["error"], "no_membership");
 
     sqlx::query("DELETE FROM cabinet_membership WHERE user_id = $1")
         .bind(user_id)
