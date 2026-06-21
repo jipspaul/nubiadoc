@@ -1,5 +1,7 @@
 # État du projet — Nubia
 
+2026-06-21 — **[db] DB-T026 — RLS policy prescription_item + tests pgTAP (issue #2448).** Migration `0108_prescription_line_rls.sql` : remplace la policy générique `tenant_isolation` (0011) sur `prescription_item` par deux policies explicites — `prescription_line_cabinet_isolation` FOR ALL (isolation cabinet, même bornes fail-closed) et `prescription_line_patient_read` FOR SELECT (accès transversal patient titulaire via `prescription_item → prescription → patient → patient_account_id`). Test pgTAP `39_prescription_line_rls.sql` : 4 assertions — PL1 patient titulaire voit sa ligne, PL2 autre patient ne voit pas, PL3 praticien du cabinet voit, PL4 autre cabinet ne voit pas. `make migrate` vert.
+
 2026-06-21 — **Drainage flutter-front automatisé (nuit).** 7 PRs mergées par la fleet :
 FR1.19→FR1.23 (app_patient : skeleton appointments search, pull-to-refresh financial,
 filtre catégorie documents, widget tests notifications, dialog annulation RDV),
