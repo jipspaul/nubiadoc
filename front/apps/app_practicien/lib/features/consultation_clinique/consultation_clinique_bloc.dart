@@ -21,6 +21,7 @@ class ConsultationCliniqueBloc
     on<ConsultationCliniqueLoadRequested>(_onLoad);
     on<ConsultationCliniqueActAddRequested>(_onActAdd);
     on<ConsultationCliniqueCompleteRequested>(_onComplete);
+    on<ConsultationHistoriqueRequested>(_onHistoriqueLoad);
   }
 
   Future<void> _onLoad(
@@ -74,5 +75,20 @@ class ConsultationCliniqueBloc
       (failure) => emit(ConsultationCliniqueError(failure.message)),
       (completed) => emit(ConsultationCliniqueCompleted(completed)),
     );
+  }
+
+  Future<void> _onHistoriqueLoad(
+    ConsultationHistoriqueRequested event,
+    Emitter<ConsultationCliniqueState> emit,
+  ) async {
+    // Stub sessions — to be replaced by a real API call when the endpoint is ready.
+    emit(const ConsultationHistoriqueLoaded(sessions: [
+      ClinicalSession(
+          id: 'h1', appointmentId: 'a1', status: 'completed', acts: []),
+      ClinicalSession(
+          id: 'h2', appointmentId: 'a2', status: 'in_progress', acts: []),
+      ClinicalSession(
+          id: 'h3', appointmentId: 'a3', status: 'interrupted', acts: []),
+    ]));
   }
 }
