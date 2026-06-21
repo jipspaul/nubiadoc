@@ -23,6 +23,10 @@ class MockGetCabinetConversationUseCase extends Mock
 class MockSendMessageCabinetUseCase extends Mock
     implements SendMessageCabinetUseCase {}
 
+class MockCabinetMessagingBloc
+    extends MockBloc<CabinetMessagingEvent, CabinetMessagingState>
+    implements CabinetMessagingBloc {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -61,6 +65,13 @@ Widget _wrap(CabinetMessagingBloc bloc) => MaterialApp(
       ),
     );
 
+Widget _wrapMock(MockCabinetMessagingBloc bloc) => MaterialApp(
+      home: BlocProvider<CabinetMessagingBloc>.value(
+        value: bloc,
+        child: const Scaffold(body: _Body()),
+      ),
+    );
+
 /// Minimal widget that renders based on bloc state (avoids GetIt dependency).
 class _Body extends StatelessWidget {
   const _Body();
@@ -90,7 +101,13 @@ class _Body extends StatelessWidget {
             key: const Key('cabinet_messaging_conversations_list'),
             children: [
               for (final c in state.conversations)
-                Text(key: Key('conv_${c.id}'), c.patientName),
+                ListTile(
+                  key: Key('conv_${c.id}'),
+                  title: Text(c.patientName),
+                  onTap: () => context
+                      .read<CabinetMessagingBloc>()
+                      .add(CabinetMessagingThreadOpened(c)),
+                ),
             ],
           );
         }
@@ -288,6 +305,57 @@ void main() {
       await tester.pump();
       expect(find.byKey(const Key('cabinet_messaging_thread')), findsOneWidget);
       expect(find.byKey(const Key('msg_msg-1')), findsOneWidget);
+    });
+
+    // ---- Tests requis FR2.13 ------------------------------------------------
+
+    testWidgets('état Initial — skeleton de chargement visible', (tester) async {
+      final mockBloc = MockCabinetMessagingBloc();
+      when(() => mockBloc.state).thenReturn(const CabinetMessagingInitial());
+      await tester.pumpWidget(_wrapMock(mockBloc));
+      expect(
+        find.byKey(const Key('cabinet_messaging_loading')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'état Loaded avec 2 conversations — 2 tiles visibles avec patientName',
+        (tester) async {
+      final conv2 = CabinetConversation(
+        id: 'conv-2',
+        patientId: 'pat-2',
+        patientName: 'Pierre Martin',
+        unreadCount: 0,
+      );
+      final mockBloc = MockCabinetMessagingBloc();
+      when(() => mockBloc.state).thenReturn(
+        CabinetMessagingConversationsLoaded([_conversation, conv2]),
+      );
+      await tester.pumpWidget(_wrapMock(mockBloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('conv_conv-1')), findsOneWidget);
+      expect(find.byKey(const Key('conv_conv-2')), findsOneWidget);
+      expect(find.text('Marie Dupont'), findsOneWidget);
+      expect(find.text('Pierre Martin'), findsOneWidget);
+    });
+
+    testWidgets('tap sur une tile — dispatch CabinetMessagingThreadOpened',
+        (tester) async {
+      final mockBloc = MockCabinetMessagingBloc();
+      when(() => mockBloc.state).thenReturn(
+        CabinetMessagingConversationsLoaded([_conversation]),
+      );
+      await tester.pumpWidget(_wrapMock(mockBloc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('conv_conv-1')));
+      await tester.pump();
+
+      verify(
+        () => mockBloc.add(CabinetMessagingThreadOpened(_conversation)),
+      ).called(1);
     });
   });
 }
