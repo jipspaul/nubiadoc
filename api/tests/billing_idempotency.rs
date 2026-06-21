@@ -226,13 +226,12 @@ async fn payment_intent_same_key_returns_same_response() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM payment WHERE idempotency_key = $1",
-        )
-        .bind(&idempotency_key)
-        .fetch_one(&mut *tx)
-        .await
-        .unwrap();
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM payment WHERE idempotency_key = $1")
+                .bind(&idempotency_key)
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
         tx.commit().await.unwrap();
         assert_eq!(count, 1, "un seul payment doit exister pour cette clé");
     }
