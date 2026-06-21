@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'notifications_bloc.dart';
@@ -59,9 +60,11 @@ class _NotificationsContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.notifications.isEmpty) {
-      return const Center(
+      return const NubiaEmptyState(
         key: Key('notifications_empty'),
-        child: Text('Aucune notification.'),
+        icon: Icons.notifications_off,
+        title: 'Aucune notification',
+        subtitle: 'Vous êtes à jour',
       );
     }
     return Column(
