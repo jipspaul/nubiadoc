@@ -261,7 +261,7 @@ impl IntoResponse for AppError {
                 .into_response(),
             AppError::NoActiveMembership => (
                 StatusCode::FORBIDDEN,
-                Json(json!({"error": "no_active_membership"})),
+                Json(json!({"error": "no_membership"})),
             )
                 .into_response(),
             AppError::LastAdminCannotBeRemoved => (
