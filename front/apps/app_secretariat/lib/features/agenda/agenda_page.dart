@@ -121,11 +121,18 @@ class _LoadedView extends StatelessWidget {
                     ],
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: state.entries.length,
-                  itemBuilder: (context, i) =>
-                      _EntryCard(entry: state.entries[i]),
+              : RefreshIndicator(
+                  key: const Key('agenda_refresh_indicator'),
+                  onRefresh: () async => context.read<AgendaBloc>().add(
+                    AgendaLoadRequested(weekStart: _currentWeekStart()),
+                  ),
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: state.entries.length,
+                    itemBuilder: (context, i) =>
+                        _EntryCard(entry: state.entries[i]),
+                  ),
                 ),
         ),
       ],
