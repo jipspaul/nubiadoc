@@ -2,6 +2,24 @@ import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/scheduling/appointment_dto.dart';
 
+class DirectionsDto {
+  final String deeplink;
+  final int? durationMinutes;
+  final double? distanceKm;
+
+  const DirectionsDto({
+    required this.deeplink,
+    this.durationMinutes,
+    this.distanceKm,
+  });
+
+  factory DirectionsDto.fromJson(Map<String, dynamic> json) => DirectionsDto(
+        deeplink: json['deeplink'] as String,
+        durationMinutes: json['duration_minutes'] as int?,
+        distanceKm: (json['distance_km'] as num?)?.toDouble(),
+      );
+}
+
 class SchedulingApi {
   final Dio _dio;
 
@@ -63,5 +81,13 @@ class SchedulingApi {
       '/appointments/$id/checkin',
     );
     return AppointmentDto.fromJson(response.data!);
+  }
+
+  Future<DirectionsDto> getDirections(String id, {String mode = 'car'}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/appointments/$id/directions',
+      queryParameters: {'mode': mode},
+    );
+    return DirectionsDto.fromJson(response.data!);
   }
 }
