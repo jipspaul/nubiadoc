@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'documents_bloc.dart';
@@ -127,16 +128,10 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
             ),
             Expanded(
               child: docs.isEmpty
-                  ? const Center(
+                  ? const NubiaEmptyState(
                       key: Key('documents_empty'),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.folder_open_outlined, size: 56),
-                          SizedBox(height: 16),
-                          Text('Aucun document'),
-                        ],
-                      ),
+                      icon: Icons.folder_open_outlined,
+                      title: 'Aucun document',
                     )
                   : RefreshIndicator(
                       key: const ValueKey('documents_refresh'),
