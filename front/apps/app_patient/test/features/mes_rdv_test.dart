@@ -26,6 +26,9 @@ class MockCancelAppointmentUseCase extends Mock
 class MockCheckinAppointmentUseCase extends Mock
     implements CheckinAppointmentUseCase {}
 
+class MockMesRdvBloc extends MockBloc<MesRdvEvent, MesRdvState>
+    implements MesRdvBloc {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -60,6 +63,35 @@ Widget _wrap(MesRdvBloc bloc) => MaterialApp(
         child: const Scaffold(body: _MesRdvBodyDirect()),
       ),
     );
+
+/// Widget de test pour pull-to-refresh : RefreshIndicator + ListView câblés sur le bloc.
+class _RefreshBodyDirect extends StatelessWidget {
+  const _RefreshBodyDirect();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<MesRdvBloc, MesRdvState>(
+      builder: (context, state) {
+        if (state is MesRdvLoaded) {
+          return RefreshIndicator(
+            onRefresh: () {
+              context.read<MesRdvBloc>().add(const MesRdvLoadRequested());
+              return Future<void>.delayed(Duration.zero);
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                for (final a in state.upcoming)
+                  Text(key: Key('appt_${a.id}'), a.motif),
+              ],
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+}
 
 /// Widget that injects the bloc without creating its own BlocProvider
 /// (MesRdvPage creates one via GetIt — use this in tests instead).
@@ -114,6 +146,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(_appt);
+    registerFallbackValue(const MesRdvLoadRequested());
   });
 
   setUp(() {
@@ -271,5 +304,41 @@ void main() {
             .having((s) => s.actionError, 'actionError', isNotNull),
       ],
     );
+  });
+
+  group('pull-to-refresh', () {
+    testWidgets('déclenche MesRdvLoadRequested au pull-to-refresh',
+        (tester) async {
+      final mockBloc = MockMesRdvBloc();
+      final loadedState = MesRdvLoaded(upcoming: [_appt], history: const []);
+      whenListen<MesRdvState>(
+        mockBloc,
+        Stream.fromIterable([loadedState]),
+        initialState: loadedState,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<MesRdvBloc>.value(
+            value: mockBloc,
+            child: const Scaffold(body: _RefreshBodyDirect()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(
+          tester.getCenter(find.byType(ListView).first));
+      await gesture.moveBy(const Offset(0, 300));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump(); // onRefresh called, Future.delayed(zero) timer created
+      await tester.pump(const Duration(seconds: 1)); // fire the timer
+
+      verify(() => mockBloc.add(any(that: isA<MesRdvLoadRequested>())))
+          .called(1);
+
+      await tester.pumpAndSettle(); // let RefreshIndicator closing animation complete
+    });
   });
 }
