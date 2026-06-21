@@ -297,9 +297,32 @@ class _ActionButtons extends StatelessWidget {
               foregroundColor: Theme.of(context).colorScheme.error,
               side: BorderSide(color: Theme.of(context).colorScheme.error),
             ),
-            onPressed: () => context
-                .read<MesRdvBloc>()
-                .add(MesRdvCancelRequested(appointment)),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Annuler ce RDV ?'),
+                  content: const Text('Cette action est irréversible.'),
+                  actions: [
+                    TextButton(
+                      key: const Key('dialog_dismiss'),
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Annuler'),
+                    ),
+                    FilledButton(
+                      key: const Key('dialog_confirm'),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('Confirmer'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true && context.mounted) {
+                context
+                    .read<MesRdvBloc>()
+                    .add(MesRdvCancelRequested(appointment));
+              }
+            },
             icon: const Icon(Icons.cancel_outlined, size: 16),
             label: const Text('Annuler'),
           ),
