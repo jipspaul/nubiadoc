@@ -3,6 +3,8 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'cancel_rdv_dialog.dart';
+
 class DetailRdvPage extends StatefulWidget {
   const DetailRdvPage({required this.appointment, super.key});
   final Appointment appointment;
@@ -13,6 +15,13 @@ class DetailRdvPage extends StatefulWidget {
 
 class _DetailRdvPageState extends State<DetailRdvPage> {
   bool _directionsLoading = false;
+
+  void _onCancelTap() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => CancelRdvDialog(appointment: widget.appointment),
+    );
+  }
 
   Future<void> _onDirectionsTap() async {
     setState(() => _directionsLoading = true);
@@ -75,6 +84,18 @@ class _DetailRdvPageState extends State<DetailRdvPage> {
                     )
                   : const Icon(Icons.directions_outlined, size: 16),
               label: const Text('Trouver mon chemin'),
+            ),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                key: const Key('cancel_rdv_button'),
+                onPressed: _onCancelTap,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+                child: const Text('Annuler ce RDV'),
+              ),
             ),
           ],
         ),
