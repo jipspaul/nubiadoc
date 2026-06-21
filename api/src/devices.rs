@@ -25,6 +25,7 @@ pub struct RegisterDeviceResponse {
 /// (migration 0052) filtre sur `app.current_user_id`. Platform invalide → 422.
 /// UNIQUE partiel actif sur `(app_user_id, platform) WHERE deleted_at IS NULL` :
 /// l'insert upsert soft-delete + insert pour garantir l'unicité par (user, platform).
+#[tracing::instrument(skip_all, fields(user_id = %claims.sub, platform = %body.platform))]
 pub async fn register_device(
     State(state): State<AppState>,
     claims: crate::auth::MeClaims,
