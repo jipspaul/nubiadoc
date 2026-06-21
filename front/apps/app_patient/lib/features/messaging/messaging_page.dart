@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:get_it/get_it.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'messaging_bloc.dart';
@@ -9,17 +8,13 @@ import 'messaging_state.dart';
 
 /// Onglet "Messages" — liste des conversations + thread + envoi.
 ///
-/// Crée son propre [BlocProvider] via GetIt ; placer directement dans le body.
+/// Consomme le [MessagingBloc] fourni par le parent (DashboardPage).
 class MessagingPage extends StatelessWidget {
   const MessagingPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => GetIt.instance<MessagingBloc>()
-        ..add(const MessagingConversationsLoadRequested()),
-      child: const _MessagingBody(),
-    );
+    return const _MessagingBody();
   }
 }
 

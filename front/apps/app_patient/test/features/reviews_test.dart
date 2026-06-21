@@ -143,6 +143,28 @@ void main() {
       expect(find.text('Alice Martin'), findsOneWidget);
     });
 
+    testWidgets('pull-to-refresh dispatch ReviewsLoadRequested', (tester) async {
+      when(() => mockGetReviews(any()))
+          .thenAnswer((_) async => Right([_review]));
+
+      final bloc = _makeReviewsBloc(
+        getProviderReviews: mockGetReviews,
+        submitReview: mockSubmitReview,
+      );
+      bloc.add(const ReviewsLoadRequested('prov-1'));
+
+      await tester.pumpWidget(_wrapReviews(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('reviews_list')), findsOneWidget);
+
+      await tester.drag(
+          find.byKey(const Key('reviews_list')), const Offset(0, 400));
+      await tester.pumpAndSettle();
+
+      verify(() => mockGetReviews(any())).called(greaterThanOrEqualTo(2));
+    });
+
     testWidgets('affiche le message d\'erreur en état erreur', (tester) async {
       when(() => mockGetReviews(any())).thenAnswer(
         (_) async => const Left(NetworkFailure('Erreur réseau.')),

@@ -7,7 +7,10 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import '../../session/auth_cubit.dart';
 import '../documents/documents_page.dart';
 import '../mes_rdv/mes_rdv_page.dart';
+import '../messaging/messaging_bloc.dart';
+import '../messaging/messaging_event.dart';
 import '../messaging/messaging_page.dart';
+import '../messaging/messaging_state.dart';
 import '../home/home_bloc.dart';
 import '../home/home_event.dart';
 import '../home/home_page.dart';
@@ -29,6 +32,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _index = 0;
+  late final MessagingBloc _messagingBloc;
 
   static const _tabs = [
     (label: 'Rechercher', icon: Icons.search),
@@ -39,10 +43,28 @@ class _DashboardPageState extends State<DashboardPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _messagingBloc = GetIt.instance<MessagingBloc>()
+      ..add(const MessagingConversationsLoadRequested());
+  }
+
+  @override
+  void dispose() {
+    _messagingBloc.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => GetIt.instance<DashboardBloc>()
-        ..add(const DashboardLoadRequested()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => GetIt.instance<DashboardBloc>()
+            ..add(const DashboardLoadRequested()),
+        ),
+        BlocProvider.value(value: _messagingBloc),
+      ],
       child: BlocBuilder<DashboardBloc, DashboardState>(
         builder: (context, state) {
           if (state is DashboardError) {
@@ -94,13 +116,29 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                 ),
             },
-            bottomNavigationBar: NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
-              destinations: [
-                for (final t in _tabs)
-                  NavigationDestination(icon: Icon(t.icon), label: t.label),
-              ],
+            bottomNavigationBar: BlocSelector<MessagingBloc, MessagingState, int>(
+              selector: (s) => s is MessagingConversationsLoaded
+                  ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
+                  : 0,
+              builder: (context, unreadCount) {
+                return NavigationBar(
+                  selectedIndex: _index,
+                  onDestinationSelected: (i) => setState(() => _index = i),
+                  destinations: [
+                    for (int i = 0; i < _tabs.length; i++)
+                      NavigationDestination(
+                        icon: i == 2
+                            ? Badge.count(
+                                count: unreadCount,
+                                isLabelVisible: unreadCount > 0,
+                                child: Icon(_tabs[i].icon),
+                              )
+                            : Icon(_tabs[i].icon),
+                        label: _tabs[i].label,
+                      ),
+                  ],
+                );
+              },
             ),
           );
         },
@@ -108,4 +146,3 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 }
-

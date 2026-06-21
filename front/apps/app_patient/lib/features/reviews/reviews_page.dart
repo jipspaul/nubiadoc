@@ -83,12 +83,17 @@ class _ReviewsContent extends StatelessWidget {
         child: Text('Aucun avis pour ce prestataire.'),
       );
     }
-    return ListView.separated(
-      key: const Key('reviews_list'),
-      padding: const EdgeInsets.all(16),
-      itemCount: reviews.length,
-      separatorBuilder: (_, __) => const Divider(),
-      itemBuilder: (context, i) => _ReviewCard(review: reviews[i]),
+    return RefreshIndicator(
+      onRefresh: () async => context
+          .read<ReviewsBloc>()
+          .add(ReviewsLoadRequested(reviews.first.providerId)),
+      child: ListView.separated(
+        key: const Key('reviews_list'),
+        padding: const EdgeInsets.all(16),
+        itemCount: reviews.length,
+        separatorBuilder: (_, __) => const Divider(),
+        itemBuilder: (context, i) => _ReviewCard(review: reviews[i]),
+      ),
     );
   }
 }
