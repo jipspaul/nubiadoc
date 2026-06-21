@@ -126,7 +126,14 @@ class _ConversationsListState extends State<_ConversationsList> {
           ),
         ),
         Expanded(
-          child: ListView.separated(
+          child: RefreshIndicator(
+            key: const Key('cabinet_messaging_refresh'),
+            onRefresh: () async {
+              context
+                  .read<CabinetMessagingBloc>()
+                  .add(const CabinetMessagingConversationsLoadRequested());
+            },
+            child: ListView.separated(
             key: const Key('cabinet_messaging_conversations_list'),
             itemCount: filtered.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
@@ -157,6 +164,7 @@ class _ConversationsListState extends State<_ConversationsList> {
                     .add(CabinetMessagingThreadOpened(conv)),
               );
             },
+          ),
           ),
         ),
       ],
