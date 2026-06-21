@@ -1,6 +1,13 @@
 # État du projet — Nubia
 
 2026-06-21 — **[postgre] DB-T025 — RLS policy cabinet sur slot_holds + tests pgTAP isolation (issue #2447).** Migration `0108_slot_hold_rls.sql` créée : policy `slot_hold_cabinet_isolation` AS RESTRICTIVE FOR SELECT TO nubia_app sur `slot_holds` — USING via `EXISTS (SELECT 1 FROM availability_slot WHERE id = slot_holds.slot_id AND cabinet_id = nullif(current_setting('app.current_cabinet_id', true), '')::uuid)`. La policy est RESTRICTIVE (combine en AND avec la policy permissive existante `slot_holds_app USING(true)`) : sans cette policy, tous les holds étaient visibles à nubia_app sans distinction de cabinet. Les policies `slot_holds_app` et `slot_holds_seed` existantes (migration 0095) sont conservées — la policy POL1 de `37_marketplace_strong.sql` reste valide. Test `39_slot_hold_rls.sql` (3 assertions + pré-condition) : SH1 GUC cabinet A → 1 hold visible, SH2 GUC cabinet B → 0 hold visible, SH3 GUC absent → 0 ligne (fail-closed). `make migrate` vert. Préfixe UUID 24470000.
+2026-06-21 — **Drainage flutter-front automatisé (nuit).** 7 PRs mergées par la fleet :
+FR1.19→FR1.23 (app_patient : skeleton appointments search, pull-to-refresh financial,
+filtre catégorie documents, widget tests notifications, dialog annulation RDV),
+FR2.14→FR2.19 (app_practicien : filtre statut historique, filtre ordonnances live,
+skeleton dashboard, empty state messaging, FAB démarrer consultation),
+FR3.15 + FR3.18→FR3.21 (app_secretariat : pull-to-refresh messaging, sort devis,
+quick stats dashboard, filtre conversations, pull-to-refresh admin). **Bon moment pour committer.**
 
 2026-06-21 — **[flutter-front] FR3.15.b — Clôture issue #2339 : widget test pull-to-refresh cabinet_messaging (re-vérification).** Implémentation déjà présente dans `main` via PR #2426 : `RefreshIndicator` (clé `cabinet_messaging_refresh`) enveloppe `ListView.separated` dans `_ConversationsListState`, `onRefresh` dispatch `CabinetMessagingConversationsLoadRequested`. Test widget présent dans `cabinet_messaging_test.dart` : état `ConversationsLoaded` → `tester.fling` sur `cabinet_messaging_conversations_list` → `verify bloc.add(CabinetMessagingConversationsLoadRequested()).called(1)`. `flutter analyze` → 0 issue. Critères « Done when » satisfaits. Aucun fichier code modifié.
 
