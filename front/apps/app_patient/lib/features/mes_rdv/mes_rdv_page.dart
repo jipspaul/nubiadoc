@@ -123,33 +123,47 @@ class _AppointmentList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (appointments.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              emptyLabel,
-              key: Key('empty_${isUpcoming ? 'upcoming' : 'history'}'),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return RefreshIndicator(
+      onRefresh: () {
+        context.read<MesRdvBloc>().add(const MesRdvLoadRequested());
+        return Future<void>.delayed(Duration.zero);
+      },
+      child: appointments.isEmpty
+          ? LayoutBuilder(
+              builder: (_, constraints) => SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          emptyLabel,
+                          key: Key('empty_${isUpcoming ? 'upcoming' : 'history'}'),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
+              ),
+            )
+          : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: appointments.length,
+              itemBuilder: (context, i) =>
+                  _AppointmentCard(appointment: appointments[i]),
             ),
-          ],
-        ),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: appointments.length,
-      itemBuilder: (context, i) =>
-          _AppointmentCard(appointment: appointments[i]),
     );
   }
 }
