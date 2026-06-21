@@ -20,6 +20,10 @@ class MockListWaitingRoomUseCase extends Mock
 
 class MockCallNextUseCase extends Mock implements CallNextUseCase {}
 
+class MockWaitingRoomBloc
+    extends MockBloc<WaitingRoomEvent, WaitingRoomState>
+    implements WaitingRoomBloc {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -44,6 +48,36 @@ Widget _wrap(WaitingRoomBloc bloc) => MaterialApp(
         child: const Scaffold(body: _WaitingRoomBodyDirect()),
       ),
     );
+
+class _RefreshBodyDirect extends StatelessWidget {
+  const _RefreshBodyDirect();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+      builder: (context, state) {
+        if (state is WaitingRoomLoaded && state.entries.isNotEmpty) {
+          return RefreshIndicator(
+            onRefresh: () {
+              context
+                  .read<WaitingRoomBloc>()
+                  .add(const WaitingRoomLoadRequested());
+              return Future<void>.delayed(Duration.zero);
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                for (final e in state.entries)
+                  Text(key: Key('entry_${e.id}'), e.patientName),
+              ],
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+}
 
 class _WaitingRoomBodyDirect extends StatelessWidget {
   const _WaitingRoomBodyDirect();
@@ -224,6 +258,46 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('waiting_room_error')), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Pull-to-refresh
+  // ---------------------------------------------------------------------------
+
+  group('pull-to-refresh', () {
+    testWidgets('déclenche WaitingRoomLoadRequested au pull-to-refresh',
+        (tester) async {
+      final mockBloc = MockWaitingRoomBloc();
+      final loadedState = WaitingRoomLoaded(entries: [_entry]);
+      whenListen<WaitingRoomState>(
+        mockBloc,
+        Stream.fromIterable([loadedState]),
+        initialState: loadedState,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: mockBloc,
+            child: const Scaffold(body: _RefreshBodyDirect()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final gesture = await tester
+          .startGesture(tester.getCenter(find.byType(ListView).first));
+      await gesture.moveBy(const Offset(0, 300));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      verify(() => mockBloc.add(any(that: isA<WaitingRoomLoadRequested>())))
+          .called(1);
+
+      await tester.pumpAndSettle();
     });
   });
 
