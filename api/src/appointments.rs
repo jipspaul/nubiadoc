@@ -988,6 +988,10 @@ pub async fn get_appointment_directions(
 ) -> Result<Json<DirectionsResponse>, AppError> {
     let mode = params.mode.unwrap_or_else(|| "car".to_string());
 
+    if !matches!(mode.as_str(), "car" | "transit" | "walk") {
+        return Err(AppError::ValidationError);
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
