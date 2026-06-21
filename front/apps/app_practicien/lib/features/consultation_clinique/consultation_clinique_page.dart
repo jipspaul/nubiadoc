@@ -21,6 +21,8 @@ class ConsultationCliniquePage extends StatelessWidget {
     final id = consultationId;
     if (id != null) {
       bloc.add(ConsultationCliniqueLoadRequested(id));
+    } else {
+      bloc.add(const ConsultationHistoriqueRequested());
     }
     return BlocProvider.value(
       value: bloc,
@@ -41,14 +43,7 @@ class _ConsultationCliniqueBody extends StatelessWidget {
         if (state is ConsultationCliniqueInitial) {
           return const Center(
             key: Key('consultation_idle'),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.medical_services_outlined, size: 48),
-                SizedBox(height: 12),
-                Text('Aucune consultation en cours'),
-              ],
-            ),
+            child: CircularProgressIndicator(),
           );
         }
         if (state is ConsultationCliniqueLoading) {
@@ -78,6 +73,9 @@ class _ConsultationCliniqueBody extends StatelessWidget {
               ],
             ),
           );
+        }
+        if (state is ConsultationHistoriqueLoaded) {
+          return _HistoriqueView(sessions: state.sessions);
         }
         return const SizedBox.shrink();
       },
@@ -166,6 +164,106 @@ class _ActTile extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium,
             )
           : null,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _HistoriqueView extends StatefulWidget {
+  const _HistoriqueView({required this.sessions});
+  final List<ClinicalSession> sessions;
+
+  @override
+  State<_HistoriqueView> createState() => _HistoriqueViewState();
+}
+
+class _HistoriqueViewState extends State<_HistoriqueView> {
+  Set<String> _selection = {};
+
+  static const _segments = [
+    ButtonSegment<String>(
+      value: 'in_progress',
+      label: Text('En cours'),
+    ),
+    ButtonSegment<String>(
+      value: 'completed',
+      label: Text('Terminée'),
+    ),
+    ButtonSegment<String>(
+      value: 'interrupted',
+      label: Text('Interrompue'),
+    ),
+  ];
+
+  List<ClinicalSession> get _filtered {
+    if (_selection.isEmpty) return widget.sessions;
+    return widget.sessions
+        .where((s) => _selection.contains(s.status))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: SegmentedButton<String>(
+            key: const Key('historique_filter'),
+            segments: _segments,
+            selected: _selection,
+            onSelectionChanged: (s) => setState(() => _selection = s),
+            multiSelectionEnabled: false,
+            emptySelectionAllowed: true,
+          ),
+        ),
+        Expanded(
+          child: filtered.isEmpty
+              ? const Center(
+                  key: Key('historique_empty'),
+                  child: Text('Aucune consultation'),
+                )
+              : ListView.builder(
+                  key: const Key('historique_list'),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) =>
+                      _HistoriqueTile(session: filtered[i]),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _HistoriqueTile extends StatelessWidget {
+  const _HistoriqueTile({required this.session});
+  final ClinicalSession session;
+
+  String get _statusLabel {
+    switch (session.status) {
+      case 'completed':
+        return 'Terminée';
+      case 'in_progress':
+        return 'En cours';
+      case 'interrupted':
+        return 'Interrompue';
+      default:
+        return session.status;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: Key('historique_${session.id}'),
+      leading: const Icon(Icons.medical_services_outlined),
+      title: Text('Consultation ${session.id}'),
+      trailing: Chip(label: Text(_statusLabel)),
     );
   }
 }
