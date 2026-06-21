@@ -1,5 +1,7 @@
 # État du projet — Nubia
 
+2026-06-21 — **[api] FR2.8/FR3.x — GET /v1/cabinet/waiting-room : cloisonnement nom patient (issue #2470).** `WaitingRoomEntry` étendu : champ `patient_id` remplacé par `patient_name_initials` (initiales pour secrétariat, nom complet pour praticien/admin — cloisonnement R.4127-72) + champ `wait_minutes` (minutes depuis checkin_at). SQL mis à jour : JOIN `patient p ON p.id = a.patient_id` dans les deux branches (secrétariat scopé R10 et praticien/admin). 3 nouveaux tests dans `api/tests/cabinet_waiting_room.rs` : `waiting_room_practitioner_sees_full_name` (Alice Berger → "Alice Berger"), `waiting_room_secretary_sees_initials` (Marie Dupont → "MD"), `waiting_room_no_token_returns_401` (401 sans Authorization). `cargo fmt --check` + `cargo clippy -D warnings` verts.
+
 2026-06-21 — **Fix orchestrator : auto-merger PROGRESS.md déterministe.**
 Postmortem : 3 PRs sat bloquées avec `mergeable=false` sur conflits append-only PROGRESS.md
 parce que `resolve-conflict` re-dispatchait l'agent (LLM) pour un merge trivial.

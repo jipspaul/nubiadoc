@@ -392,11 +392,14 @@ pub async fn call_next_patient(
 #[derive(Serialize)]
 pub struct WaitingRoomEntry {
     pub appointment_id: Uuid,
-    pub patient_id: Uuid,
+    /// Nom du patient : initiales pour le secrétariat (RGPD R.4127-72), nom complet pour praticien/admin.
+    pub patient_name_initials: String,
     pub status: String,
     /// Horodatage du check-in (null si non encore renseigné).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkin_at: Option<String>,
+    /// Minutes d'attente depuis le check-in (0 si checkin_at absent).
+    pub wait_minutes: i64,
 }
 
 /// Réponse de `GET /v1/cabinet/waiting-room`.
@@ -411,7 +414,7 @@ pub struct WaitingRoomResponse {
 /// (patients arrivés mais consultation non encore commencée), triés FIFO (checkin_at ASC NULLS LAST).
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
-/// Pas de PII dans le payload (patient_id uniquement, pas de nom).
+/// Cloisonnement clinique : secrétariat reçoit initiales du patient, pro reçoit nom complet (R.4127-72).
 /// R10 : secrétaires scopées au secrétariat JWT (`secretariat_id`).
 pub async fn get_waiting_room(
     State(state): State<AppState>,
@@ -429,8 +432,9 @@ pub async fn get_waiting_room(
     let rows = if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.patient_id, a.status, a.checkin_at \
+                "SELECT a.id, a.status, a.checkin_at, p.first_name, p.last_name \
                  FROM appointment a \
+                 JOIN patient p ON p.id = a.patient_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.checkin_at IS NOT NULL \
                    AND a.started_at IS NULL \
@@ -454,14 +458,15 @@ pub async fn get_waiting_room(
         }
     } else {
         sqlx::query(
-            "SELECT id, patient_id, status, checkin_at \
-             FROM appointment \
-             WHERE deleted_at IS NULL \
-               AND checkin_at IS NOT NULL \
-               AND started_at IS NULL \
-               AND starts_at >= date_trunc('day', now()) \
-               AND starts_at < date_trunc('day', now()) + interval '1 day' \
-             ORDER BY checkin_at ASC NULLS LAST, starts_at ASC",
+            "SELECT a.id, a.status, a.checkin_at, p.first_name, p.last_name \
+             FROM appointment a \
+             JOIN patient p ON p.id = a.patient_id \
+             WHERE a.deleted_at IS NULL \
+               AND a.checkin_at IS NOT NULL \
+               AND a.started_at IS NULL \
+               AND a.starts_at >= date_trunc('day', now()) \
+               AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
+             ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC",
         )
         .fetch_all(&mut *tx)
         .await
@@ -470,19 +475,46 @@ pub async fn get_waiting_room(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
+    let is_secretary = claims.role == "secretary";
     let entries = rows
         .into_iter()
         .map(|row| -> Result<WaitingRoomEntry, AppError> {
             let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-            let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("checkin_at").map_err(|_| AppError::Internal)?;
+            let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+            let patient_name_initials = if is_secretary {
+                let fi = first_name
+                    .chars()
+                    .next()
+                    .map(|c| c.to_uppercase().to_string())
+                    .unwrap_or_default();
+                let li = last_name
+                    .chars()
+                    .next()
+                    .map(|c| c.to_uppercase().to_string())
+                    .unwrap_or_default();
+                format!("{}{}", fi, li)
+            } else {
+                format!("{} {}", first_name, last_name)
+            };
+            let wait_minutes = checkin_at
+                .as_ref()
+                .map(|dt| {
+                    chrono::Utc::now()
+                        .signed_duration_since(*dt)
+                        .num_minutes()
+                        .max(0)
+                })
+                .unwrap_or(0);
             Ok(WaitingRoomEntry {
                 appointment_id,
-                patient_id,
+                patient_name_initials,
                 status,
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
+                wait_minutes,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
