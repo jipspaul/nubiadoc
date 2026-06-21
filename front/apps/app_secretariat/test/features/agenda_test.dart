@@ -3,11 +3,13 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/agenda/agenda_bloc.dart';
 import 'package:app_secretariat/features/agenda/agenda_event.dart';
+import 'package:app_secretariat/features/agenda/agenda_page.dart';
 import 'package:app_secretariat/features/agenda/agenda_state.dart';
 
 // ---------------------------------------------------------------------------
@@ -314,6 +316,84 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('agenda_error')), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Filtre praticien (dropdown)
+  // -------------------------------------------------------------------------
+
+  group('filtre praticien (dropdown)', () {
+    testWidgets('3 RDV 2 praticiens → sélection 1 → filtre live', (tester) async {
+      final e1 = AgendaEntry(
+        id: 'f-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientName: 'Alice Durand',
+        isFree: false,
+      );
+      final e2 = AgendaEntry(
+        id: 'f-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: DateTime(2026, 7, 7, 10, 0),
+        endsAt: DateTime(2026, 7, 7, 10, 30),
+        patientName: 'Bob Dupont',
+        isFree: false,
+      );
+      final e3 = AgendaEntry(
+        id: 'f-3',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-2',
+        practitionerName: 'Dr Dupont',
+        startsAt: DateTime(2026, 7, 7, 11, 0),
+        endsAt: DateTime(2026, 7, 7, 11, 30),
+        patientName: 'Charlie Bernard',
+        isFree: false,
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([e1, e2, e3]));
+      when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+          ));
+
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: AgendaPage())),
+      );
+      await tester.pump();
+
+      // Les 3 entrées sont visibles
+      expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
+      expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
+      expect(find.byKey(const Key('entry_f-3')), findsOneWidget);
+
+      // Ouvre le dropdown
+      await tester.tap(find.byKey(const Key('practitioner_filter_dropdown')));
+      await tester.pumpAndSettle();
+
+      // Sélectionne Dr Martin
+      await tester.tap(find.text('Dr Martin').last);
+      await tester.pumpAndSettle();
+
+      // Seules les 2 entrées de Dr Martin restent visibles
+      expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
+      expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
+      expect(find.byKey(const Key('entry_f-3')), findsNothing);
+
+      await gi.reset();
     });
   });
 }
