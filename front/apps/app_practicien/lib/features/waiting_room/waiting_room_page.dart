@@ -110,11 +110,18 @@ class _LoadedView extends StatelessWidget {
                     ],
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: state.entries.length,
-                  itemBuilder: (context, i) =>
-                      _EntryCard(entry: state.entries[i], position: i + 1),
+              : RefreshIndicator(
+                  key: const Key('waiting_room_refresh'),
+                  onRefresh: () async => context
+                      .read<WaitingRoomBloc>()
+                      .add(const WaitingRoomLoadRequested()),
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: state.entries.length,
+                    itemBuilder: (context, i) =>
+                        _EntryCard(entry: state.entries[i], position: i + 1),
+                  ),
                 ),
         ),
       ],
