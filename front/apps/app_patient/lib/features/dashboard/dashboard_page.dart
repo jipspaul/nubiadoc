@@ -14,6 +14,9 @@ import '../home/home_page.dart';
 import '../profile/profile_bloc.dart';
 import '../profile/profile_event.dart';
 import '../profile/profile_page.dart';
+import 'dashboard_bloc.dart';
+import 'dashboard_event.dart';
+import 'dashboard_state.dart';
 
 /// Patient home shell: a 5-tab bottom nav (Rechercher / Mes RDV / Messages /
 /// Documents / Profil) with stubbed tabs. Proves theming + session + nav.
@@ -37,51 +40,70 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: NubiaAppBar(
-        title: _tabs[_index].label,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.auto_awesome_outlined),
-            tooltip: 'Démo A2UI',
-            onPressed: () => context.push('/a2ui-demo'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Se déconnecter',
-            onPressed: () => context.read<AuthCubit>().signOut(),
-          ),
-        ],
-      ),
-      body: switch (_index) {
-        0 => BlocProvider(
-            create: (_) => GetIt.instance<HomeBloc>()
-              ..add(const HomeLoadRequested()),
-            child: const HomePage(),
-          ),
-        1 => const MesRdvPage(),
-        2 => const MessagingPage(),
-        3 => const DocumentsPage(),
-        4 => BlocProvider(
-            create: (_) => GetIt.instance<ProfileBloc>()
-              ..add(const ProfileLoadRequested()),
-            child: const ProfilePage(),
-          ),
-        _ => Center(
-            child: NubiaEmptyState(
-              icon: Icons.construction_outlined,
+    return BlocProvider(
+      create: (_) => GetIt.instance<DashboardBloc>()
+        ..add(const DashboardLoadRequested()),
+      child: BlocBuilder<DashboardBloc, DashboardState>(
+        builder: (context, state) {
+          if (state is DashboardError) {
+            return Scaffold(
+              body: NubiaErrorWidget(
+                key: const Key('dashboard_error'),
+                message: state.message,
+                onRetry: () => context
+                    .read<DashboardBloc>()
+                    .add(const DashboardLoadRequested()),
+              ),
+            );
+          }
+          return Scaffold(
+            appBar: NubiaAppBar(
               title: _tabs[_index].label,
-              subtitle: 'Écran en cours de développement.',
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                  tooltip: 'Démo A2UI',
+                  onPressed: () => context.push('/a2ui-demo'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  tooltip: 'Se déconnecter',
+                  onPressed: () => context.read<AuthCubit>().signOut(),
+                ),
+              ],
             ),
-          ),
-      },
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          for (final t in _tabs)
-            NavigationDestination(icon: Icon(t.icon), label: t.label),
-        ],
+            body: switch (_index) {
+              0 => BlocProvider(
+                  create: (_) => GetIt.instance<HomeBloc>()
+                    ..add(const HomeLoadRequested()),
+                  child: const HomePage(),
+                ),
+              1 => const MesRdvPage(),
+              2 => const MessagingPage(),
+              3 => const DocumentsPage(),
+              4 => BlocProvider(
+                  create: (_) => GetIt.instance<ProfileBloc>()
+                    ..add(const ProfileLoadRequested()),
+                  child: const ProfilePage(),
+                ),
+              _ => Center(
+                  child: NubiaEmptyState(
+                    icon: Icons.construction_outlined,
+                    title: _tabs[_index].label,
+                    subtitle: 'Écran en cours de développement.',
+                  ),
+                ),
+            },
+            bottomNavigationBar: NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: [
+                for (final t in _tabs)
+                  NavigationDestination(icon: Icon(t.icon), label: t.label),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

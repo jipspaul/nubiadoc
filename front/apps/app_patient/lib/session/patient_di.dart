@@ -3,6 +3,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/appointments/appointments_bloc.dart';
+import '../features/dashboard/dashboard_bloc.dart';
 import '../features/documents/documents_bloc.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
@@ -21,6 +22,10 @@ void registerPatient(GetIt gi) {
       tokenStorage: gi<TokenStorage>(),
       deviceRegistration: gi<DeviceRegistrationService>(),
     ),
+  );
+
+  gi.registerFactory<DashboardBloc>(
+    () => DashboardBloc(getDashboardSummary: gi<GetDashboardSummaryUseCase>()),
   );
 
   gi.registerFactory<AppointmentsBloc>(
