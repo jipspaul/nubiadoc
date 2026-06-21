@@ -61,7 +61,7 @@ pub async fn register(
     Json(body): Json<RegisterBody>,
 ) -> Result<(StatusCode, Json<RegisterResponse>), AppError> {
     if is_rate_limited(&body.email) {
-        return Err(AppError::TooManyRequests);
+        return Err(AppError::TooManyRequests(600));
     }
     if !body.accept_cgu {
         return Err(AppError::CguRequired);
