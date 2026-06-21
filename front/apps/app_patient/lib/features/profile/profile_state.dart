@@ -18,11 +18,12 @@ final class ProfileLoading extends ProfileState {
 
 final class ProfileLoaded extends ProfileState {
   final PatientAccount account;
+  final bool biometricEnabled;
 
-  const ProfileLoaded(this.account);
+  const ProfileLoaded(this.account, {this.biometricEnabled = false});
 
   @override
-  List<Object?> get props => [account];
+  List<Object?> get props => [account, biometricEnabled];
 }
 
 final class ProfileError extends ProfileState {

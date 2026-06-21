@@ -50,6 +50,7 @@ import '../repositories/prescription_repository_impl.dart';
 import '../repositories/review_repository_impl.dart';
 import '../repositories/secretariat_repository_impl.dart';
 import '../repositories/slots_repository_impl.dart';
+import '../repositories/user_settings_repository_impl.dart';
 import '../repositories/waiting_room_repository_impl.dart';
 
 /// Registers the data layer: Dio APIs, repository implementations and use cases.
@@ -99,6 +100,9 @@ void registerData(
   }
 
   gi
+    ..registerLazySingleton<UserSettingsRepository>(
+      () => InMemoryUserSettingsRepository(),
+    )
     ..registerLazySingleton<AccountRepository>(
       () => AccountRepositoryImpl(gi()),
     )

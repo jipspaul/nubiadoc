@@ -48,7 +48,10 @@ void registerPatient(GetIt gi) {
   );
 
   gi.registerFactory<ProfileBloc>(
-    () => ProfileBloc(getAccount: gi<GetAccountUseCase>()),
+    () => ProfileBloc(
+      getAccount: gi<GetAccountUseCase>(),
+      userSettings: gi<UserSettingsRepository>(),
+    ),
   );
 
   gi.registerFactory<HomeBloc>(
