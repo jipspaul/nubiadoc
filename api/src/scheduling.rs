@@ -388,33 +388,30 @@ pub async fn call_next_patient(
 
 // ── Waiting room (file du jour) ───────────────────────────────────────────────
 
-/// Un poste dans la file d'attente temps-réel (patients checked_in ou in_progress aujourd'hui).
+/// Un poste dans la file d'attente temps-réel (patients checked_in ou in_consultation aujourd'hui).
 #[derive(Serialize)]
 pub struct WaitingRoomEntry {
     pub appointment_id: Uuid,
-    /// Nom du patient : initiales pour le secrétariat (RGPD R.4127-72), nom complet pour praticien/admin.
+    /// Nom complet (pro/admin) ou initiales (secrétariat) — cloisonnement clinique RBAC.
     pub patient_name_initials: String,
-    pub status: String,
-    /// Horodatage du check-in (null si non encore renseigné).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub checkin_at: Option<String>,
-    /// Minutes d'attente depuis le check-in (0 si checkin_at absent).
     pub wait_minutes: i64,
+    pub status: String,
 }
 
 /// Réponse de `GET /v1/cabinet/waiting-room`.
 #[derive(Serialize)]
 pub struct WaitingRoomResponse {
-    pub entries: Vec<WaitingRoomEntry>,
+    pub data: Vec<WaitingRoomEntry>,
 }
 
-/// `GET /v1/cabinet/waiting-room` — file d'attente temps-réel du cabinet (§13 E.2.14).
+/// `GET /v1/cabinet/waiting-room` — file d'attente temps-réel du cabinet (§E.2).
 ///
-/// Retourne les rendez-vous du jour avec `checkin_at IS NOT NULL AND started_at IS NULL`
-/// (patients arrivés mais consultation non encore commencée), triés FIFO (checkin_at ASC NULLS LAST).
+/// Retourne les RDV du jour `checked_in` (arrivé, en attente) et `in_progress`
+/// (consultation en cours, exposé comme `in_consultation`), triés FIFO.
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
-/// Cloisonnement clinique : secrétariat reçoit initiales du patient, pro reçoit nom complet (R.4127-72).
+/// Cloisonnement clinique : secrétariat reçoit initiales du patient, pro reçoit nom complet.
 /// R10 : secrétaires scopées au secrétariat JWT (`secretariat_id`).
 pub async fn get_waiting_room(
     State(state): State<AppState>,
@@ -432,12 +429,14 @@ pub async fn get_waiting_room(
     let rows = if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.status, a.checkin_at, p.first_name, p.last_name \
+                "SELECT a.id, a.status, a.checkin_at, \
+                        p.first_name, p.last_name, \
+                        GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
                  FROM appointment a \
-                 JOIN patient p ON p.id = a.patient_id \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
                  WHERE a.deleted_at IS NULL \
                    AND a.checkin_at IS NOT NULL \
-                   AND a.started_at IS NULL \
+                   AND a.status IN ('checked_in', 'in_progress') \
                    AND a.starts_at >= date_trunc('day', now()) \
                    AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
                    AND EXISTS ( \
@@ -458,12 +457,14 @@ pub async fn get_waiting_room(
         }
     } else {
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, p.first_name, p.last_name \
+            "SELECT a.id, a.status, a.checkin_at, \
+                    p.first_name, p.last_name, \
+                    GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
              FROM appointment a \
-             JOIN patient p ON p.id = a.patient_id \
+             LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
              WHERE a.deleted_at IS NULL \
                AND a.checkin_at IS NOT NULL \
-               AND a.started_at IS NULL \
+               AND a.status IN ('checked_in', 'in_progress') \
                AND a.starts_at >= date_trunc('day', now()) \
                AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
              ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC",
@@ -476,45 +477,40 @@ pub async fn get_waiting_room(
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let is_secretary = claims.role == "secretary";
-    let entries = rows
+
+    let data = rows
         .into_iter()
         .map(|row| -> Result<WaitingRoomEntry, AppError> {
             let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let db_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("checkin_at").map_err(|_| AppError::Internal)?;
-            let first_name: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
-            let last_name: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
-            let patient_name_initials = if is_secretary {
-                let fi = first_name
-                    .chars()
-                    .next()
-                    .map(|c| c.to_uppercase().to_string())
-                    .unwrap_or_default();
-                let li = last_name
-                    .chars()
-                    .next()
-                    .map(|c| c.to_uppercase().to_string())
-                    .unwrap_or_default();
-                format!("{}{}", fi, li)
-            } else {
-                format!("{} {}", first_name, last_name)
+            let wait_minutes: i64 = row.try_get("wait_minutes").map_err(|_| AppError::Internal)?;
+            let first: Option<String> = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let last: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+
+            let patient_name_initials = match (first.as_deref(), last.as_deref()) {
+                (Some(f), Some(l)) if is_secretary => format!(
+                    "{}{}",
+                    f.chars().next().unwrap_or('?'),
+                    l.chars().next().unwrap_or('?')
+                ),
+                (Some(f), Some(l)) => format!("{f} {l}"),
+                _ => String::new(),
             };
-            let wait_minutes = checkin_at
-                .as_ref()
-                .map(|dt| {
-                    chrono::Utc::now()
-                        .signed_duration_since(*dt)
-                        .num_minutes()
-                        .max(0)
-                })
-                .unwrap_or(0);
+
+            let status = if db_status == "in_progress" {
+                "in_consultation".to_string()
+            } else {
+                db_status
+            };
+
             Ok(WaitingRoomEntry {
                 appointment_id,
                 patient_name_initials,
-                status,
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
                 wait_minutes,
+                status,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -522,11 +518,11 @@ pub async fn get_waiting_room(
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
         user_id = %claims.sub,
-        count = entries.len(),
+        count = data.len(),
         "waiting room queried"
     );
 
-    Ok(Json(WaitingRoomResponse { entries }))
+    Ok(Json(WaitingRoomResponse { data }))
 }
 
 // ── Waiting list (liste d'attente) ────────────────────────────────────────────

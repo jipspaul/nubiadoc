@@ -1,9 +1,9 @@
-//! Tests d'intégration : GET /v1/cabinet/waiting-room (E.2.14)
+//! Tests d'intégration : GET /v1/cabinet/waiting-room (§E.2)
 //!
 //! Couvre :
-//! - 3 check-in dans le même cabinet → liste de 3 entrées
-//! - Filtre secretariat_id : secrétaire d'un autre secrétariat → liste vide
-//! - Token patient → 403
+//! - Pro (praticien) voit le nom complet du patient
+//! - Secrétariat voit les initiales (cloisonnement clinique)
+//! - 401 sans token
 
 use axum::{
     body::Body,
@@ -37,7 +37,26 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-/// JWT secrétaire avec `secretariat_id` optionnel.
+fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    encode(
+        &Header::default(),
+        &json!({
+            "sub": sub,
+            "kind": "pro",
+            "cabinet_id": cabinet_id,
+            "role": "practitioner",
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 fn make_secretary_token(sub: Uuid, cabinet_id: Uuid, secretariat_id: Option<Uuid>) -> String {
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -59,48 +78,6 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid, secretariat_id: Option<Uuid
     .unwrap()
 }
 
-/// JWT praticien.
-fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
-    let exp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        + 3600;
-    encode(
-        &Header::default(),
-        &json!({
-            "sub": sub,
-            "kind": "pro",
-            "cabinet_id": cabinet_id,
-            "role": "practitioner",
-            "exp": exp
-        }),
-        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
-    )
-    .unwrap()
-}
-
-/// JWT patient (doit être rejeté 403 sur les routes pro).
-fn make_patient_token(sub: Uuid, account_id: Uuid) -> String {
-    let exp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        + 3600;
-    encode(
-        &Header::default(),
-        &json!({
-            "sub": sub,
-            "kind": "patient",
-            "account_id": account_id,
-            "exp": exp
-        }),
-        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
-    )
-    .unwrap()
-}
-
-/// Données d'un cabinet de test : cabinet_id + practitioner_id + user_id du praticien.
 struct CabinetFixture {
     cabinet_id: Uuid,
     prac_id: Uuid,
@@ -108,7 +85,6 @@ struct CabinetFixture {
     provider_id: Uuid,
 }
 
-/// Insère un cabinet minimal (cabinet + praticien + provider).
 async fn insert_cabinet(db: &PgPool) -> CabinetFixture {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
@@ -170,12 +146,13 @@ async fn insert_cabinet(db: &PgPool) -> CabinetFixture {
     }
 }
 
-/// Insère un RDV avec `checkin_at = now()` (patient arrivé) et `started_at = NULL`
-/// (consultation pas encore commencée). Retourne l'appointment_id.
-async fn insert_checked_in_appt(
+/// Insère un patient nommé et un RDV checked-in pour ce cabinet.
+async fn insert_checked_in_appt_named(
     db: &PgPool,
     cabinet_id: Uuid,
     prac_id: Uuid,
+    first_name: &str,
+    last_name: &str,
     offset_min: i64,
 ) -> Uuid {
     let appt_id = Uuid::new_v4();
@@ -190,18 +167,16 @@ async fn insert_checked_in_appt(
         .unwrap();
 
     sqlx::query(
-        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
-         VALUES ($1, $2, 'Patient', 'WR')",
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) VALUES ($1, $2, $3, $4)",
     )
     .bind(patient_id)
     .bind(cabinet_id)
+    .bind(first_name)
+    .bind(last_name)
     .execute(&mut *tx)
     .await
     .unwrap();
 
-    // Décalage horaire pour éviter la contrainte d'exclusion praticien
-    // (`appointment_no_overlap`) quand plusieurs RDV sont créés pour le même
-    // praticien dans un même test.
     sqlx::query(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) \
@@ -274,10 +249,10 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, prac_user_id: Uuid) {
     tx.commit().await.ok();
 }
 
-// ── Test 1 : 3 check-in → liste de 3 entrées ─────────────────────────────────
+// ── Test 1 : pro voit le nom complet ─────────────────────────────────────────
 
 #[tokio::test]
-async fn waiting_room_three_checkins_returns_three_entries() {
+async fn waiting_room_pro_sees_full_name() {
     if !db_available() {
         return;
     }
@@ -286,11 +261,7 @@ async fn waiting_room_three_checkins_returns_three_entries() {
     let app_db = app_pool().await;
 
     let f = insert_cabinet(&db).await;
-
-    // 3 RDV checked-in, started_at IS NULL.
-    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id, 0).await;
-    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id, 35).await;
-    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id, 70).await;
+    insert_checked_in_appt_named(&db, f.cabinet_id, f.prac_id, "Jean", "Dupont", 0).await;
 
     let state = AppState {
         db: app_db,
@@ -317,16 +288,19 @@ async fn waiting_room_three_checkins_returns_three_entries() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let entries = v["entries"].as_array().unwrap();
-    assert_eq!(entries.len(), 3, "3 patients checkés-in doivent apparaître");
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1, "1 patient checked-in doit apparaître");
+
+    let name = data[0]["patient_name_initials"].as_str().unwrap();
+    assert_eq!(name, "Jean Dupont", "le praticien doit voir le nom complet");
 
     cleanup(&db, f.cabinet_id, f.prac_user_id).await;
 }
 
-// ── Test 2 : filtre secretariat_id — autre secrétariat → liste vide ───────────
+// ── Test 2 : secrétariat voit les initiales ───────────────────────────────────
 
 #[tokio::test]
-async fn waiting_room_secretary_other_secretariat_sees_empty() {
+async fn waiting_room_secretary_sees_initials() {
     if !db_available() {
         return;
     }
@@ -336,46 +310,31 @@ async fn waiting_room_secretary_other_secretariat_sees_empty() {
 
     let f = insert_cabinet(&db).await;
 
-    // Un secrétariat assigné au provider.
-    let sec_assigned_id = Uuid::new_v4();
-    let sec_other_id = Uuid::new_v4();
-
+    // Créer un secrétariat assigné au provider.
+    let sec_id = Uuid::new_v4();
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(f.cabinet_id.to_string())
         .execute(&mut *tx)
         .await
         .unwrap();
-
-    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Assigné')")
-        .bind(sec_assigned_id)
+    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat Test')")
+        .bind(sec_id)
         .bind(f.cabinet_id)
         .execute(&mut *tx)
         .await
         .unwrap();
-
-    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Autre')")
-        .bind(sec_other_id)
-        .bind(f.cabinet_id)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
-
-    // Assigne uniquement sec_assigned au provider.
     sqlx::query(
-        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
-         VALUES ($1, $2, true)",
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) VALUES ($1, $2, true)",
     )
     .bind(f.provider_id)
-    .bind(sec_assigned_id)
+    .bind(sec_id)
     .execute(&mut *tx)
     .await
     .unwrap();
-
     tx.commit().await.unwrap();
 
-    // Un check-in dans ce cabinet.
-    insert_checked_in_appt(&db, f.cabinet_id, f.prac_id, 0).await;
+    insert_checked_in_appt_named(&db, f.cabinet_id, f.prac_id, "Marie", "Martin", 0).await;
 
     let state = AppState {
         db: app_db,
@@ -383,9 +342,8 @@ async fn waiting_room_secretary_other_secretariat_sees_empty() {
         mailer: Arc::new(StubMailer),
     };
 
-    // Secrétaire du secrétariat NON assigné → ne voit rien.
     let sec_user_id = Uuid::new_v4();
-    let token = make_secretary_token(sec_user_id, f.cabinet_id, Some(sec_other_id));
+    let token = make_secretary_token(sec_user_id, f.cabinet_id, Some(sec_id));
     let response = app(state)
         .oneshot(
             Request::builder()
@@ -404,20 +362,19 @@ async fn waiting_room_secretary_other_secretariat_sees_empty() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let entries = v["entries"].as_array().unwrap();
-    assert_eq!(
-        entries.len(),
-        0,
-        "secrétaire d'un autre secrétariat ne doit voir aucun patient"
-    );
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1, "1 patient doit apparaître pour le secrétariat assigné");
+
+    let name = data[0]["patient_name_initials"].as_str().unwrap();
+    assert_eq!(name, "MM", "le secrétariat doit voir les initiales uniquement");
 
     cleanup(&db, f.cabinet_id, f.prac_user_id).await;
 }
 
-// ── Test 3 : token patient → 403 ─────────────────────────────────────────────
+// ── Test 3 : 401 sans token ───────────────────────────────────────────────────
 
 #[tokio::test]
-async fn waiting_room_patient_token_returns_403() {
+async fn waiting_room_no_token_returns_401() {
     if !db_available() {
         return;
     }
@@ -430,23 +387,18 @@ async fn waiting_room_patient_token_returns_403() {
         mailer: Arc::new(StubMailer),
     };
 
-    let patient_user_id = Uuid::new_v4();
-    let patient_account_id = Uuid::new_v4();
-    let token = make_patient_token(patient_user_id, patient_account_id);
-
     let response = app(state)
         .oneshot(
             Request::builder()
                 .method("GET")
                 .uri("/v1/cabinet/waiting-room")
-                .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 // ── Test 4 : praticien voit noms complets ────────────────────────────────────
