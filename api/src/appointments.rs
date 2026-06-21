@@ -936,15 +936,8 @@ pub struct CreateAppointmentBody {
     pub slot_id: Option<Uuid>,
     /// ISO 8601 UTC (ex. "2026-06-10T09:00:00Z"). Ignoré si `slot_id` est fourni.
     pub starts_at: Option<String>,
-    pub motif: String,
+    pub motif: Option<String>,
     pub on_behalf_of: Option<Uuid>,
-}
-
-/// Réponse de `POST /v1/appointments`.
-#[derive(Serialize)]
-pub struct CreateAppointmentResponse {
-    pub appointment_id: Uuid,
-    pub status: String,
 }
 
 // ── Directions ──────────────────────────────────────────────────────────────
@@ -1311,7 +1304,7 @@ pub async fn create_appointment(
     claims: PatientAccountClaims,
     headers: HeaderMap,
     Json(body): Json<CreateAppointmentBody>,
-) -> Result<(StatusCode, Json<CreateAppointmentResponse>), AppError> {
+) -> Result<(StatusCode, Json<AppointmentDetail>), AppError> {
     if body.slot_id.is_none() && body.starts_at.is_none() {
         return Err(AppError::ValidationError);
     }
@@ -1397,19 +1390,76 @@ pub async fn create_appointment(
         .map_err(|_| AppError::Internal)?;
 
         if let Some(row) = existing {
-            let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let idm_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let idm_appt = sqlx::query(
+                "SELECT starts_at, ends_at, status, motif FROM appointment WHERE id = $1",
+            )
+            .bind(idm_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+            let idm_starts_at: chrono::DateTime<chrono::Utc> =
+                idm_appt.try_get("starts_at").map_err(|_| AppError::Internal)?;
+            let idm_ends_at: chrono::DateTime<chrono::Utc> =
+                idm_appt.try_get("ends_at").map_err(|_| AppError::Internal)?;
+            let idm_status: String =
+                idm_appt.try_get("status").map_err(|_| AppError::Internal)?;
+            let idm_motif: Option<String> =
+                idm_appt.try_get("motif").map_err(|_| AppError::Internal)?;
+            let idm_prov = sqlx::query(
+                "SELECT id, display_name, specialite FROM provider \
+                 WHERE practitioner_id = $1 LIMIT 1",
+            )
+            .bind(practitioner_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+            let (idm_prov_id, idm_prov_dn, idm_prov_sp) = match idm_prov {
+                Some(r) => {
+                    let pid: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
+                    let dn: String = r.try_get("display_name").map_err(|_| AppError::Internal)?;
+                    let sp: Option<String> =
+                        r.try_get("specialite").map_err(|_| AppError::Internal)?;
+                    (Some(pid), Some(dn), sp)
+                }
+                None => (None, None, None),
+            };
+            let idm_cab = sqlx::query(
+                "SELECT raison_sociale, settings->>'address' AS address FROM cabinet \
+                 WHERE id = $1",
+            )
+            .bind(cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::Internal)?;
+            let idm_cab_name: String =
+                idm_cab.try_get("raison_sociale").map_err(|_| AppError::Internal)?;
+            let idm_cab_addr: Option<String> =
+                idm_cab.try_get("address").map_err(|_| AppError::Internal)?;
             tx.commit().await.map_err(|_| AppError::Internal)?;
             tracing::info!(
                 account_id = %claims.account_id,
-                appointment_id = %appointment_id,
+                appointment_id = %idm_id,
                 "appointment create idempotent hit"
             );
             return Ok((
                 StatusCode::CREATED,
-                Json(CreateAppointmentResponse {
-                    appointment_id,
-                    status,
+                Json(AppointmentDetail {
+                    id: idm_id,
+                    starts_at: idm_starts_at.to_rfc3339(),
+                    ends_at: idm_ends_at.to_rfc3339(),
+                    status: idm_status,
+                    motif: idm_motif,
+                    provider: ProviderDetail {
+                        id: idm_prov_id,
+                        display_name: idm_prov_dn,
+                        specialty: idm_prov_sp,
+                    },
+                    cabinet: CabinetInfo {
+                        name: idm_cab_name,
+                        address: idm_cab_addr,
+                    },
                 }),
             ));
         }
@@ -1468,7 +1518,7 @@ pub async fn create_appointment(
     .bind(practitioner_id)
     .bind(starts_at)
     .bind(ends_at)
-    .bind(&body.motif)
+    .bind(body.motif.as_deref())
     .bind(body.slot_id)
     .bind(&idempotency_key)
     .fetch_one(&mut *tx)
@@ -1498,6 +1548,42 @@ pub async fn create_appointment(
         .map_err(|_| AppError::Internal)?;
     }
 
+    // Fetch provider and cabinet to return full detail (même shape que GET /:id).
+    let provider_row = sqlx::query(
+        "SELECT id, display_name, specialite FROM provider \
+         WHERE practitioner_id = $1 LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let (prov_id, prov_display_name, prov_specialty) = match provider_row {
+        Some(r) => {
+            let pid: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
+            let dn: String = r.try_get("display_name").map_err(|_| AppError::Internal)?;
+            let sp: Option<String> = r.try_get("specialite").map_err(|_| AppError::Internal)?;
+            (Some(pid), Some(dn), sp)
+        }
+        None => (None, None, None),
+    };
+
+    let cab_row = sqlx::query(
+        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    let cabinet_name: String = cab_row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let cabinet_address: Option<String> = cab_row
+        .try_get("address")
+        .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
@@ -1508,9 +1594,21 @@ pub async fn create_appointment(
 
     Ok((
         StatusCode::CREATED,
-        Json(CreateAppointmentResponse {
-            appointment_id,
+        Json(AppointmentDetail {
+            id: appointment_id,
+            starts_at: starts_at.to_rfc3339(),
+            ends_at: ends_at.to_rfc3339(),
             status,
+            motif: body.motif,
+            provider: ProviderDetail {
+                id: prov_id,
+                display_name: prov_display_name,
+                specialty: prov_specialty,
+            },
+            cabinet: CabinetInfo {
+                name: cabinet_name,
+                address: cabinet_address,
+            },
         }),
     ))
 }

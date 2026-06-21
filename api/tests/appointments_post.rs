@@ -198,14 +198,13 @@ async fn post_appointment_happy_path_returns_201() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(
-        v["appointment_id"].is_string(),
-        "appointment_id doit être présent"
-    );
+    assert!(v["id"].is_string(), "id doit être présent");
     assert_eq!(v["status"], "requested", "status doit être requested");
+    assert!(v["starts_at"].is_string(), "starts_at doit être présent");
+    assert!(v["ends_at"].is_string(), "ends_at doit être présent");
 
     // Vérification DB : row insérée + patient_id correspond au JWT.
-    let appt_id: uuid::Uuid = v["appointment_id"].as_str().unwrap().parse().unwrap();
+    let appt_id: uuid::Uuid = v["id"].as_str().unwrap().parse().unwrap();
     {
         let mut tx = db.begin().await.unwrap();
         sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
