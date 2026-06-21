@@ -1,5 +1,12 @@
 # État du projet — Nubia
 
+2026-06-21 — **Drainage flutter-front automatisé (nuit).** 7 PRs mergées par la fleet :
+FR1.19→FR1.23 (app_patient : skeleton appointments search, pull-to-refresh financial,
+filtre catégorie documents, widget tests notifications, dialog annulation RDV),
+FR2.14→FR2.19 (app_practicien : filtre statut historique, filtre ordonnances live,
+skeleton dashboard, empty state messaging, FAB démarrer consultation),
+FR3.15 + FR3.18→FR3.21 (app_secretariat : pull-to-refresh messaging, sort devis,
+quick stats dashboard, filtre conversations, pull-to-refresh admin). **Bon moment pour committer.**
 2026-06-21 — **[rust] R8 — POST /v1/auth/select-context : contexte JWT + 404 anti-énumération (issue #2435).** Handler `select_context` complété dans `api/src/auth/select_context.rs` : (1) `SelectContextContext { cabinet_id, role }` ajouté dans la réponse JSON (`context` field) — débloque FR3.16 (multi-établissement) et FR3.23 (bandeau contexte) ; (2) différenciation 404 / 403 : quand `user_all_memberships` retourne aucune ligne, une second requête `SELECT 1 FROM cabinet WHERE id = $1` (avec GUC `app.current_cabinet_id` positionné pour passer la RLS) distingue cabinet inexistant (404) de non-membre (403) ; (3) code d'erreur `no_active_membership` → `no_membership` dans `AppError::NoActiveMembership` (`api/src/auth/mod.rs`). Tests (`api/tests/auth_select_context.rs`) : `select_context_unknown_cabinet_returns_404` (404 pour UUID inconnu), `select_context_not_member_returns_403` (cabinet valide, user non-membre → 403 `no_membership`) — portent les 3 cas « happy path / 403 / 404 » requis. `cargo check --quiet` → vert.
 
 2026-06-21 — **[flutter-front] FR3.15.b — Clôture issue #2339 : widget test pull-to-refresh cabinet_messaging (re-vérification).** Implémentation déjà présente dans `main` via PR #2426 : `RefreshIndicator` (clé `cabinet_messaging_refresh`) enveloppe `ListView.separated` dans `_ConversationsListState`, `onRefresh` dispatch `CabinetMessagingConversationsLoadRequested`. Test widget présent dans `cabinet_messaging_test.dart` : état `ConversationsLoaded` → `tester.fling` sur `cabinet_messaging_conversations_list` → `verify bloc.add(CabinetMessagingConversationsLoadRequested()).called(1)`. `flutter analyze` → 0 issue. Critères « Done when » satisfaits. Aucun fichier code modifié.
