@@ -2,13 +2,20 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use sqlx::PgPool;
+use std::sync::Arc;
 use tower::ServiceExt;
 
-#[sqlx::test]
-async fn health_db_returns_200_ok(pool: sqlx::PgPool) {
-    use std::sync::Arc;
+async fn app_pool() -> PgPool {
+    let url = std::env::var("APP_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+    PgPool::connect(&url).await.unwrap()
+}
+
+#[tokio::test]
+async fn health_db_returns_200_ok() {
     let state = nubia_api::AppState {
-        db: pool,
+        db: app_pool().await,
         jwt_secret: String::new(),
         mailer: Arc::new(nubia_api::StubMailer),
     };
