@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/ordonnances/ordonnances_bloc.dart';
@@ -20,6 +21,10 @@ class MockCreatePrescriptionUseCase extends Mock
 
 class MockSignPrescriptionUseCase extends Mock
     implements SignPrescriptionUseCase {}
+
+class MockOrdonnancesBloc
+    extends MockBloc<OrdonnancesEvent, OrdonnancesState>
+    implements OrdonnancesBloc {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -96,6 +101,14 @@ class _OrdonnancesBodyDirect extends StatelessWidget {
                 child: const Text('Signer'),
               ),
             ],
+          );
+        }
+        if (state is OrdonnancesLoaded && state.ordonnances.isEmpty) {
+          return const NubiaEmptyState(
+            key: Key('ordonnances_empty'),
+            icon: Icons.description,
+            title: 'Aucune ordonnance',
+            subtitle: 'Crée la première',
           );
         }
         if (state is OrdonnancesSigned) {
@@ -270,6 +283,20 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('ordonnances_error')), findsOneWidget);
+    });
+
+    testWidgets('affiche NubiaEmptyState sur OrdonnancesLoaded vide',
+        (tester) async {
+      final bloc = MockOrdonnancesBloc();
+      whenListen(
+        bloc,
+        Stream.value(const OrdonnancesLoaded([])),
+        initialState: const OrdonnancesLoaded([]),
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+      expect(find.byType(NubiaEmptyState), findsOneWidget);
+      expect(find.byKey(const Key('ordonnances_empty')), findsOneWidget);
     });
   });
 
