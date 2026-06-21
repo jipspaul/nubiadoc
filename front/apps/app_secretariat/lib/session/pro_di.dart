@@ -56,7 +56,10 @@ void registerPro(GetIt gi) {
       ),
     )
     ..registerFactory<BookableSlotsBloc>(
-      () => BookableSlotsBloc(listSlots: gi<ListBookableSlotsUseCase>()),
+      () => BookableSlotsBloc(
+        listSlots: gi<ListBookableSlotsUseCase>(),
+        createSlot: gi<CreateSlotUseCase>(),
+      ),
     )
     ..registerFactory<AdminMembresBloc>(
       () => AdminMembresBloc(
