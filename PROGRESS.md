@@ -1,5 +1,7 @@
 # État du projet — Nubia
 
+2026-06-21 — **[flutter-front] FR2.10 — Dropdown CCAM searchable dans ConsultationClinique (issue #2442).** `CcamAct` (value class, `==`/`hashCode`) + `GetActsUseCase` (abstract, mockable) + `StubGetActsUseCase` (retourne 8 actes dentaires filtrés) + `CcamPicker` (StatefulWidget : TextField clé `ccam_search_field` + ListView suggestions clé `ccam_suggestions`, max 8 items, déclenchement à >3 chars, état vide clé `ccam_no_results`) créés dans `ccam_picker.dart`. `_LoadedView` dans `consultation_clinique_page.dart` étendu : `CcamPicker(useCase: const StubGetActsUseCase(), onActSelected: ...)` inséré avant le `Divider` — sélection dispatch `ConsultationCliniqueActAddRequested(ccamCode, label)`. `test/ccam_picker_test.dart` créé : 3 tests (≤2 lettres → `search` non appelée, sélection → callback avec acte, aucun résultat → clé `ccam_no_results` visible). `dart run melos analyze` → 0 issue.
+
 2026-06-21 — **Drainage flutter-front automatisé (nuit).** 7 PRs mergées par la fleet :
 FR1.19→FR1.23 (app_patient : skeleton appointments search, pull-to-refresh financial,
 filtre catégorie documents, widget tests notifications, dialog annulation RDV),
