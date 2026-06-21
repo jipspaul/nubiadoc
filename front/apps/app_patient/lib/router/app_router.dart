@@ -15,6 +15,7 @@ import '../features/documents/documents_page.dart';
 import '../features/login/login_page.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
+import '../features/mes_rdv/prepare_rdv_page.dart';
 import '../features/notifications/notifications_bloc.dart';
 import '../features/notifications/notifications_event.dart';
 import '../features/notifications/notifications_page.dart';
@@ -46,6 +47,7 @@ class AppRouter {
   static const reviews = '/reviews';
   static const notifications = '/notifications';
   static const oubliettes = '/oubliettes';
+  static const prepareRdv = '/rdv/:id/prepare';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -155,6 +157,12 @@ class AppRouter {
               appBar: AppBar(title: const Text('Oubliettes')),
               body: const OubliettesPage(),
             ),
+          ),
+        ),
+        GoRoute(
+          path: prepareRdv,
+          builder: (_, state) => PrepareRdvPage(
+            appointmentId: state.pathParameters['id']!,
           ),
         ),
       ],

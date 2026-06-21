@@ -124,6 +124,44 @@ async fn get_directions_pro_token_returns_403() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
+/// Mode inconnu → 422.
+#[tokio::test]
+async fn get_directions_invalid_mode_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/appointments/{}/directions?mode=flying",
+                    Uuid::new_v4()
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(Uuid::new_v4(), Uuid::new_v4())
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 /// Wrong patient → 404 (anti-énumération, RLS policy 0029).
 #[tokio::test]
 async fn get_directions_wrong_patient_returns_404() {
