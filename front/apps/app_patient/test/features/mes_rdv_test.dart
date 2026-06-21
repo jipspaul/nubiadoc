@@ -1,5 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
-import 'package:dartz/dartz.dart';
+import 'package:dartz/dartz.dart' hide State;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,6 +88,47 @@ class _RefreshBodyDirect extends StatelessWidget {
           );
         }
         return const SizedBox.shrink();
+      },
+    );
+  }
+}
+
+/// Widget de test pour le toggle de tri : reproduit la logique de tri de _LoadedView.
+class _SortBodyDirect extends StatefulWidget {
+  const _SortBodyDirect();
+
+  @override
+  State<_SortBodyDirect> createState() => _SortBodyDirectState();
+}
+
+class _SortBodyDirectState extends State<_SortBodyDirect> {
+  bool _sortAsc = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<MesRdvBloc, MesRdvState>(
+      builder: (context, state) {
+        if (state is! MesRdvLoaded) return const SizedBox.shrink();
+        int compare(Appointment a, Appointment b) => _sortAsc
+            ? a.startsAt.compareTo(b.startsAt)
+            : b.startsAt.compareTo(a.startsAt);
+        final sorted = [...state.upcoming]..sort(compare);
+        return Column(
+          children: [
+            IconButton(
+              key: const Key('sort_button'),
+              icon: const Icon(Icons.sort),
+              onPressed: () => setState(() => _sortAsc = !_sortAsc),
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final a in sorted) Text(key: Key('appt_${a.id}'), a.motif),
+                ],
+              ),
+            ),
+          ],
+        );
       },
     );
   }
@@ -304,6 +345,62 @@ void main() {
             .having((s) => s.actionError, 'actionError', isNotNull),
       ],
     );
+  });
+
+  group('sort toggle', () {
+    testWidgets('tap sort inverse l\'ordre des RDV par startsAt', (tester) async {
+      final apptA = Appointment(
+        id: 'rdv-a',
+        cabinetId: 'cab-1',
+        practitionerName: 'Dr A',
+        practitionerSpecialty: 'Dentiste',
+        startsAt: DateTime(2026, 1, 1),
+        duration: const Duration(minutes: 30),
+        motif: 'Soin A',
+        status: AppointmentStatus.confirmed,
+      );
+      final apptB = Appointment(
+        id: 'rdv-b',
+        cabinetId: 'cab-1',
+        practitionerName: 'Dr B',
+        practitionerSpecialty: 'Dentiste',
+        startsAt: DateTime(2026, 3, 1),
+        duration: const Duration(minutes: 30),
+        motif: 'Soin B',
+        status: AppointmentStatus.confirmed,
+      );
+
+      final mockBloc = MockMesRdvBloc();
+      final loadedState = MesRdvLoaded(upcoming: [apptA, apptB], history: const []);
+      whenListen<MesRdvState>(
+        mockBloc,
+        Stream.fromIterable([loadedState]),
+        initialState: loadedState,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<MesRdvBloc>.value(
+            value: mockBloc,
+            child: const Scaffold(body: _SortBodyDirect()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Default _sortAsc=false → DESC : rdv-b (mars) en premier, rdv-a (jan) en dessous
+      final yB = tester.getTopLeft(find.byKey(const Key('appt_rdv-b'))).dy;
+      final yA = tester.getTopLeft(find.byKey(const Key('appt_rdv-a'))).dy;
+      expect(yB, lessThan(yA));
+
+      // Tap sort → ASC : rdv-a (jan) en premier, rdv-b (mars) en dessous
+      await tester.tap(find.byKey(const Key('sort_button')));
+      await tester.pump();
+
+      final yAAfter = tester.getTopLeft(find.byKey(const Key('appt_rdv-a'))).dy;
+      final yBAfter = tester.getTopLeft(find.byKey(const Key('appt_rdv-b'))).dy;
+      expect(yAAfter, lessThan(yBAfter));
+    });
   });
 
   group('pull-to-refresh', () {

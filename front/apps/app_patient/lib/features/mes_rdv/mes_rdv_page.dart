@@ -65,22 +65,48 @@ class _MesRdvBody extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _LoadedView extends StatelessWidget {
+class _LoadedView extends StatefulWidget {
   const _LoadedView({required this.state});
   final MesRdvLoaded state;
 
   @override
+  State<_LoadedView> createState() => _LoadedViewState();
+}
+
+class _LoadedViewState extends State<_LoadedView> {
+  bool _sortAsc = false;
+
+  @override
   Widget build(BuildContext context) {
+    int compare(Appointment a, Appointment b) => _sortAsc
+        ? a.startsAt.compareTo(b.startsAt)
+        : b.startsAt.compareTo(a.startsAt);
+
+    final upcoming = [...widget.state.upcoming]..sort(compare);
+    final history = [...widget.state.history]..sort(compare);
+
     return DefaultTabController(
       length: 2,
       child: Column(
         children: [
-          if (state.actionInProgress)
+          if (widget.state.actionInProgress)
             const LinearProgressIndicator(key: Key('mes_rdv_action_progress')),
-          const TabBar(
-            tabs: [
-              Tab(text: 'À venir'),
-              Tab(text: 'Historique'),
+          Row(
+            children: [
+              const Expanded(
+                child: TabBar(
+                  tabs: [
+                    Tab(text: 'À venir'),
+                    Tab(text: 'Historique'),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: const Key('sort_button'),
+                icon: const Icon(Icons.sort),
+                tooltip: _sortAsc ? 'Plus récent d\'abord' : 'Plus ancien d\'abord',
+                onPressed: () => setState(() => _sortAsc = !_sortAsc),
+              ),
             ],
           ),
           Expanded(
@@ -88,13 +114,13 @@ class _LoadedView extends StatelessWidget {
               children: [
                 _AppointmentList(
                   key: const Key('upcoming_list'),
-                  appointments: state.upcoming,
+                  appointments: upcoming,
                   emptyLabel: 'Aucun rendez-vous à venir',
                   isUpcoming: true,
                 ),
                 _AppointmentList(
                   key: const Key('history_list'),
-                  appointments: state.history,
+                  appointments: history,
                   emptyLabel: 'Aucun historique',
                   isUpcoming: false,
                 ),
