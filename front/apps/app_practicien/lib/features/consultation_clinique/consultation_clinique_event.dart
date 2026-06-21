@@ -37,3 +37,7 @@ class ConsultationCliniqueActAddRequested extends ConsultationCliniqueEvent {
 class ConsultationCliniqueCompleteRequested extends ConsultationCliniqueEvent {
   const ConsultationCliniqueCompleteRequested();
 }
+
+class ConsultationHistoriqueRequested extends ConsultationCliniqueEvent {
+  const ConsultationHistoriqueRequested();
+}

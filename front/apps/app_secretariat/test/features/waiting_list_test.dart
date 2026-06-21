@@ -200,15 +200,14 @@ void main() {
       expect(find.textContaining('notes'), findsNothing);
     });
 
-    testWidgets('affiche un message si la liste est vide', (tester) async {
+    testWidgets('Loaded([]) affiche NubiaEmptyState', (tester) async {
       when(() => bloc.state).thenReturn(const WaitingListLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Aucun patient en liste d\'attente.'),
-        findsOneWidget,
-      );
+      expect(find.byType(NubiaEmptyState), findsOneWidget);
+      expect(find.text('Pas d\'attente'), findsOneWidget);
+      expect(find.text('Aucun patient en liste d\'attente'), findsOneWidget);
     });
 
     testWidgets('affiche le message d\'erreur', (tester) async {

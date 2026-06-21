@@ -24,8 +24,15 @@ class PatientsPage extends StatelessWidget {
   }
 }
 
-class _PatientsBody extends StatelessWidget {
+class _PatientsBody extends StatefulWidget {
   const _PatientsBody();
+
+  @override
+  State<_PatientsBody> createState() => _PatientsBodyState();
+}
+
+class _PatientsBodyState extends State<_PatientsBody> {
+  String _query = '';
 
   @override
   Widget build(BuildContext context) {
@@ -59,23 +66,45 @@ class _PatientsBody extends StatelessWidget {
               title: 'Aucun patient',
             );
           }
-          return ListView.builder(
-            key: const Key('patients_list'),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: state.patients.length,
-            itemBuilder: (context, i) {
-              final p = state.patients[i];
-              return ListTile(
-                key: Key('patient_${p.id}'),
-                leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                title: Text(p.fullName),
-                subtitle: Text(p.email ?? p.phone ?? ''),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context
-                    .read<PatientsBloc>()
-                    .add(PatientsDetailLoadRequested(p.id)),
-              );
-            },
+          final filtered = state.patients
+              .where((p) =>
+                  p.fullName.toLowerCase().contains(_query.toLowerCase()))
+              .toList();
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: TextField(
+                  key: const Key('patients_search'),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Rechercher un patient',
+                  ),
+                  onChanged: (value) => setState(() => _query = value),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  key: const Key('patients_list'),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, i) {
+                    final p = filtered[i];
+                    return ListTile(
+                      key: Key('patient_${p.id}'),
+                      leading:
+                          const CircleAvatar(child: Icon(Icons.person_outline)),
+                      title: Text(p.fullName),
+                      subtitle: Text(p.email ?? p.phone ?? ''),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context
+                          .read<PatientsBloc>()
+                          .add(PatientsDetailLoadRequested(p.id)),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         }
         return const SizedBox.shrink();
