@@ -243,6 +243,53 @@ void main() {
 
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
+
+    testWidgets('toggle tri ASC/DESC change l\'ordre des devis', (tester) async {
+      final older = CabinetQuote(
+        id: 'q1',
+        cabinetId: 'c1',
+        patientId: 'p1',
+        patientName: 'Alice',
+        totalCents: 10000,
+        patientShareCents: 3000,
+        status: CabinetQuoteStatus.sent,
+        createdAt: DateTime(2026, 1, 1),
+      );
+      final newer = CabinetQuote(
+        id: 'q2',
+        cabinetId: 'c1',
+        patientId: 'p2',
+        patientName: 'Bob',
+        totalCents: 20000,
+        patientShareCents: 5000,
+        status: CabinetQuoteStatus.draft,
+        createdAt: DateTime(2026, 6, 1),
+      );
+      when(() => bloc.state).thenReturn(DevisLoaded([older, newer]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // Par défaut DESC : Bob (plus récent) en premier
+      final namesBefore = tester
+          .widgetList<Text>(find.text('Alice').evaluate().isNotEmpty
+              ? find.byType(Text)
+              : find.byType(Text))
+          .map((t) => t.data)
+          .where((d) => d == 'Alice' || d == 'Bob')
+          .toList();
+      expect(namesBefore.first, 'Bob');
+
+      // Toggle → ASC : Alice (plus ancien) en premier
+      await tester.tap(find.byKey(const Key('sort_button')));
+      await tester.pumpAndSettle();
+
+      final namesAfter = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.data)
+          .where((d) => d == 'Alice' || d == 'Bob')
+          .toList();
+      expect(namesAfter.first, 'Alice');
+    });
   });
 
   // --- DevisDetailPage widget test --------------------------------------------
