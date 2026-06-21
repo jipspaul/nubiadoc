@@ -1,5 +1,11 @@
 # État du projet — Nubia
 
+2026-06-21 — **Fix orchestrator : auto-merger PROGRESS.md déterministe.**
+Postmortem : 3 PRs sat bloquées avec `mergeable=false` sur conflits append-only PROGRESS.md
+parce que `resolve-conflict` re-dispatchait l'agent (LLM) pour un merge trivial.
+Ajout d'un helper `progress-resolver.ts` (Forgejo PUT /contents) + hook dans
+`forgejoIntegration.accept` : si 409/422 et seule divergence = PROGRESS.md, keep-both
+auto puis retry merge. 9 tests unitaires + 409 régressions verts.
 2026-06-21 — **[flutter-front] FR3.23 — Bandeau contexte secrétariat sur dashboard (issue #2446).** `contextLabel: String?` ajouté dans `AuthSession` (`nubia_core`). `ContextBanner` (public `StatelessWidget`) ajouté dans `dashboard_page.dart` (app_secretariat) : `Container` coloré `colorScheme.primaryContainer` + clé `context_banner` si label non-null, `SizedBox.shrink()` sinon. `bodyBuilder` dans `DashboardPage` restructuré en `Column(ContextBanner + Expanded(body))` — bandeau visible sur toutes les destinations. Test `dashboard_context_banner_test.dart` créé : 2 tests widget (label → clé `context_banner` visible, null → clé absente). `flutter analyze` → 0 issue.
 
 2026-06-21 — **[db] DB-T025.b — Tests pgTAP isolation cabinet sur slot_holds (issue #2461).** Migration `0108_slot_hold_rls.sql` : remplace la policy permissive `slot_holds_app` (USING true, migration 0095) par `slot_hold_cabinet_isolation` (FOR ALL, isolation transitive via `EXISTS(SELECT 1 FROM availability_slot WHERE id=slot_id AND cabinet_id=GUC)`). GUC absent → nullif → NULL → fail-closed. Test pgTAP `17_slot_hold_rls.sql` : 5 assertions — PRE (nubia_app), SH1 (FORCE RLS), SH2 (policy présente), SH3 (fail-closed sans GUC), SH4 (cabinet A voit ses holds), SH5 (cabinet B ne voit pas les holds de A). `37_marketplace_strong.sql` corrigé : POL1 mis à jour vers `slot_hold_cabinet_isolation`, `cabinet_id` ajouté aux fixtures ALPHA/BETA, RESET GUC avant N2. `make migrate` vert.
