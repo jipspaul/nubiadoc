@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'waiting_list_bloc.dart';
@@ -47,8 +48,10 @@ class _WaitingListPageState extends State<WaitingListPage> {
           if (state is WaitingListLoaded || state is WaitingListOfferSuccess) {
             final entries = state is WaitingListLoaded ? state.entries : <WaitingListEntry>[];
             if (entries.isEmpty) {
-              return const Center(
-                child: Text('Aucun patient en liste d\'attente.'),
+              return const NubiaEmptyState(
+                icon: Icons.event_busy,
+                title: 'Pas d\'attente',
+                subtitle: 'Aucun patient en liste d\'attente',
               );
             }
             return RefreshIndicator(
