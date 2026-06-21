@@ -95,11 +95,18 @@ class _AgendaBodyDirect extends StatelessWidget {
                 key: Key('agenda_empty'),
                 child: Text('Aucun rendez-vous cette semaine'));
           }
-          return ListView(
-            children: [
-              for (final e in state.entries)
-                Text(key: Key('entry_${e.id}'), e.patientName ?? ''),
-            ],
+          return RefreshIndicator(
+            key: const Key('agenda_refresh_indicator'),
+            onRefresh: () async => context.read<AgendaBloc>().add(
+              AgendaLoadRequested(weekStart: _weekStart),
+            ),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                for (final e in state.entries)
+                  Text(key: Key('entry_${e.id}'), e.patientName ?? ''),
+              ],
+            ),
           );
         }
         return const SizedBox.shrink();
@@ -314,6 +321,28 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('agenda_error')), findsOneWidget);
+    });
+
+    testWidgets('pull-to-refresh déclenche AgendaLoadRequested', (tester) async {
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([_entry]));
+      when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+      final bloc = makeBloc()
+        ..add(AgendaLoadRequested(weekStart: _weekStart));
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('entry_e-1')), findsOneWidget);
+
+      await tester.fling(
+        find.byType(RefreshIndicator),
+        const Offset(0, 300),
+        1000,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      verify(() => mockGetAgenda(any())).called(2);
     });
   });
 }
