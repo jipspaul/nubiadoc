@@ -19,8 +19,6 @@ class _MockBookableSlotsBloc
     extends MockBloc<BookableSlotsEvent, BookableSlotsState>
     implements BookableSlotsBloc {}
 
-class _MockCreateSlotUseCase extends Mock implements CreateSlotUseCase {}
-
 final _slot = Slot(
   id: 's1',
   cabinetId: 'c1',
