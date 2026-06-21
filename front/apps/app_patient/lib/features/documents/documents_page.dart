@@ -139,9 +139,15 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                       ),
                     )
                   : RefreshIndicator(
-                      onRefresh: () async => context
-                          .read<DocumentsBloc>()
-                          .add(const DocumentsLoadRequested()),
+                      key: const ValueKey('documents_refresh'),
+                      onRefresh: () async {
+                        final bloc = context.read<DocumentsBloc>();
+                        bloc.add(const DocumentsLoadRequested());
+                        await bloc.stream.firstWhere(
+                          (s) => s is DocumentsLoaded || s is DocumentsError,
+                          orElse: () => const DocumentsLoading(),
+                        );
+                      },
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: docs.length,
