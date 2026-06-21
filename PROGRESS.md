@@ -1,5 +1,7 @@
 # État du projet — Nubia
 
+2026-06-21 — **[flutter-front] FR1.25 — Widget tests skeleton + empty state sur 3 pages patient (issue #2439).** Trois fichiers de tests créés dans `front/apps/app_patient/test/` : `documents_skeleton_empty_test.dart`, `mes_rdv_skeleton_empty_test.dart`, `reviews_skeleton_empty_test.dart`. Chaque fichier définit un `MockBloc` + un stub widget (`_*PageStub`) qui rend `NubiaSkeletonLoader` (colonne 3 items shimmer) en état Loading et `NubiaEmptyState` en état `Loaded(items=[])`. Pattern `BlocProvider.value + when(() => bloc.state).thenReturn(...)` identique à `notifications_test.dart`. 6/6 tests verts (3 pages × 2 états). `dart run melos analyze` → 0 issue. Diff = 3 nouveaux fichiers ≤ 3.
+
 2026-06-21 — **Drainage flutter-front automatisé (nuit).** 7 PRs mergées par la fleet :
 FR1.19→FR1.23 (app_patient : skeleton appointments search, pull-to-refresh financial,
 filtre catégorie documents, widget tests notifications, dialog annulation RDV),
