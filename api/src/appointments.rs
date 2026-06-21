@@ -147,6 +147,12 @@ pub async fn patch_appointment(
 
 // ── Cancel ──────────────────────────────────────────────────────────────────
 
+/// Corps optionnel de `POST /v1/appointments/:id/cancel`.
+#[derive(Deserialize, Default)]
+pub struct CancelBody {
+    pub reason: Option<String>,
+}
+
 /// Réponse de `POST /v1/appointments/:id/cancel`.
 #[derive(Serialize)]
 pub struct CancelResponse {
@@ -163,7 +169,9 @@ pub async fn cancel_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
+    body: Option<Json<CancelBody>>,
 ) -> Result<Json<CancelResponse>, AppError> {
+    let reason = body.as_ref().and_then(|b| b.reason.as_deref()).map(str::to_owned);
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
@@ -209,10 +217,11 @@ pub async fn cancel_appointment(
 
     sqlx::query(
         "UPDATE appointment \
-         SET status = 'cancelled', cancelled_at = now(), updated_at = now() \
+         SET status = 'cancelled', cancelled_at = now(), cancel_reason = $2, updated_at = now() \
          WHERE id = $1",
     )
     .bind(id)
+    .bind(reason.as_deref())
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
