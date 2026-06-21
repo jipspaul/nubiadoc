@@ -26,7 +26,7 @@ MIGRATIONS_DIR = migrations
 TESTS_DIR      = tests
 
 .DEFAULT_GOAL := help
-.PHONY: help reset migrate seed test verify-rls lint pgtap-install psql-app smoke-perf
+.PHONY: help reset migrate seed test verify-rls lint pgtap-install psql-app smoke-perf smoke-explain
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -111,10 +111,19 @@ psql-app: ## Ouvre un psql sous nubia_app (debug RLS)
 	psql "$(APP_DATABASE_URL)"
 
 ## ---------------------------------------------------------------------------
-## smoke-perf — DB-T024 : EXPLAIN ANALYZE sur 5 requêtes critiques (issue #2318).
+## smoke-perf — DB-T024.a : EXPLAIN ANALYZE sur 5 requêtes critiques (issue #2318).
 ##   Signale les Seq Scan uniquement sur tables > ROW_THRESHOLD lignes (défaut 10 000).
 ##   Lancer après `make migrate` (+ seed pour des plans représentatifs).
 ##   Exit 1 si au moins un Seq Scan problématique détecté.
 ## ---------------------------------------------------------------------------
-smoke-perf: ## EXPLAIN ANALYZE smoke sur 5 requêtes critiques (DB-T024)
+smoke-perf: ## EXPLAIN ANALYZE smoke sur 5 requêtes critiques — seuil ROW_THRESHOLD (DB-T024.a)
 	APP_DATABASE_URL="$(APP_DATABASE_URL)" bash scripts/perf_smoke.sh
+
+## ---------------------------------------------------------------------------
+## smoke-explain — DB-T024.b : EXPLAIN ANALYZE CI (issue #2319).
+##   Signale TOUT Seq Scan sans seuil de lignes : mode strict adapté à la CI.
+##   Une ligne par requête ([OK] / [FAIL]) ; exit 1 si au moins un FAIL.
+##   Lancer après `make migrate`.
+## ---------------------------------------------------------------------------
+smoke-explain: ## EXPLAIN ANALYZE smoke strict CI — tout Seq Scan = FAIL (DB-T024.b)
+	APP_DATABASE_URL="$(APP_DATABASE_URL)" CABINET_ID="$(CABINET_ID)" bash explain_analyze_smoke.sh
