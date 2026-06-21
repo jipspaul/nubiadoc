@@ -1,5 +1,7 @@
 # État du projet — Nubia
 
+2026-06-21 — **[flutter-front] FR1.29 — Page « Préparer mon RDV » avec bring-list (issue #2474).** `PrepareRdvPage` (StatefulWidget) créée dans `features/mes_rdv/prepare_rdv_page.dart` : affiche l'adresse du cabinet en titre AppBar et la bring-list (Carte Vitale, Carte mutuelle, Ordonnance) comme `Card`/`ListTile` avec icône `check_box_outline_blank` (non coché) / `check_box` (coché). Données stubées depuis `GET /v1/appointments/:id/preparation`. Abstraction `PrepareRdvPrefsService` (interface mock-able) avec `InMemoryPrepareRdvPrefsService` comme implémentation par défaut — persistance locale des items cochés. Route `/rdv/:id/prepare` ajoutée dans `app_router.dart` (constante `prepareRdv`). Test `prepare_rdv_page_test.dart` : 2 tests widget — loaded state affiche les 3 items + adresse, tap coche l'item et persiste dans le service. `flutter analyze` → 0 issue.
+
 2026-06-21 — **Fix orchestrator : auto-merger PROGRESS.md déterministe.**
 Postmortem : 3 PRs sat bloquées avec `mergeable=false` sur conflits append-only PROGRESS.md
 parce que `resolve-conflict` re-dispatchait l'agent (LLM) pour un merge trivial.
