@@ -1,5 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
-import 'package:dartz/dartz.dart';
+import 'package:dartz/dartz.dart' hide State;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -85,6 +85,48 @@ class _ListBody extends StatelessWidget {
             children: [
               for (final p in state.patients)
                 Text(key: Key('patient_${p.id}'), p.fullName),
+            ],
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+}
+
+class _SearchListBody extends StatefulWidget {
+  const _SearchListBody();
+
+  @override
+  State<_SearchListBody> createState() => _SearchListBodyState();
+}
+
+class _SearchListBodyState extends State<_SearchListBody> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<PatientsBloc, PatientsState>(
+      builder: (context, state) {
+        if (state is PatientsLoaded) {
+          final filtered = state.patients
+              .where((p) =>
+                  p.fullName.toLowerCase().contains(_query.toLowerCase()))
+              .toList();
+          return Column(
+            children: [
+              TextField(
+                key: const Key('patients_search'),
+                onChanged: (v) => setState(() => _query = v),
+              ),
+              Expanded(
+                child: ListView(
+                  children: [
+                    for (final p in filtered)
+                      Text(key: Key('patient_${p.id}'), p.fullName),
+                  ],
+                ),
+              ),
             ],
           );
         }
@@ -292,6 +334,47 @@ void main() {
       await tester.pumpWidget(_wrap(bloc, const _ListBody()));
       await tester.pump();
       expect(find.byKey(const Key('patients_error')), findsOneWidget);
+    });
+  });
+
+  group('PatientsPage — filtre local', () {
+    final patient2 = CabinetPatient(
+      id: 'pat-2',
+      cabinetId: 'cab-1',
+      firstName: 'Marie',
+      lastName: 'Martin',
+      email: 'marie.martin@example.com',
+      phone: '0600000002',
+      createdAt: DateTime(2024, 2, 1),
+    );
+
+    testWidgets('affiche tous les patients avant filtrage', (tester) async {
+      when(() => mockList())
+          .thenAnswer((_) async => Right([_patient, patient2]));
+      final bloc = _makeBloc(list: mockList, get: mockGet, update: mockUpdate)
+        ..add(const PatientsLoadRequested());
+      await tester.pumpWidget(_wrap(bloc, const _SearchListBody()));
+      await tester.pump();
+      expect(find.byKey(const Key('patient_pat-1')), findsOneWidget);
+      expect(find.byKey(const Key('patient_pat-2')), findsOneWidget);
+    });
+
+    testWidgets('filtre les patients par nom', (tester) async {
+      when(() => mockList())
+          .thenAnswer((_) async => Right([_patient, patient2]));
+      final bloc = _makeBloc(list: mockList, get: mockGet, update: mockUpdate)
+        ..add(const PatientsLoadRequested());
+      await tester.pumpWidget(_wrap(bloc, const _SearchListBody()));
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const Key('patients_search')),
+        'marie',
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('patient_pat-2')), findsOneWidget);
+      expect(find.byKey(const Key('patient_pat-1')), findsNothing);
     });
   });
 

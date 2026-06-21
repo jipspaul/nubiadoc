@@ -1276,6 +1276,13 @@ pub async fn get_appointment_queue(
     }))
 }
 
+fn validate_appointment_payload(starts_at: chrono::DateTime<chrono::Utc>) -> Result<(), AppError> {
+    if starts_at <= chrono::Utc::now() + chrono::Duration::minutes(5) {
+        return Err(AppError::StartAtNotFuture);
+    }
+    Ok(())
+}
+
 fn is_exclusion_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
@@ -1307,6 +1314,16 @@ pub async fn create_appointment(
 ) -> Result<(StatusCode, Json<CreateAppointmentResponse>), AppError> {
     if body.slot_id.is_none() && body.starts_at.is_none() {
         return Err(AppError::ValidationError);
+    }
+
+    // Validate starts_at when provided directly (not via slot_id).
+    if body.slot_id.is_none() {
+        if let Some(s) = body.starts_at.as_deref() {
+            let sa = s
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .map_err(|_| AppError::ValidationError)?;
+            validate_appointment_payload(sa)?;
+        }
     }
 
     let idempotency_key: Option<String> = headers
