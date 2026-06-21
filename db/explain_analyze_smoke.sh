@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # db/explain_analyze_smoke.sh — DB-T024 : smoke perf EXPLAIN ANALYZE (5 requêtes critiques)
-# Issue : jips/nubiadoc#2320. Réf. : jips/nubiadoc#2238.
+# Issue : jips/nubiadoc#2319. Réf. : jips/nubiadoc#2238.
 #
 # Exécute EXPLAIN ANALYZE sur les 5 requêtes critiques et signale tout Seq Scan
 # inattendu sur une table tenant (indique un index manquant ou des stats obsolètes).
@@ -23,13 +23,13 @@
 #
 # Interprétation :
 #   [OK]   aucun Seq Scan sur la requête → index utilisé.
-#   [WARN] Seq Scan détecté → index manquant ou table trop petite pour l'optimiseur.
+#   [FAIL] Seq Scan détecté → index manquant ou table trop petite pour l'optimiseur.
 #          Sur une base vide / très peu de données, les Seq Scans sont attendus ;
 #          l'alerte prend tout son sens sur une base de staging / prod.
 #
 # Codes de sortie :
-#   0 — aucun Seq Scan détecté.
-#   1 — au moins un Seq Scan détecté.
+#   0 — aucun Seq Scan détecté (toutes les requêtes OK).
+#   1 — au moins un Seq Scan détecté (au moins un FAIL).
 
 set -euo pipefail
 
@@ -37,8 +37,11 @@ APP_DATABASE_URL="${APP_DATABASE_URL:-postgres://nubia_app@${PGHOST:-localhost}:
 CABINET_ID="${CABINET_ID:-00000000-0000-0000-0000-000000000000}"
 
 warnings=0
+failed_plans=""
 
 # Lance EXPLAIN ANALYZE dans une transaction anonyme (BEGIN…ROLLBACK).
+# Affiche une ligne par requête : [OK] ou [FAIL] + libellé.
+# Les plans des requêtes en FAIL sont accumulés pour affichage en fin de script.
 # $1 : libellé affiché. $2 : corps SQL (SELECT uniquement).
 run_explain() {
   local label="$1"
@@ -49,16 +52,13 @@ run_explain() {
     "${CABINET_ID}" "${sql}" \
     | psql -v ON_ERROR_STOP=1 --no-psqlrc --no-align --tuples-only "${APP_DATABASE_URL}" 2>&1)
 
-  echo "── ${label}"
-  echo "${plan}"
-
   if echo "${plan}" | grep -q "Seq Scan"; then
-    echo "  [WARN] Seq Scan détecté — vérifier index sur cabinet_id / colonne de filtre."
+    printf "[FAIL] %s\n" "${label}"
     warnings=$((warnings + 1))
+    failed_plans="${failed_plans}--- ${label} ---\n${plan}\n\n"
   else
-    echo "  [OK]"
+    printf "[OK]   %s\n" "${label}"
   fi
-  echo ""
 }
 
 echo "=== EXPLAIN ANALYZE smoke — 5 requêtes critiques ==="
@@ -116,11 +116,18 @@ WHERE  cabinet_id = '${CABINET_ID}'
 ORDER  BY created_at DESC
 LIMIT  20;"
 
-echo "=== Résultat ==="
+# Détails des plans en FAIL (utile pour le diagnostic en CI)
+if [ -n "${failed_plans}" ]; then
+  echo ""
+  echo "=== Détails des FAIL ==="
+  printf "%b" "${failed_plans}"
+fi
+
+echo ""
 if [ "${warnings}" -eq 0 ]; then
-  echo "[OK] Aucun Seq Scan inattendu détecté sur les 5 requêtes."
+  echo "[OK] Aucun Seq Scan détecté — 5/5 requêtes OK."
   exit 0
 else
-  echo "[FAIL] ${warnings} Seq Scan(s) détecté(s) — voir détails ci-dessus."
+  echo "[FAIL] ${warnings}/5 requête(s) avec Seq Scan — voir détails ci-dessus."
   exit 1
 fi
