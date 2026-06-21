@@ -117,28 +117,34 @@ class _DocumentsLoaded extends StatelessWidget {
                         ],
                       ),
                     )
-                  : ListView.separated(
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final doc = docs[index];
-                        return ListTile(
-                          key: Key('document_${doc.id}'),
-                          leading: const Icon(Icons.description_outlined),
-                          title: Text(doc.name),
-                          subtitle: Text(
-                            '${doc.category.name} · '
-                            '${(doc.fileSizeBytes / 1024).round()} Ko',
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.download_outlined),
-                            tooltip: 'Télécharger',
-                            onPressed: () => context
-                                .read<DocumentsBloc>()
-                                .add(DocumentsDownloadRequested(doc.id)),
-                          ),
-                        );
-                      },
+                  : RefreshIndicator(
+                      onRefresh: () async => context
+                          .read<DocumentsBloc>()
+                          .add(const DocumentsLoadRequested()),
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final doc = docs[index];
+                          return ListTile(
+                            key: Key('document_${doc.id}'),
+                            leading: const Icon(Icons.description_outlined),
+                            title: Text(doc.name),
+                            subtitle: Text(
+                              '${doc.category.name} · '
+                              '${(doc.fileSizeBytes / 1024).round()} Ko',
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.download_outlined),
+                              tooltip: 'Télécharger',
+                              onPressed: () => context
+                                  .read<DocumentsBloc>()
+                                  .add(DocumentsDownloadRequested(doc.id)),
+                            ),
+                          );
+                        },
+                      ),
                     ),
             ),
           ],
