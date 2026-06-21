@@ -492,6 +492,43 @@ pub async fn create_payment_intent(
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    // Idempotence : check idempotency_keys avant tout travail tenant-scoped (TTL 24h).
+    let cached = sqlx::query(
+        "SELECT response FROM idempotency_keys \
+         WHERE key = $1 AND created_at > now() - interval '24 hours'",
+    )
+    .bind(&idempotency_key)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(cached_row) = cached {
+        let resp: serde_json::Value = cached_row
+            .try_get("response")
+            .map_err(|_| AppError::Internal)?;
+        let payment_id: Uuid = resp["payment_id"]
+            .as_str()
+            .and_then(|s| Uuid::parse_str(s).ok())
+            .ok_or(AppError::Internal)?;
+        let client_secret: String = resp["client_secret"]
+            .as_str()
+            .map(|s| s.to_owned())
+            .ok_or(AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        tracing::info!(
+            account_id = %claims.account_id,
+            payment_id = %payment_id,
+            "payment intent idempotent replay"
+        );
+        return Ok((
+            StatusCode::CREATED,
+            Json(PaymentIntentResponse {
+                payment_id,
+                client_secret,
+            }),
+        ));
+    }
+
     // Scope patient pour lire le devis via la policy quote_patient_read (migration 0029).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
@@ -534,37 +571,6 @@ pub async fn create_payment_intent(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Idempotence : retourne le paiement existant si la clé est déjà connue.
-    let existing = sqlx::query(
-        "SELECT id, client_secret FROM payment \
-         WHERE cabinet_id = $1 AND idempotency_key = $2",
-    )
-    .bind(cabinet_id)
-    .bind(&idempotency_key)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    if let Some(row) = existing {
-        let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-        let client_secret: String = row
-            .try_get("client_secret")
-            .map_err(|_| AppError::Internal)?;
-        tx.commit().await.map_err(|_| AppError::Internal)?;
-        tracing::info!(
-            account_id = %claims.account_id,
-            payment_id = %payment_id,
-            "payment intent idempotent hit"
-        );
-        return Ok((
-            StatusCode::CREATED,
-            Json(PaymentIntentResponse {
-                payment_id,
-                client_secret,
-            }),
-        ));
-    }
-
     // Génère un client_secret stub (remplacé par l'appel Stripe réel post-T2).
     let client_secret = format!(
         "pi_{}_secret_{}",
@@ -591,9 +597,20 @@ pub async fn create_payment_intent(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    tx.commit().await.map_err(|_| AppError::Internal)?;
-
     let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Stocke la réponse dans idempotency_keys pour les replays < 24h.
+    sqlx::query(
+        "INSERT INTO idempotency_keys (key, response) VALUES ($1, $2) \
+         ON CONFLICT (key) DO NOTHING",
+    )
+    .bind(&idempotency_key)
+    .bind(serde_json::json!({"payment_id": payment_id, "client_secret": &client_secret}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         account_id = %claims.account_id,
