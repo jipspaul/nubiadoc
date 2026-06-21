@@ -111,9 +111,10 @@ psql-app: ## Ouvre un psql sous nubia_app (debug RLS)
 	psql "$(APP_DATABASE_URL)"
 
 ## ---------------------------------------------------------------------------
-## smoke-perf — DB-T024 : EXPLAIN ANALYZE sur 5 requêtes critiques (issue #2320).
-##   Signale tout Seq Scan inattendu. Lancer après `make migrate` (+ seed pour
-##   des plans représentatifs). Exit 1 si au moins un Seq Scan détecté.
+## smoke-perf — DB-T024 : EXPLAIN ANALYZE sur 5 requêtes critiques (issue #2318).
+##   Signale les Seq Scan uniquement sur tables > ROW_THRESHOLD lignes (défaut 10 000).
+##   Lancer après `make migrate` (+ seed pour des plans représentatifs).
+##   Exit 1 si au moins un Seq Scan problématique détecté.
 ## ---------------------------------------------------------------------------
 smoke-perf: ## EXPLAIN ANALYZE smoke sur 5 requêtes critiques (DB-T024)
-	APP_DATABASE_URL="$(APP_DATABASE_URL)" bash explain_analyze_smoke.sh
+	APP_DATABASE_URL="$(APP_DATABASE_URL)" bash scripts/perf_smoke.sh
