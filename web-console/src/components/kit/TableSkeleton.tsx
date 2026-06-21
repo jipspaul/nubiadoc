@@ -16,7 +16,8 @@ export function TableSkeleton({ cols, rows = 5 }: Props) {
       <style>{`
         .skel-cell {
           display: block;
-          height: 0.875rem;
+          width: 100%;
+          height: 40px;
           border-radius: var(--radius-sm, 4px);
           background: linear-gradient(
             90deg,
