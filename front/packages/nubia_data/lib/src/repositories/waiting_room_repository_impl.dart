@@ -34,7 +34,8 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
-        return const Left(NotFoundFailure('Entrée salle d\'attente introuvable.'));
+        return const Left(
+            NotFoundFailure('Entrée salle d\'attente introuvable.'));
       }
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
@@ -71,7 +72,8 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
-        return const Left(NotFoundFailure('Entrée salle d\'attente introuvable.'));
+        return const Left(
+            NotFoundFailure('Entrée salle d\'attente introuvable.'));
       }
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
@@ -131,7 +133,8 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
-        return const Left(NotFoundFailure('Entrée liste d\'attente introuvable.'));
+        return const Left(
+            NotFoundFailure('Entrée liste d\'attente introuvable.'));
       }
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
@@ -168,7 +171,8 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
-        return const Left(NotFoundFailure('Entrée liste d\'attente introuvable.'));
+        return const Left(
+            NotFoundFailure('Entrée liste d\'attente introuvable.'));
       }
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
@@ -187,7 +191,8 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
       return const Right(unit);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
-        return const Left(NotFoundFailure('Entrée liste d\'attente introuvable.'));
+        return const Left(
+            NotFoundFailure('Entrée liste d\'attente introuvable.'));
       }
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());

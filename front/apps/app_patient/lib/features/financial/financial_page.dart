@@ -111,9 +111,8 @@ class _QuoteTile extends StatelessWidget {
           _formatCents(quote.patientShareCents),
           style: Theme.of(context).textTheme.titleSmall,
         ),
-        onTap: () => context
-            .read<FinancialBloc>()
-            .add(FinancialQuoteSelected(quote.id)),
+        onTap: () =>
+            context.read<FinancialBloc>().add(FinancialQuoteSelected(quote.id)),
       ),
     );
   }
@@ -194,10 +193,8 @@ class _QuoteDetailViewState extends State<_QuoteDetailView> {
                   const SizedBox(height: 8),
                   FilledButton(
                     key: const Key('btn_pay'),
-                    onPressed: () => context
-                        .read<FinancialBloc>()
-                        .add(FinancialPaymentRequested(
-                            idempotencyKey: _payKey)),
+                    onPressed: () => context.read<FinancialBloc>().add(
+                        FinancialPaymentRequested(idempotencyKey: _payKey)),
                     child: const Text('Payer l\'acompte'),
                   ),
                 ],
@@ -263,14 +260,14 @@ class _LineItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final euros = (item.patientShareCents / 100).toStringAsFixed(2).replaceAll('.', ',');
+    final euros =
+        (item.patientShareCents / 100).toStringAsFixed(2).replaceAll('.', ',');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Expanded(child: Text(item.label)),
-          Text('$euros €',
-              style: Theme.of(context).textTheme.bodySmall),
+          Text('$euros €', style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );

@@ -15,6 +15,7 @@ class AppNotification extends Equatable {
   final String body;
   final bool read;
   final DateTime createdAt;
+
   /// Optional deep-link target (e.g. `/appointments/42`).
   final String? deepLink;
 

@@ -198,9 +198,7 @@ class _HistoriqueViewState extends State<_HistoriqueView> {
 
   List<ClinicalSession> get _filtered {
     if (_selection.isEmpty) return widget.sessions;
-    return widget.sessions
-        .where((s) => _selection.contains(s.status))
-        .toList();
+    return widget.sessions.where((s) => _selection.contains(s.status)).toList();
   }
 
   @override
@@ -229,8 +227,7 @@ class _HistoriqueViewState extends State<_HistoriqueView> {
                   key: const Key('historique_list'),
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: filtered.length,
-                  itemBuilder: (_, i) =>
-                      _HistoriqueTile(session: filtered[i]),
+                  itemBuilder: (_, i) => _HistoriqueTile(session: filtered[i]),
                 ),
         ),
       ],

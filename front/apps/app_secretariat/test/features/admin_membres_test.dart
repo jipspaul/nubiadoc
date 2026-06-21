@@ -15,7 +15,8 @@ import 'package:app_secretariat/pro_config.dart';
 
 class _MockMembersRepository extends Mock implements MembersRepository {}
 
-class _MockSecretariatRepository extends Mock implements SecretariatRepository {}
+class _MockSecretariatRepository extends Mock
+    implements SecretariatRepository {}
 
 class _MockAdminMembresBloc
     extends MockBloc<AdminMembresEvent, AdminMembresState>
@@ -116,8 +117,7 @@ void main() {
     blocTest<AdminMembresBloc, AdminMembresState>(
       'émet Loading puis Loaded sur succès',
       build: () {
-        when(() => membersRepo.list())
-            .thenAnswer((_) async => Right(members));
+        when(() => membersRepo.list()).thenAnswer((_) async => Right(members));
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => Right(secretariats));
         return AdminMembresBloc(
@@ -155,8 +155,7 @@ void main() {
     blocTest<AdminMembresBloc, AdminMembresState>(
       'les membres chargés n\'exposent aucun champ clinique',
       build: () {
-        when(() => membersRepo.list())
-            .thenAnswer((_) async => Right(members));
+        when(() => membersRepo.list()).thenAnswer((_) async => Right(members));
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => Right(secretariats));
         return AdminMembresBloc(

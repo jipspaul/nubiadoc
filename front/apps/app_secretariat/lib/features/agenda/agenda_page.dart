@@ -162,8 +162,8 @@ class _LoadedViewState extends State<_LoadedView> {
               : RefreshIndicator(
                   key: const Key('agenda_refresh_indicator'),
                   onRefresh: () async => context.read<AgendaBloc>().add(
-                    AgendaLoadRequested(weekStart: _currentWeekStart()),
-                  ),
+                        AgendaLoadRequested(weekStart: _currentWeekStart()),
+                      ),
                   child: ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -182,8 +182,8 @@ class _LoadedViewState extends State<_LoadedView> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Nouveau rendez-vous'),
-        content: const Text(
-            'Sélectionnez un créneau disponible dans l\'agenda.'),
+        content:
+            const Text('Sélectionnez un créneau disponible dans l\'agenda.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

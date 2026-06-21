@@ -106,8 +106,7 @@ class _DevisTile extends StatelessWidget {
     }
   }
 
-  String _formatEuros(int cents) =>
-      '${(cents / 100).toStringAsFixed(2)} €';
+  String _formatEuros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
 
   @override
   Widget build(BuildContext context) {

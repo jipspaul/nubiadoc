@@ -326,5 +326,4 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       )
       ..registerFactory(() => StartConsultationUseCase(gi()));
   }
-
 }

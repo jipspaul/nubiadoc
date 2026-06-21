@@ -8,8 +8,8 @@ class QuoteLineItem extends Equatable {
   final String? ccamCode;
   final String? toothLabel; // e.g. "11", "46"
   final int totalCents;
-  final int amoShareCents;   // Remboursement Sécu
-  final int amcShareCents;   // Remboursement Mutuelle
+  final int amoShareCents; // Remboursement Sécu
+  final int amcShareCents; // Remboursement Mutuelle
   final int patientShareCents; // Reste à charge
 
   const QuoteLineItem({
@@ -34,7 +34,7 @@ class Quote extends Equatable {
   final List<QuoteLineItem> items;
   final int totalCents;
   final int patientShareCents; // total reste à charge
-  final int depositCents;      // acompte demandé
+  final int depositCents; // acompte demandé
   final QuoteStatus status;
   final DateTime createdAt;
   final DateTime? signedAt;

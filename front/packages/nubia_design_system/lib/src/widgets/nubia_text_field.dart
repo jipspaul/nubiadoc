@@ -140,7 +140,8 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
       suffixIcon: IconButton(
         icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
         onPressed: () => setState(() => _obscure = !_obscure),
-        tooltip: _obscure ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
+        tooltip:
+            _obscure ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
       ),
     );
   }

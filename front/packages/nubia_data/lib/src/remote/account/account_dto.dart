@@ -6,6 +6,7 @@ class HealthCoverageDto {
   final String? amc;
   final String? numeroAdherent;
   final bool tiersPayant;
+
   /// Valeur masquée retournée par le serveur (jamais le NSS complet).
   final String? nssPartial;
 
@@ -73,8 +74,9 @@ class DependentDto {
       lastName: json['last_name'] as String,
       birthDate: json['birth_date'] as String?,
       relationship: json['relationship'] as String? ?? 'autre',
-      coverage:
-          coverageJson != null ? HealthCoverageDto.fromJson(coverageJson) : null,
+      coverage: coverageJson != null
+          ? HealthCoverageDto.fromJson(coverageJson)
+          : null,
     );
   }
 
@@ -159,6 +161,7 @@ class AccountDto {
         lastName: lastName,
         email: email,
         phone: phone,
-        dateOfBirth: dateOfBirth != null ? DateTime.tryParse(dateOfBirth!) : null,
+        dateOfBirth:
+            dateOfBirth != null ? DateTime.tryParse(dateOfBirth!) : null,
       );
 }

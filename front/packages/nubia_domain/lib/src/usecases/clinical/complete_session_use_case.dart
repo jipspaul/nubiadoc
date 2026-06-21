@@ -8,7 +8,6 @@ class CompleteSessionUseCase {
 
   const CompleteSessionUseCase(this._repository);
 
-  Future<Either<Failure, SessionCompleteResult>> call(
-          String consultationId) =>
+  Future<Either<Failure, SessionCompleteResult>> call(String consultationId) =>
       _repository.completeSession(consultationId);
 }

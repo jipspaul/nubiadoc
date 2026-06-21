@@ -12,8 +12,7 @@ final class CabinetMessagingInitial extends CabinetMessagingState {
   const CabinetMessagingInitial();
 }
 
-final class CabinetMessagingConversationsLoading
-    extends CabinetMessagingState {
+final class CabinetMessagingConversationsLoading extends CabinetMessagingState {
   const CabinetMessagingConversationsLoading();
 }
 

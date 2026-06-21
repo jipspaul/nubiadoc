@@ -206,8 +206,7 @@ void main() {
       act: (bloc) => bloc.add(const FinancialLoadRequested()),
       expect: () => [
         const FinancialLoading(),
-        isA<FinancialLoaded>()
-            .having((s) => s.quotes, 'quotes', isEmpty),
+        isA<FinancialLoaded>().having((s) => s.quotes, 'quotes', isEmpty),
       ],
     );
 
@@ -287,9 +286,8 @@ void main() {
       seed: () => FinancialQuoteDetail(quote: _quote, quotes: [_quote]),
       act: (bloc) => bloc.add(const FinancialSignatureRequested()),
       expect: () => [
-        isA<FinancialSignatureInProgress>()
-            .having((s) => s.signatureUrl, 'signatureUrl',
-                'https://sign.yousign.com'),
+        isA<FinancialSignatureInProgress>().having(
+            (s) => s.signatureUrl, 'signatureUrl', 'https://sign.yousign.com'),
       ],
     );
 

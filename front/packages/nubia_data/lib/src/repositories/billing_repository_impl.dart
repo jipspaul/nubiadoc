@@ -36,7 +36,8 @@ class BillingRepositoryImpl implements BillingRepository {
       final dto = await _api.initiateSignature(quoteId);
       return Right(dto.redirectUrl);
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors de l\'initiation de la signature.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors de l\'initiation de la signature.'));
     }
   }
 
@@ -46,7 +47,8 @@ class BillingRepositoryImpl implements BillingRepository {
       final dto = await _api.confirmSignature(quoteId);
       return Right(dto.toDomain());
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors de la confirmation de la signature.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors de la confirmation de la signature.'));
     }
   }
 

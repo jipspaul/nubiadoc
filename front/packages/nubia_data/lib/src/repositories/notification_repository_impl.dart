@@ -20,7 +20,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return Right(notifications);
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors du chargement des notifications.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors du chargement des notifications.'));
     }
   }
 
@@ -40,7 +41,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       await _api.markAllRead();
       return const Right(null);
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors du marquage de toutes les notifications.'));
+      return Left(_mapDioError(
+          e, 'Erreur lors du marquage de toutes les notifications.'));
     }
   }
 
@@ -53,7 +55,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       await _api.registerDevice(fcmToken: fcmToken, platform: platform);
       return const Right(null);
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors de l\'enregistrement du device.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors de l\'enregistrement du device.'));
     }
   }
 
@@ -63,7 +66,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       await _api.unregisterDevice(token);
       return const Right(null);
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors du désenregistrement du device.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors du désenregistrement du device.'));
     }
   }
 
@@ -73,7 +77,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       final dto = await _api.getPreferences();
       return Right(dto.toDomain());
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors du chargement des préférences.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors du chargement des préférences.'));
     }
   }
 
@@ -87,7 +92,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       );
       return const Right(null);
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors de la mise à jour des préférences.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors de la mise à jour des préférences.'));
     }
   }
 

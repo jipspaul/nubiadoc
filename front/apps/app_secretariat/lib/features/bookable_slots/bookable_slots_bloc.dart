@@ -4,8 +4,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'bookable_slots_event.dart';
 import 'bookable_slots_state.dart';
 
-class BookableSlotsBloc
-    extends Bloc<BookableSlotsEvent, BookableSlotsState> {
+class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
   final ListBookableSlotsUseCase _listSlots;
 
   BookableSlotsBloc({required ListBookableSlotsUseCase listSlots})

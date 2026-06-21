@@ -38,8 +38,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
       final dto = await _api.getSignedUrl(documentId);
       return Right(dto.url);
     } on DioException catch (e) {
-      return Left(
-          _mapDioError(e, 'Erreur lors de la récupération du lien de téléchargement.'));
+      return Left(_mapDioError(
+          e, 'Erreur lors de la récupération du lien de téléchargement.'));
     }
   }
 

@@ -15,8 +15,7 @@ class NubiaDatabase extends GeneratedDatabase {
         logStatements: false,
       ));
 
-  factory NubiaDatabase.inMemory() =>
-      NubiaDatabase(NativeDatabase.memory());
+  factory NubiaDatabase.inMemory() => NubiaDatabase(NativeDatabase.memory());
 
   @override
   Iterable<TableInfo<Table, dynamic>> get allTables => const [];

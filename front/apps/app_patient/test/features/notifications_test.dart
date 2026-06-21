@@ -109,7 +109,8 @@ void main() {
       await tester.tap(find.byKey(const Key('notif_1')));
       await tester.pump();
 
-      verify(() => bloc.add(const NotificationMarkReadRequested('1'))).called(1);
+      verify(() => bloc.add(const NotificationMarkReadRequested('1')))
+          .called(1);
     });
   });
 }

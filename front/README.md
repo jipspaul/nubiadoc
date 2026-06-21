@@ -5,14 +5,14 @@ sharing one design system, hexagonal architecture, BLoC, Dio, and an **A2UI**
 ([a2ui.org](https://a2ui.org)) catalog + renderer.
 
 It's a native **Dart pub workspace** (single lockfile, one `flutter pub get` at the root).
-`melos.yaml` adds convenience scripts.
+Melos 7 convenience scripts live in the root `pubspec.yaml` under the `melos:` key (there is
+no separate `melos.yaml`).
 
 ## Layout
 
 ```
 front/
-├── pubspec.yaml                 # pub workspace root
-├── melos.yaml                   # scripts (analyze/test/format)
+├── pubspec.yaml                 # pub workspace root + Melos scripts (melos: key)
 ├── packages/
 │   ├── nubia_domain             # pure Dart: entities, value objects, repo ports, use cases, Failure
 │   ├── nubia_design_system      # theme + tokens + Nubia* widgets + A2UI prop mappers (DsProps)
@@ -73,7 +73,18 @@ cd apps/app_practicien && flutter run -d macos
 ```bash
 dart analyze .                          # whole workspace (currently: no issues)
 cd packages/nubia_a2ui && flutter test  # catalog↔registry parity + binding
+
+# Melos scripts (repo-pinned Melos 7 — no global install needed):
+dart run melos analyze                  # dart analyze . across the workspace
+dart run melos test                     # flutter test in every member with a test/ dir
+dart run melos format                   # dart format .
+dart run melos generate                 # build_runner in members that depend on it (nubia_data)
+dart run melos clean                    # flutter clean across all members
+dart run melos upgrade                  # upgrade deps (single shared lockfile)
 ```
+
+The workspace is kept **`dart format`-clean** (default 80-col). Run `dart run melos format`
+before committing so diffs stay free of unrelated reformatting.
 
 ## Historique
 

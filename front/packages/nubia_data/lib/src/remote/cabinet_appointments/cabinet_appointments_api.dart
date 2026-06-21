@@ -14,8 +14,7 @@ class CabinetAppointmentsApi {
       queryParameters: {'page': page},
     );
     return (response.data!)
-        .map(
-            (e) => CabinetAppointmentDto.fromJson(e as Map<String, dynamic>))
+        .map((e) => CabinetAppointmentDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 

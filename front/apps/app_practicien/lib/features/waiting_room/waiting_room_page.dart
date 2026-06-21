@@ -72,7 +72,8 @@ class _LoadedView extends StatelessWidget {
     return Column(
       children: [
         if (state.actionInProgress)
-          const LinearProgressIndicator(key: Key('waiting_room_action_progress')),
+          const LinearProgressIndicator(
+              key: Key('waiting_room_action_progress')),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Row(

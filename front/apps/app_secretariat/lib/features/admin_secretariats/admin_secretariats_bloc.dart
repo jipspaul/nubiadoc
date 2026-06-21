@@ -23,7 +23,8 @@ class AdminSecretiariatsBloc
     final result = await _listSecretariats();
     result.fold(
       (failure) => emit(AdminSecretiariatsError(failure.message)),
-      (secretariats) => emit(AdminSecretiariatsLoaded(secretariats: secretariats)),
+      (secretariats) =>
+          emit(AdminSecretiariatsLoaded(secretariats: secretariats)),
     );
   }
 }

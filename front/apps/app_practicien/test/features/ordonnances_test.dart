@@ -22,8 +22,7 @@ class MockCreatePrescriptionUseCase extends Mock
 class MockSignPrescriptionUseCase extends Mock
     implements SignPrescriptionUseCase {}
 
-class MockOrdonnancesBloc
-    extends MockBloc<OrdonnancesEvent, OrdonnancesState>
+class MockOrdonnancesBloc extends MockBloc<OrdonnancesEvent, OrdonnancesState>
     implements OrdonnancesBloc {}
 
 // ---------------------------------------------------------------------------
@@ -384,8 +383,7 @@ void main() {
       expect(ordonnancesDest.requiresClinical, isTrue);
     });
 
-    test(
-        'aucune destination sans requiresClinical n\'est sur /ordonnances',
+    test('aucune destination sans requiresClinical n\'est sur /ordonnances',
         () {
       final nonClinical = ProConfig.shellConfig.destinations
           .where((d) => !d.requiresClinical)

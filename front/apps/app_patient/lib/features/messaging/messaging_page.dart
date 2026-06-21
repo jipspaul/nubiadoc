@@ -27,7 +27,8 @@ class _MessagingBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<MessagingBloc, MessagingState>(
       builder: (context, state) {
-        if (state is MessagingInitial || state is MessagingConversationsLoading) {
+        if (state is MessagingInitial ||
+            state is MessagingConversationsLoading) {
           return const Center(
             key: Key('messaging_loading'),
             child: CircularProgressIndicator(),
@@ -137,9 +138,8 @@ class _ConversationsList extends StatelessWidget {
           trailing: conv.unreadCount > 0
               ? Badge(label: Text('${conv.unreadCount}'))
               : null,
-          onTap: () => context
-              .read<MessagingBloc>()
-              .add(MessagingThreadOpened(conv)),
+          onTap: () =>
+              context.read<MessagingBloc>().add(MessagingThreadOpened(conv)),
         );
       },
     );
@@ -289,9 +289,7 @@ class _MessageBubble extends StatelessWidget {
         child: Text(
           message.text ?? '',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isPatient
-                    ? cs.onPrimaryContainer
-                    : cs.onSurfaceVariant,
+                color: isPatient ? cs.onPrimaryContainer : cs.onSurfaceVariant,
               ),
         ),
       ),

@@ -48,10 +48,8 @@ class NubiaChip extends StatelessWidget {
 
     final Color background =
         selected ? NubiaColors.brand50 : Colors.transparent;
-    Color borderColor =
-        selected ? NubiaColors.brand200 : tokens.borderDefault;
-    Color foreground =
-        selected ? NubiaColors.brand800 : scheme.onSurface;
+    Color borderColor = selected ? NubiaColors.brand200 : tokens.borderDefault;
+    Color foreground = selected ? NubiaColors.brand800 : scheme.onSurface;
     if (!enabled) {
       foreground = tokens.textTertiary;
       if (!selected) borderColor = tokens.borderSubtle;

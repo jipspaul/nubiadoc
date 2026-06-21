@@ -119,11 +119,14 @@ class _SizeTokens {
   static _SizeTokens of(NubiaButtonSize size) {
     switch (size) {
       case NubiaButtonSize.sm:
-        return const _SizeTokens(height: 32, fontSize: 12, horizontalPadding: 12);
+        return const _SizeTokens(
+            height: 32, fontSize: 12, horizontalPadding: 12);
       case NubiaButtonSize.md:
-        return const _SizeTokens(height: 44, fontSize: 14, horizontalPadding: 16);
+        return const _SizeTokens(
+            height: 44, fontSize: 14, horizontalPadding: 16);
       case NubiaButtonSize.lg:
-        return const _SizeTokens(height: 52, fontSize: 16, horizontalPadding: 20);
+        return const _SizeTokens(
+            height: 52, fontSize: 16, horizontalPadding: 20);
     }
   }
 }
@@ -163,11 +166,14 @@ class _ButtonContent extends StatelessWidget {
         children: [
           Icon(icon, size: fontSize + 2),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w500)),
+          Text(label,
+              style:
+                  TextStyle(fontSize: fontSize, fontWeight: FontWeight.w500)),
         ],
       );
     }
-    return Text(label, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w500));
+    return Text(label,
+        style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w500));
   }
 }
 

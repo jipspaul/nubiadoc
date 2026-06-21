@@ -30,7 +30,8 @@ class A2uiRenderer extends StatefulWidget {
   final Map<String, String>? headers;
 
   /// Optional local action handler (return true if handled).
-  final bool Function(String surfaceId, String action, Map<String, dynamic> args)?
+  final bool Function(
+          String surfaceId, String action, Map<String, dynamic> args)?
       onLocalAction;
 
   @override
@@ -75,8 +76,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
         case DeleteSurface(:final surfaceId):
           _surfaces.remove(surfaceId);
           if (_activeSurfaceId == surfaceId) {
-            _activeSurfaceId =
-                _surfaces.isEmpty ? null : _surfaces.keys.last;
+            _activeSurfaceId = _surfaces.isEmpty ? null : _surfaces.keys.last;
           }
       }
     });

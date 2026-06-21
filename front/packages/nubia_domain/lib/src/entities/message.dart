@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 enum MessageSender { patient, cabinet }
+
 enum MessageUrgency { normal, urgent }
 
 class Conversation extends Equatable {

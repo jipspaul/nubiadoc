@@ -74,8 +74,7 @@ class _SlotTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final start = TimeOfDay.fromDateTime(slot.startsAt);
     final end = TimeOfDay.fromDateTime(slot.endsAt);
-    final dateLabel =
-        '${slot.startsAt.day.toString().padLeft(2, '0')}/'
+    final dateLabel = '${slot.startsAt.day.toString().padLeft(2, '0')}/'
         '${slot.startsAt.month.toString().padLeft(2, '0')}/'
         '${slot.startsAt.year}';
     final timeLabel = '${start.format(context)} – ${end.format(context)}';

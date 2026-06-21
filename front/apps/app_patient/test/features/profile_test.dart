@@ -58,8 +58,7 @@ void main() {
   });
 
   group('ProfilePage', () {
-    testWidgets('affiche le skeleton loader en état initial',
-        (tester) async {
+    testWidgets('affiche le skeleton loader en état initial', (tester) async {
       final bloc = _makeBloc(mockGetAccount);
 
       await tester.pumpWidget(_wrap(bloc));
@@ -69,7 +68,8 @@ void main() {
 
     testWidgets('affiche les informations du compte en état loaded',
         (tester) async {
-      when(() => mockGetAccount()).thenAnswer((_) async => const Right(_account));
+      when(() => mockGetAccount())
+          .thenAnswer((_) async => const Right(_account));
 
       final bloc = _makeBloc(mockGetAccount);
       bloc.add(const ProfileLoadRequested());
@@ -125,7 +125,8 @@ void main() {
       act: (bloc) => bloc.add(const ProfileLoadRequested()),
       expect: () => [
         const ProfileLoading(),
-        isA<ProfileError>().having((s) => s.message, 'message', 'Erreur réseau.'),
+        isA<ProfileError>()
+            .having((s) => s.message, 'message', 'Erreur réseau.'),
       ],
     );
   });

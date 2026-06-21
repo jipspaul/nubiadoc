@@ -180,8 +180,7 @@ class _CreatedViewState extends State<_CreatedView> {
             key: const Key('ordonnances_items_list'),
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: filtered.length,
-            itemBuilder: (context, i) =>
-                _ItemTile(item: filtered[i], index: i),
+            itemBuilder: (context, i) => _ItemTile(item: filtered[i], index: i),
           ),
         ),
       ],

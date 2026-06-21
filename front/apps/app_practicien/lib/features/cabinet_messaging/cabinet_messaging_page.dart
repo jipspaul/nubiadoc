@@ -191,8 +191,7 @@ class _ThreadViewState extends State<_ThreadView> {
           child: state.messages.isEmpty
               ? const Center(
                   key: Key('cabinet_messaging_thread_empty'),
-                  child:
-                      Text('Aucun message dans cette conversation.'),
+                  child: Text('Aucun message dans cette conversation.'),
                 )
               : ListView.builder(
                   key: const Key('cabinet_messaging_thread_messages'),

@@ -8,6 +8,5 @@ class CallNextUseCase {
 
   const CallNextUseCase(this._repository);
 
-  Future<Either<Failure, WaitingRoomEntry>> call() =>
-      _repository.callNext();
+  Future<Either<Failure, WaitingRoomEntry>> call() => _repository.callNext();
 }

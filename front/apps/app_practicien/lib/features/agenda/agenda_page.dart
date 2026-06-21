@@ -155,8 +155,8 @@ class _LoadedViewState extends State<_LoadedView> {
   List<AgendaEntry> get _filtered {
     final r = _range;
     if (r == null) return widget.state.entries;
-    final dayAfterEnd =
-        DateTime(r.end.year, r.end.month, r.end.day).add(const Duration(days: 1));
+    final dayAfterEnd = DateTime(r.end.year, r.end.month, r.end.day)
+        .add(const Duration(days: 1));
     return widget.state.entries
         .where((e) =>
             !e.startsAt.isBefore(r.start) && e.startsAt.isBefore(dayAfterEnd))
@@ -290,8 +290,18 @@ class _DateFilterBar extends StatelessWidget {
   String _rangeLabel() {
     final r = range!;
     const months = [
-      'jan.', 'fév.', 'mar.', 'avr.', 'mai', 'juin',
-      'juil.', 'août', 'sep.', 'oct.', 'nov.', 'déc.',
+      'jan.',
+      'fév.',
+      'mar.',
+      'avr.',
+      'mai',
+      'juin',
+      'juil.',
+      'août',
+      'sep.',
+      'oct.',
+      'nov.',
+      'déc.',
     ];
     final sm = months[r.start.month - 1];
     final em = months[r.end.month - 1];
@@ -458,8 +468,7 @@ class _EntryCard extends StatelessWidget {
               children: [
                 const Icon(Icons.access_time, size: 14),
                 const SizedBox(width: 4),
-                Text(timeLabel,
-                    style: Theme.of(context).textTheme.bodySmall),
+                Text(timeLabel, style: Theme.of(context).textTheme.bodySmall),
                 if (!entry.isFree) ...[
                   const SizedBox(width: 8),
                   Chip(

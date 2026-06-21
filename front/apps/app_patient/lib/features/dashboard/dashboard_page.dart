@@ -116,7 +116,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                 ),
             },
-            bottomNavigationBar: BlocSelector<MessagingBloc, MessagingState, int>(
+            bottomNavigationBar:
+                BlocSelector<MessagingBloc, MessagingState, int>(
               selector: (s) => s is MessagingConversationsLoaded
                   ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
                   : 0,

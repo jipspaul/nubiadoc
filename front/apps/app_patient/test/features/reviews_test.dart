@@ -143,7 +143,8 @@ void main() {
       expect(find.text('Alice Martin'), findsOneWidget);
     });
 
-    testWidgets('pull-to-refresh dispatch ReviewsLoadRequested', (tester) async {
+    testWidgets('pull-to-refresh dispatch ReviewsLoadRequested',
+        (tester) async {
       when(() => mockGetReviews(any()))
           .thenAnswer((_) async => Right([_review]));
 
@@ -339,8 +340,7 @@ void main() {
         return _makeNotificationsBloc(repository: mockNotifRepo);
       },
       seed: () => NotificationsLoaded([_notification]),
-      act: (bloc) =>
-          bloc.add(const NotificationMarkReadRequested('notif-1')),
+      act: (bloc) => bloc.add(const NotificationMarkReadRequested('notif-1')),
       expect: () => [
         isA<NotificationsLoaded>().having(
           (s) => s.notifications.first.read,

@@ -215,13 +215,11 @@ class _InitialView extends StatelessWidget {
           children: [
             TextField(
               controller: patientCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Nom du patient'),
+              decoration: const InputDecoration(labelText: 'Nom du patient'),
             ),
             TextField(
               controller: practCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Praticien'),
+              decoration: const InputDecoration(labelText: 'Praticien'),
             ),
           ],
         ),
@@ -275,8 +273,7 @@ class _InitialView extends StatelessWidget {
             onPressed: () {
               Navigator.of(ctx).pop();
               context.read<AppointmentsBloc>().add(
-                    AppointmentConfirmRequested(
-                        appointmentId: idCtrl.text),
+                    AppointmentConfirmRequested(appointmentId: idCtrl.text),
                   );
             },
             child: const Text('Confirmer'),
@@ -307,8 +304,7 @@ class _InitialView extends StatelessWidget {
               context.read<AppointmentsBloc>().add(
                     AppointmentRescheduleRequested(
                       appointmentId: idCtrl.text,
-                      newStartsAt:
-                          DateTime.now().add(const Duration(days: 7)),
+                      newStartsAt: DateTime.now().add(const Duration(days: 7)),
                     ),
                   );
             },
@@ -382,8 +378,7 @@ class _SuccessView extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime dt) =>
-      '${dt.day.toString().padLeft(2, '0')}/'
+  String _formatDate(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/'
       '${dt.month.toString().padLeft(2, '0')}/'
       '${dt.year} '
       '${dt.hour.toString().padLeft(2, '0')}:'

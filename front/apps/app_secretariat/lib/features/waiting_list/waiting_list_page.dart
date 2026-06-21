@@ -46,7 +46,9 @@ class _WaitingListPageState extends State<WaitingListPage> {
         },
         builder: (context, state) {
           if (state is WaitingListLoaded || state is WaitingListOfferSuccess) {
-            final entries = state is WaitingListLoaded ? state.entries : <WaitingListEntry>[];
+            final entries = state is WaitingListLoaded
+                ? state.entries
+                : <WaitingListEntry>[];
             if (entries.isEmpty) {
               return const NubiaEmptyState(
                 icon: Icons.event_busy,

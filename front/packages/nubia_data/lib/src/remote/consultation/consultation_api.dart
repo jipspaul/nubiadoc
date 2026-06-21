@@ -14,8 +14,7 @@ class ConsultationApi {
       queryParameters: {'page': page},
     );
     return (response.data!)
-        .map((e) =>
-            ConsultationContextDto.fromJson(e as Map<String, dynamic>))
+        .map((e) => ConsultationContextDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 

@@ -23,9 +23,7 @@ class Binding {
   static Object? _resolveValue(Object? value, DataModel model, String? scope) {
     if (value is Map && value.containsKey('path')) {
       final raw = value['path'].toString();
-      final path = raw.startsWith('/')
-          ? raw
-          : '${scope ?? ''}/$raw';
+      final path = raw.startsWith('/') ? raw : '${scope ?? ''}/$raw';
       return model.get(path);
     }
     return value;

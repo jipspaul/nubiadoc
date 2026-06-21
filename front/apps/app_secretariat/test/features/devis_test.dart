@@ -139,8 +139,7 @@ void main() {
     blocTest<DevisBloc, DevisState>(
       'DevisDetailLoadRequested émet Loading puis DevisDetailLoaded sur succès',
       build: () {
-        when(() => repo.getById('q1'))
-            .thenAnswer((_) async => Right(quote));
+        when(() => repo.getById('q1')).thenAnswer((_) async => Right(quote));
         return buildBloc();
       },
       act: (bloc) => bloc.add(const DevisDetailLoadRequested('q1')),

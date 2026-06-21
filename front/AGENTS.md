@@ -220,11 +220,16 @@ Les tests d'intégration ne sont **pas** exécutés par `melos test` (pas de run
 
 ```bash
 # depuis front/
+dart run melos format           # dart format . — le workspace est gardé propre
 dart run melos analyze          # analyse statique workspace complet
 dart run melos test             # flutter test sur tous les packages avec test/
 ```
 
-La CI Forgejo (`front-test`) exécute exactement ces deux commandes. Rouge localement = rouge CI.
+La CI Forgejo (`front-test`) exécute exactement `analyze` + `test`. Rouge localement = rouge CI.
+
+**Formatage** : le workspace est maintenu `dart format`-propre. Lance `dart run melos format`
+avant de committer (largeur de ligne par défaut 80). Un diff bruité par du reformatage non lié
+signale que la convention n'a pas été suivie sur le commit précédent.
 
 ## Commandes utiles
 

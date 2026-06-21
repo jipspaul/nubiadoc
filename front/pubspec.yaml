@@ -4,6 +4,15 @@ publish_to: none
 
 environment:
   sdk: ^3.6.0
+  flutter: ">=3.10.0"
+
+# The workspace contains Flutter packages, so the root must itself be a Flutter package —
+# otherwise IDE tooling runs plain `dart pub get` at the root and fails to resolve the Flutter
+# SDK that members (nubia_core, nubia_design_system, …) require. This `flutter` dep makes the
+# resolver use `flutter pub get`; the root ships no app code of its own.
+dependencies:
+  flutter:
+    sdk: flutter
 
 # Native Dart pub workspace: one lockfile, one .dart_tool for all members.
 workspace:
@@ -36,3 +45,13 @@ melos:
     format:
       run: dart format .
       description: Format all Dart code in the workspace.
+    generate:
+      exec: dart run build_runner build --delete-conflicting-outputs
+      packageFilters: { dependsOn: ["build_runner"] }
+      description: Run build_runner in every member that depends on it (nubia_data, …).
+    clean:
+      exec: flutter clean
+      description: flutter clean across all members.
+    upgrade:
+      run: dart pub upgrade
+      description: Upgrade dependencies for the whole workspace (single shared lockfile).

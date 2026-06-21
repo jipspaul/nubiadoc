@@ -71,10 +71,12 @@ class DsProps {
 
   // --- prop helpers ---------------------------------------------------------
 
-  static String str(Map<String, dynamic> p, String key, [String fallback = '']) =>
+  static String str(Map<String, dynamic> p, String key,
+          [String fallback = '']) =>
       p[key]?.toString() ?? fallback;
 
-  static bool boolean(Map<String, dynamic> p, String key, [bool fallback = false]) {
+  static bool boolean(Map<String, dynamic> p, String key,
+      [bool fallback = false]) {
     final v = p[key];
     if (v is bool) return v;
     if (v is String) return v == 'true';
@@ -93,7 +95,8 @@ class DsProps {
   static Widget button(Map<String, dynamic> p, {VoidCallback? onPressed}) {
     return NubiaButton(
       label: str(p, 'label'),
-      variant: buttonVariants[str(p, 'variant', 'primary')] ?? NubiaButtonVariant.primary,
+      variant: buttonVariants[str(p, 'variant', 'primary')] ??
+          NubiaButtonVariant.primary,
       size: buttonSizes[str(p, 'size', 'md')] ?? NubiaButtonSize.md,
       isLoading: boolean(p, 'isLoading'),
       onPressed: onPressed,
@@ -109,9 +112,11 @@ class DsProps {
     );
   }
 
-  static Widget textField(Map<String, dynamic> p, {ValueChanged<String>? onChanged}) {
+  static Widget textField(Map<String, dynamic> p,
+      {ValueChanged<String>? onChanged}) {
     return NubiaTextField(
-      variant: textFieldVariants[str(p, 'variant', 'outlined')] ?? NubiaTextFieldVariant.outlined,
+      variant: textFieldVariants[str(p, 'variant', 'outlined')] ??
+          NubiaTextFieldVariant.outlined,
       label: p['label'] as String?,
       hint: p['hint'] as String?,
       errorText: p['errorText'] as String?,
@@ -123,14 +128,16 @@ class DsProps {
   static Widget chip(Map<String, dynamic> p, {VoidCallback? onTap}) {
     return NubiaChip(
       label: str(p, 'label'),
-      variant: chipVariants[str(p, 'variant', 'filter')] ?? NubiaChipVariant.filter,
+      variant:
+          chipVariants[str(p, 'variant', 'filter')] ?? NubiaChipVariant.filter,
       selected: boolean(p, 'selected'),
       onTap: onTap,
     );
   }
 
   static Widget badge(Map<String, dynamic> p) {
-    final variant = badgeVariants[str(p, 'variant', 'neutral')] ?? NubiaBadgeVariant.neutral;
+    final variant = badgeVariants[str(p, 'variant', 'neutral')] ??
+        NubiaBadgeVariant.neutral;
     final count = p['count'];
     if (count is num) {
       return NubiaBadge.count(count: count.toInt(), variant: variant);
@@ -149,11 +156,13 @@ class DsProps {
   static Widget statusPill(Map<String, dynamic> p) {
     return StatusPill(
       label: str(p, 'label'),
-      variant: statusVariants[str(p, 'status', 'info')] ?? StatusPillVariant.info,
+      variant:
+          statusVariants[str(p, 'status', 'info')] ?? StatusPillVariant.info,
     );
   }
 
-  static Widget checkbox(Map<String, dynamic> p, {ValueChanged<bool>? onChanged}) {
+  static Widget checkbox(Map<String, dynamic> p,
+      {ValueChanged<bool>? onChanged}) {
     return NubiaCheckbox(
       value: boolean(p, 'value'),
       label: p['label'] as String?,
@@ -161,7 +170,8 @@ class DsProps {
     );
   }
 
-  static Widget slider(Map<String, dynamic> p, {ValueChanged<double>? onChanged}) {
+  static Widget slider(Map<String, dynamic> p,
+      {ValueChanged<double>? onChanged}) {
     return NubiaSlider(
       value: number(p, 'value', 0),
       min: number(p, 'min', 0),
@@ -170,8 +180,10 @@ class DsProps {
     );
   }
 
-  static Widget choicePicker(Map<String, dynamic> p, {ValueChanged<String>? onChanged}) {
-    final options = (p['options'] as List?)?.map((e) => e.toString()).toList() ?? const [];
+  static Widget choicePicker(Map<String, dynamic> p,
+      {ValueChanged<String>? onChanged}) {
+    final options =
+        (p['options'] as List?)?.map((e) => e.toString()).toList() ?? const [];
     return NubiaChoicePicker(
       options: options,
       value: p['value'] as String?,

@@ -166,8 +166,8 @@ void main() {
           reschedule: RescheduleAppointmentUseCase(repo),
         );
       },
-      act: (bloc) => bloc
-          .add(const AppointmentConfirmRequested(appointmentId: 'rdv-1')),
+      act: (bloc) =>
+          bloc.add(const AppointmentConfirmRequested(appointmentId: 'rdv-1')),
       expect: () => [
         const AppointmentsLoading(),
         AppointmentSuccess(_appointment()),
@@ -178,8 +178,7 @@ void main() {
       'émet Loading puis AppointmentsError sur confirm échoué',
       build: () {
         when(() => repo.confirm(any())).thenAnswer(
-          (_) async =>
-              const Left(NotFoundFailure('Rendez-vous introuvable.')),
+          (_) async => const Left(NotFoundFailure('Rendez-vous introuvable.')),
         );
         return AppointmentsBloc(
           listAppointments: ListCabinetAppointmentsUseCase(repo),
@@ -188,8 +187,8 @@ void main() {
           reschedule: RescheduleAppointmentUseCase(repo),
         );
       },
-      act: (bloc) => bloc
-          .add(const AppointmentConfirmRequested(appointmentId: 'rdv-x')),
+      act: (bloc) =>
+          bloc.add(const AppointmentConfirmRequested(appointmentId: 'rdv-x')),
       expect: () => [
         const AppointmentsLoading(),
         const AppointmentsError('Rendez-vous introuvable.'),

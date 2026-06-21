@@ -8,7 +8,8 @@ class SchedulingApi {
   SchedulingApi(ApiClient client) : _dio = client.dio;
 
   Future<List<AppointmentDto>> getUpcoming() async {
-    final response = await _dio.get<List<dynamic>>('/appointments', queryParameters: {'filter': 'upcoming'});
+    final response = await _dio.get<List<dynamic>>('/appointments',
+        queryParameters: {'filter': 'upcoming'});
     return (response.data!)
         .map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -25,8 +26,7 @@ class SchedulingApi {
   }
 
   Future<AppointmentDto> getById(String id) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/appointments/$id');
+    final response = await _dio.get<Map<String, dynamic>>('/appointments/$id');
     return AppointmentDto.fromJson(response.data!);
   }
 

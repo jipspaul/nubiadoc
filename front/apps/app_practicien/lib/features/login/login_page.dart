@@ -39,19 +39,22 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Nubia', style: Theme.of(context).textTheme.headlineMedium),
+                    Text('Nubia',
+                        style: Theme.of(context).textTheme.headlineMedium),
                     const SizedBox(height: 4),
                     Text(ProConfig.spaceLabel,
                         style: Theme.of(context).textTheme.bodyMedium),
                     const SizedBox(height: 24),
-                    NubiaTextField(controller: _email, label: 'E-mail professionnel'),
+                    NubiaTextField(
+                        controller: _email, label: 'E-mail professionnel'),
                     const SizedBox(height: 12),
                     NubiaTextField(
                       controller: _password,
                       label: 'Mot de passe',
                       variant: NubiaTextFieldVariant.password,
                     ),
-                    if (state is AuthUnauthenticated && state.message != null) ...[
+                    if (state is AuthUnauthenticated &&
+                        state.message != null) ...[
                       const SizedBox(height: 12),
                       Text(state.message!,
                           style: TextStyle(

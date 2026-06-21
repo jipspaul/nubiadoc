@@ -53,9 +53,8 @@ class _PatientsBodyState extends State<_PatientsBody> {
           return NubiaErrorWidget(
             key: const Key('patients_error'),
             message: state.message,
-            onRetry: () => context
-                .read<PatientsBloc>()
-                .add(const PatientsLoadRequested()),
+            onRetry: () =>
+                context.read<PatientsBloc>().add(const PatientsLoadRequested()),
           );
         }
         if (state is PatientsLoaded) {
@@ -137,8 +136,7 @@ class _PatientDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<PatientsBloc, PatientsState>(
-      listenWhen: (_, s) =>
-          s is PatientDetailLoaded && s.notesError != null,
+      listenWhen: (_, s) => s is PatientDetailLoaded && s.notesError != null,
       listener: (context, state) {
         if (state is PatientDetailLoaded && state.notesError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -292,4 +290,3 @@ class _DetailViewState extends State<_DetailView> {
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
-

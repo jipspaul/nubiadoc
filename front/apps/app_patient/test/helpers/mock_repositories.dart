@@ -17,7 +17,8 @@ class MockDocumentRepository extends Mock implements DocumentRepository {}
 
 class MockMessageRepository extends Mock implements MessageRepository {}
 
-class MockNotificationRepository extends Mock implements NotificationRepository {}
+class MockNotificationRepository extends Mock
+    implements NotificationRepository {}
 
 class MockReviewRepository extends Mock implements ReviewRepository {}
 

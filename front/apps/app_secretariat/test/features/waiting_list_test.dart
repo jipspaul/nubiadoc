@@ -16,8 +16,7 @@ import 'package:app_secretariat/pro_config.dart';
 class _MockWaitingListRepository extends Mock
     implements WaitingListRepository {}
 
-class _MockWaitingListBloc
-    extends MockBloc<WaitingListEvent, WaitingListState>
+class _MockWaitingListBloc extends MockBloc<WaitingListEvent, WaitingListState>
     implements WaitingListBloc {}
 
 void main() {
@@ -142,8 +141,7 @@ void main() {
           offerSlot: offerSlotUseCase,
         );
       },
-      act: (bloc) =>
-          bloc.add(const WaitingListOfferSlotRequested('w1')),
+      act: (bloc) => bloc.add(const WaitingListOfferSlotRequested('w1')),
       expect: () => [
         const WaitingListOfferSuccess(),
         const WaitingListLoading(),

@@ -55,9 +55,8 @@ class IoSseHttpClient implements SseHttpClient {
       request.headers.set(HttpHeaders.acceptHeader, 'text/event-stream');
       request.headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
       final response = await request.close();
-      await for (final line in response
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+      await for (final line
+          in response.transform(utf8.decoder).transform(const LineSplitter())) {
         yield line;
       }
     } finally {

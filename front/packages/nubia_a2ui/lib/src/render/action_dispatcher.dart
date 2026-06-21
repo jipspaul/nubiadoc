@@ -13,8 +13,8 @@ class A2uiActionDispatcher {
   final A2uiTransport? _transport;
 
   /// Optional local handler; return true if the action was handled locally.
-  final bool Function(String surfaceId, String action, Map<String, dynamic> args)?
-      onLocal;
+  final bool Function(
+      String surfaceId, String action, Map<String, dynamic> args)? onLocal;
 
   void dispatch(String surfaceId, Object ref, Map<String, dynamic> args) {
     final (name, inlineArgs) = _parse(ref);

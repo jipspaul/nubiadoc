@@ -5,7 +5,8 @@ import 'package:equatable/equatable.dart';
 class AmountCents extends Equatable {
   final int value;
 
-  const AmountCents(this.value) : assert(value >= 0, 'AmountCents must be >= 0');
+  const AmountCents(this.value)
+      : assert(value >= 0, 'AmountCents must be >= 0');
 
   @override
   List<Object?> get props => [value];

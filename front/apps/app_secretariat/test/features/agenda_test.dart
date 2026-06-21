@@ -100,8 +100,8 @@ class _AgendaBodyDirect extends StatelessWidget {
           return RefreshIndicator(
             key: const Key('agenda_refresh_indicator'),
             onRefresh: () async => context.read<AgendaBloc>().add(
-              AgendaLoadRequested(weekStart: _weekStart),
-            ),
+                  AgendaLoadRequested(weekStart: _weekStart),
+                ),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
@@ -148,7 +148,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'émet Loading puis Loaded avec les entrées',
       build: () {
-        when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+        when(() => mockGetAgenda(any()))
+            .thenAnswer((_) async => Right([_entry]));
         when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
         return makeBloc();
       },
@@ -162,7 +163,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'émet Loading puis Loaded vide quand aucun RDV',
       build: () {
-        when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
+        when(() => mockGetAgenda(any()))
+            .thenAnswer((_) async => const Right([]));
         when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
         return makeBloc();
       },
@@ -197,8 +199,8 @@ void main() {
         return makeBloc();
       },
       seed: () => AgendaLoaded(entries: [_entry]),
-      act: (bloc) =>
-          bloc.add(const AgendaAppointmentConfirmRequested(appointmentId: 'e-1')),
+      act: (bloc) => bloc
+          .add(const AgendaAppointmentConfirmRequested(appointmentId: 'e-1')),
       expect: () => [
         AgendaLoaded(entries: [_entry], actionInProgress: true),
         AgendaLoaded(
@@ -259,8 +261,7 @@ void main() {
         build: () {
           when(() => mockGetAgenda(any()))
               .thenAnswer((_) async => Right([_entry]));
-          when(() => mockListSlots())
-              .thenAnswer((_) async => const Right([]));
+          when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
           return makeBloc();
         },
         act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
@@ -285,8 +286,7 @@ void main() {
 
   group('AgendaPage (widget)', () {
     testWidgets('affiche le chargement initialement', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([_entry]));
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
       when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
       final bloc = makeBloc();
       await tester.pumpWidget(_wrap(bloc));
@@ -294,11 +294,9 @@ void main() {
     });
 
     testWidgets('affiche la liste après chargement', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([_entry]));
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
       when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
-      final bloc = makeBloc()
-        ..add(AgendaLoadRequested(weekStart: _weekStart));
+      final bloc = makeBloc()..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('entry_e-1')), findsOneWidget);
@@ -307,8 +305,7 @@ void main() {
     testWidgets('affiche l\'état vide quand aucun créneau', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
       when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
-      final bloc = makeBloc()
-        ..add(AgendaLoadRequested(weekStart: _weekStart));
+      final bloc = makeBloc()..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('agenda_empty')), findsOneWidget);
@@ -318,19 +315,17 @@ void main() {
       when(() => mockGetAgenda(any())).thenAnswer(
         (_) async => Left(NetworkFailure('Pas de réseau')),
       );
-      final bloc = makeBloc()
-        ..add(AgendaLoadRequested(weekStart: _weekStart));
+      final bloc = makeBloc()..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('agenda_error')), findsOneWidget);
     });
 
-    testWidgets('pull-to-refresh déclenche AgendaLoadRequested', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([_entry]));
+    testWidgets('pull-to-refresh déclenche AgendaLoadRequested',
+        (tester) async {
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
       when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
-      final bloc = makeBloc()
-        ..add(AgendaLoadRequested(weekStart: _weekStart));
+      final bloc = makeBloc()..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
 
@@ -353,7 +348,8 @@ void main() {
   // -------------------------------------------------------------------------
 
   group('filtre praticien (dropdown)', () {
-    testWidgets('3 RDV 2 praticiens → sélection 1 → filtre live', (tester) async {
+    testWidgets('3 RDV 2 praticiens → sélection 1 → filtre live',
+        (tester) async {
       final e1 = AgendaEntry(
         id: 'f-1',
         cabinetId: 'cab-1',

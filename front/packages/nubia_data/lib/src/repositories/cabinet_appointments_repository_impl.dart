@@ -12,8 +12,7 @@ class CabinetAppointmentsRepositoryImpl
   const CabinetAppointmentsRepositoryImpl(this._api);
 
   @override
-  Future<Either<Failure, List<CabinetAppointment>>> list(
-      {int page = 1}) async {
+  Future<Either<Failure, List<CabinetAppointment>>> list({int page = 1}) async {
     try {
       final dtos = await _api.list(page: page);
       return Right(dtos.map((d) => d.toDomain()).toList());

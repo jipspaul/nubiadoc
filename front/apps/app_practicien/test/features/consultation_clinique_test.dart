@@ -87,9 +87,7 @@ class _HistoriqueTestViewState extends State<_HistoriqueTestView> {
 
   List<ClinicalSession> get _filtered {
     if (_selection.isEmpty) return widget.sessions;
-    return widget.sessions
-        .where((s) => _selection.contains(s.status))
-        .toList();
+    return widget.sessions.where((s) => _selection.contains(s.status)).toList();
   }
 
   @override
@@ -100,7 +98,8 @@ class _HistoriqueTestViewState extends State<_HistoriqueTestView> {
         SegmentedButton<String>(
           key: const Key('historique_filter'),
           segments: const [
-            ButtonSegment<String>(value: 'in_progress', label: Text('En cours')),
+            ButtonSegment<String>(
+                value: 'in_progress', label: Text('En cours')),
             ButtonSegment<String>(value: 'completed', label: Text('Terminée')),
             ButtonSegment<String>(
                 value: 'interrupted', label: Text('Interrompue')),
@@ -144,7 +143,8 @@ void main() {
       bloc = MockConsultationCliniqueBloc();
     });
 
-    testWidgets('affiche SegmentedButton avec 3 segments et toutes les sessions',
+    testWidgets(
+        'affiche SegmentedButton avec 3 segments et toutes les sessions',
         (tester) async {
       when(() => bloc.state).thenReturn(
         const ConsultationHistoriqueLoaded(
@@ -216,7 +216,8 @@ void main() {
       expect(find.byKey(const Key('historique_h3')), findsNothing);
     });
 
-    testWidgets('affiche état vide quand aucune session ne correspond au filtre',
+    testWidgets(
+        'affiche état vide quand aucune session ne correspond au filtre',
         (tester) async {
       when(() => bloc.state).thenReturn(
         const ConsultationHistoriqueLoaded(

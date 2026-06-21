@@ -39,7 +39,8 @@ class ComponentRegistry {
     if (builder == null) {
       return _unknown(type);
     }
-    final props = Binding.resolveProps(rawProps, ctx.dataModel, scope: ctx.scope);
+    final props =
+        Binding.resolveProps(rawProps, ctx.dataModel, scope: ctx.scope);
     return builder(context, props, children, ctx);
   }
 
@@ -52,8 +53,7 @@ class ComponentRegistry {
   /// The default Nubia design-system registry.
   static ComponentRegistry nubiaDefault() => ComponentRegistry({
         'Text': (c, p, _, __) => DsProps.text(p),
-        'Icon': (c, p, _, __) =>
-            Icon(_icon(p['name'] as String?)),
+        'Icon': (c, p, _, __) => Icon(_icon(p['name'] as String?)),
         'Image': (c, p, _, __) {
           final src = p['src'] as String?;
           return src == null ? const SizedBox.shrink() : Image.network(src);
@@ -96,8 +96,9 @@ class ComponentRegistry {
                   : ctx.buildChild(children.first, scope: ctx.scope),
             ),
         'Tabs': (c, p, children, ctx) {
-          final tabs = (p['tabs'] as List?)?.map((e) => e.toString()).toList() ??
-              const <String>[];
+          final tabs =
+              (p['tabs'] as List?)?.map((e) => e.toString()).toList() ??
+                  const <String>[];
           return NubiaTabs(
             tabs: tabs,
             views: [
@@ -136,7 +137,8 @@ class ComponentRegistry {
                 ],
               ),
             ),
-        'Chip': (c, p, _, ctx) => DsProps.chip(p, onTap: ctx.action(p['onTap'])),
+        'Chip': (c, p, _, ctx) =>
+            DsProps.chip(p, onTap: ctx.action(p['onTap'])),
         'Badge': (c, p, _, __) => DsProps.badge(p),
         'Avatar': (c, p, _, __) => DsProps.avatar(p),
         'StatusPill': (c, p, _, __) => DsProps.statusPill(p),

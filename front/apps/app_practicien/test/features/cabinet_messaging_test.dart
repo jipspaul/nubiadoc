@@ -155,8 +155,7 @@ void main() {
     blocTest<CabinetMessagingBloc, CabinetMessagingState>(
       'émet Loading puis Loaded avec les conversations',
       build: () {
-        when(() => mockList())
-            .thenAnswer((_) async => Right([_conversation]));
+        when(() => mockList()).thenAnswer((_) async => Right([_conversation]));
         return _makeBloc(
             list: mockList, getMessages: mockGetMessages, send: mockSend);
       },
@@ -208,8 +207,7 @@ void main() {
         return _makeBloc(
             list: mockList, getMessages: mockGetMessages, send: mockSend);
       },
-      act: (bloc) =>
-          bloc.add(CabinetMessagingThreadOpened(_conversation)),
+      act: (bloc) => bloc.add(CabinetMessagingThreadOpened(_conversation)),
       expect: () => [
         CabinetMessagingThreadLoading(_conversation.id),
         CabinetMessagingThreadLoaded(
@@ -258,29 +256,30 @@ void main() {
 
   group('CabinetMessagingPage (widget)', () {
     testWidgets('affiche le chargement initialement', (tester) async {
-      when(() => mockList())
-          .thenAnswer((_) async => Right([_conversation]));
+      when(() => mockList()).thenAnswer((_) async => Right([_conversation]));
       final bloc = _makeBloc(
           list: mockList, getMessages: mockGetMessages, send: mockSend);
       await tester.pumpWidget(_wrap(bloc));
-      expect(find.byKey(const Key('cabinet_messaging_loading')), findsOneWidget);
+      expect(
+          find.byKey(const Key('cabinet_messaging_loading')), findsOneWidget);
     });
 
     testWidgets('affiche la liste après chargement', (tester) async {
       when(() => mockList()).thenAnswer((_) async => Right([_conversation]));
       final bloc = _makeBloc(
-              list: mockList, getMessages: mockGetMessages, send: mockSend)
-          ..add(const CabinetMessagingConversationsLoadRequested());
+          list: mockList, getMessages: mockGetMessages, send: mockSend)
+        ..add(const CabinetMessagingConversationsLoadRequested());
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('conv_conv-1')), findsOneWidget);
     });
 
-    testWidgets('affiche l\'état vide quand aucune conversation', (tester) async {
+    testWidgets('affiche l\'état vide quand aucune conversation',
+        (tester) async {
       when(() => mockList()).thenAnswer((_) async => const Right([]));
       final bloc = _makeBloc(
-              list: mockList, getMessages: mockGetMessages, send: mockSend)
-          ..add(const CabinetMessagingConversationsLoadRequested());
+          list: mockList, getMessages: mockGetMessages, send: mockSend)
+        ..add(const CabinetMessagingConversationsLoadRequested());
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('cabinet_messaging_empty')), findsOneWidget);
@@ -291,8 +290,8 @@ void main() {
         (_) async => Left(NetworkFailure('Pas de réseau')),
       );
       final bloc = _makeBloc(
-              list: mockList, getMessages: mockGetMessages, send: mockSend)
-          ..add(const CabinetMessagingConversationsLoadRequested());
+          list: mockList, getMessages: mockGetMessages, send: mockSend)
+        ..add(const CabinetMessagingConversationsLoadRequested());
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('cabinet_messaging_error')), findsOneWidget);
@@ -303,8 +302,8 @@ void main() {
       when(() => mockGetMessages(_conversation.id))
           .thenAnswer((_) async => Right([_message]));
       final bloc = _makeBloc(
-              list: mockList, getMessages: mockGetMessages, send: mockSend)
-          ..add(CabinetMessagingThreadOpened(_conversation));
+          list: mockList, getMessages: mockGetMessages, send: mockSend)
+        ..add(CabinetMessagingThreadOpened(_conversation));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('cabinet_messaging_thread')), findsOneWidget);
@@ -313,7 +312,8 @@ void main() {
 
     // ---- Tests requis FR2.13 ------------------------------------------------
 
-    testWidgets('état Initial — skeleton de chargement visible', (tester) async {
+    testWidgets('état Initial — skeleton de chargement visible',
+        (tester) async {
       final mockBloc = MockCabinetMessagingBloc();
       when(() => mockBloc.state).thenReturn(const CabinetMessagingInitial());
       await tester.pumpWidget(_wrapMock(mockBloc));

@@ -15,10 +15,15 @@ import 'package:app_patient/features/appointments/appointments_state.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
-class MockSearchProvidersUseCase extends Mock implements SearchProvidersUseCase {}
+class MockSearchProvidersUseCase extends Mock
+    implements SearchProvidersUseCase {}
+
 class MockSearchSlotsUseCase extends Mock implements SearchSlotsUseCase {}
+
 class MockHoldSlotUseCase extends Mock implements HoldSlotUseCase {}
-class MockBookAppointmentUseCase extends Mock implements BookAppointmentUseCase {}
+
+class MockBookAppointmentUseCase extends Mock
+    implements BookAppointmentUseCase {}
 
 class _MockAppointmentsBloc
     extends MockBloc<AppointmentsEvent, AppointmentsState>
@@ -66,7 +71,8 @@ void main() {
   });
 
   group('AppointmentsPage', () {
-    testWidgets('affiche le champ de recherche en état initial', (tester) async {
+    testWidgets('affiche le champ de recherche en état initial',
+        (tester) async {
       final bloc = _makeBloc(
         searchProviders: mockSearchProviders,
         searchSlots: mockSearchSlots,
@@ -79,7 +85,8 @@ void main() {
       expect(find.byKey(const Key('search_field')), findsOneWidget);
     });
 
-    testWidgets('affiche "Aucun praticien trouvé." quand la recherche renvoie une liste vide',
+    testWidgets(
+        'affiche "Aucun praticien trouvé." quand la recherche renvoie une liste vide',
         (tester) async {
       when(() => mockSearchProviders(query: any(named: 'query')))
           .thenAnswer((_) async => const Right([]));
@@ -130,8 +137,10 @@ void main() {
 
     const providers = [
       ProviderResult(id: 'p1', displayName: 'Dr Martin', specialty: 'Dentiste'),
-      ProviderResult(id: 'p2', displayName: 'Dr Dupont', specialty: 'Chirurgien'),
-      ProviderResult(id: 'p3', displayName: 'Dr Bernard', specialty: 'Orthodontiste'),
+      ProviderResult(
+          id: 'p2', displayName: 'Dr Dupont', specialty: 'Chirurgien'),
+      ProviderResult(
+          id: 'p3', displayName: 'Dr Bernard', specialty: 'Orthodontiste'),
     ];
 
     setUp(() {
@@ -140,7 +149,8 @@ void main() {
 
     testWidgets('filtre localement les praticiens par nom', (tester) async {
       when(() => bloc.state).thenReturn(
-        const AppointmentsProvidersLoaded(providers: providers, query: 'dentiste'),
+        const AppointmentsProvidersLoaded(
+            providers: providers, query: 'dentiste'),
       );
       when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
 
@@ -154,7 +164,8 @@ void main() {
 
       expect(find.byType(ListTile), findsNWidgets(3));
 
-      await tester.enterText(find.byKey(const Key('local_search_field')), 'mar');
+      await tester.enterText(
+          find.byKey(const Key('local_search_field')), 'mar');
       await tester.pumpAndSettle();
 
       expect(find.byType(ListTile), findsOneWidget);

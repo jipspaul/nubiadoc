@@ -65,7 +65,8 @@ class PrescriptionDto {
     required this.createdAt,
   });
 
-  factory PrescriptionDto.fromJson(Map<String, dynamic> json) => PrescriptionDto(
+  factory PrescriptionDto.fromJson(Map<String, dynamic> json) =>
+      PrescriptionDto(
         id: json['id'] as String,
         patientId: json['patient_id'] as String,
         items: (json['items'] as List<dynamic>? ?? [])

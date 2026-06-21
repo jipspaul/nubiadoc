@@ -44,7 +44,8 @@ void main() {
   tearDown(() async => GetIt.instance.reset());
 
   group('Parcours secrétariat — écran login', () {
-    testWidgets('affiche le titre, le label espace secrétariat et le bouton connexion',
+    testWidgets(
+        'affiche le titre, le label espace secrétariat et le bouton connexion',
         (tester) async {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
@@ -58,12 +59,14 @@ void main() {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField).first, 'secretariat@nubia-demo.fr');
+      await tester.enterText(
+          find.byType(TextField).first, 'secretariat@nubia-demo.fr');
       await tester.pumpAndSettle();
       expect(find.text('secretariat@nubia-demo.fr'), findsOneWidget);
     });
 
-    testWidgets('bouton connexion déclenche l\'état chargement', (tester) async {
+    testWidgets('bouton connexion déclenche l\'état chargement',
+        (tester) async {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
 
@@ -75,19 +78,22 @@ void main() {
   });
 
   group('Parcours secrétariat — cloisonnement clinique', () {
-    testWidgets('includeClinical est false — aucun accès clinique', (tester) async {
+    testWidgets('includeClinical est false — aucun accès clinique',
+        (tester) async {
       // Invariant structurel : le secrétariat ne peut jamais accéder aux surfaces cliniques.
       expect(ProConfig.includeClinical, isFalse);
     });
 
-    testWidgets('aucune destination requiresClinical dans la config shell', (tester) async {
+    testWidgets('aucune destination requiresClinical dans la config shell',
+        (tester) async {
       final clinicalDestinations = ProConfig.shellConfig.destinations
           .where((d) => d.requiresClinical)
           .toList();
       expect(clinicalDestinations, isEmpty);
     });
 
-    testWidgets('WaitingRoomPage (salle d\'attente) s\'affiche sans données cliniques',
+    testWidgets(
+        'WaitingRoomPage (salle d\'attente) s\'affiche sans données cliniques',
         (tester) async {
       final bloc = getIt<WaitingRoomBloc>();
 

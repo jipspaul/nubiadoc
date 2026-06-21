@@ -15,17 +15,21 @@ class DriftAppointmentsCache implements AppointmentsCache {
 
   @override
   Future<CachedData<List<Appointment>>?> getUpcoming() async {
-    final tsRows = await _db.customSelect(
-      "SELECT cached_at FROM cache_timestamps WHERE cache_key = 'upcoming'",
-    ).get();
+    final tsRows = await _db
+        .customSelect(
+          "SELECT cached_at FROM cache_timestamps WHERE cache_key = 'upcoming'",
+        )
+        .get();
     if (tsRows.isEmpty) return null;
 
     final cachedAt = DateTime.fromMillisecondsSinceEpoch(
         tsRows.first.read<int>('cached_at'));
 
-    final rows = await _db.customSelect(
-      "SELECT json FROM cached_appointments WHERE list_key = 'upcoming'",
-    ).get();
+    final rows = await _db
+        .customSelect(
+          "SELECT json FROM cached_appointments WHERE list_key = 'upcoming'",
+        )
+        .get();
 
     final appointments = rows.map((r) {
       final map = jsonDecode(r.read<String>('json')) as Map<String, dynamic>;
@@ -46,8 +50,7 @@ class DriftAppointmentsCache implements AppointmentsCache {
     final row = rows.first;
     final cachedAt =
         DateTime.fromMillisecondsSinceEpoch(row.read<int>('cached_at'));
-    final map =
-        jsonDecode(row.read<String>('json')) as Map<String, dynamic>;
+    final map = jsonDecode(row.read<String>('json')) as Map<String, dynamic>;
     final appointment = AppointmentDto.fromJson(map).toDomain();
 
     return CachedData(data: appointment, cachedAt: cachedAt);

@@ -19,7 +19,9 @@ class AppointmentsPage extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Rendez-vous confirmé !')),
           );
-          context.read<AppointmentsBloc>().add(const AppointmentsSearchChanged(''));
+          context
+              .read<AppointmentsBloc>()
+              .add(const AppointmentsSearchChanged(''));
         }
         if (state is AppointmentsError) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -134,8 +136,9 @@ class _ProvidersListState extends State<_ProvidersList> {
     final filtered = _filterQuery.isEmpty
         ? widget.state.providers
         : widget.state.providers
-            .where((p) =>
-                p.displayName.toLowerCase().contains(_filterQuery.toLowerCase()))
+            .where((p) => p.displayName
+                .toLowerCase()
+                .contains(_filterQuery.toLowerCase()))
             .toList();
 
     return Column(
@@ -286,8 +289,18 @@ class _SlotsView extends StatelessWidget {
   String _formatDateTime(DateTime dt) {
     final weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
     final months = [
-      'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
-      'jul', 'aoû', 'sep', 'oct', 'nov', 'déc'
+      'jan',
+      'fév',
+      'mar',
+      'avr',
+      'mai',
+      'jun',
+      'jul',
+      'aoû',
+      'sep',
+      'oct',
+      'nov',
+      'déc'
     ];
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');

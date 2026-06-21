@@ -46,9 +46,7 @@ class NotificationDeepLinkHandler {
     final id = (targetId != null && targetId.isNotEmpty) ? targetId : null;
     switch (type) {
       case 'appointment':
-        return id != null
-            ? '${AppRouter.mesRdv}?id=$id'
-            : AppRouter.mesRdv;
+        return id != null ? '${AppRouter.mesRdv}?id=$id' : AppRouter.mesRdv;
       case 'message':
         return id != null
             ? '${AppRouter.messaging}?conversationId=$id'

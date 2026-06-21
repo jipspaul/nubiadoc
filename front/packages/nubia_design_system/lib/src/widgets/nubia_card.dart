@@ -39,9 +39,8 @@ class NubiaCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
 
-    final Color backgroundColor = state == NubiaCardState.selected
-        ? tokens.primarySubtleBg
-        : cs.surface;
+    final Color backgroundColor =
+        state == NubiaCardState.selected ? tokens.primarySubtleBg : cs.surface;
 
     final BorderSide borderSide = state == NubiaCardState.selected
         ? BorderSide(color: cs.primary, width: 1.5)

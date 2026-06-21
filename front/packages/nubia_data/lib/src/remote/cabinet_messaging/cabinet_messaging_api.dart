@@ -9,16 +9,15 @@ class CabinetMessagingApi {
   CabinetMessagingApi(ApiClient client) : _dio = client.dio;
 
   Future<List<CabinetConversationDto>> getConversations() async {
-    final response =
-        await _dio.get<List<dynamic>>('/cabinet/conversations');
+    final response = await _dio.get<List<dynamic>>('/cabinet/conversations');
     return (response.data!)
         .map((e) => CabinetConversationDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<MessageDto>> getMessages(String conversationId) async {
-    final response = await _dio
-        .get<List<dynamic>>('/cabinet/conversations/$conversationId');
+    final response =
+        await _dio.get<List<dynamic>>('/cabinet/conversations/$conversationId');
     return (response.data!)
         .map((e) => MessageDto.fromJson(e as Map<String, dynamic>))
         .toList();

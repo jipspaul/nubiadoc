@@ -66,7 +66,8 @@ class _MessagingBodyDirect extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<MessagingBloc, MessagingState>(
       builder: (context, state) {
-        if (state is MessagingInitial || state is MessagingConversationsLoading) {
+        if (state is MessagingInitial ||
+            state is MessagingConversationsLoading) {
           return const Center(
             key: Key('messaging_loading'),
             child: CircularProgressIndicator(),
@@ -166,7 +167,8 @@ void main() {
       expect(find.byKey(const Key('messaging_empty')), findsOneWidget);
     });
 
-    testWidgets('affiche le nom du cabinet quand les conversations sont chargées',
+    testWidgets(
+        'affiche le nom du cabinet quand les conversations sont chargées',
         (tester) async {
       when(() => mockGetConversations())
           .thenAnswer((_) async => Right([_conv]));
@@ -266,8 +268,8 @@ void main() {
         isA<MessagingThreadLoading>()
             .having((s) => s.conversationId, 'id', 'conv-1'),
         isA<MessagingThreadLoaded>()
-            .having((s) => s.messages, 'messages', [_msg])
-            .having((s) => s.conversation.cabinetName, 'cabinet', 'Cabinet Lyon'),
+            .having((s) => s.messages, 'messages', [_msg]).having(
+                (s) => s.conversation.cabinetName, 'cabinet', 'Cabinet Lyon'),
       ],
     );
   });

@@ -45,7 +45,8 @@ void main() {
 
   // --- Slot entity : pas de champ clinique ------------------------------------
   group('Slot — cloisonnement champs cliniques', () {
-    test('Slot n\'expose que des champs administratifs (pas de motif/notes)', () {
+    test('Slot n\'expose que des champs administratifs (pas de motif/notes)',
+        () {
       expect(_slot.id, isNotEmpty);
       expect(_slot.startsAt, isNotNull);
       expect(_slot.endsAt, isNotNull);
@@ -69,7 +70,10 @@ void main() {
       'émet Loading puis Loaded sur succès',
       build: () {
         when(
-          () => repo.list(from: any(named: 'from'), to: any(named: 'to'), practitionerId: any(named: 'practitionerId')),
+          () => repo.list(
+              from: any(named: 'from'),
+              to: any(named: 'to'),
+              practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
         return BookableSlotsBloc(listSlots: useCase);
       },
@@ -84,7 +88,10 @@ void main() {
       'émet Loading puis Error sur échec',
       build: () {
         when(
-          () => repo.list(from: any(named: 'from'), to: any(named: 'to'), practitionerId: any(named: 'practitionerId')),
+          () => repo.list(
+              from: any(named: 'from'),
+              to: any(named: 'to'),
+              practitionerId: any(named: 'practitionerId')),
         ).thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
@@ -101,7 +108,10 @@ void main() {
       'les créneaux chargés n\'exposent aucun champ clinique',
       build: () {
         when(
-          () => repo.list(from: any(named: 'from'), to: any(named: 'to'), practitionerId: any(named: 'practitionerId')),
+          () => repo.list(
+              from: any(named: 'from'),
+              to: any(named: 'to'),
+              practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
         return BookableSlotsBloc(listSlots: useCase);
       },

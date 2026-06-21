@@ -20,8 +20,7 @@ class MockListWaitingRoomUseCase extends Mock
 
 class MockCallNextUseCase extends Mock implements CallNextUseCase {}
 
-class MockWaitingRoomBloc
-    extends MockBloc<WaitingRoomEvent, WaitingRoomState>
+class MockWaitingRoomBloc extends MockBloc<WaitingRoomEvent, WaitingRoomState>
     implements WaitingRoomBloc {}
 
 // ---------------------------------------------------------------------------
@@ -227,8 +226,7 @@ void main() {
 
   group('WaitingRoomPage (widget)', () {
     testWidgets('affiche le chargement initialement', (tester) async {
-      when(() => mockList())
-          .thenAnswer((_) async => Right([_entry]));
+      when(() => mockList()).thenAnswer((_) async => Right([_entry]));
       final bloc = _makeBloc(list: mockList, callNext: mockCallNext);
       await tester.pumpWidget(_wrap(bloc));
       expect(find.byKey(const Key('waiting_room_loading')), findsOneWidget);
@@ -317,8 +315,7 @@ void main() {
       expect(dest.requiresClinical, isTrue);
     });
 
-    test(
-        'aucune destination sans requiresClinical n\'est sur /waiting-room',
+    test('aucune destination sans requiresClinical n\'est sur /waiting-room',
         () {
       final nonClinical = ProConfig.shellConfig.destinations
           .where((d) => !d.requiresClinical)

@@ -8,6 +8,5 @@ class ListWaitingListUseCase {
 
   const ListWaitingListUseCase(this._repository);
 
-  Future<Either<Failure, List<WaitingListEntry>>> call() =>
-      _repository.list();
+  Future<Either<Failure, List<WaitingListEntry>>> call() => _repository.list();
 }

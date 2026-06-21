@@ -58,7 +58,8 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
     return AppointmentsSlotsLoaded(
       provider: provider,
       slots: slots,
-      selectedSlot: clearSelectedSlot ? null : (selectedSlot ?? this.selectedSlot),
+      selectedSlot:
+          clearSelectedSlot ? null : (selectedSlot ?? this.selectedSlot),
       motif: motif ?? this.motif,
     );
   }

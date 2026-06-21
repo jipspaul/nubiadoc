@@ -9,8 +9,7 @@ class SecretariatApi {
   SecretariatApi(ApiClient client) : _dio = client.dio;
 
   Future<List<SecretariatDto>> list() async {
-    final response =
-        await _dio.get<List<dynamic>>('/cabinet/secretariats');
+    final response = await _dio.get<List<dynamic>>('/cabinet/secretariats');
     return (response.data!)
         .map((e) => SecretariatDto.fromJson(e as Map<String, dynamic>))
         .toList();

@@ -7,6 +7,5 @@ class OfferSlotToWaitingPatientUseCase {
 
   const OfferSlotToWaitingPatientUseCase(this._repository);
 
-  Future<Either<Failure, Unit>> call(String id) =>
-      _repository.offerSlot(id);
+  Future<Either<Failure, Unit>> call(String id) => _repository.offerSlot(id);
 }

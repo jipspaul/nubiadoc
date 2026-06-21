@@ -84,8 +84,7 @@ void main() {
         cachedAt: DateTime.now(),
       );
 
-      when(() => mockCache.getUpcoming())
-          .thenAnswer((_) async => freshCache);
+      when(() => mockCache.getUpcoming()).thenAnswer((_) async => freshCache);
 
       final result = await repo.getUpcoming();
 
@@ -118,8 +117,7 @@ void main() {
         cachedAt: DateTime.now().subtract(const Duration(minutes: 10)),
       );
 
-      when(() => mockCache.getUpcoming())
-          .thenAnswer((_) async => staleCache);
+      when(() => mockCache.getUpcoming()).thenAnswer((_) async => staleCache);
       when(() => mockRemote.getUpcoming())
           .thenAnswer((_) async => Right([_appt1, _appt2]));
       when(() => mockCache.saveUpcoming(any())).thenAnswer((_) async {});

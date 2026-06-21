@@ -49,8 +49,7 @@ class PatientAccountDto {
         lastName: lastName,
         email: email,
         phone: phone,
-        dateOfBirth:
-            dateOfBirth != null ? DateTime.parse(dateOfBirth!) : null,
+        dateOfBirth: dateOfBirth != null ? DateTime.parse(dateOfBirth!) : null,
       );
 }
 
@@ -62,9 +61,9 @@ class AuthResponseDto {
 
   factory AuthResponseDto.fromJson(Map<String, dynamic> json) =>
       AuthResponseDto(
-        tokens: TokenResponseDto.fromJson(
-            json['tokens'] as Map<String, dynamic>),
-        account: PatientAccountDto.fromJson(
-            json['account'] as Map<String, dynamic>),
+        tokens:
+            TokenResponseDto.fromJson(json['tokens'] as Map<String, dynamic>),
+        account:
+            PatientAccountDto.fromJson(json['account'] as Map<String, dynamic>),
       );
 }

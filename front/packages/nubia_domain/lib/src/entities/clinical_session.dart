@@ -19,7 +19,8 @@ class ClinicalAct extends Equatable {
   });
 
   @override
-  List<Object?> get props => [id, ccamCode, label, tooth, amountCents, included];
+  List<Object?> get props =>
+      [id, ccamCode, label, tooth, amountCents, included];
 }
 
 /// The clinical session context returned by GET /v1/cabinet/consultations/{id}.

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 enum AppointmentStatus { requested, confirmed, cancelled, completed, noShow }
+
 enum AppointmentType { inPerson, teleconsult }
 
 class Appointment extends Equatable {
@@ -30,7 +31,8 @@ class Appointment extends Equatable {
     this.cabinetPhone,
   });
 
-  bool get isUpcoming => startsAt.isAfter(DateTime.now()) && status == AppointmentStatus.confirmed;
+  bool get isUpcoming =>
+      startsAt.isAfter(DateTime.now()) && status == AppointmentStatus.confirmed;
   bool get canCancel => isUpcoming;
   bool get canModify => isUpcoming;
 

@@ -34,8 +34,9 @@ class ProfilePage extends StatelessWidget {
                 Text(state.message),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: () =>
-                      context.read<ProfileBloc>().add(const ProfileLoadRequested()),
+                  onPressed: () => context
+                      .read<ProfileBloc>()
+                      .add(const ProfileLoadRequested()),
                   child: const Text('Réessayer'),
                 ),
               ],

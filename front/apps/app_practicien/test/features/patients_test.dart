@@ -165,7 +165,9 @@ class _DetailBody extends StatelessWidget {
                   state.patient.email!,
                 ),
               if (state.notesUpdating)
-                const Center(key: Key('notes_updating'), child: CircularProgressIndicator()),
+                const Center(
+                    key: Key('notes_updating'),
+                    child: CircularProgressIndicator()),
             ],
           );
         }

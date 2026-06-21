@@ -13,7 +13,8 @@ class AccountApi {
   }
 
   Future<AccountDto> updateAccount(Map<String, dynamic> body) async {
-    final response = await _dio.patch<Map<String, dynamic>>('/account', data: body);
+    final response =
+        await _dio.patch<Map<String, dynamic>>('/account', data: body);
     return AccountDto.fromJson(response.data!);
   }
 
@@ -38,7 +39,8 @@ class AccountApi {
   }) async {
     final formData = FormData.fromMap({
       'side': side,
-      'file': await MultipartFile.fromFile(filePath, contentType: DioMediaType.parse(mimeType)),
+      'file': await MultipartFile.fromFile(filePath,
+          contentType: DioMediaType.parse(mimeType)),
     });
     final response = await _dio.post<Map<String, dynamic>>(
       '/account/coverage/card',
@@ -48,8 +50,7 @@ class AccountApi {
   }
 
   Future<List<DependentDto>> getDependents() async {
-    final response =
-        await _dio.get<List<dynamic>>('/account/dependents');
+    final response = await _dio.get<List<dynamic>>('/account/dependents');
     return (response.data ?? [])
         .cast<Map<String, dynamic>>()
         .map(DependentDto.fromJson)
@@ -57,8 +58,8 @@ class AccountApi {
   }
 
   Future<DependentDto> addDependent(Map<String, dynamic> body) async {
-    final response =
-        await _dio.post<Map<String, dynamic>>('/account/dependents', data: body);
+    final response = await _dio
+        .post<Map<String, dynamic>>('/account/dependents', data: body);
     return DependentDto.fromJson(response.data!);
   }
 

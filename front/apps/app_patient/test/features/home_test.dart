@@ -22,7 +22,8 @@ class MockGetDashboardSummaryUseCase extends Mock
 
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
-class _MockHomeBloc extends MockBloc<HomeEvent, HomeState> implements HomeBloc {}
+class _MockHomeBloc extends MockBloc<HomeEvent, HomeState>
+    implements HomeBloc {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -187,8 +188,7 @@ void main() {
       act: (bloc) => bloc.add(const HomeLoadRequested()),
       expect: () => [
         const HomeLoading(),
-        isA<HomeError>()
-            .having((s) => s.message, 'message', 'Erreur réseau.'),
+        isA<HomeError>().having((s) => s.message, 'message', 'Erreur réseau.'),
       ],
     );
   });

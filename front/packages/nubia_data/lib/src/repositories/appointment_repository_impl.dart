@@ -209,12 +209,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
     if (raw == null) return [];
     final list = raw['data'];
     if (list is! List) return [];
-    return list
-        .whereType<Map<dynamic, dynamic>>()
-        .map((m) {
-          final json = Map<String, dynamic>.from(m);
-          return AppointmentDto.fromJson(json).toDomain();
-        })
-        .toList();
+    return list.whereType<Map<dynamic, dynamic>>().map((m) {
+      final json = Map<String, dynamic>.from(m);
+      return AppointmentDto.fromJson(json).toDomain();
+    }).toList();
   }
 }

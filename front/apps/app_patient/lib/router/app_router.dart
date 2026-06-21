@@ -121,8 +121,7 @@ class AppRouter {
         GoRoute(
           path: reviews,
           builder: (context, state) {
-            final providerId =
-                state.uri.queryParameters['providerId'] ?? '';
+            final providerId = state.uri.queryParameters['providerId'] ?? '';
             return BlocProvider(
               create: (_) => GetIt.instance<ReviewsBloc>()
                 ..add(ReviewsLoadRequested(providerId)),

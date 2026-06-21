@@ -104,7 +104,8 @@ class _LoadedViewState extends State<_LoadedView> {
               IconButton(
                 key: const Key('sort_button'),
                 icon: const Icon(Icons.sort),
-                tooltip: _sortAsc ? 'Plus récent d\'abord' : 'Plus ancien d\'abord',
+                tooltip:
+                    _sortAsc ? 'Plus récent d\'abord' : 'Plus ancien d\'abord',
                 onPressed: () => setState(() => _sortAsc = !_sortAsc),
               ),
             ],
@@ -172,10 +173,14 @@ class _AppointmentList extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(
                           emptyLabel,
-                          key: Key('empty_${isUpcoming ? 'upcoming' : 'history'}'),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
+                          key: Key(
+                              'empty_${isUpcoming ? 'upcoming' : 'history'}'),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ),
@@ -239,7 +244,8 @@ class _AppointmentCard extends StatelessWidget {
                 label: appointment.cabinetAddress!,
               ),
             ],
-            if (appointment.isUpcoming || appointment.canCancel ||
+            if (appointment.isUpcoming ||
+                appointment.canCancel ||
                 appointment.canModify) ...[
               const SizedBox(height: 12),
               _ActionButtons(appointment: appointment),
@@ -253,8 +259,18 @@ class _AppointmentCard extends StatelessWidget {
   String _formatDateTime(DateTime dt) {
     const weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
     const months = [
-      'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
-      'jul', 'aoû', 'sep', 'oct', 'nov', 'déc',
+      'jan',
+      'fév',
+      'mar',
+      'avr',
+      'mai',
+      'jun',
+      'jul',
+      'aoû',
+      'sep',
+      'oct',
+      'nov',
+      'déc',
     ];
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
@@ -350,10 +366,7 @@ class _IconRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: fg),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: fg),
           ),
         ),
       ],
@@ -372,7 +385,8 @@ class _StatusChip extends StatelessWidget {
     final (label, color) = _style(context);
     return Chip(
       label: Text(label),
-      labelStyle: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+      labelStyle:
+          Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
       backgroundColor: color.withValues(alpha: 0.12),
       side: BorderSide.none,
       padding: EdgeInsets.zero,

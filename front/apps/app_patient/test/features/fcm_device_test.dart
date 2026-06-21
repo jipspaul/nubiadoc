@@ -51,8 +51,7 @@ void main() {
     mockStorage = MockTokenStorage();
     mockDeviceReg = MockDeviceRegistrationService();
 
-    when(() => mockDeviceReg.registerOnLogin(any()))
-        .thenAnswer((_) async {});
+    when(() => mockDeviceReg.registerOnLogin(any())).thenAnswer((_) async {});
   });
 
   AuthCubit buildCubit() => AuthCubit(
@@ -104,8 +103,7 @@ void main() {
         );
         return buildCubit();
       },
-      act: (cubit) =>
-          cubit.signIn(email: 'bad@example.com', password: 'wrong'),
+      act: (cubit) => cubit.signIn(email: 'bad@example.com', password: 'wrong'),
       expect: () => [
         const AuthLoading(),
         isA<AuthUnauthenticated>().having(

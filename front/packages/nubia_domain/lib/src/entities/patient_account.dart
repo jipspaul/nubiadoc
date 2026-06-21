@@ -9,6 +9,7 @@ class HealthCoverage extends Equatable {
   final String? insuranceName;
   final String? memberNumber;
   final bool thirdPartyPayment;
+
   /// NSS toujours masqué (ex. « 2 91 03 …78 »), jamais en clair.
   final String? nssPartial;
 
@@ -21,7 +22,8 @@ class HealthCoverage extends Equatable {
   });
 
   @override
-  List<Object?> get props => [regime, insuranceName, memberNumber, thirdPartyPayment, nssPartial];
+  List<Object?> get props =>
+      [regime, insuranceName, memberNumber, thirdPartyPayment, nssPartial];
 }
 
 class Dependent extends Equatable {

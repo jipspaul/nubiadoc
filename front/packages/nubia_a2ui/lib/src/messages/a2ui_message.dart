@@ -14,11 +14,13 @@ sealed class A2uiMessage {
         return CreateSurface(
           surfaceId: surfaceId,
           root: json['root'] as String?,
-          properties: (json['properties'] as Map?)?.cast<String, dynamic>() ?? const {},
+          properties:
+              (json['properties'] as Map?)?.cast<String, dynamic>() ?? const {},
         );
       case 'updateComponents':
         final comps = (json['components'] as List? ?? const [])
-            .map((e) => ComponentDef.fromJson((e as Map).cast<String, dynamic>()))
+            .map((e) =>
+                ComponentDef.fromJson((e as Map).cast<String, dynamic>()))
             .toList();
         return UpdateComponents(surfaceId: surfaceId, components: comps);
       case 'updateDataModel':

@@ -24,8 +24,7 @@ class CabinetConversationDto {
         unreadCount: (json['unread_count'] as num).toInt(),
         lastMessage: json['last_message'] == null
             ? null
-            : MessageDto.fromJson(
-                json['last_message'] as Map<String, dynamic>),
+            : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
       );
 
   CabinetConversation toDomain() => CabinetConversation(

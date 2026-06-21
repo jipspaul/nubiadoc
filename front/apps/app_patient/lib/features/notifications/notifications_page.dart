@@ -116,8 +116,7 @@ class _NotificationTile extends StatelessWidget {
       title: Text(
         notification.title,
         style: TextStyle(
-          fontWeight:
-              notification.read ? FontWeight.normal : FontWeight.bold,
+          fontWeight: notification.read ? FontWeight.normal : FontWeight.bold,
         ),
       ),
       subtitle: Text(notification.body),

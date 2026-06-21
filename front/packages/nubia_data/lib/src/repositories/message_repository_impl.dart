@@ -18,7 +18,8 @@ class MessageRepositoryImpl implements MessageRepository {
       final dtos = await _api.getConversations();
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors du chargement des conversations.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors du chargement des conversations.'));
     }
   }
 
@@ -76,7 +77,8 @@ class MessageRepositoryImpl implements MessageRepository {
       );
       return Right(dto.id);
     } on DioException catch (e) {
-      return Left(_mapDioError(e, 'Erreur lors de l\'envoi de la pièce jointe.'));
+      return Left(
+          _mapDioError(e, 'Erreur lors de l\'envoi de la pièce jointe.'));
     }
   }
 

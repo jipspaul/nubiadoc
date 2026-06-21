@@ -123,7 +123,8 @@ class _SortBodyDirectState extends State<_SortBodyDirect> {
             Expanded(
               child: ListView(
                 children: [
-                  for (final a in sorted) Text(key: Key('appt_${a.id}'), a.motif),
+                  for (final a in sorted)
+                    Text(key: Key('appt_${a.id}'), a.motif),
                 ],
               ),
             ),
@@ -271,8 +272,7 @@ void main() {
 
     testWidgets('affiche le motif du RDV quand la liste est chargée',
         (tester) async {
-      when(() => mockGetUpcoming())
-          .thenAnswer((_) async => Right([_appt]));
+      when(() => mockGetUpcoming()).thenAnswer((_) async => Right([_appt]));
       when(() => mockGetHistory(page: any(named: 'page')))
           .thenAnswer((_) async => const Right([]));
 
@@ -315,8 +315,7 @@ void main() {
     blocTest<MesRdvBloc, MesRdvState>(
       'émet [Loading, Loaded(vide)] quand les deux listes sont vides',
       build: () {
-        when(() => mockGetUpcoming())
-            .thenAnswer((_) async => const Right([]));
+        when(() => mockGetUpcoming()).thenAnswer((_) async => const Right([]));
         when(() => mockGetHistory(page: any(named: 'page')))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
@@ -386,7 +385,8 @@ void main() {
   });
 
   group('sort toggle', () {
-    testWidgets('tap sort inverse l\'ordre des RDV par startsAt', (tester) async {
+    testWidgets('tap sort inverse l\'ordre des RDV par startsAt',
+        (tester) async {
       final apptA = Appointment(
         id: 'rdv-a',
         cabinetId: 'cab-1',
@@ -409,7 +409,8 @@ void main() {
       );
 
       final mockBloc = MockMesRdvBloc();
-      final loadedState = MesRdvLoaded(upcoming: [apptA, apptB], history: const []);
+      final loadedState =
+          MesRdvLoaded(upcoming: [apptA, apptB], history: const []);
       whenListen<MesRdvState>(
         mockBloc,
         Stream.fromIterable([loadedState]),
@@ -462,18 +463,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final gesture = await tester.startGesture(
-          tester.getCenter(find.byType(ListView).first));
+      final gesture = await tester
+          .startGesture(tester.getCenter(find.byType(ListView).first));
       await gesture.moveBy(const Offset(0, 300));
       await tester.pump();
       await gesture.up();
-      await tester.pump(); // onRefresh called, Future.delayed(zero) timer created
+      await tester
+          .pump(); // onRefresh called, Future.delayed(zero) timer created
       await tester.pump(const Duration(seconds: 1)); // fire the timer
 
       verify(() => mockBloc.add(any(that: isA<MesRdvLoadRequested>())))
           .called(1);
 
-      await tester.pumpAndSettle(); // let RefreshIndicator closing animation complete
+      await tester
+          .pumpAndSettle(); // let RefreshIndicator closing animation complete
     });
   });
 
@@ -501,7 +504,8 @@ void main() {
       expect(find.text('Cette action est irréversible.'), findsOneWidget);
     });
 
-    testWidgets('tap "Annuler" dans la dialog ne dispatche pas', (tester) async {
+    testWidgets('tap "Annuler" dans la dialog ne dispatche pas',
+        (tester) async {
       final mockBloc = MockMesRdvBloc();
       whenListen<MesRdvState>(
         mockBloc,
@@ -518,7 +522,8 @@ void main() {
       verifyNever(() => mockBloc.add(any(that: isA<MesRdvCancelRequested>())));
     });
 
-    testWidgets('tap "Confirmer" dans la dialog dispatche MesRdvCancelRequested',
+    testWidgets(
+        'tap "Confirmer" dans la dialog dispatche MesRdvCancelRequested',
         (tester) async {
       final mockBloc = MockMesRdvBloc();
       whenListen<MesRdvState>(

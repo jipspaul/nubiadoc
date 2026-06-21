@@ -108,8 +108,8 @@ class _ConversationsListState extends State<_ConversationsList> {
   @override
   Widget build(BuildContext context) {
     final filtered = widget.conversations
-        .where((c) =>
-            c.patientName.toLowerCase().contains(_query.toLowerCase()))
+        .where(
+            (c) => c.patientName.toLowerCase().contains(_query.toLowerCase()))
         .toList();
 
     return Column(

@@ -18,7 +18,8 @@ class _TwoEventSseClient implements SseHttpClient {
 }
 
 void main() {
-  test('SseTransport émet 2 événements parsés depuis un HttpClient mocké', () async {
+  test('SseTransport émet 2 événements parsés depuis un HttpClient mocké',
+      () async {
     final client = _TwoEventSseClient();
     final transport = SseTransport(client, 'test-token');
 

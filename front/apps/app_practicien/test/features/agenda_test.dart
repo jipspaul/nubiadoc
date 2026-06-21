@@ -162,12 +162,9 @@ void main() {
         when(() => mockGetAgenda(any()))
             .thenAnswer((_) async => Right([_entry]));
         return _makeBloc(
-            getAgenda: mockGetAgenda,
-            confirm: mockConfirm,
-            start: mockStart);
+            getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       },
-      act: (bloc) =>
-          bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
+      act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
       expect: () => [
         const AgendaLoading(),
         AgendaLoaded(entries: [_entry], weekStart: _weekStart),
@@ -180,12 +177,9 @@ void main() {
         when(() => mockGetAgenda(any()))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
-            getAgenda: mockGetAgenda,
-            confirm: mockConfirm,
-            start: mockStart);
+            getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       },
-      act: (bloc) =>
-          bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
+      act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
       expect: () => [
         const AgendaLoading(),
         AgendaLoaded(entries: const [], weekStart: _weekStart),
@@ -199,12 +193,9 @@ void main() {
           (_) async => Left(NetworkFailure('Réseau indisponible')),
         );
         return _makeBloc(
-            getAgenda: mockGetAgenda,
-            confirm: mockConfirm,
-            start: mockStart);
+            getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       },
-      act: (bloc) =>
-          bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
+      act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
       expect: () => [
         const AgendaLoading(),
         const AgendaError('Réseau indisponible'),
@@ -217,12 +208,9 @@ void main() {
         when(() => mockGetAgenda(any()))
             .thenAnswer((_) async => Right([_entry]));
         return _makeBloc(
-            getAgenda: mockGetAgenda,
-            confirm: mockConfirm,
-            start: mockStart);
+            getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       },
-      act: (bloc) =>
-          bloc.add(AgendaWeekChanged(weekStart: _weekStart)),
+      act: (bloc) => bloc.add(AgendaWeekChanged(weekStart: _weekStart)),
       expect: () => [
         const AgendaLoading(),
         AgendaLoaded(entries: [_entry], weekStart: _weekStart),
@@ -237,14 +225,11 @@ void main() {
         when(() => mockConfirm(any()))
             .thenAnswer((_) async => Right(_appointment));
         return _makeBloc(
-            getAgenda: mockGetAgenda,
-            confirm: mockConfirm,
-            start: mockStart);
+            getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       },
-      seed: () =>
-          AgendaLoaded(entries: [_entry], weekStart: _weekStart),
-      act: (bloc) => bloc.add(
-          const AgendaAppointmentConfirmRequested(appointmentId: 'ag-1')),
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      act: (bloc) => bloc
+          .add(const AgendaAppointmentConfirmRequested(appointmentId: 'ag-1')),
       expect: () => [
         AgendaLoaded(
             entries: [_entry], weekStart: _weekStart, actionInProgress: true),
@@ -260,14 +245,11 @@ void main() {
           (_) async => Left(NetworkFailure('Erreur réseau')),
         );
         return _makeBloc(
-            getAgenda: mockGetAgenda,
-            confirm: mockConfirm,
-            start: mockStart);
+            getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       },
-      seed: () =>
-          AgendaLoaded(entries: [_entry], weekStart: _weekStart),
-      act: (bloc) => bloc.add(
-          const AgendaAppointmentConfirmRequested(appointmentId: 'ag-1')),
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      act: (bloc) => bloc
+          .add(const AgendaAppointmentConfirmRequested(appointmentId: 'ag-1')),
       expect: () => [
         AgendaLoaded(
             entries: [_entry], weekStart: _weekStart, actionInProgress: true),
@@ -288,14 +270,11 @@ void main() {
         when(() => mockStart(any()))
             .thenAnswer((_) async => const Right(_session));
         return _makeBloc(
-            getAgenda: mockGetAgenda,
-            confirm: mockConfirm,
-            start: mockStart);
+            getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       },
-      seed: () =>
-          AgendaLoaded(entries: [_entry], weekStart: _weekStart),
-      act: (bloc) => bloc.add(
-          const AgendaConsultationStartRequested(appointmentId: 'ag-1')),
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      act: (bloc) => bloc
+          .add(const AgendaConsultationStartRequested(appointmentId: 'ag-1')),
       expect: () => [
         AgendaLoaded(
             entries: [_entry], weekStart: _weekStart, actionInProgress: true),
@@ -311,31 +290,28 @@ void main() {
 
   group('AgendaPage (widget)', () {
     testWidgets('affiche le chargement initialement', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([_entry]));
-      final bloc =
-          _makeBloc(getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      final bloc = _makeBloc(
+          getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       await tester.pumpWidget(_wrap(bloc));
       expect(find.byKey(const Key('agenda_loading')), findsOneWidget);
     });
 
     testWidgets('affiche la liste après chargement', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => Right([_entry]));
-      final bloc =
-          _makeBloc(getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart)
-            ..add(AgendaLoadRequested(weekStart: _weekStart));
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      final bloc = _makeBloc(
+          getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart)
+        ..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('entry_ag-1')), findsOneWidget);
     });
 
     testWidgets('affiche l\'état vide quand aucun rendez-vous', (tester) async {
-      when(() => mockGetAgenda(any()))
-          .thenAnswer((_) async => const Right([]));
-      final bloc =
-          _makeBloc(getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart)
-            ..add(AgendaLoadRequested(weekStart: _weekStart));
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
+      final bloc = _makeBloc(
+          getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart)
+        ..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('agenda_empty')), findsOneWidget);
@@ -345,9 +321,9 @@ void main() {
       when(() => mockGetAgenda(any())).thenAnswer(
         (_) async => Left(NetworkFailure('Pas de réseau')),
       );
-      final bloc =
-          _makeBloc(getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart)
-            ..add(AgendaLoadRequested(weekStart: _weekStart));
+      final bloc = _makeBloc(
+          getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart)
+        ..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('agenda_error')), findsOneWidget);
@@ -359,7 +335,8 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('AgendaPage — FAB consultation (widget)', () {
-    testWidgets('FAB tap ouvre le bottom sheet sélecteur patient', (tester) async {
+    testWidgets('FAB tap ouvre le bottom sheet sélecteur patient',
+        (tester) async {
       final mockBloc = MockAgendaBloc();
       when(() => mockBloc.state).thenReturn(
         AgendaLoaded(entries: const [], weekStart: _weekStart),
@@ -418,11 +395,11 @@ void main() {
       );
       await tester.pumpWidget(buildBody());
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('agenda_date_filter_button')), findsOneWidget);
+      expect(
+          find.byKey(const Key('agenda_date_filter_button')), findsOneWidget);
     });
 
-    testWidgets(
-        'filtre par date range — exclut les RDV hors range',
+    testWidgets('filtre par date range — exclut les RDV hors range',
         (tester) async {
       when(() => bloc.state).thenReturn(
         AgendaLoaded(

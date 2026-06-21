@@ -1,8 +1,17 @@
 import 'package:equatable/equatable.dart';
 
 enum DocumentCategory {
-  quote, invoice, prescription, xray, cbct, photo, report,
-  consent, instructions, mutualCard, other,
+  quote,
+  invoice,
+  prescription,
+  xray,
+  cbct,
+  photo,
+  report,
+  consent,
+  instructions,
+  mutualCard,
+  other,
 }
 
 class Document extends Equatable {

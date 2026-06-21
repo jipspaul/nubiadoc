@@ -104,7 +104,8 @@ class _HomeContent extends StatelessWidget {
             key: const Key('card_financial'),
             icon: Icons.receipt_long_outlined,
             label: 'Devis en attente',
-            value: '${(s.pendingPaymentsCents / 100).toStringAsFixed(2).replaceAll('.', ',')} €',
+            value:
+                '${(s.pendingPaymentsCents / 100).toStringAsFixed(2).replaceAll('.', ',')} €',
             onTap: () => context.push('/financial'),
           ),
         if (s.upcomingAppointments == 0 &&

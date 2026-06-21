@@ -7,6 +7,5 @@ class GetDashboardSummaryUseCase {
 
   const GetDashboardSummaryUseCase(this._repository);
 
-  Future<Either<Failure, DashboardSummary>> call() =>
-      _repository.getSummary();
+  Future<Either<Failure, DashboardSummary>> call() => _repository.getSummary();
 }

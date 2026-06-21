@@ -13,7 +13,8 @@ import 'package:app_secretariat/features/admin_secretariats/admin_secretariats_p
 import 'package:app_secretariat/features/admin_secretariats/admin_secretariats_state.dart';
 import 'package:app_secretariat/pro_config.dart';
 
-class _MockSecretariatRepository extends Mock implements SecretariatRepository {}
+class _MockSecretariatRepository extends Mock
+    implements SecretariatRepository {}
 
 class _MockAdminSecretiariatsBloc
     extends MockBloc<AdminSecretiariatsEvent, AdminSecretiariatsState>

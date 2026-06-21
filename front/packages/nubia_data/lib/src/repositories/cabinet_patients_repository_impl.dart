@@ -46,8 +46,7 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
   }
 
   @override
-  Future<Either<Failure, CabinetPatient>> create(
-      CabinetPatient patient) async {
+  Future<Either<Failure, CabinetPatient>> create(CabinetPatient patient) async {
     try {
       final dto = await _api.create(patient);
       return Right(dto.toDomain());
@@ -63,8 +62,7 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
   }
 
   @override
-  Future<Either<Failure, CabinetPatient>> update(
-      CabinetPatient patient) async {
+  Future<Either<Failure, CabinetPatient>> update(CabinetPatient patient) async {
     try {
       final dto = await _api.update(patient);
       return Right(dto.toDomain());

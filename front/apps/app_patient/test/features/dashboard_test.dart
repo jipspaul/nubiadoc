@@ -95,8 +95,9 @@ class _DashboardBody extends StatelessWidget {
           return NubiaErrorWidget(
             key: const Key('dashboard_error'),
             message: state.message,
-            onRetry: () =>
-                context.read<DashboardBloc>().add(const DashboardLoadRequested()),
+            onRetry: () => context
+                .read<DashboardBloc>()
+                .add(const DashboardLoadRequested()),
           );
         }
         if (state is DashboardLoaded) {
@@ -138,8 +139,7 @@ void main() {
     blocTest<DashboardBloc, DashboardState>(
       'émet [Loading, Loaded] quand getDashboardSummary réussit',
       build: () {
-        when(() => mockUc())
-            .thenAnswer((_) async => const Right(_summary));
+        when(() => mockUc()).thenAnswer((_) async => const Right(_summary));
         return _makeBloc(mockUc);
       },
       act: (bloc) => bloc.add(const DashboardLoadRequested()),
@@ -202,7 +202,8 @@ void main() {
   });
 
   group('badge unread messaging', () {
-    testWidgets('badge affiche "3" quand unreadCount total = 3', (tester) async {
+    testWidgets('badge affiche "3" quand unreadCount total = 3',
+        (tester) async {
       final msgBloc = _MockMessagingBloc();
       when(() => msgBloc.state).thenReturn(
         MessagingConversationsLoaded([

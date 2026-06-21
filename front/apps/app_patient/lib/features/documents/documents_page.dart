@@ -119,8 +119,7 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                       label: Text(label),
                       selected: _categoryFilter == cat,
                       onSelected: (_) => setState(() {
-                        _categoryFilter =
-                            _categoryFilter == cat ? null : cat;
+                        _categoryFilter = _categoryFilter == cat ? null : cat;
                       }),
                     ),
                 ],

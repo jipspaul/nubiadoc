@@ -50,8 +50,7 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState> {
     final result = await _getQuoteById(event.quoteId);
     result.fold(
       (f) => emit(FinancialError(message: f.message, quotes: prevQuotes)),
-      (quote) =>
-          emit(FinancialQuoteDetail(quote: quote, quotes: prevQuotes)),
+      (quote) => emit(FinancialQuoteDetail(quote: quote, quotes: prevQuotes)),
     );
   }
 

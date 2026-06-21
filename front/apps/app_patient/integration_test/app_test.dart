@@ -59,7 +59,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Email (pré-rempli avec 'camille@example.com', on le remplace)
-      await tester.enterText(find.byType(TextField).first, 'patient@nubia-demo.fr');
+      await tester.enterText(
+          find.byType(TextField).first, 'patient@nubia-demo.fr');
       await tester.pumpAndSettle();
       expect(find.text('patient@nubia-demo.fr'), findsOneWidget);
 
@@ -68,7 +69,8 @@ void main() {
       await tester.pump();
     });
 
-    testWidgets('bouton connexion déclenche l\'état chargement', (tester) async {
+    testWidgets('bouton connexion déclenche l\'état chargement',
+        (tester) async {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
 

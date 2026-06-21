@@ -42,8 +42,8 @@ class Catalog {
 
   /// Loads the bundled catalog asset shipped with this package.
   static Future<Catalog> load() async {
-    final raw = await rootBundle
-        .loadString('packages/nubia_a2ui/assets/catalog.json');
+    final raw =
+        await rootBundle.loadString('packages/nubia_a2ui/assets/catalog.json');
     return parse(raw);
   }
 }

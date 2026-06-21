@@ -21,7 +21,8 @@ import 'package:app_practicien/session/pro_di.dart';
 Future<void> _bootstrap() async {
   await GetIt.instance.reset();
   registerCore(GetIt.instance);
-  registerData(GetIt.instance, includeClinical: ProConfig.includeClinical, includePro: true);
+  registerData(GetIt.instance,
+      includeClinical: ProConfig.includeClinical, includePro: true);
   registerPro(GetIt.instance);
 }
 
@@ -44,7 +45,8 @@ void main() {
   tearDown(() async => GetIt.instance.reset());
 
   group('Parcours praticien — écran login', () {
-    testWidgets('affiche le titre, le label espace praticien et le bouton connexion',
+    testWidgets(
+        'affiche le titre, le label espace praticien et le bouton connexion',
         (tester) async {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
@@ -58,12 +60,14 @@ void main() {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField).first, 'praticien@nubia-demo.fr');
+      await tester.enterText(
+          find.byType(TextField).first, 'praticien@nubia-demo.fr');
       await tester.pumpAndSettle();
       expect(find.text('praticien@nubia-demo.fr'), findsOneWidget);
     });
 
-    testWidgets('bouton connexion déclenche l\'état chargement', (tester) async {
+    testWidgets('bouton connexion déclenche l\'état chargement',
+        (tester) async {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
 
@@ -75,7 +79,8 @@ void main() {
   });
 
   group('Parcours praticien — tableau de bord', () {
-    testWidgets('DashboardPage s\'affiche dans l\'arbre widget', (tester) async {
+    testWidgets('DashboardPage s\'affiche dans l\'arbre widget',
+        (tester) async {
       final dashboardBloc = getIt<DashboardBloc>();
 
       await tester.pumpWidget(

@@ -27,7 +27,8 @@ class SendMessageUseCase {
       return Future.value(
         const Left(
           ValidationFailure(
-            message: 'La pièce jointe dépasse la taille maximale autorisée (10 Mo).',
+            message:
+                'La pièce jointe dépasse la taille maximale autorisée (10 Mo).',
           ),
         ),
       );

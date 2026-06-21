@@ -15,8 +15,8 @@ class MessagingApi {
   }
 
   Future<List<MessageDto>> getMessages(String conversationId) async {
-    final response =
-        await _dio.get<List<dynamic>>('/conversations/$conversationId/messages');
+    final response = await _dio
+        .get<List<dynamic>>('/conversations/$conversationId/messages');
     return (response.data!)
         .map((e) => MessageDto.fromJson(e as Map<String, dynamic>))
         .toList();

@@ -23,8 +23,7 @@ class ConversationDto {
         unreadCount: (json['unread_count'] as num).toInt(),
         lastMessage: json['last_message'] == null
             ? null
-            : MessageDto.fromJson(
-                json['last_message'] as Map<String, dynamic>),
+            : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
       );
 
   Conversation toDomain() => Conversation(
@@ -74,10 +73,12 @@ class MessageDto {
   Message toDomain() => Message(
         id: id,
         conversationId: conversationId,
-        sender: sender == 'cabinet' ? MessageSender.cabinet : MessageSender.patient,
+        sender:
+            sender == 'cabinet' ? MessageSender.cabinet : MessageSender.patient,
         text: text,
         attachmentIds: attachmentIds,
-        urgency: urgency == 'urgent' ? MessageUrgency.urgent : MessageUrgency.normal,
+        urgency:
+            urgency == 'urgent' ? MessageUrgency.urgent : MessageUrgency.normal,
         sentAt: DateTime.parse(sentAt),
         readAt: readAt == null ? null : DateTime.parse(readAt!),
       );

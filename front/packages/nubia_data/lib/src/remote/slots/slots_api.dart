@@ -27,8 +27,7 @@ class SlotsApi {
   }
 
   Future<SlotDto> getById(String id) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/cabinet/slots/$id');
+    final response = await _dio.get<Map<String, dynamic>>('/cabinet/slots/$id');
     return SlotDto.fromJson(response.data!);
   }
 

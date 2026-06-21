@@ -97,8 +97,7 @@ class MembersRepositoryImpl implements MembersRepository {
   }
 
   @override
-  Future<Either<Failure, Member>> updateRole(
-      String id, MemberRole role) async {
+  Future<Either<Failure, Member>> updateRole(String id, MemberRole role) async {
     try {
       final dto = await _api.updateRole(id, role);
       return Right(dto.toDomain());

@@ -31,7 +31,8 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     final result = await _getAgenda(event.weekStart);
     result.fold(
       (failure) => emit(AgendaError(failure.message)),
-      (entries) => emit(AgendaLoaded(entries: entries, weekStart: event.weekStart)),
+      (entries) =>
+          emit(AgendaLoaded(entries: entries, weekStart: event.weekStart)),
     );
   }
 

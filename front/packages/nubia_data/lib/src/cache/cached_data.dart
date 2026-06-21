@@ -4,6 +4,5 @@ class CachedData<T> {
 
   const CachedData({required this.data, required this.cachedAt});
 
-  bool isStale(Duration maxAge) =>
-      DateTime.now().difference(cachedAt) > maxAge;
+  bool isStale(Duration maxAge) => DateTime.now().difference(cachedAt) > maxAge;
 }

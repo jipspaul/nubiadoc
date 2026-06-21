@@ -209,8 +209,8 @@ void main() {
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const CabinetMessagingInitial());
       await tester.pumpWidget(buildPage());
-      expect(find.byKey(const Key('cabinet_messaging_loading')),
-          findsOneWidget);
+      expect(
+          find.byKey(const Key('cabinet_messaging_loading')), findsOneWidget);
     });
 
     testWidgets('affiche les conversations — aucun champ clinique visible',
