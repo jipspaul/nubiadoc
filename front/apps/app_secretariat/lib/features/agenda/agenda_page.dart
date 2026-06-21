@@ -68,15 +68,33 @@ class _AgendaBody extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _LoadedView extends StatelessWidget {
+class _LoadedView extends StatefulWidget {
   const _LoadedView({required this.state});
   final AgendaLoaded state;
 
   @override
+  State<_LoadedView> createState() => _LoadedViewState();
+}
+
+class _LoadedViewState extends State<_LoadedView> {
+  String? _practitionerFilter;
+
+  @override
   Widget build(BuildContext context) {
+    final practitioners = <String, String>{};
+    for (final e in widget.state.entries) {
+      practitioners[e.practitionerId] = e.practitionerName;
+    }
+
+    final filteredEntries = _practitionerFilter == null
+        ? widget.state.entries
+        : widget.state.entries
+            .where((e) => e.practitionerId == _practitionerFilter)
+            .toList();
+
     return Column(
       children: [
-        if (state.actionInProgress)
+        if (widget.state.actionInProgress)
           const LinearProgressIndicator(key: Key('agenda_action_progress')),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -84,13 +102,13 @@ class _LoadedView extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '${state.entries.length} créneau(x) cette semaine',
+                  '${widget.state.entries.length} créneau(x) cette semaine',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
               FilledButton.icon(
                 key: const Key('new_appointment_button'),
-                onPressed: state.actionInProgress
+                onPressed: widget.state.actionInProgress
                     ? null
                     : () => _showNewAppointmentDialog(context),
                 icon: const Icon(Icons.add, size: 18),
@@ -99,17 +117,37 @@ class _LoadedView extends StatelessWidget {
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: DropdownButton<String?>(
+            key: const Key('practitioner_filter_dropdown'),
+            isExpanded: true,
+            value: _practitionerFilter,
+            onChanged: (v) => setState(() => _practitionerFilter = v),
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Tous les praticiens'),
+              ),
+              for (final p in practitioners.entries)
+                DropdownMenuItem<String?>(
+                  value: p.key,
+                  child: Text(p.value),
+                ),
+            ],
+          ),
+        ),
         const Divider(height: 1),
-        if (state.availableSlots.isNotEmpty)
+        if (widget.state.availableSlots.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Text(
-              '${state.availableSlots.length} créneau(x) disponible(s)',
+              '${widget.state.availableSlots.length} créneau(x) disponible(s)',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
         Expanded(
-          child: state.entries.isEmpty
+          child: filteredEntries.isEmpty
               ? const Center(
                   key: Key('agenda_empty'),
                   child: Column(
@@ -129,9 +167,9 @@ class _LoadedView extends StatelessWidget {
                   child: ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: state.entries.length,
+                    itemCount: filteredEntries.length,
                     itemBuilder: (context, i) =>
-                        _EntryCard(entry: state.entries[i]),
+                        _EntryCard(entry: filteredEntries[i]),
                   ),
                 ),
         ),
@@ -140,7 +178,6 @@ class _LoadedView extends StatelessWidget {
   }
 
   void _showNewAppointmentDialog(BuildContext context) {
-    // Minimal dialog stub — full booking flow to be implemented in FR3.x
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
