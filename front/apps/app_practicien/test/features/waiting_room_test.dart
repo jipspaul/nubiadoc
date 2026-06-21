@@ -133,6 +133,10 @@ void main() {
   late MockListWaitingRoomUseCase mockList;
   late MockCallNextUseCase mockCallNext;
 
+  setUpAll(() {
+    registerFallbackValue(const WaitingRoomLoadRequested());
+  });
+
   setUp(() {
     mockList = MockListWaitingRoomUseCase();
     mockCallNext = MockCallNextUseCase();
