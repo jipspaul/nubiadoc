@@ -40,6 +40,8 @@ void main() {
     testWidgets(
       'affiche les destinations secrétariat configurées',
       (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 900));
+        addTearDown(tester.binding.reset);
         await tester.pumpWidget(buildShell());
         await tester.pumpAndSettle();
 
@@ -51,6 +53,8 @@ void main() {
     testWidgets(
       'aucune surface clinique affichée (includeClinical: false)',
       (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 900));
+        addTearDown(tester.binding.reset);
         await tester.pumpWidget(buildShell());
         await tester.pumpAndSettle();
 
@@ -62,6 +66,8 @@ void main() {
     testWidgets(
       'ProShell ne contient aucune destination requiresClinical',
       (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 900));
+        addTearDown(tester.binding.reset);
         await tester.pumpWidget(buildShell());
         await tester.pumpAndSettle();
 
