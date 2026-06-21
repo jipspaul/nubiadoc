@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'appointments_bloc.dart';
 import 'appointments_event.dart';
@@ -32,7 +33,16 @@ class AppointmentsPage extends StatelessWidget {
             return _SearchInput(key: const Key('search_input'));
           }
           if (state is AppointmentsSearchLoading) {
-            return const _SearchInput(loading: true);
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: List.generate(
+                3,
+                (_) => const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: NubiaSkeletonLoader(height: 72),
+                ),
+              ),
+            );
           }
           if (state is AppointmentsProvidersLoaded) {
             return _ProvidersList(state: state);
@@ -61,8 +71,7 @@ class AppointmentsPage extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SearchInput extends StatefulWidget {
-  const _SearchInput({super.key, this.loading = false});
-  final bool loading;
+  const _SearchInput({super.key});
 
   @override
   State<_SearchInput> createState() => _SearchInputState();
@@ -93,16 +102,7 @@ class _SearchInputState extends State<_SearchInput> {
           decoration: InputDecoration(
             hintText: 'Spécialité, nom, ville…',
             prefixIcon: const Icon(Icons.search),
-            suffixIcon: widget.loading
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : null,
+            suffixIcon: null,
             border: const OutlineInputBorder(),
           ),
           onChanged: (value) => context
