@@ -1,5 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
-import 'package:dartz/dartz.dart';
+import 'package:dartz/dartz.dart' hide State;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,10 +37,25 @@ final _item = PrescriptionItem(
   quantity: '21',
 );
 
+final _item2 = PrescriptionItem(
+  label: 'Ibuprofène 400 mg',
+  posology: '1 comprimé 3x/jour',
+  duration: '5 jours',
+  quantity: '15',
+);
+
 final _prescription = Prescription(
   id: 'presc-1',
   patientId: 'pat-1',
   items: [_item],
+  status: PrescriptionStatus.draft,
+  createdAt: DateTime(2026, 6, 19),
+);
+
+final _prescriptionMulti = Prescription(
+  id: 'presc-multi',
+  patientId: 'pat-1',
+  items: [_item, _item2],
   status: PrescriptionStatus.draft,
   createdAt: DateTime(2026, 6, 19),
 );
@@ -66,6 +81,56 @@ Widget _wrap(OrdonnancesBloc bloc) => MaterialApp(
       ),
     );
 
+class _CreatedTestView extends StatefulWidget {
+  const _CreatedTestView({required this.prescription});
+  final Prescription prescription;
+
+  @override
+  State<_CreatedTestView> createState() => _CreatedTestViewState();
+}
+
+class _CreatedTestViewState extends State<_CreatedTestView> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _query.isEmpty
+        ? widget.prescription.items
+        : widget.prescription.items
+            .where((item) =>
+                item.label.toLowerCase().contains(_query.toLowerCase()))
+            .toList();
+    return Column(
+      children: [
+        Text(
+          key: const Key('ordonnances_created'),
+          '${widget.prescription.items.length} médicament(s)',
+        ),
+        TextField(
+          key: const Key('medication_search'),
+          onChanged: (value) => setState(() => _query = value),
+        ),
+        ElevatedButton(
+          key: const Key('sign_ordonnance_button'),
+          onPressed: () => context.read<OrdonnancesBloc>().add(
+                OrdonnancesSignRequested(widget.prescription.id),
+              ),
+          child: const Text('Signer'),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: filtered.length,
+            itemBuilder: (context, i) => ListTile(
+              key: Key('item_label_$i'),
+              title: Text(filtered[i].label),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Direct rendering of bloc states for widget tests (avoids GetIt dependency).
 class _OrdonnancesBodyDirect extends StatelessWidget {
   const _OrdonnancesBodyDirect();
@@ -87,21 +152,7 @@ class _OrdonnancesBodyDirect extends StatelessWidget {
           );
         }
         if (state is OrdonnancesCreated) {
-          return Column(
-            children: [
-              Text(
-                key: const Key('ordonnances_created'),
-                '${state.prescription.items.length} médicament(s)',
-              ),
-              ElevatedButton(
-                key: const Key('sign_ordonnance_button'),
-                onPressed: () => context
-                    .read<OrdonnancesBloc>()
-                    .add(OrdonnancesSignRequested(state.prescription.id)),
-                child: const Text('Signer'),
-              ),
-            ],
-          );
+          return _CreatedTestView(prescription: state.prescription);
         }
         if (state is OrdonnancesLoaded && state.ordonnances.isEmpty) {
           return const NubiaEmptyState(
@@ -283,6 +334,27 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('ordonnances_error')), findsOneWidget);
+    });
+
+    testWidgets('filtre les médicaments en temps réel par nom', (tester) async {
+      final bloc = MockOrdonnancesBloc();
+      whenListen(
+        bloc,
+        Stream.value(OrdonnancesCreated(_prescriptionMulti)),
+        initialState: OrdonnancesCreated(_prescriptionMulti),
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.text('Amoxicilline 500 mg'), findsOneWidget);
+      expect(find.text('Ibuprofène 400 mg'), findsOneWidget);
+
+      await tester.enterText(
+          find.byKey(const Key('medication_search')), 'ibupro');
+      await tester.pump();
+
+      expect(find.text('Amoxicilline 500 mg'), findsNothing);
+      expect(find.text('Ibuprofène 400 mg'), findsOneWidget);
     });
 
     testWidgets('affiche NubiaEmptyState sur OrdonnancesLoaded vide',
