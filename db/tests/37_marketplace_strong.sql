@@ -6,7 +6,7 @@
 --   PRE1.  execute sous nubia_app (NOSUPERUSER).
 --   PRE2.  nubia_app NOBYPASSRLS confirme.
 --   FORCE1. slot_holds : FORCE ROW LEVEL SECURITY activee (0095).
---   POL1.  slot_holds_app : policy presente (0095).
+--   POL1.  slot_hold_cabinet_isolation : policy presente (0108).
 --   FN1.   try_claim_slot : fonction presente dans le schema public (0095).
 --   C1.    review rating > 5 : CHECK rejete (23514).
 --   C2.    review rating < 1 : CHECK rejete (23514).
@@ -45,13 +45,13 @@ SELECT ok(
     'FORCE1 slot_holds : FORCE ROW LEVEL SECURITY activee (0095)');
 
 -- ===========================================================================
--- POL1. Policy slot_holds_app presente (0095)
+-- POL1. Policy slot_hold_cabinet_isolation presente (0108)
 -- ===========================================================================
 SELECT ok(
     EXISTS(SELECT 1 FROM pg_policies
            WHERE tablename  = 'slot_holds'
-             AND policyname = 'slot_holds_app'),
-    'POL1 slot_holds : policy slot_holds_app presente (0095)');
+             AND policyname = 'slot_hold_cabinet_isolation'),
+    'POL1 slot_holds : policy slot_hold_cabinet_isolation presente (0108)');
 
 -- ===========================================================================
 -- FN1. try_claim_slot : fonction presente dans le schema public (0095)
@@ -95,17 +95,20 @@ INSERT INTO patient_account (id, app_user_id, first_name, last_name)
             '18330000-0000-0000-0000-0000000000a2', 'Patient', 'Strong1833');
 
 -- Slot ALPHA : open (sera claime par try_claim_slot dans N1-N4)
-INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, status)
+-- cabinet_id requis depuis 0108 (slot_hold_cabinet_isolation WITH CHECK).
+INSERT INTO availability_slot (id, provider_id, cabinet_id, starts_at, ends_at, status)
     VALUES ('18330000-0000-0000-0000-0000000000f1',
             '18330000-0000-0000-0000-0000000000e1',
+            '18330000-0000-0000-0000-000000000001',
             now() + interval '1 day',
             now() + interval '1 day'  + interval '30 min',
             'open');
 
 -- Slot BETA : open (setup pour le test de doublon slot_holds C6)
-INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, status)
+INSERT INTO availability_slot (id, provider_id, cabinet_id, starts_at, ends_at, status)
     VALUES ('18330000-0000-0000-0000-0000000000f2',
             '18330000-0000-0000-0000-0000000000e1',
+            '18330000-0000-0000-0000-000000000001',
             now() + interval '2 days',
             now() + interval '2 days' + interval '30 min',
             'open');
