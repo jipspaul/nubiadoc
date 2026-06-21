@@ -318,12 +318,14 @@ async fn waiting_room_secretary_sees_initials() {
         .execute(&mut *tx)
         .await
         .unwrap();
-    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat Test')")
-        .bind(sec_id)
-        .bind(f.cabinet_id)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat Test')",
+    )
+    .bind(sec_id)
+    .bind(f.cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
     sqlx::query(
         "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) VALUES ($1, $2, true)",
     )
@@ -363,10 +365,17 @@ async fn waiting_room_secretary_sees_initials() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let data = v["data"].as_array().unwrap();
-    assert_eq!(data.len(), 1, "1 patient doit apparaître pour le secrétariat assigné");
+    assert_eq!(
+        data.len(),
+        1,
+        "1 patient doit apparaître pour le secrétariat assigné"
+    );
 
     let name = data[0]["patient_name_initials"].as_str().unwrap();
-    assert_eq!(name, "MM", "le secrétariat doit voir les initiales uniquement");
+    assert_eq!(
+        name, "MM",
+        "le secrétariat doit voir les initiales uniquement"
+    );
 
     cleanup(&db, f.cabinet_id, f.prac_user_id).await;
 }

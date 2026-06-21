@@ -485,8 +485,11 @@ pub async fn get_waiting_room(
             let db_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("checkin_at").map_err(|_| AppError::Internal)?;
-            let wait_minutes: i64 = row.try_get("wait_minutes").map_err(|_| AppError::Internal)?;
-            let first: Option<String> = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let wait_minutes: i64 = row
+                .try_get("wait_minutes")
+                .map_err(|_| AppError::Internal)?;
+            let first: Option<String> =
+                row.try_get("first_name").map_err(|_| AppError::Internal)?;
             let last: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
 
             let patient_name_initials = match (first.as_deref(), last.as_deref()) {
