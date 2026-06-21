@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'agenda_bloc.dart';
@@ -20,7 +21,79 @@ class AgendaPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<AgendaBloc>()
         ..add(AgendaLoadRequested(weekStart: _startOfCurrentWeek())),
-      child: const AgendaBody(),
+      child: const _AgendaView(),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _AgendaView extends StatelessWidget {
+  const _AgendaView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        key: const Key('agenda_fab_consultation'),
+        onPressed: () => _showPatientPicker(context),
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('Consultation'),
+      ),
+      body: const AgendaBody(),
+    );
+  }
+}
+
+void _showPatientPicker(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => _PatientPickerSheet(
+      onPatientSelected: (_) {
+        Navigator.of(sheetContext).pop();
+        GoRouter.of(context).go('/consultation');
+      },
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+class _PatientPickerSheet extends StatelessWidget {
+  const _PatientPickerSheet({required this.onPatientSelected});
+  final void Function(String patientId) onPatientSelected;
+
+  static const _stubs = [
+    (id: 'pat-1', name: 'Marie Martin'),
+    (id: 'pat-2', name: 'Jean Dupont'),
+    (id: 'pat-3', name: 'Sophie Bernard'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              'Sélectionner un patient',
+              key: const Key('patient_picker_title'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          const Divider(height: 1),
+          for (final p in _stubs)
+            ListTile(
+              key: Key('patient_pick_${p.id}'),
+              title: Text(p.name),
+              leading: const Icon(Icons.person_outline),
+              onTap: () => onPatientSelected(p.id),
+            ),
+        ],
+      ),
     );
   }
 }

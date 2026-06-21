@@ -48,7 +48,7 @@ class AppRouter {
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
         GoRoute(
           path: agenda,
-          builder: (_, __) => const Scaffold(body: AgendaPage()),
+          builder: (_, __) => const AgendaPage(),
         ),
         GoRoute(
           path: waitingRoom,
