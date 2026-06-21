@@ -26,7 +26,7 @@ MIGRATIONS_DIR = migrations
 TESTS_DIR      = tests
 
 .DEFAULT_GOAL := help
-.PHONY: help reset migrate seed test verify-rls lint pgtap-install psql-app
+.PHONY: help reset migrate seed test verify-rls lint pgtap-install psql-app smoke-perf
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
