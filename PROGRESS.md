@@ -1,5 +1,7 @@
 # État du projet — Nubia
 
+2026-06-21 — **[flutter-front] FR2.11 — Toggle masquage notes cliniques sur PatientFiche (issue #2443).** `PatientFicheBloc` créé dans `features/patients/patient_fiche_bloc.dart` : event `ToggleClinicalVisibility`, état `PatientFicheState(showClinical: bool, défaut true)`, handler bascule `showClinical`. `PatientFiche` créé dans `features/patients/patient_fiche.dart` : `BlocProvider<PatientFicheBloc>` + `_PatientFicheScaffold` — AppBar avec `IconButton(key: 'toggle_clinical', icon: visibility_off/visibility)` + body `if (state.showClinical) ClinicalSection(patient: patient)` (Card clé `clinical_section`, affiche birthDate + lastVisitAt). Test `test/patient_fiche_clinical_toggle_test.dart` : 2 tests widget — tap masque `clinical_section` (findsNothing), re-tap réaffiche (findsOneWidget). `dart run melos analyze` → 0 issue. Diff ≤ 100 lignes.
+
 2026-06-21 — **Drainage flutter-front automatisé (nuit).** 7 PRs mergées par la fleet :
 FR1.19→FR1.23 (app_patient : skeleton appointments search, pull-to-refresh financial,
 filtre catégorie documents, widget tests notifications, dialog annulation RDV),
