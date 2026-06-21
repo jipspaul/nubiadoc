@@ -1,0 +1,35 @@
+# =============================================================================
+# Nubia — bloc à coller dans le Caddyfile de TON hôte (le Caddy hors LXC).
+# Le LXC (192.168.1.100) expose des ports HTTP nus ; Caddy ajoute domaine + TLS.
+# Remplace *.nubia.example.com par tes domaines réels.
+# =============================================================================
+#
+# IMPORTANT — l'URL de l'API est bakée dans les fronts AU BUILD :
+#   * Flutter web  : --dart-define=API_BASE_URL=...
+#   * Astro console: PUBLIC_API_BASE=...
+# Si tu passes par un domaine pour l'API (ci-dessous), redéploie les fronts avec
+# l'API_BASE correspondant :
+#   API_BASE="https://api.nubia.example.com" bash infra/deploy/build-and-deploy.sh
+# (sinon les fronts continueront d'appeler http://192.168.1.100:3000)
+
+patient.nubia.example.com {
+    reverse_proxy 192.168.1.100:8081
+}
+
+praticien.nubia.example.com {
+    reverse_proxy 192.168.1.100:8082
+}
+
+secretariat.nubia.example.com {
+    reverse_proxy 192.168.1.100:8083
+}
+
+# Back-office Astro (SSR)
+console.nubia.example.com {
+    reverse_proxy 192.168.1.100:4321
+}
+
+# API Rust/Axum (CORS déjà permissif côté API pour le POC)
+api.nubia.example.com {
+    reverse_proxy 192.168.1.100:3000
+}

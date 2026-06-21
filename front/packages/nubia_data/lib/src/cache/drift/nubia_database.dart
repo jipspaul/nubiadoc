@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:drift_sqflite/drift_sqflite.dart';
+
+import '../executor/cache_executor.dart';
 
 /// Drift database used as the offline cache.
 ///
@@ -10,12 +10,9 @@ class NubiaDatabase extends GeneratedDatabase {
   NubiaDatabase(super.e);
 
   factory NubiaDatabase.production() =>
-      NubiaDatabase(SqfliteQueryExecutor.inDatabaseFolder(
-        path: 'nubia_cache.db',
-        logStatements: false,
-      ));
+      NubiaDatabase(openCacheExecutor('nubia_cache.db'));
 
-  factory NubiaDatabase.inMemory() => NubiaDatabase(NativeDatabase.memory());
+  factory NubiaDatabase.inMemory() => NubiaDatabase(inMemoryExecutor());
 
   @override
   Iterable<TableInfo<Table, dynamic>> get allTables => const [];
