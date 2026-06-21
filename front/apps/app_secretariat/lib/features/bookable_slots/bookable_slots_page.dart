@@ -22,17 +22,14 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
   }
 
   Future<void> _openCreateSlotDialog() async {
-    final result = await showDialog<({DateTime startsAt, DateTime endsAt})>(
+    final bloc = context.read<BookableSlotsBloc>();
+    await showDialog<void>(
       context: context,
-      builder: (_) => const CreateSlotDialog(),
+      builder: (_) => BlocProvider.value(
+        value: bloc,
+        child: const CreateSlotDialog(),
+      ),
     );
-    if (result == null || !mounted) return;
-    context.read<BookableSlotsBloc>().add(
-          CreateSlotRequested(
-            startsAt: result.startsAt,
-            endsAt: result.endsAt,
-          ),
-        );
   }
 
   @override

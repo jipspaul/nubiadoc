@@ -1,7 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'bookable_slots_bloc.dart';
+import 'bookable_slots_event.dart';
 
 class CreateSlotDialog extends StatefulWidget {
-  const CreateSlotDialog({super.key});
+  const CreateSlotDialog({
+    super.key,
+    this.initialDate,
+    this.initialStart,
+    this.initialEnd,
+    this.initialCapacity = 1,
+  });
+
+  final DateTime? initialDate;
+  final TimeOfDay? initialStart;
+  final TimeOfDay? initialEnd;
+  final int initialCapacity;
 
   @override
   State<CreateSlotDialog> createState() => _CreateSlotDialogState();
@@ -16,15 +31,42 @@ class _CreateSlotDialogState extends State<CreateSlotDialog> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _date = DateTime(now.year, now.month, now.day);
-    _startTime = const TimeOfDay(hour: 9, minute: 0);
-    _endTime = const TimeOfDay(hour: 9, minute: 30);
+    _date = widget.initialDate ?? DateTime(now.year, now.month, now.day);
+    _startTime = widget.initialStart ?? const TimeOfDay(hour: 9, minute: 0);
+    _endTime = widget.initialEnd ?? const TimeOfDay(hour: 9, minute: 30);
+  }
+
+  bool get _isValid {
+    final startMinutes = _startTime.hour * 60 + _startTime.minute;
+    final endMinutes = _endTime.hour * 60 + _endTime.minute;
+    return startMinutes < endMinutes;
   }
 
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/'
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.year}';
+
+  void _onConfirm() {
+    final startsAt = DateTime(
+      _date.year,
+      _date.month,
+      _date.day,
+      _startTime.hour,
+      _startTime.minute,
+    );
+    final endsAt = DateTime(
+      _date.year,
+      _date.month,
+      _date.day,
+      _endTime.hour,
+      _endTime.minute,
+    );
+    context
+        .read<BookableSlotsBloc>()
+        .add(CreateSlotRequested(startsAt: startsAt, endsAt: endsAt));
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,28 +121,11 @@ class _CreateSlotDialogState extends State<CreateSlotDialog> {
           child: const Text('Annuler'),
         ),
         ElevatedButton(
-          onPressed: _onConfirm,
+          key: const Key('create_button'),
+          onPressed: _isValid ? _onConfirm : null,
           child: const Text('Créer'),
         ),
       ],
     );
-  }
-
-  void _onConfirm() {
-    final startsAt = DateTime(
-      _date.year,
-      _date.month,
-      _date.day,
-      _startTime.hour,
-      _startTime.minute,
-    );
-    final endsAt = DateTime(
-      _date.year,
-      _date.month,
-      _date.day,
-      _endTime.hour,
-      _endTime.minute,
-    );
-    Navigator.of(context).pop((startsAt: startsAt, endsAt: endsAt));
   }
 }
