@@ -20,15 +20,15 @@ class AgendaPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<AgendaBloc>()
         ..add(AgendaLoadRequested(weekStart: _startOfCurrentWeek())),
-      child: const _AgendaBody(),
+      child: const AgendaBody(),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
 
-class _AgendaBody extends StatelessWidget {
-  const _AgendaBody();
+class AgendaBody extends StatelessWidget {
+  const AgendaBody({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -68,21 +68,55 @@ class _AgendaBody extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _LoadedView extends StatelessWidget {
+class _LoadedView extends StatefulWidget {
   const _LoadedView({required this.state});
   final AgendaLoaded state;
 
   @override
+  State<_LoadedView> createState() => _LoadedViewState();
+}
+
+class _LoadedViewState extends State<_LoadedView> {
+  DateTimeRange? _range;
+
+  List<AgendaEntry> get _filtered {
+    final r = _range;
+    if (r == null) return widget.state.entries;
+    final dayAfterEnd =
+        DateTime(r.end.year, r.end.month, r.end.day).add(const Duration(days: 1));
+    return widget.state.entries
+        .where((e) =>
+            !e.startsAt.isBefore(r.start) && e.startsAt.isBefore(dayAfterEnd))
+        .toList();
+  }
+
+  Future<void> _pickRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDateRange: _range,
+    );
+    if (picked != null && mounted) setState(() => _range = picked);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final grouped = _groupByDay(state.entries);
-    final weekEnd = state.weekStart.add(const Duration(days: 6));
+    final filtered = _filtered;
+    final grouped = _groupByDay(filtered);
+    final weekEnd = widget.state.weekStart.add(const Duration(days: 6));
 
     return Column(
       children: [
-        if (state.actionInProgress)
+        if (widget.state.actionInProgress)
           const LinearProgressIndicator(key: Key('agenda_action_progress')),
-        _WeekNav(weekStart: state.weekStart, weekEnd: weekEnd),
+        _WeekNav(weekStart: widget.state.weekStart, weekEnd: weekEnd),
         const Divider(height: 1),
+        _DateFilterBar(
+          range: _range,
+          onPick: _pickRange,
+          onClear: () => setState(() => _range = null),
+        ),
         Expanded(
           child: grouped.isEmpty
               ? const Center(
@@ -104,7 +138,7 @@ class _LoadedView extends StatelessWidget {
                     return _DaySection(
                       date: day.date,
                       entries: day.entries,
-                      actionInProgress: state.actionInProgress,
+                      actionInProgress: widget.state.actionInProgress,
                     );
                   },
                 ),
@@ -141,6 +175,58 @@ class _DayGroup {
   _DayGroup({required this.date, required this.entries});
   final DateTime date;
   final List<AgendaEntry> entries;
+}
+
+// ---------------------------------------------------------------------------
+
+class _DateFilterBar extends StatelessWidget {
+  const _DateFilterBar({
+    required this.range,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final DateTimeRange? range;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+      child: Row(
+        children: [
+          TextButton.icon(
+            key: const Key('agenda_date_filter_button'),
+            icon: const Icon(Icons.date_range, size: 16),
+            label: Text(range == null ? 'Filtrer par date' : _rangeLabel()),
+            onPressed: onPick,
+          ),
+          if (range != null)
+            IconButton(
+              key: const Key('agenda_date_filter_clear'),
+              icon: const Icon(Icons.close, size: 16),
+              tooltip: 'Effacer le filtre',
+              onPressed: onClear,
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _rangeLabel() {
+    final r = range!;
+    const months = [
+      'jan.', 'fév.', 'mar.', 'avr.', 'mai', 'juin',
+      'juil.', 'août', 'sep.', 'oct.', 'nov.', 'déc.',
+    ];
+    final sm = months[r.start.month - 1];
+    final em = months[r.end.month - 1];
+    if (r.start.month == r.end.month && r.start.year == r.end.year) {
+      return '${r.start.day}–${r.end.day} $sm ${r.start.year}';
+    }
+    return '${r.start.day} $sm – ${r.end.day} $em ${r.end.year}';
+  }
 }
 
 // ---------------------------------------------------------------------------
