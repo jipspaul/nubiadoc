@@ -1,5 +1,6 @@
 # État du projet — Nubia
 
+2026-06-21 — **[api] GET /v1/appointments/:id/preparation — préparer RDV bring-list (issue #2469).** Handler `get_appointment_preparation` enregistré dans `lib.rs` + implémenté dans `api/src/appointments.rs`. Auth JWT patient (`PatientAccountClaims`) : 401 token absent/invalide, 403 si `kind != "patient"`. GUC `app.patient_account_id` positionné → RLS `appointment_patient_read` (migration 0029) → 404 anti-énumération si autre patient. `bring` dérivé : `Carte Vitale` (toujours, required=true), `Carte mutuelle` si `patient_coverage.tiers_payant = true`, `Ordonnances et radios` si `documents_hint` non null. Adresse lue via `cabinet.settings->>'address'`. `reminder_at = starts_at − 1 h` (ISO 8601). 3 tests d'intégration dans `api/tests/appointments_preparation.rs` : happy path 200 (provider + establishment + bring + reminder_at), tiers_payant → mutuelle, autre patient → 404. Env var `SEED_DATABASE_URL` normalisée en `DATABASE_URL`. `cargo check --quiet` vert.
 2026-06-21 — **Fix orchestrator : auto-merger PROGRESS.md déterministe.**
 Postmortem : 3 PRs sat bloquées avec `mergeable=false` sur conflits append-only PROGRESS.md
 parce que `resolve-conflict` re-dispatchait l'agent (LLM) pour un merge trivial.
