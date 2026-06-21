@@ -120,12 +120,26 @@ class _InitialView extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _CreatedView extends StatelessWidget {
+class _CreatedView extends StatefulWidget {
   const _CreatedView({required this.prescription});
   final Prescription prescription;
 
   @override
+  State<_CreatedView> createState() => _CreatedViewState();
+}
+
+class _CreatedViewState extends State<_CreatedView> {
+  String _query = '';
+
+  @override
   Widget build(BuildContext context) {
+    final filtered = _query.isEmpty
+        ? widget.prescription.items
+        : widget.prescription.items
+            .where((item) =>
+                item.label.toLowerCase().contains(_query.toLowerCase()))
+            .toList();
+
     return Column(
       children: [
         Padding(
@@ -134,7 +148,7 @@ class _CreatedView extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '${prescription.items.length} médicament(s)',
+                  '${widget.prescription.items.length} médicament(s)',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -142,11 +156,22 @@ class _CreatedView extends StatelessWidget {
                 key: const Key('sign_ordonnance_button'),
                 onPressed: () => context
                     .read<OrdonnancesBloc>()
-                    .add(OrdonnancesSignRequested(prescription.id)),
+                    .add(OrdonnancesSignRequested(widget.prescription.id)),
                 icon: const Icon(Icons.draw_outlined, size: 18),
                 label: const Text('Signer'),
               ),
             ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: TextField(
+            key: const Key('medication_search'),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Filtrer par médicament',
+            ),
+            onChanged: (value) => setState(() => _query = value),
           ),
         ),
         const Divider(height: 1),
@@ -154,9 +179,9 @@ class _CreatedView extends StatelessWidget {
           child: ListView.builder(
             key: const Key('ordonnances_items_list'),
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: prescription.items.length,
+            itemCount: filtered.length,
             itemBuilder: (context, i) =>
-                _ItemTile(item: prescription.items[i], index: i),
+                _ItemTile(item: filtered[i], index: i),
           ),
         ),
       ],
