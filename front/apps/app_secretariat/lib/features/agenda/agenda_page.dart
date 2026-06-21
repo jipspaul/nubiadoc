@@ -159,11 +159,18 @@ class _LoadedViewState extends State<_LoadedView> {
                     ],
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: filteredEntries.length,
-                  itemBuilder: (context, i) =>
-                      _EntryCard(entry: filteredEntries[i]),
+              : RefreshIndicator(
+                  key: const Key('agenda_refresh_indicator'),
+                  onRefresh: () async => context.read<AgendaBloc>().add(
+                    AgendaLoadRequested(weekStart: _currentWeekStart()),
+                  ),
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: filteredEntries.length,
+                    itemBuilder: (context, i) =>
+                        _EntryCard(entry: filteredEntries[i]),
+                  ),
                 ),
         ),
       ],
