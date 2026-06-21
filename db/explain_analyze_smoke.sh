@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# db/explain_analyze_smoke.sh — DB-T024 : smoke perf EXPLAIN ANALYZE (5 requêtes critiques)
+# db/explain_analyze_smoke.sh — DB-T024.b : smoke EXPLAIN ANALYZE CI (5 requêtes critiques)
 # Issue : jips/nubiadoc#2319. Réf. : jips/nubiadoc#2238.
 #
 # Exécute EXPLAIN ANALYZE sur les 5 requêtes critiques et signale tout Seq Scan
