@@ -112,7 +112,7 @@ pub async fn select_context(
             kind: "pro".to_string(),
             cabinet_id,
             role,
-            secretariat_id,
+            secretariat_id: body.secretariat_id.or(secretariat_id),
             exp,
         },
         &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
