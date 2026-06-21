@@ -229,7 +229,10 @@ SELECT is(
 -- ===========================================================================
 -- N2. Slot ALPHA n'est plus visible via SELECT apres claim
 --     (status=held filtre par slot_public_read : USING (status = ''open''))
+-- GUC reset : simule la perspective marketplace (sans contexte cabinet).
+-- slot_cabinet_read (0075) rendrait le slot visible au cabinet — hors scope N2.
 -- ===========================================================================
+RESET app.current_cabinet_id;
 SELECT is(
     (SELECT count(*)::int FROM availability_slot
      WHERE id = '18330000-0000-0000-0000-0000000000f1'),

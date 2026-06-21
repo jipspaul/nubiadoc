@@ -71,7 +71,7 @@ INSERT INTO provider (id, cabinet_id, user_id, display_name, rpps_verified, is_l
             'Dr SlotHold A', true, true);
 
 INSERT INTO app_user (id, email, password_hash, kind)
-    VALUES ('24600000-0000-0000-0000-0000000000u1',
+    VALUES ('24600000-0000-0000-0000-0000000000b1',
             'pat.2460a@nubia.test', '$argon2id$fixture', 'patient');
 
 -- Slot du cabinet A (cabinet_id requis pour la policy transitive)
@@ -87,7 +87,7 @@ INSERT INTO availability_slot (id, provider_id, cabinet_id, starts_at, ends_at, 
 INSERT INTO slot_holds (id, slot_id, user_id, hold_token, expires_at)
     VALUES ('24600000-0000-0000-0000-000000000100',
             '24600000-0000-0000-0000-0000000000f1',
-            '24600000-0000-0000-0000-0000000000u1',
+            '24600000-0000-0000-0000-0000000000b1',
             'hold-2460-a',
             now() + interval '5 minutes');
 
@@ -107,7 +107,7 @@ INSERT INTO provider (id, cabinet_id, user_id, display_name, rpps_verified, is_l
             'Dr SlotHold B', true, true);
 
 INSERT INTO app_user (id, email, password_hash, kind)
-    VALUES ('24600000-0000-0000-0000-0000000000u2',
+    VALUES ('24600000-0000-0000-0000-0000000000b2',
             'pat.2460b@nubia.test', '$argon2id$fixture', 'patient');
 
 -- Slot du cabinet B
@@ -123,7 +123,7 @@ INSERT INTO availability_slot (id, provider_id, cabinet_id, starts_at, ends_at, 
 INSERT INTO slot_holds (id, slot_id, user_id, hold_token, expires_at)
     VALUES ('24600000-0000-0000-0000-000000000200',
             '24600000-0000-0000-0000-0000000000f2',
-            '24600000-0000-0000-0000-0000000000u2',
+            '24600000-0000-0000-0000-0000000000b2',
             'hold-2460-b',
             now() + interval '5 minutes');
 
@@ -164,7 +164,7 @@ SELECT throws_ok(
     $$ INSERT INTO slot_holds (slot_id, user_id, hold_token, expires_at)
        VALUES (
            '24600000-0000-0000-0000-0000000000f1',
-           '24600000-0000-0000-0000-0000000000u2',
+           '24600000-0000-0000-0000-0000000000b2',
            'hold-cross-tenant',
            now() + interval '5 minutes'
        ) $$,
