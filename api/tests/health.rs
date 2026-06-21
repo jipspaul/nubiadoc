@@ -12,8 +12,15 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
+fn db_available() -> bool {
+    std::env::var("APP_DATABASE_URL").is_ok()
+}
+
 #[tokio::test]
 async fn health_db_returns_200_ok() {
+    if !db_available() {
+        return;
+    }
     let state = nubia_api::AppState {
         db: app_pool().await,
         jwt_secret: String::new(),
