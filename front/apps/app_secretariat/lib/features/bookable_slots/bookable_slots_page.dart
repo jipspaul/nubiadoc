@@ -21,6 +21,20 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
     context.read<BookableSlotsBloc>().add(const BookableSlotsLoadRequested());
   }
 
+  Future<void> _openCreateSlotDialog() async {
+    final result = await showDialog<({DateTime startsAt, DateTime endsAt})>(
+      context: context,
+      builder: (_) => const CreateSlotDialog(),
+    );
+    if (result == null || !mounted) return;
+    context.read<BookableSlotsBloc>().add(
+          CreateSlotRequested(
+            startsAt: result.startsAt,
+            endsAt: result.endsAt,
+          ),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -38,13 +52,7 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('create_slot_fab'),
-        onPressed: () => showDialog<void>(
-          context: context,
-          builder: (_) => BlocProvider.value(
-            value: context.read<BookableSlotsBloc>(),
-            child: const CreateSlotDialog(),
-          ),
-        ),
+        onPressed: _openCreateSlotDialog,
         icon: const Icon(Icons.add),
         label: const Text('Créer un créneau'),
       ),

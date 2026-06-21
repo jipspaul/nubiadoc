@@ -34,26 +34,16 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
     CreateSlotRequested event,
     Emitter<BookableSlotsState> emit,
   ) async {
-    final start = DateTime(
-      event.date.year,
-      event.date.month,
-      event.date.day,
-      event.startTime.hour,
-      event.startTime.minute,
-    );
-    final end = DateTime(
-      event.date.year,
-      event.date.month,
-      event.date.day,
-      event.endTime.hour,
-      event.endTime.minute,
-    );
-    await _createSlot(
+    emit(const BookableSlotsLoading());
+    final result = await _createSlot(
       cabinetId: '',
       practitionerId: '',
-      start: start,
-      duration: end.difference(start),
+      start: event.startsAt,
+      duration: event.endsAt.difference(event.startsAt),
     );
-    add(const BookableSlotsLoadRequested());
+    result.fold(
+      (failure) => emit(BookableSlotsError(failure.message)),
+      (_) => add(const BookableSlotsLoadRequested()),
+    );
   }
 }
