@@ -9,15 +9,8 @@ class BookableSlotsLoadRequested extends BookableSlotsEvent {
 }
 
 class CreateSlotRequested extends BookableSlotsEvent {
-  const CreateSlotRequested({
-    required this.date,
-    required this.startTime,
-    required this.endTime,
-    required this.capacity,
-  });
+  const CreateSlotRequested({required this.startsAt, required this.endsAt});
 
-  final DateTime date;
-  final TimeOfDay startTime;
-  final TimeOfDay endTime;
-  final int capacity;
+  final DateTime startsAt;
+  final DateTime endsAt;
 }

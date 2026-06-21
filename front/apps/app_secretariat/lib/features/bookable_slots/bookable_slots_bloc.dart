@@ -6,11 +6,11 @@ import 'bookable_slots_state.dart';
 
 class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
   final ListBookableSlotsUseCase _listSlots;
-  final CreateSlotUseCase? _createSlot;
+  final CreateSlotUseCase _createSlot;
 
   BookableSlotsBloc({
     required ListBookableSlotsUseCase listSlots,
-    CreateSlotUseCase? createSlot,
+    required CreateSlotUseCase createSlot,
   })  : _listSlots = listSlots,
         _createSlot = createSlot,
         super(const BookableSlotsInitial()) {
@@ -34,27 +34,12 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
     CreateSlotRequested event,
     Emitter<BookableSlotsState> emit,
   ) async {
-    final uc = _createSlot;
-    if (uc == null) return;
-    final start = DateTime(
-      event.date.year,
-      event.date.month,
-      event.date.day,
-      event.startTime.hour,
-      event.startTime.minute,
-    );
-    final end = DateTime(
-      event.date.year,
-      event.date.month,
-      event.date.day,
-      event.endTime.hour,
-      event.endTime.minute,
-    );
-    final result = await uc(
+    emit(const BookableSlotsLoading());
+    final result = await _createSlot(
       cabinetId: '',
       practitionerId: '',
-      start: start,
-      duration: end.difference(start),
+      start: event.startsAt,
+      duration: event.endsAt.difference(event.startsAt),
     );
     result.fold(
       (failure) => emit(BookableSlotsError(failure.message)),
