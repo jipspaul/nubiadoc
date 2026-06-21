@@ -279,6 +279,34 @@ void main() {
       expect(find.text('Albert Einstein'), findsNothing);
     });
 
+    testWidgets(
+        'pull-to-refresh déclenche CabinetMessagingConversationsLoadRequested',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const CabinetMessagingConversationsLoaded([
+          CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.fling(
+        find.byKey(const Key('cabinet_messaging_conversations_list')),
+        const Offset(0, 300),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      verify(
+        () => bloc.add(const CabinetMessagingConversationsLoadRequested()),
+      ).called(1);
+    });
+
     testWidgets('affiche le message d\'erreur', (tester) async {
       when(() => bloc.state).thenReturn(
         const CabinetMessagingConversationsError('Erreur de connexion'),
