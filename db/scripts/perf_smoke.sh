@@ -88,7 +88,7 @@ SQL
 # ---------------------------------------------------------------------------
 
 # 1. Agenda — rendez-vous du jour pour un praticien
-#    Index attendu : appointment_practitioner_time_idx (cabinet_id, practitioner_id, starts_at)
+#    Index attendu : idx_appointment_practitioner_starts_at (practitioner_id, starts_at)
 check_query "agenda" "appointment" \
     "SELECT id, patient_id, starts_at, status
        FROM appointment
@@ -96,43 +96,49 @@ check_query "agenda" "appointment" \
         AND practitioner_id  = '${FAKE_PRACT}'
         AND starts_at >= now()
         AND starts_at <  now() + interval '1 day'
+        AND deleted_at IS NULL
       ORDER BY starts_at"
 
 # 2. Liste des patients du cabinet
-#    Index attendu : patient_cabinet_idx (cabinet_id)
+#    Index attendu : index sur patient(cabinet_id)
 check_query "patients_list" "patient" \
-    "SELECT id, first_name, last_name, created_at
+    "SELECT id, app_user_id
        FROM patient
       WHERE cabinet_id = '${FAKE_CABINET}'
         AND deleted_at IS NULL
-      ORDER BY last_name, first_name"
+      ORDER BY id
+      LIMIT 100"
 
 # 3. Liste des conversations du cabinet
-#    Index attendu : conversation_cabinet_patient_idx (cabinet_id, patient_id)
+#    Index attendu : index sur conversation(cabinet_id)
 check_query "conversations_list" "conversation" \
-    "SELECT id, patient_id, created_at
+    "SELECT id, patient_id, status
        FROM conversation
       WHERE cabinet_id = '${FAKE_CABINET}'
         AND deleted_at IS NULL
-      ORDER BY created_at DESC"
+      ORDER BY id
+      LIMIT 50"
 
 # 4. File d'attente active
-#    Index attendu : waiting_list_active_idx (cabinet_id, status)
+#    Index attendu : index sur waiting_list_entry(cabinet_id, status)
 check_query "waiting_list" "waiting_list_entry" \
-    "SELECT id, patient_id, status, created_at
+    "SELECT id, patient_id, score
        FROM waiting_list_entry
       WHERE cabinet_id = '${FAKE_CABINET}'
         AND status     = 'active'
-      ORDER BY created_at"
+      ORDER BY score DESC
+      LIMIT 50"
 
 # 5. Devis ouverts du cabinet
-#    Index attendu : quote_cabinet_status_idx (cabinet_id, status)
+#    Index attendu : index sur quote(cabinet_id, status)
 check_query "devis" "quote" \
-    "SELECT id, patient_id, status, created_at
+    "SELECT id, patient_id, status, total_amount
        FROM quote
       WHERE cabinet_id = '${FAKE_CABINET}'
-        AND status IN ('draft','sent','accepted')
-      ORDER BY created_at DESC"
+        AND status IN ('draft','sent','signed')
+        AND deleted_at IS NULL
+      ORDER BY id
+      LIMIT 100"
 
 # ---------------------------------------------------------------------------
 # Résumé
