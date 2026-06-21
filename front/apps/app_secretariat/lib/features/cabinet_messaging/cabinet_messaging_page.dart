@@ -104,12 +104,14 @@ class _ConversationsList extends StatefulWidget {
 
 class _ConversationsListState extends State<_ConversationsList> {
   String _query = '';
+  bool _showUnreadOnly = false;
 
   @override
   Widget build(BuildContext context) {
     final filtered = widget.conversations
         .where(
             (c) => c.patientName.toLowerCase().contains(_query.toLowerCase()))
+        .where((c) => !_showUnreadOnly || c.unreadCount > 0)
         .toList();
 
     return Column(
@@ -123,6 +125,19 @@ class _ConversationsListState extends State<_ConversationsList> {
               hintText: 'Rechercher un patient',
             ),
             onChanged: (value) => setState(() => _query = value),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: SegmentedButton<bool>(
+            key: const Key('cabinet_messaging_filter'),
+            segments: const [
+              ButtonSegment<bool>(value: false, label: Text('Tous')),
+              ButtonSegment<bool>(value: true, label: Text('Non lus')),
+            ],
+            selected: {_showUnreadOnly},
+            onSelectionChanged: (s) =>
+                setState(() => _showUnreadOnly = s.first),
           ),
         ),
         Expanded(
