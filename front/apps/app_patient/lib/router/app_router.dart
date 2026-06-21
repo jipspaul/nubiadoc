@@ -18,6 +18,8 @@ import '../features/mes_rdv/mes_rdv_page.dart';
 import '../features/notifications/notifications_bloc.dart';
 import '../features/notifications/notifications_event.dart';
 import '../features/notifications/notifications_page.dart';
+import '../features/oubliettes/oubliettes_bloc.dart';
+import '../features/oubliettes/oubliettes_page.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/profile/profile_page.dart';
@@ -43,6 +45,7 @@ class AppRouter {
   static const messaging = '/messaging';
   static const reviews = '/reviews';
   static const notifications = '/notifications';
+  static const oubliettes = '/oubliettes';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -140,6 +143,17 @@ class AppRouter {
             child: Scaffold(
               appBar: AppBar(title: const Text('Notifications')),
               body: const NotificationsPage(),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: oubliettes,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<OubliettesBloc>()
+              ..add(const OubliettesLoadRequested()),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Oubliettes')),
+              body: const OubliettesPage(),
             ),
           ),
         ),
