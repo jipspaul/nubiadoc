@@ -32,6 +32,7 @@ class AuthSession {
     this.role = ProRole.unknown,
     this.cabinetId,
     this.displayName,
+    this.contextLabel,
   });
 
   final UserKind kind;
@@ -47,6 +48,11 @@ class AuthSession {
   final String? cabinetId;
 
   final String? displayName;
+
+  /// Human-readable context label shown in app banners, e.g.
+  /// "Secrétariat "Dents & Co" — Établissement: Agence Lyon".
+  /// Null when no context is available.
+  final String? contextLabel;
 
   bool get isPro => kind == UserKind.pro;
   bool get isPatient => kind == UserKind.patient;

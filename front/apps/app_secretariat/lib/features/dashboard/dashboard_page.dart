@@ -34,19 +34,28 @@ class DashboardPage extends StatelessWidget {
       config: ProConfig.shellConfig,
       session: session,
       bodyBuilder: (ctx, destination) {
+        final Widget body;
         if (destination.route == ProConfig.dashboardRoute) {
-          return BlocProvider(
+          body = BlocProvider(
             create: (_) =>
                 DashboardBloc()..add(const DashboardLoadRequested()),
             child: const _DashboardContent(),
           );
+        } else {
+          body = Center(
+            child: NubiaEmptyState(
+              icon: Icons.construction_outlined,
+              title: destination.label,
+              subtitle: '${ProConfig.spaceLabel} — Écran à implémenter.',
+            ),
+          );
         }
-        return Center(
-          child: NubiaEmptyState(
-            icon: Icons.construction_outlined,
-            title: destination.label,
-            subtitle: '${ProConfig.spaceLabel} — Écran à implémenter.',
-          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ContextBanner(label: session.contextLabel),
+            Expanded(child: body),
+          ],
         );
       },
       trailingActions: [
@@ -101,6 +110,26 @@ class _DashboardContent extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Coloured banner displaying the current secrétariat/establishment context.
+/// Hidden (zero-height) when [label] is null.
+class ContextBanner extends StatelessWidget {
+  const ContextBanner({super.key, required this.label});
+
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    if (label == null) return const SizedBox.shrink();
+    return Container(
+      key: const Key('context_banner'),
+      color: Theme.of(context).colorScheme.primaryContainer,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Text(label!),
     );
   }
 }
