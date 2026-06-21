@@ -18,10 +18,14 @@ SELECT plan(4);
 -- ===========================================================================
 
 SET LOCAL app.current_cabinet_id = '24480000-0000-0000-0000-000000000001';
-
 INSERT INTO cabinet (id, raison_sociale) VALUES
-  ('24480000-0000-0000-0000-000000000001', 'Cabinet RLS-2448-A'),
+  ('24480000-0000-0000-0000-000000000001', 'Cabinet RLS-2448-A');
+
+SET LOCAL app.current_cabinet_id = '24480000-0000-0000-0000-000000000002';
+INSERT INTO cabinet (id, raison_sociale) VALUES
   ('24480000-0000-0000-0000-000000000002', 'Cabinet RLS-2448-B');
+
+SET LOCAL app.current_cabinet_id = '24480000-0000-0000-0000-000000000001';
 
 INSERT INTO app_user (id, email, password_hash, kind) VALUES
   ('24480000-0000-0000-0000-000000000010', 'prat.2448@nubia.test',    '$argon2id$fixture', 'pro'),
