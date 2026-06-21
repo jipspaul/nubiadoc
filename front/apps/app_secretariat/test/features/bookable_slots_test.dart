@@ -19,6 +19,8 @@ class _MockBookableSlotsBloc
     extends MockBloc<BookableSlotsEvent, BookableSlotsState>
     implements BookableSlotsBloc {}
 
+class _MockCreateSlotUseCase extends Mock implements CreateSlotUseCase {}
+
 final _slot = Slot(
   id: 's1',
   cabinetId: 'c1',
@@ -60,10 +62,12 @@ void main() {
   group('BookableSlotsBloc', () {
     late _MockSlotsRepository repo;
     late ListBookableSlotsUseCase useCase;
+    late _MockCreateSlotUseCase createUseCase;
 
     setUp(() {
       repo = _MockSlotsRepository();
       useCase = ListBookableSlotsUseCase(repo);
+      createUseCase = _MockCreateSlotUseCase();
     });
 
     blocTest<BookableSlotsBloc, BookableSlotsState>(
@@ -75,7 +79,7 @@ void main() {
               to: any(named: 'to'),
               practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
-        return BookableSlotsBloc(listSlots: useCase);
+        return BookableSlotsBloc(listSlots: useCase, createSlot: createUseCase);
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       expect: () => [
@@ -95,7 +99,7 @@ void main() {
         ).thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
-        return BookableSlotsBloc(listSlots: useCase);
+        return BookableSlotsBloc(listSlots: useCase, createSlot: createUseCase);
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       expect: () => [
@@ -113,7 +117,7 @@ void main() {
               to: any(named: 'to'),
               practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
-        return BookableSlotsBloc(listSlots: useCase);
+        return BookableSlotsBloc(listSlots: useCase, createSlot: createUseCase);
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       verify: (bloc) {
