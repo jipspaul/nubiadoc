@@ -1315,6 +1315,7 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 /// `Idempotency-Key` optionnel : si fourni, un second appel avec la même clé retourne le RDV
 /// existant (`201`) sans insérer de doublon.
 /// Le statut initial est toujours `"requested"` (confirmation asynchrone par le cabinet).
+/// Réponse : même shape que `GET /v1/appointments/:id`.
 pub async fn create_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -1415,7 +1416,7 @@ pub async fn create_appointment(
     // cabinet + clé, on retourne le RDV existant sans insérer de doublon.
     if let Some(ref key) = idempotency_key {
         let existing = sqlx::query(
-            "SELECT id, status, starts_at, ends_at FROM appointment \
+            "SELECT id, status, starts_at, ends_at, motif FROM appointment \
              WHERE cabinet_id = $1 AND idempotency_key = $2",
         )
         .bind(cabinet_id)
@@ -1431,6 +1432,13 @@ pub async fn create_appointment(
                 row.try_get("starts_at").map_err(|_| AppError::Internal)?;
             let idem_ends_at: chrono::DateTime<chrono::Utc> =
                 row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+            let idem_motif: Option<String> =
+                row.try_get("motif").map_err(|_| AppError::Internal)?;
+
+            let (prov_id, prov_name, prov_spec) =
+                fetch_provider_for_response(&mut tx, practitioner_id).await?;
+            let (cab_name, cab_addr) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
+
             tx.commit().await.map_err(|_| AppError::Internal)?;
             tracing::info!(
                 account_id = %claims.account_id,
@@ -1444,15 +1452,15 @@ pub async fn create_appointment(
                     starts_at: idem_starts_at.to_rfc3339(),
                     ends_at: idem_ends_at.to_rfc3339(),
                     status,
-                    motif: body.motif.clone(),
+                    motif: idem_motif,
                     provider: ProviderDetail {
-                        id: Some(body.provider_id),
-                        display_name: provider_display_name.clone(),
-                        specialty: provider_specialty.clone(),
+                        id: prov_id,
+                        display_name: prov_name,
+                        specialty: prov_spec,
                     },
                     cabinet: CabinetInfo {
-                        name: cabinet_name.clone(),
-                        address: cabinet_address.clone(),
+                        name: cab_name,
+                        address: cab_addr,
                     },
                 }),
             ));
@@ -1518,14 +1526,16 @@ pub async fn create_appointment(
     .fetch_one(&mut *tx)
     .await;
 
-    let row = match result {
+    let inserted_row = match result {
         Ok(row) => row,
         Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
         Err(_) => return Err(AppError::Internal),
     };
 
-    let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let appointment_id: Uuid = inserted_row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = inserted_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
 
     // Consomme le créneau : il ne doit plus apparaître dans la recherche de
     // disponibilités (`/v1/search/slots` filtre `status = 'open'`). Symétrique de
@@ -1541,6 +1551,11 @@ pub async fn create_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
     }
+
+    // Fetch provider + cabinet pour la réponse (même shape que GET /:id).
+    let (provider_id, provider_display_name, provider_specialty) =
+        fetch_provider_for_response(&mut tx, practitioner_id).await?;
+    let (cabinet_name, cabinet_address) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -1559,7 +1574,7 @@ pub async fn create_appointment(
             status,
             motif: body.motif,
             provider: ProviderDetail {
-                id: Some(body.provider_id),
+                id: provider_id,
                 display_name: provider_display_name,
                 specialty: provider_specialty,
             },
@@ -1569,4 +1584,48 @@ pub async fn create_appointment(
             },
         }),
     ))
+}
+
+async fn fetch_provider_for_response(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    practitioner_id: Uuid,
+) -> Result<(Option<Uuid>, Option<String>, Option<String>), AppError> {
+    let row = sqlx::query(
+        "SELECT id, display_name, specialite FROM provider \
+         WHERE practitioner_id = $1 LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    Ok(match row {
+        Some(r) => {
+            let pid: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
+            let dn: String = r.try_get("display_name").map_err(|_| AppError::Internal)?;
+            let sp: Option<String> = r.try_get("specialite").map_err(|_| AppError::Internal)?;
+            (Some(pid), Some(dn), sp)
+        }
+        None => (None, None, None),
+    })
+}
+
+async fn fetch_cabinet_for_response(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cabinet_id: Uuid,
+) -> Result<(String, Option<String>), AppError> {
+    let row = sqlx::query(
+        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    let name: String = row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let address: Option<String> = row.try_get("address").map_err(|_| AppError::Internal)?;
+    Ok((name, address))
 }
