@@ -1,4 +1,4 @@
-//! Handler `POST /v1/cabinet/slots` — secrétariat/admin crée un créneau disponible (§E.2).
+//! Handler `POST /v1/cabinet/slots` — création d'un créneau (admin/secrétariat).
 
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
@@ -14,8 +14,8 @@ use crate::{
 pub struct CreateSlotBody {
     pub starts_at: String,
     pub ends_at: String,
-    pub capacity: Option<i32>,
     pub provider_id: Uuid,
+    pub capacity: Option<i32>,
 }
 
 #[derive(Serialize)]
@@ -34,11 +34,10 @@ fn is_exclusion_violation(e: &sqlx::Error) -> bool {
     )
 }
 
-/// `POST /v1/cabinet/slots` — secrétariat/admin crée un créneau disponible (§E.2).
+/// `POST /v1/cabinet/slots` — ouvre un créneau disponible (docs/12 §E.2).
 ///
 /// Auth : admin ou secretary ; practitioner → 403.
-/// `SET LOCAL app.current_cabinet_id` + policy `tenant_isolation`.
-/// Conflit d'exclusion praticien (23P01) → 409 slot_taken.
+/// `cabinet_id` extrait du JWT. Conflit d'exclusion praticien (23P01) → 409 slot_taken.
 pub async fn create_slot(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -60,8 +59,6 @@ pub async fn create_slot(
         return Err(AppError::ValidationError);
     }
 
-    let capacity = body.capacity.unwrap_or(1).max(1);
-
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -70,7 +67,8 @@ pub async fn create_slot(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let prov_row =
+    // Vérifie que le provider appartient au cabinet et récupère practitioner_id.
+    let provider_row =
         sqlx::query("SELECT id, practitioner_id FROM provider WHERE id = $1 AND cabinet_id = $2")
             .bind(body.provider_id)
             .bind(claims.cabinet_id)
@@ -79,7 +77,11 @@ pub async fn create_slot(
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
 
-    let practitioner_id: Option<Uuid> = prov_row.try_get("practitioner_id").unwrap_or(None);
+    let practitioner_id: Option<Uuid> = provider_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+
+    let slot_id = Uuid::new_v4();
 
     let result = sqlx::query(
         "INSERT INTO availability_slot \
@@ -87,7 +89,7 @@ pub async fn create_slot(
          VALUES ($1, $2, $3, $4, $5, $6, 'open', false) \
          RETURNING id, starts_at, ends_at",
     )
-    .bind(Uuid::new_v4())
+    .bind(slot_id)
     .bind(body.provider_id)
     .bind(claims.cabinet_id)
     .bind(practitioner_id)
@@ -110,13 +112,20 @@ pub async fn create_slot(
     let ea: chrono::DateTime<chrono::Utc> =
         row.try_get("ends_at").map_err(|_| AppError::Internal)?;
 
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        slot_id = %id,
+        "cabinet slot created"
+    );
+
     Ok((
         StatusCode::CREATED,
         Json(CreateSlotResponse {
             id,
             starts_at: sa.to_rfc3339(),
             ends_at: ea.to_rfc3339(),
-            capacity,
+            capacity: body.capacity.unwrap_or(1),
             status: "available".to_string(),
         }),
     ))
