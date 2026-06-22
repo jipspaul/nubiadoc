@@ -56,9 +56,16 @@ class _DocumentsBody extends StatelessWidget {
       child: BlocBuilder<DocumentsBloc, DocumentsState>(
         builder: (context, state) {
           if (state is DocumentsLoading || state is DocumentsInitial) {
-            return const Center(
-              key: Key('documents_loading'),
-              child: CircularProgressIndicator(),
+            return ListView(
+              key: const Key('documents_loading'),
+              padding: const EdgeInsets.all(16),
+              children: List.generate(
+                3,
+                (_) => const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: NubiaSkeletonLoader(height: 72),
+                ),
+              ),
             );
           }
           if (state is DocumentsError) {
@@ -131,7 +138,7 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                   ? const NubiaEmptyState(
                       key: Key('documents_empty'),
                       icon: Icons.folder_open_outlined,
-                      title: 'Aucun document',
+                      title: 'Aucun document pour l\'instant',
                     )
                   : RefreshIndicator(
                       key: const ValueKey('documents_refresh'),
