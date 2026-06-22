@@ -23,6 +23,20 @@
 - Conformité : RLS multi-tenant + chiffrement colonne (PII) + audit append-only **dès le départ**, non rétrofittables.
 - Pas de fonction "dispositif médical".
 
+## Patterns connus
+
+### Pattern « parent-issue zombie » (postmortem 2026-06-22)
+
+Quand un agent ne converge pas et reçoit `needs-split`, le planner crée 2-3 sub-issues
+(.a/.b/.c). Ces sub-issues sont traitées et mergées normalement, MAIS :
+- l'issue parent reste open avec `superseded` + `needs-split`
+- la 1ʳᵉ PR ouverte par l'agent initial reste open
+- le watchdog dispatche `resolve-conflict` indéfiniment jusqu'au cap `RESOLVE_CONFLICT_CAP` (3)
+
+Remédiation : closing manuelle de la PR parent ET de l'issue parent quand on observe
+que les sub-issues sont mergées sur main. À automatiser : detect par titre identique
+avec suffix `.a/.b/.c` → fermer auto la parent quand TOUTES les subs sont mergées.
+
 ## Pour aller plus loin (lecture optionnelle, gros fichiers)
 - `PROGRESS.md` — état global + prochaines étapes.
 - `docs/12-reference-api.md` — toutes les routes/contrats.
