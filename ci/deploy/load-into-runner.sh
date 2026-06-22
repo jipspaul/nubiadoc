@@ -14,12 +14,22 @@ if command -v podman >/dev/null 2>&1; then BUILD=podman; else BUILD=docker; fi
 echo "→ build $IMAGE avec $BUILD"
 "$BUILD" build -t "$IMAGE" -f "$HERE/Containerfile" "$HERE"
 
-DIND="${RUNNER_DIND:-forgejo-runner-dind}"
-if "$BUILD" ps --format '{{.Names}}' | grep -qx "$DIND"; then
-  echo "→ load $IMAGE dans $DIND"
+# Le runner Forgejo tourne dans k3s (Lima) : namespace forgejo-runner, pod runner
+# avec un sidecar DinD nommé "daemon" (docker:25-dind). On y charge l'image via
+# kubectl exec. Fallback : conteneur DinD local nommé $RUNNER_DIND.
+NS="${RUNNER_NS:-forgejo-runner}"
+DIND_CONTAINER="${RUNNER_DIND_CONTAINER:-daemon}"
+POD="$(kubectl -n "$NS" get pods -o name 2>/dev/null | grep -i runner | head -1 | sed 's#pod/##')"
+
+if [ -n "${POD:-}" ]; then
+  echo "→ load $IMAGE dans le DinD k3s ($NS/$POD -c $DIND_CONTAINER)"
+  "$BUILD" save "$IMAGE" | kubectl -n "$NS" exec -i "$POD" -c "$DIND_CONTAINER" -- docker load
+elif "$BUILD" ps --format '{{.Names}}' | grep -qx "${RUNNER_DIND:-forgejo-runner-dind}"; then
+  DIND="${RUNNER_DIND:-forgejo-runner-dind}"
+  echo "→ load $IMAGE dans le conteneur DinD local $DIND"
   "$BUILD" save "$IMAGE" | "$BUILD" exec -i "$DIND" docker load
 else
-  echo "… conteneur DinD '$DIND' introuvable : image construite localement seulement."
-  echo "  (réglez RUNNER_DIND=<nom> si votre DinD a un autre nom)"
+  echo "… runner DinD introuvable (ni pod k3s '$NS', ni conteneur local)."
+  echo "  Image construite localement seulement ; charge-la à la main dans le DinD du runner."
 fi
 echo "✓ $IMAGE prêt"
