@@ -1644,8 +1644,8 @@ pub async fn delete_cabinet_slot(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(
-        "SELECT id, status FROM availability_slot \
+    sqlx::query(
+        "SELECT id FROM availability_slot \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(slot_id)
@@ -1655,9 +1655,21 @@ pub async fn delete_cabinet_slot(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
-    let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
-    if current_status == "booked" {
-        return Err(AppError::InvalidStatus);
+    let booking_row = sqlx::query(
+        "SELECT EXISTS(\
+           SELECT 1 FROM appointment \
+           WHERE slot_id = $1 \
+           AND status NOT IN ('cancelled', 'no_show')\
+         )",
+    )
+    .bind(slot_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let has_booking: bool = booking_row.try_get(0).map_err(|_| AppError::Internal)?;
+    if has_booking {
+        return Err(AppError::HasBooking);
     }
 
     sqlx::query(
