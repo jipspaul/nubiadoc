@@ -22,6 +22,9 @@ class MockGetAccountUseCase extends Mock implements GetAccountUseCase {}
 class MockUserSettingsRepository extends Mock
     implements UserSettingsRepository {}
 
+class MockNotificationRepository extends Mock
+    implements NotificationRepository {}
+
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 // ---------------------------------------------------------------------------
@@ -49,27 +52,37 @@ Widget _wrap(ProfileBloc bloc) => MaterialApp(
 ProfileBloc _makeBloc(
   MockGetAccountUseCase getAccount,
   MockUserSettingsRepository userSettings,
+  MockNotificationRepository notifRepo,
 ) =>
-    ProfileBloc(getAccount: getAccount, userSettings: userSettings);
+    ProfileBloc(
+        getAccount: getAccount,
+        userSettings: userSettings,
+        notificationRepo: notifRepo);
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
+const _prefs = NotificationPreferences.allEnabled();
+
 void main() {
   late MockGetAccountUseCase mockGetAccount;
   late MockUserSettingsRepository mockUserSettings;
+  late MockNotificationRepository mockNotifRepo;
 
   setUp(() {
     mockGetAccount = MockGetAccountUseCase();
     mockUserSettings = MockUserSettingsRepository();
+    mockNotifRepo = MockNotificationRepository();
     when(() => mockUserSettings.getBiometricEnabled())
         .thenAnswer((_) async => false);
+    when(() => mockNotifRepo.getPreferences())
+        .thenAnswer((_) async => const Right(_prefs));
   });
 
   group('ProfilePage', () {
     testWidgets('affiche le skeleton loader en état initial', (tester) async {
-      final bloc = _makeBloc(mockGetAccount, mockUserSettings);
+      final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
 
       await tester.pumpWidget(_wrap(bloc));
 
@@ -81,7 +94,7 @@ void main() {
       when(() => mockGetAccount())
           .thenAnswer((_) async => const Right(_account));
 
-      final bloc = _makeBloc(mockGetAccount, mockUserSettings);
+      final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
       bloc.add(const ProfileLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -97,7 +110,7 @@ void main() {
         (_) async => const Left(NetworkFailure('Erreur réseau.')),
       );
 
-      final bloc = _makeBloc(mockGetAccount, mockUserSettings);
+      final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
       bloc.add(const ProfileLoadRequested());
 
       await tester.pumpWidget(_wrap(bloc));
@@ -114,7 +127,7 @@ void main() {
       build: () {
         when(() => mockGetAccount())
             .thenAnswer((_) async => const Right(_account));
-        return _makeBloc(mockGetAccount, mockUserSettings);
+        return _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
       },
       act: (bloc) => bloc.add(const ProfileLoadRequested()),
       expect: () => [
@@ -130,7 +143,7 @@ void main() {
         when(() => mockGetAccount()).thenAnswer(
           (_) async => const Left(NetworkFailure('Erreur réseau.')),
         );
-        return _makeBloc(mockGetAccount, mockUserSettings);
+        return _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
       },
       act: (bloc) => bloc.add(const ProfileLoadRequested()),
       expect: () => [

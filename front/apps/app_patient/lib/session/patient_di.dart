@@ -51,6 +51,7 @@ void registerPatient(GetIt gi) {
     () => ProfileBloc(
       getAccount: gi<GetAccountUseCase>(),
       userSettings: gi<UserSettingsRepository>(),
+      notificationRepo: gi<NotificationRepository>(),
     ),
   );
 
