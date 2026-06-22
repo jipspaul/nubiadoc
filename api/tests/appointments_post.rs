@@ -198,14 +198,11 @@ async fn post_appointment_happy_path_returns_201() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(
-        v["appointment_id"].is_string(),
-        "appointment_id doit être présent"
-    );
+    assert!(v["id"].is_string(), "id doit être présent");
     assert_eq!(v["status"], "requested", "status doit être requested");
 
     // Vérification DB : row insérée + patient_id correspond au JWT.
-    let appt_id: uuid::Uuid = v["appointment_id"].as_str().unwrap().parse().unwrap();
+    let appt_id: uuid::Uuid = v["id"].as_str().unwrap().parse().unwrap();
     {
         let mut tx = db.begin().await.unwrap();
         sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -635,7 +632,7 @@ async fn post_appointment_idempotency_key_returns_same_appointment() {
         .await
         .unwrap();
     let v1: serde_json::Value = serde_json::from_slice(&b1).unwrap();
-    let appt_id = v1["appointment_id"].as_str().unwrap().to_owned();
+    let appt_id = v1["id"].as_str().unwrap().to_owned();
 
     // Second appel avec la même Idempotency-Key → 201 avec le même appointment_id.
     let r2 = app(make_state())
@@ -667,9 +664,9 @@ async fn post_appointment_idempotency_key_returns_same_appointment() {
         .unwrap();
     let v2: serde_json::Value = serde_json::from_slice(&b2).unwrap();
     assert_eq!(
-        v2["appointment_id"].as_str().unwrap(),
+        v2["id"].as_str().unwrap(),
         appt_id,
-        "le second appel doit retourner le même appointment_id"
+        "le second appel doit retourner le même id"
     );
 
     // Cleanup.
