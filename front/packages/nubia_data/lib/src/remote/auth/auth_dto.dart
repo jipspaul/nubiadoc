@@ -55,15 +55,20 @@ class PatientAccountDto {
 
 class AuthResponseDto {
   final TokenResponseDto tokens;
-  final PatientAccountDto account;
+  final PatientAccountDto? account;
 
-  const AuthResponseDto({required this.tokens, required this.account});
+  const AuthResponseDto({required this.tokens, this.account});
 
-  factory AuthResponseDto.fromJson(Map<String, dynamic> json) =>
-      AuthResponseDto(
-        tokens:
-            TokenResponseDto.fromJson(json['tokens'] as Map<String, dynamic>),
-        account:
-            PatientAccountDto.fromJson(json['account'] as Map<String, dynamic>),
-      );
+  factory AuthResponseDto.fromJson(Map<String, dynamic> json) {
+    // POST /v1/auth/login renvoie les jetons À PLAT
+    // ({access_token, refresh_token, ...}) sans objet "account".
+    // On accepte aussi la forme imbriquée {"tokens": {...}, "account": {...}}.
+    final tokensJson = json['tokens'] as Map<String, dynamic>? ?? json;
+    final accountJson = json['account'] as Map<String, dynamic>?;
+    return AuthResponseDto(
+      tokens: TokenResponseDto.fromJson(tokensJson),
+      account:
+          accountJson != null ? PatientAccountDto.fromJson(accountJson) : null,
+    );
+  }
 }

@@ -53,18 +53,22 @@ fi
 # (NE PAS écraser le version.json de Flutter, lu par son service worker.)
 GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 BUILD_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+# Les apps Flutter mettent le /v1 DANS la base (ApiConstants.baseUrl) et appellent
+# '/auth/login' ; la console Astro garde l'hôte nu et préfixe /v1 dans ses chemins.
+# D'où deux bases distinctes à partir du même hôte.
+FLUTTER_API_BASE="${API_BASE%/}/v1"
 build_front() { # app_dir  www_name
   # --pwa-strategy=none : pas de service worker. Sur un site redéployé en continu,
   # le SW Flutter sert un cache périmé après chaque déploiement -> écran blanc.
   # Sans SW, le navigateur récupère les assets frais à chaque chargement.
   ( cd "$ROOT/front/apps/$1" && $FLUTTER build web --release --base-href / \
       --pwa-strategy=none \
-      --dart-define=API_BASE_URL="$API_BASE" )
+      --dart-define=API_BASE_URL="$FLUTTER_API_BASE" )
   rm -rf "$OUT/www-$2"
   cp -r "$ROOT/front/apps/$1/build/web" "$OUT/www-$2"
   cp "$OUT/sqlite3.wasm" "$OUT/www-$2/sqlite3.wasm"
   printf '{"app":"%s","commit":"%s","built_at":"%s","api_base":"%s"}\n' \
-    "$2" "$GIT_SHA" "$BUILD_AT" "$API_BASE" > "$OUT/www-$2/deploy.json"
+    "$2" "$GIT_SHA" "$BUILD_AT" "$FLUTTER_API_BASE" > "$OUT/www-$2/deploy.json"
   # SW auto-destructeur : évince un éventuel ancien service worker Flutter déjà
   # enregistré dans le navigateur (cache périmé d'un déploiement précédent ->
   # écran blanc). Servi no-cache (cf. nginx.conf), il purge les caches, se
