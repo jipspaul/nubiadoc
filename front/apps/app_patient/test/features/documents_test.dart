@@ -266,8 +266,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 4 chips visibles
-      expect(find.byType(FilterChip), findsNWidgets(4));
+      // 5 chips visibles : « Tous » + 4 catégories
+      expect(find.byType(FilterChip), findsNWidgets(5));
 
       // 3 docs visibles avant filtrage
       expect(find.byKey(const Key('document_p1')), findsOneWidget);
