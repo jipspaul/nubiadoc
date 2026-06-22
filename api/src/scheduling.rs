@@ -1387,6 +1387,9 @@ pub async fn create_cabinet_slot(
     claims: ProSecretaryPlusClaims,
     Json(body): Json<CreateSlotBody>,
 ) -> Result<(StatusCode, Json<CabinetSlotResponse>), AppError> {
+    if claims.role == "practitioner" {
+        return Err(AppError::Forbidden);
+    }
     let starts_at = body
         .starts_at
         .parse::<chrono::DateTime<chrono::Utc>>()
