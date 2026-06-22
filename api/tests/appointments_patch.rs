@@ -237,8 +237,12 @@ async fn patch_appointment_happy_path_returns_200() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(v["appointment_id"], appt_id.to_string());
+    assert_eq!(v["id"], appt_id.to_string());
+    assert!(v["starts_at"].is_string());
+    assert!(v["ends_at"].is_string());
     assert!(v["status"].is_string());
+    assert!(v["provider"].is_object());
+    assert!(v["cabinet"].is_object());
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
@@ -535,6 +539,98 @@ async fn patch_appointment_invalid_status_returns_409() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["error"], "invalid_status");
+
+    cleanup(&db, cabinet_id, patient_id, prac_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test : starts_at invalide → 422 ─────────────────────────────────────────
+
+#[tokio::test]
+async fn patch_appointment_invalid_starts_at_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("patch-baddate+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Patch', 'BadDate')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("patch-baddate-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (cabinet_id, prac_id, patient_id, appt_id) = insert_fixture(
+        &db,
+        prac_user_id,
+        patient_account_id,
+        "confirmed",
+        "now() + interval '48 hours'",
+    )
+    .await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/appointments/{}", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({"starts_at": "not-a-valid-date"})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
