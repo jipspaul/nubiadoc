@@ -12,6 +12,7 @@ mod appointments;
 mod auth;
 mod billing;
 mod bookings;
+mod cabinet;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_secretariats;
@@ -371,7 +372,7 @@ pub fn app_with_dispatcher(
             "/v1/cabinet/waiting-list/:id/offer",
             post(scheduling::offer_waiting_list_slot),
         )
-        .route("/v1/cabinet/slots", post(scheduling::create_cabinet_slot))
+        .route("/v1/cabinet/slots", post(cabinet::create_slot))
         .route(
             "/v1/cabinet/slots/:id",
             patch(scheduling::patch_cabinet_slot).delete(scheduling::delete_cabinet_slot),
