@@ -187,8 +187,8 @@ class _NoteTile extends StatelessWidget {
       leading: CircleAvatar(
         child: Text(note.patientInitials),
       ),
-      title: Text(note.patientInitials),
-      subtitle: Text(_timeLabel(note.timestamp)),
+      title: Text(_timeLabel(note.timestamp)),
+      subtitle: Text(note.status),
       trailing: Chip(
         label: Text(note.status),
         visualDensity: VisualDensity.compact,
