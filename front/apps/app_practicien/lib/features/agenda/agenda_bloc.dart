@@ -21,18 +21,26 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     on<AgendaWeekChanged>(_onWeekChanged);
     on<AgendaAppointmentConfirmRequested>(_onConfirm);
     on<AgendaConsultationStartRequested>(_onStartConsultation);
+    on<TogglePastIncluded>(_onTogglePastIncluded);
   }
+
+  bool get _currentIncludePast =>
+      state is AgendaLoaded ? (state as AgendaLoaded).includePast : false;
 
   Future<void> _onLoad(
     AgendaLoadRequested event,
     Emitter<AgendaState> emit,
   ) async {
+    final includePast = _currentIncludePast;
     emit(const AgendaLoading());
-    final result = await _getAgenda(event.weekStart);
+    final result = await _getAgenda(event.weekStart, includePast: includePast);
     result.fold(
       (failure) => emit(AgendaError(failure.message)),
-      (entries) =>
-          emit(AgendaLoaded(entries: entries, weekStart: event.weekStart)),
+      (entries) => emit(AgendaLoaded(
+        entries: entries,
+        weekStart: event.weekStart,
+        includePast: includePast,
+      )),
     );
   }
 
@@ -41,6 +49,25 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     Emitter<AgendaState> emit,
   ) async {
     await _onLoad(AgendaLoadRequested(weekStart: event.weekStart), emit);
+  }
+
+  Future<void> _onTogglePastIncluded(
+    TogglePastIncluded event,
+    Emitter<AgendaState> emit,
+  ) async {
+    final current = state;
+    if (current is! AgendaLoaded) return;
+    final newIncludePast = !current.includePast;
+    emit(const AgendaLoading());
+    final result = await _getAgenda(current.weekStart, includePast: newIncludePast);
+    result.fold(
+      (failure) => emit(AgendaError(failure.message)),
+      (entries) => emit(AgendaLoaded(
+        entries: entries,
+        weekStart: current.weekStart,
+        includePast: newIncludePast,
+      )),
+    );
   }
 
   Future<void> _onConfirm(

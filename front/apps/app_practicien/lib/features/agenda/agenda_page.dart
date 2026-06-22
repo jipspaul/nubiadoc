@@ -8,6 +8,7 @@ import 'agenda_bloc.dart';
 import 'agenda_event.dart';
 import 'agenda_state.dart';
 
+
 class AgendaPage extends StatelessWidget {
   const AgendaPage({super.key});
 
@@ -33,14 +34,41 @@ class _AgendaView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('agenda_fab_consultation'),
-        onPressed: () => _showPatientPicker(context),
-        icon: const Icon(Icons.play_arrow),
-        label: const Text('Consultation'),
-      ),
-      body: const AgendaBody(),
+    return BlocBuilder<AgendaBloc, AgendaState>(
+      buildWhen: (prev, curr) {
+        final prevFlag = prev is AgendaLoaded ? prev.includePast : false;
+        final currFlag = curr is AgendaLoaded ? curr.includePast : false;
+        return prevFlag != currFlag;
+      },
+      builder: (context, state) {
+        final includePast = state is AgendaLoaded ? state.includePast : false;
+        return Scaffold(
+          appBar: AppBar(
+            actions: [
+              IconButton(
+                key: const Key('agenda_toggle_past'),
+                icon: Icon(
+                  Icons.history,
+                  color: includePast
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+                tooltip: '⏪ Inclure passés',
+                onPressed: () => context
+                    .read<AgendaBloc>()
+                    .add(const TogglePastIncluded()),
+              ),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            key: const Key('agenda_fab_consultation'),
+            onPressed: () => _showPatientPicker(context),
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Consultation'),
+          ),
+          body: const AgendaBody(),
+        );
+      },
     );
   }
 }
