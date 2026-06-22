@@ -532,10 +532,10 @@ async fn post_checkin_wrong_patient_returns_404() {
         .ok();
 }
 
-// ── Test 4 : RDV demain (hors fenêtre) → 422 {"error":"out_of_window"} ──────
+// ── Test 4 : RDV demain (> 60 min avant) → 409 {"error":"too_early"} ────────
 
 #[tokio::test]
-async fn post_checkin_tomorrow_returns_422() {
+async fn post_checkin_tomorrow_returns_409_too_early() {
     if !db_available() {
         return;
     }
@@ -572,7 +572,7 @@ async fn post_checkin_tomorrow_returns_422() {
     .await
     .unwrap();
 
-    // starts_at = demain → hors fenêtre check-in (> now() + 30 min).
+    // starts_at = demain → trop tôt (> 60 min avant).
     let (cabinet_id, prac_id, patient_id, appt_id) = insert_fixture(
         &db,
         prac_user_id,
@@ -602,20 +602,113 @@ async fn post_checkin_tomorrow_returns_422() {
                 )
                 .header("Content-Type", "application/json")
                 .body(Body::from(
-                    serde_json::to_string(&json!({"method": "manual"})).unwrap(),
+                    serde_json::to_string(&json!({"qr_code": null})).unwrap(),
                 ))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(response.status(), StatusCode::CONFLICT);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "out_of_window");
+    assert_eq!(v["error"], "too_early");
+
+    cleanup(&db, cabinet_id, patient_id, prac_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 5 : QR code check-in → 200 {"status":"checked_in","checkin_at"} ────
+
+#[tokio::test]
+async fn post_checkin_qr_code_happy_path_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = seed_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("checkin-qr+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Checkin', 'QR')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("checkin-qr-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (cabinet_id, prac_id, patient_id, appt_id) =
+        insert_fixture(&db, prac_user_id, patient_account_id, "confirmed", "now()").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/appointments/{}/checkin", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"qr_code": "QR-ABC-123"})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["status"], "checked_in");
+    assert!(v["checkin_at"].is_string(), "checkin_at doit être présent");
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
