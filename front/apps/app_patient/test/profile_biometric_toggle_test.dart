@@ -16,6 +16,9 @@ class MockGetAccountUseCase extends Mock implements GetAccountUseCase {}
 class MockUserSettingsRepository extends Mock
     implements UserSettingsRepository {}
 
+class MockNotificationRepository extends Mock
+    implements NotificationRepository {}
+
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 const _account = PatientAccount(
@@ -25,6 +28,8 @@ const _account = PatientAccount(
   email: 'marie@example.com',
   phone: '0601020304',
 );
+
+const _prefs = NotificationPreferences.allEnabled();
 
 Widget _wrap(ProfileBloc bloc) => MaterialApp(
       home: MultiBlocProvider(
@@ -39,14 +44,18 @@ Widget _wrap(ProfileBloc bloc) => MaterialApp(
 void main() {
   late MockGetAccountUseCase mockGetAccount;
   late MockUserSettingsRepository mockUserSettings;
+  late MockNotificationRepository mockNotifRepo;
 
   setUp(() {
     mockGetAccount = MockGetAccountUseCase();
     mockUserSettings = MockUserSettingsRepository();
+    mockNotifRepo = MockNotificationRepository();
     when(() => mockGetAccount())
         .thenAnswer((_) async => const Right(_account));
     when(() => mockUserSettings.setBiometricEnabled(any()))
         .thenAnswer((_) async {});
+    when(() => mockNotifRepo.getPreferences())
+        .thenAnswer((_) async => const Right(_prefs));
   });
 
   group('ProfilePage — biometric toggle', () {
@@ -59,6 +68,7 @@ void main() {
         final bloc = ProfileBloc(
           getAccount: mockGetAccount,
           userSettings: mockUserSettings,
+          notificationRepo: mockNotifRepo,
         );
         bloc.add(const ProfileLoadRequested());
 
@@ -81,6 +91,7 @@ void main() {
         final bloc = ProfileBloc(
           getAccount: mockGetAccount,
           userSettings: mockUserSettings,
+          notificationRepo: mockNotifRepo,
         );
         bloc.add(const ProfileLoadRequested());
 
