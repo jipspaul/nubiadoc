@@ -12,6 +12,7 @@ import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
+import 'today_notes_card.dart';
 
 /// Entry point for the authenticated praticien home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile) with clinical
@@ -82,7 +83,9 @@ class _DashboardContent extends StatelessWidget {
                   .read<DashboardBloc>()
                   .add(const DashboardLoadRequested()),
             ),
-          DashboardLoaded(:final summary) => _SummaryGrid(summary: summary),
+          DashboardLoaded(:final summary) => _DashboardLoadedView(
+              summary: summary,
+            ),
         };
       },
     );
@@ -106,6 +109,48 @@ class _DashboardSkeleton extends StatelessWidget {
             child: NubiaSkeletonLoader(height: 96),
           ),
         ),
+      ),
+    );
+  }
+}
+
+final _stubTodayNotes = <TodayNoteEntry>[
+  TodayNoteEntry(
+    id: 'note-1',
+    timestamp: DateTime(2026, 6, 22, 9, 0),
+    patientInitials: 'MD',
+    status: 'Terminée',
+  ),
+  TodayNoteEntry(
+    id: 'note-2',
+    timestamp: DateTime(2026, 6, 22, 10, 30),
+    patientInitials: 'JD',
+    status: 'En cours',
+  ),
+  TodayNoteEntry(
+    id: 'note-3',
+    timestamp: DateTime(2026, 6, 22, 11, 0),
+    patientInitials: 'CB',
+    status: 'Terminée',
+  ),
+];
+
+class _DashboardLoadedView extends StatelessWidget {
+  const _DashboardLoadedView({required this.summary});
+
+  final dynamic summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SummaryGrid(summary: summary),
+          const SizedBox(height: 16),
+          TodayNotesCard(entries: _stubTodayNotes),
+        ],
       ),
     );
   }
@@ -141,40 +186,37 @@ class _SummaryGrid extends StatelessWidget {
       ),
     ];
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 16,
-        children: [
-          for (final card in cards)
-            SizedBox(
-              width: 160,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(card.icon, size: 32),
-                      const SizedBox(height: 8),
-                      Text(
-                        card.value,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        card.label,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      children: [
+        for (final card in cards)
+          SizedBox(
+            width: 160,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(card.icon, size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      card.value,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      card.label,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
