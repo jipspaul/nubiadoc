@@ -1358,9 +1358,11 @@ pub async fn patch_cabinet_appointment(
 #[derive(Serialize)]
 pub struct CabinetSlotResponse {
     pub id: Uuid,
-    pub practitioner_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub practitioner_id: Option<Uuid>,
     pub starts_at: String,
     pub ends_at: String,
+    pub capacity: i32,
     pub status: String,
     pub online_booking: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1463,7 +1465,7 @@ pub async fn patch_cabinet_slot(
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-    let practitioner_id: Uuid = row
+    let practitioner_id: Option<Uuid> = row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
     let sa: chrono::DateTime<chrono::Utc> =
@@ -1488,6 +1490,7 @@ pub async fn patch_cabinet_slot(
         practitioner_id,
         starts_at: sa.to_rfc3339(),
         ends_at: ea.to_rfc3339(),
+        capacity: 1,
         status: st,
         online_booking,
         motif,

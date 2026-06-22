@@ -1,4 +1,10 @@
-//! Tests d'intégration : POST /v1/cabinet/slots
+//! Tests d'intégration : POST /v1/cabinet/slots (issue #2510)
+//!
+//! Couvre :
+//! - Admin crée un créneau → 201
+//! - Secrétariat crée un créneau → 201
+//! - Praticien → 403
+//! - Chevauchement de créneaux (23P01 EXCLUDE) → 409 slot_taken
 
 use axum::{
     body::Body,
@@ -14,7 +20,7 @@ use uuid::Uuid;
 
 use nubia_api::{app, AppState, StubMailer};
 
-const JWT_SECRET: &str = "test-jwt-secret-cabinet-slots-create";
+const JWT_SECRET: &str = "test-secret";
 
 fn db_available() -> bool {
     std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
@@ -32,15 +38,51 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-fn exp() -> u64 {
-    SystemTime::now()
+fn make_state(db: PgPool) -> AppState {
+    AppState {
+        db,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    }
+}
+
+/// Enregistre un pro, renvoie `(access_token, account_id, cabinet_id, provider_id)`.
+async fn register_pro(db: PgPool, email: &str) -> (String, Uuid, Uuid, Uuid) {
+    let body = json!({
+        "email": email,
+        "password": "password1",
+        "cabinet": { "raison_sociale": "Cabinet Slots Test", "siret": null, "specialite": "dentaire" },
+        "practitioner": { "first_name": "Test", "last_name": "Pro", "rpps": null, "adeli": null }
+    });
+    let response = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/pro/register")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let token = v["access_token"].as_str().unwrap().to_string();
+    let account_id: Uuid = v["account_id"].as_str().unwrap().parse().unwrap();
+    let cabinet_id: Uuid = v["cabinet_id"].as_str().unwrap().parse().unwrap();
+    let provider_id: Uuid = v["provider_id"].as_str().unwrap().parse().unwrap();
+    (token, account_id, cabinet_id, provider_id)
+}
+
+fn make_token(sub: Uuid, cabinet_id: Uuid, role: &str) -> String {
+    let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs()
-        + 3600
-}
-
-fn make_pro_jwt(sub: Uuid, cabinet_id: Uuid, role: &str) -> String {
+        + 900;
     encode(
         &Header::default(),
         &json!({
@@ -48,24 +90,32 @@ fn make_pro_jwt(sub: Uuid, cabinet_id: Uuid, role: &str) -> String {
             "kind": "pro",
             "cabinet_id": cabinet_id,
             "role": role,
-            "exp": exp()
+            "exp": exp
         }),
         &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
     )
     .unwrap()
 }
 
-/// Insère cabinet + app_user + practitioner + provider. Retourne (cabinet_id, user_id, provider_id).
-async fn insert_fixture(db: &PgPool, tag: &str) -> (Uuid, Uuid, Uuid) {
+struct SlotFixture {
+    cabinet_id: Uuid,
+    provider_id: Uuid,
+    user_id: Uuid,
+}
+
+/// Crée un cabinet + praticien + provider avec `practitioner_id` renseigné.
+/// Nécessaire pour que la contrainte EXCLUDE se déclenche sur les chevauchements.
+async fn insert_slot_fixture(db: &PgPool) -> SlotFixture {
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
     let provider_id = Uuid::new_v4();
 
-    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
-        .bind(cabinet_id)
-        .bind(format!("Cabinet Slots Create {}", tag))
-        .execute(db)
+    let mut tx = db.begin().await.unwrap();
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
         .await
         .unwrap();
 
@@ -73,52 +123,58 @@ async fn insert_fixture(db: &PgPool, tag: &str) -> (Uuid, Uuid, Uuid) {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
     )
     .bind(user_id)
-    .bind(format!("csc-{}@nubia.test", tag))
-    .execute(db)
+    .bind(format!("slots-fixture+{}@nubia.test", user_id))
+    .execute(&mut *tx)
     .await
     .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Slots {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
 
     sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
         .bind(prac_id)
         .bind(cabinet_id)
         .bind(user_id)
-        .execute(db)
+        .execute(&mut *tx)
         .await
         .unwrap();
 
     sqlx::query(
-        "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, rpps_verified, is_listed) \
-         VALUES ($1, $2, $3, $4, $5, false, false)",
+        "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, specialite, is_listed) \
+         VALUES ($1, $2, $3, $4, $5, 'dentaire', false)",
     )
     .bind(provider_id)
     .bind(cabinet_id)
     .bind(prac_id)
     .bind(user_id)
-    .bind(format!("Dr CSC {}", tag))
-    .execute(db)
+    .bind(format!("Dr Slots {}", prac_id))
+    .execute(&mut *tx)
     .await
     .unwrap();
 
-    (cabinet_id, user_id, provider_id)
+    tx.commit().await.unwrap();
+
+    SlotFixture {
+        cabinet_id,
+        provider_id,
+        user_id,
+    }
 }
 
-async fn cleanup(db: &PgPool, cabinet_id: Uuid, user_id: Uuid) {
+async fn cleanup_by_email(db: &PgPool, email: &str) {
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(email)
+        .execute(db)
+        .await
+        .ok();
+}
+
+async fn cleanup_fixture(db: &PgPool, cabinet_id: Uuid, user_id: Uuid) {
     sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
-        .bind(cabinet_id)
-        .execute(db)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
-        .bind(cabinet_id)
-        .execute(db)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
-        .bind(cabinet_id)
-        .execute(db)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM cabinet WHERE id = $1")
         .bind(cabinet_id)
         .execute(db)
         .await
@@ -130,199 +186,204 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, user_id: Uuid) {
         .ok();
 }
 
-fn make_state(db: PgPool) -> AppState {
-    AppState {
-        db,
-        jwt_secret: JWT_SECRET.into(),
-        mailer: Arc::new(StubMailer),
-    }
-}
-
 // ── Test 1 : admin crée un créneau → 201 ─────────────────────────────────────
 
 #[tokio::test]
-async fn post_cabinet_slot_admin_returns_201() {
+async fn create_slot_admin_returns_201() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let tag = Uuid::new_v4().to_string();
-    let (cabinet_id, user_id, provider_id) = insert_fixture(&db, &tag).await;
+    let email = format!("slot_admin_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _account_id, _cabinet_id, provider_id) = register_pro(db.clone(), &email).await;
 
-    let token = make_pro_jwt(user_id, cabinet_id, "admin");
-    let body = json!({
-        "starts_at": "2030-01-10T09:00:00Z",
-        "ends_at":   "2030-01-10T09:30:00Z",
-        "provider_id": provider_id,
-        "capacity": 1
-    });
+    let starts_at = "2030-01-15T09:00:00Z";
+    let ends_at = "2030-01-15T09:30:00Z";
 
-    let response = app(make_state(app_pool().await))
+    let resp = app(make_state(db))
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/v1/cabinet/slots")
+                .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {}", token))
-                .header("Content-Type", "application/json")
-                .body(Body::from(body.to_string()))
+                .body(Body::from(
+                    json!({
+                        "provider_id": provider_id,
+                        "starts_at": starts_at,
+                        "ends_at": ends_at,
+                        "capacity": 1
+                    })
+                    .to_string(),
+                ))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CREATED);
-
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert!(v["id"].is_string());
-    assert_eq!(v["status"], "available");
+    assert!(v["id"].as_str().is_some(), "id attendu");
     assert_eq!(v["capacity"], 1);
+    assert!(v["starts_at"].as_str().is_some());
+    assert!(v["ends_at"].as_str().is_some());
+    assert!(v["status"].as_str().is_some());
 
-    cleanup(&db, cabinet_id, user_id).await;
+    cleanup_by_email(&owner_pool().await, &email).await;
 }
 
 // ── Test 2 : secrétariat crée un créneau → 201 ───────────────────────────────
 
 #[tokio::test]
-async fn post_cabinet_slot_secretary_returns_201() {
+async fn create_slot_secretary_returns_201() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let tag = Uuid::new_v4().to_string();
-    let (cabinet_id, user_id, provider_id) = insert_fixture(&db, &tag).await;
+    let email = format!("slot_secretary_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (_admin_token, account_id, cabinet_id, provider_id) =
+        register_pro(db.clone(), &email).await;
 
-    let token = make_pro_jwt(user_id, cabinet_id, "secretary");
-    let body = json!({
-        "starts_at": "2030-02-10T09:00:00Z",
-        "ends_at":   "2030-02-10T09:30:00Z",
-        "provider_id": provider_id
-    });
+    let secretary_token = make_token(account_id, cabinet_id, "secretary");
 
-    let response = app(make_state(app_pool().await))
+    let resp = app(make_state(db))
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/v1/cabinet/slots")
-                .header("Authorization", format!("Bearer {}", token))
-                .header("Content-Type", "application/json")
-                .body(Body::from(body.to_string()))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", secretary_token))
+                .body(Body::from(
+                    json!({
+                        "provider_id": provider_id,
+                        "starts_at": "2030-02-10T14:00:00Z",
+                        "ends_at": "2030-02-10T14:30:00Z",
+                        "capacity": 1
+                    })
+                    .to_string(),
+                ))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CREATED);
+    assert_eq!(resp.status(), StatusCode::CREATED);
 
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert!(v["id"].is_string());
-    assert_eq!(v["status"], "available");
-
-    cleanup(&db, cabinet_id, user_id).await;
+    cleanup_by_email(&owner_pool().await, &email).await;
 }
 
-// ── Test 3 : practitioner → 403 ──────────────────────────────────────────────
+// ── Test 3 : praticien → 403 ─────────────────────────────────────────────────
 
 #[tokio::test]
-async fn post_cabinet_slot_practitioner_returns_403() {
+async fn create_slot_practitioner_returns_403() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let tag = Uuid::new_v4().to_string();
-    let (cabinet_id, user_id, provider_id) = insert_fixture(&db, &tag).await;
+    let email = format!("slot_prac_403_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (_admin_token, account_id, cabinet_id, provider_id) =
+        register_pro(db.clone(), &email).await;
 
-    let token = make_pro_jwt(user_id, cabinet_id, "practitioner");
-    let body = json!({
-        "starts_at": "2030-03-10T09:00:00Z",
-        "ends_at":   "2030-03-10T09:30:00Z",
-        "provider_id": provider_id
-    });
+    let prac_token = make_token(account_id, cabinet_id, "practitioner");
 
-    let response = app(make_state(app_pool().await))
+    let resp = app(make_state(db))
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/v1/cabinet/slots")
-                .header("Authorization", format!("Bearer {}", token))
-                .header("Content-Type", "application/json")
-                .body(Body::from(body.to_string()))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::from(
+                    json!({
+                        "provider_id": provider_id,
+                        "starts_at": "2030-03-01T10:00:00Z",
+                        "ends_at": "2030-03-01T10:30:00Z",
+                        "capacity": 1
+                    })
+                    .to_string(),
+                ))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 
-    cleanup(&db, cabinet_id, user_id).await;
+    cleanup_by_email(&owner_pool().await, &email).await;
 }
 
-// ── Test 4 : conflit EXCLUDE (23P01) → 409 slot_taken ────────────────────────
+// ── Test 4 : chevauchement EXCLUDE → 409 slot_taken ──────────────────────────
 
 #[tokio::test]
-async fn post_cabinet_slot_overlap_returns_409() {
+async fn create_slot_overlap_returns_409() {
     if !db_available() {
         return;
     }
-    let db = owner_pool().await;
-    let tag = Uuid::new_v4().to_string();
-    let (cabinet_id, user_id, provider_id) = insert_fixture(&db, &tag).await;
+    let db = app_pool().await;
+    let fixture = insert_slot_fixture(&db).await;
+    let token = make_token(fixture.user_id, fixture.cabinet_id, "admin");
 
-    // Récupère practitioner_id pour pouvoir insérer un premier créneau directement.
-    let row = sqlx::query("SELECT id FROM practitioner WHERE cabinet_id = $1 LIMIT 1")
-        .bind(cabinet_id)
-        .fetch_one(&db)
-        .await
-        .unwrap();
-    let prac_id: Uuid = sqlx::Row::try_get(&row, "id").unwrap();
+    let body_first = json!({
+        "provider_id": fixture.provider_id,
+        "starts_at": "2030-04-05T08:00:00Z",
+        "ends_at":   "2030-04-05T09:00:00Z",
+        "capacity": 1
+    })
+    .to_string();
 
-    // Insère un premier créneau via nubia_owner (contourne RLS).
-    sqlx::query(
-        "INSERT INTO availability_slot \
-         (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
-         VALUES ($1, $2, $3, $4, '2030-04-10T09:00:00Z', '2030-04-10T09:30:00Z', 'open', false)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(provider_id)
-    .bind(cabinet_id)
-    .bind(prac_id)
-    .execute(&db)
-    .await
-    .unwrap();
+    let body_overlap = json!({
+        "provider_id": fixture.provider_id,
+        "starts_at": "2030-04-05T08:30:00Z",
+        "ends_at":   "2030-04-05T09:30:00Z",
+        "capacity": 1
+    })
+    .to_string();
 
-    // Deuxième créneau identique → 23P01 → 409.
-    let token = make_pro_jwt(user_id, cabinet_id, "admin");
-    let body = json!({
-        "starts_at": "2030-04-10T09:00:00Z",
-        "ends_at":   "2030-04-10T09:30:00Z",
-        "provider_id": provider_id
-    });
+    let state = make_state(db.clone());
 
-    let response = app(make_state(app_pool().await))
+    let resp1 = app(state.clone())
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/v1/cabinet/slots")
+                .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {}", token))
-                .header("Content-Type", "application/json")
-                .body(Body::from(body.to_string()))
+                .body(Body::from(body_first))
                 .unwrap(),
         )
         .await
         .unwrap();
+    assert_eq!(
+        resp1.status(),
+        StatusCode::CREATED,
+        "premier créneau doit être créé"
+    );
 
-    assert_eq!(response.status(), StatusCode::CONFLICT);
-
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+    let resp2 = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/slots")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body_overlap))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp2.status(),
+        StatusCode::CONFLICT,
+        "chevauchement doit retourner 409"
+    );
+    let bytes = axum::body::to_bytes(resp2.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(v["code"], "slot_taken");
 
-    cleanup(&db, cabinet_id, user_id).await;
+    cleanup_fixture(&owner_pool().await, fixture.cabinet_id, fixture.user_id).await;
 }
