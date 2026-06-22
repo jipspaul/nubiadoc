@@ -125,6 +125,7 @@ pub(crate) enum AppError {
     SlotTaken,
     GuardianshipRequired,
     InvalidStatus,
+    HasBooking,
     OutOfWindow,
     TooEarly,
     TooLate,
@@ -278,6 +279,9 @@ impl IntoResponse for AppError {
                 Json(json!({"error": "start_at must be at least 5 minutes in the future"})),
             )
                 .into_response(),
+            AppError::HasBooking => {
+                (StatusCode::CONFLICT, Json(json!({"code": "has_booking"}))).into_response()
+            }
         }
     }
 }
