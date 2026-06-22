@@ -43,7 +43,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
     final current = state;
     if (current is DocumentsLoaded) {
       emit(
-          DocumentsLoaded(current.documents, selectedCategory: event.category));
+          DocumentsLoaded(current.documents, activeFilter: event.category));
     }
   }
 
@@ -53,7 +53,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
   ) async {
     final current = state;
     if (current is DocumentsLoaded) {
-      emit(DocumentsLoaded(current.documents, selectedCategory: event.category));
+      emit(DocumentsLoaded(current.documents, activeFilter: event.category));
     }
   }
 
