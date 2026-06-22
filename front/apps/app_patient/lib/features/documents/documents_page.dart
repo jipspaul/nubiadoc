@@ -122,6 +122,12 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
               child: Wrap(
                 spacing: 8,
                 children: [
+                  FilterChip(
+                    label: const Text('Tous'),
+                    selected: _categoryFilter == null,
+                    onSelected: (_) =>
+                        setState(() => _categoryFilter = null),
+                  ),
                   for (final (label, cat) in _chips)
                     FilterChip(
                       label: Text(label),
