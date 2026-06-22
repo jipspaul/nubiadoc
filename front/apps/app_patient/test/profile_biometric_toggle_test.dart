@@ -75,6 +75,12 @@ void main() {
         await tester.pumpWidget(_wrap(bloc));
         await tester.pumpAndSettle();
 
+        await tester.dragUntilVisible(
+          find.byKey(const Key('biometric_toggle')),
+          find.byKey(const Key('profile_content')),
+          const Offset(0, -300),
+        );
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('biometric_toggle')));
         await tester.pumpAndSettle();
 
@@ -98,6 +104,12 @@ void main() {
         await tester.pumpWidget(_wrap(bloc));
         await tester.pumpAndSettle();
 
+        await tester.dragUntilVisible(
+          find.byKey(const Key('biometric_toggle')),
+          find.byKey(const Key('profile_content')),
+          const Offset(0, -300),
+        );
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('biometric_toggle')));
         await tester.pumpAndSettle();
 

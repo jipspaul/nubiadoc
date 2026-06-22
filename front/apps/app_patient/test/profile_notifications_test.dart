@@ -51,6 +51,10 @@ Widget _wrap(ProfileBloc bloc) => MaterialApp(
     );
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(const NotificationPreferences.allEnabled());
+  });
+
   late MockGetAccountUseCase mockGetAccount;
   late MockUserSettingsRepository mockUserSettings;
   late MockNotificationRepository mockNotifRepo;
@@ -85,6 +89,11 @@ void main() {
 
       verify(() => mockNotifRepo.getPreferences()).called(1);
       expect(find.byKey(const Key('email_rdv_toggle')), findsOneWidget);
+      await tester.dragUntilVisible(
+        find.byKey(const Key('push_rdv_toggle')),
+        find.byKey(const Key('profile_content')),
+        const Offset(0, -300),
+      );
       expect(find.byKey(const Key('push_rdv_toggle')), findsOneWidget);
     });
 
@@ -118,6 +127,11 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
+      await tester.dragUntilVisible(
+        find.byKey(const Key('push_rdv_toggle')),
+        find.byKey(const Key('profile_content')),
+        const Offset(0, -300),
+      );
       await tester.tap(find.byKey(const Key('push_rdv_toggle')));
       await tester.pumpAndSettle();
 
