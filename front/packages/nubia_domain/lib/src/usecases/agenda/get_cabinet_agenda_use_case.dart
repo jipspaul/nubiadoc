@@ -8,7 +8,13 @@ class GetCabinetAgendaUseCase {
 
   const GetCabinetAgendaUseCase(this._repository);
 
-  Future<Either<Failure, List<AgendaEntry>>> call(DateTime weekStart) {
+  Future<Either<Failure, List<AgendaEntry>>> call(
+    DateTime weekStart, {
+    bool includePast = false,
+  }) {
+    if (includePast) {
+      return _repository.list();
+    }
     final weekEnd = weekStart.add(const Duration(days: 7));
     return _repository.list(from: weekStart, to: weekEnd);
   }

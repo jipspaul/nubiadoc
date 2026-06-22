@@ -21,12 +21,14 @@ class AgendaLoaded extends AgendaState {
   final DateTime weekStart;
   final bool actionInProgress;
   final String? actionError;
+  final bool includePast;
 
   const AgendaLoaded({
     required this.entries,
     required this.weekStart,
     this.actionInProgress = false,
     this.actionError,
+    this.includePast = false,
   });
 
   AgendaLoaded copyWith({
@@ -35,6 +37,7 @@ class AgendaLoaded extends AgendaState {
     bool? actionInProgress,
     String? actionError,
     bool clearActionError = false,
+    bool? includePast,
   }) =>
       AgendaLoaded(
         entries: entries ?? this.entries,
@@ -42,11 +45,12 @@ class AgendaLoaded extends AgendaState {
         actionInProgress: actionInProgress ?? this.actionInProgress,
         actionError:
             clearActionError ? null : (actionError ?? this.actionError),
+        includePast: includePast ?? this.includePast,
       );
 
   @override
   List<Object?> get props =>
-      [entries, weekStart, actionInProgress, actionError];
+      [entries, weekStart, actionInProgress, actionError, includePast];
 }
 
 class AgendaError extends AgendaState {

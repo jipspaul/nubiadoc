@@ -21,19 +21,33 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     on<AgendaWeekChanged>(_onWeekChanged);
     on<AgendaAppointmentConfirmRequested>(_onConfirm);
     on<AgendaConsultationStartRequested>(_onStartConsultation);
+    on<TogglePastIncluded>(_onTogglePast);
+  }
+
+  Future<void> _fetchAndEmit(
+    DateTime weekStart,
+    Emitter<AgendaState> emit, {
+    required bool includePast,
+  }) async {
+    emit(const AgendaLoading());
+    final result = await _getAgenda(weekStart, includePast: includePast);
+    result.fold(
+      (failure) => emit(AgendaError(failure.message)),
+      (entries) => emit(AgendaLoaded(
+        entries: entries,
+        weekStart: weekStart,
+        includePast: includePast,
+      )),
+    );
   }
 
   Future<void> _onLoad(
     AgendaLoadRequested event,
     Emitter<AgendaState> emit,
   ) async {
-    emit(const AgendaLoading());
-    final result = await _getAgenda(event.weekStart);
-    result.fold(
-      (failure) => emit(AgendaError(failure.message)),
-      (entries) =>
-          emit(AgendaLoaded(entries: entries, weekStart: event.weekStart)),
-    );
+    final includePast =
+        state is AgendaLoaded ? (state as AgendaLoaded).includePast : false;
+    await _fetchAndEmit(event.weekStart, emit, includePast: includePast);
   }
 
   Future<void> _onWeekChanged(
@@ -41,6 +55,19 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     Emitter<AgendaState> emit,
   ) async {
     await _onLoad(AgendaLoadRequested(weekStart: event.weekStart), emit);
+  }
+
+  Future<void> _onTogglePast(
+    TogglePastIncluded event,
+    Emitter<AgendaState> emit,
+  ) async {
+    final current = state;
+    if (current is! AgendaLoaded) return;
+    await _fetchAndEmit(
+      current.weekStart,
+      emit,
+      includePast: !current.includePast,
+    );
   }
 
   Future<void> _onConfirm(
@@ -56,8 +83,11 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
         actionInProgress: false,
         actionError: failure.message,
       )),
-      (_) async =>
-          _onLoad(AgendaLoadRequested(weekStart: current.weekStart), emit),
+      (_) async => _fetchAndEmit(
+        current.weekStart,
+        emit,
+        includePast: current.includePast,
+      ),
     );
   }
 
@@ -74,8 +104,11 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
         actionInProgress: false,
         actionError: failure.message,
       )),
-      (_) async =>
-          _onLoad(AgendaLoadRequested(weekStart: current.weekStart), emit),
+      (_) async => _fetchAndEmit(
+        current.weekStart,
+        emit,
+        includePast: current.includePast,
+      ),
     );
   }
 }
