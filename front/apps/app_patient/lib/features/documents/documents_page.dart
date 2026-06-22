@@ -117,7 +117,7 @@ class _DocumentsLoaded extends StatelessWidget {
                           ? const Key('filter_all')
                           : Key('filter_${cat.name}'),
                       label: Text(label),
-                      selected: state.selectedCategory == cat,
+                      selected: state.activeFilter == cat,
                       onSelected: (_) => context
                           .read<DocumentsBloc>()
                           .add(DocumentsFilterChanged(cat)),

@@ -18,16 +18,16 @@ final class DocumentsLoading extends DocumentsState {
 
 final class DocumentsLoaded extends DocumentsState {
   final List<Document> documents;
-  final DocumentCategory? selectedCategory;
+  final DocumentCategory? activeFilter;
 
-  const DocumentsLoaded(this.documents, {this.selectedCategory});
+  const DocumentsLoaded(this.documents, {this.activeFilter});
 
-  List<Document> get filtered => selectedCategory == null
+  List<Document> get filtered => activeFilter == null
       ? documents
-      : documents.where((d) => d.category == selectedCategory).toList();
+      : documents.where((d) => d.category == activeFilter).toList();
 
   @override
-  List<Object?> get props => [documents, selectedCategory];
+  List<Object?> get props => [documents, activeFilter];
 }
 
 final class DocumentsError extends DocumentsState {
