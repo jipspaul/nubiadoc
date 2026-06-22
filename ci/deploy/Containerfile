@@ -28,4 +28,5 @@ RUN ARCH="$(uname -m)" \
 RUN cargo install cargo-zigbuild
 
 # Sanity.
-RUN zig version && cargo zigbuild --version && sshpass -V
+RUN zig version && cargo zigbuild --help >/dev/null && sshpass -V \
+ && rustup target list --installed | grep -q x86_64-unknown-linux-musl
