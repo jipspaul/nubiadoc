@@ -268,7 +268,7 @@ pub async fn cancel_appointment(
 /// Corps optionnel de `POST /v1/appointments/:id/checkin`.
 #[derive(Deserialize, Default)]
 pub struct CheckinBody {
-    pub method: Option<String>,
+    pub qr_code: Option<String>,
 }
 
 /// Réponse de `POST /v1/appointments/:id/checkin`.
@@ -290,11 +290,13 @@ pub async fn checkin_appointment(
     Path(appt_id): Path<Uuid>,
     body: Option<Json<CheckinBody>>,
 ) -> Result<Json<CheckinResponse>, AppError> {
-    let method = body
-        .as_ref()
-        .and_then(|b| b.method.as_deref())
-        .unwrap_or("manual")
-        .to_string();
+    let qr_code = body.as_ref().and_then(|b| b.qr_code.clone());
+    let method = if qr_code.is_some() {
+        "qr_app"
+    } else {
+        "manual"
+    }
+    .to_string();
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -327,9 +329,10 @@ pub async fn checkin_appointment(
     }
 
     let now = chrono::Utc::now();
-    if now < starts_at - chrono::Duration::minutes(30)
-        || now > starts_at + chrono::Duration::minutes(60)
-    {
+    if now < starts_at - chrono::Duration::minutes(60) {
+        return Err(AppError::TooEarly);
+    }
+    if now > starts_at + chrono::Duration::minutes(60) {
         return Err(AppError::OutOfWindow);
     }
 
@@ -357,18 +360,12 @@ pub async fn checkin_appointment(
         .map_err(|_| AppError::Internal)?;
 
     // Insérer l'événement check-in (UNIQUE sur appointment_id → 409 si double check-in concurrent).
-    let mode = match method.as_str() {
-        "qr_web" => "qr_web",
-        "borne" => "borne",
-        "sms" => "sms",
-        _ => "qr_app",
-    };
     let ce_result = sqlx::query(
         "INSERT INTO checkin_event (cabinet_id, appointment_id, mode) VALUES ($1, $2, $3)",
     )
     .bind(cabinet_id)
     .bind(id)
-    .bind(mode)
+    .bind(&method)
     .execute(&mut *tx)
     .await;
     match ce_result {
