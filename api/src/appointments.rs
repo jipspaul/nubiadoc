@@ -23,13 +23,6 @@ pub struct PatchAppointmentBody {
     pub motif: Option<String>,
 }
 
-/// Réponse de `PATCH /v1/appointments/:id`.
-#[derive(Serialize)]
-pub struct PatchAppointmentResponse {
-    pub appointment_id: Uuid,
-    pub status: String,
-}
-
 /// `PATCH /v1/appointments/:id` — patient modifie son RDV (créneau ou motif).
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
@@ -41,7 +34,7 @@ pub async fn patch_appointment(
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
     Json(body): Json<PatchAppointmentBody>,
-) -> Result<Json<PatchAppointmentResponse>, AppError> {
+) -> Result<Json<AppointmentDetail>, AppError> {
     let new_starts_at: Option<chrono::DateTime<chrono::Utc>> = body
         .starts_at
         .as_deref()
@@ -102,7 +95,7 @@ pub async fn patch_appointment(
            motif      = COALESCE($2, motif), \
            updated_at = now() \
          WHERE id = $3 \
-         RETURNING id, status",
+         RETURNING id, starts_at, ends_at, status, motif, practitioner_id",
     )
     .bind(new_starts_at)
     .bind(body.motif.as_deref())
@@ -117,7 +110,16 @@ pub async fn patch_appointment(
     };
 
     let appointment_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
+    let new_starts_at: chrono::DateTime<chrono::Utc> = updated
+        .try_get("starts_at")
+        .map_err(|_| AppError::Internal)?;
+    let new_ends_at: chrono::DateTime<chrono::Utc> =
+        updated.try_get("ends_at").map_err(|_| AppError::Internal)?;
     let new_status: String = updated.try_get("status").map_err(|_| AppError::Internal)?;
+    let new_motif: Option<String> = updated.try_get("motif").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = updated
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO audit_log \
@@ -131,6 +133,10 @@ pub async fn patch_appointment(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    let (provider_id, provider_display_name, provider_specialty) =
+        fetch_provider_for_response(&mut tx, practitioner_id).await?;
+    let (cabinet_name, cabinet_address) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
@@ -139,9 +145,21 @@ pub async fn patch_appointment(
         "appointment patched"
     );
 
-    Ok(Json(PatchAppointmentResponse {
-        appointment_id,
+    Ok(Json(AppointmentDetail {
+        id: appointment_id,
+        starts_at: new_starts_at.to_rfc3339(),
+        ends_at: new_ends_at.to_rfc3339(),
         status: new_status,
+        motif: new_motif,
+        provider: ProviderDetail {
+            id: provider_id,
+            display_name: provider_display_name,
+            specialty: provider_specialty,
+        },
+        cabinet: CabinetInfo {
+            name: cabinet_name,
+            address: cabinet_address,
+        },
     }))
 }
 
@@ -268,7 +286,7 @@ pub async fn cancel_appointment(
 /// Corps optionnel de `POST /v1/appointments/:id/checkin`.
 #[derive(Deserialize, Default)]
 pub struct CheckinBody {
-    pub method: Option<String>,
+    pub qr_code: Option<String>,
 }
 
 /// Réponse de `POST /v1/appointments/:id/checkin`.
@@ -290,11 +308,13 @@ pub async fn checkin_appointment(
     Path(appt_id): Path<Uuid>,
     body: Option<Json<CheckinBody>>,
 ) -> Result<Json<CheckinResponse>, AppError> {
-    let method = body
-        .as_ref()
-        .and_then(|b| b.method.as_deref())
-        .unwrap_or("manual")
-        .to_string();
+    let qr_code = body.as_ref().and_then(|b| b.qr_code.clone());
+    let method = if qr_code.is_some() {
+        "qr_app"
+    } else {
+        "manual"
+    }
+    .to_string();
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -327,9 +347,10 @@ pub async fn checkin_appointment(
     }
 
     let now = chrono::Utc::now();
-    if now < starts_at - chrono::Duration::minutes(30)
-        || now > starts_at + chrono::Duration::minutes(60)
-    {
+    if now < starts_at - chrono::Duration::minutes(60) {
+        return Err(AppError::TooEarly);
+    }
+    if now > starts_at + chrono::Duration::minutes(60) {
         return Err(AppError::OutOfWindow);
     }
 
@@ -357,18 +378,12 @@ pub async fn checkin_appointment(
         .map_err(|_| AppError::Internal)?;
 
     // Insérer l'événement check-in (UNIQUE sur appointment_id → 409 si double check-in concurrent).
-    let mode = match method.as_str() {
-        "qr_web" => "qr_web",
-        "borne" => "borne",
-        "sms" => "sms",
-        _ => "qr_app",
-    };
     let ce_result = sqlx::query(
         "INSERT INTO checkin_event (cabinet_id, appointment_id, mode) VALUES ($1, $2, $3)",
     )
     .bind(cabinet_id)
     .bind(id)
-    .bind(mode)
+    .bind(&method)
     .execute(&mut *tx)
     .await;
     match ce_result {
