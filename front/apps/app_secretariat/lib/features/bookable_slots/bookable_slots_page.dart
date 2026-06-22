@@ -51,6 +51,7 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        key: const Key('create_slot_fab'),
         onPressed: _openCreateSlotDialog,
         icon: const Icon(Icons.add),
         label: const Text('Créer un créneau'),
