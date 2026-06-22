@@ -5,6 +5,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'admin_membres_bloc.dart';
 import 'admin_membres_event.dart';
 import 'admin_membres_state.dart';
+import 'invite_member_dialog.dart';
 
 class AdminMembresPage extends StatefulWidget {
   const AdminMembresPage({super.key});
@@ -51,6 +52,15 @@ class _AdminMembresPageState extends State<AdminMembresPage>
             Tab(text: 'Secrétariats'),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        key: const Key('add_member_fab'),
+        onPressed: () => showDialog<void>(
+          context: context,
+          builder: (_) => const InviteMemberDialog(),
+        ),
+        icon: const Icon(Icons.person_add),
+        label: const Text('Ajouter membre'),
       ),
       body: BlocBuilder<AdminMembresBloc, AdminMembresState>(
         builder: (context, state) {
