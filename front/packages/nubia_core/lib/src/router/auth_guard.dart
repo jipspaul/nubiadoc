@@ -23,10 +23,16 @@ GoRouterRedirect buildAuthGuard(
     final location = state.matchedLocation;
     final onAuthRoute = authRoutes.contains(location);
 
-    if (!authenticated && !onAuthRoute) return loginRoute;
-    if (authenticated && onAuthRoute && location != splashRoute) {
-      return homeRoute;
+    // Splash is a transient boot screen: stay until the auth state is resolved,
+    // then leave for home (authenticated) or login (not). Without this the app
+    // is stuck on the splash spinner forever.
+    if (location == splashRoute) {
+      if (!notifier.isResolved) return null;
+      return authenticated ? homeRoute : loginRoute;
     }
+
+    if (!authenticated && !onAuthRoute) return loginRoute;
+    if (authenticated && onAuthRoute) return homeRoute;
     return null;
   };
 }
