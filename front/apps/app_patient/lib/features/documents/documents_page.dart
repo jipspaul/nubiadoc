@@ -95,6 +95,7 @@ class _DocumentsLoaded extends StatelessWidget {
     ('Tous', null),
     ('Ordonnances', DocumentCategory.prescription),
     ('Carte mutuelle', DocumentCategory.mutualCard),
+    ('Carte vitale', DocumentCategory.vitalCard),
     ('Autre', DocumentCategory.other),
   ];
 
