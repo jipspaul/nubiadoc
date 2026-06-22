@@ -33,14 +33,37 @@ class _AgendaView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('agenda_fab_consultation'),
-        onPressed: () => _showPatientPicker(context),
-        icon: const Icon(Icons.play_arrow),
-        label: const Text('Consultation'),
-      ),
-      body: const AgendaBody(),
+    return BlocBuilder<AgendaBloc, AgendaState>(
+      buildWhen: (prev, curr) =>
+          (prev is AgendaLoaded ? prev.includePast : false) !=
+          (curr is AgendaLoaded ? curr.includePast : false),
+      builder: (context, state) {
+        final includePast =
+            state is AgendaLoaded ? state.includePast : false;
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Agenda'),
+            actions: [
+              IconButton(
+                key: const Key('agenda_toggle_past'),
+                icon: const Icon(Icons.history),
+                tooltip: 'Inclure passés',
+                isSelected: includePast,
+                onPressed: () => context
+                    .read<AgendaBloc>()
+                    .add(const TogglePastIncluded()),
+              ),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            key: const Key('agenda_fab_consultation'),
+            onPressed: () => _showPatientPicker(context),
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Consultation'),
+          ),
+          body: const AgendaBody(),
+        );
+      },
     );
   }
 }
