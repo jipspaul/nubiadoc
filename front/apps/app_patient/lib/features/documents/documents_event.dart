@@ -30,6 +30,15 @@ final class DocumentsDownloadRequested extends DocumentsEvent {
   List<Object?> get props => [documentId];
 }
 
+final class DocumentsFilterChanged extends DocumentsEvent {
+  final DocumentCategory? category;
+
+  const DocumentsFilterChanged(this.category);
+
+  @override
+  List<Object?> get props => [category];
+}
+
 final class DocumentsUploadRequested extends DocumentsEvent {
   final String filePath;
   final String filename;

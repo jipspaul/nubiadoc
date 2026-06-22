@@ -85,6 +85,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
         return 'consigne';
       case DocumentCategory.mutualCard:
         return 'carte_mutuelle';
+      case DocumentCategory.vitalCard:
+        return 'carte_vitale';
       case DocumentCategory.other:
         return 'other';
     }
