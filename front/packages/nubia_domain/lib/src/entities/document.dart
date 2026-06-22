@@ -11,6 +11,7 @@ enum DocumentCategory {
   consent,
   instructions,
   mutualCard,
+  vitalCard,
   other,
 }
 
