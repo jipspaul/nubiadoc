@@ -38,3 +38,7 @@ class AgendaConsultationStartRequested extends AgendaEvent {
   @override
   List<Object?> get props => [appointmentId];
 }
+
+class TogglePastIncluded extends AgendaEvent {
+  const TogglePastIncluded();
+}
