@@ -36,9 +36,17 @@ class DashboardPage extends StatelessWidget {
       session: session,
       bodyBuilder: (ctx, destination) {
         if (destination.route == ProConfig.dashboardRoute) {
-          return BlocProvider(
-            create: (_) => GetIt.instance<DashboardBloc>()
-              ..add(const DashboardLoadRequested()),
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider(
+                create: (_) => GetIt.instance<DashboardBloc>()
+                  ..add(const DashboardLoadRequested()),
+              ),
+              BlocProvider(
+                create: (_) =>
+                    TodayNotesBloc()..add(const TodayNotesLoadRequested()),
+              ),
+            ],
             child: const _DashboardContent(),
           );
         }
@@ -145,7 +153,7 @@ class _SummaryGrid extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Wrap(
             spacing: 16,
@@ -180,11 +188,7 @@ class _SummaryGrid extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          BlocProvider(
-            create: (_) =>
-                TodayNotesBloc()..add(const TodayNotesLoadRequested()),
-            child: const TodayNotesCard(),
-          ),
+          const TodayNotesCard(),
         ],
       ),
     );

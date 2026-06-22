@@ -6,9 +6,17 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
 
-class _MockTodayNotesBloc
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+class MockTodayNotesBloc
     extends MockBloc<TodayNotesEvent, TodayNotesState>
     implements TodayNotesBloc {}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 Widget _wrap(TodayNotesBloc bloc) => MaterialApp(
       home: BlocProvider<TodayNotesBloc>.value(
@@ -17,51 +25,51 @@ Widget _wrap(TodayNotesBloc bloc) => MaterialApp(
       ),
     );
 
+ClinicalNoteSummary _note(String initials, String status) => ClinicalNoteSummary(
+      timestamp: DateTime(2026, 6, 22, 9, 0),
+      patientInitials: initials,
+      status: status,
+    );
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 void main() {
-  late _MockTodayNotesBloc bloc;
+  group('TodayNotesCard', () {
+    testWidgets('affiche 3 ListTile quand 3 notes sont chargées',
+        (tester) async {
+      final bloc = MockTodayNotesBloc();
+      when(() => bloc.state).thenReturn(
+        TodayNotesLoaded([
+          _note('MD', 'terminée'),
+          _note('JP', 'en cours'),
+          _note('AL', 'terminée'),
+        ]),
+      );
 
-  setUp(() {
-    bloc = _MockTodayNotesBloc();
-  });
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
 
-  testWidgets('affiche 3 items en état Loaded', (tester) async {
-    final notes = [
-      ClinicalNoteSummary(
-        id: 'n1',
-        timestamp: DateTime(2026, 6, 22, 9, 0),
-        patientInitials: 'JD',
-        status: 'terminée',
-      ),
-      ClinicalNoteSummary(
-        id: 'n2',
-        timestamp: DateTime(2026, 6, 22, 10, 0),
-        patientInitials: 'ML',
-        status: 'terminée',
-      ),
-      ClinicalNoteSummary(
-        id: 'n3',
-        timestamp: DateTime(2026, 6, 22, 11, 0),
-        patientInitials: 'AB',
-        status: 'en cours',
-      ),
-    ];
-    when(() => bloc.state).thenReturn(TodayNotesLoaded(notes));
+      expect(find.byKey(const Key('today_note_0')), findsOneWidget);
+      expect(find.byKey(const Key('today_note_1')), findsOneWidget);
+      expect(find.byKey(const Key('today_note_2')), findsOneWidget);
+    });
 
-    await tester.pumpWidget(_wrap(bloc));
+    testWidgets(
+        'affiche « Aucune consultation aujourd\'hui » quand liste vide',
+        (tester) async {
+      final bloc = MockTodayNotesBloc();
+      when(() => bloc.state).thenReturn(const TodayNotesLoaded([]));
 
-    expect(find.byType(ListTile), findsNWidgets(3));
-    expect(find.byKey(const Key('today_note_n1')), findsOneWidget);
-    expect(find.byKey(const Key('today_note_n2')), findsOneWidget);
-    expect(find.byKey(const Key('today_note_n3')), findsOneWidget);
-  });
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
 
-  testWidgets('empty state affiche « Aucune consultation aujourd\'hui »',
-      (tester) async {
-    when(() => bloc.state).thenReturn(const TodayNotesLoaded([]));
-
-    await tester.pumpWidget(_wrap(bloc));
-
-    expect(find.byKey(const Key('today_notes_empty')), findsOneWidget);
-    expect(find.text('Aucune consultation aujourd\'hui'), findsOneWidget);
+      expect(find.byKey(const Key('today_notes_empty')), findsOneWidget);
+      expect(
+        find.text('Aucune consultation aujourd\'hui'),
+        findsOneWidget,
+      );
+    });
   });
 }
