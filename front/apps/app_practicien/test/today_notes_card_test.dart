@@ -6,70 +6,62 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
-
 class MockTodayNotesBloc
     extends MockBloc<TodayNotesEvent, TodayNotesState>
     implements TodayNotesBloc {}
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 Widget _wrap(TodayNotesBloc bloc) => MaterialApp(
-      home: BlocProvider<TodayNotesBloc>.value(
+      home: BlocProvider.value(
         value: bloc,
-        child: const Scaffold(body: TodayNotesCard()),
+        child: const Scaffold(body: TodayNotesCardBody()),
       ),
     );
 
-ClinicalNoteSummary _note(String initials, String status) => ClinicalNoteSummary(
-      timestamp: DateTime(2026, 6, 22, 9, 0),
-      patientInitials: initials,
-      status: status,
-    );
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 void main() {
   group('TodayNotesCard', () {
-    testWidgets('affiche 3 ListTile quand 3 notes sont chargées',
-        (tester) async {
-      final bloc = MockTodayNotesBloc();
-      when(() => bloc.state).thenReturn(
-        TodayNotesLoaded([
-          _note('MD', 'terminée'),
-          _note('JP', 'en cours'),
-          _note('AL', 'terminée'),
-        ]),
-      );
+    late MockTodayNotesBloc mockBloc;
 
-      await tester.pumpWidget(_wrap(bloc));
-      await tester.pump();
+    setUp(() {
+      mockBloc = MockTodayNotesBloc();
+    });
 
-      expect(find.byKey(const Key('today_note_0')), findsOneWidget);
-      expect(find.byKey(const Key('today_note_1')), findsOneWidget);
-      expect(find.byKey(const Key('today_note_2')), findsOneWidget);
+    testWidgets('affiche 3 notes en état Loaded', (tester) async {
+      final now = DateTime.now();
+      final notes = [
+        ClinicalNoteSummary(
+          timestamp: now.subtract(const Duration(minutes: 15)),
+          patientInitials: 'MD',
+          status: 'completed',
+        ),
+        ClinicalNoteSummary(
+          timestamp: now.subtract(const Duration(hours: 1)),
+          patientInitials: 'JD',
+          status: 'in_progress',
+        ),
+        ClinicalNoteSummary(
+          timestamp: now.subtract(const Duration(hours: 2)),
+          patientInitials: 'AB',
+          status: 'completed',
+        ),
+      ];
+
+      when(() => mockBloc.state).thenReturn(TodayNotesLoaded(notes));
+      await tester.pumpWidget(_wrap(mockBloc));
+
+      expect(find.byKey(const Key('today_notes_list')), findsOneWidget);
+      expect(find.text('MD'), findsOneWidget);
+      expect(find.text('JD'), findsOneWidget);
+      expect(find.text('AB'), findsOneWidget);
     });
 
     testWidgets(
-        'affiche « Aucune consultation aujourd\'hui » quand liste vide',
+        'affiche « Aucune consultation aujourd\'hui » en état Loaded vide',
         (tester) async {
-      final bloc = MockTodayNotesBloc();
-      when(() => bloc.state).thenReturn(const TodayNotesLoaded([]));
-
-      await tester.pumpWidget(_wrap(bloc));
-      await tester.pump();
+      when(() => mockBloc.state).thenReturn(const TodayNotesLoaded([]));
+      await tester.pumpWidget(_wrap(mockBloc));
 
       expect(find.byKey(const Key('today_notes_empty')), findsOneWidget);
-      expect(
-        find.text('Aucune consultation aujourd\'hui'),
-        findsOneWidget,
-      );
+      expect(find.text('Aucune consultation aujourd\'hui'), findsOneWidget);
     });
   });
 }

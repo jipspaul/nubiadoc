@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 // ---------------------------------------------------------------------------
-// Model
+// Entity
 // ---------------------------------------------------------------------------
 
 class ClinicalNoteSummary extends Equatable {
@@ -92,24 +92,24 @@ class TodayNotesBloc extends Bloc<TodayNotesEvent, TodayNotesState> {
       ClinicalNoteSummary(
         timestamp: now.subtract(const Duration(minutes: 15)),
         patientInitials: 'MD',
-        status: 'terminée',
+        status: 'completed',
       ),
       ClinicalNoteSummary(
-        timestamp: now.subtract(const Duration(minutes: 45)),
-        patientInitials: 'JP',
-        status: 'en cours',
+        timestamp: now.subtract(const Duration(hours: 1)),
+        patientInitials: 'JD',
+        status: 'in_progress',
       ),
       ClinicalNoteSummary(
-        timestamp: now.subtract(const Duration(hours: 1, minutes: 20)),
-        patientInitials: 'AL',
-        status: 'terminée',
+        timestamp: now.subtract(const Duration(hours: 2)),
+        patientInitials: 'AB',
+        status: 'completed',
       ),
     ]));
   }
 }
 
 // ---------------------------------------------------------------------------
-// Widget
+// Widgets
 // ---------------------------------------------------------------------------
 
 class TodayNotesCard extends StatelessWidget {
@@ -117,67 +117,82 @@ class TodayNotesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => TodayNotesBloc()..add(const TodayNotesLoadRequested()),
+      child: const TodayNotesCardBody(),
+    );
+  }
+}
+
+class TodayNotesCardBody extends StatelessWidget {
+  const TodayNotesCardBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return BlocBuilder<TodayNotesBloc, TodayNotesState>(
       builder: (context, state) {
-        final notes = state is TodayNotesLoaded
-            ? state.notes.take(3).toList()
-            : <ClinicalNoteSummary>[];
-        return _NotesCardView(notes: notes);
+        return Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text(
+                  'Notes du jour',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              switch (state) {
+                TodayNotesLoaded(:final notes) when notes.isEmpty =>
+                  const Padding(
+                    key: Key('today_notes_empty'),
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Text('Aucune consultation aujourd\'hui'),
+                  ),
+                TodayNotesLoaded(:final notes) => Column(
+                    key: const Key('today_notes_list'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < notes.length.clamp(0, 3); i++)
+                        _NoteTile(note: notes[i]),
+                    ],
+                  ),
+                _ => const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+              },
+            ],
+          ),
+        );
       },
     );
   }
 }
 
-class _NotesCardView extends StatelessWidget {
-  const _NotesCardView({required this.notes});
+class _NoteTile extends StatelessWidget {
+  const _NoteTile({required this.note});
+  final ClinicalNoteSummary note;
 
-  final List<ClinicalNoteSummary> notes;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      key: const Key('today_notes_card'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Text(
-              'Notes du jour',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          const Divider(height: 1),
-          if (notes.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Aucune consultation aujourd\'hui',
-                key: Key('today_notes_empty'),
-              ),
-            )
-          else
-            for (var i = 0; i < notes.length; i++)
-              ListTile(
-                key: Key('today_note_$i'),
-                leading: CircleAvatar(
-                  child: Text(notes[i].patientInitials),
-                ),
-                title: Text(_formatTime(notes[i].timestamp)),
-                trailing: Chip(
-                  label: Text(notes[i].status),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-        ],
-      ),
-    );
-  }
-
-  static String _formatTime(DateTime dt) {
+  String _timeLabel(DateTime dt) {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: CircleAvatar(
+        child: Text(note.patientInitials),
+      ),
+      title: Text(note.patientInitials),
+      subtitle: Text(_timeLabel(note.timestamp)),
+      trailing: Chip(
+        label: Text(note.status),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
   }
 }
