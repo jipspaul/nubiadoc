@@ -1370,13 +1370,14 @@ pub async fn create_appointment(
     let effective_account_id = body.on_behalf_of.unwrap_or(claims.account_id);
 
     // Le praticien est récupéré via la policy `provider_public_read` (is_listed = true).
-    let provider_row =
-        sqlx::query("SELECT cabinet_id, practitioner_id FROM provider WHERE id = $1")
-            .bind(body.provider_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?
-            .ok_or(AppError::NotFound)?;
+    let provider_row = sqlx::query(
+        "SELECT cabinet_id, practitioner_id, display_name, specialite FROM provider WHERE id = $1",
+    )
+    .bind(body.provider_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
 
     let cabinet_id: Uuid = provider_row
         .try_get("cabinet_id")
@@ -1385,6 +1386,8 @@ pub async fn create_appointment(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
     let practitioner_id = practitioner_id_opt.ok_or(AppError::NotFound)?;
+    let _provider_display_name: Option<String> = provider_row.try_get("display_name").ok();
+    let _provider_specialty: Option<String> = provider_row.try_get("specialite").ok();
 
     // Scope cabinet pour les INSERTs soumis à la RLS tenant_isolation.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1392,6 +1395,22 @@ pub async fn create_appointment(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    // Fetch cabinet name + address for the response body.
+    let cab_row = sqlx::query(
+        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    let _cabinet_name: String = cab_row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let _cabinet_address: Option<String> =
+        cab_row.try_get("address").map_err(|_| AppError::Internal)?;
 
     // Idempotence : si une Idempotency-Key est fournie et qu'un RDV existe déjà pour ce
     // cabinet + clé, on retourne le RDV existant sans insérer de doublon.

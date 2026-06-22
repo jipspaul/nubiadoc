@@ -200,6 +200,8 @@ async fn post_appointment_happy_path_returns_201() {
 
     assert!(v["id"].is_string(), "id doit être présent");
     assert_eq!(v["status"], "requested", "status doit être requested");
+    assert!(v["starts_at"].is_string(), "starts_at doit être présent");
+    assert!(v["ends_at"].is_string(), "ends_at doit être présent");
 
     // Vérification DB : row insérée + patient_id correspond au JWT.
     let appt_id: uuid::Uuid = v["id"].as_str().unwrap().parse().unwrap();
@@ -634,7 +636,7 @@ async fn post_appointment_idempotency_key_returns_same_appointment() {
     let v1: serde_json::Value = serde_json::from_slice(&b1).unwrap();
     let appt_id = v1["id"].as_str().unwrap().to_owned();
 
-    // Second appel avec la même Idempotency-Key → 201 avec le même appointment_id.
+    // Second appel avec la même Idempotency-Key → 201 avec le même id.
     let r2 = app(make_state())
         .oneshot(
             Request::builder()
