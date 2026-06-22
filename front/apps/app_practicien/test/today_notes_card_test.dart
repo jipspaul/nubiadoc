@@ -27,16 +27,19 @@ void main() {
   testWidgets('affiche 3 items en état Loaded', (tester) async {
     final notes = [
       ClinicalNoteSummary(
+        id: 'n1',
         timestamp: DateTime(2026, 6, 22, 9, 0),
         patientInitials: 'JD',
         status: 'terminée',
       ),
       ClinicalNoteSummary(
+        id: 'n2',
         timestamp: DateTime(2026, 6, 22, 10, 0),
         patientInitials: 'ML',
         status: 'terminée',
       ),
       ClinicalNoteSummary(
+        id: 'n3',
         timestamp: DateTime(2026, 6, 22, 11, 0),
         patientInitials: 'AB',
         status: 'en cours',
@@ -46,9 +49,10 @@ void main() {
 
     await tester.pumpWidget(_wrap(bloc));
 
-    expect(find.text('JD'), findsOneWidget);
-    expect(find.text('ML'), findsOneWidget);
-    expect(find.text('AB'), findsOneWidget);
+    expect(find.byType(ListTile), findsNWidgets(3));
+    expect(find.byKey(const Key('today_note_n1')), findsOneWidget);
+    expect(find.byKey(const Key('today_note_n2')), findsOneWidget);
+    expect(find.byKey(const Key('today_note_n3')), findsOneWidget);
   });
 
   testWidgets('empty state affiche « Aucune consultation aujourd\'hui »',
@@ -57,6 +61,7 @@ void main() {
 
     await tester.pumpWidget(_wrap(bloc));
 
+    expect(find.byKey(const Key('today_notes_empty')), findsOneWidget);
     expect(find.text('Aucune consultation aujourd\'hui'), findsOneWidget);
   });
 }

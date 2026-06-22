@@ -2,24 +2,64 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-// ─── Entity ─────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Model
+// ---------------------------------------------------------------------------
 
 class ClinicalNoteSummary extends Equatable {
+  final String id;
+  final DateTime timestamp;
+  final String patientInitials;
+  final String status;
+
   const ClinicalNoteSummary({
+    required this.id,
     required this.timestamp,
     required this.patientInitials,
     required this.status,
   });
 
-  final DateTime timestamp;
-  final String patientInitials;
-  final String status;
-
   @override
-  List<Object?> get props => [timestamp, patientInitials, status];
+  List<Object?> get props => [id, timestamp, patientInitials, status];
 }
 
-// ─── Events ─────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Use case interface
+// ---------------------------------------------------------------------------
+
+abstract class GetTodayNotesUseCase {
+  Future<List<ClinicalNoteSummary>> call();
+}
+
+class StubGetTodayNotesUseCase implements GetTodayNotesUseCase {
+  const StubGetTodayNotesUseCase();
+
+  @override
+  Future<List<ClinicalNoteSummary>> call() async => [
+        ClinicalNoteSummary(
+          id: 'n1',
+          timestamp: DateTime(2026, 6, 22, 9, 15),
+          patientInitials: 'JD',
+          status: 'completed',
+        ),
+        ClinicalNoteSummary(
+          id: 'n2',
+          timestamp: DateTime(2026, 6, 22, 10, 30),
+          patientInitials: 'AM',
+          status: 'in_progress',
+        ),
+        ClinicalNoteSummary(
+          id: 'n3',
+          timestamp: DateTime(2026, 6, 22, 11, 45),
+          patientInitials: 'CB',
+          status: 'completed',
+        ),
+      ];
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
 
 sealed class TodayNotesEvent extends Equatable {
   const TodayNotesEvent();
@@ -32,7 +72,9 @@ final class TodayNotesLoadRequested extends TodayNotesEvent {
   const TodayNotesLoadRequested();
 }
 
-// ─── States ─────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// States
+// ---------------------------------------------------------------------------
 
 sealed class TodayNotesState extends Equatable {
   const TodayNotesState();
@@ -50,27 +92,24 @@ final class TodayNotesLoading extends TodayNotesState {
 }
 
 final class TodayNotesLoaded extends TodayNotesState {
-  const TodayNotesLoaded(this.notes);
-
   final List<ClinicalNoteSummary> notes;
+
+  const TodayNotesLoaded(this.notes);
 
   @override
   List<Object?> get props => [notes];
 }
 
-final class TodayNotesError extends TodayNotesState {
-  const TodayNotesError(this.message);
-
-  final String message;
-
-  @override
-  List<Object?> get props => [message];
-}
-
-// ─── BLoC ───────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Bloc
+// ---------------------------------------------------------------------------
 
 class TodayNotesBloc extends Bloc<TodayNotesEvent, TodayNotesState> {
-  TodayNotesBloc() : super(const TodayNotesInitial()) {
+  final GetTodayNotesUseCase _getTodayNotes;
+
+  TodayNotesBloc({GetTodayNotesUseCase? getTodayNotes})
+      : _getTodayNotes = getTodayNotes ?? const StubGetTodayNotesUseCase(),
+        super(const TodayNotesInitial()) {
     on<TodayNotesLoadRequested>(_onLoad);
   }
 
@@ -79,30 +118,14 @@ class TodayNotesBloc extends Bloc<TodayNotesEvent, TodayNotesState> {
     Emitter<TodayNotesState> emit,
   ) async {
     emit(const TodayNotesLoading());
-    emit(TodayNotesLoaded([
-      ClinicalNoteSummary(
-        timestamp: DateTime(2026, 6, 22, 9, 0),
-        patientInitials: 'JD',
-        status: 'terminée',
-      ),
-      ClinicalNoteSummary(
-        timestamp: DateTime(2026, 6, 22, 10, 30),
-        patientInitials: 'ML',
-        status: 'terminée',
-      ),
-      ClinicalNoteSummary(
-        timestamp: DateTime(2026, 6, 22, 11, 0),
-        patientInitials: 'AB',
-        status: 'en cours',
-      ),
-    ]));
+    final notes = await _getTodayNotes();
+    emit(TodayNotesLoaded(notes.take(3).toList()));
   }
 }
 
-// ─── Widget ─────────────────────────────────────────────────────────────────
-
-String _formatTime(DateTime dt) =>
-    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+// ---------------------------------------------------------------------------
+// Widget — reads TodayNotesBloc from context
+// ---------------------------------------------------------------------------
 
 class TodayNotesCard extends StatelessWidget {
   const TodayNotesCard({super.key});
@@ -110,56 +133,53 @@ class TodayNotesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(
               'Notes du jour',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 8),
-            BlocBuilder<TodayNotesBloc, TodayNotesState>(
-              builder: (context, state) {
-                if (state is! TodayNotesLoaded) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-                if (state.notes.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'Aucune consultation aujourd\'hui',
+          ),
+          BlocBuilder<TodayNotesBloc, TodayNotesState>(
+            builder: (context, state) => switch (state) {
+              TodayNotesInitial() || TodayNotesLoading() => const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              TodayNotesLoaded(:final notes) => notes.isEmpty
+                  ? const Padding(
                       key: Key('today_notes_empty'),
+                      padding: EdgeInsets.all(16),
+                      child: Text('Aucune consultation aujourd\'hui'),
+                    )
+                  : Column(
+                      children: [
+                        for (final note in notes)
+                          ListTile(
+                            key: Key('today_note_${note.id}'),
+                            leading: CircleAvatar(
+                              child: Text(note.patientInitials),
+                            ),
+                            title: Text(note.patientInitials),
+                            subtitle: Text(note.status),
+                            trailing: Text(_fmt(note.timestamp)),
+                          ),
+                      ],
                     ),
-                  );
-                }
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final note in state.notes.take(3))
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Text(
-                          _formatTime(note.timestamp),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        title: Text(note.patientInitials),
-                        subtitle: Text(note.status),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
+            },
+          ),
+        ],
       ),
     );
+  }
+
+  String _fmt(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }
