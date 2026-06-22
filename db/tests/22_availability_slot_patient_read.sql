@@ -1,63 +1,92 @@
--- db/tests/22_availability_slot_patient_read.sql
--- Tests pgTAP : policy RLS availability_slot_patient_read (issue #2513).
--- Exécuté sous nubia_app (NOSUPERUSER, NOBYPASSRLS, FORCE RLS actif).
+-- 22_availability_slot_patient_read.sql
+-- pgTAP : RLS availability_slot — policy availability_slot_patient_read (issue #2513).
+--   PR1. Patient quelconque (sans GUC) voit les créneaux status='available'.
+--   PR2. Patient ne voit pas les créneaux status='held' ou 'booked'.
+--   PR3. GUC absent (empty) → policy publique, slots 'available' toujours visibles (fail-open).
+-- Exécuté par pg_prove sous nubia_app (NOSUPERUSER, NOBYPASSRLS).
+-- Fixtures auto-contenues (BEGIN…ROLLBACK). Préfixe UUID 25130000.
+-- Issue : #2513
 
 BEGIN;
 SELECT plan(3);
 
--- Fixtures : cabinet + provider pour les créneaux
-SET LOCAL app.current_cabinet_id = 'c0000001-0000-0000-0000-000000002513';
+-- ===========================================================================
+-- Fixtures : 1 cabinet, 1 compte pro, 1 provider, 3 créneaux.
+-- ===========================================================================
+SET LOCAL app.current_cabinet_id = '25130000-0000-0000-0000-000000000001';
+
 INSERT INTO cabinet (id, raison_sociale) VALUES
-  ('c0000001-0000-0000-0000-000000002513', 'Cabinet RLS Test 2513');
+  ('25130000-0000-0000-0000-000000000001', 'Cabinet RLS-2513');
 
 INSERT INTO app_user (id, email, password_hash, kind) VALUES
-  ('u0000001-0000-0000-0000-000000002513', 'pro.rls2513@nubia.test', 'hash', 'pro');
+  ('25130000-0000-0000-0000-000000000010', 'prat.2513@nubia.test', '$argon2id$fixture', 'pro');
 
 INSERT INTO provider (id, cabinet_id, user_id, display_name, rpps_verified, is_listed) VALUES
-  ('p0000001-0000-0000-0000-000000002513',
-   'c0000001-0000-0000-0000-000000002513',
-   'u0000001-0000-0000-0000-000000002513',
-   'Dr RLS 2513', true, true);
+  ('25130000-0000-0000-0000-000000000020',
+   '25130000-0000-0000-0000-000000000001',
+   '25130000-0000-0000-0000-000000000010',
+   'Dr RLS-2513', true, true);
 
--- Créneaux : 1 available, 1 held, 1 booked
-INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, motif, status) VALUES
-  ('s0000001-0000-0000-0000-000000002513', 'p0000001-0000-0000-0000-000000002513',
-   now() + interval '1 day', now() + interval '1 day' + interval '30 min', 'Test', 'available'),
-  ('s0000002-0000-0000-0000-000000002513', 'p0000001-0000-0000-0000-000000002513',
-   now() + interval '2 days', now() + interval '2 days' + interval '30 min', 'Test', 'held'),
-  ('s0000003-0000-0000-0000-000000002513', 'p0000001-0000-0000-0000-000000002513',
-   now() + interval '3 days', now() + interval '3 days' + interval '30 min', 'Test', 'booked');
+-- Créneau 'available' : doit être visible (booking patient).
+INSERT INTO availability_slot (id, provider_id, cabinet_id, starts_at, ends_at, status) VALUES
+  ('25130000-0000-0000-0000-000000000030',
+   '25130000-0000-0000-0000-000000000020',
+   '25130000-0000-0000-0000-000000000001',
+   now() + interval '1 day',
+   now() + interval '1 day' + interval '30 min',
+   'available');
 
--- Réinitialise le GUC cabinet (lecture publique sans contexte cabinet)
+-- Créneau 'held' : doit être invisible.
+INSERT INTO availability_slot (id, provider_id, cabinet_id, starts_at, ends_at, status) VALUES
+  ('25130000-0000-0000-0000-000000000031',
+   '25130000-0000-0000-0000-000000000020',
+   '25130000-0000-0000-0000-000000000001',
+   now() + interval '2 days',
+   now() + interval '2 days' + interval '30 min',
+   'held');
+
+-- Créneau 'booked' : doit être invisible.
+INSERT INTO availability_slot (id, provider_id, cabinet_id, starts_at, ends_at, status) VALUES
+  ('25130000-0000-0000-0000-000000000032',
+   '25130000-0000-0000-0000-000000000020',
+   '25130000-0000-0000-0000-000000000001',
+   now() + interval '3 days',
+   now() + interval '3 days' + interval '30 min',
+   'booked');
+
+-- ===========================================================================
+-- PR1. Patient quelconque (sans GUC cabinet) voit le créneau status='available'.
+-- ===========================================================================
 RESET app.current_cabinet_id;
 
--- Test 1 : patient quelconque voit le créneau status=available
 SELECT is(
   (SELECT count(*)::int FROM availability_slot
-   WHERE id = 's0000001-0000-0000-0000-000000002513'),
+   WHERE id = '25130000-0000-0000-0000-000000000030'),
   1,
-  'Patient voit le créneau status=available (policy availability_slot_patient_read)'
-);
+  '⭐ PR1 availability_slot_patient_read : slot available visible pour tout patient');
 
--- Test 2 : ne voit pas status=held ni status=booked
+-- ===========================================================================
+-- PR2. Créneaux status='held' et 'booked' invisibles (policy ne couvre que 'available').
+-- ===========================================================================
 SELECT is(
   (SELECT count(*)::int FROM availability_slot
-   WHERE id IN (
-     's0000002-0000-0000-0000-000000002513',
-     's0000003-0000-0000-0000-000000002513'
-   )),
+   WHERE id IN ('25130000-0000-0000-0000-000000000031',
+                '25130000-0000-0000-0000-000000000032')),
   0,
-  'Patient ne voit pas les créneaux status=held et status=booked'
-);
+  '⭐ PR2 availability_slot_patient_read : slots held|booked invisibles');
 
--- Test 3 : GUC absent → créneau available toujours visible (policy non fail-closed, publique)
+-- ===========================================================================
+-- PR3. GUC explicitement absent (empty string) → policy publique, fail-open :
+--      slot 'available' toujours visible sans contexte applicatif.
+-- ===========================================================================
 SELECT set_config('app.current_cabinet_id', '', true);
+SELECT set_config('app.patient_account_id', '', true);
+
 SELECT is(
   (SELECT count(*)::int FROM availability_slot
-   WHERE id = 's0000001-0000-0000-0000-000000002513'),
+   WHERE id = '25130000-0000-0000-0000-000000000030'),
   1,
-  'Sans GUC app.current_cabinet_id → créneau available toujours visible (non fail-closed)'
-);
+  '⭐ PR3 availability_slot_patient_read : visible sans GUC (policy publique, fail-open)');
 
 SELECT * FROM finish();
 ROLLBACK;
