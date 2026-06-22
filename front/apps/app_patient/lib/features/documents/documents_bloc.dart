@@ -19,6 +19,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
         super(const DocumentsInitial()) {
     on<DocumentsLoadRequested>(_onLoadRequested);
     on<DocumentsCategorySelected>(_onCategorySelected);
+    on<DocumentsFilterChanged>(_onFilterChanged);
     on<DocumentsDownloadRequested>(_onDownloadRequested);
     on<DocumentsUploadRequested>(_onUpload);
   }
@@ -43,6 +44,16 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
     if (current is DocumentsLoaded) {
       emit(
           DocumentsLoaded(current.documents, selectedCategory: event.category));
+    }
+  }
+
+  Future<void> _onFilterChanged(
+    DocumentsFilterChanged event,
+    Emitter<DocumentsState> emit,
+  ) async {
+    final current = state;
+    if (current is DocumentsLoaded) {
+      emit(DocumentsLoaded(current.documents, selectedCategory: event.category));
     }
   }
 

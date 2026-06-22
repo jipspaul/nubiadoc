@@ -86,32 +86,21 @@ class _DocumentsBody extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _DocumentsLoaded extends StatefulWidget {
+class _DocumentsLoaded extends StatelessWidget {
   const _DocumentsLoaded({required this.state});
 
   final DocumentsLoaded state;
 
-  @override
-  State<_DocumentsLoaded> createState() => _DocumentsLoadedState();
-}
-
-class _DocumentsLoadedState extends State<_DocumentsLoaded> {
-  DocumentCategory? _categoryFilter;
-
-  static const _chips = <(String, DocumentCategory)>[
-    ('Ordonnance', DocumentCategory.prescription),
-    ('Compte rendu', DocumentCategory.report),
-    ('Imagerie', DocumentCategory.xray),
-    ('Autres', DocumentCategory.other),
+  static const _chips = <(String, DocumentCategory?)>[
+    ('Tous', null),
+    ('Ordonnances', DocumentCategory.prescription),
+    ('Carte mutuelle', DocumentCategory.mutualCard),
+    ('Autre', DocumentCategory.other),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final docs = _categoryFilter == null
-        ? widget.state.documents
-        : widget.state.documents
-            .where((d) => d.category == _categoryFilter)
-            .toList();
+    final docs = state.filtered;
 
     return Stack(
       children: [
@@ -122,19 +111,16 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
               child: Wrap(
                 spacing: 8,
                 children: [
-                  FilterChip(
-                    label: const Text('Tous'),
-                    selected: _categoryFilter == null,
-                    onSelected: (_) =>
-                        setState(() => _categoryFilter = null),
-                  ),
                   for (final (label, cat) in _chips)
-                    FilterChip(
+                    ChoiceChip(
+                      key: cat == null
+                          ? const Key('filter_all')
+                          : Key('filter_${cat.name}'),
                       label: Text(label),
-                      selected: _categoryFilter == cat,
-                      onSelected: (_) => setState(() {
-                        _categoryFilter = _categoryFilter == cat ? null : cat;
-                      }),
+                      selected: state.selectedCategory == cat,
+                      onSelected: (_) => context
+                          .read<DocumentsBloc>()
+                          .add(DocumentsFilterChanged(cat)),
                     ),
                 ],
               ),
