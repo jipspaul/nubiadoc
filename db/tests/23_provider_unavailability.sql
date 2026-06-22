@@ -10,7 +10,7 @@ SELECT * FROM no_plan();
 -- 1. STRUCTURE : table, colonnes, types
 -- ===========================================================================
 SELECT has_table('provider_unavailability',
-    'provider_unavailability : table présente (0116)');
+    'provider_unavailability : table présente (0117)');
 
 SELECT has_column('provider_unavailability', 'id',
     'provider_unavailability.id présent');
@@ -44,10 +44,10 @@ SELECT col_is_null('provider_unavailability', 'reason',
 -- RLS : activée + FORCE + policy présente
 SELECT ok(
     (SELECT relrowsecurity FROM pg_class WHERE relname = 'provider_unavailability'),
-    'provider_unavailability : ROW LEVEL SECURITY activée (0116)');
+    'provider_unavailability : ROW LEVEL SECURITY activée (0117)');
 SELECT ok(
     (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'provider_unavailability'),
-    'provider_unavailability : FORCE ROW LEVEL SECURITY (0116)');
+    'provider_unavailability : FORCE ROW LEVEL SECURITY (0117)');
 SELECT ok(
     EXISTS(SELECT 1 FROM pg_policies
            WHERE tablename  = 'provider_unavailability'
