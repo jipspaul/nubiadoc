@@ -1386,8 +1386,8 @@ pub async fn create_appointment(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
     let practitioner_id = practitioner_id_opt.ok_or(AppError::NotFound)?;
-    let provider_display_name: Option<String> = provider_row.try_get("display_name").ok();
-    let provider_specialty: Option<String> = provider_row.try_get("specialite").ok();
+    let _provider_display_name: Option<String> = provider_row.try_get("display_name").ok();
+    let _provider_specialty: Option<String> = provider_row.try_get("specialite").ok();
 
     // Scope cabinet pour les INSERTs soumis à la RLS tenant_isolation.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1406,10 +1406,10 @@ pub async fn create_appointment(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::Internal)?;
 
-    let cabinet_name: String = cab_row
+    let _cabinet_name: String = cab_row
         .try_get("raison_sociale")
         .map_err(|_| AppError::Internal)?;
-    let cabinet_address: Option<String> =
+    let _cabinet_address: Option<String> =
         cab_row.try_get("address").map_err(|_| AppError::Internal)?;
 
     // Idempotence : si une Idempotency-Key est fournie et qu'un RDV existe déjà pour ce
