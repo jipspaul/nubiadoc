@@ -48,12 +48,18 @@ if [ ! -f "$OUT/sqlite3.wasm" ]; then
     -o "$OUT/sqlite3.wasm"
 fi
 ( cd "$ROOT/front" && $FLUTTER pub get >/dev/null )
+# Marqueur de déploiement : permet de vérifier QUEL commit est en ligne via
+#   curl http://<host>:<port>/version.json
+GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+BUILD_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 build_front() { # app_dir  www_name
   ( cd "$ROOT/front/apps/$1" && $FLUTTER build web --release --base-href / \
       --dart-define=API_BASE_URL="$API_BASE" )
   rm -rf "$OUT/www-$2"
   cp -r "$ROOT/front/apps/$1/build/web" "$OUT/www-$2"
   cp "$OUT/sqlite3.wasm" "$OUT/www-$2/sqlite3.wasm"
+  printf '{"app":"%s","commit":"%s","built_at":"%s","api_base":"%s"}\n' \
+    "$2" "$GIT_SHA" "$BUILD_AT" "$API_BASE" > "$OUT/www-$2/version.json"
 }
 build_front app_patient    patient
 build_front app_practicien praticien
