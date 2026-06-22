@@ -12,6 +12,7 @@ import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
+import 'today_notes_card.dart';
 
 /// Entry point for the authenticated praticien home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile) with clinical
@@ -143,36 +144,47 @@ class _SummaryGrid extends StatelessWidget {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final card in cards)
-            SizedBox(
-              width: 160,
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(card.icon, size: 32),
-                      const SizedBox(height: 8),
-                      Text(
-                        card.value,
-                        style: Theme.of(context).textTheme.headlineMedium,
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              for (final card in cards)
+                SizedBox(
+                  width: 160,
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(card.icon, size: 32),
+                          const SizedBox(height: 8),
+                          Text(
+                            card.value,
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            card.label,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        card.label,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          BlocProvider(
+            create: (_) =>
+                TodayNotesBloc()..add(const TodayNotesLoadRequested()),
+            child: const TodayNotesCard(),
+          ),
         ],
       ),
     );
