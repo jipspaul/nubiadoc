@@ -948,15 +948,8 @@ pub struct CreateAppointmentBody {
     pub slot_id: Option<Uuid>,
     /// ISO 8601 UTC (ex. "2026-06-10T09:00:00Z"). Ignoré si `slot_id` est fourni.
     pub starts_at: Option<String>,
-    pub motif: String,
+    pub motif: Option<String>,
     pub on_behalf_of: Option<Uuid>,
-}
-
-/// Réponse de `POST /v1/appointments`.
-#[derive(Serialize)]
-pub struct CreateAppointmentResponse {
-    pub appointment_id: Uuid,
-    pub status: String,
 }
 
 // ── Directions ──────────────────────────────────────────────────────────────
@@ -1327,7 +1320,7 @@ pub async fn create_appointment(
     claims: PatientAccountClaims,
     headers: HeaderMap,
     Json(body): Json<CreateAppointmentBody>,
-) -> Result<(StatusCode, Json<CreateAppointmentResponse>), AppError> {
+) -> Result<(StatusCode, Json<AppointmentDetail>), AppError> {
     if body.slot_id.is_none() && body.starts_at.is_none() {
         return Err(AppError::ValidationError);
     }
@@ -1376,13 +1369,14 @@ pub async fn create_appointment(
     let effective_account_id = body.on_behalf_of.unwrap_or(claims.account_id);
 
     // Le praticien est récupéré via la policy `provider_public_read` (is_listed = true).
-    let provider_row =
-        sqlx::query("SELECT cabinet_id, practitioner_id FROM provider WHERE id = $1")
-            .bind(body.provider_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?
-            .ok_or(AppError::NotFound)?;
+    let provider_row = sqlx::query(
+        "SELECT cabinet_id, practitioner_id, display_name, specialite FROM provider WHERE id = $1",
+    )
+    .bind(body.provider_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
 
     let cabinet_id: Uuid = provider_row
         .try_get("cabinet_id")
@@ -1391,6 +1385,8 @@ pub async fn create_appointment(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
     let practitioner_id = practitioner_id_opt.ok_or(AppError::NotFound)?;
+    let provider_display_name: Option<String> = provider_row.try_get("display_name").ok();
+    let provider_specialty: Option<String> = provider_row.try_get("specialite").ok();
 
     // Scope cabinet pour les INSERTs soumis à la RLS tenant_isolation.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1399,11 +1395,27 @@ pub async fn create_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Fetch cabinet name + address for the response body.
+    let cab_row = sqlx::query(
+        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    let cabinet_name: String = cab_row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let cabinet_address: Option<String> =
+        cab_row.try_get("address").map_err(|_| AppError::Internal)?;
+
     // Idempotence : si une Idempotency-Key est fournie et qu'un RDV existe déjà pour ce
     // cabinet + clé, on retourne le RDV existant sans insérer de doublon.
     if let Some(ref key) = idempotency_key {
         let existing = sqlx::query(
-            "SELECT id, status FROM appointment \
+            "SELECT id, status, starts_at, ends_at FROM appointment \
              WHERE cabinet_id = $1 AND idempotency_key = $2",
         )
         .bind(cabinet_id)
@@ -1415,6 +1427,10 @@ pub async fn create_appointment(
         if let Some(row) = existing {
             let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let idem_starts_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+            let idem_ends_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("ends_at").map_err(|_| AppError::Internal)?;
             tx.commit().await.map_err(|_| AppError::Internal)?;
             tracing::info!(
                 account_id = %claims.account_id,
@@ -1423,9 +1439,21 @@ pub async fn create_appointment(
             );
             return Ok((
                 StatusCode::CREATED,
-                Json(CreateAppointmentResponse {
-                    appointment_id,
+                Json(AppointmentDetail {
+                    id: appointment_id,
+                    starts_at: idem_starts_at.to_rfc3339(),
+                    ends_at: idem_ends_at.to_rfc3339(),
                     status,
+                    motif: body.motif.clone(),
+                    provider: ProviderDetail {
+                        id: Some(body.provider_id),
+                        display_name: provider_display_name.clone(),
+                        specialty: provider_specialty.clone(),
+                    },
+                    cabinet: CabinetInfo {
+                        name: cabinet_name.clone(),
+                        address: cabinet_address.clone(),
+                    },
                 }),
             ));
         }
@@ -1484,7 +1512,7 @@ pub async fn create_appointment(
     .bind(practitioner_id)
     .bind(starts_at)
     .bind(ends_at)
-    .bind(&body.motif)
+    .bind(body.motif.as_deref())
     .bind(body.slot_id)
     .bind(&idempotency_key)
     .fetch_one(&mut *tx)
@@ -1524,9 +1552,21 @@ pub async fn create_appointment(
 
     Ok((
         StatusCode::CREATED,
-        Json(CreateAppointmentResponse {
-            appointment_id,
+        Json(AppointmentDetail {
+            id: appointment_id,
+            starts_at: starts_at.to_rfc3339(),
+            ends_at: ends_at.to_rfc3339(),
             status,
+            motif: body.motif,
+            provider: ProviderDetail {
+                id: Some(body.provider_id),
+                display_name: provider_display_name,
+                specialty: provider_specialty,
+            },
+            cabinet: CabinetInfo {
+                name: cabinet_name,
+                address: cabinet_address,
+            },
         }),
     ))
 }
