@@ -1,4 +1,8 @@
-//! Handler `POST /v1/cabinet/slots` — création d'un créneau (admin/secrétariat).
+//! Handler `POST /v1/cabinet/slots` — crée un créneau disponible (admin/secrétariat).
+//!
+//! RBAC : admin ou secrétariat uniquement ; praticien → 403.
+//! RLS tenant via `app.current_cabinet_id`.
+//! Contrainte d'exclusion praticien (23P01) → 409 slot_taken.
 
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
@@ -10,14 +14,16 @@ use crate::{
     AppState,
 };
 
+/// Corps de `POST /v1/cabinet/slots`.
 #[derive(Deserialize)]
 pub struct CreateSlotBody {
     pub starts_at: String,
     pub ends_at: String,
-    pub provider_id: Uuid,
     pub capacity: Option<i32>,
+    pub provider_id: Uuid,
 }
 
+/// Réponse de `POST /v1/cabinet/slots`.
 #[derive(Serialize)]
 pub struct CreateSlotResponse {
     pub id: Uuid,
@@ -27,17 +33,10 @@ pub struct CreateSlotResponse {
     pub status: String,
 }
 
-fn is_exclusion_violation(e: &sqlx::Error) -> bool {
-    matches!(
-        e,
-        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23P01")
-    )
-}
-
-/// `POST /v1/cabinet/slots` — ouvre un créneau disponible (docs/12 §E.2).
+/// `POST /v1/cabinet/slots` — ouvre un créneau disponible pour le cabinet.
 ///
-/// Auth : admin ou secretary ; practitioner → 403.
-/// `cabinet_id` extrait du JWT. Conflit d'exclusion praticien (23P01) → 409 slot_taken.
+/// Auth : admin ou secrétariat ; praticien → 403.
+/// `cabinet_id` extrait du JWT (invariant tenancy).
 pub async fn create_slot(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -59,6 +58,11 @@ pub async fn create_slot(
         return Err(AppError::ValidationError);
     }
 
+    let capacity = body.capacity.unwrap_or(1);
+    if capacity < 1 {
+        return Err(AppError::ValidationError);
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -67,8 +71,8 @@ pub async fn create_slot(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le provider appartient au cabinet et récupère practitioner_id.
-    let provider_row =
+    // Vérifie que le provider appartient au cabinet et récupère le practitioner_id.
+    let prov_row =
         sqlx::query("SELECT id, practitioner_id FROM provider WHERE id = $1 AND cabinet_id = $2")
             .bind(body.provider_id)
             .bind(claims.cabinet_id)
@@ -77,7 +81,7 @@ pub async fn create_slot(
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
 
-    let practitioner_id: Option<Uuid> = provider_row
+    let practitioner_id: Uuid = prov_row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
 
@@ -125,8 +129,15 @@ pub async fn create_slot(
             id,
             starts_at: sa.to_rfc3339(),
             ends_at: ea.to_rfc3339(),
-            capacity: body.capacity.unwrap_or(1),
+            capacity,
             status: "available".to_string(),
         }),
     ))
+}
+
+fn is_exclusion_violation(e: &sqlx::Error) -> bool {
+    if let sqlx::Error::Database(db_err) = e {
+        return db_err.code().as_deref() == Some("23P01");
+    }
+    false
 }
