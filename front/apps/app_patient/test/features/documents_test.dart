@@ -215,53 +215,49 @@ void main() {
     });
   });
 
-  group('DocumentsPage — filtre catégorie (BLoC)', () {
-    late MockDocumentsBloc bloc;
+  group('DocumentsPage — filtre catégorie', () {
+    final docs = [
+      Document(
+        id: 'p1',
+        name: 'Ordonnance Dupont.pdf',
+        category: DocumentCategory.prescription,
+        createdAt: DateTime(2026, 1, 1),
+        fileSizeBytes: 1024,
+        mimeType: 'application/pdf',
+      ),
+      Document(
+        id: 'r1',
+        name: 'Compte rendu opération.pdf',
+        category: DocumentCategory.report,
+        createdAt: DateTime(2026, 1, 2),
+        fileSizeBytes: 2048,
+        mimeType: 'application/pdf',
+      ),
+      Document(
+        id: 'i1',
+        name: 'Radio panoramique.pdf',
+        category: DocumentCategory.xray,
+        createdAt: DateTime(2026, 1, 3),
+        fileSizeBytes: 4096,
+        mimeType: 'application/pdf',
+      ),
+    ];
 
     setUp(() async {
-      bloc = MockDocumentsBloc();
+      when(() => mockGetDocuments()).thenAnswer((_) async => Right(docs));
       await GetIt.instance.reset();
-      GetIt.instance.registerFactory<DocumentsBloc>(() => bloc);
+      GetIt.instance.registerFactory<DocumentsBloc>(() => DocumentsBloc(
+            getDocuments: mockGetDocuments,
+            getSignedUrl: mockGetSignedUrl,
+            upload: mockUpload,
+          ));
     });
 
     tearDown(() async => GetIt.instance.reset());
 
     testWidgets(
-        'tap chip Ordonnances — dispatch DocumentsFilterChanged(prescription)',
+        'tap chip Ordonnances — 1 doc visible sur 3 de catégories différentes',
         (tester) async {
-      final docs = [
-        Document(
-          id: 'p1',
-          name: 'Ordonnance Dupont.pdf',
-          category: DocumentCategory.prescription,
-          createdAt: DateTime(2026, 1, 1),
-          fileSizeBytes: 1024,
-          mimeType: 'application/pdf',
-        ),
-        Document(
-          id: 'r1',
-          name: 'Compte rendu opération.pdf',
-          category: DocumentCategory.report,
-          createdAt: DateTime(2026, 1, 2),
-          fileSizeBytes: 2048,
-          mimeType: 'application/pdf',
-        ),
-        Document(
-          id: 'i1',
-          name: 'Radio panoramique.pdf',
-          category: DocumentCategory.xray,
-          createdAt: DateTime(2026, 1, 3),
-          fileSizeBytes: 4096,
-          mimeType: 'application/pdf',
-        ),
-      ];
-
-      whenListen(
-        bloc,
-        Stream<DocumentsState>.empty(),
-        initialState: DocumentsLoaded(docs),
-      );
-
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: DocumentsPage())),
       );
@@ -275,13 +271,13 @@ void main() {
       expect(find.byKey(const Key('document_r1')), findsOneWidget);
       expect(find.byKey(const Key('document_i1')), findsOneWidget);
 
-      // Tap chip 'Ordonnances' → dispatch DocumentsFilterChanged
+      // Tap chip 'Ordonnances'
       await tester.tap(find.widgetWithText(ChoiceChip, 'Ordonnances'));
       await tester.pumpAndSettle();
 
-      verify(
-        () => bloc.add(any(that: isA<DocumentsFilterChanged>())),
-      ).called(1);
+      expect(find.byKey(const Key('document_p1')), findsOneWidget);
+      expect(find.byKey(const Key('document_r1')), findsNothing);
+      expect(find.byKey(const Key('document_i1')), findsNothing);
     });
   });
 
