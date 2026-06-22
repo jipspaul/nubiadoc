@@ -5,6 +5,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'bookable_slots_bloc.dart';
 import 'bookable_slots_event.dart';
 import 'bookable_slots_state.dart';
+import 'create_slot_dialog.dart';
 
 class BookableSlotsPage extends StatefulWidget {
   const BookableSlotsPage({super.key});
@@ -18,6 +19,20 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
   void initState() {
     super.initState();
     context.read<BookableSlotsBloc>().add(const BookableSlotsLoadRequested());
+  }
+
+  Future<void> _openCreateSlotDialog() async {
+    final result = await showDialog<({DateTime startsAt, DateTime endsAt})>(
+      context: context,
+      builder: (_) => const CreateSlotDialog(),
+    );
+    if (result == null || !mounted) return;
+    context.read<BookableSlotsBloc>().add(
+          CreateSlotRequested(
+            startsAt: result.startsAt,
+            endsAt: result.endsAt,
+          ),
+        );
   }
 
   @override
@@ -34,6 +49,12 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
                 .add(const BookableSlotsLoadRequested()),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        key: const Key('create_slot_fab'),
+        onPressed: _openCreateSlotDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('Créer un créneau'),
       ),
       body: BlocBuilder<BookableSlotsBloc, BookableSlotsState>(
         builder: (context, state) {

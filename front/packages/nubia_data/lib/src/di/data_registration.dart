@@ -173,6 +173,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetAppointmentHistoryUseCase(gi()))
     ..registerFactory(() => GetUpcomingAppointmentsUseCase(gi()))
     ..registerFactory(() => ModifyAppointmentUseCase(gi()))
+    ..registerFactory(() => GetDirectionsUseCase(gi()))
     // billing
     ..registerFactory(() => GetPendingQuotesUseCase(gi()))
     ..registerFactory(() => GetQuoteByIdUseCase(gi()))
@@ -309,6 +310,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
     ..registerFactory(() => GetCabinetQuoteUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
+    ..registerFactory(() => CreateSlotUseCase(gi()))
     ..registerFactory(() => ListWaitingListUseCase(gi()))
     ..registerFactory(() => OfferSlotToWaitingPatientUseCase(gi()))
     ..registerFactory(() => ListMembersUseCase(gi()))
