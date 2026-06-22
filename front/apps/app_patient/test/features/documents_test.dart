@@ -113,6 +113,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(DocumentCategory.other);
     registerFallbackValue(const DocumentsLoadRequested());
+    registerFallbackValue(const DocumentsFilterChanged(null));
   });
 
   late MockGetDocumentsUseCase mockGetDocuments;
@@ -214,7 +215,7 @@ void main() {
     });
   });
 
-  group('DocumentsPage — filtre catégorie (local)', () {
+  group('DocumentsPage — filtre catégorie (BLoC)', () {
     late MockDocumentsBloc bloc;
 
     setUp(() async {
@@ -226,7 +227,7 @@ void main() {
     tearDown(() async => GetIt.instance.reset());
 
     testWidgets(
-        'tap chip Ordonnance — 1 doc visible sur 3 de catégories différentes',
+        'tap chip Ordonnances — dispatch DocumentsFilterChanged(prescription)',
         (tester) async {
       final docs = [
         Document(
@@ -266,21 +267,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 4 chips visibles
-      expect(find.byType(FilterChip), findsNWidgets(4));
+      // 4 chips visibles (Tous + 3 catégories)
+      expect(find.byType(ChoiceChip), findsNWidgets(4));
 
       // 3 docs visibles avant filtrage
       expect(find.byKey(const Key('document_p1')), findsOneWidget);
       expect(find.byKey(const Key('document_r1')), findsOneWidget);
       expect(find.byKey(const Key('document_i1')), findsOneWidget);
 
-      // Tap chip 'Ordonnance'
-      await tester.tap(find.widgetWithText(FilterChip, 'Ordonnance'));
+      // Tap chip 'Ordonnances' → dispatch DocumentsFilterChanged
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Ordonnances'));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('document_p1')), findsOneWidget);
-      expect(find.byKey(const Key('document_r1')), findsNothing);
-      expect(find.byKey(const Key('document_i1')), findsNothing);
+      verify(
+        () => bloc.add(any(that: isA<DocumentsFilterChanged>())),
+      ).called(1);
     });
   });
 
