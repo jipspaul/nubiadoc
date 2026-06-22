@@ -1481,6 +1481,14 @@ pub async fn create_appointment(
 
     let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
 
+    // Scope patient pour la policy appointment_patient_create (0114) — WITH CHECK vérifie que
+    // patient_id appartient bien au compte identifié par ce GUC.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(effective_account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // Résout starts_at / ends_at selon slot_id ou starts_at fourni.
     let (starts_at, ends_at) = if let Some(slot_id) = body.slot_id {
         let slot_row =
