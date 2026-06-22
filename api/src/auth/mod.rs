@@ -139,7 +139,6 @@ pub(crate) enum AppError {
     NoActiveMembership,
     LastAdminCannotBeRemoved,
     StartAtNotFuture,
-    HasBooking,
 }
 
 impl IntoResponse for AppError {
