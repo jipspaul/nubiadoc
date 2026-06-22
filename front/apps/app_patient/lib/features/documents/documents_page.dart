@@ -125,16 +125,24 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                   FilterChip(
                     label: const Text('Tous'),
                     selected: _categoryFilter == null,
-                    onSelected: (_) =>
-                        setState(() => _categoryFilter = null),
+                    onSelected: (_) {
+                      setState(() => _categoryFilter = null);
+                      context
+                          .read<DocumentsBloc>()
+                          .add(const DocumentsCategorySelected(null));
+                    },
                   ),
                   for (final (label, cat) in _chips)
                     FilterChip(
                       label: Text(label),
                       selected: _categoryFilter == cat,
-                      onSelected: (_) => setState(() {
-                        _categoryFilter = _categoryFilter == cat ? null : cat;
-                      }),
+                      onSelected: (_) {
+                        final next = _categoryFilter == cat ? null : cat;
+                        setState(() => _categoryFilter = next);
+                        context
+                            .read<DocumentsBloc>()
+                            .add(DocumentsCategorySelected(next));
+                      },
                     ),
                 ],
               ),
