@@ -9,8 +9,9 @@ Validation des parcours utilisateurs sur le déploiement de test, via Playwright
 - **Comptes démo** : patient `marc.dubois@patient.test`, praticien `hugo.marin@cabinet-lyon.test`, secrétaire `sonia.accueil@cabinet-lyon.test` — tous `Nubia2026!`.
 - **Captures** : `qa/screenshots/`.
 
-> ✅ **Confirmé en vrai navigateur (2026-06-23)** : les icônes Material apparaissent en
-> « □ » (tofu) sur les 3 apps — ce **n'est PAS** un artefact headless (cf. UI-03).
+> ✅ **UI-03 (icônes « □ » tofu) est désormais CORRIGÉ** (branche `agent/fix-deploy-ci`) :
+> confirmé en vrai navigateur puis résolu (`uses-material-design: true` manquant). Voir la
+> section UI-03. Les autres constats ci-dessous restent **ouverts**.
 
 ---
 
@@ -20,7 +21,7 @@ Validation des parcours utilisateurs sur le déploiement de test, via Playwright
 |---|---|---|
 | 🔴 Bloquant | BUG-01 | **Quasi tous les écrans « données » restent en chargement infini** (spinner/skeleton), sans état d'erreur — parcours non finançables |
 | 🔴 Bloquant | BUG-02 | E-mail de login **patient codé en dur** (`camille@example.com`) → échec de connexion si l'utilisateur tape sans effacer |
-| 🟠 Majeur | UI-03 | Icônes Material rendues en « □ » (tofu) partout (nav, FAB, listes) — **confirmé en vrai navigateur** |
+| ✅ Résolu | UI-03 | ~~Icônes Material en « □ » (tofu)~~ — **CORRIGÉ** : `uses-material-design: true` manquant (`agent/fix-deploy-ci`) |
 | 🟠 Majeur | UX-04 | Échec de login (401) affiche « **Session expirée** » au lieu d'« identifiants incorrects » |
 | 🟠 Majeur | UI-05 | Dashboard praticien = **4 cartes vides** (aucune stat, aucun libellé) |
 | 🟠 Majeur | UI-06 | **Logo Flutter par défaut** dans l'en-tête de nav des apps pro (pas de branding Nubia) |
@@ -58,15 +59,17 @@ Validation des parcours utilisateurs sur le déploiement de test, via Playwright
 
 ## 🟠 Majeurs
 
-### UI-03 — Icônes Material non rendues (« □ » tofu)
+### UI-03 — Icônes Material non rendues (« □ » tofu) — ✅ RÉSOLU
+**Statut** : ✅ **CORRIGÉ et déployé (2026-06-23)** — branche `agent/fix-deploy-ci`. Icônes vérifiées visibles après redéploiement (nav, FAB, listes).
 **Parcours** : toutes les apps — nav latérale/inférieure, FAB « Consultation », icônes de listes, champ recherche, œil mot de passe.
-**Statut** : ✅ **Confirmé en vrai navigateur (2026-06-23)** — ce n'est pas un artefact de capture headless. Les icônes sont invisibles (carrés vides) pour l'utilisateur réel.
-**Observé** : toutes les icônes Material apparaissent en carrés vides.
-**Cause probable** : tree-shaking d'icônes ou police `MaterialIcons-Regular.otf` non chargée/appliquée sur le build web (codepoints absents de la police shakée).
-**Recommandation** :
-1. Builder les fronts avec `flutter build web --no-tree-shake-icons` — à ajouter dans `infra/deploy/build-and-deploy.sh` (fonction `build_front`, à côté de `--pwa-strategy=none`).
-2. Si le problème persiste, vérifier que `MaterialIcons-Regular.otf` est bien servi (HTTP 200) et que `FontManifest.json` le référence ; contrôler qu'aucune `IconData` custom non incluse n'est utilisée.
-**Preuves** : toutes les captures (ex. `06-praticien-dashboard-blank-cards.png`).
+**Vraie cause** : **aucune des 3 apps ne déclarait `flutter: uses-material-design: true`** dans son `pubspec.yaml` (il n'y avait même pas de section `flutter:`). Résultat : la police `MaterialIcons-Regular.otf` n'était **jamais embarquée** → `assets/FontManifest.json` = `[]` (vide), le fichier de police renvoyait le fallback `index.html` (HTTP 200 mais `text/html`, 1,5 Ko) → toutes les icônes en carrés. **Le tree-shaking n'était PAS en cause** (`--no-tree-shake-icons` seul ne corrigeait rien).
+**Correctif** : ajout de
+```yaml
+flutter:
+  uses-material-design: true
+```
+aux `pubspec.yaml` des 3 apps (+ `--no-tree-shake-icons` au build, par sécurité). Après redéploiement : `FontManifest.json` = `[{"family":"MaterialIcons",...}]`, police servie en `200 / application/octet-stream / 1,6 Mo`, icônes rendues.
+**Preuve avant** : `06-praticien-dashboard-blank-cards.png` (icônes en carrés). **Après** : icônes visibles (vérifié au navigateur headless + à confirmer côté utilisateur).
 
 ### UX-04 — Mauvais message d'erreur de connexion
 **Parcours** : login (toutes les apps).
