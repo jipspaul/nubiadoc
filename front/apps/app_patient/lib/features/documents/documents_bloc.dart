@@ -29,11 +29,15 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
     Emitter<DocumentsState> emit,
   ) async {
     emit(const DocumentsLoading());
-    final result = await _getDocuments();
-    result.fold(
-      (failure) => emit(DocumentsError(failure.message)),
-      (documents) => emit(DocumentsLoaded(documents)),
-    );
+    try {
+      final result = await _getDocuments();
+      result.fold(
+        (failure) => emit(DocumentsError(failure.message)),
+        (documents) => emit(DocumentsLoaded(documents)),
+      );
+    } catch (_) {
+      emit(const DocumentsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onCategorySelected(
@@ -61,13 +65,17 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
     DocumentsDownloadRequested event,
     Emitter<DocumentsState> emit,
   ) async {
-    final result = await _getSignedUrl(event.documentId);
-    result.fold(
-      (failure) => emit(DocumentsDownloadError(failure.message)),
-      (url) => emit(
-        DocumentsDownloadReady(documentId: event.documentId, url: url),
-      ),
-    );
+    try {
+      final result = await _getSignedUrl(event.documentId);
+      result.fold(
+        (failure) => emit(DocumentsDownloadError(failure.message)),
+        (url) => emit(
+          DocumentsDownloadReady(documentId: event.documentId, url: url),
+        ),
+      );
+    } catch (_) {
+      emit(const DocumentsDownloadError('Erreur de téléchargement.'));
+    }
   }
 
   Future<void> _onUpload(
@@ -75,15 +83,19 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
     Emitter<DocumentsState> emit,
   ) async {
     emit(const DocumentsUploading());
-    final result = await _upload(
-      filePath: event.filePath,
-      filename: event.filename,
-      mimeType: event.mimeType,
-      category: event.category,
-    );
-    result.fold(
-      (failure) => emit(DocumentsUploadFailure(failure.message)),
-      (doc) => emit(DocumentsUploadSuccess(doc)),
-    );
+    try {
+      final result = await _upload(
+        filePath: event.filePath,
+        filename: event.filename,
+        mimeType: event.mimeType,
+        category: event.category,
+      );
+      result.fold(
+        (failure) => emit(DocumentsUploadFailure(failure.message)),
+        (doc) => emit(DocumentsUploadSuccess(doc)),
+      );
+    } catch (_) {
+      emit(const DocumentsUploadFailure('Erreur d\'envoi.'));
+    }
   }
 }

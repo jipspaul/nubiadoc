@@ -48,28 +48,36 @@ class AuthCubit extends Cubit<AuthState> {
 
   /// Called at startup: restore session from a stored token if present.
   Future<void> restore() async {
-    final token = await _tokenStorage.getAccessToken();
-    if (token == null || token.isEmpty) {
+    try {
+      final token = await _tokenStorage.getAccessToken();
+      if (token == null || token.isEmpty) {
+        emit(const AuthUnauthenticated());
+        return;
+      }
+      final result = await _getMe();
+      result.fold(
+        (_) => emit(const AuthUnauthenticated()),
+        (account) => emit(AuthAuthenticated(_sessionFrom(account))),
+      );
+    } catch (_) {
       emit(const AuthUnauthenticated());
-      return;
     }
-    final result = await _getMe();
-    result.fold(
-      (_) => emit(const AuthUnauthenticated()),
-      (account) => emit(AuthAuthenticated(_sessionFrom(account))),
-    );
   }
 
   Future<void> signIn({required String email, required String password}) async {
     emit(const AuthLoading());
-    final result = await _login(email: email, password: password);
-    result.fold(
-      (failure) => emit(AuthUnauthenticated(failure.message)),
-      (account) {
-        _deviceRegistration.registerOnLogin('patient');
-        emit(AuthAuthenticated(_sessionFrom(account)));
-      },
-    );
+    try {
+      final result = await _login(email: email, password: password);
+      result.fold(
+        (failure) => emit(AuthUnauthenticated(failure.message)),
+        (account) {
+          _deviceRegistration.registerOnLogin('patient');
+          emit(AuthAuthenticated(_sessionFrom(account)));
+        },
+      );
+    } catch (_) {
+      emit(const AuthUnauthenticated('Erreur de connexion.'));
+    }
   }
 
   Future<void> signOut() async {

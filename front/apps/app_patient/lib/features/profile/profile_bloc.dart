@@ -28,17 +28,21 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     Emitter<ProfileState> emit,
   ) async {
     emit(const ProfileLoading());
-    final result = await _getAccount();
-    await result.fold(
-      (failure) async => emit(ProfileError(failure.message)),
-      (account) async {
-        final biometric = await _userSettings.getBiometricEnabled();
-        final prefsResult = await _notificationRepo.getPreferences();
-        final prefs = prefsResult.fold((_) => null, (p) => p);
-        emit(ProfileLoaded(account,
-            biometricEnabled: biometric, notifPrefs: prefs));
-      },
-    );
+    try {
+      final result = await _getAccount();
+      await result.fold(
+        (failure) async => emit(ProfileError(failure.message)),
+        (account) async {
+          final biometric = await _userSettings.getBiometricEnabled();
+          final prefsResult = await _notificationRepo.getPreferences();
+          final prefs = prefsResult.fold((_) => null, (p) => p);
+          emit(ProfileLoaded(account,
+              biometricEnabled: biometric, notifPrefs: prefs));
+        },
+      );
+    } catch (_) {
+      emit(const ProfileError('Erreur de chargement du profil.'));
+    }
   }
 
   Future<void> _onBiometricToggle(

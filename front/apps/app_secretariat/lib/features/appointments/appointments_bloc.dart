@@ -31,11 +31,15 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     Emitter<AppointmentsState> emit,
   ) async {
     emit(const AppointmentsLoading());
-    final result = await _list();
-    result.fold(
-      (failure) => emit(AppointmentsError(failure.message)),
-      (appointments) => emit(AppointmentsLoaded(appointments)),
-    );
+    try {
+      final result = await _list();
+      result.fold(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (appointments) => emit(AppointmentsLoaded(appointments)),
+      );
+    } catch (_) {
+      emit(const AppointmentsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onCreate(
@@ -43,11 +47,15 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     Emitter<AppointmentsState> emit,
   ) async {
     emit(const AppointmentsLoading());
-    final result = await _create(event.appointment);
-    result.fold(
-      (failure) => emit(AppointmentsError(failure.message)),
-      (appointment) => emit(AppointmentSuccess(appointment)),
-    );
+    try {
+      final result = await _create(event.appointment);
+      result.fold(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (appointment) => emit(AppointmentSuccess(appointment)),
+      );
+    } catch (_) {
+      emit(const AppointmentsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onConfirm(
@@ -55,11 +63,15 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     Emitter<AppointmentsState> emit,
   ) async {
     emit(const AppointmentsLoading());
-    final result = await _confirm(event.appointmentId);
-    result.fold(
-      (failure) => emit(AppointmentsError(failure.message)),
-      (appointment) => emit(AppointmentSuccess(appointment)),
-    );
+    try {
+      final result = await _confirm(event.appointmentId);
+      result.fold(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (appointment) => emit(AppointmentSuccess(appointment)),
+      );
+    } catch (_) {
+      emit(const AppointmentsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onReschedule(
@@ -67,10 +79,14 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     Emitter<AppointmentsState> emit,
   ) async {
     emit(const AppointmentsLoading());
-    final result = await _reschedule(event.appointmentId, event.newStartsAt);
-    result.fold(
-      (failure) => emit(AppointmentsError(failure.message)),
-      (appointment) => emit(AppointmentSuccess(appointment)),
-    );
+    try {
+      final result = await _reschedule(event.appointmentId, event.newStartsAt);
+      result.fold(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (appointment) => emit(AppointmentSuccess(appointment)),
+      );
+    } catch (_) {
+      emit(const AppointmentsError('Erreur de chargement.'));
+    }
   }
 }

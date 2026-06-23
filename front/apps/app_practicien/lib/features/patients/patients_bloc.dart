@@ -27,11 +27,15 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     Emitter<PatientsState> emit,
   ) async {
     emit(const PatientsLoading());
-    final result = await _list();
-    result.fold(
-      (failure) => emit(PatientsError(failure.message)),
-      (patients) => emit(PatientsLoaded(patients)),
-    );
+    try {
+      final result = await _list();
+      result.fold(
+        (failure) => emit(PatientsError(failure.message)),
+        (patients) => emit(PatientsLoaded(patients)),
+      );
+    } catch (_) {
+      emit(const PatientsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onDetailLoad(
@@ -39,11 +43,15 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     Emitter<PatientsState> emit,
   ) async {
     emit(const PatientsLoading());
-    final result = await _getById(event.id);
-    result.fold(
-      (failure) => emit(PatientDetailError(failure.message)),
-      (patient) => emit(PatientDetailLoaded(patient)),
-    );
+    try {
+      final result = await _getById(event.id);
+      result.fold(
+        (failure) => emit(PatientDetailError(failure.message)),
+        (patient) => emit(PatientDetailLoaded(patient)),
+      );
+    } catch (_) {
+      emit(const PatientDetailError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onNotesUpdate(
@@ -53,13 +61,17 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     final current = state;
     if (current is! PatientDetailLoaded) return;
     emit(current.copyWith(notesUpdating: true, clearNotesError: true));
-    final result = await _updateNotes(event.id, event.notes);
-    result.fold(
-      (failure) => emit(current.copyWith(
-        notesUpdating: false,
-        notesError: failure.message,
-      )),
-      (updated) => emit(PatientDetailLoaded(updated)),
-    );
+    try {
+      final result = await _updateNotes(event.id, event.notes);
+      result.fold(
+        (failure) => emit(current.copyWith(
+          notesUpdating: false,
+          notesError: failure.message,
+        )),
+        (updated) => emit(PatientDetailLoaded(updated)),
+      );
+    } catch (_) {
+      emit(current.copyWith(notesUpdating: false, notesError: 'Erreur inattendue.'));
+    }
   }
 }

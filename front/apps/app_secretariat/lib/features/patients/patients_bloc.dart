@@ -18,10 +18,14 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     Emitter<PatientsState> emit,
   ) async {
     emit(const PatientsLoading());
-    final result = await _list();
-    result.fold(
-      (failure) => emit(PatientsError(failure.message)),
-      (patients) => emit(PatientsLoaded(patients)),
-    );
+    try {
+      final result = await _list();
+      result.fold(
+        (failure) => emit(PatientsError(failure.message)),
+        (patients) => emit(PatientsLoaded(patients)),
+      );
+    } catch (_) {
+      emit(const PatientsError('Erreur de chargement.'));
+    }
   }
 }

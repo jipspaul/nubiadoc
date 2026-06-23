@@ -23,11 +23,15 @@ class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState> {
     Emitter<ReviewsState> emit,
   ) async {
     emit(const ReviewsLoading());
-    final result = await _getProviderReviews(event.providerId);
-    result.fold(
-      (failure) => emit(ReviewsError(failure.message)),
-      (reviews) => emit(ReviewsLoaded(reviews)),
-    );
+    try {
+      final result = await _getProviderReviews(event.providerId);
+      result.fold(
+        (failure) => emit(ReviewsError(failure.message)),
+        (reviews) => emit(ReviewsLoaded(reviews)),
+      );
+    } catch (_) {
+      emit(const ReviewsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onSubmitRequested(
@@ -35,15 +39,19 @@ class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState> {
     Emitter<ReviewsState> emit,
   ) async {
     emit(const ReviewSubmitting());
-    final result = await _submitReview(
-      appointmentId: event.appointmentId,
-      rating: event.rating,
-      comment: event.comment,
-      idempotencyKey: event.idempotencyKey,
-    );
-    result.fold(
-      (failure) => emit(ReviewSubmitFailure(failure.message)),
-      (_) => emit(const ReviewSubmitSuccess()),
-    );
+    try {
+      final result = await _submitReview(
+        appointmentId: event.appointmentId,
+        rating: event.rating,
+        comment: event.comment,
+        idempotencyKey: event.idempotencyKey,
+      );
+      result.fold(
+        (failure) => emit(ReviewSubmitFailure(failure.message)),
+        (_) => emit(const ReviewSubmitSuccess()),
+      );
+    } catch (_) {
+      emit(const ReviewSubmitFailure('Erreur lors de l\'envoi.'));
+    }
   }
 }

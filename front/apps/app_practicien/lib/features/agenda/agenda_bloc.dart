@@ -30,15 +30,19 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     required bool includePast,
   }) async {
     emit(const AgendaLoading());
-    final result = await _getAgenda(weekStart, includePast: includePast);
-    result.fold(
-      (failure) => emit(AgendaError(failure.message)),
-      (entries) => emit(AgendaLoaded(
-        entries: entries,
-        weekStart: weekStart,
-        includePast: includePast,
-      )),
-    );
+    try {
+      final result = await _getAgenda(weekStart, includePast: includePast);
+      result.fold(
+        (failure) => emit(AgendaError(failure.message)),
+        (entries) => emit(AgendaLoaded(
+          entries: entries,
+          weekStart: weekStart,
+          includePast: includePast,
+        )),
+      );
+    } catch (_) {
+      emit(const AgendaError('Erreur de chargement de l\'agenda.'));
+    }
   }
 
   Future<void> _onLoad(
@@ -77,18 +81,22 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     final current = state;
     if (current is! AgendaLoaded) return;
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
-    final result = await _confirmAppointment(event.appointmentId);
-    await result.fold(
-      (failure) async => emit(current.copyWith(
-        actionInProgress: false,
-        actionError: failure.message,
-      )),
-      (_) async => _fetchAndEmit(
-        current.weekStart,
-        emit,
-        includePast: current.includePast,
-      ),
-    );
+    try {
+      final result = await _confirmAppointment(event.appointmentId);
+      await result.fold(
+        (failure) async => emit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) async => _fetchAndEmit(
+          current.weekStart,
+          emit,
+          includePast: current.includePast,
+        ),
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
   }
 
   Future<void> _onStartConsultation(
@@ -98,17 +106,21 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     final current = state;
     if (current is! AgendaLoaded) return;
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
-    final result = await _startConsultation(event.appointmentId);
-    await result.fold(
-      (failure) async => emit(current.copyWith(
-        actionInProgress: false,
-        actionError: failure.message,
-      )),
-      (_) async => _fetchAndEmit(
-        current.weekStart,
-        emit,
-        includePast: current.includePast,
-      ),
-    );
+    try {
+      final result = await _startConsultation(event.appointmentId);
+      await result.fold(
+        (failure) async => emit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) async => _fetchAndEmit(
+          current.weekStart,
+          emit,
+          includePast: current.includePast,
+        ),
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
   }
 }
