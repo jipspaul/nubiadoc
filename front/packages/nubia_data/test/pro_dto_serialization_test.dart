@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nubia_data/src/remote/cabinet_dashboard/cabinet_dashboard_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_messaging/cabinet_messaging_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_patients/cabinet_patients_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_agenda/cabinet_agenda_dto.dart';
@@ -316,6 +317,35 @@ void main() {
       expect(dto.patientName, 'Camille Rousseau');
       expect(dto.patientId, 'pat-2');
       expect(dto.unreadCount, 0);
+    });
+  });
+
+  group('CabinetDashboardDto (agrégation /v1/cabinet/dashboard)', () {
+    test('fromJson désérialise les 4 compteurs présents', () {
+      final json = {
+        'today_appointments': 3,
+        'waiting_room_count': 1,
+        'unread_messages': 2,
+        'pending_confirmations': 0,
+      };
+      final dto = CabinetDashboardDto.fromJson(json);
+      expect(dto.todayAppointments, 3);
+      expect(dto.waitingRoomCount, 1);
+      expect(dto.unreadMessages, 2);
+      expect(dto.pendingConfirmations, 0);
+      final domain = dto.toDomain();
+      expect(domain.todayAppointments, 3);
+      expect(domain.waitingRoomCount, 1);
+      expect(domain.unreadMessages, 2);
+      expect(domain.pendingConfirmations, 0);
+    });
+
+    test('fromJson retourne 0 pour les champs manquants ou nuls', () {
+      final dto = CabinetDashboardDto.fromJson({});
+      expect(dto.todayAppointments, 0);
+      expect(dto.waitingRoomCount, 0);
+      expect(dto.unreadMessages, 0);
+      expect(dto.pendingConfirmations, 0);
     });
   });
 }
