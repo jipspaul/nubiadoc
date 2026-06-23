@@ -18,6 +18,10 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (_) {
+      // Absorb TypeError / FormatException from DTO parsing: prevents bloc
+      // from hanging in Loading state when the API shape changes.
+      return const Left(ServerFailure(message: 'Impossible de charger le profil.'));
     }
   }
 
