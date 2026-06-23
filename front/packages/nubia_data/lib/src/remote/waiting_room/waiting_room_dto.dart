@@ -23,12 +23,17 @@ class WaitingRoomEntryDto {
   factory WaitingRoomEntryDto.fromJson(Map<String, dynamic> json) =>
       WaitingRoomEntryDto(
         id: json['id'] as String,
-        cabinetId: json['cabinet_id'] as String,
-        patientId: json['patient_id'] as String,
-        patientName: json['patient_name'] as String,
+        cabinetId: (json['cabinet_id'] as String?) ?? '',
+        patientId: (json['patient_id'] as String?) ?? '',
+        patientName: (json['patient_name_initials'] as String?) ??
+            (json['patient_name'] as String?) ??
+            '',
         appointmentId: json['appointment_id'] as String?,
-        arrivedAt: json['arrived_at'] as String,
-        estimatedWaitMinutes: (json['estimated_wait_minutes'] as num?)?.toInt(),
+        arrivedAt: (json['checkin_at'] as String?) ??
+            (json['arrived_at'] as String?) ??
+            DateTime.now().toIso8601String(),
+        estimatedWaitMinutes: (json['wait_minutes'] as num?)?.toInt() ??
+            (json['estimated_wait_minutes'] as num?)?.toInt(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -71,12 +76,14 @@ class WaitingListEntryDto {
   factory WaitingListEntryDto.fromJson(Map<String, dynamic> json) =>
       WaitingListEntryDto(
         id: json['id'] as String,
-        cabinetId: json['cabinet_id'] as String,
-        patientId: json['patient_id'] as String,
-        patientName: json['patient_name'] as String,
-        motif: json['motif'] as String,
-        requestedAt: json['requested_at'] as String,
-        position: (json['position'] as num).toInt(),
+        cabinetId: (json['cabinet_id'] as String?) ?? '',
+        patientId: (json['patient_id'] as String?) ?? '',
+        patientName: (json['patient_name'] as String?) ?? '',
+        motif: (json['motif'] as String?) ?? '',
+        requestedAt: (json['requested_at'] as String?) ??
+            (json['created_at'] as String?) ??
+            DateTime.now().toIso8601String(),
+        position: (json['position'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
