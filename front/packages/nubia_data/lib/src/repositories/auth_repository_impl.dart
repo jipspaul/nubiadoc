@@ -25,7 +25,12 @@ class AuthRepositoryImpl implements AuthRepository {
         access: response.tokens.accessToken,
         refresh: response.tokens.refreshToken,
       );
-      return Right(response.account.toDomain());
+      // /auth/login ne renvoie pas d'account : on dérive un compte minimal
+      // (non utilisé par le flux de session, qui ne garde que les jetons).
+      return Right(
+        response.account?.toDomain() ??
+            PatientAccount(id: '', firstName: '', lastName: '', email: email),
+      );
     } on DioException catch (e) {
       return Left(_mapDioError(e));
     }
@@ -47,7 +52,10 @@ class AuthRepositoryImpl implements AuthRepository {
         access: response.tokens.accessToken,
         refresh: response.tokens.refreshToken,
       );
-      return Right(response.account.toDomain());
+      return Right(
+        response.account?.toDomain() ??
+            PatientAccount(id: '', firstName: '', lastName: '', email: email),
+      );
     } on DioException catch (e) {
       return Left(_mapDioError(e));
     }

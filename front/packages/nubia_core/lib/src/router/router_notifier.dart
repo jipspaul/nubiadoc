@@ -12,26 +12,36 @@ class RouterNotifier extends ChangeNotifier {
 
   final TokenStorage _tokenStorage;
   bool _isAuthenticated = false;
+  bool _resolved = false;
 
   bool get isAuthenticated => _isAuthenticated;
+
+  /// Whether the initial auth state has been determined (token store read or an
+  /// explicit mark*). The splash route waits on this before redirecting, so the
+  /// app doesn't flash the login screen during boot.
+  bool get isResolved => _resolved;
 
   /// Re-reads the token store and notifies if the auth state flipped.
   Future<void> refreshAuth() async {
     final token = await _tokenStorage.getAccessToken();
     final wasAuthenticated = _isAuthenticated;
+    final wasResolved = _resolved;
     _isAuthenticated = token != null && token.isNotEmpty;
-    if (_isAuthenticated != wasAuthenticated) notifyListeners();
+    _resolved = true;
+    if (_isAuthenticated != wasAuthenticated || !wasResolved) notifyListeners();
   }
 
   void markAuthenticated() {
-    if (_isAuthenticated) return;
+    final changed = !_isAuthenticated || !_resolved;
     _isAuthenticated = true;
-    notifyListeners();
+    _resolved = true;
+    if (changed) notifyListeners();
   }
 
   void markUnauthenticated() {
-    if (!_isAuthenticated) return;
+    final changed = _isAuthenticated || !_resolved;
     _isAuthenticated = false;
-    notifyListeners();
+    _resolved = true;
+    if (changed) notifyListeners();
   }
 }

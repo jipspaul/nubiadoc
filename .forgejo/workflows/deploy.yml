@@ -1,0 +1,36 @@
+# Déploiement continu vers le LXC de test (Alpine x86_64) à CHAQUE merge sur main.
+#
+# Le runner Forgejo est arm64 (Mac) et la cible amd64 : on NE construit donc PAS
+# via QEMU (rustc segfault sous l'émulation libkrun). À la place :
+#   - l'API Rust est CROSS-compilée en binaire musl statique amd64 (cargo-zigbuild,
+#     pas de QEMU) directement sur le runner ;
+#   - les 3 fronts Flutter sont buildés en web (statique, indépendant de l'arch) ;
+#   - tout est poussé sur le LXC, qui assemble les images (api COPY-only + console
+#     Astro) en amd64 NATIF et (re)démarre la stack podman.
+#
+# Pré-requis runner : image `deploy-ci:stable` (cf. ci/deploy/Containerfile +
+# ci/deploy/load-into-runner.sh — même principe que ci/db et ci/flutter).
+# Secrets Forgejo requis : DEPLOY_HOST, DEPLOY_USER, DEPLOY_PASSWORD.
+# Variable optionnelle : NUBIA_API_BASE (défaut http://<DEPLOY_HOST>:3000).
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: docker
+    container:
+      image: deploy-ci:stable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build + déploiement vers le LXC
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+          API_BASE: ${{ vars.NUBIA_API_BASE }}
+        run: bash infra/deploy/build-and-deploy.sh

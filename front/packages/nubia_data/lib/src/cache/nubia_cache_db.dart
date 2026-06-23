@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:drift_sqflite/drift_sqflite.dart';
+
+import 'executor/cache_executor.dart';
 
 part 'nubia_cache_db.g.dart';
 
@@ -18,14 +18,10 @@ class AppointmentsCache extends Table {
 class NubiaCacheDb extends _$NubiaCacheDb {
   NubiaCacheDb(super.e);
 
-  factory NubiaCacheDb.production() => NubiaCacheDb(
-        SqfliteQueryExecutor.inDatabaseFolder(
-          path: 'nubia_cache.db',
-          logStatements: false,
-        ),
-      );
+  factory NubiaCacheDb.production() =>
+      NubiaCacheDb(openCacheExecutor('nubia_cache.db'));
 
-  factory NubiaCacheDb.inMemory() => NubiaCacheDb(NativeDatabase.memory());
+  factory NubiaCacheDb.inMemory() => NubiaCacheDb(inMemoryExecutor());
 
   @override
   int get schemaVersion => 1;

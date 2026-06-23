@@ -1,0 +1,32 @@
+# deploy-ci:stable — image de job pour le workflow .forgejo/workflows/deploy.yml.
+# Étend l'image Flutter existante avec la chaîne de cross-compilation Rust->amd64
+# (musl, via zig/cargo-zigbuild, SANS QEMU) + sshpass pour le push SSH.
+# Aucune dépendance podman : les images conteneur sont assemblées SUR le LXC.
+#
+# Construire & charger dans le DinD du runner :
+#   ./ci/deploy/load-into-runner.sh
+FROM flutter-ci:stable
+
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl xz-utils ca-certificates git sshpass openssh-client tar \
+    && rm -rf /var/lib/apt/lists/*
+
+# Rust + cible musl amd64 (toolchain minimal).
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+ENV PATH=/root/.cargo/bin:$PATH
+RUN rustup target add x86_64-unknown-linux-musl
+
+# Zig (linker cross universel) + cargo-zigbuild.
+ARG ZIG_VERSION=0.13.0
+RUN ARCH="$(uname -m)" \
+ && curl -sSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ARCH}-${ZIG_VERSION}.tar.xz" -o /tmp/zig.tar.xz \
+ && mkdir -p /opt/zig && tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1 \
+ && ln -sf /opt/zig/zig /usr/local/bin/zig \
+ && rm /tmp/zig.tar.xz
+RUN cargo install cargo-zigbuild
+
+# Sanity.
+RUN zig version && cargo zigbuild --help >/dev/null && sshpass -V \
+ && rustup target list --installed | grep -q x86_64-unknown-linux-musl
