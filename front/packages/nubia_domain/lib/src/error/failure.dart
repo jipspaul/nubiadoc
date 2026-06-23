@@ -30,6 +30,10 @@ class UnauthorizedFailure extends Failure {
       : super('Session expirée. Veuillez vous reconnecter.');
 }
 
+class InvalidCredentialsFailure extends Failure {
+  const InvalidCredentialsFailure() : super('E-mail ou mot de passe incorrect');
+}
+
 class NotFoundFailure extends Failure {
   const NotFoundFailure([super.message = 'Ressource introuvable.']);
 }
@@ -55,4 +59,8 @@ class OfflineFailure extends Failure {
 class ClinicalAccessDenied extends Failure {
   const ClinicalAccessDenied()
       : super('Accès clinique non autorisé pour ce rôle.');
+}
+
+class ParseFailure extends Failure {
+  const ParseFailure([super.message = 'Erreur de décodage de la réponse.']);
 }
