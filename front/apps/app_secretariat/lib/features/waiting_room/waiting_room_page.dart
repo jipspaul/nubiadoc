@@ -8,19 +8,58 @@ import 'waiting_room_bloc.dart';
 import 'waiting_room_event.dart';
 import 'waiting_room_state.dart';
 
-class WaitingRoomPage extends StatefulWidget {
-  const WaitingRoomPage({super.key});
+/// Body-only content for the waiting room. Can be embedded in any layout
+/// that provides [WaitingRoomBloc] via [BlocProvider] (e.g. [ProShell]
+/// bodyBuilder or the full-page [WaitingRoomPage]).
+class WaitingRoomBody extends StatefulWidget {
+  const WaitingRoomBody({super.key});
 
   @override
-  State<WaitingRoomPage> createState() => _WaitingRoomPageState();
+  State<WaitingRoomBody> createState() => _WaitingRoomBodyState();
 }
 
-class _WaitingRoomPageState extends State<WaitingRoomPage> {
+class _WaitingRoomBodyState extends State<WaitingRoomBody> {
   @override
   void initState() {
     super.initState();
     context.read<WaitingRoomBloc>().add(const WaitingRoomLoadRequested());
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
+      builder: (context, state) {
+        if (state is WaitingRoomLoaded) {
+          final entries = state.entries;
+          if (entries.isEmpty) {
+            return const NubiaEmptyState(
+              icon: Icons.people_outline,
+              title: 'Salle d\'attente vide',
+              subtitle: NubiaL10n.noWaitingRoom,
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: entries.length,
+            itemBuilder: (_, i) => _WaitingEntryTile(entry: entries[i]),
+          );
+        }
+        if (state is WaitingRoomError) {
+          return NubiaErrorWidget(
+            message: state.message,
+            onRetry: () => context
+                .read<WaitingRoomBloc>()
+                .add(const WaitingRoomLoadRequested()),
+          );
+        }
+        return const _LoadingView();
+      },
+    );
+  }
+}
+
+class WaitingRoomPage extends StatelessWidget {
+  const WaitingRoomPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -52,34 +91,7 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
           );
         },
       ),
-      body: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
-        builder: (context, state) {
-          if (state is WaitingRoomLoaded) {
-            final entries = state.entries;
-            if (entries.isEmpty) {
-              return const NubiaEmptyState(
-                icon: Icons.people_outline,
-                title: 'Salle d\'attente vide',
-                subtitle: NubiaL10n.noWaitingRoom,
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: entries.length,
-              itemBuilder: (_, i) => _WaitingEntryTile(entry: entries[i]),
-            );
-          }
-          if (state is WaitingRoomError) {
-            return NubiaErrorWidget(
-              message: state.message,
-              onRetry: () => context
-                  .read<WaitingRoomBloc>()
-                  .add(const WaitingRoomLoadRequested()),
-            );
-          }
-          return const _LoadingView();
-        },
-      ),
+      body: const WaitingRoomBody(),
     );
   }
 }
