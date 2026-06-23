@@ -26,23 +26,28 @@ class NotificationPreferencesDto {
 
   factory NotificationPreferencesDto.fromJson(Map<String, dynamic> json) =>
       NotificationPreferencesDto(
-        pushEnabled: json['push_enabled'] as bool? ?? true,
-        emailEnabled: json['email_enabled'] as bool? ?? true,
-        smsEnabled: json['sms_enabled'] as bool? ?? true,
+        // API uses *_rdv suffix; accept both forms for forward-compat
+        pushEnabled:
+            (json['push_rdv'] ?? json['push_enabled']) as bool? ?? true,
+        emailEnabled:
+            (json['email_rdv'] ?? json['email_enabled']) as bool? ?? true,
+        smsEnabled:
+            (json['sms_rdv'] ?? json['sms_enabled']) as bool? ?? true,
         appointments: json['appointments'] as bool? ?? true,
         documents: json['documents'] as bool? ?? true,
-        messages: json['messages'] as bool? ?? true,
+        messages:
+            (json['email_messagerie'] ?? json['messages']) as bool? ?? true,
         payments: json['payments'] as bool? ?? true,
         prevention: json['prevention'] as bool? ?? true,
       );
 
   Map<String, dynamic> toJson() => {
-        'push_enabled': pushEnabled,
-        'email_enabled': emailEnabled,
-        'sms_enabled': smsEnabled,
+        'push_rdv': pushEnabled,
+        'email_rdv': emailEnabled,
+        'sms_rdv': smsEnabled,
         'appointments': appointments,
         'documents': documents,
-        'messages': messages,
+        'email_messagerie': messages,
         'payments': payments,
         'prevention': prevention,
       };
