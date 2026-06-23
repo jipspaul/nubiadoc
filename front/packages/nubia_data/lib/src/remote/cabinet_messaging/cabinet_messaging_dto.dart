@@ -16,16 +16,22 @@ class CabinetConversationDto {
     this.lastMessage,
   });
 
-  factory CabinetConversationDto.fromJson(Map<String, dynamic> json) =>
-      CabinetConversationDto(
-        id: json['id'] as String,
-        patientId: json['patient_id'] as String,
-        patientName: json['patient_name'] as String,
-        unreadCount: (json['unread_count'] as num).toInt(),
-        lastMessage: json['last_message'] == null
-            ? null
-            : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
-      );
+  factory CabinetConversationDto.fromJson(Map<String, dynamic> json) {
+    final firstName = json['patient_first_name'] as String? ?? '';
+    final lastName = json['patient_last_name'] as String? ?? '';
+    final combined = '$firstName $lastName'.trim();
+    return CabinetConversationDto(
+      id: json['id'] as String,
+      patientId: json['patient_id'] as String? ?? '',
+      patientName: json['patient_name'] as String? ??
+          (combined.isNotEmpty ? combined : ''),
+      unreadCount: (json['unread_count'] as num? ?? 0).toInt(),
+      lastMessage: json['last_message'] == null
+          ? null
+          : MessageDto.fromJson(
+              json['last_message'] as Map<String, dynamic>),
+    );
+  }
 
   CabinetConversation toDomain() => CabinetConversation(
         id: id,

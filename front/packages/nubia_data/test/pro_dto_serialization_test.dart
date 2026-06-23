@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nubia_data/src/remote/cabinet_messaging/cabinet_messaging_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_patients/cabinet_patients_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_agenda/cabinet_agenda_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
@@ -243,6 +244,43 @@ void main() {
       expect(domain.status, CabinetQuoteStatus.signed);
       expect(domain.isSigned, isTrue);
       expect(domain.signedAt, isNotNull);
+    });
+  });
+
+  group('CabinetConversationDto (GET /v1/cabinet/conversations)', () {
+    test('fromJson désérialise la forme réelle de l\'API (patient_first/last_name)', () {
+      final json = {
+        'id': 'c1000000-0000-0000-0000-000000000002',
+        'patient_first_name': 'Marc',
+        'patient_last_name': 'Dubois',
+        'last_message_at': '2026-06-03T08:00:00+00:00',
+        'triage_flag': 'urgent',
+        'unread_count': 1,
+        'scope': 'patient_cabinet',
+        'status': 'open',
+      };
+      final dto = CabinetConversationDto.fromJson(json);
+      expect(dto.id, 'c1000000-0000-0000-0000-000000000002');
+      expect(dto.patientName, 'Marc Dubois');
+      expect(dto.patientId, '');
+      expect(dto.unreadCount, 1);
+      expect(dto.lastMessage, isNull);
+      final domain = dto.toDomain();
+      expect(domain.patientName, 'Marc Dubois');
+      expect(domain.unreadCount, 1);
+    });
+
+    test('fromJson accepte patient_name direct (champ absent dans l\'API réelle)', () {
+      final json = {
+        'id': 'conv-2',
+        'patient_id': 'pat-2',
+        'patient_name': 'Camille Rousseau',
+        'unread_count': 0,
+      };
+      final dto = CabinetConversationDto.fromJson(json);
+      expect(dto.patientName, 'Camille Rousseau');
+      expect(dto.patientId, 'pat-2');
+      expect(dto.unreadCount, 0);
     });
   });
 }
