@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
@@ -137,7 +138,7 @@ final _stubTodayNotes = <TodayNoteEntry>[
 class _DashboardLoadedView extends StatelessWidget {
   const _DashboardLoadedView({required this.summary});
 
-  final dynamic summary;
+  final ProDashboardSummary summary;
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +159,7 @@ class _DashboardLoadedView extends StatelessWidget {
 class _SummaryGrid extends StatelessWidget {
   const _SummaryGrid({required this.summary});
 
-  final dynamic summary;
+  final ProDashboardSummary summary;
 
   @override
   Widget build(BuildContext context) {
