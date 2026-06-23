@@ -46,7 +46,6 @@ class DashboardPage extends StatelessWidget {
             child: NubiaEmptyState(
               icon: Icons.construction_outlined,
               title: destination.label,
-              subtitle: '${ProConfig.spaceLabel} — Écran à implémenter.',
             ),
           );
         }

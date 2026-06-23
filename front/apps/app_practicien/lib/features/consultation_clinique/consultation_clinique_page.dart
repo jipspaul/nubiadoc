@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'ccam_picker.dart';
@@ -231,9 +232,10 @@ class _HistoriqueViewState extends State<_HistoriqueView> {
         ),
         Expanded(
           child: filtered.isEmpty
-              ? const Center(
+              ? const NubiaEmptyState(
                   key: Key('historique_empty'),
-                  child: Text('Aucune consultation'),
+                  icon: Icons.medical_services_outlined,
+                  title: 'Aucune consultation',
                 )
               : ListView.builder(
                   key: const Key('historique_list'),
