@@ -9,9 +9,8 @@ Validation des parcours utilisateurs sur le déploiement de test, via Playwright
 - **Comptes démo** : patient `marc.dubois@patient.test`, praticien `hugo.marin@cabinet-lyon.test`, secrétaire `sonia.accueil@cabinet-lyon.test` — tous `Nubia2026!`.
 - **Captures** : `qa/screenshots/`.
 
-> ⚠️ Capture en **headless** : les icônes Material apparaissent en « □ » sur toutes les
-> captures. À confirmer dans un vrai navigateur (cf. UI-03) — possible artefact headless
-> **ou** vrai bug de tree-shaking d'icônes.
+> ✅ **Confirmé en vrai navigateur (2026-06-23)** : les icônes Material apparaissent en
+> « □ » (tofu) sur les 3 apps — ce **n'est PAS** un artefact headless (cf. UI-03).
 
 ---
 
@@ -21,7 +20,7 @@ Validation des parcours utilisateurs sur le déploiement de test, via Playwright
 |---|---|---|
 | 🔴 Bloquant | BUG-01 | **Quasi tous les écrans « données » restent en chargement infini** (spinner/skeleton), sans état d'erreur — parcours non finançables |
 | 🔴 Bloquant | BUG-02 | E-mail de login **patient codé en dur** (`camille@example.com`) → échec de connexion si l'utilisateur tape sans effacer |
-| 🟠 Majeur | UI-03 | Icônes Material rendues en « □ » (tofu) partout (nav, FAB, listes) |
+| 🟠 Majeur | UI-03 | Icônes Material rendues en « □ » (tofu) partout (nav, FAB, listes) — **confirmé en vrai navigateur** |
 | 🟠 Majeur | UX-04 | Échec de login (401) affiche « **Session expirée** » au lieu d'« identifiants incorrects » |
 | 🟠 Majeur | UI-05 | Dashboard praticien = **4 cartes vides** (aucune stat, aucun libellé) |
 | 🟠 Majeur | UI-06 | **Logo Flutter par défaut** dans l'en-tête de nav des apps pro (pas de branding Nubia) |
@@ -61,10 +60,13 @@ Validation des parcours utilisateurs sur le déploiement de test, via Playwright
 
 ### UI-03 — Icônes Material non rendues (« □ » tofu)
 **Parcours** : toutes les apps — nav latérale/inférieure, FAB « Consultation », icônes de listes, champ recherche, œil mot de passe.
+**Statut** : ✅ **Confirmé en vrai navigateur (2026-06-23)** — ce n'est pas un artefact de capture headless. Les icônes sont invisibles (carrés vides) pour l'utilisateur réel.
 **Observé** : toutes les icônes Material apparaissent en carrés vides.
-**Cause probable** : tree-shaking d'icônes / police `MaterialIcons` non appliquée sur le build web. **À confirmer en vrai navigateur** (peut être un artefact headless).
-**Recommandation** : si confirmé, builder avec `flutter build web --no-tree-shake-icons` (déjà câblable dans `infra/deploy/build-and-deploy.sh`), ou vérifier le chargement de la police d'icônes.
-**Preuves** : toutes les captures.
+**Cause probable** : tree-shaking d'icônes ou police `MaterialIcons-Regular.otf` non chargée/appliquée sur le build web (codepoints absents de la police shakée).
+**Recommandation** :
+1. Builder les fronts avec `flutter build web --no-tree-shake-icons` — à ajouter dans `infra/deploy/build-and-deploy.sh` (fonction `build_front`, à côté de `--pwa-strategy=none`).
+2. Si le problème persiste, vérifier que `MaterialIcons-Regular.otf` est bien servi (HTTP 200) et que `FontManifest.json` le référence ; contrôler qu'aucune `IconData` custom non incluse n'est utilisée.
+**Preuves** : toutes les captures (ex. `06-praticien-dashboard-blank-cards.png`).
 
 ### UX-04 — Mauvais message d'erreur de connexion
 **Parcours** : login (toutes les apps).
