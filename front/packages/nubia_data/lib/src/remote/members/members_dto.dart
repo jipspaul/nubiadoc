@@ -24,14 +24,14 @@ class MemberDto {
   });
 
   factory MemberDto.fromJson(Map<String, dynamic> json) => MemberDto(
-        id: json['id'] as String,
-        cabinetId: json['cabinet_id'] as String,
-        firstName: json['first_name'] as String,
-        lastName: json['last_name'] as String,
+        id: (json['user_id'] ?? json['id']) as String,
+        cabinetId: (json['cabinet_id'] as String?) ?? '',
+        firstName: (json['first_name'] as String?) ?? '',
+        lastName: (json['last_name'] as String?) ?? '',
         email: json['email'] as String,
         role: json['role'] as String,
         specialty: json['specialty'] as String?,
-        isActive: (json['is_active'] as bool?) ?? true,
+        isActive: (json['active'] as bool?) ?? (json['is_active'] as bool?) ?? true,
         joinedAt: json['joined_at'] as String,
       );
 

@@ -21,9 +21,9 @@ class SecretariatDto {
 
   factory SecretariatDto.fromJson(Map<String, dynamic> json) => SecretariatDto(
         id: json['id'] as String,
-        cabinetId: json['cabinet_id'] as String,
+        cabinetId: (json['cabinet_id'] as String?) ?? '',
         name: json['name'] as String,
-        email: json['email'] as String,
+        email: (json['email'] as String?) ?? '',
         phone: json['phone'] as String?,
         isActive: (json['is_active'] as bool?) ?? true,
         createdAt: json['created_at'] as String,
