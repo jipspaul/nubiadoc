@@ -18,10 +18,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapError(e));
-    } catch (_) {
-      // Absorb TypeError / FormatException from DTO parsing: prevents bloc
-      // from hanging in Loading state when the API shape changes.
-      return const Left(ServerFailure(message: 'Impossible de charger le profil.'));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -40,6 +38,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -50,6 +50,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -75,6 +77,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -85,6 +89,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -107,6 +113,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -117,6 +125,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return const Right(null);
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -136,6 +146,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(documentId);
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -146,6 +158,8 @@ class AccountRepositoryImpl implements AccountRepository {
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 

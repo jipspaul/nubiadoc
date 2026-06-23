@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'bookable_slots_bloc.dart';
@@ -61,8 +62,10 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
           if (state is BookableSlotsLoaded) {
             final slots = state.slots;
             if (slots.isEmpty) {
-              return const Center(
-                child: Text('Aucun créneau disponible.'),
+              return const NubiaEmptyState(
+                icon: Icons.event_available_outlined,
+                title: 'Aucun créneau',
+                subtitle: 'Aucun créneau disponible.',
               );
             }
             return ListView.builder(
@@ -72,11 +75,11 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
             );
           }
           if (state is BookableSlotsError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<BookableSlotsBloc>()
+                  .add(const BookableSlotsLoadRequested()),
             );
           }
           return const Center(child: CircularProgressIndicator());

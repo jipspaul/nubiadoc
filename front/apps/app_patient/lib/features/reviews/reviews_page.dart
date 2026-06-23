@@ -25,21 +25,12 @@ class ReviewsPage extends StatelessWidget {
           );
         }
         if (state is ReviewsError) {
-          return Center(
+          return NubiaErrorWidget(
             key: const Key('reviews_error'),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(state.message),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => context
-                      .read<ReviewsBloc>()
-                      .add(const ReviewsLoadRequested('')),
-                  child: const Text('Réessayer'),
-                ),
-              ],
-            ),
+            message: state.message,
+            onRetry: () => context
+                .read<ReviewsBloc>()
+                .add(const ReviewsLoadRequested('')),
           );
         }
         if (state is ReviewSubmitting) {

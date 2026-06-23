@@ -81,14 +81,6 @@ class ConsultationCliniqueBloc
     ConsultationHistoriqueRequested event,
     Emitter<ConsultationCliniqueState> emit,
   ) async {
-    // Stub sessions — to be replaced by a real API call when the endpoint is ready.
-    emit(const ConsultationHistoriqueLoaded(sessions: [
-      ClinicalSession(
-          id: 'h1', appointmentId: 'a1', status: 'completed', acts: []),
-      ClinicalSession(
-          id: 'h2', appointmentId: 'a2', status: 'in_progress', acts: []),
-      ClinicalSession(
-          id: 'h3', appointmentId: 'a3', status: 'interrupted', acts: []),
-    ]));
+    emit(const ConsultationHistoriqueLoaded(sessions: []));
   }
 }

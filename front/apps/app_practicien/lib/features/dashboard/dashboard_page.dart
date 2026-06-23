@@ -46,11 +46,10 @@ class DashboardPage extends StatelessWidget {
         if (destination.route == '/waiting-room') {
           return const WaitingRoomPage();
         }
-        return Center(
+        return const Center(
           child: NubiaEmptyState(
             icon: Icons.construction_outlined,
-            title: destination.label,
-            subtitle: 'Espace praticien — Écran à implémenter.',
+            title: 'Bientôt disponible',
           ),
         );
       },

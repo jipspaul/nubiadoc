@@ -27,20 +27,11 @@ class ProfilePage extends StatelessWidget {
           return const _ProfileSkeleton();
         }
         if (state is ProfileError) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(state.message),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => context
-                      .read<ProfileBloc>()
-                      .add(const ProfileLoadRequested()),
-                  child: const Text('Réessayer'),
-                ),
-              ],
-            ),
+          return NubiaErrorWidget(
+            message: state.message,
+            onRetry: () => context
+                .read<ProfileBloc>()
+                .add(const ProfileLoadRequested()),
           );
         }
         if (state is ProfileLoaded) {
