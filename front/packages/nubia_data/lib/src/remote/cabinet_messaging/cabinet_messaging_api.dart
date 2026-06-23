@@ -18,9 +18,10 @@ class CabinetMessagingApi {
   }
 
   Future<List<MessageDto>> getMessages(String conversationId) async {
-    final response =
-        await _dio.get<List<dynamic>>('/cabinet/conversations/$conversationId');
-    return (response.data!)
+    final response = await _dio.get<Map<String, dynamic>>(
+        '/cabinet/conversations/$conversationId/messages');
+    final data = response.data!['data'] as List<dynamic>;
+    return data
         .map((e) => MessageDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }

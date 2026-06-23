@@ -300,10 +300,12 @@ void main() {
       expect(dto.patientName, 'Marc Dubois');
       expect(dto.patientId, '');
       expect(dto.unreadCount, 1);
+      expect(dto.lastMessageAt, '2026-06-03T08:00:00+00:00');
       expect(dto.lastMessage, isNull);
       final domain = dto.toDomain();
       expect(domain.patientName, 'Marc Dubois');
       expect(domain.unreadCount, 1);
+      expect(domain.lastMessageAt, isNotNull);
     });
 
     test('fromJson accepte patient_name direct (champ absent dans l\'API réelle)', () {

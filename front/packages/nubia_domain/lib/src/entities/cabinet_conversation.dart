@@ -6,6 +6,7 @@ class CabinetConversation extends Equatable {
   final String patientId;
   final String patientName;
   final int unreadCount;
+  final DateTime? lastMessageAt;
   final Message? lastMessage;
 
   const CabinetConversation({
@@ -13,6 +14,7 @@ class CabinetConversation extends Equatable {
     required this.patientId,
     required this.patientName,
     required this.unreadCount,
+    this.lastMessageAt,
     this.lastMessage,
   });
 

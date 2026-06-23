@@ -6,6 +6,7 @@ class CabinetConversationDto {
   final String patientId;
   final String patientName;
   final int unreadCount;
+  final String? lastMessageAt;
   final MessageDto? lastMessage;
 
   const CabinetConversationDto({
@@ -13,6 +14,7 @@ class CabinetConversationDto {
     required this.patientId,
     required this.patientName,
     required this.unreadCount,
+    this.lastMessageAt,
     this.lastMessage,
   });
 
@@ -26,6 +28,7 @@ class CabinetConversationDto {
       patientName: json['patient_name'] as String? ??
           (combined.isNotEmpty ? combined : ''),
       unreadCount: (json['unread_count'] as num? ?? 0).toInt(),
+      lastMessageAt: json['last_message_at'] as String?,
       lastMessage: json['last_message'] == null
           ? null
           : MessageDto.fromJson(
@@ -38,6 +41,8 @@ class CabinetConversationDto {
         patientId: patientId,
         patientName: patientName,
         unreadCount: unreadCount,
+        lastMessageAt:
+            lastMessageAt == null ? null : DateTime.parse(lastMessageAt!),
         lastMessage: lastMessage?.toDomain(),
       );
 }

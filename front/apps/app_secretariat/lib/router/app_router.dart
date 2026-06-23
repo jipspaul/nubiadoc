@@ -15,6 +15,7 @@ import '../features/appointments/appointments_page.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
 import '../features/bookable_slots/bookable_slots_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
+import '../features/cabinet_messaging/cabinet_messaging_event.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/devis/devis_bloc.dart';
@@ -128,7 +129,8 @@ class AppRouter {
         GoRoute(
           path: messages,
           builder: (_, __) => BlocProvider(
-            create: (_) => GetIt.instance<CabinetMessagingBloc>(),
+            create: (_) => GetIt.instance<CabinetMessagingBloc>()
+              ..add(const CabinetMessagingConversationsLoadRequested()),
             child: const CabinetMessagingPage(),
           ),
         ),
