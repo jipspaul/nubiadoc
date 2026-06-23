@@ -388,30 +388,30 @@ pub async fn call_next_patient(
 
 // ── Waiting room (file du jour) ───────────────────────────────────────────────
 
-/// Un poste dans la file d'attente temps-réel (patients checked_in ou in_progress aujourd'hui).
+/// Un poste dans la file d'attente temps-réel (patients checked_in ou in_consultation aujourd'hui).
 #[derive(Serialize)]
 pub struct WaitingRoomEntry {
     pub appointment_id: Uuid,
-    pub patient_id: Uuid,
-    pub status: String,
-    /// Horodatage du check-in (null si non encore renseigné).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Nom complet (pro/admin) ou initiales (secrétariat) — cloisonnement clinique RBAC.
+    pub patient_name_initials: String,
     pub checkin_at: Option<String>,
+    pub wait_minutes: i64,
+    pub status: String,
 }
 
 /// Réponse de `GET /v1/cabinet/waiting-room`.
 #[derive(Serialize)]
 pub struct WaitingRoomResponse {
-    pub entries: Vec<WaitingRoomEntry>,
+    pub data: Vec<WaitingRoomEntry>,
 }
 
-/// `GET /v1/cabinet/waiting-room` — file d'attente temps-réel du cabinet (§13 E.2.14).
+/// `GET /v1/cabinet/waiting-room` — file d'attente temps-réel du cabinet (§E.2).
 ///
-/// Retourne les rendez-vous du jour avec `checkin_at IS NOT NULL AND started_at IS NULL`
-/// (patients arrivés mais consultation non encore commencée), triés FIFO (checkin_at ASC NULLS LAST).
+/// Retourne les RDV du jour `checked_in` (arrivé, en attente) et `in_progress`
+/// (consultation en cours, exposé comme `in_consultation`), triés FIFO.
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
-/// Pas de PII dans le payload (patient_id uniquement, pas de nom).
+/// Cloisonnement clinique : secrétariat reçoit initiales du patient, pro reçoit nom complet.
 /// R10 : secrétaires scopées au secrétariat JWT (`secretariat_id`).
 pub async fn get_waiting_room(
     State(state): State<AppState>,
@@ -429,11 +429,14 @@ pub async fn get_waiting_room(
     let rows = if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.patient_id, a.status, a.checkin_at \
+                "SELECT a.id, a.status, a.checkin_at, \
+                        p.first_name, p.last_name, \
+                        GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
                  FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
                  WHERE a.deleted_at IS NULL \
                    AND a.checkin_at IS NOT NULL \
-                   AND a.started_at IS NULL \
+                   AND a.status IN ('checked_in', 'in_progress') \
                    AND a.starts_at >= date_trunc('day', now()) \
                    AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
                    AND EXISTS ( \
@@ -454,14 +457,17 @@ pub async fn get_waiting_room(
         }
     } else {
         sqlx::query(
-            "SELECT id, patient_id, status, checkin_at \
-             FROM appointment \
-             WHERE deleted_at IS NULL \
-               AND checkin_at IS NOT NULL \
-               AND started_at IS NULL \
-               AND starts_at >= date_trunc('day', now()) \
-               AND starts_at < date_trunc('day', now()) + interval '1 day' \
-             ORDER BY checkin_at ASC NULLS LAST, starts_at ASC",
+            "SELECT a.id, a.status, a.checkin_at, \
+                    p.first_name, p.last_name, \
+                    GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
+             FROM appointment a \
+             LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+             WHERE a.deleted_at IS NULL \
+               AND a.checkin_at IS NOT NULL \
+               AND a.status IN ('checked_in', 'in_progress') \
+               AND a.starts_at >= date_trunc('day', now()) \
+               AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
+             ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC",
         )
         .fetch_all(&mut *tx)
         .await
@@ -470,19 +476,44 @@ pub async fn get_waiting_room(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let entries = rows
+    let is_secretary = claims.role == "secretary";
+
+    let data = rows
         .into_iter()
         .map(|row| -> Result<WaitingRoomEntry, AppError> {
             let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-            let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
-            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let db_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("checkin_at").map_err(|_| AppError::Internal)?;
+            let wait_minutes: i64 = row
+                .try_get("wait_minutes")
+                .map_err(|_| AppError::Internal)?;
+            let first: Option<String> =
+                row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let last: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+
+            let patient_name_initials = match (first.as_deref(), last.as_deref()) {
+                (Some(f), Some(l)) if is_secretary => format!(
+                    "{}{}",
+                    f.chars().next().unwrap_or('?'),
+                    l.chars().next().unwrap_or('?')
+                ),
+                (Some(f), Some(l)) => format!("{f} {l}"),
+                _ => String::new(),
+            };
+
+            let status = if db_status == "in_progress" {
+                "in_consultation".to_string()
+            } else {
+                db_status
+            };
+
             Ok(WaitingRoomEntry {
                 appointment_id,
-                patient_id,
-                status,
+                patient_name_initials,
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
+                wait_minutes,
+                status,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -490,11 +521,11 @@ pub async fn get_waiting_room(
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
         user_id = %claims.sub,
-        count = entries.len(),
+        count = data.len(),
         "waiting room queried"
     );
 
-    Ok(Json(WaitingRoomResponse { entries }))
+    Ok(Json(WaitingRoomResponse { data }))
 }
 
 // ── Waiting list (liste d'attente) ────────────────────────────────────────────
@@ -1356,6 +1387,9 @@ pub async fn create_cabinet_slot(
     claims: ProSecretaryPlusClaims,
     Json(body): Json<CreateSlotBody>,
 ) -> Result<(StatusCode, Json<CabinetSlotResponse>), AppError> {
+    if claims.role == "practitioner" {
+        return Err(AppError::Forbidden);
+    }
     let starts_at = body
         .starts_at
         .parse::<chrono::DateTime<chrono::Utc>>()
@@ -1613,8 +1647,8 @@ pub async fn delete_cabinet_slot(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(
-        "SELECT id, status FROM availability_slot \
+    sqlx::query(
+        "SELECT id FROM availability_slot \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(slot_id)
@@ -1624,9 +1658,21 @@ pub async fn delete_cabinet_slot(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
-    let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
-    if current_status == "booked" {
-        return Err(AppError::InvalidStatus);
+    let booking_row = sqlx::query(
+        "SELECT EXISTS(\
+           SELECT 1 FROM appointment \
+           WHERE slot_id = $1 \
+           AND status NOT IN ('cancelled', 'no_show')\
+         )",
+    )
+    .bind(slot_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let has_booking: bool = booking_row.try_get(0).map_err(|_| AppError::Internal)?;
+    if has_booking {
+        return Err(AppError::HasBooking);
     }
 
     sqlx::query(

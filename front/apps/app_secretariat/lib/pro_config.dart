@@ -15,10 +15,17 @@ class ProConfig {
   static const ProRole role = ProRole.secretary;
   static const bool includeClinical = false;
 
+  static const String dashboardRoute = '/';
+
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
     spaceLabel: spaceLabel,
     destinations: [
+      shell.ProNavDestination(
+        label: 'Tableau de bord',
+        icon: Icons.dashboard_outlined,
+        route: dashboardRoute,
+      ),
       shell.ProNavDestination(
         label: 'Salle d\'attente',
         icon: Icons.airline_seat_recline_normal_outlined,

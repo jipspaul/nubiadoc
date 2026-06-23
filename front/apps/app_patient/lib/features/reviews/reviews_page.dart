@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'reviews_bloc.dart';
@@ -78,9 +79,10 @@ class _ReviewsContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (reviews.isEmpty) {
-      return const Center(
+      return const NubiaEmptyState(
         key: Key('reviews_empty'),
-        child: Text('Aucun avis pour ce prestataire.'),
+        icon: Icons.rate_review_outlined,
+        title: 'Aucun avis pour ce prestataire.',
       );
     }
     return RefreshIndicator(

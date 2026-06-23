@@ -5,6 +5,7 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/scheduling/appointment_dto.dart';
 import 'package:nubia_data/src/remote/scheduling/scheduling_api.dart';
 import 'package:nubia_domain/src/entities/appointment.dart';
+import 'package:nubia_domain/src/entities/directions_result.dart';
 import 'package:nubia_domain/src/repositories/appointment_repository.dart';
 
 class AppointmentRepositoryImpl implements AppointmentRepository {
@@ -175,6 +176,32 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
       return Left(ServerFailure(
         message: 'Erreur lors de la modification du rendez-vous.',
         statusCode: statusCode,
+      ));
+    }
+  }
+
+  @override
+  Future<Either<Failure, DirectionsResult>> getDirections(
+    String id, {
+    String mode = 'car',
+  }) async {
+    try {
+      final dto = await _api.getDirections(id, mode: mode);
+      return Right(DirectionsResult(
+        deeplink: dto.deeplink,
+        durationMinutes: dto.durationMinutes,
+        distanceKm: dto.distanceKm,
+      ));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Rendez-vous introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible de calculer l'itinéraire.",
+        statusCode: e.response?.statusCode,
       ));
     }
   }

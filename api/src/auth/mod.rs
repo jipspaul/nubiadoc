@@ -125,7 +125,9 @@ pub(crate) enum AppError {
     SlotTaken,
     GuardianshipRequired,
     InvalidStatus,
+    HasBooking,
     OutOfWindow,
+    TooEarly,
     TooLate,
     LinkExpired,
     HoldInvalid,
@@ -219,6 +221,9 @@ impl IntoResponse for AppError {
                 Json(json!({"error": "out_of_window"})),
             )
                 .into_response(),
+            AppError::TooEarly => {
+                (StatusCode::CONFLICT, Json(json!({"error": "too_early"}))).into_response()
+            }
             AppError::TooLate => {
                 (StatusCode::CONFLICT, Json(json!({"error": "too_late"}))).into_response()
             }
@@ -261,7 +266,7 @@ impl IntoResponse for AppError {
                 .into_response(),
             AppError::NoActiveMembership => (
                 StatusCode::FORBIDDEN,
-                Json(json!({"error": "no_active_membership"})),
+                Json(json!({"error": "no_membership"})),
             )
                 .into_response(),
             AppError::LastAdminCannotBeRemoved => (
@@ -274,6 +279,9 @@ impl IntoResponse for AppError {
                 Json(json!({"error": "start_at must be at least 5 minutes in the future"})),
             )
                 .into_response(),
+            AppError::HasBooking => {
+                (StatusCode::CONFLICT, Json(json!({"code": "has_booking"}))).into_response()
+            }
         }
     }
 }

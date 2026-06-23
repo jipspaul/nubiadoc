@@ -17,6 +17,8 @@ class DevisPage extends StatefulWidget {
 }
 
 class _DevisPageState extends State<DevisPage> {
+  bool _sortAsc = false;
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +32,14 @@ class _DevisPageState extends State<DevisPage> {
         title: Text(NubiaL10n.quotes),
         actions: [
           IconButton(
+            key: const Key('sort_button'),
+            tooltip: _sortAsc ? 'Plus récent d\'abord' : 'Plus ancien d\'abord',
+            icon: Icon(
+              _sortAsc ? Icons.arrow_upward : Icons.arrow_downward,
+            ),
+            onPressed: () => setState(() => _sortAsc = !_sortAsc),
+          ),
+          IconButton(
             tooltip: NubiaL10n.refresh,
             icon: const Icon(Icons.refresh),
             onPressed: () =>
@@ -40,7 +50,11 @@ class _DevisPageState extends State<DevisPage> {
       body: BlocBuilder<DevisBloc, DevisState>(
         builder: (context, state) {
           if (state is DevisLoaded) {
-            final quotes = state.quotes;
+            final quotes = [...state.quotes]..sort(
+                (a, b) => _sortAsc
+                    ? a.createdAt.compareTo(b.createdAt)
+                    : b.createdAt.compareTo(a.createdAt),
+              );
             if (quotes.isEmpty) {
               return const NubiaEmptyState(
                 icon: Icons.receipt_long_outlined,

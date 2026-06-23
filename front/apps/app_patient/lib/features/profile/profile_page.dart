@@ -44,7 +44,12 @@ class ProfilePage extends StatelessWidget {
           );
         }
         if (state is ProfileLoaded) {
-          return _ProfileContent(account: state.account);
+          return _ProfileContent(
+            account: state.account,
+            biometricEnabled: state.biometricEnabled,
+            emailRdv: state.notifPrefs?.emailEnabled ?? true,
+            pushRdv: state.notifPrefs?.pushEnabled ?? true,
+          );
         }
         return const SizedBox.shrink();
       },
@@ -105,9 +110,17 @@ class _ProfileSkeleton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ProfileContent extends StatelessWidget {
-  const _ProfileContent({required this.account});
+  const _ProfileContent({
+    required this.account,
+    required this.biometricEnabled,
+    required this.emailRdv,
+    required this.pushRdv,
+  });
 
   final PatientAccount account;
+  final bool biometricEnabled;
+  final bool emailRdv;
+  final bool pushRdv;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +170,51 @@ class _ProfileContent extends StatelessWidget {
           key: const Key('tile_notifications'),
           icon: Icons.notifications_outlined,
           title: 'Préférences notifications',
+        ),
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            'Notifications RDV',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ),
+        SwitchListTile(
+          key: const Key('email_rdv_toggle'),
+          secondary: const Icon(Icons.email_outlined),
+          title: const Text('Rappels e-mail'),
+          value: emailRdv,
+          onChanged: (v) =>
+              context.read<ProfileBloc>().add(ToggleEmailRdv(enabled: v)),
+        ),
+        SwitchListTile(
+          key: const Key('push_rdv_toggle'),
+          secondary: const Icon(Icons.notifications_outlined),
+          title: const Text('Notifications push'),
+          value: pushRdv,
+          onChanged: (v) =>
+              context.read<ProfileBloc>().add(TogglePushRdv(enabled: v)),
+        ),
+        const Divider(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            'Sécurité',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ),
+        SwitchListTile(
+          key: const Key('biometric_toggle'),
+          secondary: const Icon(Icons.fingerprint),
+          title: const Text('Authentification biométrique'),
+          value: biometricEnabled,
+          onChanged: (v) => context
+              .read<ProfileBloc>()
+              .add(BiometricToggleRequested(enabled: v)),
         ),
         const Divider(),
         _LogoutTile(),

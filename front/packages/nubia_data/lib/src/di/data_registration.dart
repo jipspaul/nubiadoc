@@ -50,6 +50,7 @@ import '../repositories/prescription_repository_impl.dart';
 import '../repositories/review_repository_impl.dart';
 import '../repositories/secretariat_repository_impl.dart';
 import '../repositories/slots_repository_impl.dart';
+import '../repositories/user_settings_repository_impl.dart';
 import '../repositories/waiting_room_repository_impl.dart';
 
 /// Registers the data layer: Dio APIs, repository implementations and use cases.
@@ -99,6 +100,9 @@ void registerData(
   }
 
   gi
+    ..registerLazySingleton<UserSettingsRepository>(
+      () => InMemoryUserSettingsRepository(),
+    )
     ..registerLazySingleton<AccountRepository>(
       () => AccountRepositoryImpl(gi()),
     )
@@ -169,6 +173,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetAppointmentHistoryUseCase(gi()))
     ..registerFactory(() => GetUpcomingAppointmentsUseCase(gi()))
     ..registerFactory(() => ModifyAppointmentUseCase(gi()))
+    ..registerFactory(() => GetDirectionsUseCase(gi()))
     // billing
     ..registerFactory(() => GetPendingQuotesUseCase(gi()))
     ..registerFactory(() => GetQuoteByIdUseCase(gi()))
@@ -305,6 +310,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
     ..registerFactory(() => GetCabinetQuoteUseCase(gi()))
     ..registerFactory(() => ListBookableSlotsUseCase(gi()))
+    ..registerFactory(() => CreateSlotUseCase(gi()))
     ..registerFactory(() => ListWaitingListUseCase(gi()))
     ..registerFactory(() => OfferSlotToWaitingPatientUseCase(gi()))
     ..registerFactory(() => ListMembersUseCase(gi()))

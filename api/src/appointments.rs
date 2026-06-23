@@ -23,13 +23,6 @@ pub struct PatchAppointmentBody {
     pub motif: Option<String>,
 }
 
-/// Réponse de `PATCH /v1/appointments/:id`.
-#[derive(Serialize)]
-pub struct PatchAppointmentResponse {
-    pub appointment_id: Uuid,
-    pub status: String,
-}
-
 /// `PATCH /v1/appointments/:id` — patient modifie son RDV (créneau ou motif).
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
@@ -41,7 +34,7 @@ pub async fn patch_appointment(
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
     Json(body): Json<PatchAppointmentBody>,
-) -> Result<Json<PatchAppointmentResponse>, AppError> {
+) -> Result<Json<AppointmentDetail>, AppError> {
     let new_starts_at: Option<chrono::DateTime<chrono::Utc>> = body
         .starts_at
         .as_deref()
@@ -102,7 +95,7 @@ pub async fn patch_appointment(
            motif      = COALESCE($2, motif), \
            updated_at = now() \
          WHERE id = $3 \
-         RETURNING id, status",
+         RETURNING id, starts_at, ends_at, status, motif, practitioner_id",
     )
     .bind(new_starts_at)
     .bind(body.motif.as_deref())
@@ -117,7 +110,16 @@ pub async fn patch_appointment(
     };
 
     let appointment_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
+    let new_starts_at: chrono::DateTime<chrono::Utc> = updated
+        .try_get("starts_at")
+        .map_err(|_| AppError::Internal)?;
+    let new_ends_at: chrono::DateTime<chrono::Utc> =
+        updated.try_get("ends_at").map_err(|_| AppError::Internal)?;
     let new_status: String = updated.try_get("status").map_err(|_| AppError::Internal)?;
+    let new_motif: Option<String> = updated.try_get("motif").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = updated
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
 
     sqlx::query(
         "INSERT INTO audit_log \
@@ -131,6 +133,10 @@ pub async fn patch_appointment(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    let (provider_id, provider_display_name, provider_specialty) =
+        fetch_provider_for_response(&mut tx, practitioner_id).await?;
+    let (cabinet_name, cabinet_address) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
@@ -139,13 +145,31 @@ pub async fn patch_appointment(
         "appointment patched"
     );
 
-    Ok(Json(PatchAppointmentResponse {
-        appointment_id,
+    Ok(Json(AppointmentDetail {
+        id: appointment_id,
+        starts_at: new_starts_at.to_rfc3339(),
+        ends_at: new_ends_at.to_rfc3339(),
         status: new_status,
+        motif: new_motif,
+        provider: ProviderDetail {
+            id: provider_id,
+            display_name: provider_display_name,
+            specialty: provider_specialty,
+        },
+        cabinet: CabinetInfo {
+            name: cabinet_name,
+            address: cabinet_address,
+        },
     }))
 }
 
 // ── Cancel ──────────────────────────────────────────────────────────────────
+
+/// Corps optionnel de `POST /v1/appointments/:id/cancel`.
+#[derive(Deserialize, Default)]
+pub struct CancelBody {
+    pub reason: Option<String>,
+}
 
 /// Réponse de `POST /v1/appointments/:id/cancel`.
 #[derive(Serialize)]
@@ -163,7 +187,12 @@ pub async fn cancel_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
+    body: Option<Json<CancelBody>>,
 ) -> Result<Json<CancelResponse>, AppError> {
+    let reason = body
+        .as_ref()
+        .and_then(|b| b.reason.as_deref())
+        .map(str::to_owned);
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
@@ -209,10 +238,11 @@ pub async fn cancel_appointment(
 
     sqlx::query(
         "UPDATE appointment \
-         SET status = 'cancelled', cancelled_at = now(), updated_at = now() \
+         SET status = 'cancelled', cancelled_at = now(), cancel_reason = $2, updated_at = now() \
          WHERE id = $1",
     )
     .bind(id)
+    .bind(reason.as_deref())
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -256,7 +286,7 @@ pub async fn cancel_appointment(
 /// Corps optionnel de `POST /v1/appointments/:id/checkin`.
 #[derive(Deserialize, Default)]
 pub struct CheckinBody {
-    pub method: Option<String>,
+    pub qr_code: Option<String>,
 }
 
 /// Réponse de `POST /v1/appointments/:id/checkin`.
@@ -278,11 +308,13 @@ pub async fn checkin_appointment(
     Path(appt_id): Path<Uuid>,
     body: Option<Json<CheckinBody>>,
 ) -> Result<Json<CheckinResponse>, AppError> {
-    let method = body
-        .as_ref()
-        .and_then(|b| b.method.as_deref())
-        .unwrap_or("manual")
-        .to_string();
+    let qr_code = body.as_ref().and_then(|b| b.qr_code.clone());
+    let method = if qr_code.is_some() {
+        "qr_app"
+    } else {
+        "manual"
+    }
+    .to_string();
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -315,9 +347,10 @@ pub async fn checkin_appointment(
     }
 
     let now = chrono::Utc::now();
-    if now < starts_at - chrono::Duration::minutes(30)
-        || now > starts_at + chrono::Duration::minutes(60)
-    {
+    if now < starts_at - chrono::Duration::minutes(60) {
+        return Err(AppError::TooEarly);
+    }
+    if now > starts_at + chrono::Duration::minutes(60) {
         return Err(AppError::OutOfWindow);
     }
 
@@ -345,18 +378,12 @@ pub async fn checkin_appointment(
         .map_err(|_| AppError::Internal)?;
 
     // Insérer l'événement check-in (UNIQUE sur appointment_id → 409 si double check-in concurrent).
-    let mode = match method.as_str() {
-        "qr_web" => "qr_web",
-        "borne" => "borne",
-        "sms" => "sms",
-        _ => "qr_app",
-    };
     let ce_result = sqlx::query(
         "INSERT INTO checkin_event (cabinet_id, appointment_id, mode) VALUES ($1, $2, $3)",
     )
     .bind(cabinet_id)
     .bind(id)
-    .bind(mode)
+    .bind(&method)
     .execute(&mut *tx)
     .await;
     match ce_result {
@@ -936,15 +963,8 @@ pub struct CreateAppointmentBody {
     pub slot_id: Option<Uuid>,
     /// ISO 8601 UTC (ex. "2026-06-10T09:00:00Z"). Ignoré si `slot_id` est fourni.
     pub starts_at: Option<String>,
-    pub motif: String,
+    pub motif: Option<String>,
     pub on_behalf_of: Option<Uuid>,
-}
-
-/// Réponse de `POST /v1/appointments`.
-#[derive(Serialize)]
-pub struct CreateAppointmentResponse {
-    pub appointment_id: Uuid,
-    pub status: String,
 }
 
 // ── Directions ──────────────────────────────────────────────────────────────
@@ -975,6 +995,10 @@ pub async fn get_appointment_directions(
     Query(params): Query<DirectionsQuery>,
 ) -> Result<Json<DirectionsResponse>, AppError> {
     let mode = params.mode.unwrap_or_else(|| "car".to_string());
+
+    if !matches!(mode.as_str(), "car" | "transit" | "walk") {
+        return Err(AppError::ValidationError);
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -1306,12 +1330,13 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 /// `Idempotency-Key` optionnel : si fourni, un second appel avec la même clé retourne le RDV
 /// existant (`201`) sans insérer de doublon.
 /// Le statut initial est toujours `"requested"` (confirmation asynchrone par le cabinet).
+/// Réponse : même shape que `GET /v1/appointments/:id`.
 pub async fn create_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     headers: HeaderMap,
     Json(body): Json<CreateAppointmentBody>,
-) -> Result<(StatusCode, Json<CreateAppointmentResponse>), AppError> {
+) -> Result<(StatusCode, Json<AppointmentDetail>), AppError> {
     if body.slot_id.is_none() && body.starts_at.is_none() {
         return Err(AppError::ValidationError);
     }
@@ -1360,13 +1385,14 @@ pub async fn create_appointment(
     let effective_account_id = body.on_behalf_of.unwrap_or(claims.account_id);
 
     // Le praticien est récupéré via la policy `provider_public_read` (is_listed = true).
-    let provider_row =
-        sqlx::query("SELECT cabinet_id, practitioner_id FROM provider WHERE id = $1")
-            .bind(body.provider_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?
-            .ok_or(AppError::NotFound)?;
+    let provider_row = sqlx::query(
+        "SELECT cabinet_id, practitioner_id, display_name, specialite FROM provider WHERE id = $1",
+    )
+    .bind(body.provider_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
 
     let cabinet_id: Uuid = provider_row
         .try_get("cabinet_id")
@@ -1375,6 +1401,8 @@ pub async fn create_appointment(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
     let practitioner_id = practitioner_id_opt.ok_or(AppError::NotFound)?;
+    let _provider_display_name: Option<String> = provider_row.try_get("display_name").ok();
+    let _provider_specialty: Option<String> = provider_row.try_get("specialite").ok();
 
     // Scope cabinet pour les INSERTs soumis à la RLS tenant_isolation.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1383,11 +1411,27 @@ pub async fn create_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Fetch cabinet name + address for the response body.
+    let cab_row = sqlx::query(
+        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    let _cabinet_name: String = cab_row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let _cabinet_address: Option<String> =
+        cab_row.try_get("address").map_err(|_| AppError::Internal)?;
+
     // Idempotence : si une Idempotency-Key est fournie et qu'un RDV existe déjà pour ce
     // cabinet + clé, on retourne le RDV existant sans insérer de doublon.
     if let Some(ref key) = idempotency_key {
         let existing = sqlx::query(
-            "SELECT id, status FROM appointment \
+            "SELECT id, status, starts_at, ends_at, motif FROM appointment \
              WHERE cabinet_id = $1 AND idempotency_key = $2",
         )
         .bind(cabinet_id)
@@ -1399,6 +1443,17 @@ pub async fn create_appointment(
         if let Some(row) = existing {
             let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            let idem_starts_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+            let idem_ends_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+            let idem_motif: Option<String> =
+                row.try_get("motif").map_err(|_| AppError::Internal)?;
+
+            let (prov_id, prov_name, prov_spec) =
+                fetch_provider_for_response(&mut tx, practitioner_id).await?;
+            let (cab_name, cab_addr) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
+
             tx.commit().await.map_err(|_| AppError::Internal)?;
             tracing::info!(
                 account_id = %claims.account_id,
@@ -1407,9 +1462,21 @@ pub async fn create_appointment(
             );
             return Ok((
                 StatusCode::CREATED,
-                Json(CreateAppointmentResponse {
-                    appointment_id,
+                Json(AppointmentDetail {
+                    id: appointment_id,
+                    starts_at: idem_starts_at.to_rfc3339(),
+                    ends_at: idem_ends_at.to_rfc3339(),
                     status,
+                    motif: idem_motif,
+                    provider: ProviderDetail {
+                        id: prov_id,
+                        display_name: prov_name,
+                        specialty: prov_spec,
+                    },
+                    cabinet: CabinetInfo {
+                        name: cab_name,
+                        address: cab_addr,
+                    },
                 }),
             ));
         }
@@ -1468,20 +1535,22 @@ pub async fn create_appointment(
     .bind(practitioner_id)
     .bind(starts_at)
     .bind(ends_at)
-    .bind(&body.motif)
+    .bind(body.motif.as_deref())
     .bind(body.slot_id)
     .bind(&idempotency_key)
     .fetch_one(&mut *tx)
     .await;
 
-    let row = match result {
+    let inserted_row = match result {
         Ok(row) => row,
         Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
         Err(_) => return Err(AppError::Internal),
     };
 
-    let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let appointment_id: Uuid = inserted_row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = inserted_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
 
     // Consomme le créneau : il ne doit plus apparaître dans la recherche de
     // disponibilités (`/v1/search/slots` filtre `status = 'open'`). Symétrique de
@@ -1498,6 +1567,11 @@ pub async fn create_appointment(
         .map_err(|_| AppError::Internal)?;
     }
 
+    // Fetch provider + cabinet pour la réponse (même shape que GET /:id).
+    let (provider_id, provider_display_name, provider_specialty) =
+        fetch_provider_for_response(&mut tx, practitioner_id).await?;
+    let (cabinet_name, cabinet_address) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
@@ -1508,9 +1582,65 @@ pub async fn create_appointment(
 
     Ok((
         StatusCode::CREATED,
-        Json(CreateAppointmentResponse {
-            appointment_id,
+        Json(AppointmentDetail {
+            id: appointment_id,
+            starts_at: starts_at.to_rfc3339(),
+            ends_at: ends_at.to_rfc3339(),
             status,
+            motif: body.motif,
+            provider: ProviderDetail {
+                id: provider_id,
+                display_name: provider_display_name,
+                specialty: provider_specialty,
+            },
+            cabinet: CabinetInfo {
+                name: cabinet_name,
+                address: cabinet_address,
+            },
         }),
     ))
+}
+
+async fn fetch_provider_for_response(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    practitioner_id: Uuid,
+) -> Result<(Option<Uuid>, Option<String>, Option<String>), AppError> {
+    let row = sqlx::query(
+        "SELECT id, display_name, specialite FROM provider \
+         WHERE practitioner_id = $1 LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    Ok(match row {
+        Some(r) => {
+            let pid: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
+            let dn: String = r.try_get("display_name").map_err(|_| AppError::Internal)?;
+            let sp: Option<String> = r.try_get("specialite").map_err(|_| AppError::Internal)?;
+            (Some(pid), Some(dn), sp)
+        }
+        None => (None, None, None),
+    })
+}
+
+async fn fetch_cabinet_for_response(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cabinet_id: Uuid,
+) -> Result<(String, Option<String>), AppError> {
+    let row = sqlx::query(
+        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::Internal)?;
+
+    let name: String = row
+        .try_get("raison_sociale")
+        .map_err(|_| AppError::Internal)?;
+    let address: Option<String> = row.try_get("address").map_err(|_| AppError::Internal)?;
+    Ok((name, address))
 }

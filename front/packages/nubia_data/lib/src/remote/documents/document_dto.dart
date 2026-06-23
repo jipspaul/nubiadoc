@@ -64,6 +64,8 @@ class DocumentDto {
         return DocumentCategory.instructions;
       case 'carte_mutuelle':
         return DocumentCategory.mutualCard;
+      case 'carte_vitale':
+        return DocumentCategory.vitalCard;
       default:
         return DocumentCategory.other;
     }

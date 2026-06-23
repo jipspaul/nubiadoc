@@ -4,6 +4,7 @@ export 'src/error/failure.dart';
 export 'src/entities/consent.dart';
 export 'src/entities/app_notification.dart';
 export 'src/entities/appointment.dart';
+export 'src/entities/directions_result.dart';
 export 'src/entities/clinical_session.dart';
 export 'src/entities/document.dart';
 export 'src/entities/message.dart';
@@ -45,6 +46,7 @@ export 'src/repositories/secretariat_repository.dart';
 export 'src/repositories/slots_repository.dart';
 export 'src/repositories/waiting_repository.dart';
 export 'src/repositories/session_port.dart';
+export 'src/repositories/user_settings_repository.dart';
 
 // Use cases
 export 'src/usecases/account/get_account_use_case.dart';
@@ -60,6 +62,7 @@ export 'src/usecases/appointments/get_appointment_by_id_use_case.dart';
 export 'src/usecases/appointments/get_appointment_history_use_case.dart';
 export 'src/usecases/appointments/get_upcoming_appointments_use_case.dart';
 export 'src/usecases/appointments/modify_appointment_use_case.dart';
+export 'src/usecases/appointments/get_directions_use_case.dart';
 export 'src/usecases/auth/get_me_use_case.dart';
 export 'src/usecases/auth/login_use_case.dart';
 export 'src/usecases/auth/logout_use_case.dart';

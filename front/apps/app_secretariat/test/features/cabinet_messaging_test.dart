@@ -279,6 +279,74 @@ void main() {
       expect(find.text('Albert Einstein'), findsNothing);
     });
 
+    testWidgets(
+        'pull-to-refresh déclenche CabinetMessagingConversationsLoadRequested',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const CabinetMessagingConversationsLoaded([
+          CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.fling(
+        find.byKey(const Key('cabinet_messaging_conversations_list')),
+        const Offset(0, 300),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      verify(
+        () => bloc.add(const CabinetMessagingConversationsLoadRequested()),
+      ).called(1);
+    });
+
+    testWidgets(
+        'segment Non lus — 3 conversations dont 1 unread → 1 visible',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const CabinetMessagingConversationsLoaded([
+          CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 1,
+          ),
+          CabinetConversation(
+            id: 'conv2',
+            patientId: 'p2',
+            patientName: 'Albert Einstein',
+            unreadCount: 0,
+          ),
+          CabinetConversation(
+            id: 'conv3',
+            patientId: 'p3',
+            patientName: 'Isaac Newton',
+            unreadCount: 0,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Marie Curie'), findsOneWidget);
+      expect(find.text('Albert Einstein'), findsOneWidget);
+      expect(find.text('Isaac Newton'), findsOneWidget);
+
+      await tester.tap(find.text('Non lus'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Marie Curie'), findsOneWidget);
+      expect(find.text('Albert Einstein'), findsNothing);
+      expect(find.text('Isaac Newton'), findsNothing);
+    });
+
     testWidgets('affiche le message d\'erreur', (tester) async {
       when(() => bloc.state).thenReturn(
         const CabinetMessagingConversationsError('Erreur de connexion'),

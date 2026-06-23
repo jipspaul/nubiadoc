@@ -67,10 +67,18 @@ class _SecretariatsList extends StatelessWidget {
     if (secretariats.isEmpty) {
       return const Center(child: Text('Aucun secrétariat enregistré.'));
     }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: secretariats.length,
-      itemBuilder: (_, i) => _SecretariatTile(secretariat: secretariats[i]),
+    return RefreshIndicator(
+      key: const Key('admin_secretariats_refresh'),
+      onRefresh: () async {
+        context
+            .read<AdminSecretiariatsBloc>()
+            .add(const AdminSecretiariatsLoadRequested());
+      },
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: secretariats.length,
+        itemBuilder: (_, i) => _SecretariatTile(secretariat: secretariats[i]),
+      ),
     );
   }
 }

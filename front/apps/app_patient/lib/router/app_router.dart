@@ -7,6 +7,7 @@ import 'package:nubia_core/nubia_core.dart';
 
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
+import '../features/booking/book_appointment_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/financial/financial_event.dart';
@@ -15,9 +16,12 @@ import '../features/documents/documents_page.dart';
 import '../features/login/login_page.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
+import '../features/mes_rdv/prepare_rdv_page.dart';
 import '../features/notifications/notifications_bloc.dart';
 import '../features/notifications/notifications_event.dart';
 import '../features/notifications/notifications_page.dart';
+import '../features/oubliettes/oubliettes_bloc.dart';
+import '../features/oubliettes/oubliettes_page.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/profile/profile_page.dart';
@@ -43,6 +47,9 @@ class AppRouter {
   static const messaging = '/messaging';
   static const reviews = '/reviews';
   static const notifications = '/notifications';
+  static const oubliettes = '/oubliettes';
+  static const prepareRdv = '/rdv/:id/prepare';
+  static const book = '/book';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -76,10 +83,16 @@ class AppRouter {
         ),
         GoRoute(
           path: mesRdv,
-          builder: (_, __) => BlocProvider(
+          builder: (context, __) => BlocProvider(
             create: (_) => GetIt.instance<MesRdvBloc>(),
-            child: const Scaffold(
-              body: MesRdvPage(),
+            child: Scaffold(
+              floatingActionButton: FloatingActionButton.extended(
+                key: const Key('book_rdv_fab'),
+                onPressed: () => context.go(AppRouter.book),
+                icon: const Icon(Icons.add),
+                label: const Text('Booker un RDV'),
+              ),
+              body: const MesRdvPage(),
             ),
           ),
         ),
@@ -142,6 +155,27 @@ class AppRouter {
               body: const NotificationsPage(),
             ),
           ),
+        ),
+        GoRoute(
+          path: oubliettes,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<OubliettesBloc>()
+              ..add(const OubliettesLoadRequested()),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Oubliettes')),
+              body: const OubliettesPage(),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: prepareRdv,
+          builder: (_, state) => PrepareRdvPage(
+            appointmentId: state.pathParameters['id']!,
+          ),
+        ),
+        GoRoute(
+          path: book,
+          builder: (_, __) => const BookAppointmentPage(),
         ),
       ],
     );

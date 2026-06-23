@@ -18,11 +18,17 @@ final class ProfileLoading extends ProfileState {
 
 final class ProfileLoaded extends ProfileState {
   final PatientAccount account;
+  final bool biometricEnabled;
+  final NotificationPreferences? notifPrefs;
 
-  const ProfileLoaded(this.account);
+  const ProfileLoaded(
+    this.account, {
+    this.biometricEnabled = false,
+    this.notifPrefs,
+  });
 
   @override
-  List<Object?> get props => [account];
+  List<Object?> get props => [account, biometricEnabled, notifPrefs];
 }
 
 final class ProfileError extends ProfileState {

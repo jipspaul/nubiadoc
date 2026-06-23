@@ -202,5 +202,35 @@ void main() {
 
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
+
+    testWidgets('pull-to-refresh déclenche AdminSecretiariatsLoadRequested',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        AdminSecretiariatsLoaded(
+          secretariats: [
+            Secretariat(
+              id: 's1',
+              cabinetId: 'c1',
+              name: 'Secrétariat A',
+              email: 'secra@example.com',
+              isActive: true,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.fling(
+        find.byKey(const Key('admin_secretariats_refresh')),
+        const Offset(0, 300),
+        800,
+      );
+      await tester.pumpAndSettle();
+
+      // 1 appel depuis initState + 1 depuis le pull-to-refresh
+      verify(() => bloc.add(const AdminSecretiariatsLoadRequested())).called(2);
+    });
   });
 }
