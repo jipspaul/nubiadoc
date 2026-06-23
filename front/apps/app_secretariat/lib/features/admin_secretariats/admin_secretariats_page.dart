@@ -66,7 +66,10 @@ class _SecretariatsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (secretariats.isEmpty) {
-      return const Center(child: Text('Aucun secrétariat enregistré.'));
+      return const NubiaEmptyState(
+        icon: Icons.business_outlined,
+        title: 'Aucun secrétariat enregistré.',
+      );
     }
     return RefreshIndicator(
       key: const Key('admin_secretariats_refresh'),
