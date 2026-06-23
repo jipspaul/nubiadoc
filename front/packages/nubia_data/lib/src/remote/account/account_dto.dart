@@ -19,11 +19,13 @@ class HealthCoverageDto {
   });
 
   factory HealthCoverageDto.fromJson(Map<String, dynamic> json) {
+    // API may return amc/numero_adherent flat or nested under "mutuelle"
     final mutuelle = json['mutuelle'] as Map<String, dynamic>?;
     return HealthCoverageDto(
       regime: json['regime_obligatoire'] as String,
-      amc: mutuelle?['amc'] as String?,
-      numeroAdherent: mutuelle?['numero_adherent'] as String?,
+      amc: (json['amc'] ?? mutuelle?['amc']) as String?,
+      numeroAdherent:
+          (json['numero_adherent'] ?? mutuelle?['numero_adherent']) as String?,
       tiersPayant: json['tiers_payant'] as bool? ?? false,
       nssPartial: json['nss'] as String?,
     );
@@ -152,7 +154,8 @@ class AccountDto {
         lastName: json['last_name'] as String,
         email: json['email'] as String,
         phone: json['phone'] as String?,
-        dateOfBirth: json['date_of_birth'] as String?,
+        // API returns "birth_date", historic DTOs expected "date_of_birth"
+        dateOfBirth: (json['birth_date'] ?? json['date_of_birth']) as String?,
       );
 
   PatientAccount toDomain() => PatientAccount(
