@@ -55,7 +55,7 @@ class _ConsultationCliniqueBody extends StatelessWidget {
           );
         }
         if (state is ConsultationCliniqueError) {
-          return _ErrorView(
+          return NubiaErrorWidget(
             key: const Key('consultation_error'),
             message: state.message,
           );
@@ -275,27 +275,6 @@ class _HistoriqueTile extends StatelessWidget {
       leading: const Icon(Icons.medical_services_outlined),
       title: Text('Consultation ${session.id}'),
       trailing: Chip(label: Text(_statusLabel)),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({super.key, required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-        ],
-      ),
     );
   }
 }

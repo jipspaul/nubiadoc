@@ -18,21 +18,12 @@ class OubliettesPage extends StatelessWidget {
           );
         }
         if (state is OubliettesError) {
-          return Center(
+          return NubiaErrorWidget(
             key: const Key('oubliettes_error'),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(state.message),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => context
-                      .read<OubliettesBloc>()
-                      .add(const OubliettesLoadRequested()),
-                  child: const Text('Réessayer'),
-                ),
-              ],
-            ),
+            message: state.message,
+            onRetry: () => context
+                .read<OubliettesBloc>()
+                .add(const OubliettesLoadRequested()),
           );
         }
         if (state is OubliettesLoaded) {

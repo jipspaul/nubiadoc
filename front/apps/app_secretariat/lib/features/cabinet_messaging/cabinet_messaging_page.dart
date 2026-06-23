@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'cabinet_messaging_bloc.dart';
@@ -23,7 +24,7 @@ class CabinetMessagingPage extends StatelessWidget {
           );
         }
         if (state is CabinetMessagingConversationsError) {
-          return _ErrorView(
+          return NubiaErrorWidget(
             key: const Key('cabinet_messaging_error'),
             message: state.message,
             onRetry: () => context.read<CabinetMessagingBloc>().add(
@@ -33,9 +34,10 @@ class CabinetMessagingPage extends StatelessWidget {
         }
         if (state is CabinetMessagingConversationsLoaded) {
           if (state.conversations.isEmpty) {
-            return const Center(
+            return const NubiaEmptyState(
               key: Key('cabinet_messaging_empty'),
-              child: _EmptyConversations(),
+              icon: Icons.chat_bubble_outline,
+              title: 'Aucune conversation',
             );
           }
           return _ConversationsList(conversations: state.conversations);
@@ -50,7 +52,7 @@ class CabinetMessagingPage extends StatelessWidget {
           return _ThreadView(state: state);
         }
         if (state is CabinetMessagingThreadError) {
-          return _ErrorView(
+          return NubiaErrorWidget(
             key: const Key('cabinet_messaging_thread_error'),
             message: state.message,
             onRetry: () => context
@@ -60,33 +62,6 @@ class CabinetMessagingPage extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _EmptyConversations extends StatelessWidget {
-  const _EmptyConversations();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.chat_bubble_outline,
-          size: 56,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Aucun message',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-      ],
     );
   }
 }
@@ -335,31 +310,3 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({
-    super.key,
-    required this.message,
-    required this.onRetry,
-  });
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          TextButton(onPressed: onRetry, child: const Text('Réessayer')),
-        ],
-      ),
-    );
-  }
-}

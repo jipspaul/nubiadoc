@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'waiting_room_bloc.dart';
@@ -46,9 +47,12 @@ class _WaitingRoomBody extends StatelessWidget {
             );
           }
           if (state is WaitingRoomError) {
-            return _ErrorView(
+            return NubiaErrorWidget(
               key: const Key('waiting_room_error'),
               message: state.message,
+              onRetry: () => context
+                  .read<WaitingRoomBloc>()
+                  .add(const WaitingRoomLoadRequested()),
             );
           }
           if (state is WaitingRoomLoaded) {
@@ -159,34 +163,6 @@ class _EntryCard extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
               )
             : null,
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({super.key, required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => context
-                .read<WaitingRoomBloc>()
-                .add(const WaitingRoomLoadRequested()),
-            child: const Text('Réessayer'),
-          ),
-        ],
       ),
     );
   }

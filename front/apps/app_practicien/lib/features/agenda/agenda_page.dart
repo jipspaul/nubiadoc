@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'agenda_bloc.dart';
@@ -147,9 +148,13 @@ class AgendaBody extends StatelessWidget {
             );
           }
           if (state is AgendaError) {
-            return _ErrorView(
+            return NubiaErrorWidget(
               key: const Key('agenda_error'),
               message: state.message,
+              onRetry: () => context.read<AgendaBloc>().add(
+                    AgendaLoadRequested(
+                        weekStart: AgendaPage._startOfCurrentWeek()),
+                  ),
             );
           }
           if (state is AgendaLoaded) {
@@ -550,34 +555,3 @@ class _EntryCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({super.key, required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () {
-              final bloc = context.read<AgendaBloc>();
-              final current = bloc.state;
-              if (current is AgendaLoaded) {
-                bloc.add(AgendaLoadRequested(weekStart: current.weekStart));
-              }
-            },
-            child: const Text('Réessayer'),
-          ),
-        ],
-      ),
-    );
-  }
-}

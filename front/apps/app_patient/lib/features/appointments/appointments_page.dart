@@ -59,7 +59,12 @@ class AppointmentsPage extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (state is AppointmentsError) {
-            return _ErrorView(message: state.message);
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<AppointmentsBloc>()
+                  .add(const AppointmentsSearchChanged('')),
+            );
           }
           return const SizedBox.shrink();
         },
@@ -315,32 +320,3 @@ class _SlotsView extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Error view
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => context
-                .read<AppointmentsBloc>()
-                .add(const AppointmentsSearchChanged('')),
-            child: const Text('Réessayer'),
-          ),
-        ],
-      ),
-    );
-  }
-}
