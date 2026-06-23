@@ -8,18 +8,20 @@ class DocumentApi {
   DocumentApi(ApiClient client) : _dio = client.dio;
 
   Future<List<DocumentDto>> getAll() async {
-    final response = await _dio.get<List<dynamic>>('/documents');
-    return (response.data!)
+    final response = await _dio.get<Map<String, dynamic>>('/documents');
+    final data = response.data!['data'] as List<dynamic>;
+    return data
         .map((e) => DocumentDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<DocumentDto>> getByCategory(String category) async {
-    final response = await _dio.get<List<dynamic>>(
+    final response = await _dio.get<Map<String, dynamic>>(
       '/documents',
       queryParameters: {'category': category},
     );
-    return (response.data!)
+    final data = response.data!['data'] as List<dynamic>;
+    return data
         .map((e) => DocumentDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
