@@ -15,7 +15,27 @@ import 'package:nubia_domain/src/entities/member.dart';
 
 void main() {
   group('CabinetPatientDto (GET /v1/cabinet/patients)', () {
-    test('fromJson désérialise un patient cabinet', () {
+    test('fromJson désérialise la réponse réelle de l\'API (sans cabinet_id ni email)', () {
+      final json = {
+        'id': 'd0000000-0000-0000-0000-0000000000d5',
+        'first_name': 'Karim',
+        'last_name': 'Saïdi',
+        'birth_date': '1985-01-30',
+        'created_at': '2026-06-21T10:24:38.232439+00:00',
+      };
+      final dto = CabinetPatientDto.fromJson(json);
+      expect(dto.id, 'd0000000-0000-0000-0000-0000000000d5');
+      expect(dto.cabinetId, '');
+      expect(dto.firstName, 'Karim');
+      expect(dto.lastName, 'Saïdi');
+      expect(dto.email, isNull);
+      final domain = dto.toDomain();
+      expect(domain.fullName, 'Karim Saïdi');
+      expect(domain.birthDate, isNotNull);
+      expect(domain.lastVisitAt, isNull);
+    });
+
+    test('fromJson tolère cabinet_id et champs optionnels présents (rétrocompat)', () {
       final json = {
         'id': 'pat-1',
         'cabinet_id': 'cab-1',
@@ -29,13 +49,9 @@ void main() {
         'created_at': '2024-01-10T08:00:00Z',
       };
       final dto = CabinetPatientDto.fromJson(json);
-      expect(dto.id, 'pat-1');
       expect(dto.cabinetId, 'cab-1');
-      expect(dto.firstName, 'Marie');
       expect(dto.email, 'marie@example.com');
       final domain = dto.toDomain();
-      expect(domain.fullName, 'Marie Dupont');
-      expect(domain.birthDate, isNotNull);
       expect(domain.lastVisitAt, isNotNull);
     });
   });
