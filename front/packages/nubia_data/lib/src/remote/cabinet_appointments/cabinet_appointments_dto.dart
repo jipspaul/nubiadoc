@@ -25,19 +25,34 @@ class CabinetAppointmentDto {
     required this.status,
   });
 
-  factory CabinetAppointmentDto.fromJson(Map<String, dynamic> json) =>
-      CabinetAppointmentDto(
-        id: json['id'] as String,
-        cabinetId: json['cabinet_id'] as String,
-        patientId: json['patient_id'] as String,
-        patientName: json['patient_name'] as String,
-        practitionerId: json['practitioner_id'] as String,
-        practitionerName: json['practitioner_name'] as String,
-        startsAt: json['starts_at'] as String,
-        durationMinutes: (json['duration_minutes'] as num).toInt(),
-        motif: json['motif'] as String,
-        status: json['status'] as String,
-      );
+  factory CabinetAppointmentDto.fromJson(Map<String, dynamic> json) {
+    final startsAt = json['starts_at'] as String;
+    final endsAt = json['ends_at'] as String?;
+    final int durationMinutes;
+    if (json['duration_minutes'] != null) {
+      durationMinutes = (json['duration_minutes'] as num).toInt();
+    } else if (endsAt != null) {
+      durationMinutes = DateTime.parse(endsAt)
+          .difference(DateTime.parse(startsAt))
+          .inMinutes;
+    } else {
+      durationMinutes = 0;
+    }
+    return CabinetAppointmentDto(
+      id: json['id'] as String,
+      cabinetId: json['cabinet_id'] as String? ?? '',
+      patientId: json['patient_id'] as String,
+      patientName: json['patient_name'] as String? ?? '',
+      practitionerId: json['practitioner_id'] as String,
+      practitionerName: json['practitioner_name'] as String? ?? '',
+      startsAt: startsAt,
+      durationMinutes: durationMinutes,
+      motif: (json['motif_admin'] as String?) ??
+          (json['motif'] as String?) ??
+          '',
+      status: json['status'] as String,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'patient_id': patientId,

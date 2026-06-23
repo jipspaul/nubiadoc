@@ -26,19 +26,21 @@ class SchedulingApi {
   SchedulingApi(ApiClient client) : _dio = client.dio;
 
   Future<List<AppointmentDto>> getUpcoming() async {
-    final response = await _dio.get<List<dynamic>>('/appointments',
+    final response = await _dio.get<Map<String, dynamic>>('/appointments',
         queryParameters: {'filter': 'upcoming'});
-    return (response.data!)
+    final data = response.data!['data'] as List<dynamic>;
+    return data
         .map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<AppointmentDto>> getHistory({int page = 1}) async {
-    final response = await _dio.get<List<dynamic>>(
+    final response = await _dio.get<Map<String, dynamic>>(
       '/appointments',
       queryParameters: {'filter': 'history', 'page': page},
     );
-    return (response.data!)
+    final data = response.data!['data'] as List<dynamic>;
+    return data
         .map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
