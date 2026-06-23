@@ -31,6 +31,8 @@ class SearchRepositoryImpl implements SearchRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -59,6 +61,8 @@ class SearchRepositoryImpl implements SearchRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -80,5 +84,7 @@ class SearchRepositoryImpl implements SearchRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

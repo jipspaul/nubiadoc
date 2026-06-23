@@ -25,6 +25,8 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -45,6 +47,8 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -75,6 +79,8 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -94,6 +100,8 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -111,5 +119,7 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

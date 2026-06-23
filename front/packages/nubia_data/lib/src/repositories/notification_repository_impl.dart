@@ -23,6 +23,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return Left(
           _mapDioError(e, 'Erreur lors du chargement des notifications.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -33,6 +35,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du marquage comme lu.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -44,6 +48,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return Left(_mapDioError(
           e, 'Erreur lors du marquage de toutes les notifications.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -58,6 +64,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return Left(
           _mapDioError(e, 'Erreur lors de l\'enregistrement du device.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -69,6 +77,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return Left(
           _mapDioError(e, 'Erreur lors du désenregistrement du device.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -80,6 +90,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return Left(
           _mapDioError(e, 'Erreur lors du chargement des préférences.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -95,6 +107,8 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return Left(
           _mapDioError(e, 'Erreur lors de la mise à jour des préférences.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   Failure _mapDioError(DioException e, String defaultMessage) {

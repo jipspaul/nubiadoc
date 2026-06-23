@@ -18,6 +18,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -30,6 +32,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -41,6 +45,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
       return Left(_mapDioError(
           e, 'Erreur lors de la récupération du lien de téléchargement.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -61,6 +67,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors de l\'envoi du document.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   static String _categoryToApi(DocumentCategory category) {

@@ -25,6 +25,8 @@ class CabinetAppointmentsRepositoryImpl
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -44,6 +46,8 @@ class CabinetAppointmentsRepositoryImpl
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -61,6 +65,8 @@ class CabinetAppointmentsRepositoryImpl
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -81,6 +87,8 @@ class CabinetAppointmentsRepositoryImpl
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -100,6 +108,8 @@ class CabinetAppointmentsRepositoryImpl
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -120,5 +130,7 @@ class CabinetAppointmentsRepositoryImpl
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

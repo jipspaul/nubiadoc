@@ -34,6 +34,8 @@ class AuthRepositoryImpl implements AuthRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -59,6 +61,8 @@ class AuthRepositoryImpl implements AuthRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -69,6 +73,8 @@ class AuthRepositoryImpl implements AuthRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -99,6 +105,8 @@ class AuthRepositoryImpl implements AuthRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override

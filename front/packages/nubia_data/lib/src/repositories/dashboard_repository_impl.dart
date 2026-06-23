@@ -27,5 +27,7 @@ class DashboardRepositoryImpl implements DashboardRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

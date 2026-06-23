@@ -40,6 +40,8 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -60,6 +62,8 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -79,6 +83,8 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -112,6 +118,8 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         statusCode: statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -131,6 +139,8 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -150,6 +160,8 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -178,6 +190,8 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         statusCode: statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -204,6 +218,8 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   void _cacheUpcoming(List<Appointment> appointments) {

@@ -24,6 +24,8 @@ class MembersRepositoryImpl implements MembersRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -43,6 +45,8 @@ class MembersRepositoryImpl implements MembersRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -59,6 +63,8 @@ class MembersRepositoryImpl implements MembersRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -78,6 +84,8 @@ class MembersRepositoryImpl implements MembersRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -94,6 +102,8 @@ class MembersRepositoryImpl implements MembersRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -113,5 +123,7 @@ class MembersRepositoryImpl implements MembersRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

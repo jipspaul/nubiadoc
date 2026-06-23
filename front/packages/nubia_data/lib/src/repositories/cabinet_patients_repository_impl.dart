@@ -24,6 +24,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -43,6 +45,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -59,6 +63,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -78,6 +84,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -98,5 +106,7 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

@@ -23,6 +23,8 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
         message: 'Impossible de charger les secrétariats.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -42,6 +44,8 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
         message: 'Impossible de charger le secrétariat.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -58,6 +62,8 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
         message: 'Impossible de créer le secrétariat.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -77,6 +83,8 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
         message: 'Impossible de mettre à jour le secrétariat.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -93,6 +101,8 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
         message: 'Impossible d\'inviter le secrétariat.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }

@@ -32,6 +32,8 @@ class CabinetAgendaRepositoryImpl implements CabinetAgendaRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -51,6 +53,8 @@ class CabinetAgendaRepositoryImpl implements CabinetAgendaRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -67,6 +71,8 @@ class CabinetAgendaRepositoryImpl implements CabinetAgendaRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -86,5 +92,7 @@ class CabinetAgendaRepositoryImpl implements CabinetAgendaRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

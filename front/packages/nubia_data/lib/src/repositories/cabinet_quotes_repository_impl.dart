@@ -24,6 +24,8 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -43,6 +45,8 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -59,6 +63,8 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -78,5 +84,7 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

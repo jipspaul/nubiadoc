@@ -20,6 +20,8 @@ class CabinetMessageRepositoryImpl implements CabinetMessageRepository {
       return Left(
           _mapDioError(e, 'Erreur lors du chargement des conversations.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -31,6 +33,8 @@ class CabinetMessageRepositoryImpl implements CabinetMessageRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des messages.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -49,6 +53,8 @@ class CabinetMessageRepositoryImpl implements CabinetMessageRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors de l\'envoi du message.'));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   Failure _mapDioError(DioException e, String defaultMessage) {

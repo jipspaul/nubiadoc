@@ -30,6 +30,8 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -46,5 +48,7 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

@@ -25,6 +25,8 @@ class ConsultationRepositoryImpl implements ConsultationRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -44,6 +46,8 @@ class ConsultationRepositoryImpl implements ConsultationRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -61,6 +65,8 @@ class ConsultationRepositoryImpl implements ConsultationRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 
   @override
@@ -81,5 +87,7 @@ class ConsultationRepositoryImpl implements ConsultationRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

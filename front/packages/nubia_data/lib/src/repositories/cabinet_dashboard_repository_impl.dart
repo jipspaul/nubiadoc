@@ -26,5 +26,7 @@ class CabinetDashboardRepositoryImpl implements CabinetDashboardRepository {
         statusCode: e.response?.statusCode,
       ));
     }
+    } catch (e) {
+      return const Left(ParseFailure());
   }
 }

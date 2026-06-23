@@ -29,6 +29,8 @@ class ReviewRepositoryImpl implements ReviewRepository {
         message: 'Erreur lors de la récupération des avis.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -64,6 +66,8 @@ class ReviewRepositoryImpl implements ReviewRepository {
         message: 'Erreur lors de la soumission de l\'avis.',
         statusCode: statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }

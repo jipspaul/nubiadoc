@@ -31,6 +31,8 @@ class SlotsRepositoryImpl implements SlotsRepository {
         message: 'Impossible de charger les créneaux.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -50,6 +52,8 @@ class SlotsRepositoryImpl implements SlotsRepository {
         message: 'Impossible de charger le créneau.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -66,6 +70,8 @@ class SlotsRepositoryImpl implements SlotsRepository {
         message: 'Impossible de créer le créneau.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -85,6 +91,8 @@ class SlotsRepositoryImpl implements SlotsRepository {
         message: 'Impossible de mettre à jour le créneau.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }
