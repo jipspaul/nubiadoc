@@ -1,0 +1,2 @@
+# Journal append-only édité par tous les agents : fusion 'union' (garde les deux côtés) -> plus de conflit.
+PROGRESS.md merge=union
