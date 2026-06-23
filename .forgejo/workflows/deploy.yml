@@ -16,6 +16,12 @@
 on:
   push:
     branches: [main]
+    # Un changement purement documentaire ne déclenche PAS de déploiement.
+    paths-ignore:
+      - '**.md'
+      - 'qa/**'
+      - 'docs/**'
+      - 'design/**'
 
 concurrency:
   group: deploy-${{ github.ref }}
