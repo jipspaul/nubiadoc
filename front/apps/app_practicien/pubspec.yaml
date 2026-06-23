@@ -42,3 +42,6 @@ dev_dependencies:
   mocktail: ^1.0.4
   nubia_test_harness:
     path: ../../packages/nubia_test_harness
+
+flutter:
+  uses-material-design: true
