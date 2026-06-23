@@ -12,8 +12,10 @@ class WaitingRoomApi {
   // --- Salle d'attente (waiting room) ---
 
   Future<List<WaitingRoomEntryDto>> listWaitingRoom() async {
-    final response = await _dio.get<List<dynamic>>('/cabinet/waiting-room');
-    return (response.data!)
+    final response =
+        await _dio.get<Map<String, dynamic>>('/cabinet/waiting-room');
+    final data = (response.data!['data'] as List<dynamic>?) ?? [];
+    return data
         .map((e) => WaitingRoomEntryDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
@@ -70,8 +72,10 @@ class WaitingRoomApi {
   // --- Liste d'attente (waiting list) ---
 
   Future<List<WaitingListEntryDto>> listWaitingList() async {
-    final response = await _dio.get<List<dynamic>>('/cabinet/waiting-list');
-    return (response.data!)
+    final response =
+        await _dio.get<Map<String, dynamic>>('/cabinet/waiting-list');
+    final data = (response.data!['data'] as List<dynamic>?) ?? [];
+    return data
         .map((e) => WaitingListEntryDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
