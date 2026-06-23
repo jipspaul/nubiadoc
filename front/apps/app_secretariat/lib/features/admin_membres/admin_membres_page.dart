@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'admin_membres_bloc.dart';
@@ -74,11 +75,11 @@ class _AdminMembresPageState extends State<AdminMembresPage>
             );
           }
           if (state is AdminMembresError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<AdminMembresBloc>()
+                  .add(const AdminMembresLoadRequested()),
             );
           }
           return const Center(child: CircularProgressIndicator());

@@ -31,6 +31,8 @@ class CabinetAgendaRepositoryImpl implements CabinetAgendaRepository {
         message: "Impossible de charger l'agenda.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -50,6 +52,8 @@ class CabinetAgendaRepositoryImpl implements CabinetAgendaRepository {
         message: "Impossible de charger l'entrée agenda.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -66,6 +70,8 @@ class CabinetAgendaRepositoryImpl implements CabinetAgendaRepository {
         message: "Impossible de créer l'entrée agenda.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -85,6 +91,8 @@ class CabinetAgendaRepositoryImpl implements CabinetAgendaRepository {
         message: "Impossible de mettre à jour l'entrée agenda.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }

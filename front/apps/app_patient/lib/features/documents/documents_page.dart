@@ -69,9 +69,12 @@ class _DocumentsBody extends StatelessWidget {
             );
           }
           if (state is DocumentsError) {
-            return Center(
+            return NubiaErrorWidget(
               key: const Key('documents_error'),
-              child: Text(state.message),
+              message: state.message,
+              onRetry: () => context
+                  .read<DocumentsBloc>()
+                  .add(const DocumentsLoadRequested()),
             );
           }
           if (state is DocumentsLoaded) {

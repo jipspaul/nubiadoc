@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'appointments_bloc.dart';
@@ -53,11 +54,11 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
             return _SuccessView(appointment: state.appointment);
           }
           if (state is AppointmentsError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<AppointmentsBloc>()
+                  .add(const AppointmentsLoadRequested()),
             );
           }
           return const _InitialView();
@@ -122,7 +123,11 @@ class _LoadedView extends StatelessWidget {
         ),
         Expanded(
           child: filtered.isEmpty
-              ? const Center(child: Text('Aucun rendez-vous'))
+              ? const NubiaEmptyState(
+                  icon: Icons.event_busy_outlined,
+                  title: 'Aucun rendez-vous',
+                  subtitle: 'Aucun rendez-vous pour ce filtre',
+                )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: filtered.length,

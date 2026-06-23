@@ -24,6 +24,8 @@ class CabinetAppointmentsRepositoryImpl
         message: 'Impossible de charger les rendez-vous cabinet.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -43,6 +45,8 @@ class CabinetAppointmentsRepositoryImpl
         message: 'Impossible de charger le rendez-vous.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -60,6 +64,8 @@ class CabinetAppointmentsRepositoryImpl
         message: 'Impossible de créer le rendez-vous.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -80,6 +86,8 @@ class CabinetAppointmentsRepositoryImpl
         message: 'Impossible de mettre à jour le rendez-vous.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -99,6 +107,8 @@ class CabinetAppointmentsRepositoryImpl
         message: 'Impossible de confirmer le rendez-vous.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -119,6 +129,8 @@ class CabinetAppointmentsRepositoryImpl
         message: 'Impossible de reprogrammer le rendez-vous.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }

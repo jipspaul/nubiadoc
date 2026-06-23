@@ -30,6 +30,8 @@ class SearchRepositoryImpl implements SearchRepository {
         message: 'Erreur lors de la recherche de praticiens.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -58,6 +60,8 @@ class SearchRepositoryImpl implements SearchRepository {
         message: 'Erreur lors du chargement des créneaux.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -79,6 +83,8 @@ class SearchRepositoryImpl implements SearchRepository {
         message: 'Erreur lors de la réservation du créneau.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }
