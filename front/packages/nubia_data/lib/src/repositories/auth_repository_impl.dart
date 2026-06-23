@@ -32,6 +32,10 @@ class AuthRepositoryImpl implements AuthRepository {
             PatientAccount(id: '', firstName: '', lastName: '', email: email),
       );
     } on DioException catch (e) {
+      // 401 sur /auth/login = identifiants incorrects (pas une session expirée).
+      if (e.response?.statusCode == 401) {
+        return const Left(InvalidCredentialsFailure());
+      }
       return Left(_mapDioError(e));
     } catch (e) {
       return const Left(ParseFailure());
