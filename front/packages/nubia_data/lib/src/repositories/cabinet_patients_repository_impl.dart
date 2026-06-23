@@ -23,6 +23,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         message: 'Impossible de charger la liste des patients.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -42,6 +44,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         message: 'Impossible de charger le patient.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -58,6 +62,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         message: 'Impossible de créer le patient.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -77,6 +83,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         message: 'Impossible de mettre à jour le patient.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -97,6 +105,8 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
         message: 'Impossible de mettre à jour les notes.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }

@@ -24,21 +24,12 @@ class NotificationsPage extends StatelessWidget {
           );
         }
         if (state is NotificationsError) {
-          return Center(
+          return NubiaErrorWidget(
             key: const Key('notifications_error'),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(state.message),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => context
-                      .read<NotificationsBloc>()
-                      .add(const NotificationsLoadRequested()),
-                  child: const Text('Réessayer'),
-                ),
-              ],
-            ),
+            message: state.message,
+            onRetry: () => context
+                .read<NotificationsBloc>()
+                .add(const NotificationsLoadRequested()),
           );
         }
         if (state is NotificationsLoaded) {

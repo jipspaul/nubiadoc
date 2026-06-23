@@ -37,6 +37,8 @@ class AuthRepositoryImpl implements AuthRepository {
         return const Left(InvalidCredentialsFailure());
       }
       return Left(_mapDioError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -62,6 +64,8 @@ class AuthRepositoryImpl implements AuthRepository {
       );
     } on DioException catch (e) {
       return Left(_mapDioError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -72,6 +76,8 @@ class AuthRepositoryImpl implements AuthRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapDioError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -102,6 +108,8 @@ class AuthRepositoryImpl implements AuthRepository {
       return const Right(null);
     } on DioException catch (e) {
       return Left(_mapDioError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 

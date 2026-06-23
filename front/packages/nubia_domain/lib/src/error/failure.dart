@@ -60,3 +60,7 @@ class ClinicalAccessDenied extends Failure {
   const ClinicalAccessDenied()
       : super('Accès clinique non autorisé pour ce rôle.');
 }
+
+class ParseFailure extends Failure {
+  const ParseFailure([super.message = 'Erreur de décodage de la réponse.']);
+}

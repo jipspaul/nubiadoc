@@ -17,6 +17,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -29,6 +31,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -40,6 +44,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
     } on DioException catch (e) {
       return Left(_mapDioError(
           e, 'Erreur lors de la récupération du lien de téléchargement.'));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -60,6 +66,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors de l\'envoi du document.'));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 

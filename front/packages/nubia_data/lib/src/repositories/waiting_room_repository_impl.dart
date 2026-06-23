@@ -24,6 +24,8 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
         message: "Impossible de charger la salle d'attente.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -44,6 +46,8 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
         message: "Impossible de charger l'entrée.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -61,6 +65,8 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
         message: "Impossible d'ajouter à la salle d'attente.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -82,6 +88,8 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
         message: "Impossible de mettre à jour l'entrée.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -101,6 +109,8 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
         message: "Impossible d'appeler le patient suivant.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }
@@ -123,6 +133,8 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
         message: "Impossible de charger la liste d'attente.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -143,6 +155,8 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
         message: "Impossible de charger l'entrée.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -160,6 +174,8 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
         message: "Impossible d'ajouter à la liste d'attente.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -181,6 +197,8 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
         message: "Impossible de mettre à jour l'entrée.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 
@@ -201,6 +219,8 @@ class WaitingListRepositoryImpl implements WaitingListRepository {
         message: "Impossible de proposer un créneau.",
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }

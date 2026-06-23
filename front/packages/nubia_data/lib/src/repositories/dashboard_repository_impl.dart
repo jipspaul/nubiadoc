@@ -26,6 +26,8 @@ class DashboardRepositoryImpl implements DashboardRepository {
         message: 'Erreur serveur lors du chargement du tableau de bord.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (e) {
+      return const Left(ParseFailure());
     }
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
@@ -7,6 +8,8 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../waiting_room/waiting_room_bloc.dart';
+import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
@@ -41,12 +44,16 @@ class DashboardPage extends StatelessWidget {
                 DashboardBloc()..add(const DashboardLoadRequested()),
             child: const _DashboardContent(),
           );
+        } else if (destination.route == '/salle-attente') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<WaitingRoomBloc>(),
+            child: const WaitingRoomBody(),
+          );
         } else {
           body = Center(
             child: NubiaEmptyState(
               icon: Icons.construction_outlined,
               title: destination.label,
-              subtitle: '${ProConfig.spaceLabel} — Écran à implémenter.',
             ),
           );
         }
