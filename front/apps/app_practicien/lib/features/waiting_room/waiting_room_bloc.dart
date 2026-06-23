@@ -23,11 +23,15 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
     Emitter<WaitingRoomState> emit,
   ) async {
     emit(const WaitingRoomLoading());
-    final result = await _listWaitingRoom();
-    result.fold(
-      (failure) => emit(WaitingRoomError(failure.message)),
-      (entries) => emit(WaitingRoomLoaded(entries: entries)),
-    );
+    try {
+      final result = await _listWaitingRoom();
+      result.fold(
+        (failure) => emit(WaitingRoomError(failure.message)),
+        (entries) => emit(WaitingRoomLoaded(entries: entries)),
+      );
+    } catch (_) {
+      emit(const WaitingRoomError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onCallNext(
@@ -37,13 +41,17 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
     final current = state;
     if (current is! WaitingRoomLoaded) return;
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
-    final result = await _callNext();
-    await result.fold(
-      (failure) async => emit(current.copyWith(
-        actionInProgress: false,
-        actionError: failure.message,
-      )),
-      (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
-    );
+    try {
+      final result = await _callNext();
+      await result.fold(
+        (failure) async => emit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
   }
 }

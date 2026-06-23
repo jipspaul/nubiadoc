@@ -18,10 +18,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     emit(const DashboardLoading());
-    final result = await _getSummary();
-    result.fold(
-      (failure) => emit(DashboardError(failure.message)),
-      (summary) => emit(DashboardLoaded(summary)),
-    );
+    try {
+      final result = await _getSummary();
+      result.fold(
+        (failure) => emit(DashboardError(failure.message)),
+        (summary) => emit(DashboardLoaded(summary)),
+      );
+    } catch (_) {
+      emit(const DashboardError('Erreur de chargement.'));
+    }
   }
 }

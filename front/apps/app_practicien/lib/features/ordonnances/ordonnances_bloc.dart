@@ -23,14 +23,18 @@ class OrdonnancesBloc extends Bloc<OrdonnancesEvent, OrdonnancesState> {
     Emitter<OrdonnancesState> emit,
   ) async {
     emit(const OrdonnancesLoading());
-    final result = await _create(
-      patientId: event.patientId,
-      items: event.items,
-    );
-    result.fold(
-      (failure) => emit(OrdonnancesError(failure.message)),
-      (prescription) => emit(OrdonnancesCreated(prescription)),
-    );
+    try {
+      final result = await _create(
+        patientId: event.patientId,
+        items: event.items,
+      );
+      result.fold(
+        (failure) => emit(OrdonnancesError(failure.message)),
+        (prescription) => emit(OrdonnancesCreated(prescription)),
+      );
+    } catch (_) {
+      emit(const OrdonnancesError('Erreur de création.'));
+    }
   }
 
   Future<void> _onSign(
@@ -38,10 +42,14 @@ class OrdonnancesBloc extends Bloc<OrdonnancesEvent, OrdonnancesState> {
     Emitter<OrdonnancesState> emit,
   ) async {
     emit(const OrdonnancesLoading());
-    final result = await _sign(event.prescriptionId);
-    result.fold(
-      (failure) => emit(OrdonnancesError(failure.message)),
-      (prescription) => emit(OrdonnancesSigned(prescription)),
-    );
+    try {
+      final result = await _sign(event.prescriptionId);
+      result.fold(
+        (failure) => emit(OrdonnancesError(failure.message)),
+        (prescription) => emit(OrdonnancesSigned(prescription)),
+      );
+    } catch (_) {
+      emit(const OrdonnancesError('Erreur de signature.'));
+    }
   }
 }

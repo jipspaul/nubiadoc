@@ -29,12 +29,16 @@ class CabinetMessagingBloc
     Emitter<CabinetMessagingState> emit,
   ) async {
     emit(const CabinetMessagingConversationsLoading());
-    final result = await _listConversations();
-    result.fold(
-      (failure) => emit(CabinetMessagingConversationsError(failure.message)),
-      (conversations) =>
-          emit(CabinetMessagingConversationsLoaded(conversations)),
-    );
+    try {
+      final result = await _listConversations();
+      result.fold(
+        (failure) => emit(CabinetMessagingConversationsError(failure.message)),
+        (conversations) =>
+            emit(CabinetMessagingConversationsLoaded(conversations)),
+      );
+    } catch (_) {
+      emit(const CabinetMessagingConversationsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onThreadOpened(
@@ -42,17 +46,23 @@ class CabinetMessagingBloc
     Emitter<CabinetMessagingState> emit,
   ) async {
     emit(CabinetMessagingThreadLoading(event.conversation.id));
-    final result = await _getMessages(event.conversation.id);
-    result.fold(
-      (failure) => emit(CabinetMessagingThreadError(
-        conversationId: event.conversation.id,
-        message: failure.message,
-      )),
-      (messages) => emit(CabinetMessagingThreadLoaded(
-        conversation: event.conversation,
-        messages: messages,
-      )),
-    );
+    try {
+      final result = await _getMessages(event.conversation.id);
+      result.fold(
+        (failure) => emit(CabinetMessagingThreadError(
+          conversationId: event.conversation.id,
+          message: failure.message,
+        )),
+        (messages) => emit(CabinetMessagingThreadLoaded(
+          conversation: event.conversation,
+          messages: messages,
+        )),
+      );
+    } catch (_) {
+      emit(CabinetMessagingThreadError(
+          conversationId: event.conversation.id,
+          message: 'Erreur de chargement.'));
+    }
   }
 
   Future<void> _onSend(
@@ -63,17 +73,21 @@ class CabinetMessagingBloc
     if (current is! CabinetMessagingThreadLoaded) return;
 
     emit(current.copyWith(sending: true));
-    final result = await _sendMessage(
-      conversationId: event.conversationId,
-      text: event.text,
-    );
-    result.fold(
-      (failure) => emit(current.copyWith(sending: false)),
-      (message) => emit(current.copyWith(
-        sending: false,
-        messages: [...current.messages, message],
-      )),
-    );
+    try {
+      final result = await _sendMessage(
+        conversationId: event.conversationId,
+        text: event.text,
+      );
+      result.fold(
+        (failure) => emit(current.copyWith(sending: false)),
+        (message) => emit(current.copyWith(
+          sending: false,
+          messages: [...current.messages, message],
+        )),
+      );
+    } catch (_) {
+      emit(current.copyWith(sending: false));
+    }
   }
 
   Future<void> _onBack(
@@ -81,11 +95,15 @@ class CabinetMessagingBloc
     Emitter<CabinetMessagingState> emit,
   ) async {
     emit(const CabinetMessagingConversationsLoading());
-    final result = await _listConversations();
-    result.fold(
-      (failure) => emit(CabinetMessagingConversationsError(failure.message)),
-      (conversations) =>
-          emit(CabinetMessagingConversationsLoaded(conversations)),
-    );
+    try {
+      final result = await _listConversations();
+      result.fold(
+        (failure) => emit(CabinetMessagingConversationsError(failure.message)),
+        (conversations) =>
+            emit(CabinetMessagingConversationsLoaded(conversations)),
+      );
+    } catch (_) {
+      emit(const CabinetMessagingConversationsError('Erreur de chargement.'));
+    }
   }
 }

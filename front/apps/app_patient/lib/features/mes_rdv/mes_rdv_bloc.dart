@@ -30,20 +30,24 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> {
     Emitter<MesRdvState> emit,
   ) async {
     emit(const MesRdvLoading());
-    final upcomingResult = await _getUpcoming();
-    if (upcomingResult.isLeft()) {
-      final message = upcomingResult.fold((f) => f.message, (_) => '');
-      emit(MesRdvError(message));
-      return;
+    try {
+      final upcomingResult = await _getUpcoming();
+      if (upcomingResult.isLeft()) {
+        final message = upcomingResult.fold((f) => f.message, (_) => '');
+        emit(MesRdvError(message));
+        return;
+      }
+      final historyResult = await _getHistory();
+      historyResult.fold(
+        (failure) => emit(MesRdvError(failure.message)),
+        (history) => emit(MesRdvLoaded(
+          upcoming: upcomingResult.getOrElse(() => []),
+          history: history,
+        )),
+      );
+    } catch (_) {
+      emit(const MesRdvError('Erreur de chargement.'));
     }
-    final historyResult = await _getHistory();
-    historyResult.fold(
-      (failure) => emit(MesRdvError(failure.message)),
-      (history) => emit(MesRdvLoaded(
-        upcoming: upcomingResult.getOrElse(() => []),
-        history: history,
-      )),
-    );
   }
 
   Future<void> _onCancel(
@@ -53,14 +57,18 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> {
     final current = state;
     if (current is! MesRdvLoaded) return;
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
-    final result = await _cancel(event.appointment);
-    await result.fold(
-      (failure) async => emit(current.copyWith(
-        actionInProgress: false,
-        actionError: failure.message,
-      )),
-      (_) async => _onLoad(const MesRdvLoadRequested(), emit),
-    );
+    try {
+      final result = await _cancel(event.appointment);
+      await result.fold(
+        (failure) async => emit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) async => _onLoad(const MesRdvLoadRequested(), emit),
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
   }
 
   Future<void> _onCheckin(
@@ -70,13 +78,17 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> {
     final current = state;
     if (current is! MesRdvLoaded) return;
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
-    final result = await _checkin(event.appointmentId);
-    await result.fold(
-      (failure) async => emit(current.copyWith(
-        actionInProgress: false,
-        actionError: failure.message,
-      )),
-      (_) async => _onLoad(const MesRdvLoadRequested(), emit),
-    );
+    try {
+      final result = await _checkin(event.appointmentId);
+      await result.fold(
+        (failure) async => emit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) async => _onLoad(const MesRdvLoadRequested(), emit),
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
   }
 }

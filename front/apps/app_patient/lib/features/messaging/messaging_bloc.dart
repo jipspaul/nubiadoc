@@ -31,11 +31,15 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     Emitter<MessagingState> emit,
   ) async {
     emit(const MessagingConversationsLoading());
-    final result = await _getConversations();
-    result.fold(
-      (failure) => emit(MessagingConversationsError(failure.message)),
-      (conversations) => emit(MessagingConversationsLoaded(conversations)),
-    );
+    try {
+      final result = await _getConversations();
+      result.fold(
+        (failure) => emit(MessagingConversationsError(failure.message)),
+        (conversations) => emit(MessagingConversationsLoaded(conversations)),
+      );
+    } catch (_) {
+      emit(const MessagingConversationsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onThreadOpened(
@@ -43,17 +47,23 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     Emitter<MessagingState> emit,
   ) async {
     emit(MessagingThreadLoading(event.conversation.id));
-    final result = await _getMessages(event.conversation.id);
-    result.fold(
-      (failure) => emit(MessagingThreadError(
-        conversationId: event.conversation.id,
-        message: failure.message,
-      )),
-      (messages) => emit(MessagingThreadLoaded(
-        conversation: event.conversation,
-        messages: messages,
-      )),
-    );
+    try {
+      final result = await _getMessages(event.conversation.id);
+      result.fold(
+        (failure) => emit(MessagingThreadError(
+          conversationId: event.conversation.id,
+          message: failure.message,
+        )),
+        (messages) => emit(MessagingThreadLoaded(
+          conversation: event.conversation,
+          messages: messages,
+        )),
+      );
+    } catch (_) {
+      emit(MessagingThreadError(
+          conversationId: event.conversation.id,
+          message: 'Erreur de chargement.'));
+    }
     // Fire-and-forget: ignore mark-read failure (best effort)
     await _markRead(event.conversation.id);
   }
@@ -66,17 +76,21 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     if (current is! MessagingThreadLoaded) return;
 
     emit(current.copyWith(sending: true));
-    final result = await _sendMessage(
-      conversationId: event.conversationId,
-      text: event.text,
-    );
-    result.fold(
-      (failure) => emit(current.copyWith(sending: false)),
-      (message) => emit(current.copyWith(
-        sending: false,
-        messages: [...current.messages, message],
-      )),
-    );
+    try {
+      final result = await _sendMessage(
+        conversationId: event.conversationId,
+        text: event.text,
+      );
+      result.fold(
+        (failure) => emit(current.copyWith(sending: false)),
+        (message) => emit(current.copyWith(
+          sending: false,
+          messages: [...current.messages, message],
+        )),
+      );
+    } catch (_) {
+      emit(current.copyWith(sending: false));
+    }
   }
 
   Future<void> _onBack(
@@ -84,10 +98,14 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     Emitter<MessagingState> emit,
   ) async {
     emit(const MessagingConversationsLoading());
-    final result = await _getConversations();
-    result.fold(
-      (failure) => emit(MessagingConversationsError(failure.message)),
-      (conversations) => emit(MessagingConversationsLoaded(conversations)),
-    );
+    try {
+      final result = await _getConversations();
+      result.fold(
+        (failure) => emit(MessagingConversationsError(failure.message)),
+        (conversations) => emit(MessagingConversationsLoaded(conversations)),
+      );
+    } catch (_) {
+      emit(const MessagingConversationsError('Erreur de chargement.'));
+    }
   }
 }

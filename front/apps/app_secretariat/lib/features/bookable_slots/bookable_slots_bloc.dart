@@ -23,11 +23,15 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
     Emitter<BookableSlotsState> emit,
   ) async {
     emit(const BookableSlotsLoading());
-    final result = await _listSlots();
-    result.fold(
-      (failure) => emit(BookableSlotsError(failure.message)),
-      (slots) => emit(BookableSlotsLoaded(slots)),
-    );
+    try {
+      final result = await _listSlots();
+      result.fold(
+        (failure) => emit(BookableSlotsError(failure.message)),
+        (slots) => emit(BookableSlotsLoaded(slots)),
+      );
+    } catch (_) {
+      emit(const BookableSlotsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onCreate(
@@ -35,15 +39,19 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
     Emitter<BookableSlotsState> emit,
   ) async {
     emit(const BookableSlotsLoading());
-    final result = await _createSlot(
-      cabinetId: '',
-      practitionerId: '',
-      start: event.startsAt,
-      duration: event.endsAt.difference(event.startsAt),
-    );
-    result.fold(
-      (failure) => emit(BookableSlotsError(failure.message)),
-      (_) => add(const BookableSlotsLoadRequested()),
-    );
+    try {
+      final result = await _createSlot(
+        cabinetId: '',
+        practitionerId: '',
+        start: event.startsAt,
+        duration: event.endsAt.difference(event.startsAt),
+      );
+      result.fold(
+        (failure) => emit(BookableSlotsError(failure.message)),
+        (_) => add(const BookableSlotsLoadRequested()),
+      );
+    } catch (_) {
+      emit(const BookableSlotsError('Erreur de chargement.'));
+    }
   }
 }

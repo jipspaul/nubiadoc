@@ -18,10 +18,14 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     Emitter<HomeState> emit,
   ) async {
     emit(const HomeLoading());
-    final result = await _getDashboardSummary();
-    result.fold(
-      (failure) => emit(HomeError(failure.message)),
-      (summary) => emit(HomeLoaded(summary)),
-    );
+    try {
+      final result = await _getDashboardSummary();
+      result.fold(
+        (failure) => emit(HomeError(failure.message)),
+        (summary) => emit(HomeLoaded(summary)),
+      );
+    } catch (_) {
+      emit(const HomeError('Erreur de chargement.'));
+    }
   }
 }
