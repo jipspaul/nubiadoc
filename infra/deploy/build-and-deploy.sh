@@ -61,8 +61,10 @@ build_front() { # app_dir  www_name
   # --pwa-strategy=none : pas de service worker. Sur un site redéployé en continu,
   # le SW Flutter sert un cache périmé après chaque déploiement -> écran blanc.
   # Sans SW, le navigateur récupère les assets frais à chaque chargement.
+  # --no-tree-shake-icons : embarque la police MaterialIcons complète. Le
+  # tree-shaking d'icônes cassait leur rendu sur web (icônes en carrés « tofu »).
   ( cd "$ROOT/front/apps/$1" && $FLUTTER build web --release --base-href / \
-      --pwa-strategy=none \
+      --pwa-strategy=none --no-tree-shake-icons \
       --dart-define=API_BASE_URL="$FLUTTER_API_BASE" )
   rm -rf "$OUT/www-$2"
   cp -r "$ROOT/front/apps/$1/build/web" "$OUT/www-$2"
