@@ -25,6 +25,10 @@ class CabinetDashboardRepositoryImpl implements CabinetDashboardRepository {
         message: 'Erreur serveur lors du chargement du tableau de bord.',
         statusCode: e.response?.statusCode,
       ));
+    } catch (_) {
+      return const Left(ServerFailure(
+        message: 'Erreur de parsing du tableau de bord.',
+      ));
     }
   }
 }
