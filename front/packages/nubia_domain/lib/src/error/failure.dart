@@ -30,6 +30,10 @@ class UnauthorizedFailure extends Failure {
       : super('Session expirée. Veuillez vous reconnecter.');
 }
 
+class InvalidCredentialsFailure extends Failure {
+  const InvalidCredentialsFailure() : super('E-mail ou mot de passe incorrect');
+}
+
 class NotFoundFailure extends Failure {
   const NotFoundFailure([super.message = 'Ressource introuvable.']);
 }
