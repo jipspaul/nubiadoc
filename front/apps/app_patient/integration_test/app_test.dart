@@ -58,7 +58,7 @@ void main() {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
 
-      // Email (pré-rempli avec 'camille@example.com', on le remplace)
+      // Email (vide en release ; pré-rempli en kDebugMode pour le dev)
       await tester.enterText(
           find.byType(TextField).first, 'patient@nubia-demo.fr');
       await tester.pumpAndSettle();

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -13,7 +14,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _email = TextEditingController(text: 'camille@example.com');
+  final _email = TextEditingController(text: kDebugMode ? 'camille@example.com' : '');
   final _password = TextEditingController();
 
   @override
