@@ -28,9 +28,9 @@ class CabinetPatientDto {
   factory CabinetPatientDto.fromJson(Map<String, dynamic> json) =>
       CabinetPatientDto(
         id: json['id'] as String,
-        cabinetId: json['cabinet_id'] as String,
-        firstName: json['first_name'] as String,
-        lastName: json['last_name'] as String,
+        cabinetId: (json['cabinet_id'] as String?) ?? '',
+        firstName: (json['first_name'] as String?) ?? '',
+        lastName: (json['last_name'] as String?) ?? '',
         birthDate: json['birth_date'] as String?,
         email: json['email'] as String?,
         phone: json['phone'] as String?,
