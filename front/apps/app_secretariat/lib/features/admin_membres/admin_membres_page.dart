@@ -97,7 +97,10 @@ class _MembersList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (members.isEmpty) {
-      return const Center(child: Text('Aucun membre enregistré.'));
+      return const NubiaEmptyState(
+        icon: Icons.person_outline,
+        title: 'Aucun membre enregistré.',
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -134,7 +137,10 @@ class _SecretariatsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (secretariats.isEmpty) {
-      return const Center(child: Text('Aucun secrétariat enregistré.'));
+      return const NubiaEmptyState(
+        icon: Icons.business_outlined,
+        title: 'Aucun secrétariat enregistré.',
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),

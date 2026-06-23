@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'financial_bloc.dart';
@@ -24,7 +25,13 @@ class FinancialPage extends StatelessWidget {
           );
         }
         if (state is FinancialError) {
-          return _ErrorView(key: const Key('financial_error'), state: state);
+          return NubiaErrorWidget(
+            key: const Key('financial_error'),
+            message: state.message,
+            onRetry: () => context
+                .read<FinancialBloc>()
+                .add(const FinancialLoadRequested()),
+          );
         }
         if (state is FinancialLoaded) {
           return _QuoteListView(state: state);
@@ -68,16 +75,10 @@ class _QuoteListView extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: SizedBox(
                   height: constraints.maxHeight,
-                  child: const Center(
+                  child: const NubiaEmptyState(
                     key: Key('financial_empty'),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.receipt_long_outlined, size: 48),
-                        SizedBox(height: 12),
-                        Text('Aucun devis en attente.'),
-                      ],
-                    ),
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Aucun devis en attente.',
                   ),
                 ),
               ),
@@ -386,37 +387,3 @@ class _PaymentSuccessView extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({super.key, required this.state});
-
-  final FinancialError state;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48),
-            const SizedBox(height: 8),
-            Text(
-              state.message,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () => context
-                  .read<FinancialBloc>()
-                  .add(const FinancialLoadRequested()),
-              child: const Text('Réessayer'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
