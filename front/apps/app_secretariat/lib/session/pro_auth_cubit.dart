@@ -52,12 +52,16 @@ class ProAuthCubit extends Cubit<AuthState> {
   final String _app;
 
   Future<void> restore() async {
-    final token = await _tokenStorage.getAccessToken();
-    if (token == null || token.isEmpty) {
+    try {
+      final token = await _tokenStorage.getAccessToken();
+      if (token == null || token.isEmpty) {
+        emit(const AuthUnauthenticated());
+        return;
+      }
+      emit(AuthAuthenticated(_session()));
+    } catch (_) {
       emit(const AuthUnauthenticated());
-      return;
     }
-    emit(AuthAuthenticated(_session()));
   }
 
   Future<void> signIn({required String email, required String password}) async {
