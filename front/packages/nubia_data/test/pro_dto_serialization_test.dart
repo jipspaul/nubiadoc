@@ -222,7 +222,30 @@ void main() {
   });
 
   group('CabinetQuoteDto (GET /v1/cabinet/quotes)', () {
-    test('fromJson désérialise un devis signé', () {
+    test('fromJson désérialise la réponse réelle de l\'API (total_amount, sans cabinet_id ni patient_share_cents)',
+        () {
+      final json = {
+        'id': 'a1000000-0000-0000-0000-000000000003',
+        'patient_id': 'd0000000-0000-0000-0000-0000000000d5',
+        'patient_name': 'Karim Saïdi',
+        'status': 'signed',
+        'total_amount': 80000,
+        'created_at': '2026-06-21T10:24:38.232439+00:00',
+      };
+      final dto = CabinetQuoteDto.fromJson(json);
+      expect(dto.id, 'a1000000-0000-0000-0000-000000000003');
+      expect(dto.totalCents, 80000);
+      expect(dto.cabinetId, '');
+      expect(dto.patientShareCents, 0);
+      expect(dto.status, 'signed');
+      final domain = dto.toDomain();
+      expect(domain.status, CabinetQuoteStatus.signed);
+      expect(domain.isSigned, isTrue);
+      expect(domain.signedAt, isNull);
+    });
+
+    test('fromJson tolère total_cents (rétrocompat) et cabinet_id présent',
+        () {
       final json = {
         'id': 'q-1',
         'cabinet_id': 'cab-1',
@@ -230,19 +253,15 @@ void main() {
         'patient_name': 'Marie Dupont',
         'total_cents': 85000,
         'patient_share_cents': 25000,
-        'status': 'signed',
+        'status': 'draft',
         'created_at': '2026-06-01T12:00:00Z',
-        'signed_at': '2026-06-05T09:30:00Z',
+        'signed_at': null,
         'expires_at': null,
       };
       final dto = CabinetQuoteDto.fromJson(json);
-      expect(dto.id, 'q-1');
       expect(dto.totalCents, 85000);
-      expect(dto.status, 'signed');
-      final domain = dto.toDomain();
-      expect(domain.status, CabinetQuoteStatus.signed);
-      expect(domain.isSigned, isTrue);
-      expect(domain.signedAt, isNotNull);
+      expect(dto.cabinetId, 'cab-1');
+      expect(dto.patientShareCents, 25000);
     });
   });
 }
