@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -13,7 +14,10 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _email = TextEditingController(text: 'camille@example.com');
+  // BUG-02 (issue #2563/#2580) : pré-remplissage limité au mode debug pour
+  // que les builds release laissent le champ vide (sinon l'utilisateur qui
+  // tape sans effacer envoie l'e-mail démo et échoue le login).
+  final _email = TextEditingController(text: kDebugMode ? 'camille@example.com' : '');
   final _password = TextEditingController();
 
   @override

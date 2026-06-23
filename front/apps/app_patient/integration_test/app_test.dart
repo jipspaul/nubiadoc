@@ -58,7 +58,8 @@ void main() {
       await tester.pumpWidget(_loginApp());
       await tester.pumpAndSettle();
 
-      // Email (pré-rempli avec 'camille@example.com', on le remplace)
+      // Email (pré-rempli avec 'camille@example.com' UNIQUEMENT en debug
+      // depuis BUG-02 #2580 ; le test tourne en debug donc on saisit par-dessus).
       await tester.enterText(
           find.byType(TextField).first, 'patient@nubia-demo.fr');
       await tester.pumpAndSettle();
