@@ -39,9 +39,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         message: 'Erreur lors de la récupération des rendez-vous.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -61,9 +61,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         message: "Erreur lors de la récupération de l'historique.",
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -82,9 +82,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         message: 'Erreur lors de la récupération du rendez-vous.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -117,9 +117,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         message: 'Erreur lors de la réservation du rendez-vous.',
         statusCode: statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -138,9 +138,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         message: "Erreur lors de l'annulation du rendez-vous.",
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -159,9 +159,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         message: 'Erreur lors du check-in.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -189,9 +189,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         message: 'Erreur lors de la modification du rendez-vous.',
         statusCode: statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -217,9 +217,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         message: "Impossible de calculer l'itinéraire.",
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   void _cacheUpcoming(List<Appointment> appointments) {

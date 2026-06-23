@@ -17,9 +17,9 @@ class BillingRepositoryImpl implements BillingRepository {
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des devis.'));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -29,9 +29,9 @@ class BillingRepositoryImpl implements BillingRepository {
       return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Devis introuvable.'));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -42,9 +42,9 @@ class BillingRepositoryImpl implements BillingRepository {
     } on DioException catch (e) {
       return Left(
           _mapDioError(e, 'Erreur lors de l\'initiation de la signature.'));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -55,9 +55,9 @@ class BillingRepositoryImpl implements BillingRepository {
     } on DioException catch (e) {
       return Left(
           _mapDioError(e, 'Erreur lors de la confirmation de la signature.'));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -73,9 +73,9 @@ class BillingRepositoryImpl implements BillingRepository {
       return Right(dto.clientSecret);
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors de l\'initiation du paiement.'));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   Failure _mapDioError(DioException e, String defaultMessage) {

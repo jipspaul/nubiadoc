@@ -29,9 +29,9 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
         message: "Impossible de créer l'ordonnance.",
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -47,8 +47,8 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
         message: "Impossible de signer l'ordonnance.",
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 }

@@ -23,9 +23,9 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
         message: 'Impossible de charger les devis.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -44,9 +44,9 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
         message: 'Impossible de charger le devis.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -62,9 +62,9 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
         message: 'Impossible de créer le devis.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -83,8 +83,8 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
         message: 'Impossible de mettre à jour le devis.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 }

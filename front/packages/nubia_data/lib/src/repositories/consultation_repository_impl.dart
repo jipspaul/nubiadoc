@@ -24,9 +24,9 @@ class ConsultationRepositoryImpl implements ConsultationRepository {
         message: 'Impossible de charger les consultations.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -45,9 +45,9 @@ class ConsultationRepositoryImpl implements ConsultationRepository {
         message: 'Impossible de charger la consultation.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -64,9 +64,9 @@ class ConsultationRepositoryImpl implements ConsultationRepository {
         message: 'Impossible de créer la consultation.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -86,8 +86,8 @@ class ConsultationRepositoryImpl implements ConsultationRepository {
         message: 'Impossible de mettre à jour la consultation.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 }

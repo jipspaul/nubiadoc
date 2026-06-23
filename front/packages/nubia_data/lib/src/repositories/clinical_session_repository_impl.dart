@@ -24,9 +24,9 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         message: 'Impossible de démarrer la séance.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -46,9 +46,9 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         message: 'Impossible de charger la séance.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -78,9 +78,9 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         message: "Impossible d'ajouter l'acte.",
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -99,9 +99,9 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         message: "Impossible de supprimer l'acte.",
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -118,8 +118,8 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         message: 'Impossible de terminer la séance.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 }

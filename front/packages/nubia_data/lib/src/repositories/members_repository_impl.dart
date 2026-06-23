@@ -23,9 +23,9 @@ class MembersRepositoryImpl implements MembersRepository {
         message: 'Impossible de charger les membres.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -44,9 +44,9 @@ class MembersRepositoryImpl implements MembersRepository {
         message: 'Impossible de charger le membre.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -62,9 +62,9 @@ class MembersRepositoryImpl implements MembersRepository {
         message: 'Impossible de créer le membre.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -83,9 +83,9 @@ class MembersRepositoryImpl implements MembersRepository {
         message: 'Impossible de mettre à jour le membre.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -101,9 +101,9 @@ class MembersRepositoryImpl implements MembersRepository {
         message: 'Impossible d\'inviter le membre.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 
   @override
@@ -122,8 +122,8 @@ class MembersRepositoryImpl implements MembersRepository {
         message: 'Impossible de mettre à jour le rôle.',
         statusCode: e.response?.statusCode,
       ));
-    }
     } catch (e) {
       return const Left(ParseFailure());
+    }
   }
 }
