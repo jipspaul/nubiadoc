@@ -8,9 +8,9 @@
 #   - tout est poussé sur le LXC, qui assemble les images (api COPY-only + console
 #     Astro) en amd64 NATIF et (re)démarre la stack podman.
 #
-# Tourne dans l'image `flutter-ci:stable` DÉJÀ présente sur le runner (pas besoin
-# d'une image deploy-ci:stable à charger à la main) et installe la chaîne de
-# cross-compilation Rust au runtime.
+# Tourne dans `flutter-ci:stable` (déjà présente sur le runner) + installe la
+# chaîne de cross-compilation Rust au runtime, MISE EN CACHE entre les runs
+# (cargo-zigbuild, rustup, zig, deps + target) -> 1er run lent, suivants rapides.
 # Secrets Forgejo requis : DEPLOY_HOST, DEPLOY_USER, DEPLOY_PASSWORD.
 # Variable optionnelle : NUBIA_API_BASE (défaut http://<DEPLOY_HOST>:3000).
 on:
@@ -34,27 +34,43 @@ jobs:
       image: flutter-ci:stable
     steps:
       - uses: actions/checkout@v4
-      - name: Installer la chaîne de cross-compilation (rust + zig + sshpass)
+
+      - name: Cache toolchain Rust + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+            ~/.rustup
+            /opt/zig
+            api/target
+          key: deploy-rust-${{ hashFiles('api/Cargo.lock') }}
+          restore-keys: |
+            deploy-rust-
+
+      - name: Toolchain (sautée si en cache)
         run: |
           set -e
+          export PATH="$HOME/.cargo/bin:$PATH"
           export DEBIAN_FRONTEND=noninteractive
-          apt-get update
+          # Paquets système (non cachables : fs du conteneur recréé à chaque run)
+          apt-get update -qq
           apt-get install -y --no-install-recommends curl xz-utils ca-certificates git sshpass openssh-client tar
-          # Rust + cible musl amd64
-          if ! command -v cargo >/dev/null 2>&1; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-          fi
+          # Rust + cible musl (cachés via ~/.cargo + ~/.rustup)
+          command -v cargo >/dev/null 2>&1 || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           . "$HOME/.cargo/env"
-          rustup target add x86_64-unknown-linux-musl
-          # Zig (linker cross universel) + cargo-zigbuild
-          ARCH="$(uname -m)"
-          if ! command -v zig >/dev/null 2>&1; then
-            curl -sSL "https://ziglang.org/download/0.13.0/zig-linux-${ARCH}-0.13.0.tar.xz" -o /tmp/zig.tar.xz
+          rustup target list --installed 2>/dev/null | grep -qx x86_64-unknown-linux-musl || rustup target add x86_64-unknown-linux-musl
+          # Zig (caché via /opt/zig) ; le symlink est recréé à chaque run (hors cache)
+          if [ ! -x /opt/zig/zig ]; then
+            curl -sSL "https://ziglang.org/download/0.13.0/zig-linux-$(uname -m)-0.13.0.tar.xz" -o /tmp/zig.tar.xz
             mkdir -p /opt/zig && tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1
-            ln -sf /opt/zig/zig /usr/local/bin/zig
           fi
+          ln -sf /opt/zig/zig /usr/local/bin/zig
+          # cargo-zigbuild (caché via ~/.cargo/bin) — c'est le plus long à compiler
           command -v cargo-zigbuild >/dev/null 2>&1 || cargo install cargo-zigbuild
           zig version && cargo zigbuild --help >/dev/null && sshpass -V
+
       - name: Build + déploiement vers le LXC
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
