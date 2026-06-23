@@ -9,11 +9,12 @@ class CabinetAppointmentsApi {
   CabinetAppointmentsApi(ApiClient client) : _dio = client.dio;
 
   Future<List<CabinetAppointmentDto>> list({int page = 1}) async {
-    final response = await _dio.get<List<dynamic>>(
+    final response = await _dio.get<Map<String, dynamic>>(
       '/cabinet/appointments',
       queryParameters: {'page': page},
     );
-    return (response.data!)
+    final data = response.data!['data'] as List<dynamic>;
+    return data
         .map((e) => CabinetAppointmentDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
