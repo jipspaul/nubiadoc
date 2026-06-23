@@ -27,19 +27,37 @@ class AppointmentDto {
     this.cabinetPhone,
   });
 
-  factory AppointmentDto.fromJson(Map<String, dynamic> json) => AppointmentDto(
-        id: json['id'] as String,
-        cabinetId: json['cabinet_id'] as String,
-        practitionerName: json['practitioner_name'] as String,
-        practitionerSpecialty: json['practitioner_specialty'] as String,
-        startsAt: json['starts_at'] as String,
-        durationMinutes: (json['duration_minutes'] as num).toInt(),
-        motif: json['motif'] as String,
-        status: json['status'] as String,
-        type: json['type'] as String? ?? 'in_person',
-        cabinetAddress: json['cabinet_address'] as String?,
-        cabinetPhone: json['cabinet_phone'] as String?,
-      );
+  factory AppointmentDto.fromJson(Map<String, dynamic> json) {
+    final startsAt = json['starts_at'] as String;
+    final endsAt = json['ends_at'] as String?;
+    final int durationMinutes;
+    if (json['duration_minutes'] != null) {
+      durationMinutes = (json['duration_minutes'] as num).toInt();
+    } else if (endsAt != null) {
+      durationMinutes = DateTime.parse(endsAt)
+          .difference(DateTime.parse(startsAt))
+          .inMinutes;
+    } else {
+      durationMinutes = 0;
+    }
+    final provider = json['provider'] as Map<String, dynamic>?;
+    final practitionerName = (provider?['display_name'] as String?) ??
+        (json['practitioner_name'] as String?) ??
+        '';
+    return AppointmentDto(
+      id: json['id'] as String,
+      cabinetId: json['cabinet_id'] as String? ?? '',
+      practitionerName: practitionerName,
+      practitionerSpecialty: json['practitioner_specialty'] as String? ?? '',
+      startsAt: startsAt,
+      durationMinutes: durationMinutes,
+      motif: json['motif'] as String? ?? '',
+      status: json['status'] as String,
+      type: json['type'] as String? ?? 'in_person',
+      cabinetAddress: json['cabinet_address'] as String?,
+      cabinetPhone: json['cabinet_phone'] as String?,
+    );
+  }
 
   Appointment toDomain() => Appointment(
         id: id,
