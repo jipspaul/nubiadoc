@@ -70,7 +70,6 @@ class _ProShellState extends State<ProShell> {
       child: NubiaEmptyState(
         icon: Icons.construction_outlined,
         title: destination.label,
-        subtitle: '${widget.config.spaceLabel} — Écran à implémenter.',
       ),
     );
   }
