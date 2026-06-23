@@ -167,45 +167,57 @@ void main() {
   });
 
   group('MemberDto (GET /v1/cabinet/members)', () {
-    test('fromJson désérialise un praticien actif', () {
+    test('fromJson désérialise la réponse réelle de l\'API (user_id, active)', () {
       final json = {
-        'id': 'mem-1',
-        'cabinet_id': 'cab-1',
+        'user_id': 'mem-1',
         'first_name': 'Luc',
         'last_name': 'Bernard',
         'email': 'luc@cabinet.fr',
         'role': 'practitioner',
-        'specialty': 'Dentiste',
-        'is_active': true,
+        'active': true,
         'joined_at': '2023-09-01T00:00:00Z',
       };
       final dto = MemberDto.fromJson(json);
       expect(dto.id, 'mem-1');
       expect(dto.role, 'practitioner');
+      expect(dto.isActive, isTrue);
       final domain = dto.toDomain();
       expect(domain.role, MemberRole.practitioner);
       expect(domain.fullName, 'Luc Bernard');
-      expect(domain.specialty, 'Dentiste');
+    });
+
+    test('fromJson tolère first_name/last_name null', () {
+      final json = {
+        'user_id': 'mem-2',
+        'first_name': null,
+        'last_name': null,
+        'email': 'invite@cabinet.fr',
+        'role': 'secretary',
+        'active': false,
+        'joined_at': '2024-01-01T00:00:00Z',
+      };
+      final dto = MemberDto.fromJson(json);
+      expect(dto.firstName, '');
+      expect(dto.lastName, '');
+      expect(dto.isActive, isFalse);
     });
   });
 
   group('SecretariatDto (GET /v1/cabinet/secretariats)', () {
-    test('fromJson désérialise un secrétariat actif', () {
+    test('fromJson désérialise la réponse réelle de l\'API (id, name, created_at)', () {
       final json = {
         'id': 'sec-1',
-        'cabinet_id': 'cab-1',
         'name': 'Secrétariat A',
-        'email': 'sec-a@cabinet.fr',
-        'phone': '+33400000001',
-        'is_active': true,
         'created_at': '2023-01-01T00:00:00Z',
       };
       final dto = SecretariatDto.fromJson(json);
       expect(dto.id, 'sec-1');
       expect(dto.name, 'Secrétariat A');
+      expect(dto.cabinetId, '');
+      expect(dto.email, '');
       final domain = dto.toDomain();
       expect(domain.isActive, isTrue);
-      expect(domain.phone, '+33400000001');
+      expect(domain.phone, isNull);
     });
   });
 
