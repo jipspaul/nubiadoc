@@ -49,11 +49,15 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     BiometricToggleRequested event,
     Emitter<ProfileState> emit,
   ) async {
-    await _userSettings.setBiometricEnabled(event.enabled);
-    if (state is ProfileLoaded) {
-      final current = state as ProfileLoaded;
-      emit(ProfileLoaded(current.account,
-          biometricEnabled: event.enabled, notifPrefs: current.notifPrefs));
+    try {
+      await _userSettings.setBiometricEnabled(event.enabled);
+      if (state is ProfileLoaded) {
+        final current = state as ProfileLoaded;
+        emit(ProfileLoaded(current.account,
+            biometricEnabled: event.enabled, notifPrefs: current.notifPrefs));
+      }
+    } catch (_) {
+      // Keep current state — no Loading was emitted
     }
   }
 
@@ -66,9 +70,13 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     final updated =
         (current.notifPrefs ?? const NotificationPreferences.allEnabled())
             .copyWith(emailEnabled: event.enabled);
-    await _notificationRepo.updatePreferences(updated);
-    emit(ProfileLoaded(current.account,
-        biometricEnabled: current.biometricEnabled, notifPrefs: updated));
+    try {
+      await _notificationRepo.updatePreferences(updated);
+      emit(ProfileLoaded(current.account,
+          biometricEnabled: current.biometricEnabled, notifPrefs: updated));
+    } catch (_) {
+      // Keep current state — no Loading was emitted
+    }
   }
 
   Future<void> _onTogglePushRdv(
@@ -80,8 +88,12 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     final updated =
         (current.notifPrefs ?? const NotificationPreferences.allEnabled())
             .copyWith(pushEnabled: event.enabled);
-    await _notificationRepo.updatePreferences(updated);
-    emit(ProfileLoaded(current.account,
-        biometricEnabled: current.biometricEnabled, notifPrefs: updated));
+    try {
+      await _notificationRepo.updatePreferences(updated);
+      emit(ProfileLoaded(current.account,
+          biometricEnabled: current.biometricEnabled, notifPrefs: updated));
+    } catch (_) {
+      // Keep current state — no Loading was emitted
+    }
   }
 }
