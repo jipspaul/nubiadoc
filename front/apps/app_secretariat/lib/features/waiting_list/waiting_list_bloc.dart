@@ -23,24 +23,32 @@ class WaitingListBloc extends Bloc<WaitingListEvent, WaitingListState> {
     Emitter<WaitingListState> emit,
   ) async {
     emit(const WaitingListLoading());
-    final result = await _list();
-    result.fold(
-      (failure) => emit(WaitingListError(failure.message)),
-      (entries) => emit(WaitingListLoaded(entries)),
-    );
+    try {
+      final result = await _list();
+      result.fold(
+        (failure) => emit(WaitingListError(failure.message)),
+        (entries) => emit(WaitingListLoaded(entries)),
+      );
+    } catch (_) {
+      emit(const WaitingListError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onOfferSlot(
     WaitingListOfferSlotRequested event,
     Emitter<WaitingListState> emit,
   ) async {
-    final result = await _offerSlot(event.id);
-    await result.fold(
-      (failure) async => emit(WaitingListError(failure.message)),
-      (_) async {
-        emit(const WaitingListOfferSuccess());
-        await _onLoad(const WaitingListLoadRequested(), emit);
-      },
-    );
+    try {
+      final result = await _offerSlot(event.id);
+      await result.fold(
+        (failure) async => emit(WaitingListError(failure.message)),
+        (_) async {
+          emit(const WaitingListOfferSuccess());
+          await _onLoad(const WaitingListLoadRequested(), emit);
+        },
+      );
+    } catch (_) {
+      emit(const WaitingListError('Erreur inattendue.'));
+    }
   }
 }

@@ -20,11 +20,15 @@ class AdminSecretiariatsBloc
     Emitter<AdminSecretiariatsState> emit,
   ) async {
     emit(const AdminSecretiariatsLoading());
-    final result = await _listSecretariats();
-    result.fold(
-      (failure) => emit(AdminSecretiariatsError(failure.message)),
-      (secretariats) =>
-          emit(AdminSecretiariatsLoaded(secretariats: secretariats)),
-    );
+    try {
+      final result = await _listSecretariats();
+      result.fold(
+        (failure) => emit(AdminSecretiariatsError(failure.message)),
+        (secretariats) =>
+            emit(AdminSecretiariatsLoaded(secretariats: secretariats)),
+      );
+    } catch (_) {
+      emit(const AdminSecretiariatsError('Erreur de chargement.'));
+    }
   }
 }

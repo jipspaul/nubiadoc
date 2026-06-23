@@ -34,11 +34,15 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState> {
     Emitter<FinancialState> emit,
   ) async {
     emit(const FinancialLoading());
-    final result = await _getPendingQuotes();
-    result.fold(
-      (f) => emit(FinancialError(message: f.message)),
-      (quotes) => emit(FinancialLoaded(quotes)),
-    );
+    try {
+      final result = await _getPendingQuotes();
+      result.fold(
+        (f) => emit(FinancialError(message: f.message)),
+        (quotes) => emit(FinancialLoaded(quotes)),
+      );
+    } catch (_) {
+      emit(const FinancialError(message: 'Erreur de chargement.'));
+    }
   }
 
   Future<void> _onQuoteSelected(
@@ -47,11 +51,15 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState> {
   ) async {
     final prevQuotes = _extractQuotes(state);
     emit(const FinancialLoading());
-    final result = await _getQuoteById(event.quoteId);
-    result.fold(
-      (f) => emit(FinancialError(message: f.message, quotes: prevQuotes)),
-      (quote) => emit(FinancialQuoteDetail(quote: quote, quotes: prevQuotes)),
-    );
+    try {
+      final result = await _getQuoteById(event.quoteId);
+      result.fold(
+        (f) => emit(FinancialError(message: f.message, quotes: prevQuotes)),
+        (quote) => emit(FinancialQuoteDetail(quote: quote, quotes: prevQuotes)),
+      );
+    } catch (_) {
+      emit(FinancialError(message: 'Erreur de chargement.', quotes: prevQuotes));
+    }
   }
 
   void _onBackToList(
@@ -68,15 +76,20 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState> {
   ) async {
     final current = state;
     if (current is! FinancialQuoteDetail) return;
-    final result = await _initiateSignature(current.quote.id);
-    result.fold(
-      (f) => emit(FinancialError(message: f.message, quotes: current.quotes)),
-      (url) => emit(FinancialSignatureInProgress(
-        quote: current.quote,
-        quotes: current.quotes,
-        signatureUrl: url,
-      )),
-    );
+    try {
+      final result = await _initiateSignature(current.quote.id);
+      result.fold(
+        (f) => emit(FinancialError(message: f.message, quotes: current.quotes)),
+        (url) => emit(FinancialSignatureInProgress(
+          quote: current.quote,
+          quotes: current.quotes,
+          signatureUrl: url,
+        )),
+      );
+    } catch (_) {
+      emit(FinancialError(
+          message: 'Erreur lors de la signature.', quotes: current.quotes));
+    }
   }
 
   Future<void> _onSignatureCompleted(
@@ -85,12 +98,17 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState> {
   ) async {
     final current = state;
     if (current is! FinancialSignatureInProgress) return;
-    final result = await _getQuoteById(current.quote.id);
-    result.fold(
-      (f) => emit(FinancialError(message: f.message, quotes: current.quotes)),
-      (quote) =>
-          emit(FinancialQuoteDetail(quote: quote, quotes: current.quotes)),
-    );
+    try {
+      final result = await _getQuoteById(current.quote.id);
+      result.fold(
+        (f) => emit(FinancialError(message: f.message, quotes: current.quotes)),
+        (quote) =>
+            emit(FinancialQuoteDetail(quote: quote, quotes: current.quotes)),
+      );
+    } catch (_) {
+      emit(FinancialError(
+          message: 'Erreur de rechargement.', quotes: current.quotes));
+    }
   }
 
   Future<void> _onPaymentRequested(
@@ -103,17 +121,22 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState> {
       quote: current.quote,
       quotes: current.quotes,
     ));
-    final result = await _initiateDeposit(
-      quoteId: current.quote.id,
-      idempotencyKey: event.idempotencyKey,
-    );
-    result.fold(
-      (f) => emit(FinancialError(message: f.message, quotes: current.quotes)),
-      (_) => emit(FinancialPaymentSuccess(
-        quote: current.quote,
-        quotes: current.quotes,
-      )),
-    );
+    try {
+      final result = await _initiateDeposit(
+        quoteId: current.quote.id,
+        idempotencyKey: event.idempotencyKey,
+      );
+      result.fold(
+        (f) => emit(FinancialError(message: f.message, quotes: current.quotes)),
+        (_) => emit(FinancialPaymentSuccess(
+          quote: current.quote,
+          quotes: current.quotes,
+        )),
+      );
+    } catch (_) {
+      emit(FinancialError(
+          message: 'Erreur lors du paiement.', quotes: current.quotes));
+    }
   }
 
   List<Quote> _extractQuotes(FinancialState s) => switch (s) {

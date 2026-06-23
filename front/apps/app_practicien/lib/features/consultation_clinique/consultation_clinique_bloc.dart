@@ -29,11 +29,15 @@ class ConsultationCliniqueBloc
     Emitter<ConsultationCliniqueState> emit,
   ) async {
     emit(const ConsultationCliniqueLoading());
-    final result = await _getSession(event.consultationId);
-    result.fold(
-      (failure) => emit(ConsultationCliniqueError(failure.message)),
-      (session) => emit(ConsultationCliniqueLoaded(session: session)),
-    );
+    try {
+      final result = await _getSession(event.consultationId);
+      result.fold(
+        (failure) => emit(ConsultationCliniqueError(failure.message)),
+        (session) => emit(ConsultationCliniqueLoaded(session: session)),
+      );
+    } catch (_) {
+      emit(const ConsultationCliniqueError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onActAdd(
@@ -43,24 +47,28 @@ class ConsultationCliniqueBloc
     final current = state;
     if (current is! ConsultationCliniqueLoaded) return;
     emit(current.copyWith(actionInProgress: true));
-    final result = await _addAct(
-      consultationId: current.session.id,
-      ccamCode: event.ccamCode,
-      label: event.label,
-      tooth: event.tooth,
-      amountCents: event.amountCents,
-      included: event.included,
-    );
-    await result.fold(
-      (failure) async => emit(current.copyWith(actionInProgress: false)),
-      (_) async {
-        final reload = await _getSession(current.session.id);
-        reload.fold(
-          (_) => emit(current.copyWith(actionInProgress: false)),
-          (s) => emit(ConsultationCliniqueLoaded(session: s)),
-        );
-      },
-    );
+    try {
+      final result = await _addAct(
+        consultationId: current.session.id,
+        ccamCode: event.ccamCode,
+        label: event.label,
+        tooth: event.tooth,
+        amountCents: event.amountCents,
+        included: event.included,
+      );
+      await result.fold(
+        (failure) async => emit(current.copyWith(actionInProgress: false)),
+        (_) async {
+          final reload = await _getSession(current.session.id);
+          reload.fold(
+            (_) => emit(current.copyWith(actionInProgress: false)),
+            (s) => emit(ConsultationCliniqueLoaded(session: s)),
+          );
+        },
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false));
+    }
   }
 
   Future<void> _onComplete(
@@ -70,11 +78,15 @@ class ConsultationCliniqueBloc
     final current = state;
     if (current is! ConsultationCliniqueLoaded) return;
     emit(current.copyWith(actionInProgress: true));
-    final result = await _completeSession(current.session.id);
-    result.fold(
-      (failure) => emit(ConsultationCliniqueError(failure.message)),
-      (completed) => emit(ConsultationCliniqueCompleted(completed)),
-    );
+    try {
+      final result = await _completeSession(current.session.id);
+      result.fold(
+        (failure) => emit(ConsultationCliniqueError(failure.message)),
+        (completed) => emit(ConsultationCliniqueCompleted(completed)),
+      );
+    } catch (_) {
+      emit(ConsultationCliniqueError('Erreur lors de la clôture.'));
+    }
   }
 
   Future<void> _onHistoriqueLoad(
