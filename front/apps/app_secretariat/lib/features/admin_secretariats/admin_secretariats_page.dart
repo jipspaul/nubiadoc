@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'admin_secretariats_bloc.dart';
@@ -43,11 +44,11 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
             return _SecretariatsList(secretariats: state.secretariats);
           }
           if (state is AdminSecretiariatsError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<AdminSecretiariatsBloc>()
+                  .add(const AdminSecretiariatsLoadRequested()),
             );
           }
           return const Center(child: CircularProgressIndicator());

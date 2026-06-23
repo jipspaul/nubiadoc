@@ -69,11 +69,11 @@ class _WaitingListPageState extends State<WaitingListPage> {
             );
           }
           if (state is WaitingListError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<WaitingListBloc>()
+                  .add(const WaitingListLoadRequested()),
             );
           }
           return const Center(child: CircularProgressIndicator());
