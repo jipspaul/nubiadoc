@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-24 14:47
+Last run: 2026-06-24 14:49
 
 ## patient
 
@@ -19,57 +19,25 @@ Last run: 2026-06-24 14:47
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /agenda | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /waiting-room | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /patients | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /messages | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /consultation | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /ordonnances | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /a2ui-demo | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
+| / | 2026-06-24 | 2026-06-24 | OK | — |
+| /agenda | 2026-06-24 | 2026-06-24 | OK | — |
+| /waiting-room | 2026-06-24 | 2026-06-24 | OK | — |
+| /patients | 2026-06-24 | 2026-06-24 | OK | — |
+| /messages | 2026-06-24 | 2026-06-24 | OK | — |
+| /consultation | 2026-06-24 | 2026-06-24 | OK | — |
+| /ordonnances | 2026-06-24 | 2026-06-24 | OK | — |
+| /a2ui-demo | 2026-06-24 | 2026-06-24 | OK | — |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /agenda | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /salle-attente | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /bookable-slots | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /patients | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /appointments | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /liste-attente | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
-| /devis | 2026-06-24 | 2026-06-24 | login_failed | locator.waitFor: Timeout 8000ms exceeded.
-Call log:
-  - waiting for locator('input[aria-label="E-mail"], input[type="ema |
+| / | 2026-06-24 | 2026-06-24 | OK | — |
+| /agenda | 2026-06-24 | 2026-06-24 | OK | — |
+| /salle-attente | 2026-06-24 | 2026-06-24 | OK | — |
+| /bookable-slots | 2026-06-24 | 2026-06-24 | OK | — |
+| /patients | 2026-06-24 | 2026-06-24 | OK | — |
+| /appointments | 2026-06-24 | 2026-06-24 | OK | — |
+| /liste-attente | 2026-06-24 | 2026-06-24 | OK | — |
+| /devis | 2026-06-24 | 2026-06-24 | OK | — |
 
