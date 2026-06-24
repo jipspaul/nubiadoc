@@ -55,7 +55,7 @@ class _OrdonnancesBody extends StatelessWidget {
           );
         }
         if (state is OrdonnancesError) {
-          return _ErrorView(
+          return NubiaErrorWidget(
             key: const Key('ordonnances_error'),
             message: state.message,
           );
@@ -230,27 +230,6 @@ class _SignedView extends StatelessWidget {
             '${prescription.items.length} médicament(s)',
             style: Theme.of(context).textTheme.bodySmall,
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({super.key, required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
         ],
       ),
     );

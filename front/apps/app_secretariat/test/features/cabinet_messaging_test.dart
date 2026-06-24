@@ -243,7 +243,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('cabinet_messaging_empty')), findsOneWidget);
-      expect(find.text('Aucun message'), findsOneWidget);
+      // libellé aligné avec cabinet_messaging_page.dart (issue #2594 — la
+      // page liste des conversations, pas des messages)
+      expect(find.text('Aucune conversation'), findsOneWidget);
     });
 
     testWidgets('filtre les conversations par nom de patient', (tester) async {

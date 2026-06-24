@@ -151,16 +151,10 @@ class AgendaBody extends StatelessWidget {
             return NubiaErrorWidget(
               key: const Key('agenda_error'),
               message: state.message,
-              onRetry: () {
-                final now = DateTime.now();
-                context.read<AgendaBloc>().add(AgendaLoadRequested(
-                      weekStart: DateTime(
-                        now.year,
-                        now.month,
-                        now.day - (now.weekday - 1),
-                      ),
-                    ));
-              },
+              onRetry: () => context.read<AgendaBloc>().add(
+                    AgendaLoadRequested(
+                        weekStart: AgendaPage._startOfCurrentWeek()),
+                  ),
             );
           }
           if (state is AgendaLoaded) {

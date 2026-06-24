@@ -37,7 +37,7 @@ class CabinetMessagingPage extends StatelessWidget {
             return const NubiaEmptyState(
               key: Key('cabinet_messaging_empty'),
               icon: Icons.chat_bubble_outline,
-              title: 'Aucun message',
+              title: 'Aucune conversation',
             );
           }
           return _ConversationsList(conversations: state.conversations);

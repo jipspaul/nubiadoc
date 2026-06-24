@@ -39,7 +39,7 @@ class _CabinetMessagingBody extends StatelessWidget {
           );
         }
         if (state is CabinetMessagingConversationsError) {
-          return _ErrorView(
+          return NubiaErrorWidget(
             key: const Key('cabinet_messaging_error'),
             message: state.message,
             onRetry: () => context.read<CabinetMessagingBloc>().add(
@@ -68,7 +68,7 @@ class _CabinetMessagingBody extends StatelessWidget {
           return _ThreadView(state: state);
         }
         if (state is CabinetMessagingThreadError) {
-          return _ErrorView(
+          return NubiaErrorWidget(
             key: const Key('cabinet_messaging_thread_error'),
             message: state.message,
             onRetry: () => context
@@ -275,31 +275,3 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({
-    super.key,
-    required this.message,
-    required this.onRetry,
-  });
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          TextButton(onPressed: onRetry, child: const Text('Réessayer')),
-        ],
-      ),
-    );
-  }
-}

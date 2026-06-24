@@ -28,9 +28,8 @@ class FinancialPage extends StatelessWidget {
           return NubiaErrorWidget(
             key: const Key('financial_error'),
             message: state.message,
-            onRetry: () => context
-                .read<FinancialBloc>()
-                .add(const FinancialLoadRequested()),
+            onRetry: () =>
+                context.read<FinancialBloc>().add(const FinancialLoadRequested()),
           );
         }
         if (state is FinancialLoaded) {
@@ -386,4 +385,3 @@ class _PaymentSuccessView extends StatelessWidget {
     );
   }
 }
-
