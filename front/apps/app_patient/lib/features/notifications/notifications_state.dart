@@ -31,6 +31,10 @@ final class NotificationsLoaded extends NotificationsState {
   List<Object?> get props => [notifications];
 }
 
+final class NotificationsEmpty extends NotificationsState {
+  const NotificationsEmpty();
+}
+
 final class NotificationsError extends NotificationsState {
   final String message;
 
