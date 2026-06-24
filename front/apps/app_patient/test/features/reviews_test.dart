@@ -286,7 +286,7 @@ void main() {
 
   group('NotificationsBloc', () {
     blocTest<NotificationsBloc, NotificationsState>(
-      'émet [Loading, Loaded(vide)] quand la liste est vide',
+      'émet [Loading, Empty] quand la liste est vide',
       build: () {
         when(() => mockNotifRepo.getNotifications())
             .thenAnswer((_) async => const Right([]));
@@ -295,8 +295,7 @@ void main() {
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
       expect: () => [
         const NotificationsLoading(),
-        isA<NotificationsLoaded>()
-            .having((s) => s.notifications, 'notifications', isEmpty),
+        const NotificationsEmpty(),
       ],
     );
 
