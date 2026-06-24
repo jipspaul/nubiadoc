@@ -25,6 +25,8 @@ import '../features/oubliettes/oubliettes_page.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/profile/profile_page.dart';
+import '../features/messaging/messaging_bloc.dart';
+import '../features/messaging/messaging_event.dart';
 import '../features/messaging/messaging_page.dart';
 import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
@@ -127,8 +129,13 @@ class AppRouter {
         ),
         GoRoute(
           path: messaging,
-          builder: (_, __) => const Scaffold(
-            body: MessagingPage(),
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<MessagingBloc>()
+              ..add(const MessagingConversationsLoadRequested()),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Messages')),
+              body: const MessagingPage(),
+            ),
           ),
         ),
         GoRoute(
