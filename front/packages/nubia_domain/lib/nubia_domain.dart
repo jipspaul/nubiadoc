@@ -141,3 +141,7 @@ export 'src/usecases/cabinet_messaging/send_message_cabinet_use_case.dart';
 // cabinet dashboard pro
 export 'src/repositories/cabinet_dashboard_repository.dart';
 export 'src/usecases/cabinet_dashboard/get_pro_dashboard_summary_use_case.dart';
+// today notes pro
+export 'src/entities/clinical_note_summary.dart';
+export 'src/repositories/today_notes_repository.dart';
+export 'src/usecases/today_notes/get_today_notes_use_case.dart';
