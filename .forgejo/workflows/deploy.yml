@@ -59,7 +59,10 @@ jobs:
           apt-get install -y --no-install-recommends curl xz-utils ca-certificates git sshpass openssh-client tar
           # Rust + cible musl (cachés via ~/.cargo + ~/.rustup)
           command -v cargo >/dev/null 2>&1 || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-          . "$HOME/.cargo/env"
+          # `~/.cargo/env` n'est PAS dans le cache (juste ~/.cargo/bin), donc
+          # quand le cache restore cargo le file env est absent → sourcing
+          # crash en `set -e`. Source uniquement si présent (PATH déjà set).
+          [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true
           rustup target list --installed 2>/dev/null | grep -qx x86_64-unknown-linux-musl || rustup target add x86_64-unknown-linux-musl
           # Zig (caché via /opt/zig) ; le symlink est recréé à chaque run (hors cache)
           if [ ! -x /opt/zig/zig ]; then
@@ -78,5 +81,6 @@ jobs:
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
           API_BASE: ${{ vars.NUBIA_API_BASE }}
         run: |
-          . "$HOME/.cargo/env"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true
           bash infra/deploy/build-and-deploy.sh
