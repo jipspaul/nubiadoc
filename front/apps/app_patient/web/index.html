@@ -56,6 +56,29 @@
     <p>Chargement en cours…</p>
   </div>
   <script>
+    // Guard: certains navigateurs fournissent une locale BCP47 invalide qui
+    // provoque un RangeError dans le runtime Dart avant tout rendu.
+    // On valide via Intl.getCanonicalLocales() et on replie sur 'fr' si nécessaire.
+    (function () {
+      try {
+        if (!navigator.language || !Intl.getCanonicalLocales(navigator.language).length) {
+          throw new RangeError('locale vide');
+        }
+      } catch (_) {
+        try {
+          Object.defineProperty(Navigator.prototype, 'language', {
+            get: function () { return 'fr'; },
+            configurable: true,
+          });
+          Object.defineProperty(Navigator.prototype, 'languages', {
+            get: function () { return ['fr', 'fr-FR']; },
+            configurable: true,
+          });
+        } catch (_) { /* lecture seule dans certains environnements */ }
+      }
+    })();
+  </script>
+  <script>
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('nubia-loading');
       if (el) el.remove();

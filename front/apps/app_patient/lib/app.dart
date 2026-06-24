@@ -60,12 +60,14 @@ class _NubiaPatientAppState extends State<NubiaPatientApp> {
         themeMode: ThemeMode.system,
         routerConfig: _router,
         debugShowCheckedModeBanner: false,
+        locale: const Locale('fr'),
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: const [Locale('fr')],
+        localeResolutionCallback: (_, supportedLocales) => supportedLocales.first,
       ),
     );
   }
