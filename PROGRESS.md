@@ -1,5 +1,7 @@
 # État du projet — Nubia
 
+2026-06-24 — **[flutter-front] QA-AUTO — Canvas blanc praticien : force HTML renderer (issue #2611).** `front/apps/app_practicien/web/index.html` : ajout de `window.flutterConfiguration = { renderer: "html" }` avant `flutter_bootstrap.js`. CanvasKit (WebGL) rend un canvas blanc en Chromium headless sans GPU ; le renderer HTML (DOM-based) n'exige pas WebGL et produit un rendu visible. `flutter analyze` → 0 issue.
+
 2026-06-24 — **[flutter-front] QA-AUTO — Page vide praticien : ajout splash de chargement HTML (issue #2606).** `front/apps/app_practicien/web/index.html` : ajout d'un `<div id="nubia-loading">` visible immédiatement (texte « Nubia · Praticien / Chargement en cours… ») avec style CSS inline ; un écouteur `flutter-first-frame` le supprime dès que Flutter a rendu son premier frame. Corrige le finding QA `praticien-content-b64374` : la page affiche désormais du contenu texte avant même l'initialisation du moteur Flutter, dans la fenêtre de 5 s. Titre de l'onglet mis à jour de `app_practicien` → `Nubia · Praticien`. `flutter analyze` → 0 issue.
 
 2026-06-24 — **[flutter-web] QA-AUTO — Page vide secrétariat : indicateur de chargement HTML (issue #2607).** `app_secretariat/web/index.html` : ajout d'un `<div id="flutter-loading">` visible dès que la page est chargée, avant que `flt-glass-pane` n'apparaisse — corrige le finding QA « Body text: "" » en garantissant du contenu HTML visible dans les 5 secondes. `<title>` et `<meta>` mis à jour (`Nubia · Secrétariat`). `flutter analyze` → 0 issue.
