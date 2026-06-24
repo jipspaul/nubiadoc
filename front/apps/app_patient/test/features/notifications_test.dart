@@ -66,10 +66,10 @@ void main() {
   });
 
   group('NotificationsPage — empty state', () {
-    testWidgets('affiche NubiaEmptyState quand Loaded([]) est émis',
+    testWidgets('affiche NubiaEmptyState quand NotificationsEmpty est émis',
         (tester) async {
       final bloc = MockNotificationsBloc();
-      when(() => bloc.state).thenReturn(const NotificationsLoaded([]));
+      when(() => bloc.state).thenReturn(const NotificationsEmpty());
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();

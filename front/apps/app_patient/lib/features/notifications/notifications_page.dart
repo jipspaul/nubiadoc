@@ -49,14 +49,6 @@ class _NotificationsContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.notifications.isEmpty) {
-      return const NubiaEmptyState(
-        key: Key('notifications_empty'),
-        icon: Icons.notifications_off,
-        title: 'Aucune notification',
-        subtitle: 'Vous êtes à jour',
-      );
-    }
     return Column(
       children: [
         if (state.unreadCount > 0)
