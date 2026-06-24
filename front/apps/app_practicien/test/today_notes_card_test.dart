@@ -1,11 +1,15 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
+import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
 
-Widget _wrap(Widget child) => MaterialApp(
-      home: Scaffold(body: SingleChildScrollView(child: child)),
-    );
+class MockTodayNotesBloc
+    extends MockBloc<TodayNotesEvent, TodayNotesState>
+    implements TodayNotesBloc {}
 
 final _entries = [
   TodayNoteEntry(
@@ -28,10 +32,25 @@ final _entries = [
   ),
 ];
 
+Widget _wrap(TodayNotesState state) {
+  final bloc = MockTodayNotesBloc();
+  when(() => bloc.state).thenReturn(state);
+  return MaterialApp(
+    home: Scaffold(
+      body: SingleChildScrollView(
+        child: BlocProvider<TodayNotesBloc>.value(
+          value: bloc,
+          child: const TodayNotesCard(),
+        ),
+      ),
+    ),
+  );
+}
+
 void main() {
   group('TodayNotesCard', () {
     testWidgets('loaded : affiche 3 items correctement', (tester) async {
-      await tester.pumpWidget(_wrap(TodayNotesCard(entries: _entries)));
+      await tester.pumpWidget(_wrap(TodayNotesLoaded(_entries)));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('today_notes_card')), findsOneWidget);
@@ -47,9 +66,7 @@ void main() {
 
     testWidgets('empty state : affiche « Aucune consultation aujourd\'hui »',
         (tester) async {
-      await tester.pumpWidget(
-        _wrap(const TodayNotesCard(entries: [])),
-      );
+      await tester.pumpWidget(_wrap(const TodayNotesLoaded([])));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('today_notes_card')), findsOneWidget);
