@@ -9,8 +9,10 @@ import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/home/home_bloc.dart';
+import '../features/notifications/notifications_bloc.dart';
 import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/profile/profile_bloc.dart';
+import '../features/reviews/reviews_bloc.dart';
 import 'auth_cubit.dart';
 
 /// Registers patient-app blocs/cubits on top of registerCore + registerData.
@@ -82,6 +84,17 @@ void registerPatient(GetIt gi) {
       getDocuments: gi<GetDocumentsUseCase>(),
       getSignedUrl: gi<GetDocumentSignedUrlUseCase>(),
       upload: gi<UploadDocumentUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<NotificationsBloc>(
+    () => NotificationsBloc(repository: gi()),
+  );
+
+  gi.registerFactory<ReviewsBloc>(
+    () => ReviewsBloc(
+      getProviderReviews: gi(),
+      submitReview: gi(),
     ),
   );
 
