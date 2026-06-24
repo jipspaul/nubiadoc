@@ -7,14 +7,23 @@
 # Tous les conteneurs sont en réseau host -> joignables sur l'IP du LXC.
 #
 # Postmortem 2026-06-24 : tous les containers DOWN simultanément (502 sur les 4
-# upstreams Caddy) → soit OOM cascade (un container explose la RAM, OOM-killer
-# tape tous les autres), soit podman service crash. Mitigation appliquée ici :
-#   - `--memory` + `--memory-swap` hard limits par container → OOM-killer cible
-#     UN coupable au lieu d'un kill cascade
-#   - `--health-cmd` par container → `podman ps` montre healthy/unhealthy, plus
-#     facile à diagnostiquer + couplable à un alerting externe
-#   - check final : si un container n'est pas Up après 30s, exit 1 (le job CI
-#     Forgejo échouera → tu vois tout de suite que le deploy est cassé en prod)
+# upstreams Caddy) → soit OOM cascade, soit podman service crash.
+# Tentative de mitigation via `--memory=Xg` → BLOQUÉE : crun OCI refuse de
+# créer le container (`open memory.max: No such file or directory`). Le LXC
+# parent ne delegate pas le cgroup v2 `memory` controller à l'unprivileged
+# user namespace. Pour réintroduire les hard limits, faudrait reconfigurer la
+# LXC parent (`lxc.mount.auto = cgroup:rw:force` + delegate au boot) — out of
+# scope ici.
+#
+# Mitigations qui marchent dans CETTE LXC :
+#   - `--health-cmd` par container → `podman ps` montre healthy/unhealthy
+#   - `--restart unless-stopped` (déjà là) → relance auto si UN container die
+#   - check final post-deploy : si un container pas Up après 30s, exit 1 (job
+#     CI Forgejo fail → notif immédiate au lieu de découvrir 1h après)
+#
+# TODO : si la LXC parent peut être reconfigurée (cgroup v2 delegation), ré-
+# introduire `--memory=Xg --memory-swap=Xg` par container. Mapping testé :
+# pg=2g, api=1.5g, console=768m, web=256m.
 set -eu
 cd /opt/nubia
 PUBLIC_API_BASE="${PUBLIC_API_BASE:-http://192.168.1.100:3000}"
@@ -35,7 +44,6 @@ else
   # Postgres + PostGIS : 2g hard limit (postgres + connections + shared buffers).
   # Healthcheck via pg_isready interne sur 127.0.0.1:5432.
   podman run -d --name nubia-pg --network host --restart unless-stopped \
-    --memory=2g --memory-swap=2g \
     --health-cmd='pg_isready -h 127.0.0.1 -p 5432 -U postgres -q' \
     --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=20s \
     -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_USER=postgres -e POSTGRES_DB=postgres \
@@ -67,7 +75,6 @@ podman rm -f nubia-api >/dev/null 2>&1 || true
 # du HTTP (peu importe 200/401/404 — on veut savoir si tokio est UP). wget
 # --spider exit 0 si HTTP répond, exit 1 si pas de réponse → exactement ce qu'on veut.
 podman run -d --name nubia-api --network host --restart unless-stopped \
-  --memory=1500m --memory-swap=1500m \
   --health-cmd='wget -q --spider --timeout=3 http://127.0.0.1:3000/ 2>&1 | grep -qE "200|301|302|401|404" || exit 1' \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=20s \
   -e APP_DATABASE_URL=postgres://nubia_app@127.0.0.1:5432/nubia \
@@ -78,7 +85,6 @@ echo "[deploy] console"
 podman rm -f nubia-console >/dev/null 2>&1 || true
 # Astro SSR + node : 768Mi (node base ~150Mi + SSR working set).
 podman run -d --name nubia-console --network host --restart unless-stopped \
-  --memory=768m --memory-swap=768m \
   --health-cmd='wget -q --spider --timeout=3 http://127.0.0.1:4321/ || exit 1' \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=10s \
   -e HOST=0.0.0.0 -e PORT=4321 -e PUBLIC_API_BASE="$PUBLIC_API_BASE" \
@@ -88,7 +94,6 @@ echo "[deploy] web (nginx statique 8081/8082/8083)"
 podman rm -f nubia-web >/dev/null 2>&1 || true
 # nginx statique : 256Mi largement suffisant (juste sert des fichiers).
 podman run -d --name nubia-web --network host --restart unless-stopped \
-  --memory=256m --memory-swap=256m \
   --health-cmd='wget -q --spider --timeout=3 http://127.0.0.1:8081/ || exit 1' \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=5s \
   -v /opt/nubia/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
