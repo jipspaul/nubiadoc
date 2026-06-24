@@ -31,14 +31,36 @@
 
   <title>Nubia · Secrétariat</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    #nubia-loading {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      font-family: sans-serif;
+      color: #1a1a2e;
+      gap: 16px;
+      z-index: 9999;
+    }
+    #nubia-loading p { margin: 0; font-size: 16px; }
+    #nubia-loading span { font-size: 24px; font-weight: 600; }
+  </style>
 </head>
 <body>
-  <!-- Indicateur visible pendant le chargement Flutter (avant que flt-glass-pane apparaisse). -->
-  <div id="flutter-loading"
-       style="display:flex;align-items:center;justify-content:center;
-              height:100svh;font-family:sans-serif;color:#555;font-size:1rem">
-    Nubia &middot; Secrétariat
+  <div id="nubia-loading">
+    <span>Nubia · Secrétariat</span>
+    <p>Chargement en cours…</p>
   </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('nubia-loading');
+      if (el) el.remove();
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
