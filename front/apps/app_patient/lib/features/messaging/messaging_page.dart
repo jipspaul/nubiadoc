@@ -9,7 +9,8 @@ import 'messaging_state.dart';
 
 /// Onglet "Messages" — liste des conversations + thread + envoi.
 ///
-/// Consomme le [MessagingBloc] fourni par le parent (DashboardPage).
+/// Consomme le [MessagingBloc] fourni par le parent : soit la route
+/// `/messaging` (navigation directe), soit le [DashboardPage] (tab inline).
 class MessagingPage extends StatelessWidget {
   const MessagingPage({super.key});
 
