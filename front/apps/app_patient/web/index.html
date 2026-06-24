@@ -23,24 +23,44 @@
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="app_patient">
+  <meta name="apple-mobile-web-app-title" content="Nubia Patient">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>app_patient</title>
+  <title>Nubia · Patient</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    #nubia-loading {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      font-family: sans-serif;
+      color: #1a1a2e;
+      gap: 16px;
+      z-index: 9999;
+    }
+    #nubia-loading p { margin: 0; font-size: 16px; }
+    #nubia-loading span { font-size: 24px; font-weight: 600; }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="nubia-loading">
+    <span>Nubia · Patient</span>
+    <p>Chargement en cours…</p>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('nubia-loading');
+      if (el) el.remove();
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
