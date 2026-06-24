@@ -24,7 +24,9 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
       final result = await _repository.getNotifications();
       result.fold(
         (failure) => emit(NotificationsError(failure.message)),
-        (notifications) => emit(NotificationsLoaded(notifications)),
+        (notifications) => notifications.isEmpty
+            ? emit(const NotificationsEmpty())
+            : emit(NotificationsLoaded(notifications)),
       );
     } catch (_) {
       emit(const NotificationsError('Erreur de chargement.'));
