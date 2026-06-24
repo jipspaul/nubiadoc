@@ -13,6 +13,7 @@ import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
+import 'today_notes_bloc.dart';
 import 'today_notes_card.dart';
 
 /// Entry point for the authenticated praticien home. Delegates layout to
@@ -114,27 +115,6 @@ class _DashboardSkeleton extends StatelessWidget {
   }
 }
 
-final _stubTodayNotes = <TodayNoteEntry>[
-  TodayNoteEntry(
-    id: 'note-1',
-    timestamp: DateTime(2026, 6, 22, 9, 0),
-    patientInitials: 'MD',
-    status: 'Terminée',
-  ),
-  TodayNoteEntry(
-    id: 'note-2',
-    timestamp: DateTime(2026, 6, 22, 10, 30),
-    patientInitials: 'JD',
-    status: 'En cours',
-  ),
-  TodayNoteEntry(
-    id: 'note-3',
-    timestamp: DateTime(2026, 6, 22, 11, 0),
-    patientInitials: 'CB',
-    status: 'Terminée',
-  ),
-];
-
 class _DashboardLoadedView extends StatelessWidget {
   const _DashboardLoadedView({required this.summary});
 
@@ -149,7 +129,11 @@ class _DashboardLoadedView extends StatelessWidget {
         children: [
           _SummaryGrid(summary: summary),
           const SizedBox(height: 16),
-          TodayNotesCard(entries: _stubTodayNotes),
+          BlocProvider(
+            create: (_) => GetIt.instance<TodayNotesBloc>()
+              ..add(const TodayNotesLoadRequested()),
+            child: const TodayNotesCard(),
+          ),
         ],
       ),
     );
