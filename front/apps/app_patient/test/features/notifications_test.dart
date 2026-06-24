@@ -152,4 +152,47 @@ void main() {
           .called(1);
     });
   });
+
+  group('NotificationsPage — état Loading', () {
+    testWidgets('affiche le spinner en état Loading', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(const NotificationsLoading());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notifications_loading')), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+  });
+
+  group('NotificationsPage — Error', () {
+    testWidgets('affiche NubiaErrorWidget en état Error', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state)
+          .thenReturn(const NotificationsError('Erreur de chargement.'));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notifications_error')), findsOneWidget);
+      expect(find.byType(NubiaErrorWidget), findsOneWidget);
+      expect(find.text('Erreur de chargement.'), findsOneWidget);
+    });
+
+    testWidgets('bouton Réessayer dispatche NotificationsLoadRequested',
+        (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state)
+          .thenReturn(const NotificationsError('Erreur de chargement.'));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      await tester.tap(find.text('Réessayer'));
+      await tester.pump();
+
+      verify(() => bloc.add(const NotificationsLoadRequested())).called(1);
+    });
+  });
 }
