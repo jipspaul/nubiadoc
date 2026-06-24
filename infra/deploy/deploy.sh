@@ -60,12 +60,16 @@ sh seed.sh || echo "[deploy] seed non bloquant"
 
 echo "[deploy] api"
 podman rm -f nubia-api >/dev/null 2>&1 || true
-# Rust musl statique : binaire lean, 768Mi suffit pour le pool de connexions
-# Postgres + le serveur HTTP. Healthcheck = /v1/health (route fournie par axum).
+# Rust musl statique + tokio + sqlx pool + argon2 (JWT) : 1.5Gi pour absorber
+# le burst au boot (init pool DB + warmup tokio workers). Postmortem 2026-06-24
+# soir : 768Mi a fait crash le boot.
+# Healthcheck : pas de /v1/health garanti, on check juste qu'une route renvoie
+# du HTTP (peu importe 200/401/404 — on veut savoir si tokio est UP). wget
+# --spider exit 0 si HTTP répond, exit 1 si pas de réponse → exactement ce qu'on veut.
 podman run -d --name nubia-api --network host --restart unless-stopped \
-  --memory=768m --memory-swap=768m \
-  --health-cmd='wget -q --spider --timeout=3 http://127.0.0.1:3000/v1/health || exit 1' \
-  --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=10s \
+  --memory=1500m --memory-swap=1500m \
+  --health-cmd='wget -q --spider --timeout=3 http://127.0.0.1:3000/ 2>&1 | grep -qE "200|301|302|401|404" || exit 1' \
+  --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=20s \
   -e APP_DATABASE_URL=postgres://nubia_app@127.0.0.1:5432/nubia \
   -e APP_PORT=3000 -e JWT_SECRET=dev-only-not-for-prod -e LOGIN_RATE_MAX_ATTEMPTS=10000 \
   localhost/nubia-api:latest >/dev/null
