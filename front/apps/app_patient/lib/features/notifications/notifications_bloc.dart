@@ -45,7 +45,9 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
 
     try {
       await _repository.markRead(event.notificationId);
-    } catch (_) {}
+    } catch (_) {
+      emit(const NotificationsError('Erreur lors du marquage de la notification.'));
+    }
   }
 
   Future<void> _onMarkAllRead(
@@ -61,6 +63,8 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
 
     try {
       await _repository.markAllRead();
-    } catch (_) {}
+    } catch (_) {
+      emit(const NotificationsError('Erreur lors du marquage de toutes les notifications.'));
+    }
   }
 }
