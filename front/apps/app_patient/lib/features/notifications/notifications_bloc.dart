@@ -26,8 +26,8 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
         (failure) => emit(NotificationsError(failure.message)),
         (notifications) => emit(NotificationsLoaded(notifications)),
       );
-    } catch (_) {
-      emit(const NotificationsError('Erreur de chargement.'));
+    } catch (e) {
+      emit(NotificationsError(e.toString()));
     }
   }
 
@@ -44,9 +44,13 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     emit(current.copyWith(notifications: updated));
 
     try {
-      await _repository.markRead(event.notificationId);
-    } catch (_) {
-      emit(const NotificationsError('Erreur lors du marquage de la notification.'));
+      final result = await _repository.markRead(event.notificationId);
+      result.fold(
+        (failure) => emit(NotificationsError(failure.message)),
+        (_) {},
+      );
+    } catch (e) {
+      emit(NotificationsError(e.toString()));
     }
   }
 
@@ -62,9 +66,13 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     emit(current.copyWith(notifications: updated));
 
     try {
-      await _repository.markAllRead();
-    } catch (_) {
-      emit(const NotificationsError('Erreur lors du marquage de toutes les notifications.'));
+      final result = await _repository.markAllRead();
+      result.fold(
+        (failure) => emit(NotificationsError(failure.message)),
+        (_) {},
+      );
+    } catch (e) {
+      emit(NotificationsError(e.toString()));
     }
   }
 }
