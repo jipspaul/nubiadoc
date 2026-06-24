@@ -23,21 +23,29 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
     Emitter<WaitingRoomState> emit,
   ) async {
     emit(const WaitingRoomLoading());
-    final result = await _list();
-    result.fold(
-      (failure) => emit(WaitingRoomError(failure.message)),
-      (entries) => emit(WaitingRoomLoaded(entries)),
-    );
+    try {
+      final result = await _list();
+      result.fold(
+        (failure) => emit(WaitingRoomError(failure.message)),
+        (entries) => emit(WaitingRoomLoaded(entries)),
+      );
+    } catch (_) {
+      emit(const WaitingRoomError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onCallNext(
     WaitingRoomCallNextRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
-    final result = await _callNext();
-    await result.fold(
-      (failure) async => emit(WaitingRoomError(failure.message)),
-      (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
-    );
+    try {
+      final result = await _callNext();
+      await result.fold(
+        (failure) async => emit(WaitingRoomError(failure.message)),
+        (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
+      );
+    } catch (_) {
+      emit(const WaitingRoomError('Erreur inattendue.'));
+    }
   }
 }

@@ -37,16 +37,20 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
   ) async {
     _currentWeekStart = event.weekStart;
     emit(const AgendaLoading());
-    final entriesResult = await _getAgenda(event.weekStart);
-    if (entriesResult.isLeft()) {
-      final failure = entriesResult.fold((f) => f, (_) => null)!;
-      emit(AgendaError(failure.message));
-      return;
+    try {
+      final entriesResult = await _getAgenda(event.weekStart);
+      if (entriesResult.isLeft()) {
+        final failure = entriesResult.fold((f) => f, (_) => null)!;
+        emit(AgendaError(failure.message));
+        return;
+      }
+      final slotsResult = await _listSlots();
+      final entries = entriesResult.getOrElse(() => []);
+      final slots = slotsResult.getOrElse(() => []);
+      emit(AgendaLoaded(entries: entries, availableSlots: slots));
+    } catch (_) {
+      emit(const AgendaError('Erreur de chargement de l\'agenda.'));
     }
-    final slotsResult = await _listSlots();
-    final entries = entriesResult.getOrElse(() => []);
-    final slots = slotsResult.getOrElse(() => []);
-    emit(AgendaLoaded(entries: entries, availableSlots: slots));
   }
 
   Future<void> _onCreate(
@@ -56,18 +60,22 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     final current = state;
     if (current is! AgendaLoaded) return;
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
-    final result = await _createAppointment(event.appointment);
-    result.fold(
-      (failure) => emit(current.copyWith(
-        actionInProgress: false,
-        actionError: failure.message,
-      )),
-      (_) {
-        if (_currentWeekStart != null) {
-          add(AgendaLoadRequested(weekStart: _currentWeekStart!));
-        }
-      },
-    );
+    try {
+      final result = await _createAppointment(event.appointment);
+      result.fold(
+        (failure) => emit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) {
+          if (_currentWeekStart != null) {
+            add(AgendaLoadRequested(weekStart: _currentWeekStart!));
+          }
+        },
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
   }
 
   Future<void> _onConfirm(
@@ -77,18 +85,22 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     final current = state;
     if (current is! AgendaLoaded) return;
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
-    final result = await _confirmAppointment(event.appointmentId);
-    result.fold(
-      (failure) => emit(current.copyWith(
-        actionInProgress: false,
-        actionError: failure.message,
-      )),
-      (_) {
-        if (_currentWeekStart != null) {
-          add(AgendaLoadRequested(weekStart: _currentWeekStart!));
-        }
-      },
-    );
+    try {
+      final result = await _confirmAppointment(event.appointmentId);
+      result.fold(
+        (failure) => emit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) {
+          if (_currentWeekStart != null) {
+            add(AgendaLoadRequested(weekStart: _currentWeekStart!));
+          }
+        },
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
   }
 
   Future<void> _onReschedule(
@@ -98,18 +110,22 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     final current = state;
     if (current is! AgendaLoaded) return;
     emit(current.copyWith(actionInProgress: true, clearActionError: true));
-    final result =
-        await _rescheduleAppointment(event.appointmentId, event.newStartsAt);
-    result.fold(
-      (failure) => emit(current.copyWith(
-        actionInProgress: false,
-        actionError: failure.message,
-      )),
-      (_) {
-        if (_currentWeekStart != null) {
-          add(AgendaLoadRequested(weekStart: _currentWeekStart!));
-        }
-      },
-    );
+    try {
+      final result =
+          await _rescheduleAppointment(event.appointmentId, event.newStartsAt);
+      result.fold(
+        (failure) => emit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) {
+          if (_currentWeekStart != null) {
+            add(AgendaLoadRequested(weekStart: _currentWeekStart!));
+          }
+        },
+      );
+    } catch (_) {
+      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
   }
 }

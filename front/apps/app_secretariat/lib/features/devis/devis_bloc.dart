@@ -23,11 +23,15 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     Emitter<DevisState> emit,
   ) async {
     emit(const DevisLoading());
-    final result = await _list();
-    result.fold(
-      (failure) => emit(DevisError(failure.message)),
-      (quotes) => emit(DevisLoaded(quotes)),
-    );
+    try {
+      final result = await _list();
+      result.fold(
+        (failure) => emit(DevisError(failure.message)),
+        (quotes) => emit(DevisLoaded(quotes)),
+      );
+    } catch (_) {
+      emit(const DevisError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onDetailLoad(
@@ -35,10 +39,14 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     Emitter<DevisState> emit,
   ) async {
     emit(const DevisLoading());
-    final result = await _getById(event.id);
-    result.fold(
-      (failure) => emit(DevisDetailError(failure.message)),
-      (quote) => emit(DevisDetailLoaded(quote)),
-    );
+    try {
+      final result = await _getById(event.id);
+      result.fold(
+        (failure) => emit(DevisDetailError(failure.message)),
+        (quote) => emit(DevisDetailLoaded(quote)),
+      );
+    } catch (_) {
+      emit(const DevisDetailError('Erreur de chargement.'));
+    }
   }
 }

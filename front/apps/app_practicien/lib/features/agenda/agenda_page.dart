@@ -220,16 +220,10 @@ class _LoadedViewState extends State<_LoadedView> {
         ),
         Expanded(
           child: grouped.isEmpty
-              ? const Center(
+              ? const NubiaEmptyState(
                   key: Key('agenda_empty'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.calendar_today_outlined, size: 48),
-                      SizedBox(height: 12),
-                      Text('Aucun rendez-vous cette semaine'),
-                    ],
-                  ),
+                  icon: Icons.calendar_today_outlined,
+                  title: 'Aucun rendez-vous cette semaine',
                 )
               : ListView.builder(
                   padding: const EdgeInsets.only(bottom: 16),

@@ -74,16 +74,10 @@ class _QuoteListView extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: SizedBox(
                   height: constraints.maxHeight,
-                  child: const Center(
+                  child: const NubiaEmptyState(
                     key: Key('financial_empty'),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.receipt_long_outlined, size: 48),
-                        SizedBox(height: 12),
-                        Text('Aucun devis en attente.'),
-                      ],
-                    ),
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Aucun devis en attente.',
                   ),
                 ),
               ),

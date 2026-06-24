@@ -28,28 +28,36 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     Emitter<ProfileState> emit,
   ) async {
     emit(const ProfileLoading());
-    final result = await _getAccount();
-    await result.fold(
-      (failure) async => emit(ProfileError(failure.message)),
-      (account) async {
-        final biometric = await _userSettings.getBiometricEnabled();
-        final prefsResult = await _notificationRepo.getPreferences();
-        final prefs = prefsResult.fold((_) => null, (p) => p);
-        emit(ProfileLoaded(account,
-            biometricEnabled: biometric, notifPrefs: prefs));
-      },
-    );
+    try {
+      final result = await _getAccount();
+      await result.fold(
+        (failure) async => emit(ProfileError(failure.message)),
+        (account) async {
+          final biometric = await _userSettings.getBiometricEnabled();
+          final prefsResult = await _notificationRepo.getPreferences();
+          final prefs = prefsResult.fold((_) => null, (p) => p);
+          emit(ProfileLoaded(account,
+              biometricEnabled: biometric, notifPrefs: prefs));
+        },
+      );
+    } catch (_) {
+      emit(const ProfileError('Erreur de chargement du profil.'));
+    }
   }
 
   Future<void> _onBiometricToggle(
     BiometricToggleRequested event,
     Emitter<ProfileState> emit,
   ) async {
-    await _userSettings.setBiometricEnabled(event.enabled);
-    if (state is ProfileLoaded) {
-      final current = state as ProfileLoaded;
-      emit(ProfileLoaded(current.account,
-          biometricEnabled: event.enabled, notifPrefs: current.notifPrefs));
+    try {
+      await _userSettings.setBiometricEnabled(event.enabled);
+      if (state is ProfileLoaded) {
+        final current = state as ProfileLoaded;
+        emit(ProfileLoaded(current.account,
+            biometricEnabled: event.enabled, notifPrefs: current.notifPrefs));
+      }
+    } catch (_) {
+      // Keep current state — no Loading was emitted
     }
   }
 
@@ -62,9 +70,13 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     final updated =
         (current.notifPrefs ?? const NotificationPreferences.allEnabled())
             .copyWith(emailEnabled: event.enabled);
-    await _notificationRepo.updatePreferences(updated);
-    emit(ProfileLoaded(current.account,
-        biometricEnabled: current.biometricEnabled, notifPrefs: updated));
+    try {
+      await _notificationRepo.updatePreferences(updated);
+      emit(ProfileLoaded(current.account,
+          biometricEnabled: current.biometricEnabled, notifPrefs: updated));
+    } catch (_) {
+      // Keep current state — no Loading was emitted
+    }
   }
 
   Future<void> _onTogglePushRdv(
@@ -76,8 +88,12 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     final updated =
         (current.notifPrefs ?? const NotificationPreferences.allEnabled())
             .copyWith(pushEnabled: event.enabled);
-    await _notificationRepo.updatePreferences(updated);
-    emit(ProfileLoaded(current.account,
-        biometricEnabled: current.biometricEnabled, notifPrefs: updated));
+    try {
+      await _notificationRepo.updatePreferences(updated);
+      emit(ProfileLoaded(current.account,
+          biometricEnabled: current.biometricEnabled, notifPrefs: updated));
+    } catch (_) {
+      // Keep current state — no Loading was emitted
+    }
   }
 }

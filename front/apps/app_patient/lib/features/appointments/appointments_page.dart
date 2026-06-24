@@ -162,11 +162,10 @@ class _ProvidersListState extends State<_ProvidersList> {
         ),
         if (filtered.isEmpty)
           const Expanded(
-            child: Center(
-              child: Text(
-                key: Key('empty_providers'),
-                'Aucun praticien trouvé.',
-              ),
+            child: NubiaEmptyState(
+              key: Key('empty_providers'),
+              icon: Icons.person_search_outlined,
+              title: 'Aucun praticien trouvé.',
             ),
           )
         else
@@ -221,7 +220,10 @@ class _SlotsView extends StatelessWidget {
           ),
         ),
         if (state.slots.isEmpty)
-          const Center(child: Text('Aucun créneau disponible.'))
+          const NubiaEmptyState(
+            icon: Icons.event_busy_outlined,
+            title: 'Aucun créneau disponible.',
+          )
         else
           Expanded(
             child: ListView.builder(

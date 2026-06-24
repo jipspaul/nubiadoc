@@ -20,11 +20,15 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     Emitter<NotificationsState> emit,
   ) async {
     emit(const NotificationsLoading());
-    final result = await _repository.getNotifications();
-    result.fold(
-      (failure) => emit(NotificationsError(failure.message)),
-      (notifications) => emit(NotificationsLoaded(notifications)),
-    );
+    try {
+      final result = await _repository.getNotifications();
+      result.fold(
+        (failure) => emit(NotificationsError(failure.message)),
+        (notifications) => emit(NotificationsLoaded(notifications)),
+      );
+    } catch (_) {
+      emit(const NotificationsError('Erreur de chargement.'));
+    }
   }
 
   Future<void> _onMarkRead(
@@ -39,7 +43,9 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     }).toList();
     emit(current.copyWith(notifications: updated));
 
-    await _repository.markRead(event.notificationId);
+    try {
+      await _repository.markRead(event.notificationId);
+    } catch (_) {}
   }
 
   Future<void> _onMarkAllRead(
@@ -53,6 +59,8 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
         current.notifications.map((n) => n.copyWith(read: true)).toList();
     emit(current.copyWith(notifications: updated));
 
-    await _repository.markAllRead();
+    try {
+      await _repository.markAllRead();
+    } catch (_) {}
   }
 }

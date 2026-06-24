@@ -22,20 +22,24 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState> {
     Emitter<AdminMembresState> emit,
   ) async {
     emit(const AdminMembresLoading());
-    final membersResult = await _listMembers();
-    final secretariatsResult = await _listSecretariats();
+    try {
+      final membersResult = await _listMembers();
+      final secretariatsResult = await _listSecretariats();
 
-    final failure = membersResult.fold((f) => f, (_) => null) ??
-        secretariatsResult.fold((f) => f, (_) => null);
+      final failure = membersResult.fold((f) => f, (_) => null) ??
+          secretariatsResult.fold((f) => f, (_) => null);
 
-    if (failure != null) {
-      emit(AdminMembresError(failure.message));
-      return;
+      if (failure != null) {
+        emit(AdminMembresError(failure.message));
+        return;
+      }
+
+      emit(AdminMembresLoaded(
+        members: membersResult.getOrElse(() => []),
+        secretariats: secretariatsResult.getOrElse(() => []),
+      ));
+    } catch (_) {
+      emit(const AdminMembresError('Erreur de chargement.'));
     }
-
-    emit(AdminMembresLoaded(
-      members: membersResult.getOrElse(() => []),
-      secretariats: secretariatsResult.getOrElse(() => []),
-    ));
   }
 }

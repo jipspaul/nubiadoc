@@ -37,14 +37,18 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
       return;
     }
     emit(const AppointmentsSearchLoading());
-    final result = await _searchProviders(query: query);
-    result.fold(
-      (failure) => emit(AppointmentsError(failure.message)),
-      (providers) => emit(AppointmentsProvidersLoaded(
-        providers: providers,
-        query: query,
-      )),
-    );
+    try {
+      final result = await _searchProviders(query: query);
+      result.fold(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (providers) => emit(AppointmentsProvidersLoaded(
+          providers: providers,
+          query: query,
+        )),
+      );
+    } catch (_) {
+      emit(const AppointmentsError('Erreur de recherche.'));
+    }
   }
 
   Future<void> _onProviderSelected(
@@ -52,14 +56,18 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     Emitter<AppointmentsState> emit,
   ) async {
     emit(AppointmentsSlotsLoading(event.provider));
-    final result = await _searchSlots(providerId: event.provider.id);
-    result.fold(
-      (failure) => emit(AppointmentsError(failure.message)),
-      (slots) => emit(AppointmentsSlotsLoaded(
-        provider: event.provider,
-        slots: slots,
-      )),
-    );
+    try {
+      final result = await _searchSlots(providerId: event.provider.id);
+      result.fold(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (slots) => emit(AppointmentsSlotsLoaded(
+          provider: event.provider,
+          slots: slots,
+        )),
+      );
+    } catch (_) {
+      emit(const AppointmentsError('Erreur de chargement des créneaux.'));
+    }
   }
 
   Future<void> _onSlotSelected(
@@ -70,11 +78,15 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     if (current is! AppointmentsSlotsLoaded) return;
     if (!event.slot.isAvailable) return;
 
-    final holdResult = await _holdSlot(event.slot.id);
-    holdResult.fold(
-      (failure) => emit(AppointmentsError(failure.message)),
-      (_) => emit(current.copyWith(selectedSlot: event.slot)),
-    );
+    try {
+      final holdResult = await _holdSlot(event.slot.id);
+      holdResult.fold(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (_) => emit(current.copyWith(selectedSlot: event.slot)),
+      );
+    } catch (_) {
+      emit(const AppointmentsError('Erreur lors de la sélection du créneau.'));
+    }
   }
 
   void _onMotifChanged(
@@ -96,13 +108,17 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     if (slot == null || current.motif.trim().isEmpty) return;
 
     emit(const AppointmentsBookingLoading());
-    final result = await _bookAppointment(
-      slotId: slot.id,
-      motif: current.motif.trim(),
-    );
-    result.fold(
-      (failure) => emit(AppointmentsError(failure.message)),
-      (appointment) => emit(AppointmentsBookingSuccess(appointment)),
-    );
+    try {
+      final result = await _bookAppointment(
+        slotId: slot.id,
+        motif: current.motif.trim(),
+      );
+      result.fold(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (appointment) => emit(AppointmentsBookingSuccess(appointment)),
+      );
+    } catch (_) {
+      emit(const AppointmentsError('Erreur lors de la réservation.'));
+    }
   }
 }
