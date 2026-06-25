@@ -50,6 +50,7 @@ class _MessagingBody extends StatelessWidget {
               key: Key('messaging_empty'),
               icon: Icons.chat_bubble_outline,
               title: 'Aucun message',
+              subtitle: 'Votre cabinet vous contactera ici.',
             );
           }
           return _ConversationsList(conversations: state.conversations);
@@ -271,4 +272,3 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 }
-
