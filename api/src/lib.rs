@@ -8,6 +8,7 @@ use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
+pub use realtime::channels;
 pub use realtime::WsHub;
 
 mod appointments;

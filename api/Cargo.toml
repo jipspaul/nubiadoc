@@ -37,6 +37,7 @@ sqlx        = { workspace = true }
 uuid        = { workspace = true }
 chrono      = { workspace = true }
 tracing     = { workspace = true }
+anyhow      = { workspace = true }
 async-trait = { workspace = true }
 totp-rs      = { version = "5", features = ["gen_secret"] }
 jsonwebtoken = "9"

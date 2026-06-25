@@ -2,6 +2,8 @@
 //! subscribe/broadcast canal `waiting_room` (WS-B).
 #![forbid(unsafe_code)]
 
+pub mod channels;
+
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
