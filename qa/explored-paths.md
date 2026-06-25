@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-25 00:17
+Last run: 2026-06-25 00:20
 
 ## patient
 
@@ -14,7 +14,7 @@ Last run: 2026-06-25 00:17
 | /financial | 2026-06-24 | 2026-06-25 | OK | — |
 | /profile | 2026-06-24 | 2026-06-25 | OK | — |
 | /messaging | 2026-06-24 | 2026-06-25 | OK | — |
-| /notifications | 2026-06-24 | 2026-06-25 | OK | — |
+| /notifications | 2026-06-24 | 2026-06-25 | console-errors | console-errors |
 
 ## praticien
 
