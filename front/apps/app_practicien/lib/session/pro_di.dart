@@ -27,7 +27,9 @@ void registerPro(GetIt gi) {
     () => DashboardBloc(getSummary: gi<GetProDashboardSummaryUseCase>()),
   );
 
-  gi.registerFactory<TodayNotesBloc>(() => TodayNotesBloc());
+  gi.registerFactory<TodayNotesBloc>(
+    () => TodayNotesBloc(getTodayNotes: gi<GetTodayNotesUseCase>()),
+  );
 
   gi.registerFactory<WaitingRoomBloc>(
     () => WaitingRoomBloc(
