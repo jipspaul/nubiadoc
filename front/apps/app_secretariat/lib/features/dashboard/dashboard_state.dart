@@ -29,3 +29,12 @@ final class DashboardLoaded extends DashboardState {
   @override
   List<Object?> get props => [todayCount, pendingCount, waitingCount];
 }
+
+final class DashboardError extends DashboardState {
+  const DashboardError({required this.message});
+
+  final String message;
+
+  @override
+  List<Object?> get props => [message];
+}
