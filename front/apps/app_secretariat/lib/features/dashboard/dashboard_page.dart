@@ -8,6 +8,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../agenda/agenda_page.dart';
 import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
@@ -49,6 +50,8 @@ class DashboardPage extends StatelessWidget {
             create: (_) => GetIt.instance<WaitingRoomBloc>(),
             child: const WaitingRoomBody(),
           );
+        } else if (destination.route == '/agenda') {
+          body = const AgendaPage();
         } else {
           body = Center(
             child: NubiaEmptyState(
