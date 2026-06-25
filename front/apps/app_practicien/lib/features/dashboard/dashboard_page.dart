@@ -9,10 +9,15 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../agenda/agenda_bloc.dart';
+import '../agenda/agenda_event.dart';
+import '../agenda/agenda_page.dart';
+import '../cabinet_messaging/cabinet_messaging_page.dart';
 import '../consultation_clinique/consultation_clinique_bloc.dart';
 import '../consultation_clinique/consultation_clinique_page.dart';
 import '../ordonnances/ordonnances_bloc.dart';
 import '../ordonnances/ordonnances_page.dart';
+import '../patients/patients_page.dart';
 import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
@@ -49,11 +54,29 @@ class DashboardPage extends StatelessWidget {
             child: const _DashboardContent(),
           );
         }
+        if (destination.route == '/agenda') {
+          return BlocProvider(
+            create: (_) {
+              final now = DateTime.now();
+              final weekStart = DateTime(
+                now.year,
+                now.month,
+                now.day - (now.weekday - 1),
+              );
+              return GetIt.instance<AgendaBloc>()
+                ..add(AgendaLoadRequested(weekStart: weekStart));
+            },
+            child: const AgendaBody(),
+          );
+        }
         if (destination.route == '/waiting-room') {
           return BlocProvider(
             create: (_) => GetIt.instance<WaitingRoomBloc>(),
             child: const WaitingRoomBody(),
           );
+        }
+        if (destination.route == '/patients') {
+          return const PatientsPage();
         }
         if (destination.route == '/consultation') {
           return BlocProvider(
@@ -67,10 +90,13 @@ class DashboardPage extends StatelessWidget {
             child: const OrdonnancesBody(),
           );
         }
-        return const Center(
+        if (destination.route == '/messages') {
+          return const CabinetMessagingPage();
+        }
+        return Center(
           child: NubiaEmptyState(
             icon: Icons.construction_outlined,
-            title: 'Bientôt disponible',
+            title: destination.label,
           ),
         );
       },
