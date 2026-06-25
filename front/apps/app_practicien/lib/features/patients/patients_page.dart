@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'patients_bloc.dart';
@@ -96,9 +97,7 @@ class _PatientsBodyState extends State<_PatientsBody> {
                       title: Text(p.fullName),
                       subtitle: Text(p.email ?? p.phone ?? ''),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => context
-                          .read<PatientsBloc>()
-                          .add(PatientsDetailLoadRequested(p.id)),
+                      onTap: () => context.push('/patients/${p.id}'),
                     );
                   },
                 ),
