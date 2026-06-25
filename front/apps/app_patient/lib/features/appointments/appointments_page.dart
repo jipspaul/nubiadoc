@@ -110,15 +110,21 @@ class _SearchInputState extends State<_SearchInput> {
           'Trouver un praticien',
           style: Theme.of(context).textTheme.titleLarge,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
+        Text(
+          'Recherchez par spécialité, nom ou ville et réservez un créneau en ligne.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        const SizedBox(height: 16),
         TextField(
           key: const Key('search_field'),
           controller: _controller,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             hintText: 'Spécialité, nom, ville…',
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: null,
-            border: const OutlineInputBorder(),
+            prefixIcon: Icon(Icons.search),
+            border: OutlineInputBorder(),
           ),
           onChanged: (value) => context
               .read<AppointmentsBloc>()
