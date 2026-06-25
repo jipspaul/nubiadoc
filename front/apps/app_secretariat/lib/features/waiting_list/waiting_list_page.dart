@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -15,6 +17,8 @@ class WaitingListPage extends StatefulWidget {
 }
 
 class _WaitingListPageState extends State<WaitingListPage> {
+  Completer<void>? _refreshCompleter;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +42,10 @@ class _WaitingListPageState extends State<WaitingListPage> {
       ),
       body: BlocConsumer<WaitingListBloc, WaitingListState>(
         listener: (context, state) {
+          if (state is WaitingListLoaded || state is WaitingListError) {
+            _refreshCompleter?.complete();
+            _refreshCompleter = null;
+          }
           if (state is WaitingListOfferSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Créneau proposé avec succès.')),
@@ -57,9 +65,13 @@ class _WaitingListPageState extends State<WaitingListPage> {
               );
             }
             return RefreshIndicator(
-              onRefresh: () async => context
-                  .read<WaitingListBloc>()
-                  .add(const WaitingListLoadRequested()),
+              onRefresh: () {
+                _refreshCompleter = Completer<void>();
+                context
+                    .read<WaitingListBloc>()
+                    .add(const WaitingListLoadRequested());
+                return _refreshCompleter!.future;
+              },
               child: ListView.builder(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(vertical: 8),
