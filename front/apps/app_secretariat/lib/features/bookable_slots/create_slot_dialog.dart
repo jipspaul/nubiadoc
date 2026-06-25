@@ -101,6 +101,14 @@ class _CreateSlotDialogState extends State<CreateSlotDialog> {
       _endTime.hour,
       _endTime.minute,
     );
+    if (!endsAt.isAfter(startsAt)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("L'heure de fin doit être après l'heure de début."),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).pop((startsAt: startsAt, endsAt: endsAt));
   }
 }
