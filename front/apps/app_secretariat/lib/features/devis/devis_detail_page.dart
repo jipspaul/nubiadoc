@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
@@ -32,11 +33,11 @@ class _DevisDetailPageState extends State<DevisDetailPage> {
             return _DevisDetailBody(quote: state.quote);
           }
           if (state is DevisDetailError) {
-            return Center(
-              child: Text(
-                state.message,
-                style: const TextStyle(color: Colors.red),
-              ),
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<DevisBloc>()
+                  .add(DevisDetailLoadRequested(widget.id)),
             );
           }
           return const Center(child: CircularProgressIndicator());
