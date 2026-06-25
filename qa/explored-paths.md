@@ -2,6 +2,13 @@
 
 Last run: 2026-06-25 00:20
 
+## Faux positifs connus (méthode C)
+
+| route | app | détecté le | cause | résolution |
+| --- | --- | --- | --- | --- |
+| /appointments | patient | 2026-06-25 | CSS Flutter `::placeholder` (pseudo-sélecteur champ texte) capté comme marker | faux positif — feature complète, ferme #2724 |
+| /salle-attente | secretariat | 2026-06-25 | idem CSS Flutter | faux positif — ferme #2746 |
+
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
