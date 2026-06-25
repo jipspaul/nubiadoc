@@ -241,6 +241,9 @@ fn handle_client_op(
             if channel != "waiting_room" {
                 return json!({"error": "unknown_channel"}).to_string();
             }
+            if session.kind != "pro" {
+                return json!({"error": "forbidden", "channel": "waiting_room"}).to_string();
+            }
             let Some(cabinet_id) = session.cabinet_id else {
                 return json!({"error": "forbidden", "channel": "waiting_room"}).to_string();
             };
