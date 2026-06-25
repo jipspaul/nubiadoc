@@ -19,17 +19,18 @@ class OrdonnancesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: GetIt.instance<OrdonnancesBloc>(),
-      child: _OrdonnancesBody(patientId: patientId),
+    return BlocProvider(
+      create: (_) => GetIt.instance<OrdonnancesBloc>(),
+      child: OrdonnancesBody(patientId: patientId),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
 
-class _OrdonnancesBody extends StatelessWidget {
-  const _OrdonnancesBody({this.patientId});
+/// Corps de la page ordonnances, consommable dans ProShell bodyBuilder.
+class OrdonnancesBody extends StatelessWidget {
+  const OrdonnancesBody({super.key, this.patientId});
   final String? patientId;
 
   @override
@@ -90,30 +91,26 @@ class _InitialView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return NubiaEmptyState(
       key: const Key('ordonnances_initial'),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.medication_outlined, size: 64),
-          const SizedBox(height: 16),
-          const Text('Aucune ordonnance en cours'),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            key: const Key('create_ordonnance_button'),
-            onPressed: patientId == null
-                ? null
-                : () => context.read<OrdonnancesBloc>().add(
-                      OrdonnancesCreateRequested(
-                        patientId: patientId!,
-                        items: _sampleItems,
-                      ),
+      icon: Icons.medication_outlined,
+      title: 'Aucune ordonnance en cours',
+      subtitle: patientId == null
+          ? 'Ouvrez une fiche patient pour créer une ordonnance.'
+          : null,
+      action: patientId == null
+          ? null
+          : FilledButton.icon(
+              key: const Key('create_ordonnance_button'),
+              onPressed: () => context.read<OrdonnancesBloc>().add(
+                    OrdonnancesCreateRequested(
+                      patientId: patientId!,
+                      items: _sampleItems,
                     ),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Nouvelle ordonnance'),
-          ),
-        ],
-      ),
+                  ),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Nouvelle ordonnance'),
+            ),
     );
   }
 }
