@@ -21,8 +21,8 @@ import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
-/// Patient home shell: a 5-tab bottom nav (Rechercher / Mes RDV / Messages /
-/// Documents / Profil) with stubbed tabs. Proves theming + session + nav.
+/// Patient home shell: 5-tab bottom nav (Rechercher / Mes RDV / Messages /
+/// Documents / Profil).
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
