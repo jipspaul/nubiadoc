@@ -12,6 +12,7 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/ordonnances/ordonnances_page.dart';
 import '../features/login/login_page.dart';
 import '../features/patients/patients_page.dart';
+import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 import '../pro_config.dart';
@@ -83,8 +84,9 @@ class AppRouter {
         GoRoute(
           path: consultation,
           redirect: (_, __) => ProConfig.includeClinical ? null : home,
-          builder: (_, state) => Scaffold(
-            body: ConsultationCliniquePage(
+          builder: (_, state) => BlocProvider(
+            create: (_) => GetIt.instance<ConsultationCliniqueBloc>(),
+            child: ConsultationCliniquePage(
               consultationId: state.uri.queryParameters['id'],
             ),
           ),

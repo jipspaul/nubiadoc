@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -9,34 +8,33 @@ import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
 
-/// Consultation au fauteuil — gated par [includeClinical] au niveau du router.
-/// Affiche les actes CCAM de la session et permet de clore la consultation.
-/// [consultationId] est passé en query param `?id=` depuis l'agenda ou la salle d'attente.
-class ConsultationCliniquePage extends StatelessWidget {
+/// Body-only content for the consultation au fauteuil.
+/// Requires [ConsultationCliniqueBloc] to be provided via [BlocProvider] by the caller.
+class ConsultationCliniqueBody extends StatefulWidget {
   final String? consultationId;
 
-  const ConsultationCliniquePage({super.key, this.consultationId});
+  const ConsultationCliniqueBody({super.key, this.consultationId});
 
   @override
-  Widget build(BuildContext context) {
-    final bloc = GetIt.instance<ConsultationCliniqueBloc>();
-    final id = consultationId;
-    if (id != null) {
-      bloc.add(ConsultationCliniqueLoadRequested(id));
-    } else {
-      bloc.add(const ConsultationHistoriqueRequested());
-    }
-    return BlocProvider.value(
-      value: bloc,
-      child: const _ConsultationCliniqueBody(),
-    );
-  }
+  State<ConsultationCliniqueBody> createState() =>
+      _ConsultationCliniqueBodyState();
 }
 
-// ---------------------------------------------------------------------------
-
-class _ConsultationCliniqueBody extends StatelessWidget {
-  const _ConsultationCliniqueBody();
+class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.consultationId;
+    if (id != null) {
+      context
+          .read<ConsultationCliniqueBloc>()
+          .add(ConsultationCliniqueLoadRequested(id));
+    } else {
+      context
+          .read<ConsultationCliniqueBloc>()
+          .add(const ConsultationHistoriqueRequested());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +79,24 @@ class _ConsultationCliniqueBody extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Full-page scaffold for direct-URL navigation.
+/// Requires [ConsultationCliniqueBloc] to be provided via [BlocProvider] by the caller.
+class ConsultationCliniquePage extends StatelessWidget {
+  final String? consultationId;
+
+  const ConsultationCliniquePage({super.key, this.consultationId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Consultation')),
+      body: ConsultationCliniqueBody(consultationId: consultationId),
     );
   }
 }
