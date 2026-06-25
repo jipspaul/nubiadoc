@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 
@@ -10,6 +12,8 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/ordonnances/ordonnances_page.dart';
 import '../features/login/login_page.dart';
 import '../features/patients/patients_page.dart';
+import '../features/consultation_clinique/consultation_clinique_bloc.dart';
+import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 import '../pro_config.dart';
 
@@ -53,7 +57,10 @@ class AppRouter {
         GoRoute(
           path: waitingRoom,
           redirect: (_, __) => ProConfig.includeClinical ? null : home,
-          builder: (_, __) => const Scaffold(body: WaitingRoomPage()),
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<WaitingRoomBloc>(),
+            child: const WaitingRoomPage(),
+          ),
         ),
         GoRoute(
           path: patients,
@@ -77,8 +84,9 @@ class AppRouter {
         GoRoute(
           path: consultation,
           redirect: (_, __) => ProConfig.includeClinical ? null : home,
-          builder: (_, state) => Scaffold(
-            body: ConsultationCliniquePage(
+          builder: (_, state) => BlocProvider(
+            create: (_) => GetIt.instance<ConsultationCliniqueBloc>(),
+            child: ConsultationCliniquePage(
               consultationId: state.uri.queryParameters['id'],
             ),
           ),

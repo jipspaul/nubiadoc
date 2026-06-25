@@ -9,6 +9,9 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../consultation_clinique/consultation_clinique_bloc.dart';
+import '../consultation_clinique/consultation_clinique_page.dart';
+import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
@@ -45,7 +48,16 @@ class DashboardPage extends StatelessWidget {
           );
         }
         if (destination.route == '/waiting-room') {
-          return const WaitingRoomPage();
+          return BlocProvider(
+            create: (_) => GetIt.instance<WaitingRoomBloc>(),
+            child: const WaitingRoomBody(),
+          );
+        }
+        if (destination.route == '/consultation') {
+          return BlocProvider(
+            create: (_) => GetIt.instance<ConsultationCliniqueBloc>(),
+            child: const ConsultationCliniqueBody(),
+          );
         }
         return const Center(
           child: NubiaEmptyState(
