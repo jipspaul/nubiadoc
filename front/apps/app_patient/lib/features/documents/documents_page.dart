@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -51,6 +52,22 @@ class _DocumentsBody extends StatelessWidget {
             SnackBar(content: Text(state.message)),
           );
           context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
+        }
+        if (state is DocumentsUploading) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Envoi en cours…')),
+          );
+        }
+        if (state is DocumentsUploadSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Document envoyé.')),
+          );
+          context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
+        }
+        if (state is DocumentsUploadFailure) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message)),
+          );
         }
       },
       child: BlocBuilder<DocumentsBloc, DocumentsState>(
@@ -180,9 +197,18 @@ class _DocumentsLoaded extends StatelessWidget {
           child: FloatingActionButton(
             key: const Key('upload_fab'),
             tooltip: 'Envoyer un document',
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Upload — fonctionnalité à venir')),
-            ),
+            onPressed: () async {
+              final bloc = context.read<DocumentsBloc>();
+              final file =
+                  await GetIt.instance<FilePickerService>().pickFile();
+              if (file == null) return;
+              bloc.add(DocumentsUploadRequested(
+                filePath: file.path,
+                filename: file.name,
+                mimeType: file.mimeType,
+                category: DocumentCategory.other,
+              ));
+            },
             child: const Icon(Icons.upload_file_outlined),
           ),
         ),
