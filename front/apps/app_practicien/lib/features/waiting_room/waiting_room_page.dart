@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:get_it/get_it.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -8,23 +8,21 @@ import 'waiting_room_bloc.dart';
 import 'waiting_room_event.dart';
 import 'waiting_room_state.dart';
 
-class WaitingRoomPage extends StatelessWidget {
-  const WaitingRoomPage({super.key});
+/// Body-only content for the waiting room.
+/// Requires [WaitingRoomBloc] to be provided via [BlocProvider] by the caller.
+class WaitingRoomBody extends StatefulWidget {
+  const WaitingRoomBody({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => GetIt.instance<WaitingRoomBloc>()
-        ..add(const WaitingRoomLoadRequested()),
-      child: const _WaitingRoomBody(),
-    );
-  }
+  State<WaitingRoomBody> createState() => _WaitingRoomBodyState();
 }
 
-// ---------------------------------------------------------------------------
-
-class _WaitingRoomBody extends StatelessWidget {
-  const _WaitingRoomBody();
+class _WaitingRoomBodyState extends State<WaitingRoomBody> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<WaitingRoomBloc>().add(const WaitingRoomLoadRequested());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,12 +38,6 @@ class _WaitingRoomBody extends StatelessWidget {
       },
       child: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
         builder: (context, state) {
-          if (state is WaitingRoomInitial || state is WaitingRoomLoading) {
-            return const Center(
-              key: Key('waiting_room_loading'),
-              child: CircularProgressIndicator(),
-            );
-          }
           if (state is WaitingRoomError) {
             return NubiaErrorWidget(
               key: const Key('waiting_room_error'),
@@ -58,8 +50,51 @@ class _WaitingRoomBody extends StatelessWidget {
           if (state is WaitingRoomLoaded) {
             return _LoadedView(state: state);
           }
-          return const SizedBox.shrink();
+          return const _LoadingView(key: Key('waiting_room_loading'));
         },
+      ),
+    );
+  }
+}
+
+/// Full-page scaffold for direct-URL navigation.
+/// Requires [WaitingRoomBloc] to be provided via [BlocProvider] by the caller.
+class WaitingRoomPage extends StatelessWidget {
+  const WaitingRoomPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(NubiaL10n.waitingRoom),
+        actions: [
+          IconButton(
+            tooltip: NubiaL10n.refresh,
+            icon: const Icon(Icons.refresh),
+            onPressed: () => context
+                .read<WaitingRoomBloc>()
+                .add(const WaitingRoomLoadRequested()),
+          ),
+        ],
+      ),
+      body: const WaitingRoomBody(),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      itemCount: 5,
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: NubiaSkeletonLoader(height: 72),
       ),
     );
   }
@@ -96,7 +131,7 @@ class _LoadedView extends StatelessWidget {
                         .read<WaitingRoomBloc>()
                         .add(const WaitingRoomCallNextRequested()),
                 icon: const Icon(Icons.arrow_forward, size: 18),
-                label: const Text('Patient suivant'),
+                label: Text(NubiaL10n.callNext),
               ),
             ],
           ),
@@ -104,16 +139,11 @@ class _LoadedView extends StatelessWidget {
         const Divider(height: 1),
         Expanded(
           child: state.entries.isEmpty
-              ? const Center(
+              ? const NubiaEmptyState(
                   key: Key('waiting_room_empty'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.event_seat_outlined, size: 48),
-                      SizedBox(height: 12),
-                      Text('Salle d\'attente vide'),
-                    ],
-                  ),
+                  icon: Icons.event_seat_outlined,
+                  title: NubiaL10n.waitingRoom,
+                  subtitle: NubiaL10n.noWaitingRoom,
                 )
               : RefreshIndicator(
                   key: const Key('waiting_room_refresh'),
