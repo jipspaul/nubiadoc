@@ -96,6 +96,7 @@ class AppRouter {
           path: ordonnances,
           redirect: (_, __) => ProConfig.includeClinical ? null : home,
           builder: (_, state) => Scaffold(
+            appBar: AppBar(title: const Text('Ordonnances')),
             body: OrdonnancesPage(
               patientId: state.uri.queryParameters['patientId'],
             ),
