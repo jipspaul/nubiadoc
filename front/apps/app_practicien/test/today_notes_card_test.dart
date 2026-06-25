@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
@@ -12,19 +13,19 @@ class MockTodayNotesBloc
     implements TodayNotesBloc {}
 
 final _entries = [
-  TodayNoteEntry(
+  ClinicalNoteSummary(
     id: 'note-1',
     timestamp: DateTime(2026, 6, 22, 9, 0),
     patientInitials: 'MD',
     status: 'Terminée',
   ),
-  TodayNoteEntry(
+  ClinicalNoteSummary(
     id: 'note-2',
     timestamp: DateTime(2026, 6, 22, 10, 30),
     patientInitials: 'JD',
     status: 'En cours',
   ),
-  TodayNoteEntry(
+  ClinicalNoteSummary(
     id: 'note-3',
     timestamp: DateTime(2026, 6, 22, 11, 0),
     patientInitials: 'CB',

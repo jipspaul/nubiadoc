@@ -57,6 +57,7 @@ export 'src/remote/members/members_dto.dart';
 export 'src/remote/secretariat/secretariat_api.dart';
 export 'src/remote/secretariat/secretariat_dto.dart';
 export 'src/remote/slots/slots_api.dart';
+export 'src/remote/today_notes/today_notes_api.dart';
 export 'src/remote/waiting_room/waiting_room_api.dart';
 export 'src/remote/waiting_room/waiting_room_dto.dart';
 
@@ -81,6 +82,7 @@ export 'src/repositories/prescription_repository_impl.dart';
 export 'src/repositories/review_repository_impl.dart';
 export 'src/repositories/secretariat_repository_impl.dart';
 export 'src/repositories/slots_repository_impl.dart';
+export 'src/repositories/today_notes_repository_impl.dart';
 export 'src/repositories/waiting_room_repository_impl.dart';
 export 'src/repositories/cached_appointments_repository_impl.dart';
 export 'src/repositories/search_repository_impl.dart';
