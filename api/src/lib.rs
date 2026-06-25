@@ -33,6 +33,7 @@ mod reminders;
 mod reviews;
 mod scheduling;
 mod treatment_plans;
+mod realtime;
 mod waiting_list;
 mod webhooks;
 
@@ -175,6 +176,7 @@ pub fn app_with_dispatcher(
         .route("/v1/health/ready", get(health::health_ready_db))
         .route("/v1/health/db", get(health::health_db))
         .route("/v1/metrics", get(health::metrics))
+        .route("/v1/ws", get(realtime::ws_handshake))
         .route("/v1/auth/register", post(auth::register::register))
         .route("/v1/auth/login", post(auth::login::login))
         .route("/v1/auth/refresh", post(auth::refresh::refresh))
