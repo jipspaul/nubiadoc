@@ -29,11 +29,11 @@ mod messaging;
 mod notifications;
 mod prescriptions;
 mod provider_secretariat;
+mod realtime;
 mod reminders;
 mod reviews;
 mod scheduling;
 mod treatment_plans;
-mod realtime;
 mod waiting_list;
 mod webhooks;
 
