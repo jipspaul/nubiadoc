@@ -1,26 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-
-// ---------------------------------------------------------------------------
-// Model
-// ---------------------------------------------------------------------------
-
-class TodayNoteEntry extends Equatable {
-  final String id;
-  final DateTime timestamp;
-  final String patientInitials;
-  final String status;
-
-  const TodayNoteEntry({
-    required this.id,
-    required this.timestamp,
-    required this.patientInitials,
-    required this.status,
-  });
-
-  @override
-  List<Object?> get props => [id, timestamp, patientInitials, status];
-}
+import 'package:nubia_domain/nubia_domain.dart';
 
 // ---------------------------------------------------------------------------
 // Events
@@ -57,7 +37,7 @@ final class TodayNotesLoading extends TodayNotesState {
 }
 
 final class TodayNotesLoaded extends TodayNotesState {
-  final List<TodayNoteEntry> entries;
+  final List<ClinicalNoteSummary> entries;
 
   const TodayNotesLoaded(this.entries);
 
@@ -79,7 +59,11 @@ final class TodayNotesError extends TodayNotesState {
 // ---------------------------------------------------------------------------
 
 class TodayNotesBloc extends Bloc<TodayNotesEvent, TodayNotesState> {
-  TodayNotesBloc() : super(const TodayNotesInitial()) {
+  final GetTodayNotesUseCase _getTodayNotes;
+
+  TodayNotesBloc({required GetTodayNotesUseCase getTodayNotes})
+      : _getTodayNotes = getTodayNotes,
+        super(const TodayNotesInitial()) {
     on<TodayNotesLoadRequested>(_onLoad);
   }
 
@@ -88,27 +72,10 @@ class TodayNotesBloc extends Bloc<TodayNotesEvent, TodayNotesState> {
     Emitter<TodayNotesState> emit,
   ) async {
     emit(const TodayNotesLoading());
-    // Stub — la route API /v1/cabinet/today-notes viendra plus tard.
-    final entries = [
-      TodayNoteEntry(
-        id: 'note-1',
-        timestamp: DateTime(2026, 6, 22, 9, 0),
-        patientInitials: 'MD',
-        status: 'Terminée',
-      ),
-      TodayNoteEntry(
-        id: 'note-2',
-        timestamp: DateTime(2026, 6, 22, 10, 30),
-        patientInitials: 'JD',
-        status: 'En cours',
-      ),
-      TodayNoteEntry(
-        id: 'note-3',
-        timestamp: DateTime(2026, 6, 22, 11, 0),
-        patientInitials: 'CB',
-        status: 'Terminée',
-      ),
-    ];
-    emit(TodayNotesLoaded(entries));
+    final result = await _getTodayNotes();
+    result.fold(
+      (failure) => emit(TodayNotesError(failure.message)),
+      (entries) => emit(TodayNotesLoaded(entries)),
+    );
   }
 }

@@ -26,6 +26,7 @@ import '../remote/scheduling/scheduling_api.dart';
 import '../remote/search/search_api.dart';
 import '../remote/secretariat/secretariat_api.dart';
 import '../remote/slots/slots_api.dart';
+import '../remote/today_notes/today_notes_api.dart';
 import '../remote/waiting_room/waiting_room_api.dart';
 import '../repositories/account_repository_impl.dart';
 import '../repositories/search_repository_impl.dart';
@@ -50,6 +51,7 @@ import '../repositories/prescription_repository_impl.dart';
 import '../repositories/review_repository_impl.dart';
 import '../repositories/secretariat_repository_impl.dart';
 import '../repositories/slots_repository_impl.dart';
+import '../repositories/today_notes_repository_impl.dart';
 import '../repositories/user_settings_repository_impl.dart';
 import '../repositories/waiting_room_repository_impl.dart';
 
@@ -259,6 +261,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetQuotesApi>(
       () => CabinetQuotesApi(gi()),
     )
+    ..registerLazySingleton<TodayNotesApi>(
+      () => TodayNotesApi(gi()),
+    )
     // Repositories
     ..registerLazySingleton<CabinetDashboardRepository>(
       () => CabinetDashboardRepositoryImpl(gi()),
@@ -292,6 +297,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<CabinetMessageRepository>(
       () => CabinetMessageRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<TodayNotesRepository>(
+      () => TodayNotesRepositoryImpl(gi()),
     );
 
   // Pro use cases (non-clinical — available to both praticien and secrétariat)
@@ -320,7 +328,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => AddSecretariatUseCase(gi()))
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
-    ..registerFactory(() => SendMessageCabinetUseCase(gi()));
+    ..registerFactory(() => SendMessageCabinetUseCase(gi()))
+    ..registerFactory(() => GetTodayNotesUseCase(gi()));
 
   if (includeClinical) {
     gi

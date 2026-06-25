@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'today_notes_bloc.dart';
 
-/// Card displaying the last 3 consultations of the day.
+/// Card displaying today's consultation notes.
 /// Consumes [TodayNotesBloc] injected via BlocProvider.
 class TodayNotesCard extends StatelessWidget {
   const TodayNotesCard({super.key});
@@ -14,7 +15,7 @@ class TodayNotesCard extends StatelessWidget {
       builder: (context, state) {
         final entries = switch (state) {
           TodayNotesLoaded(:final entries) => entries,
-          _ => const <TodayNoteEntry>[],
+          _ => const <ClinicalNoteSummary>[],
         };
 
         return Card(
@@ -58,7 +59,7 @@ class TodayNotesCard extends StatelessWidget {
 class _NoteRow extends StatelessWidget {
   const _NoteRow({required this.entry});
 
-  final TodayNoteEntry entry;
+  final ClinicalNoteSummary entry;
 
   @override
   Widget build(BuildContext context) {
