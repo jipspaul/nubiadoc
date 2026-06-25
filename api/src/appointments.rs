@@ -1333,6 +1333,7 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 /// Réponse : même shape que `GET /v1/appointments/:id`.
 pub async fn create_appointment(
     State(state): State<AppState>,
+    Extension(hub): Extension<std::sync::Arc<crate::realtime::WsHub>>,
     claims: PatientAccountClaims,
     headers: HeaderMap,
     Json(body): Json<CreateAppointmentBody>,
@@ -1573,6 +1574,16 @@ pub async fn create_appointment(
     let (cabinet_name, cabinet_address) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    hub.publish(
+        cabinet_id,
+        serde_json::json!({
+            "channel": "waiting_room",
+            "event": "queue_updated",
+            "data": { "appointment_id": appointment_id, "status": status }
+        })
+        .to_string(),
+    );
 
     tracing::info!(
         account_id = %claims.account_id,

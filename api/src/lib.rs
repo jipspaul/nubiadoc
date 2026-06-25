@@ -8,6 +8,8 @@ use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
+pub use realtime::WsHub;
+
 mod appointments;
 mod auth;
 mod billing;
@@ -157,10 +159,11 @@ pub fn router() -> Router {
 /// Le `JobDispatcher` est injecté comme `Extension` (stub no-op par défaut).
 /// Pour la production avec un dispatcher réel, utiliser [`app_with_dispatcher`].
 pub fn app(state: AppState) -> Router {
-    app_with_dispatcher(
+    build_router(
         state,
         Arc::new(StubJobDispatcher),
         Arc::new(StubStorageSigner),
+        Arc::new(WsHub::new()),
     )
 }
 
@@ -169,6 +172,25 @@ pub fn app_with_dispatcher(
     state: AppState,
     dispatcher: Arc<dyn JobDispatcher>,
     signer: Arc<dyn StorageSigner>,
+) -> Router {
+    build_router(state, dispatcher, signer, Arc::new(WsHub::new()))
+}
+
+/// Variante pour les tests qui injectent un hub WS précis (broadcast tests).
+pub fn app_with_hub(state: AppState, hub: Arc<WsHub>) -> Router {
+    build_router(
+        state,
+        Arc::new(StubJobDispatcher),
+        Arc::new(StubStorageSigner),
+        hub,
+    )
+}
+
+fn build_router(
+    state: AppState,
+    dispatcher: Arc<dyn JobDispatcher>,
+    signer: Arc<dyn StorageSigner>,
+    hub: Arc<WsHub>,
 ) -> Router {
     Router::new()
         .route("/v1/health", get(health::health))
@@ -515,6 +537,7 @@ pub fn app_with_dispatcher(
             "/v1/webhooks/gocardless",
             post(webhooks::gocardless::gocardless_webhook),
         )
+        .layer(Extension(hub))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
         ))

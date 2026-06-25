@@ -1,7 +1,9 @@
 //! Handler `GET /v1/cabinet/agenda` — agenda du cabinet pour le secrétariat et le praticien.
 
+use std::sync::Arc;
+
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -717,6 +719,7 @@ pub struct CreateCabinetAppointmentResponse {
 /// Statut initial : `"requested"`.
 pub async fn create_cabinet_appointment(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<crate::realtime::WsHub>>,
     claims: ProSecretaryPlusClaims,
     Json(body): Json<CreateCabinetAppointmentBody>,
 ) -> Result<(StatusCode, Json<CreateCabinetAppointmentResponse>), AppError> {
@@ -817,6 +820,16 @@ pub async fn create_cabinet_appointment(
     .map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    hub.publish(
+        claims.cabinet_id,
+        serde_json::json!({
+            "channel": "waiting_room",
+            "event": "queue_updated",
+            "data": { "appointment_id": appointment_id, "status": status }
+        })
+        .to_string(),
+    );
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
@@ -1050,6 +1063,7 @@ pub struct ConfirmAppointmentResponse {
 /// Toute confirmation est auditée dans `audit_log`.
 pub async fn confirm_appointment(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<crate::realtime::WsHub>>,
     claims: ProSecretaryPlusClaims,
     Path(appt_id): Path<Uuid>,
 ) -> Result<Json<ConfirmAppointmentResponse>, AppError> {
@@ -1099,6 +1113,16 @@ pub async fn confirm_appointment(
     .map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    hub.publish(
+        claims.cabinet_id,
+        serde_json::json!({
+            "channel": "waiting_room",
+            "event": "queue_updated",
+            "data": { "appointment_id": id, "status": "confirmed" }
+        })
+        .to_string(),
+    );
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
