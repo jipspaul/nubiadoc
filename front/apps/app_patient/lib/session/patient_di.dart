@@ -12,6 +12,7 @@ import '../features/home/home_bloc.dart';
 import '../features/notifications/notifications_bloc.dart';
 import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/profile/profile_bloc.dart';
+import '../features/reviews/reviews_bloc.dart';
 import 'auth_cubit.dart';
 
 /// Registers patient-app blocs/cubits on top of registerCore + registerData.
@@ -88,6 +89,13 @@ void registerPatient(GetIt gi) {
 
   gi.registerFactory<NotificationsBloc>(
     () => NotificationsBloc(repository: gi<NotificationRepository>()),
+  );
+
+  gi.registerFactory<ReviewsBloc>(
+    () => ReviewsBloc(
+      getProviderReviews: gi<GetProviderReviewsUseCase>(),
+      submitReview: gi<SubmitReviewUseCase>(),
+    ),
   );
 
   gi.registerFactory<OubliettesBloc>(() => OubliettesBloc());
