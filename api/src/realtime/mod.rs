@@ -124,19 +124,14 @@ async fn handle_socket(mut socket: WebSocket, session: WsSession) {
 
         match msg {
             Message::Text(text) => {
-                let reply =
-                    match serde_json::from_str::<serde_json::Value>(text.as_str()) {
-                        Ok(v)
-                            if v.get("op").and_then(|o| o.as_str()) == Some("ping") =>
-                        {
-                            json!({
-                                "op": "pong",
-                                "ts": chrono::Utc::now().to_rfc3339()
-                            })
-                            .to_string()
-                        }
-                        _ => json!({"error": "unknown_op"}).to_string(),
-                    };
+                let reply = match serde_json::from_str::<serde_json::Value>(text.as_str()) {
+                    Ok(v) if v.get("op").and_then(|o| o.as_str()) == Some("ping") => json!({
+                        "op": "pong",
+                        "ts": chrono::Utc::now().to_rfc3339()
+                    })
+                    .to_string(),
+                    _ => json!({"error": "unknown_op"}).to_string(),
+                };
                 if socket.send(Message::Text(reply)).await.is_err() {
                     break;
                 }

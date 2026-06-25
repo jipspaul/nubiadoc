@@ -73,11 +73,9 @@ async fn ws_valid_patient_token_ping_pong() {
         .await
         .expect("connexion ws doit être établie avec un token valide");
 
-    ws.send(tungstenite::Message::Text(
-        r#"{"op":"ping"}"#.to_string(),
-    ))
-    .await
-    .unwrap();
+    ws.send(tungstenite::Message::Text(r#"{"op":"ping"}"#.to_string()))
+        .await
+        .unwrap();
 
     let reply = tokio::time::timeout(Duration::from_millis(500), ws.next())
         .await
