@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../features/a2ui_demo/a2ui_demo_page.dart';
 import '../features/agenda/agenda_page.dart';
@@ -99,6 +100,20 @@ class AppRouter {
               patientId: state.uri.queryParameters['patientId'],
             ),
           ),
+          routes: [
+            GoRoute(
+              path: 'new',
+              builder: (_, state) => Scaffold(
+                appBar: AppBar(title: const Text('Nouvelle ordonnance')),
+                body: NubiaEmptyState(
+                  key: const Key('ordonnances_new'),
+                  icon: Icons.medication_outlined,
+                  title: 'Nouvelle ordonnance',
+                  subtitle: 'Saisissez les médicaments à prescrire pour ce patient.',
+                ),
+              ),
+            ),
+          ],
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
       ],

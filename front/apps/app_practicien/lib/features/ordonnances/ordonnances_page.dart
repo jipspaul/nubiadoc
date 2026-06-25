@@ -80,15 +80,6 @@ class _InitialView extends StatelessWidget {
   const _InitialView({this.patientId});
   final String? patientId;
 
-  static const _sampleItems = [
-    PrescriptionItem(
-      label: 'Amoxicilline 500 mg',
-      posology: '1 comprimé 3x/jour',
-      duration: '7 jours',
-      quantity: '21',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return NubiaEmptyState(
@@ -102,12 +93,8 @@ class _InitialView extends StatelessWidget {
           ? null
           : FilledButton.icon(
               key: const Key('create_ordonnance_button'),
-              onPressed: () => context.read<OrdonnancesBloc>().add(
-                    OrdonnancesCreateRequested(
-                      patientId: patientId!,
-                      items: _sampleItems,
-                    ),
-                  ),
+              onPressed: () => context
+                  .push('/ordonnances/new?patientId=$patientId'),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Nouvelle ordonnance'),
             ),
