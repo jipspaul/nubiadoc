@@ -268,7 +268,7 @@
 | **FR4.2** | Push FCM + `POST /devices` | enregistrement device + deep-links. |
 | **FR4.3** | i18n (fr) + états homogènes | états vides/erreur/skeleton via DS sur les 3 apps. |
 | **FR4.4** | E2E `integration_test` | parcours clés des 3 apps. |
-| **FR4.5** | MAJ doc | `PROGRESS.md` + créer `front/AGENTS.md` + tableau d'état. |
+| **FR4.5** | MAJ doc | maintenir `front/AGENTS.md` + tableau d'état (issues Forgejo). |
 
 ### I.6 Ordre d'attaque conseillé (planner front)
 1. **FR0.1 + FR0.6 + FR0.7** (fondations transverses, parallélisables).

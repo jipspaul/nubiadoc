@@ -1,6 +1,6 @@
 # 09 — Backlog d'issues prêtes à créer
 
-> ⚠️ **MISE À JOUR 12/06** : ce fichier est un backlog **historique** (T0→T24 du plan d'origine, scaffold de l'API Rust). La majorité des items T0-T9 sont **livrés** (cf. `PROGRESS.md` section « État par brique » + 97 routes enregistrées dans `api/src/lib.rs`). **Le planner agent ne lit pas ce fichier** — il lit `web-console/PLAN-ATOMIC.md`, qui est désormais la source de vérité unique pour les vraies tâches restantes.
+> ⚠️ **MISE À JOUR 12/06** : ce fichier est un backlog **historique** (T0→T24 du plan d'origine, scaffold de l'API Rust). La majorité des items T0-T9 sont **livrés** (cf. `git log` + 97 routes enregistrées dans `api/src/lib.rs`). **Le planner agent ne lit pas ce fichier** — il lit `web-console/PLAN-ATOMIC.md`, qui est désormais la source de vérité unique pour les vraies tâches restantes.
 >
 > **Vrais TODOs rust restants** (synthèse audit 12/06) :
 > - **3 endpoints multi-contexte manquants** : R8 (`POST /v1/auth/select-context`), R10-complete (filtrage secretary-scoped), R11 (`GET/PUT /v1/cabinet/providers/:id/secretariats`)
