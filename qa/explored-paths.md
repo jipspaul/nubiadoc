@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-25 22:12
+Last run: 2026-06-25T22:16
 
 ## Faux positifs connus (méthode C)
 
@@ -17,39 +17,39 @@ Last run: 2026-06-25 22:12
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-25 | OK | — |
-| /appointments | 2026-06-24 | 2026-06-25 | OK | — |
-| /mes-rdv | 2026-06-24 | 2026-06-25 | OK | — |
-| /documents | 2026-06-24 | 2026-06-25 | OK | — |
-| /financial | 2026-06-24 | 2026-06-25 | OK | — |
-| /profile | 2026-06-24 | 2026-06-25 | OK | — |
-| /messaging | 2026-06-24 | 2026-06-25 | OK | — |
-| /notifications | 2026-06-24 | 2026-06-25 | OK | — |
+| / | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /appointments | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /mes-rdv | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /documents | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /financial | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /profile | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /messaging | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /notifications | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-25 | OK | — |
-| /agenda | 2026-06-24 | 2026-06-25 | OK | — |
-| /patients | 2026-06-24 | 2026-06-25 | OK | — |
-| /messages | 2026-06-24 | 2026-06-25 | OK | — |
-| /consultation | 2026-06-24 | 2026-06-25 | OK | — |
-| /ordonnances | 2026-06-24 | 2026-06-25 | OK | — |
-| /waiting-room | 2026-06-24 | 2026-06-25 | OK | — |
-| /a2ui-demo | 2026-06-24 | 2026-06-25 | OK | — |
+| / | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /agenda | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /patients | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /messages | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /consultation | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /ordonnances | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /waiting-room | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /a2ui-demo | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-25 | OK | — |
-| /agenda | 2026-06-24 | 2026-06-25 | OK | — |
-| /appointments | 2026-06-24 | 2026-06-25 | OK | — |
-| /bookable-slots | 2026-06-24 | 2026-06-25 | OK | — |
-| /devis | 2026-06-24 | 2026-06-25 | OK | — |
-| /liste-attente | 2026-06-24 | 2026-06-25 | OK | — |
-| /patients | 2026-06-24 | 2026-06-25 | OK | — |
-| /salle-attente | 2026-06-24 | 2026-06-25 | OK | — |
+| / | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /agenda | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /appointments | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /bookable-slots | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /devis | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /liste-attente | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /patients | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
+| /salle-attente | 2026-06-24 | 2026-06-25 | login-failed | login-failed |
