@@ -114,7 +114,11 @@ class _LoadedViewState extends State<_LoadedView> {
                 key: const Key('new_appointment_button'),
                 onPressed: widget.state.actionInProgress
                     ? null
-                    : () => _showNewAppointmentDialog(context),
+                    : () => _showNewAppointmentDialog(
+                          context,
+                          widget.state,
+                          practitioners,
+                        ),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Nouveau RDV'),
               ),
@@ -152,16 +156,10 @@ class _LoadedViewState extends State<_LoadedView> {
           ),
         Expanded(
           child: filteredEntries.isEmpty
-              ? const Center(
+              ? const NubiaEmptyState(
                   key: Key('agenda_empty'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.calendar_month_outlined, size: 48),
-                      SizedBox(height: 12),
-                      Text('Aucun rendez-vous cette semaine'),
-                    ],
-                  ),
+                  icon: Icons.calendar_month_outlined,
+                  title: 'Aucun rendez-vous cette semaine',
                 )
               : RefreshIndicator(
                   key: const Key('agenda_refresh_indicator'),
@@ -181,20 +179,167 @@ class _LoadedViewState extends State<_LoadedView> {
     );
   }
 
-  void _showNewAppointmentDialog(BuildContext context) {
+  void _showNewAppointmentDialog(
+    BuildContext context,
+    AgendaLoaded state,
+    Map<String, String> practitioners,
+  ) {
+    final availableSlots =
+        state.availableSlots.where((s) => s.isAvailable).toList();
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Nouveau rendez-vous'),
-        content:
-            const Text('Sélectionnez un créneau disponible dans l\'agenda.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Fermer'),
-          ),
-        ],
+      builder: (_) => _NewAppointmentDialog(
+        availableSlots: availableSlots,
+        practitioners: practitioners,
+        onConfirm: (appointment) => context.read<AgendaBloc>().add(
+              AgendaAppointmentCreateRequested(appointment: appointment),
+            ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _NewAppointmentDialog extends StatefulWidget {
+  const _NewAppointmentDialog({
+    required this.availableSlots,
+    required this.practitioners,
+    required this.onConfirm,
+  });
+
+  final List<Slot> availableSlots;
+  final Map<String, String> practitioners;
+  final void Function(CabinetAppointment) onConfirm;
+
+  @override
+  State<_NewAppointmentDialog> createState() => _NewAppointmentDialogState();
+}
+
+class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
+  Slot? _selectedSlot;
+  final _patientNameCtrl = TextEditingController();
+  final _motifCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _patientNameCtrl.dispose();
+    _motifCtrl.dispose();
+    super.dispose();
+  }
+
+  String _slotLabel(Slot slot) {
+    const weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    const months = [
+      'jan.',
+      'fév.',
+      'mar.',
+      'avr.',
+      'mai',
+      'juin',
+      'juil.',
+      'août',
+      'sep.',
+      'oct.',
+      'nov.',
+      'déc.',
+    ];
+    final d = slot.startsAt;
+    final h =
+        '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    return '${weekdays[d.weekday - 1]} ${d.day} ${months[d.month - 1]} – $h';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSlots = widget.availableSlots.isNotEmpty;
+    final canCreate = hasSlots &&
+        _selectedSlot != null &&
+        _patientNameCtrl.text.trim().isNotEmpty;
+
+    return AlertDialog(
+      title: const Text('Nouveau rendez-vous'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!hasSlots)
+              const Text('Aucun créneau disponible cette semaine.')
+            else ...[
+              InputDecorator(
+                decoration: const InputDecoration(labelText: 'Créneau'),
+                child: DropdownButton<Slot>(
+                  key: const Key('slot_picker_dropdown'),
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  value: _selectedSlot,
+                  hint: const Text('Sélectionner un créneau'),
+                  items: widget.availableSlots
+                      .map((s) => DropdownMenuItem(
+                            value: s,
+                            child: Text(_slotLabel(s)),
+                          ))
+                      .toList(),
+                  onChanged: (s) => setState(() => _selectedSlot = s),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('patient_name_field'),
+                controller: _patientNameCtrl,
+                decoration:
+                    const InputDecoration(labelText: 'Nom du patient *'),
+                textCapitalization: TextCapitalization.words,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('motif_field'),
+                controller: _motifCtrl,
+                decoration:
+                    const InputDecoration(labelText: 'Motif (optionnel)'),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          key: const Key('cancel_appointment_button'),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+        if (hasSlots)
+          FilledButton(
+            key: const Key('create_appointment_button'),
+            onPressed: canCreate
+                ? () {
+                    final slot = _selectedSlot!;
+                    final patientName = _patientNameCtrl.text.trim();
+                    final motif = _motifCtrl.text.trim();
+                    widget.onConfirm(
+                      CabinetAppointment(
+                        id: '',
+                        cabinetId: slot.cabinetId,
+                        patientId:
+                            patientName.toLowerCase().replaceAll(' ', '-'),
+                        patientName: patientName,
+                        practitionerId: slot.practitionerId,
+                        practitionerName:
+                            widget.practitioners[slot.practitionerId] ?? '',
+                        startsAt: slot.startsAt,
+                        duration: slot.duration,
+                        motif: motif.isEmpty ? 'Consultation' : motif,
+                        status: CabinetAppointmentStatus.requested,
+                      ),
+                    );
+                    Navigator.of(context).pop();
+                  }
+                : null,
+            child: const Text('Créer'),
+          ),
+      ],
     );
   }
 }
@@ -233,4 +378,3 @@ class _EntryCard extends StatelessWidget {
     );
   }
 }
-
