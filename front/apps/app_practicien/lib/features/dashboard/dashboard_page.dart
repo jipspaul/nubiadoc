@@ -9,6 +9,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../ordonnances/ordonnances_bloc.dart';
+import '../ordonnances/ordonnances_page.dart';
 import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
@@ -49,6 +51,12 @@ class DashboardPage extends StatelessWidget {
           return BlocProvider(
             create: (_) => GetIt.instance<WaitingRoomBloc>(),
             child: const WaitingRoomBody(),
+          );
+        }
+        if (destination.route == '/ordonnances') {
+          return BlocProvider(
+            create: (_) => GetIt.instance<OrdonnancesBloc>(),
+            child: const OrdonnancesBody(),
           );
         }
         return const Center(
