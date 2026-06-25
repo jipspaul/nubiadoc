@@ -13,7 +13,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     emit(const DashboardLoading());
-    // Stub counts — will be wired to API (agenda/appointments/waiting-list) in a future iteration
     emit(const DashboardLoaded(todayCount: 0, pendingCount: 0, waitingCount: 0));
   }
 }
