@@ -26,6 +26,6 @@ dart run melos test
 
 ## Plan
 
-Avancement FR2.x → [`PROGRESS.md`](../../../PROGRESS.md) — filtrer sur `[flutter-front] FR2`.
+Avancement FR2.x → issues Forgejo (filtre `[flutter-front] FR2`) + `git log`.
 
 Architecture, règles et commandes → [`front/AGENTS.md`](../../AGENTS.md).

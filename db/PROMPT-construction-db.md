@@ -131,9 +131,8 @@ Rédige `db/SCHEMA.md` à destination des agents qui font l'API (Rust/Axum + SQL
 - **Ne modifie pas un test pour le faire passer** : c'est le contrat. Si un test est faux par
   rapport à la spec (`docs/05` / `db/README.md`), **signale-le à Xav, il tranche.**
 - ⚠️ **Les commits sont faits par Xav** (le sandbox n'a pas les accès SSH). Toi : produis les
-  fichiers, tiens `PROGRESS.md` à jour, et **signale quand c'est un bon moment de committer**
-  (message suggéré impératif en français). Commite souvent (un fichier non commité peut être
-  perdu au prochain reset/pull).
+  fichiers et **signale quand c'est un bon moment de committer** (message suggéré impératif
+  en français). Commite souvent (un fichier non commité peut être perdu au prochain reset/pull).
 - **Démo/POC = données fictives uniquement.** Aucune donnée patient réelle avant la barrière G3
   (`docs/07` §11).
 - À la fin, donne : la **commande unique** pour tout lancer, et la **preuve** que `make test`
