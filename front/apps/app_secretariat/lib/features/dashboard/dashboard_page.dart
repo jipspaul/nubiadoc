@@ -84,39 +84,73 @@ class _DashboardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
-        if (state is! DashboardLoaded) {
-          return const Center(
-            child: CircularProgressIndicator(key: Key('dashboard_loading')),
-          );
-        }
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            key: const Key('dashboard_stats_row'),
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _StatCard(
-                key: const Key('stat_rdv_today'),
-                icon: Icons.calendar_today_outlined,
-                label: "RDV aujourd'hui",
-                count: state.todayCount,
+        return switch (state) {
+          DashboardInitial() || DashboardLoading() =>
+            const _DashboardSkeleton(key: Key('dashboard_loading')),
+          DashboardError(:final message) => NubiaErrorWidget(
+              key: const Key('dashboard_error'),
+              message: message,
+              onRetry: () => context
+                  .read<DashboardBloc>()
+                  .add(const DashboardLoadRequested()),
+            ),
+          DashboardLoaded(
+            :final todayCount,
+            :final pendingCount,
+            :final waitingCount,
+          ) =>
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Wrap(
+                key: const Key('dashboard_stats_row'),
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  _StatCard(
+                    key: const Key('stat_rdv_today'),
+                    icon: Icons.calendar_today_outlined,
+                    label: "RDV aujourd'hui",
+                    count: todayCount,
+                  ),
+                  _StatCard(
+                    key: const Key('stat_pending'),
+                    icon: Icons.pending_actions_outlined,
+                    label: 'En attente',
+                    count: pendingCount,
+                  ),
+                  _StatCard(
+                    key: const Key('stat_waiting_list'),
+                    icon: Icons.format_list_bulleted_outlined,
+                    label: 'Liste attente',
+                    count: waitingCount,
+                  ),
+                ],
               ),
-              _StatCard(
-                key: const Key('stat_pending'),
-                icon: Icons.pending_actions_outlined,
-                label: 'En attente',
-                count: state.pendingCount,
-              ),
-              _StatCard(
-                key: const Key('stat_waiting_list'),
-                icon: Icons.format_list_bulleted_outlined,
-                label: 'Liste attente',
-                count: state.waitingCount,
-              ),
-            ],
-          ),
-        );
+            ),
+        };
       },
+    );
+  }
+}
+
+class _DashboardSkeleton extends StatelessWidget {
+  const _DashboardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        children: List.generate(
+          3,
+          (_) => const SizedBox(
+            width: 160,
+            child: NubiaSkeletonLoader(height: 96),
+          ),
+        ),
+      ),
     );
   }
 }
