@@ -58,6 +58,14 @@ class AppointmentsPage extends StatelessWidget {
           if (state is AppointmentsBookingLoading) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (state is AppointmentsBookingSuccess) {
+            return const NubiaEmptyState(
+              key: Key('booking_success'),
+              icon: Icons.check_circle_outline,
+              title: 'Rendez-vous confirmé !',
+              subtitle: 'Vous allez recevoir une confirmation.',
+            );
+          }
           if (state is AppointmentsError) {
             return NubiaErrorWidget(
               message: state.message,
