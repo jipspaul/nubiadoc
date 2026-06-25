@@ -6,7 +6,7 @@ Last run: 2026-06-25 00:20
 
 | route | app | détecté le | cause | résolution |
 | --- | --- | --- | --- | --- |
-| /appointments | patient | 2026-06-25 | CSS Flutter `::placeholder` (pseudo-sélecteur champ texte) capté comme marker | faux positif — feature complète, ferme #2724 |
+| /appointments | patient | 2026-06-25 | CSS Flutter `::placeholder` (pseudo-sélecteur champ texte) capté comme marker | faux positif — feature complète, ferme #2724 #2749 |
 | /salle-attente | secretariat | 2026-06-25 | idem CSS Flutter | faux positif — ferme #2746 |
 | /profile | patient | 2026-06-25 | idem CSS Flutter | faux positif — feature complète, ferme #2728 |
 
