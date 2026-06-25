@@ -13,6 +13,20 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     emit(const DashboardLoading());
-    emit(const DashboardLoaded(todayCount: 0, pendingCount: 0, waitingCount: 0));
+    try {
+      emit(
+        const DashboardLoaded(
+          todayCount: 0,
+          pendingCount: 0,
+          waitingCount: 0,
+        ),
+      );
+    } catch (_) {
+      emit(
+        const DashboardError(
+          message: 'Impossible de charger le tableau de bord.',
+        ),
+      );
+    }
   }
 }
