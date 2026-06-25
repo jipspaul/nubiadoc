@@ -252,4 +252,4 @@ cd apps/app_patient && flutter test test/features/mes_rdv_test.dart
 - Routes API : `docs/12-reference-api.md`.
 - Design tokens : `design/03-design-system/`.
 - Plan atomique features : `web-console/PLAN-ATOMIC.md` §I.
-- État courant : `PROGRESS.md`.
+- État courant : issues Forgejo (label `state:*`) + `git log`.

@@ -6,20 +6,15 @@
 ## Workflow git (rappel court)
 - Remote = **Forgejo** (`origin`), branche par défaut `main`.
 - Commits faits par les agents (push auto via leur token Forgejo) ; humains review/merge.
-- Avant de commencer : `git pull` puis lecture de `PROGRESS.md` (résumé d'état) + `AGENTS.md` racine.
-- Tout choix structurant (archi, dépendance) → noté dans `PROGRESS.md` section « Décisions / notes ».
+- Avant de commencer : `git pull` puis lecture de `AGENTS.md` racine. L'état d'avancement vit dans les issues Forgejo + le git log, pas dans un fichier-journal partagé.
+- Tout choix structurant (archi, dépendance) → noté dans le message de commit / la PR, et si transverse dans `docs/`.
 - Le détail fin par brique vit dans `docs/09-backlog-issues.md` + les issues Forgejo.
 
 ## Fin d'étape
-1. Mettre à jour `PROGRESS.md` (fait + prochaines étapes + tableau d'état).
-2. Push sur la branche `agent/<…>` puis ouvrir la PR vers `main` (en français, impératif).
-3. La CI doit être verte (build + tests + `test-integrity`) avant qu'un humain merge.
+1. Push sur la branche `agent/<…>` puis ouvrir la PR vers `main` (en français, impératif).
+2. La CI doit être verte (build + tests + `test-integrity`) avant qu'un humain merge.
 
 ## Pointeurs
 - Routing par dossier : `AGENTS.md` (racine).
-- État courant : `PROGRESS.md`.
+- État courant : issues Forgejo (label `state:*`) + `git log --oneline`.
 - Backlog : `docs/09-backlog-issues.md`.
-
-| Sujet | Où |
-|---|---|
-| PROGRESS.md auto-merger (orchestrator → Forgejo) | [`orchestrator/src/adapters/dev-forgejo/progress-resolver.ts`](orchestrator/src/adapters/dev-forgejo/progress-resolver.ts) |

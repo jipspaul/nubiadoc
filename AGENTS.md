@@ -38,7 +38,6 @@ que les sub-issues sont mergées sur main. À automatiser : detect par titre ide
 avec suffix `.a/.b/.c` → fermer auto la parent quand TOUTES les subs sont mergées.
 
 ## Pour aller plus loin (lecture optionnelle, gros fichiers)
-- `PROGRESS.md` — état global + prochaines étapes.
 - `docs/12-reference-api.md` — toutes les routes/contrats.
 - `docs/05-donnees.md` — modèle de données.
 - `docs/07-conformite.md` — règles RGPD/HDS.
