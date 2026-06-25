@@ -208,7 +208,7 @@ class _ProfileContent extends StatelessWidget {
               .add(BiometricToggleRequested(enabled: v)),
         ),
         const Divider(),
-        _LogoutTile(),
+        const _LogoutTile(),
       ],
     );
   }
@@ -331,6 +331,8 @@ class _SectionTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _LogoutTile extends StatelessWidget {
+  const _LogoutTile();
+
   @override
   Widget build(BuildContext context) {
     return ListTile(
