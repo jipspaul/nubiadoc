@@ -201,21 +201,11 @@ class _SignedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return NubiaEmptyState(
       key: const Key('ordonnances_signed'),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-          const SizedBox(height: 16),
-          const Text('Ordonnance signée'),
-          const SizedBox(height: 8),
-          Text(
-            '${prescription.items.length} médicament(s)',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
+      icon: Icons.check_circle_outline,
+      title: 'Ordonnance signée',
+      subtitle: '${prescription.items.length} médicament(s)',
     );
   }
 }
