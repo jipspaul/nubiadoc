@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../patients/patients_bloc.dart';
+import '../patients/patients_event.dart';
+import '../patients/patients_state.dart';
 import 'agenda_bloc.dart';
 import 'agenda_event.dart';
 import 'agenda_state.dart';
@@ -87,37 +90,77 @@ class _PatientPickerSheet extends StatelessWidget {
   const _PatientPickerSheet({required this.onPatientSelected});
   final void Function(String patientId) onPatientSelected;
 
-  static const _stubs = [
-    (id: 'pat-1', name: 'Marie Martin'),
-    (id: 'pat-2', name: 'Jean Dupont'),
-    (id: 'pat-3', name: 'Sophie Bernard'),
-  ];
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => GetIt.instance<PatientsBloc>()
+        ..add(const PatientsLoadRequested()),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Sélectionner un patient',
+                key: const Key('patient_picker_title'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const Divider(height: 1),
+            _PatientPickerBody(onPatientSelected: onPatientSelected),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PatientPickerBody extends StatelessWidget {
+  const _PatientPickerBody({required this.onPatientSelected});
+  final void Function(String patientId) onPatientSelected;
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              'Sélectionner un patient',
-              key: const Key('patient_picker_title'),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          const Divider(height: 1),
-          for (final p in _stubs)
-            ListTile(
-              key: Key('patient_pick_${p.id}'),
-              title: Text(p.name),
-              leading: const Icon(Icons.person_outline),
-              onTap: () => onPatientSelected(p.id),
-            ),
-        ],
-      ),
+    return BlocBuilder<PatientsBloc, PatientsState>(
+      builder: (context, state) {
+        if (state is PatientsInitial || state is PatientsLoading) {
+          return const SizedBox(
+            height: 80,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (state is PatientsError) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(state.message),
+          );
+        }
+        if (state is PatientsLoaded) {
+          if (state.patients.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              child: Text('Aucun patient enregistré'),
+            );
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: state.patients.length,
+            itemBuilder: (_, i) {
+              final p = state.patients[i];
+              return ListTile(
+                key: Key('patient_pick_${p.id}'),
+                title: Text(p.fullName),
+                leading: const Icon(Icons.person_outline),
+                onTap: () => onPatientSelected(p.id),
+              );
+            },
+          );
+        }
+        return const SizedBox.shrink();
+      },
     );
   }
 }
