@@ -11,6 +11,9 @@ import 'package:app_practicien/features/agenda/agenda_bloc.dart';
 import 'package:app_practicien/features/agenda/agenda_event.dart';
 import 'package:app_practicien/features/agenda/agenda_page.dart';
 import 'package:app_practicien/features/agenda/agenda_state.dart';
+import 'package:app_practicien/features/patients/patients_bloc.dart';
+import 'package:app_practicien/features/patients/patients_event.dart';
+import 'package:app_practicien/features/patients/patients_state.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -27,6 +30,9 @@ class MockStartConsultationUseCase extends Mock
 
 class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
     implements AgendaBloc {}
+
+class MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
+    implements PatientsBloc {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -342,7 +348,19 @@ void main() {
         AgendaLoaded(entries: const [], weekStart: _weekStart),
       );
 
+      final patient = CabinetPatient(
+        id: 'pat-1',
+        cabinetId: 'cab-1',
+        firstName: 'Marie',
+        lastName: 'Martin',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      final mockPatientsBloc = MockPatientsBloc();
+      when(() => mockPatientsBloc.state)
+          .thenReturn(PatientsLoaded([patient]));
+
       GetIt.instance.registerFactory<AgendaBloc>(() => mockBloc);
+      GetIt.instance.registerFactory<PatientsBloc>(() => mockPatientsBloc);
       addTearDown(GetIt.instance.reset);
 
       await tester.pumpWidget(const MaterialApp(home: AgendaPage()));
