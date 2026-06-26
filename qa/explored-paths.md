@@ -26,7 +26,7 @@ Last run: 2026-06-25T22:17
 | /financial | 2026-06-24 | 2026-06-25 | OK | — |
 | /profile | 2026-06-24 | 2026-06-26 | OK | faux positif #2728 confirmé — feature complète, flutter analyze vert |
 | /messaging | 2026-06-24 | 2026-06-25 | OK | — |
-| /notifications | 2026-06-24 | 2026-06-25 | OK | — |
+| /notifications | 2026-06-24 | 2026-06-26 | OK | re-vérifié 2026-06-26 : bloc try/catch, BlocBuilder exhaustif, BlocProvider router, flutter analyze vert — ferme #2833 |
 
 ## praticien
 
