@@ -12,7 +12,7 @@ Last run: 2026-06-25T22:17
 | /messages | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` (champ saisie du thread) | faux positif — feature complète (CabinetMessagingPage, bloc, thread), ferme #2734 |
 | /agenda | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` (champ texte dans la bottom sheet de sélection patient) | faux positif — feature complète (AgendaPage, AgendaBloc, navigation semaine, cards RDV, empty state), ferme #2732 |
 | /notifications | patient | 2026-06-25 | QA-20260625-8 (T2755.b) : BlocBuilder + GetIt déjà corrigés par commits antérieurs (enregistrement NotificationsBloc, BlocBuilder exhaustif #2662, try/catch handlers) ; flutter analyze vert (vérifié 2026-06-25) | déjà résolu — ferme #2833 |
-| /ordonnances | praticien | 2026-06-25 | QA-20260625-14 (T2736.c) : OrdonnancesBloc enregistré dans GetIt, BlocBuilder couvre Initial/Loading/Created/Signed/Loaded/Error, route /ordonnances dans app_router.dart, DI pro_di.dart | déjà résolu — ferme #2854 |
+| /ordonnances | praticien | 2026-06-25 | QA-20260625-14 (T2736.b+c) : route /ordonnances retourne Scaffold+AppBar+OrdonnancesPage (≥3 widgets), OrdonnancesBody couvre Initial/Loading/Created/Signed/Loaded/Error avec NubiaEmptyState/NubiaErrorWidget, OrdonnancesBloc enregistré dans GetIt (pro_di.dart) ; flutter analyze vert (vérifié 2026-06-26) | déjà résolu — ferme #2853 #2854 |
 
 ## patient
 
