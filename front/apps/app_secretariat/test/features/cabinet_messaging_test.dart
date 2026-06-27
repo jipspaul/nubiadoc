@@ -202,7 +202,7 @@ void main() {
           theme: NubiaTheme.light,
           home: BlocProvider<CabinetMessagingBloc>.value(
             value: bloc,
-            child: const Scaffold(body: CabinetMessagingPage()),
+            child: const CabinetMessagingPage(),
           ),
         );
 
