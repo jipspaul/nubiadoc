@@ -8,8 +8,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
 import 'package:app_practicien/features/dashboard/today_notes_card.dart';
 
-class MockTodayNotesBloc
-    extends MockBloc<TodayNotesEvent, TodayNotesState>
+class MockTodayNotesBloc extends MockBloc<TodayNotesEvent, TodayNotesState>
     implements TodayNotesBloc {}
 
 final _entries = [

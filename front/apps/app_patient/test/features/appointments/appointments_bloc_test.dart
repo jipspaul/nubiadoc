@@ -42,11 +42,9 @@ void main() {
       '"abc" écrase "ab" même si "ab" résout en retard — régression lost-update',
       () async {
         // "ab" est lent : son future ne se résout qu'après "abc"
-        final completerAb =
-            Completer<Either<Failure, List<ProviderResult>>>();
+        final completerAb = Completer<Either<Failure, List<ProviderResult>>>();
         // "abc" est rapide : résout en premier
-        final completerAbc =
-            Completer<Either<Failure, List<ProviderResult>>>();
+        final completerAbc = Completer<Either<Failure, List<ProviderResult>>>();
 
         when(() => searchProviders(query: 'ab'))
             .thenAnswer((_) => completerAb.future);

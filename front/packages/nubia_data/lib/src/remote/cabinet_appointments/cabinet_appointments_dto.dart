@@ -32,9 +32,8 @@ class CabinetAppointmentDto {
     if (json['duration_minutes'] != null) {
       durationMinutes = (json['duration_minutes'] as num).toInt();
     } else if (endsAt != null) {
-      durationMinutes = DateTime.parse(endsAt)
-          .difference(DateTime.parse(startsAt))
-          .inMinutes;
+      durationMinutes =
+          DateTime.parse(endsAt).difference(DateTime.parse(startsAt)).inMinutes;
     } else {
       durationMinutes = 0;
     }
@@ -47,9 +46,8 @@ class CabinetAppointmentDto {
       practitionerName: json['practitioner_name'] as String? ?? '',
       startsAt: startsAt,
       durationMinutes: durationMinutes,
-      motif: (json['motif_admin'] as String?) ??
-          (json['motif'] as String?) ??
-          '',
+      motif:
+          (json['motif_admin'] as String?) ?? (json['motif'] as String?) ?? '',
       status: json['status'] as String,
     );
   }

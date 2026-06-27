@@ -31,7 +31,8 @@ class MemberDto {
         email: json['email'] as String,
         role: json['role'] as String,
         specialty: json['specialty'] as String?,
-        isActive: (json['active'] as bool?) ?? (json['is_active'] as bool?) ?? true,
+        isActive:
+            (json['active'] as bool?) ?? (json['is_active'] as bool?) ?? true,
         joinedAt: json['joined_at'] as String,
       );
 

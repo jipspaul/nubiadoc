@@ -335,4 +335,3 @@ class _SlotsView extends StatelessWidget {
     return min > 0 ? '${h}h$min' : '${h}h';
   }
 }
-

@@ -34,12 +34,14 @@ class CabinetMessagingBloc
     try {
       final result = await _listConversations();
       result.fold(
-        (failure) => safeEmit(CabinetMessagingConversationsError(failure.message)),
+        (failure) =>
+            safeEmit(CabinetMessagingConversationsError(failure.message)),
         (conversations) =>
             safeEmit(CabinetMessagingConversationsLoaded(conversations)),
       );
     } catch (_) {
-      safeEmit(const CabinetMessagingConversationsError('Erreur de chargement.'));
+      safeEmit(
+          const CabinetMessagingConversationsError('Erreur de chargement.'));
     }
   }
 
@@ -100,12 +102,14 @@ class CabinetMessagingBloc
     try {
       final result = await _listConversations();
       result.fold(
-        (failure) => safeEmit(CabinetMessagingConversationsError(failure.message)),
+        (failure) =>
+            safeEmit(CabinetMessagingConversationsError(failure.message)),
         (conversations) =>
             safeEmit(CabinetMessagingConversationsLoaded(conversations)),
       );
     } catch (_) {
-      safeEmit(const CabinetMessagingConversationsError('Erreur de chargement.'));
+      safeEmit(
+          const CabinetMessagingConversationsError('Erreur de chargement.'));
     }
   }
 }

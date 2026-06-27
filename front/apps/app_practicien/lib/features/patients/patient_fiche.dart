@@ -32,9 +32,7 @@ class _PatientFicheScaffold extends StatelessWidget {
               IconButton(
                 key: const Key('toggle_clinical'),
                 icon: Icon(
-                  state.showClinical
-                      ? Icons.visibility_off
-                      : Icons.visibility,
+                  state.showClinical ? Icons.visibility_off : Icons.visibility,
                 ),
                 tooltip: state.showClinical
                     ? 'Masquer notes cliniques'
@@ -109,8 +107,7 @@ class ClinicalSection extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/'
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.year}';
 }

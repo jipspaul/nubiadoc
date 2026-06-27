@@ -42,8 +42,7 @@ class _AgendaView extends StatelessWidget {
           (prev is AgendaLoaded ? prev.includePast : false) !=
           (curr is AgendaLoaded ? curr.includePast : false),
       builder: (context, state) {
-        final includePast =
-            state is AgendaLoaded ? state.includePast : false;
+        final includePast = state is AgendaLoaded ? state.includePast : false;
         return Scaffold(
           appBar: AppBar(
             title: const Text('Agenda'),
@@ -53,9 +52,8 @@ class _AgendaView extends StatelessWidget {
                 icon: const Icon(Icons.history),
                 tooltip: 'Inclure passés',
                 isSelected: includePast,
-                onPressed: () => context
-                    .read<AgendaBloc>()
-                    .add(const TogglePastIncluded()),
+                onPressed: () =>
+                    context.read<AgendaBloc>().add(const TogglePastIncluded()),
               ),
             ],
           ),
@@ -93,8 +91,8 @@ class _PatientPickerSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => GetIt.instance<PatientsBloc>()
-        ..add(const PatientsLoadRequested()),
+      create: (_) =>
+          GetIt.instance<PatientsBloc>()..add(const PatientsLoadRequested()),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -591,4 +589,3 @@ class _EntryCard extends StatelessWidget {
     );
   }
 }
-

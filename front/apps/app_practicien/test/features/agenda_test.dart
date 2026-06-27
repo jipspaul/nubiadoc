@@ -356,8 +356,7 @@ void main() {
         createdAt: DateTime(2026, 1, 1),
       );
       final mockPatientsBloc = MockPatientsBloc();
-      when(() => mockPatientsBloc.state)
-          .thenReturn(PatientsLoaded([patient]));
+      when(() => mockPatientsBloc.state).thenReturn(PatientsLoaded([patient]));
 
       GetIt.instance.registerFactory<AgendaBloc>(() => mockBloc);
       GetIt.instance.registerFactory<PatientsBloc>(() => mockPatientsBloc);

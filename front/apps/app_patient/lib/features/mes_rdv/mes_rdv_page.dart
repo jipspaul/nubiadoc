@@ -390,4 +390,3 @@ class _StatusChip extends StatelessWidget {
     };
   }
 }
-
