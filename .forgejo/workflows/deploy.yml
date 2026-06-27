@@ -35,7 +35,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Pre-flight LXC reachability (skip deploy if down)
+        id: preflight
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          # Le LXC de test peut être down (host éteint, services crashés…). On NE veut PAS
+          # spammer le statut "failed" sur chaque merge dans ce cas : on skip proprement
+          # avec un warning visible. SSH ne sera retesté qu'au merge suivant — il faut
+          # re-run manuellement la deploy.yml une fois la LXC réparée.
+          # Test TCP simple via /dev/tcp (bash built-in, pas de paquet à installer).
+          if timeout 5 bash -c "echo > /dev/tcp/${DEPLOY_HOST}/22" 2>/dev/null; then
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+            echo "✅ LXC ${DEPLOY_HOST}:22 reachable — continuing deploy"
+          else
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::LXC ${DEPLOY_HOST}:22 unreachable — deploy SKIPPED. Restart the LXC then re-run this workflow."
+          fi
+
       - name: Cache toolchain Rust + build
+        if: steps.preflight.outputs.reachable == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -50,6 +69,7 @@ jobs:
             deploy-rust-
 
       - name: Toolchain (sautée si en cache)
+        if: steps.preflight.outputs.reachable == 'true'
         run: |
           set -e
           export PATH="$HOME/.cargo/bin:$PATH"
@@ -75,6 +95,7 @@ jobs:
           zig version && cargo zigbuild --help >/dev/null && sshpass -V
 
       - name: Build + déploiement vers le LXC
+        if: steps.preflight.outputs.reachable == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
