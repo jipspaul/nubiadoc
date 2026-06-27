@@ -1,10 +1,11 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'documents_event.dart';
 import 'documents_state.dart';
 
-class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
+class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> with SafeEmitMixin<DocumentsState> {
   final GetDocumentsUseCase _getDocuments;
   final GetDocumentSignedUrlUseCase _getSignedUrl;
   final UploadDocumentUseCase _upload;
@@ -32,11 +33,11 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
     try {
       final result = await _getDocuments();
       result.fold(
-        (failure) => emit(DocumentsError(failure.message)),
-        (documents) => emit(DocumentsLoaded(documents)),
+        (failure) => safeEmit(DocumentsError(failure.message)),
+        (documents) => safeEmit(DocumentsLoaded(documents)),
       );
     } catch (_) {
-      emit(const DocumentsError('Erreur de chargement.'));
+      safeEmit(const DocumentsError('Erreur de chargement.'));
     }
   }
 
@@ -68,13 +69,13 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
     try {
       final result = await _getSignedUrl(event.documentId);
       result.fold(
-        (failure) => emit(DocumentsDownloadError(failure.message)),
-        (url) => emit(
+        (failure) => safeEmit(DocumentsDownloadError(failure.message)),
+        (url) => safeEmit(
           DocumentsDownloadReady(documentId: event.documentId, url: url),
         ),
       );
     } catch (_) {
-      emit(const DocumentsDownloadError('Erreur de téléchargement.'));
+      safeEmit(const DocumentsDownloadError('Erreur de téléchargement.'));
     }
   }
 
@@ -91,11 +92,11 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
         category: event.category,
       );
       result.fold(
-        (failure) => emit(DocumentsUploadFailure(failure.message)),
-        (doc) => emit(DocumentsUploadSuccess(doc)),
+        (failure) => safeEmit(DocumentsUploadFailure(failure.message)),
+        (doc) => safeEmit(DocumentsUploadSuccess(doc)),
       );
     } catch (_) {
-      emit(const DocumentsUploadFailure('Erreur d\'envoi.'));
+      safeEmit(const DocumentsUploadFailure('Erreur d\'envoi.'));
     }
   }
 }

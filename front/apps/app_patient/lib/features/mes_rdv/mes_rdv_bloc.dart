@@ -1,10 +1,11 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'mes_rdv_event.dart';
 import 'mes_rdv_state.dart';
 
-class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> {
+class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> with SafeEmitMixin<MesRdvState> {
   final GetUpcomingAppointmentsUseCase _getUpcoming;
   final GetAppointmentHistoryUseCase _getHistory;
   final CancelAppointmentUseCase _cancel;
@@ -34,19 +35,19 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> {
       final upcomingResult = await _getUpcoming();
       if (upcomingResult.isLeft()) {
         final message = upcomingResult.fold((f) => f.message, (_) => '');
-        emit(MesRdvError(message));
+        safeEmit(MesRdvError(message));
         return;
       }
       final historyResult = await _getHistory();
       historyResult.fold(
-        (failure) => emit(MesRdvError(failure.message)),
-        (history) => emit(MesRdvLoaded(
+        (failure) => safeEmit(MesRdvError(failure.message)),
+        (history) => safeEmit(MesRdvLoaded(
           upcoming: upcomingResult.getOrElse(() => []),
           history: history,
         )),
       );
     } catch (_) {
-      emit(const MesRdvError('Erreur de chargement.'));
+      safeEmit(const MesRdvError('Erreur de chargement.'));
     }
   }
 
@@ -60,14 +61,14 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> {
     try {
       final result = await _cancel(event.appointment);
       await result.fold(
-        (failure) async => emit(current.copyWith(
+        (failure) async => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
         (_) async => _onLoad(const MesRdvLoadRequested(), emit),
       );
     } catch (_) {
-      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 
@@ -81,14 +82,14 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> {
     try {
       final result = await _checkin(event.appointmentId);
       await result.fold(
-        (failure) async => emit(current.copyWith(
+        (failure) async => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
         (_) async => _onLoad(const MesRdvLoadRequested(), emit),
       );
     } catch (_) {
-      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 }

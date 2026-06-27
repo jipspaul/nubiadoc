@@ -1,10 +1,11 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'reviews_event.dart';
 import 'reviews_state.dart';
 
-class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState> {
+class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState> with SafeEmitMixin<ReviewsState> {
   final GetProviderReviewsUseCase _getProviderReviews;
   final SubmitReviewUseCase _submitReview;
 
@@ -26,11 +27,11 @@ class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState> {
     try {
       final result = await _getProviderReviews(event.providerId);
       result.fold(
-        (failure) => emit(ReviewsError(failure.message)),
-        (reviews) => emit(ReviewsLoaded(reviews)),
+        (failure) => safeEmit(ReviewsError(failure.message)),
+        (reviews) => safeEmit(ReviewsLoaded(reviews)),
       );
     } catch (_) {
-      emit(const ReviewsError('Erreur de chargement.'));
+      safeEmit(const ReviewsError('Erreur de chargement.'));
     }
   }
 
@@ -47,11 +48,11 @@ class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState> {
         idempotencyKey: event.idempotencyKey,
       );
       result.fold(
-        (failure) => emit(ReviewSubmitFailure(failure.message)),
-        (_) => emit(const ReviewSubmitSuccess()),
+        (failure) => safeEmit(ReviewSubmitFailure(failure.message)),
+        (_) => safeEmit(const ReviewSubmitSuccess()),
       );
     } catch (_) {
-      emit(const ReviewSubmitFailure('Erreur lors de l\'envoi.'));
+      safeEmit(const ReviewSubmitFailure('Erreur lors de l\'envoi.'));
     }
   }
 }
