@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'appointments_event.dart';
@@ -20,11 +21,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
         _holdSlot = holdSlot,
         _bookAppointment = bookAppointment,
         super(const AppointmentsInitial()) {
-    on<AppointmentsSearchChanged>(_onSearchChanged);
-    on<AppointmentsProviderSelected>(_onProviderSelected);
-    on<AppointmentsSlotSelected>(_onSlotSelected);
+    on<AppointmentsSearchChanged>(_onSearchChanged, transformer: restartable());
+    on<AppointmentsProviderSelected>(_onProviderSelected, transformer: droppable());
+    on<AppointmentsSlotSelected>(_onSlotSelected, transformer: droppable());
     on<AppointmentsMotifChanged>(_onMotifChanged);
-    on<AppointmentsBookingConfirmed>(_onBookingConfirmed);
+    on<AppointmentsBookingConfirmed>(_onBookingConfirmed, transformer: droppable());
   }
 
   Future<void> _onSearchChanged(
