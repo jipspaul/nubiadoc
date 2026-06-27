@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'appointments_event.dart';
 import 'appointments_state.dart';
 
-class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
+class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
+    with SafeEmitMixin<AppointmentsState> {
   final ListCabinetAppointmentsUseCase _list;
   final CreateCabinetAppointmentUseCase _create;
   final ConfirmAppointmentUseCase _confirm;
@@ -34,11 +36,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     try {
       final result = await _list();
       result.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (appointments) => emit(AppointmentsLoaded(appointments)),
+        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (appointments) => safeEmit(AppointmentsLoaded(appointments)),
       );
     } catch (_) {
-      emit(const AppointmentsError('Erreur de chargement.'));
+      safeEmit(const AppointmentsError('Erreur de chargement.'));
     }
   }
 
@@ -50,11 +52,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     try {
       final result = await _create(event.appointment);
       result.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (appointment) => emit(AppointmentSuccess(appointment)),
+        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (appointment) => safeEmit(AppointmentSuccess(appointment)),
       );
     } catch (_) {
-      emit(const AppointmentsError('Erreur de chargement.'));
+      safeEmit(const AppointmentsError('Erreur de chargement.'));
     }
   }
 
@@ -66,11 +68,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     try {
       final result = await _confirm(event.appointmentId);
       result.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (appointment) => emit(AppointmentSuccess(appointment)),
+        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (appointment) => safeEmit(AppointmentSuccess(appointment)),
       );
     } catch (_) {
-      emit(const AppointmentsError('Erreur de chargement.'));
+      safeEmit(const AppointmentsError('Erreur de chargement.'));
     }
   }
 
@@ -82,11 +84,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     try {
       final result = await _reschedule(event.appointmentId, event.newStartsAt);
       result.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (appointment) => emit(AppointmentSuccess(appointment)),
+        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (appointment) => safeEmit(AppointmentSuccess(appointment)),
       );
     } catch (_) {
-      emit(const AppointmentsError('Erreur de chargement.'));
+      safeEmit(const AppointmentsError('Erreur de chargement.'));
     }
   }
 }

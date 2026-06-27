@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'bookable_slots_event.dart';
 import 'bookable_slots_state.dart';
 
-class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
+class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState>
+    with SafeEmitMixin<BookableSlotsState> {
   final ListBookableSlotsUseCase _listSlots;
   final CreateSlotUseCase _createSlot;
 
@@ -26,11 +28,11 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
     try {
       final result = await _listSlots();
       result.fold(
-        (failure) => emit(BookableSlotsError(failure.message)),
-        (slots) => emit(BookableSlotsLoaded(slots)),
+        (failure) => safeEmit(BookableSlotsError(failure.message)),
+        (slots) => safeEmit(BookableSlotsLoaded(slots)),
       );
     } catch (_) {
-      emit(const BookableSlotsError('Erreur de chargement.'));
+      safeEmit(const BookableSlotsError('Erreur de chargement.'));
     }
   }
 
@@ -47,11 +49,11 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState> {
         duration: event.endsAt.difference(event.startsAt),
       );
       result.fold(
-        (failure) => emit(BookableSlotsError(failure.message)),
+        (failure) => safeEmit(BookableSlotsError(failure.message)),
         (_) => add(const BookableSlotsLoadRequested()),
       );
     } catch (_) {
-      emit(const BookableSlotsError('Erreur de chargement.'));
+      safeEmit(const BookableSlotsError('Erreur de chargement.'));
     }
   }
 }

@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_event.dart';
 import 'devis_state.dart';
 
-class DevisBloc extends Bloc<DevisEvent, DevisState> {
+class DevisBloc extends Bloc<DevisEvent, DevisState>
+    with SafeEmitMixin<DevisState> {
   final ListCabinetQuotesUseCase _list;
   final GetCabinetQuoteUseCase _getById;
 
@@ -26,11 +28,11 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     try {
       final result = await _list();
       result.fold(
-        (failure) => emit(DevisError(failure.message)),
-        (quotes) => emit(DevisLoaded(quotes)),
+        (failure) => safeEmit(DevisError(failure.message)),
+        (quotes) => safeEmit(DevisLoaded(quotes)),
       );
     } catch (_) {
-      emit(const DevisError('Erreur de chargement.'));
+      safeEmit(const DevisError('Erreur de chargement.'));
     }
   }
 
@@ -42,11 +44,11 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     try {
       final result = await _getById(event.id);
       result.fold(
-        (failure) => emit(DevisDetailError(failure.message)),
-        (quote) => emit(DevisDetailLoaded(quote)),
+        (failure) => safeEmit(DevisDetailError(failure.message)),
+        (quote) => safeEmit(DevisDetailLoaded(quote)),
       );
     } catch (_) {
-      emit(const DevisDetailError('Erreur de chargement.'));
+      safeEmit(const DevisDetailError('Erreur de chargement.'));
     }
   }
 }

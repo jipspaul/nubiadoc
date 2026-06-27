@@ -1,10 +1,12 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'agenda_event.dart';
 import 'agenda_state.dart';
 
-class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
+class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
+    with SafeEmitMixin<AgendaState> {
   final GetCabinetAgendaUseCase _getAgenda;
   final CreateCabinetAppointmentUseCase _createAppointment;
   final ConfirmAppointmentUseCase _confirmAppointment;
@@ -41,15 +43,15 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
       final entriesResult = await _getAgenda(event.weekStart);
       if (entriesResult.isLeft()) {
         final failure = entriesResult.fold((f) => f, (_) => null)!;
-        emit(AgendaError(failure.message));
+        safeEmit(AgendaError(failure.message));
         return;
       }
       final slotsResult = await _listSlots();
       final entries = entriesResult.getOrElse(() => []);
       final slots = slotsResult.getOrElse(() => []);
-      emit(AgendaLoaded(entries: entries, availableSlots: slots));
+      safeEmit(AgendaLoaded(entries: entries, availableSlots: slots));
     } catch (_) {
-      emit(const AgendaError('Erreur de chargement de l\'agenda.'));
+      safeEmit(const AgendaError('Erreur de chargement de l\'agenda.'));
     }
   }
 
@@ -63,7 +65,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     try {
       final result = await _createAppointment(event.appointment);
       result.fold(
-        (failure) => emit(current.copyWith(
+        (failure) => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
@@ -74,7 +76,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
         },
       );
     } catch (_) {
-      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 
@@ -88,7 +90,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     try {
       final result = await _confirmAppointment(event.appointmentId);
       result.fold(
-        (failure) => emit(current.copyWith(
+        (failure) => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
@@ -99,7 +101,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
         },
       );
     } catch (_) {
-      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 
@@ -114,7 +116,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
       final result =
           await _rescheduleAppointment(event.appointmentId, event.newStartsAt);
       result.fold(
-        (failure) => emit(current.copyWith(
+        (failure) => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
@@ -125,7 +127,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
         },
       );
     } catch (_) {
-      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 }

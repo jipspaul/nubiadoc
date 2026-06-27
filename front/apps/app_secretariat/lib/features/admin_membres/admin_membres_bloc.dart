@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'admin_membres_event.dart';
 import 'admin_membres_state.dart';
 
-class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState> {
+class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
+    with SafeEmitMixin<AdminMembresState> {
   final ListMembersUseCase _listMembers;
   final ListSecretiariatsUseCase _listSecretariats;
 
@@ -30,16 +32,16 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState> {
           secretariatsResult.fold((f) => f, (_) => null);
 
       if (failure != null) {
-        emit(AdminMembresError(failure.message));
+        safeEmit(AdminMembresError(failure.message));
         return;
       }
 
-      emit(AdminMembresLoaded(
+      safeEmit(AdminMembresLoaded(
         members: membersResult.getOrElse(() => []),
         secretariats: secretariatsResult.getOrElse(() => []),
       ));
     } catch (_) {
-      emit(const AdminMembresError('Erreur de chargement.'));
+      safeEmit(const AdminMembresError('Erreur de chargement.'));
     }
   }
 }
