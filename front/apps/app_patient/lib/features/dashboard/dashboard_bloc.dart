@@ -1,10 +1,12 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
-class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
+class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
+    with SafeEmitMixin<DashboardState> {
   final GetDashboardSummaryUseCase _getSummary;
 
   DashboardBloc({required GetDashboardSummaryUseCase getDashboardSummary})
@@ -21,11 +23,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     try {
       final result = await _getSummary();
       result.fold(
-        (failure) => emit(DashboardError(failure.message)),
-        (summary) => emit(DashboardLoaded(summary)),
+        (failure) => safeEmit(DashboardError(failure.message)),
+        (summary) => safeEmit(DashboardLoaded(summary)),
       );
     } catch (_) {
-      emit(const DashboardError('Erreur de chargement.'));
+      safeEmit(const DashboardError('Erreur de chargement.'));
     }
   }
 }

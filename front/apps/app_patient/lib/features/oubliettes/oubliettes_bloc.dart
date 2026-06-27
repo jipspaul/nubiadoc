@@ -1,5 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:nubia_core/nubia_core.dart';
 
 // ---------------------------------------------------------------------------
 // Model
@@ -76,7 +77,8 @@ final class OubliettesError extends OubliettesState {
 // BLoC
 // ---------------------------------------------------------------------------
 
-class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState> {
+class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
+    with SafeEmitMixin<OubliettesState> {
   OubliettesBloc() : super(const OubliettesInitial()) {
     on<OubliettesLoadRequested>(_onLoad);
   }

@@ -1,10 +1,12 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'notifications_event.dart';
 import 'notifications_state.dart';
 
-class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
+class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
+    with SafeEmitMixin<NotificationsState> {
   final NotificationRepository _repository;
 
   NotificationsBloc({required NotificationRepository repository})
@@ -23,13 +25,13 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     try {
       final result = await _repository.getNotifications();
       result.fold(
-        (failure) => emit(NotificationsError(failure.message)),
+        (failure) => safeEmit(NotificationsError(failure.message)),
         (notifications) => notifications.isEmpty
-            ? emit(const NotificationsEmpty())
-            : emit(NotificationsLoaded(notifications)),
+            ? safeEmit(const NotificationsEmpty())
+            : safeEmit(NotificationsLoaded(notifications)),
       );
     } catch (e) {
-      emit(NotificationsError(e.toString()));
+      safeEmit(NotificationsError(e.toString()));
     }
   }
 
@@ -48,11 +50,11 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     try {
       final result = await _repository.markRead(event.notificationId);
       result.fold(
-        (failure) => emit(NotificationsError(failure.message)),
+        (failure) => safeEmit(NotificationsError(failure.message)),
         (_) {},
       );
     } catch (e) {
-      emit(NotificationsError(e.toString()));
+      safeEmit(NotificationsError(e.toString()));
     }
   }
 
@@ -70,11 +72,11 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     try {
       final result = await _repository.markAllRead();
       result.fold(
-        (failure) => emit(NotificationsError(failure.message)),
+        (failure) => safeEmit(NotificationsError(failure.message)),
         (_) {},
       );
     } catch (e) {
-      emit(NotificationsError(e.toString()));
+      safeEmit(NotificationsError(e.toString()));
     }
   }
 }
