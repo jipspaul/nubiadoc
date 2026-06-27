@@ -1,10 +1,12 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'waiting_room_event.dart';
 import 'waiting_room_state.dart';
 
-class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
+class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
+    with SafeEmitMixin<WaitingRoomState> {
   final ListWaitingRoomUseCase _listWaitingRoom;
   final CallNextUseCase _callNext;
 
@@ -26,11 +28,11 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
     try {
       final result = await _listWaitingRoom();
       result.fold(
-        (failure) => emit(WaitingRoomError(failure.message)),
-        (entries) => emit(WaitingRoomLoaded(entries: entries)),
+        (failure) => safeEmit(WaitingRoomError(failure.message)),
+        (entries) => safeEmit(WaitingRoomLoaded(entries: entries)),
       );
     } catch (_) {
-      emit(const WaitingRoomError('Erreur de chargement.'));
+      safeEmit(const WaitingRoomError('Erreur de chargement.'));
     }
   }
 
@@ -44,15 +46,14 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
     try {
       final result = await _callNext();
       await result.fold(
-        (failure) async => emit(current.copyWith(
+        (failure) async => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
         (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
       );
     } catch (_) {
-      emit(current.copyWith(
-          actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 }

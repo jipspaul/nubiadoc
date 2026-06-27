@@ -66,6 +66,10 @@ ProfileBloc _makeBloc(
 const _prefs = NotificationPreferences.allEnabled();
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(const NotificationPreferences.allEnabled());
+  });
+
   late MockGetAccountUseCase mockGetAccount;
   late MockUserSettingsRepository mockUserSettings;
   late MockNotificationRepository mockNotifRepo;
@@ -150,6 +154,64 @@ void main() {
         const ProfileLoading(),
         isA<ProfileError>()
             .having((s) => s.message, 'message', 'Erreur réseau.'),
+      ],
+    );
+
+    blocTest<ProfileBloc, ProfileState>(
+      'BiometricToggleRequested : émet [Optimistic, ToggleFailed] quand setBiometricEnabled throw',
+      build: () {
+        when(() => mockUserSettings.setBiometricEnabled(any()))
+            .thenThrow(Exception('Biometric save failed'));
+        return _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
+      },
+      seed: () =>
+          const ProfileLoaded(_account, biometricEnabled: false, notifPrefs: _prefs),
+      act: (bloc) => bloc.add(const BiometricToggleRequested(enabled: true)),
+      expect: () => [
+        isA<ProfileLoaded>()
+            .having((s) => s.biometricEnabled, 'biometricEnabled', true),
+        isA<ProfileToggleFailed>()
+            .having((s) => s.previousState.biometricEnabled,
+                'previousState.biometricEnabled', false)
+            .having((s) => s.message, 'message', isNotEmpty),
+      ],
+    );
+
+    blocTest<ProfileBloc, ProfileState>(
+      'ToggleEmailRdv : émet [Optimistic, ToggleFailed] quand updatePreferences throw',
+      build: () {
+        when(() => mockNotifRepo.updatePreferences(any()))
+            .thenThrow(Exception('Network error'));
+        return _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
+      },
+      seed: () =>
+          const ProfileLoaded(_account, biometricEnabled: false, notifPrefs: _prefs),
+      act: (bloc) => bloc.add(const ToggleEmailRdv(enabled: false)),
+      expect: () => [
+        isA<ProfileLoaded>()
+            .having((s) => s.notifPrefs?.emailEnabled, 'emailEnabled', false),
+        isA<ProfileToggleFailed>()
+            .having((s) => s.previousState.notifPrefs?.emailEnabled,
+                'previousState.emailEnabled', true),
+      ],
+    );
+
+    blocTest<ProfileBloc, ProfileState>(
+      'TogglePushRdv : émet [Optimistic, ToggleFailed] quand updatePreferences throw',
+      build: () {
+        when(() => mockNotifRepo.updatePreferences(any()))
+            .thenThrow(Exception('Network error'));
+        return _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
+      },
+      seed: () =>
+          const ProfileLoaded(_account, biometricEnabled: false, notifPrefs: _prefs),
+      act: (bloc) => bloc.add(const TogglePushRdv(enabled: false)),
+      expect: () => [
+        isA<ProfileLoaded>()
+            .having((s) => s.notifPrefs?.pushEnabled, 'pushEnabled', false),
+        isA<ProfileToggleFailed>()
+            .having((s) => s.previousState.notifPrefs?.pushEnabled,
+                'previousState.pushEnabled', true),
       ],
     );
   });
