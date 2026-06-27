@@ -125,3 +125,6 @@ fi
 
 echo "[deploy] OK — état final des conteneurs :"
 podman ps --format '  {{.Names}}  {{.Status}}'
+
+# re-deploy 2026-06-27 — validate LXC recovery + new healthchecks
+# trigger-test (forgejo restart 2026-06-27 — verify concurrency lock cleared)
