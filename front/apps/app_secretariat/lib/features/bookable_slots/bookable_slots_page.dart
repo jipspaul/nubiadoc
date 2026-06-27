@@ -57,33 +57,41 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
         icon: const Icon(Icons.add),
         label: const Text('Créer un créneau'),
       ),
-      body: BlocBuilder<BookableSlotsBloc, BookableSlotsState>(
-        builder: (context, state) {
-          if (state is BookableSlotsLoaded) {
-            final slots = state.slots;
-            if (slots.isEmpty) {
-              return const NubiaEmptyState(
-                icon: Icons.event_available_outlined,
-                title: 'Aucun créneau',
-                subtitle: 'Aucun créneau disponible.',
+      body: BlocListener<BookableSlotsBloc, BookableSlotsState>(
+        listenWhen: (_, state) => state is BookableSlotsSlotCreatedSuccess,
+        listener: (context, _) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Créneau ajouté')),
+          );
+        },
+        child: BlocBuilder<BookableSlotsBloc, BookableSlotsState>(
+          builder: (context, state) {
+            if (state is BookableSlotsLoaded) {
+              final slots = state.slots;
+              if (slots.isEmpty) {
+                return const NubiaEmptyState(
+                  icon: Icons.event_available_outlined,
+                  title: 'Aucun créneau',
+                  subtitle: 'Aucun créneau disponible.',
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: slots.length,
+                itemBuilder: (_, i) => _SlotTile(slot: slots[i]),
               );
             }
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: slots.length,
-              itemBuilder: (_, i) => _SlotTile(slot: slots[i]),
-            );
-          }
-          if (state is BookableSlotsError) {
-            return NubiaErrorWidget(
-              message: state.message,
-              onRetry: () => context
-                  .read<BookableSlotsBloc>()
-                  .add(const BookableSlotsLoadRequested()),
-            );
-          }
-          return const Center(child: CircularProgressIndicator());
-        },
+            if (state is BookableSlotsError) {
+              return NubiaErrorWidget(
+                message: state.message,
+                onRetry: () => context
+                    .read<BookableSlotsBloc>()
+                    .add(const BookableSlotsLoadRequested()),
+              );
+            }
+            return const Center(child: CircularProgressIndicator());
+          },
+        ),
       ),
     );
   }
