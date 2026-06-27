@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-27T02:03
+Last run: 2026-06-27T05:59
 
 ## Faux positifs connus (méthode C)
 
@@ -14,45 +14,45 @@ Last run: 2026-06-27T02:03
 | /notifications | patient | 2026-06-25 | déjà résolu — BlocBuilder exhaustif, try/catch, GetIt enregistré, flutter analyze vert | ferme #2833 |
 | /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
 
+
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /appointments | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /mes-rdv | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /documents | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /financial | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /profile | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /messaging | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /notifications | 2026-06-24 | 2026-06-27T02:03 | OK | — |
+| / | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /appointments | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /mes-rdv | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /documents | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /financial | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /profile | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /notifications | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /reviews | 2026-06-27 | 2026-06-27T05:59 | login_failed | No input found for email |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /agenda | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /patients | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /messages | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /consultation | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /ordonnances | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /waiting-room | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /a2ui-demo | 2026-06-24 | 2026-06-27T02:03 | OK | — |
+| / | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /agenda | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /patients | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /messages | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /consultation | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /ordonnances | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /waiting-room | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /ordonnances/new | 2026-06-27 | 2026-06-27T05:59 | login_failed | No input found for email |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /agenda | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /appointments | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /bookable-slots | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /devis | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /liste-attente | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /patients | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-| /salle-attente | 2026-06-24 | 2026-06-27T02:03 | OK | — |
-
+| / | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /agenda | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /bookable-slots | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /patients | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /appointments | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /devis | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /messages | 2026-06-27 | 2026-06-27T05:59 | login_failed | No input found for email |
+| /admin-membres | 2026-06-27 | 2026-06-27T05:59 | login_failed | No input found for email |
