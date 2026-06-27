@@ -26,7 +26,7 @@ class AuthLoading extends AuthState {
 }
 
 /// Drives patient login/logout using the shared [LoginUseCase] + [GetMeUseCase].
-class AuthCubit extends Cubit<AuthState> {
+class AuthCubit extends Cubit<AuthState> with SafeEmitMixin<AuthState> {
   AuthCubit({
     required LoginUseCase login,
     required GetMeUseCase getMe,
@@ -51,16 +51,16 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       final token = await _tokenStorage.getAccessToken();
       if (token == null || token.isEmpty) {
-        emit(const AuthUnauthenticated());
+        safeEmit(const AuthUnauthenticated());
         return;
       }
       final result = await _getMe();
       result.fold(
-        (_) => emit(const AuthUnauthenticated()),
-        (account) => emit(AuthAuthenticated(_sessionFrom(account))),
+        (_) => safeEmit(const AuthUnauthenticated()),
+        (account) => safeEmit(AuthAuthenticated(_sessionFrom(account))),
       );
     } catch (_) {
-      emit(const AuthUnauthenticated());
+      safeEmit(const AuthUnauthenticated());
     }
   }
 
@@ -69,20 +69,20 @@ class AuthCubit extends Cubit<AuthState> {
     try {
       final result = await _login(email: email, password: password);
       result.fold(
-        (failure) => emit(AuthUnauthenticated(failure.message)),
+        (failure) => safeEmit(AuthUnauthenticated(failure.message)),
         (account) {
           _deviceRegistration.registerOnLogin('patient');
-          emit(AuthAuthenticated(_sessionFrom(account)));
+          safeEmit(AuthAuthenticated(_sessionFrom(account)));
         },
       );
     } catch (_) {
-      emit(const AuthUnauthenticated('Erreur de connexion.'));
+      safeEmit(const AuthUnauthenticated('Erreur de connexion.'));
     }
   }
 
   Future<void> signOut() async {
     await _logout();
-    emit(const AuthUnauthenticated());
+    safeEmit(const AuthUnauthenticated());
   }
 
   AuthSession _sessionFrom(PatientAccount account) => AuthSession(
