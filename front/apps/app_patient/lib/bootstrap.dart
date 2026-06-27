@@ -8,6 +8,7 @@ import 'session/patient_di.dart';
 /// Composition root: wire core → data → patient blocs, then run the app.
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NubiaObservability.init(); // PostHog: analytics + replay + error tracking
   registerCore(getIt);
   registerData(getIt); // patient consumes clinical-free endpoints; full set ok
   registerPatient(getIt);
