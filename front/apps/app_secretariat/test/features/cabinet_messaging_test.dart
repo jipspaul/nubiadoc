@@ -311,7 +311,8 @@ void main() {
           const Offset(0, 300),
           1000,
         );
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
 
         verify(
           () => bloc.add(const CabinetMessagingConversationsLoadRequested()),
