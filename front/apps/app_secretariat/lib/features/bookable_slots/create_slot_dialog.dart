@@ -21,8 +21,7 @@ class _CreateSlotDialogState extends State<CreateSlotDialog> {
     _endTime = const TimeOfDay(hour: 9, minute: 30);
   }
 
-  String _formatDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/'
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.year}';
 

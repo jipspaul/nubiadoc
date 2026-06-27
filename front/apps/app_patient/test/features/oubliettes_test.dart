@@ -12,8 +12,7 @@ import 'package:app_patient/features/oubliettes/oubliettes_page.dart';
 // Mocks
 // ---------------------------------------------------------------------------
 
-class MockOubliettesBloc
-    extends MockBloc<OubliettesEvent, OubliettesState>
+class MockOubliettesBloc extends MockBloc<OubliettesEvent, OubliettesState>
     implements OubliettesBloc {}
 
 // ---------------------------------------------------------------------------

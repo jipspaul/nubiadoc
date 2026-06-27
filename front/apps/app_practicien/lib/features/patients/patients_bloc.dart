@@ -71,7 +71,8 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
         (updated) => emit(PatientDetailLoaded(updated)),
       );
     } catch (_) {
-      emit(current.copyWith(notesUpdating: false, notesError: 'Erreur inattendue.'));
+      emit(current.copyWith(
+          notesUpdating: false, notesError: 'Erreur inattendue.'));
     }
   }
 }

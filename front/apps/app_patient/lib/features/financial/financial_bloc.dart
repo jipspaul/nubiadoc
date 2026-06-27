@@ -58,7 +58,8 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState> {
         (quote) => emit(FinancialQuoteDetail(quote: quote, quotes: prevQuotes)),
       );
     } catch (_) {
-      emit(FinancialError(message: 'Erreur de chargement.', quotes: prevQuotes));
+      emit(
+          FinancialError(message: 'Erreur de chargement.', quotes: prevQuotes));
     }
   }
 

@@ -22,10 +22,12 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
         _bookAppointment = bookAppointment,
         super(const AppointmentsInitial()) {
     on<AppointmentsSearchChanged>(_onSearchChanged, transformer: restartable());
-    on<AppointmentsProviderSelected>(_onProviderSelected, transformer: droppable());
+    on<AppointmentsProviderSelected>(_onProviderSelected,
+        transformer: droppable());
     on<AppointmentsSlotSelected>(_onSlotSelected, transformer: droppable());
     on<AppointmentsMotifChanged>(_onMotifChanged);
-    on<AppointmentsBookingConfirmed>(_onBookingConfirmed, transformer: droppable());
+    on<AppointmentsBookingConfirmed>(_onBookingConfirmed,
+        transformer: droppable());
   }
 
   Future<void> _onSearchChanged(

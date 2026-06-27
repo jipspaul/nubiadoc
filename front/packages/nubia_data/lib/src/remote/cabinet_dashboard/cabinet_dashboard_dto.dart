@@ -15,12 +15,9 @@ class CabinetDashboardDto {
 
   factory CabinetDashboardDto.fromJson(Map<String, dynamic> json) =>
       CabinetDashboardDto(
-        todayAppointments:
-            (json['today_appointments'] as num?)?.toInt() ?? 0,
-        waitingRoomCount:
-            (json['waiting_room_count'] as num?)?.toInt() ?? 0,
-        unreadMessages:
-            (json['unread_messages'] as num?)?.toInt() ?? 0,
+        todayAppointments: (json['today_appointments'] as num?)?.toInt() ?? 0,
+        waitingRoomCount: (json['waiting_room_count'] as num?)?.toInt() ?? 0,
+        unreadMessages: (json['unread_messages'] as num?)?.toInt() ?? 0,
         pendingConfirmations:
             (json['pending_confirmations'] as num?)?.toInt() ?? 0,
       );

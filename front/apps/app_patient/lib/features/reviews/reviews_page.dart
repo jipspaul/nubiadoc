@@ -28,9 +28,8 @@ class ReviewsPage extends StatelessWidget {
           return NubiaErrorWidget(
             key: const Key('reviews_error'),
             message: state.message,
-            onRetry: () => context
-                .read<ReviewsBloc>()
-                .add(const ReviewsLoadRequested('')),
+            onRetry: () =>
+                context.read<ReviewsBloc>().add(const ReviewsLoadRequested('')),
           );
         }
         if (state is ReviewSubmitting) {

@@ -31,8 +31,7 @@ class NotificationPreferencesDto {
             (json['push_rdv'] ?? json['push_enabled']) as bool? ?? true,
         emailEnabled:
             (json['email_rdv'] ?? json['email_enabled']) as bool? ?? true,
-        smsEnabled:
-            (json['sms_rdv'] ?? json['sms_enabled']) as bool? ?? true,
+        smsEnabled: (json['sms_rdv'] ?? json['sms_enabled']) as bool? ?? true,
         appointments: json['appointments'] as bool? ?? true,
         documents: json['documents'] as bool? ?? true,
         messages:

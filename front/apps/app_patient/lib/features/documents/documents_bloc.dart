@@ -46,8 +46,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> {
   ) async {
     final current = state;
     if (current is DocumentsLoaded) {
-      emit(
-          DocumentsLoaded(current.documents, activeFilter: event.category));
+      emit(DocumentsLoaded(current.documents, activeFilter: event.category));
     }
   }
 

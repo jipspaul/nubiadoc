@@ -41,8 +41,7 @@ class DashboardPage extends StatelessWidget {
         final Widget body;
         if (destination.route == ProConfig.dashboardRoute) {
           body = BlocProvider(
-            create: (_) =>
-                DashboardBloc()..add(const DashboardLoadRequested()),
+            create: (_) => DashboardBloc()..add(const DashboardLoadRequested()),
             child: const _DashboardContent(),
           );
         } else if (destination.route == '/salle-attente') {
@@ -88,7 +87,8 @@ class _DashboardContent extends StatelessWidget {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
         return switch (state) {
-          DashboardInitial() || DashboardLoading() =>
+          DashboardInitial() ||
+          DashboardLoading() =>
             const _DashboardSkeleton(key: Key('dashboard_loading')),
           DashboardError(:final message) => NubiaErrorWidget(
               key: const Key('dashboard_error'),
