@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:nubia_core/src/storage/token_storage.dart';
 
@@ -8,8 +10,9 @@ class AuthInterceptor extends Interceptor {
   final TokenStorage _tokenStorage;
   // Sentinel path used internally for refresh calls — must not be intercepted.
   static const _refreshPath = '/auth/refresh';
-  // Guard against re-entrant refresh (concurrent 401s).
-  bool _isRefreshing = false;
+  // When non-null, a refresh is in progress. Concurrent 401s await this
+  // completer and each retries its own request once it resolves.
+  Completer<void>? _refreshCompleter;
   // Shared adapter injected by ApiClient so tests can swap it.
   HttpClientAdapter? _httpClientAdapter;
 
@@ -45,17 +48,32 @@ class AuthInterceptor extends Interceptor {
       return;
     }
 
-    // Avoid re-entrant refresh on concurrent failures.
-    if (_isRefreshing) {
-      handler.next(err);
+    if (_refreshCompleter != null) {
+      // A refresh is already in progress — wait for it, then retry this request.
+      try {
+        await _refreshCompleter!.future;
+        final newAccess = await _tokenStorage.getAccessToken();
+        final retryOptions = err.requestOptions
+          ..headers['Authorization'] = 'Bearer $newAccess';
+        final retryDio = _buildPlainDio(retryOptions.baseUrl);
+        final retryResponse = await retryDio.fetch<dynamic>(retryOptions);
+        handler.resolve(retryResponse);
+      } on DioException catch (_) {
+        handler.next(err);
+      } catch (_) {
+        handler.next(err);
+      }
       return;
     }
 
-    _isRefreshing = true;
+    _refreshCompleter = Completer<void>();
+    // Suppress unhandled-error if no concurrent request is awaiting the future.
+    _refreshCompleter!.future.ignore();
     try {
       final refreshToken = await _tokenStorage.getRefreshToken();
       if (refreshToken == null) {
         await _tokenStorage.clearTokens();
+        _refreshCompleter!.completeError(Exception('no refresh token'));
         handler.next(err);
         return;
       }
@@ -74,6 +92,7 @@ class AuthInterceptor extends Interceptor {
 
       if (newAccess == null || newRefresh == null) {
         await _tokenStorage.clearTokens();
+        _refreshCompleter!.completeError(Exception('invalid refresh response'));
         handler.next(err);
         return;
       }
@@ -82,6 +101,8 @@ class AuthInterceptor extends Interceptor {
         access: newAccess,
         refresh: newRefresh,
       );
+      // Signal all waiting 401s that new tokens are ready.
+      _refreshCompleter!.complete();
 
       // Retry original request with new access token.
       final retryOptions = err.requestOptions
@@ -92,9 +113,10 @@ class AuthInterceptor extends Interceptor {
       handler.resolve(retryResponse);
     } on DioException {
       await _tokenStorage.clearTokens();
+      _refreshCompleter!.completeError(Exception('refresh failed'));
       handler.next(err);
     } finally {
-      _isRefreshing = false;
+      _refreshCompleter = null;
     }
   }
 
