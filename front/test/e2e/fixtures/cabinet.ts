@@ -79,6 +79,20 @@ export async function confirmAppointment(
 }
 
 /**
+ * Réserve et confirme un RDV en une seule opération (P réserve, S confirme).
+ * Retourne l'appointment_id du RDV confirmé.
+ */
+export async function bookAndConfirmAppointment(
+  patientToken: string,
+  secretariatToken: string,
+  opts: AppointmentOpts,
+): Promise<string> {
+  const appointmentId = await bookAppointment(patientToken, opts);
+  await confirmAppointment(secretariatToken, appointmentId);
+  return appointmentId;
+}
+
+/**
  * Annule un RDV côté patient (POST /v1/appointments/:id/cancel → 200).
  */
 export async function cancelAppointment(
