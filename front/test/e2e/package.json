@@ -10,6 +10,7 @@
     "test": "playwright test --config=e2e.config.ts",
     "test:c1c2": "playwright test --config=e2e.config.ts scenarios/c1-c2-cloisonnement-rls.spec.ts",
     "test:a1": "playwright test --config=e2e.config.ts scenarios/a1-booking-confirmation.spec.ts",
+    "test:b1": "playwright test --config=e2e.config.ts scenarios/b1-wedge-quote-sign-pay.spec.ts",
     "test:d3": "playwright test --config=e2e.config.ts scenarios/d3-messaging-realtime.spec.ts"
   }
 }
