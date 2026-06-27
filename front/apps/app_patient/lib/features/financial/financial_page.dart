@@ -66,8 +66,14 @@ class _QuoteListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: () async =>
-          context.read<FinancialBloc>().add(const FinancialLoadRequested()),
+      onRefresh: () async {
+        final bloc = context.read<FinancialBloc>();
+        bloc.add(const FinancialLoadRequested());
+        await bloc.stream.firstWhere(
+          (s) => s is FinancialLoaded || s is FinancialError,
+          orElse: () => const FinancialLoading(),
+        );
+      },
       child: state.quotes.isEmpty
           ? LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
