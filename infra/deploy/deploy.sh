@@ -129,3 +129,4 @@ podman ps --format '  {{.Names}}  {{.Status}}'
 # re-deploy 2026-06-27 — validate LXC recovery + new healthchecks
 # trigger-test (forgejo restart 2026-06-27 — verify concurrency lock cleared)
 # trigger-test post fix cancel-in-progress (2026-06-27 ~02:15)
+# trigger post runner-restart
