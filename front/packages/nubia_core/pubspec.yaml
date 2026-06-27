@@ -20,6 +20,7 @@ dependencies:
   go_router: ^15.1.0
   flutter_secure_storage: ^9.2.4
   url_launcher: ^6.3.1
+  posthog_flutter: ^5.26.0
   nubia_domain:
     path: ../nubia_domain
 
