@@ -1,10 +1,12 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'messaging_event.dart';
 import 'messaging_state.dart';
 
-class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
+class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
+    with SafeEmitMixin<MessagingState> {
   final GetConversationsUseCase _getConversations;
   final GetConversationMessagesUseCase _getMessages;
   final SendMessageUseCase _sendMessage;
@@ -34,11 +36,11 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     try {
       final result = await _getConversations();
       result.fold(
-        (failure) => emit(MessagingConversationsError(failure.message)),
-        (conversations) => emit(MessagingConversationsLoaded(conversations)),
+        (failure) => safeEmit(MessagingConversationsError(failure.message)),
+        (conversations) => safeEmit(MessagingConversationsLoaded(conversations)),
       );
     } catch (_) {
-      emit(const MessagingConversationsError('Erreur de chargement.'));
+      safeEmit(const MessagingConversationsError('Erreur de chargement.'));
     }
   }
 
@@ -50,17 +52,17 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     try {
       final result = await _getMessages(event.conversation.id);
       result.fold(
-        (failure) => emit(MessagingThreadError(
+        (failure) => safeEmit(MessagingThreadError(
           conversationId: event.conversation.id,
           message: failure.message,
         )),
-        (messages) => emit(MessagingThreadLoaded(
+        (messages) => safeEmit(MessagingThreadLoaded(
           conversation: event.conversation,
           messages: messages,
         )),
       );
     } catch (_) {
-      emit(MessagingThreadError(
+      safeEmit(MessagingThreadError(
           conversationId: event.conversation.id,
           message: 'Erreur de chargement.'));
     }
@@ -82,14 +84,14 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
         text: event.text,
       );
       result.fold(
-        (failure) => emit(current.copyWith(sending: false)),
-        (message) => emit(current.copyWith(
+        (failure) => safeEmit(current.copyWith(sending: false)),
+        (message) => safeEmit(current.copyWith(
           sending: false,
           messages: [...current.messages, message],
         )),
       );
     } catch (_) {
-      emit(current.copyWith(sending: false));
+      safeEmit(current.copyWith(sending: false));
     }
   }
 
@@ -101,11 +103,11 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState> {
     try {
       final result = await _getConversations();
       result.fold(
-        (failure) => emit(MessagingConversationsError(failure.message)),
-        (conversations) => emit(MessagingConversationsLoaded(conversations)),
+        (failure) => safeEmit(MessagingConversationsError(failure.message)),
+        (conversations) => safeEmit(MessagingConversationsLoaded(conversations)),
       );
     } catch (_) {
-      emit(const MessagingConversationsError('Erreur de chargement.'));
+      safeEmit(const MessagingConversationsError('Erreur de chargement.'));
     }
   }
 }

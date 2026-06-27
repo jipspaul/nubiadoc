@@ -1,10 +1,12 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'home_event.dart';
 import 'home_state.dart';
 
-class HomeBloc extends Bloc<HomeEvent, HomeState> {
+class HomeBloc extends Bloc<HomeEvent, HomeState>
+    with SafeEmitMixin<HomeState> {
   final GetDashboardSummaryUseCase _getDashboardSummary;
 
   HomeBloc({required GetDashboardSummaryUseCase getDashboardSummary})
@@ -21,11 +23,11 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     try {
       final result = await _getDashboardSummary();
       result.fold(
-        (failure) => emit(HomeError(failure.message)),
-        (summary) => emit(HomeLoaded(summary)),
+        (failure) => safeEmit(HomeError(failure.message)),
+        (summary) => safeEmit(HomeLoaded(summary)),
       );
     } catch (_) {
-      emit(const HomeError('Erreur de chargement.'));
+      safeEmit(const HomeError('Erreur de chargement.'));
     }
   }
 }
