@@ -38,16 +38,10 @@ class _AgendaBody extends StatefulWidget {
 }
 
 class _AgendaBodyState extends State<_AgendaBody> {
-  Completer<void>? _refreshCompleter;
-
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<AgendaBloc, AgendaState>(
       listener: (context, state) {
-        if (state is AgendaLoaded || state is AgendaError) {
-          _refreshCompleter?.complete();
-          _refreshCompleter = null;
-        }
         if (state is AgendaLoaded && state.actionError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.actionError!)),
@@ -71,16 +65,7 @@ class _AgendaBodyState extends State<_AgendaBody> {
           );
         }
         if (state is AgendaLoaded) {
-          return _LoadedView(
-            state: state,
-            onRefresh: () {
-              _refreshCompleter = Completer<void>();
-              context.read<AgendaBloc>().add(
-                    AgendaLoadRequested(weekStart: _currentWeekStart()),
-                  );
-              return _refreshCompleter!.future;
-            },
-          );
+          return _LoadedView(state: state);
         }
         return const SizedBox.shrink();
       },
@@ -91,9 +76,8 @@ class _AgendaBodyState extends State<_AgendaBody> {
 // ---------------------------------------------------------------------------
 
 class _LoadedView extends StatefulWidget {
-  const _LoadedView({required this.state, required this.onRefresh});
+  const _LoadedView({required this.state});
   final AgendaLoaded state;
-  final Future<void> Function() onRefresh;
 
   @override
   State<_LoadedView> createState() => _LoadedViewState();
@@ -101,6 +85,7 @@ class _LoadedView extends StatefulWidget {
 
 class _LoadedViewState extends State<_LoadedView> {
   String? _practitionerFilter;
+  Completer<void>? _refreshCompleter;
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +100,14 @@ class _LoadedViewState extends State<_LoadedView> {
             .where((e) => e.practitionerId == _practitionerFilter)
             .toList();
 
-    return Column(
+    return BlocListener<AgendaBloc, AgendaState>(
+      listener: (context, state) {
+        if (state is AgendaLoaded || state is AgendaError) {
+          _refreshCompleter?.complete();
+          _refreshCompleter = null;
+        }
+      },
+      child: Column(
       children: [
         if (widget.state.actionInProgress)
           const LinearProgressIndicator(key: Key('agenda_action_progress')),
@@ -182,7 +174,13 @@ class _LoadedViewState extends State<_LoadedView> {
                 )
               : RefreshIndicator(
                   key: const Key('agenda_refresh_indicator'),
-                  onRefresh: widget.onRefresh,
+                  onRefresh: () {
+                    _refreshCompleter = Completer<void>();
+                    context.read<AgendaBloc>().add(
+                          AgendaLoadRequested(weekStart: _currentWeekStart()),
+                        );
+                    return _refreshCompleter!.future;
+                  },
                   child: ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -193,6 +191,7 @@ class _LoadedViewState extends State<_LoadedView> {
                 ),
         ),
       ],
+      ),
     );
   }
 
