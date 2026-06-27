@@ -25,6 +25,15 @@ class OrdonnancesCreated extends OrdonnancesState {
   List<Object?> get props => [prescription];
 }
 
+class OrdonnancesSigningInProgress extends OrdonnancesState {
+  final Prescription prescription;
+
+  const OrdonnancesSigningInProgress(this.prescription);
+
+  @override
+  List<Object?> get props => [prescription];
+}
+
 class OrdonnancesSigned extends OrdonnancesState {
   final Prescription prescription;
 
