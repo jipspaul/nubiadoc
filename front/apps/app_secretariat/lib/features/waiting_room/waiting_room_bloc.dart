@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'waiting_room_event.dart';
 import 'waiting_room_state.dart';
 
-class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
+class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
+    with SafeEmitMixin<WaitingRoomState> {
   final ListWaitingRoomUseCase _list;
   final CallNextUseCase _callNext;
 
@@ -26,11 +28,11 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
     try {
       final result = await _list();
       result.fold(
-        (failure) => emit(WaitingRoomError(failure.message)),
-        (entries) => emit(WaitingRoomLoaded(entries)),
+        (failure) => safeEmit(WaitingRoomError(failure.message)),
+        (entries) => safeEmit(WaitingRoomLoaded(entries)),
       );
     } catch (_) {
-      emit(const WaitingRoomError('Erreur de chargement.'));
+      safeEmit(const WaitingRoomError('Erreur de chargement.'));
     }
   }
 
@@ -41,11 +43,11 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState> {
     try {
       final result = await _callNext();
       await result.fold(
-        (failure) async => emit(WaitingRoomError(failure.message)),
+        (failure) async => safeEmit(WaitingRoomError(failure.message)),
         (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
       );
     } catch (_) {
-      emit(const WaitingRoomError('Erreur inattendue.'));
+      safeEmit(const WaitingRoomError('Erreur inattendue.'));
     }
   }
 }

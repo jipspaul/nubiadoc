@@ -30,3 +30,6 @@ export 'src/session/fcm_token_provider.dart';
 
 // i18n
 export 'src/l10n/nubia_l10n.dart';
+
+// Bloc helpers
+export 'src/bloc/safe_emit_mixin.dart';
