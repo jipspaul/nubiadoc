@@ -1,9 +1,11 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
-class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
+class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
+    with SafeEmitMixin<DashboardState> {
   DashboardBloc() : super(const DashboardInitial()) {
     on<DashboardLoadRequested>(_onLoad);
   }
