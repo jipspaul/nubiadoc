@@ -41,7 +41,14 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
       body: BlocBuilder<AdminSecretiariatsBloc, AdminSecretiariatsState>(
         builder: (context, state) {
           if (state is AdminSecretiariatsLoaded) {
-            return _SecretariatsList(secretariats: state.secretariats);
+            return _SecretariatsList(
+              secretariats: state.secretariats,
+              onRefresh: () async {
+                context
+                    .read<AdminSecretiariatsBloc>()
+                    .add(const AdminSecretiariatsLoadRequested());
+              },
+            );
           }
           if (state is AdminSecretiariatsError) {
             return NubiaErrorWidget(
@@ -59,9 +66,13 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
 }
 
 class _SecretariatsList extends StatelessWidget {
-  const _SecretariatsList({required this.secretariats});
+  const _SecretariatsList({
+    required this.secretariats,
+    required this.onRefresh,
+  });
 
   final List<Secretariat> secretariats;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -73,11 +84,7 @@ class _SecretariatsList extends StatelessWidget {
     }
     return RefreshIndicator(
       key: const Key('admin_secretariats_refresh'),
-      onRefresh: () async {
-        context
-            .read<AdminSecretiariatsBloc>()
-            .add(const AdminSecretiariatsLoadRequested());
-      },
+      onRefresh: onRefresh,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: secretariats.length,

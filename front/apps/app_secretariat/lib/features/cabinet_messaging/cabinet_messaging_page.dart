@@ -40,7 +40,14 @@ class CabinetMessagingPage extends StatelessWidget {
               title: 'Aucune conversation',
             );
           }
-          return _ConversationsList(conversations: state.conversations);
+          return _ConversationsList(
+            conversations: state.conversations,
+            onRefresh: () async {
+              context.read<CabinetMessagingBloc>().add(
+                    const CabinetMessagingConversationsLoadRequested(),
+                  );
+            },
+          );
         }
         if (state is CabinetMessagingThreadLoading) {
           return const Center(
@@ -69,9 +76,13 @@ class CabinetMessagingPage extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ConversationsList extends StatefulWidget {
-  const _ConversationsList({required this.conversations});
+  const _ConversationsList({
+    required this.conversations,
+    required this.onRefresh,
+  });
 
   final List<CabinetConversation> conversations;
+  final Future<void> Function() onRefresh;
 
   @override
   State<_ConversationsList> createState() => _ConversationsListState();
@@ -118,11 +129,7 @@ class _ConversationsListState extends State<_ConversationsList> {
         Expanded(
           child: RefreshIndicator(
             key: const Key('cabinet_messaging_refresh'),
-            onRefresh: () async {
-              context
-                  .read<CabinetMessagingBloc>()
-                  .add(const CabinetMessagingConversationsLoadRequested());
-            },
+            onRefresh: widget.onRefresh,
             child: ListView.separated(
               key: const Key('cabinet_messaging_conversations_list'),
               itemCount: filtered.length,
