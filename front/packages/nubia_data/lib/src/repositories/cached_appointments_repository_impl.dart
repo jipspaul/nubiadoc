@@ -53,7 +53,10 @@ class CachedAppointmentsRepositoryImpl extends CachedXRepository<Appointment>
     final result = await _remote.book(slotId: slotId, motif: motif);
     await result.fold(
       (_) async {},
-      (appointment) => _cache.saveOne(appointment),
+      (appointment) async {
+        await _cache.saveOne(appointment);
+        await _cache.clearUpcoming();
+      },
     );
     return result;
   }
@@ -63,10 +66,7 @@ class CachedAppointmentsRepositoryImpl extends CachedXRepository<Appointment>
     final result = await _remote.cancel(id);
     await result.fold(
       (_) async {},
-      (appointment) async {
-        await _cache.saveOne(appointment);
-        await _cache.clear();
-      },
+      (_) => _cache.clear(),
     );
     return result;
   }
@@ -79,10 +79,7 @@ class CachedAppointmentsRepositoryImpl extends CachedXRepository<Appointment>
     final result = await _remote.modify(id: id, newSlotId: newSlotId);
     await result.fold(
       (_) async {},
-      (appointment) async {
-        await _cache.saveOne(appointment);
-        await _cache.clear();
-      },
+      (_) => _cache.clear(),
     );
     return result;
   }
@@ -92,7 +89,10 @@ class CachedAppointmentsRepositoryImpl extends CachedXRepository<Appointment>
     final result = await _remote.checkin(id);
     await result.fold(
       (_) async {},
-      (appointment) => _cache.saveOne(appointment),
+      (appointment) async {
+        await _cache.saveOne(appointment);
+        await _cache.clearUpcoming();
+      },
     );
     return result;
   }

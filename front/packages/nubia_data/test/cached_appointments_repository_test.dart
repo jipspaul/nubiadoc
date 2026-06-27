@@ -177,22 +177,24 @@ void main() {
   });
 
   group('book — write-through', () {
-    test('délègue au remote et met le RDV en cache', () async {
+    test('délègue au remote, met le RDV en cache et invalide la liste',
+        () async {
       when(() => mockRemote.book(slotId: 'slot-1', motif: 'Détartrage'))
           .thenAnswer((_) async => Right(_appt1));
       when(() => mockCache.saveOne(any())).thenAnswer((_) async {});
+      when(() => mockCache.clearUpcoming()).thenAnswer((_) async {});
 
       final result = await repo.book(slotId: 'slot-1', motif: 'Détartrage');
 
       expect(result.isRight(), isTrue);
       expect(_rightOne(result), equals(_appt1));
       verify(() => mockCache.saveOne(_appt1)).called(1);
+      verify(() => mockCache.clearUpcoming()).called(1);
     });
   });
 
   group('cancel — write-through + invalidation', () {
-    test('délègue au remote, met à jour le cache et invalide la liste',
-        () async {
+    test('délègue au remote et invalide le cache complet', () async {
       final cancelled = Appointment(
         id: 'appt-1',
         cabinetId: 'cab-1',
@@ -206,15 +208,14 @@ void main() {
 
       when(() => mockRemote.cancel('appt-1'))
           .thenAnswer((_) async => Right(cancelled));
-      when(() => mockCache.saveOne(any())).thenAnswer((_) async {});
       when(() => mockCache.clear()).thenAnswer((_) async {});
 
       final result = await repo.cancel('appt-1');
 
       expect(result.isRight(), isTrue);
       expect(_rightOne(result), equals(cancelled));
-      verify(() => mockCache.saveOne(cancelled)).called(1);
       verify(() => mockCache.clear()).called(1);
+      verifyNever(() => mockCache.saveOne(any()));
     });
   });
 }
