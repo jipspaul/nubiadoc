@@ -42,7 +42,7 @@ class DriftAppointmentsCache implements AppointmentsCache {
   @override
   Future<CachedData<Appointment>?> getById(String id) async {
     final rows = await _db.customSelect(
-      'SELECT json, cached_at FROM cached_appointments WHERE id = ? AND list_key IS NULL',
+      "SELECT json, cached_at FROM cached_appointments WHERE id = ? AND list_key = '_single'",
       variables: [Variable.withString(id)],
     ).get();
     if (rows.isEmpty) return null;
@@ -80,7 +80,7 @@ class DriftAppointmentsCache implements AppointmentsCache {
   Future<void> saveOne(Appointment appointment) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.customStatement(
-      'INSERT OR REPLACE INTO cached_appointments (id, json, list_key, cached_at) VALUES (?, ?, NULL, ?)',
+      "INSERT OR REPLACE INTO cached_appointments (id, json, list_key, cached_at) VALUES (?, ?, '_single', ?)",
       [appointment.id, jsonEncode(_appointmentToMap(appointment)), now],
     );
   }
@@ -88,9 +88,21 @@ class DriftAppointmentsCache implements AppointmentsCache {
   @override
   Future<void> remove(String id) async {
     await _db.customStatement(
-      'DELETE FROM cached_appointments WHERE id = ? AND list_key IS NULL',
+      "DELETE FROM cached_appointments WHERE id = ? AND list_key = '_single'",
       [id],
     );
+  }
+
+  @override
+  Future<void> clearUpcoming() async {
+    await _db.transaction(() async {
+      await _db.customStatement(
+        "DELETE FROM cached_appointments WHERE list_key = 'upcoming'",
+      );
+      await _db.customStatement(
+        "DELETE FROM cache_timestamps WHERE cache_key = 'upcoming'",
+      );
+    });
   }
 
   @override

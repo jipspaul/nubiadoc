@@ -9,4 +9,5 @@ abstract class AppointmentsCache {
   Future<void> saveOne(Appointment appointment);
   Future<void> remove(String id);
   Future<void> clear();
+  Future<void> clearUpcoming();
 }
