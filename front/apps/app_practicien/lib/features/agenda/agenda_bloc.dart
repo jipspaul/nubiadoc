@@ -1,10 +1,12 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'agenda_event.dart';
 import 'agenda_state.dart';
 
-class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
+class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
+    with SafeEmitMixin<AgendaState> {
   final GetCabinetAgendaUseCase _getAgenda;
   final ConfirmAppointmentUseCase _confirmAppointment;
   final StartConsultationUseCase _startConsultation;
@@ -33,15 +35,15 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     try {
       final result = await _getAgenda(weekStart, includePast: includePast);
       result.fold(
-        (failure) => emit(AgendaError(failure.message)),
-        (entries) => emit(AgendaLoaded(
+        (failure) => safeEmit(AgendaError(failure.message)),
+        (entries) => safeEmit(AgendaLoaded(
           entries: entries,
           weekStart: weekStart,
           includePast: includePast,
         )),
       );
     } catch (_) {
-      emit(const AgendaError('Erreur de chargement de l\'agenda.'));
+      safeEmit(const AgendaError('Erreur de chargement de l\'agenda.'));
     }
   }
 
@@ -84,7 +86,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     try {
       final result = await _confirmAppointment(event.appointmentId);
       await result.fold(
-        (failure) async => emit(current.copyWith(
+        (failure) async => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
@@ -95,7 +97,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
         ),
       );
     } catch (_) {
-      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 
@@ -109,7 +111,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
     try {
       final result = await _startConsultation(event.appointmentId);
       await result.fold(
-        (failure) async => emit(current.copyWith(
+        (failure) async => safeEmit(current.copyWith(
           actionInProgress: false,
           actionError: failure.message,
         )),
@@ -120,7 +122,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState> {
         ),
       );
     } catch (_) {
-      emit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 }

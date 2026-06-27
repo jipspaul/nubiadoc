@@ -1,10 +1,12 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'patients_event.dart';
 import 'patients_state.dart';
 
-class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
+class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
+    with SafeEmitMixin<PatientsState> {
   final ListCabinetPatientsUseCase _list;
   final GetCabinetPatientUseCase _getById;
   final UpdatePatientNotesUseCase _updateNotes;
@@ -30,11 +32,11 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     try {
       final result = await _list();
       result.fold(
-        (failure) => emit(PatientsError(failure.message)),
-        (patients) => emit(PatientsLoaded(patients)),
+        (failure) => safeEmit(PatientsError(failure.message)),
+        (patients) => safeEmit(PatientsLoaded(patients)),
       );
     } catch (_) {
-      emit(const PatientsError('Erreur de chargement.'));
+      safeEmit(const PatientsError('Erreur de chargement.'));
     }
   }
 
@@ -46,11 +48,11 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     try {
       final result = await _getById(event.id);
       result.fold(
-        (failure) => emit(PatientDetailError(failure.message)),
-        (patient) => emit(PatientDetailLoaded(patient)),
+        (failure) => safeEmit(PatientDetailError(failure.message)),
+        (patient) => safeEmit(PatientDetailLoaded(patient)),
       );
     } catch (_) {
-      emit(const PatientDetailError('Erreur de chargement.'));
+      safeEmit(const PatientDetailError('Erreur de chargement.'));
     }
   }
 
@@ -64,14 +66,14 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     try {
       final result = await _updateNotes(event.id, event.notes);
       result.fold(
-        (failure) => emit(current.copyWith(
+        (failure) => safeEmit(current.copyWith(
           notesUpdating: false,
           notesError: failure.message,
         )),
-        (updated) => emit(PatientDetailLoaded(updated)),
+        (updated) => safeEmit(PatientDetailLoaded(updated)),
       );
     } catch (_) {
-      emit(current.copyWith(notesUpdating: false, notesError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(notesUpdating: false, notesError: 'Erreur inattendue.'));
     }
   }
 }

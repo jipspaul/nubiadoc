@@ -1,11 +1,13 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
 
 class ConsultationCliniqueBloc
-    extends Bloc<ConsultationCliniqueEvent, ConsultationCliniqueState> {
+    extends Bloc<ConsultationCliniqueEvent, ConsultationCliniqueState>
+    with SafeEmitMixin<ConsultationCliniqueState> {
   final GetSessionUseCase _getSession;
   final AddActUseCase _addAct;
   final CompleteSessionUseCase _completeSession;
@@ -32,11 +34,11 @@ class ConsultationCliniqueBloc
     try {
       final result = await _getSession(event.consultationId);
       result.fold(
-        (failure) => emit(ConsultationCliniqueError(failure.message)),
-        (session) => emit(ConsultationCliniqueLoaded(session: session)),
+        (failure) => safeEmit(ConsultationCliniqueError(failure.message)),
+        (session) => safeEmit(ConsultationCliniqueLoaded(session: session)),
       );
     } catch (_) {
-      emit(const ConsultationCliniqueError('Erreur de chargement.'));
+      safeEmit(const ConsultationCliniqueError('Erreur de chargement.'));
     }
   }
 
@@ -57,17 +59,17 @@ class ConsultationCliniqueBloc
         included: event.included,
       );
       await result.fold(
-        (failure) async => emit(current.copyWith(actionInProgress: false)),
+        (failure) async => safeEmit(current.copyWith(actionInProgress: false)),
         (_) async {
           final reload = await _getSession(current.session.id);
           reload.fold(
-            (_) => emit(current.copyWith(actionInProgress: false)),
-            (s) => emit(ConsultationCliniqueLoaded(session: s)),
+            (_) => safeEmit(current.copyWith(actionInProgress: false)),
+            (s) => safeEmit(ConsultationCliniqueLoaded(session: s)),
           );
         },
       );
     } catch (_) {
-      emit(current.copyWith(actionInProgress: false));
+      safeEmit(current.copyWith(actionInProgress: false));
     }
   }
 
@@ -81,11 +83,11 @@ class ConsultationCliniqueBloc
     try {
       final result = await _completeSession(current.session.id);
       result.fold(
-        (failure) => emit(ConsultationCliniqueError(failure.message)),
-        (completed) => emit(ConsultationCliniqueCompleted(completed)),
+        (failure) => safeEmit(ConsultationCliniqueError(failure.message)),
+        (completed) => safeEmit(ConsultationCliniqueCompleted(completed)),
       );
     } catch (_) {
-      emit(ConsultationCliniqueError('Erreur lors de la clôture.'));
+      safeEmit(ConsultationCliniqueError('Erreur lors de la clôture.'));
     }
   }
 
