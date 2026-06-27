@@ -25,7 +25,13 @@ on:
 
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: true
+  # Postmortem 2026-06-27 : avec `cancel-in-progress: true`, Forgejo Actions
+  # cancel le run en cours avant d'évaluer `paths-ignore` sur le nouveau push.
+  # Quand le QA agent met à jour `qa/explored-paths.md` (paths-ignore matched),
+  # il cancel quand même le deploy précédent → net 0 deploy run, badge rouge
+  # éternel. cancel-in-progress=false fait l'inverse : le nouveau push attend
+  # le precedent. Le deploy étant idempotent (podman rm/run), c'est sûr.
+  cancel-in-progress: false
 
 jobs:
   deploy:
