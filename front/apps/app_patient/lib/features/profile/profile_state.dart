@@ -39,3 +39,13 @@ final class ProfileError extends ProfileState {
   @override
   List<Object?> get props => [message];
 }
+
+final class ProfileToggleFailed extends ProfileState {
+  final ProfileLoaded previousState;
+  final String message;
+
+  const ProfileToggleFailed(this.previousState, this.message);
+
+  @override
+  List<Object?> get props => [previousState, message];
+}
