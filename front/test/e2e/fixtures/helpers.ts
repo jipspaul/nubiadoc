@@ -1,3 +1,5 @@
+import { createHmac } from 'crypto';
+
 import { request as playwrightRequest } from '@playwright/test';
 
 export const API = process.env.API_BASE_URL ?? 'http://localhost:8080/v1';
@@ -39,5 +41,48 @@ export function authedFetch(
       'Content-Type': 'application/json',
       ...(options?.headers as Record<string, string>),
     },
+  });
+}
+
+const YOUSIGN_SECRET = process.env.YOUSIGN_WEBHOOK_SECRET ?? 'dev-yousign-secret';
+const STRIPE_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? 'dev-stripe-secret';
+
+/**
+ * Simule un webhook prestataire avec signature HMAC valide (env dev).
+ *
+ * Yousign : HMAC-SHA256(secret, body) → X-Yousign-Signature-256: sha256=<hex>
+ * Stripe  : HMAC-SHA256(secret, "<ts>.<body>") → Stripe-Signature: t=<ts>,v1=<hex>
+ *
+ * Idempotent par conception : rejouer le même event_id doit renvoyer 200 sans
+ * effet de bord (le backend filtre les événements déjà traités).
+ */
+export function mockExternalWebhook(
+  provider: 'yousign' | 'stripe',
+  eventPayload: Record<string, unknown>,
+): Promise<Response> {
+  const body = JSON.stringify(eventPayload);
+
+  if (provider === 'yousign') {
+    const sig = createHmac('sha256', YOUSIGN_SECRET).update(body).digest('hex');
+    return fetch(`${API}/webhooks/yousign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Yousign-Signature-256': `sha256=${sig}`,
+      },
+      body,
+    });
+  }
+
+  // Stripe : t=<unix_timestamp>,v1=<HMAC-SHA256(secret, "<ts>.<body>")>
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const sig = createHmac('sha256', STRIPE_SECRET).update(`${ts}.${body}`).digest('hex');
+  return fetch(`${API}/webhooks/stripe`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Stripe-Signature': `t=${ts},v1=${sig}`,
+    },
+    body,
   });
 }

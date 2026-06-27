@@ -4,6 +4,9 @@ target/
 
 # web-console
 web-console/node_modules/
+
+# e2e tests
+front/test/e2e/node_modules/
 web-console/.astro/
 web-console/dist/
 /.dev-stack-logs/

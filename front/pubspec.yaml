@@ -55,3 +55,6 @@ melos:
     upgrade:
       run: dart pub upgrade
       description: Upgrade dependencies for the whole workspace (single shared lockfile).
+    e2e:
+      run: cd test/e2e && npx playwright test --config=e2e.config.ts {args}
+      description: "Lance les tests E2E Playwright multi-rôle. Ex: melos run e2e -- --grep _smoke"
