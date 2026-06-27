@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-27T06:11
+Last run: 2026-06-27T06:21
 
 ## Faux positifs connus (méthode C)
 
@@ -16,44 +16,45 @@ Last run: 2026-06-27T06:11
 
 
 
+
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
-| /appointments | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
-| /mes-rdv | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
-| /documents | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
-| /financial | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
-| /profile | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
-| /notifications | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
-| /reviews | 2026-06-27 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
+| / | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /appointments | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /mes-rdv | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /documents | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /financial | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /profile | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /notifications | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /reviews | 2026-06-27 | 2026-06-27T06:21 | OK | — |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=99%) |
-| /agenda | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=99%) |
-| /patients | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /messages | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /consultation | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /ordonnances | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /waiting-room | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /ordonnances/new | 2026-06-27 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| / | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /agenda | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /patients | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /messages | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /consultation | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /ordonnances | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /waiting-room | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /ordonnances/new | 2026-06-27 | 2026-06-27T06:21 | OK | — |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=99%) |
-| /agenda | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /bookable-slots | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=99%) |
-| /patients | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /appointments | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /devis | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /messages | 2026-06-27 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
-| /admin-membres | 2026-06-27 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=98%) |
+| / | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /agenda | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /bookable-slots | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /patients | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /appointments | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /devis | 2026-06-24 | 2026-06-27T06:21 | OK | — |
+| /messages | 2026-06-27 | 2026-06-27T06:21 | OK | — |
+| /admin-membres | 2026-06-27 | 2026-06-27T06:21 | OK | — |
