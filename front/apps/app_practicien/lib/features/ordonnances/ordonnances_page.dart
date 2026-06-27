@@ -64,6 +64,9 @@ class OrdonnancesBody extends StatelessWidget {
         if (state is OrdonnancesCreated) {
           return _CreatedView(prescription: state.prescription);
         }
+        if (state is OrdonnancesSigningInProgress) {
+          return _CreatedView(prescription: state.prescription);
+        }
         if (state is OrdonnancesSigned) {
           return _SignedView(prescription: state.prescription);
         }
@@ -136,13 +139,17 @@ class _CreatedViewState extends State<_CreatedView> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
-              FilledButton.icon(
-                key: const Key('sign_ordonnance_button'),
-                onPressed: () => context
-                    .read<OrdonnancesBloc>()
-                    .add(OrdonnancesSignRequested(widget.prescription.id)),
-                icon: const Icon(Icons.draw_outlined, size: 18),
-                label: const Text('Signer'),
+              BlocBuilder<OrdonnancesBloc, OrdonnancesState>(
+                builder: (context, state) => FilledButton.icon(
+                  key: const Key('sign_ordonnance_button'),
+                  onPressed: state is OrdonnancesSigningInProgress
+                      ? null
+                      : () => context
+                          .read<OrdonnancesBloc>()
+                          .add(OrdonnancesSignRequested(widget.prescription.id)),
+                  icon: const Icon(Icons.draw_outlined, size: 18),
+                  label: const Text('Signer'),
+                ),
               ),
             ],
           ),

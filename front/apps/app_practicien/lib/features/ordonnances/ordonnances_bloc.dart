@@ -41,7 +41,10 @@ class OrdonnancesBloc extends Bloc<OrdonnancesEvent, OrdonnancesState> {
     OrdonnancesSignRequested event,
     Emitter<OrdonnancesState> emit,
   ) async {
-    emit(const OrdonnancesLoading());
+    if (state is OrdonnancesSigningInProgress) return;
+    final current = state;
+    if (current is! OrdonnancesCreated) return;
+    emit(OrdonnancesSigningInProgress(current.prescription));
     try {
       final result = await _sign(event.prescriptionId);
       result.fold(
