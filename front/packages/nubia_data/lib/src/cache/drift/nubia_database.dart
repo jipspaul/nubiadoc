@@ -18,21 +18,28 @@ class NubiaDatabase extends GeneratedDatabase {
   Iterable<TableInfo<Table, dynamic>> get allTables => const [];
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => _createTables(),
-        onUpgrade: (m, from, to) async {},
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await customStatement('DROP TABLE IF EXISTS cached_appointments');
+            await customStatement('DROP TABLE IF EXISTS cache_timestamps');
+            await _createTables();
+          }
+        },
       );
 
   Future<void> _createTables() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS cached_appointments (
-        id   TEXT NOT NULL PRIMARY KEY,
-        json TEXT NOT NULL,
-        list_key    TEXT,
-        cached_at   INTEGER NOT NULL
+        id        TEXT NOT NULL,
+        json      TEXT NOT NULL,
+        list_key  TEXT NOT NULL,
+        cached_at INTEGER NOT NULL,
+        PRIMARY KEY (id, list_key)
       )
     ''');
     await customStatement('''

@@ -27,7 +27,11 @@ abstract class CachedXRepository<T> {
     final result = await fromRemote();
     await result.fold(
       (_) async {},
-      (data) => writeToCache(data),
+      (data) async {
+        try {
+          await writeToCache(data);
+        } catch (_) {}
+      },
     );
     return result;
   }
