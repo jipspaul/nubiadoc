@@ -124,37 +124,37 @@ class _ConversationsListState extends State<_ConversationsList> {
                   .add(const CabinetMessagingConversationsLoadRequested());
             },
             child: ListView.separated(
-            key: const Key('cabinet_messaging_conversations_list'),
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final conv = filtered[index];
-              return ListTile(
-                key: Key('conv_${conv.id}'),
-                leading: CircleAvatar(
-                  child: Text(
-                    conv.patientName.isNotEmpty
-                        ? conv.patientName[0].toUpperCase()
-                        : '?',
+              key: const Key('cabinet_messaging_conversations_list'),
+              itemCount: filtered.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final conv = filtered[index];
+                return ListTile(
+                  key: Key('conv_${conv.id}'),
+                  leading: CircleAvatar(
+                    child: Text(
+                      conv.patientName.isNotEmpty
+                          ? conv.patientName[0].toUpperCase()
+                          : '?',
+                    ),
                   ),
-                ),
-                title: Text(conv.patientName),
-                subtitle: conv.lastMessage?.text != null
-                    ? Text(
-                        conv.lastMessage!.text!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    : null,
-                trailing: conv.unreadCount > 0
-                    ? Badge(label: Text('${conv.unreadCount}'))
-                    : null,
-                onTap: () => context
-                    .read<CabinetMessagingBloc>()
-                    .add(CabinetMessagingThreadOpened(conv)),
-              );
-            },
-          ),
+                  title: Text(conv.patientName),
+                  subtitle: conv.lastMessage?.text != null
+                      ? Text(
+                          conv.lastMessage!.text!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : null,
+                  trailing: conv.unreadCount > 0
+                      ? Badge(label: Text('${conv.unreadCount}'))
+                      : null,
+                  onTap: () => context
+                      .read<CabinetMessagingBloc>()
+                      .add(CabinetMessagingThreadOpened(conv)),
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -309,4 +309,3 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 }
-

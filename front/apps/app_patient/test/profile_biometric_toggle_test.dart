@@ -50,8 +50,7 @@ void main() {
     mockGetAccount = MockGetAccountUseCase();
     mockUserSettings = MockUserSettingsRepository();
     mockNotifRepo = MockNotificationRepository();
-    when(() => mockGetAccount())
-        .thenAnswer((_) async => const Right(_account));
+    when(() => mockGetAccount()).thenAnswer((_) async => const Right(_account));
     when(() => mockUserSettings.setBiometricEnabled(any()))
         .thenAnswer((_) async {});
     when(() => mockNotifRepo.getPreferences())

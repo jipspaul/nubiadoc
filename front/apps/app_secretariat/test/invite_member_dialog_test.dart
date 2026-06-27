@@ -21,7 +21,8 @@ Widget _buildTestScaffold() {
 }
 
 void main() {
-  testWidgets('ouverture dialog affiche champ email, dropdown rôle et bouton Inviter',
+  testWidgets(
+      'ouverture dialog affiche champ email, dropdown rôle et bouton Inviter',
       (tester) async {
     await tester.pumpWidget(_buildTestScaffold());
 
@@ -33,7 +34,8 @@ void main() {
     expect(find.byKey(const Key('invite_submit_button')), findsOneWidget);
   });
 
-  testWidgets('bouton Inviter désactivé si email invalide, activé si email valide',
+  testWidgets(
+      'bouton Inviter désactivé si email invalide, activé si email valide',
       (tester) async {
     await tester.pumpWidget(_buildTestScaffold());
 
@@ -57,7 +59,8 @@ void main() {
     expect(submitButtonEnabled.onPressed, isNotNull);
   });
 
-  testWidgets('tap Inviter ferme le dialog et affiche snackbar', (tester) async {
+  testWidgets('tap Inviter ferme le dialog et affiche snackbar',
+      (tester) async {
     await tester.pumpWidget(_buildTestScaffold());
 
     await tester.tap(find.byKey(const Key('open_dialog')));

@@ -20,20 +20,14 @@ class CabinetDashboardApi {
       ),
     ]);
 
-    final todayAppts =
-        (results[0].data!['data'] as List?)?.length ?? 0;
-    final waitingRoom =
-        (results[1].data!['data'] as List?)?.length ?? 0;
-    final convs =
-        results[2].data!['data'] as List? ?? const [];
+    final todayAppts = (results[0].data!['data'] as List?)?.length ?? 0;
+    final waitingRoom = (results[1].data!['data'] as List?)?.length ?? 0;
+    final convs = results[2].data!['data'] as List? ?? const [];
     final unread = convs.fold<int>(
       0,
-      (s, c) =>
-          s +
-          ((c as Map<String, dynamic>)['unread_count'] as int? ?? 0),
+      (s, c) => s + ((c as Map<String, dynamic>)['unread_count'] as int? ?? 0),
     );
-    final pending =
-        (results[3].data!['data'] as List?)?.length ?? 0;
+    final pending = (results[3].data!['data'] as List?)?.length ?? 0;
 
     return CabinetDashboardDto(
       todayAppointments: todayAppts,

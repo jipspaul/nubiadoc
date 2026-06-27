@@ -199,8 +199,7 @@ class _DocumentsLoaded extends StatelessWidget {
             tooltip: 'Envoyer un document',
             onPressed: () async {
               final bloc = context.read<DocumentsBloc>();
-              final file =
-                  await GetIt.instance<FilePickerService>().pickFile();
+              final file = await GetIt.instance<FilePickerService>().pickFile();
               if (file == null) return;
               bloc.add(DocumentsUploadRequested(
                 filePath: file.path,

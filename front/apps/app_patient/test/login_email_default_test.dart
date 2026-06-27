@@ -20,9 +20,9 @@ Widget _wrap(AuthCubit cubit) => BlocProvider<AuthCubit>.value(
     );
 
 void main() {
-  group('LoginPage — BUG-02 : pré-remplissage e-mail conditionné à kDebugMode', () {
-    testWidgets(
-        'le champ e-mail prend la valeur attendue selon kDebugMode',
+  group('LoginPage — BUG-02 : pré-remplissage e-mail conditionné à kDebugMode',
+      () {
+    testWidgets('le champ e-mail prend la valeur attendue selon kDebugMode',
         (tester) async {
       final cubit = MockAuthCubit();
       when(() => cubit.state).thenReturn(AuthUnknown());

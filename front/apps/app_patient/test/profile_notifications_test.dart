@@ -97,7 +97,8 @@ void main() {
       expect(find.byKey(const Key('push_rdv_toggle')), findsOneWidget);
     });
 
-    testWidgets('toggle email → updatePreferences appelé avec emailEnabled=false',
+    testWidgets(
+        'toggle email → updatePreferences appelé avec emailEnabled=false',
         (tester) async {
       when(() => mockNotifRepo.getPreferences())
           .thenAnswer((_) async => const Right(_prefs));

@@ -244,7 +244,8 @@ void main() {
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
 
-    testWidgets('toggle tri ASC/DESC change l\'ordre des devis', (tester) async {
+    testWidgets('toggle tri ASC/DESC change l\'ordre des devis',
+        (tester) async {
       final older = CabinetQuote(
         id: 'q1',
         cabinetId: 'c1',

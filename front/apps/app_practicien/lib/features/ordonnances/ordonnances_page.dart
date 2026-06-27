@@ -96,8 +96,8 @@ class _InitialView extends StatelessWidget {
           ? null
           : FilledButton.icon(
               key: const Key('create_ordonnance_button'),
-              onPressed: () => context
-                  .push('/ordonnances/new?patientId=$patientId'),
+              onPressed: () =>
+                  context.push('/ordonnances/new?patientId=$patientId'),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Nouvelle ordonnance'),
             ),
@@ -144,9 +144,8 @@ class _CreatedViewState extends State<_CreatedView> {
                   key: const Key('sign_ordonnance_button'),
                   onPressed: state is OrdonnancesSigningInProgress
                       ? null
-                      : () => context
-                          .read<OrdonnancesBloc>()
-                          .add(OrdonnancesSignRequested(widget.prescription.id)),
+                      : () => context.read<OrdonnancesBloc>().add(
+                          OrdonnancesSignRequested(widget.prescription.id)),
                   icon: const Icon(Icons.draw_outlined, size: 18),
                   label: const Text('Signer'),
                 ),

@@ -31,8 +31,7 @@ class CabinetConversationDto {
       lastMessageAt: json['last_message_at'] as String?,
       lastMessage: json['last_message'] == null
           ? null
-          : MessageDto.fromJson(
-              json['last_message'] as Map<String, dynamic>),
+          : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
     );
   }
 

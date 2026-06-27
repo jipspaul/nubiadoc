@@ -109,8 +109,8 @@ void main() {
 
       final result = await cache.getUpcoming();
       expect(result, isNotNull);
-      expect(result!.data.map((a) => a.id).toSet(),
-          equals({'appt-1', 'appt-2'}));
+      expect(
+          result!.data.map((a) => a.id).toSet(), equals({'appt-1', 'appt-2'}));
     });
   });
 

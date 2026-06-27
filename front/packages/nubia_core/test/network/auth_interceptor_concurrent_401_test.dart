@@ -24,10 +24,12 @@ class FakeTokenStorage implements TokenStorage {
   @override
   Future<String?> getFcmToken() async => fcm;
   @override
-  Future<void> saveTokens({required String access, required String refresh}) async {
+  Future<void> saveTokens(
+      {required String access, required String refresh}) async {
     this.access = access;
     this.refresh = refresh;
   }
+
   @override
   Future<void> saveFcmToken(String token) async => fcm = token;
   @override
@@ -35,6 +37,7 @@ class FakeTokenStorage implements TokenStorage {
     access = null;
     refresh = null;
   }
+
   @override
   Future<void> clearFcmToken() async => fcm = null;
 }
@@ -82,8 +85,10 @@ class ScriptedAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  test('concurrent 401s should all be retried after a successful refresh', () async {
-    final storage = FakeTokenStorage(access: 'expired', refresh: 'validRefresh');
+  test('concurrent 401s should all be retried after a successful refresh',
+      () async {
+    final storage =
+        FakeTokenStorage(access: 'expired', refresh: 'validRefresh');
     final interceptor = AuthInterceptor(storage);
 
     final dio = Dio(BaseOptions(baseUrl: 'https://api.test'))

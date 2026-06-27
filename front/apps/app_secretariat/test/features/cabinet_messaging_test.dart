@@ -309,8 +309,7 @@ void main() {
       ).called(1);
     });
 
-    testWidgets(
-        'segment Non lus — 3 conversations dont 1 unread → 1 visible',
+    testWidgets('segment Non lus — 3 conversations dont 1 unread → 1 visible',
         (tester) async {
       when(() => bloc.state).thenReturn(
         const CabinetMessagingConversationsLoaded([
