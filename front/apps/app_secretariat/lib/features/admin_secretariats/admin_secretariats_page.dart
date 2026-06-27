@@ -17,6 +17,8 @@ class AdminSecretiariatsPage extends StatefulWidget {
 }
 
 class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
+  Completer<void>? _refreshCompleter;
+
   @override
   void initState() {
     super.initState();
@@ -40,10 +42,26 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
           ),
         ],
       ),
-      body: BlocBuilder<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+      body: BlocConsumer<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+        listener: (context, state) {
+          if (state is AdminSecretiariatsLoaded ||
+              state is AdminSecretiariatsError) {
+            _refreshCompleter?.complete();
+            _refreshCompleter = null;
+          }
+        },
         builder: (context, state) {
           if (state is AdminSecretiariatsLoaded) {
-            return _SecretariatsList(secretariats: state.secretariats);
+            return _SecretariatsList(
+              secretariats: state.secretariats,
+              onRefresh: () {
+                _refreshCompleter = Completer<void>();
+                context
+                    .read<AdminSecretiariatsBloc>()
+                    .add(const AdminSecretiariatsLoadRequested());
+                return _refreshCompleter!.future;
+              },
+            );
           }
           if (state is AdminSecretiariatsError) {
             return NubiaErrorWidget(
@@ -60,48 +78,30 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
   }
 }
 
-class _SecretariatsList extends StatefulWidget {
-  const _SecretariatsList({required this.secretariats});
+class _SecretariatsList extends StatelessWidget {
+  const _SecretariatsList({
+    required this.secretariats,
+    required this.onRefresh,
+  });
 
   final List<Secretariat> secretariats;
-
-  @override
-  State<_SecretariatsList> createState() => _SecretariatsListState();
-}
-
-class _SecretariatsListState extends State<_SecretariatsList> {
-  Completer<void>? _refreshCompleter;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    if (widget.secretariats.isEmpty) {
+    if (secretariats.isEmpty) {
       return const NubiaEmptyState(
         icon: Icons.business_outlined,
         title: 'Aucun secrétariat enregistré.',
       );
     }
-    return BlocListener<AdminSecretiariatsBloc, AdminSecretiariatsState>(
-      listenWhen: (_, s) =>
-          s is AdminSecretiariatsLoaded || s is AdminSecretiariatsError,
-      listener: (_, __) {
-        _refreshCompleter?.complete();
-        _refreshCompleter = null;
-      },
-      child: RefreshIndicator(
-        key: const Key('admin_secretariats_refresh'),
-        onRefresh: () {
-          _refreshCompleter = Completer<void>();
-          context
-              .read<AdminSecretiariatsBloc>()
-              .add(const AdminSecretiariatsLoadRequested());
-          return _refreshCompleter!.future;
-        },
-        child: ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: widget.secretariats.length,
-          itemBuilder: (_, i) =>
-              _SecretariatTile(secretariat: widget.secretariats[i]),
-        ),
+    return RefreshIndicator(
+      key: const Key('admin_secretariats_refresh'),
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: secretariats.length,
+        itemBuilder: (_, i) => _SecretariatTile(secretariat: secretariats[i]),
       ),
     );
   }

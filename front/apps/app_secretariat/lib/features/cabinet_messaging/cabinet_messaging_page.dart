@@ -11,12 +11,26 @@ import 'cabinet_messaging_state.dart';
 
 /// Écran "Messages" côté secrétariat — liste des conversations patient + thread.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
-class CabinetMessagingPage extends StatelessWidget {
+class CabinetMessagingPage extends StatefulWidget {
   const CabinetMessagingPage({super.key});
 
   @override
+  State<CabinetMessagingPage> createState() => _CabinetMessagingPageState();
+}
+
+class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
+  Completer<void>? _refreshCompleter;
+
+  @override
   Widget build(BuildContext context) {
-    return BlocBuilder<CabinetMessagingBloc, CabinetMessagingState>(
+    return BlocConsumer<CabinetMessagingBloc, CabinetMessagingState>(
+      listener: (context, state) {
+        if (state is CabinetMessagingConversationsLoaded ||
+            state is CabinetMessagingConversationsError) {
+          _refreshCompleter?.complete();
+          _refreshCompleter = null;
+        }
+      },
       builder: (context, state) {
         if (state is CabinetMessagingInitial ||
             state is CabinetMessagingConversationsLoading) {
@@ -42,7 +56,16 @@ class CabinetMessagingPage extends StatelessWidget {
               title: 'Aucune conversation',
             );
           }
-          return _ConversationsList(conversations: state.conversations);
+          return _ConversationsList(
+            conversations: state.conversations,
+            onRefresh: () {
+              _refreshCompleter = Completer<void>();
+              context.read<CabinetMessagingBloc>().add(
+                    const CabinetMessagingConversationsLoadRequested(),
+                  );
+              return _refreshCompleter!.future;
+            },
+          );
         }
         if (state is CabinetMessagingThreadLoading) {
           return const Center(
@@ -71,9 +94,13 @@ class CabinetMessagingPage extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ConversationsList extends StatefulWidget {
-  const _ConversationsList({required this.conversations});
+  const _ConversationsList({
+    required this.conversations,
+    required this.onRefresh,
+  });
 
   final List<CabinetConversation> conversations;
+  final Future<void> Function() onRefresh;
 
   @override
   State<_ConversationsList> createState() => _ConversationsListState();
@@ -82,7 +109,6 @@ class _ConversationsList extends StatefulWidget {
 class _ConversationsListState extends State<_ConversationsList> {
   String _query = '';
   bool _showUnreadOnly = false;
-  Completer<void>? _refreshCompleter;
 
   @override
   Widget build(BuildContext context) {
@@ -92,15 +118,7 @@ class _ConversationsListState extends State<_ConversationsList> {
         .where((c) => !_showUnreadOnly || c.unreadCount > 0)
         .toList();
 
-    return BlocListener<CabinetMessagingBloc, CabinetMessagingState>(
-      listenWhen: (_, s) =>
-          s is CabinetMessagingConversationsLoaded ||
-          s is CabinetMessagingConversationsError,
-      listener: (_, __) {
-        _refreshCompleter?.complete();
-        _refreshCompleter = null;
-      },
-      child: Column(
+    return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -129,13 +147,7 @@ class _ConversationsListState extends State<_ConversationsList> {
         Expanded(
           child: RefreshIndicator(
             key: const Key('cabinet_messaging_refresh'),
-            onRefresh: () {
-              _refreshCompleter = Completer<void>();
-              context
-                  .read<CabinetMessagingBloc>()
-                  .add(const CabinetMessagingConversationsLoadRequested());
-              return _refreshCompleter!.future;
-            },
+            onRefresh: widget.onRefresh,
             child: ListView.separated(
               key: const Key('cabinet_messaging_conversations_list'),
               itemCount: filtered.length,
@@ -171,7 +183,6 @@ class _ConversationsListState extends State<_ConversationsList> {
           ),
         ),
       ],
-      ),
     );
   }
 }
