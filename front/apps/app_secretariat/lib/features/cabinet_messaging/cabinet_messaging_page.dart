@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -42,11 +44,6 @@ class CabinetMessagingPage extends StatelessWidget {
           }
           return _ConversationsList(
             conversations: state.conversations,
-            onRefresh: () async {
-              context.read<CabinetMessagingBloc>().add(
-                    const CabinetMessagingConversationsLoadRequested(),
-                  );
-            },
           );
         }
         if (state is CabinetMessagingThreadLoading) {
@@ -78,11 +75,9 @@ class CabinetMessagingPage extends StatelessWidget {
 class _ConversationsList extends StatefulWidget {
   const _ConversationsList({
     required this.conversations,
-    required this.onRefresh,
   });
 
   final List<CabinetConversation> conversations;
-  final Future<void> Function() onRefresh;
 
   @override
   State<_ConversationsList> createState() => _ConversationsListState();
@@ -91,6 +86,7 @@ class _ConversationsList extends StatefulWidget {
 class _ConversationsListState extends State<_ConversationsList> {
   String _query = '';
   bool _showUnreadOnly = false;
+  Completer<void>? _refreshCompleter;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +96,15 @@ class _ConversationsListState extends State<_ConversationsList> {
         .where((c) => !_showUnreadOnly || c.unreadCount > 0)
         .toList();
 
-    return Column(
+    return BlocListener<CabinetMessagingBloc, CabinetMessagingState>(
+      listener: (context, state) {
+        if (state is CabinetMessagingConversationsLoaded ||
+            state is CabinetMessagingConversationsError) {
+          _refreshCompleter?.complete();
+          _refreshCompleter = null;
+        }
+      },
+      child: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -129,7 +133,13 @@ class _ConversationsListState extends State<_ConversationsList> {
         Expanded(
           child: RefreshIndicator(
             key: const Key('cabinet_messaging_refresh'),
-            onRefresh: widget.onRefresh,
+            onRefresh: () {
+              _refreshCompleter = Completer<void>();
+              context.read<CabinetMessagingBloc>().add(
+                    const CabinetMessagingConversationsLoadRequested(),
+                  );
+              return _refreshCompleter!.future;
+            },
             child: ListView.separated(
               key: const Key('cabinet_messaging_conversations_list'),
               itemCount: filtered.length,
@@ -165,6 +175,7 @@ class _ConversationsListState extends State<_ConversationsList> {
           ),
         ),
       ],
+      ),
     );
   }
 }
