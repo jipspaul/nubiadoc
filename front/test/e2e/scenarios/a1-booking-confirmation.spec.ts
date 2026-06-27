@@ -10,53 +10,49 @@
 
 import { test, expect } from '@playwright/test';
 import { loginApi, authedFetch } from '../fixtures/helpers';
+import { loginAs, baseUrlFor } from '../fixtures/login';
+import { bookAppointment } from '../fixtures/cabinet';
 
-const P_EMAIL = process.env.CRED_PATIENT_EMAIL ?? 'patient1@nubia-demo.fr';
-const P_PASS = process.env.CRED_PATIENT_PASSWORD ?? 'demo-pass';
-const S_EMAIL = process.env.CRED_SECRETARIAT_EMAIL ?? 'secretariat@nubia-demo.fr';
-const S_PASS = process.env.CRED_SECRETARIAT_PASSWORD ?? 'demo-pass';
-const PROVIDER_ID = process.env.DEMO_PROVIDER_ID ?? 'demo-provider-001';
-const SLOT_ID = process.env.DEMO_SLOT_ID ?? 'demo-slot-001';
+const P_EMAIL     = process.env.CRED_PATIENT_EMAIL       ?? 'patient1@nubia-demo.fr';
+const P_PASS      = process.env.CRED_PATIENT_PASSWORD    ?? 'demo-pass';
+const S_EMAIL     = process.env.CRED_SECRETARIAT_EMAIL   ?? 'secretariat@nubia-demo.fr';
+const S_PASS      = process.env.CRED_SECRETARIAT_PASSWORD ?? 'demo-pass';
+const PROVIDER_ID = process.env.DEMO_PROVIDER_ID         ?? 'demo-provider-001';
+const SLOT_ID     = process.env.DEMO_SLOT_ID             ?? 'demo-slot-001';
 
 test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
+  test.describe.configure({ mode: 'serial' });
+
   let pToken: string;
   let sToken: string;
   let appointmentId: string;
   const rdvDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (today)
 
   test.beforeAll(async () => {
-    // Étapes 1 + 3 : logins en parallèle
+    // Étapes 1 + 3 : logins API en parallèle (browser login dans les tests)
     [pToken, sToken] = await Promise.all([
       loginApi(P_EMAIL, P_PASS),
       loginApi(S_EMAIL, S_PASS),
     ]);
 
-    // Étape 2 : P réserve un RDV — motif horodaté pour garantir l'idempotence inter-runs
+    // Étape 2 : P réserve un RDV — motif horodaté pour idempotence inter-runs
     const motif = `e2e-a1-${Date.now().toString(36)}`;
-    const bookRes = await authedFetch(pToken, '/appointments', {
-      method: 'POST',
-      body: JSON.stringify({ provider_id: PROVIDER_ID, slot_id: SLOT_ID, motif }),
+    appointmentId = await bookAppointment(pToken, {
+      providerId: PROVIDER_ID,
+      slotId: SLOT_ID,
+      motif,
     });
-    expect(
-      bookRes.status,
-      `POST /v1/appointments → 201 (obtenu ${bookRes.status})`,
-    ).toBe(201);
-    const booked = (await bookRes.json()) as { appointment_id: string; status: string };
-    appointmentId = booked.appointment_id;
-    expect(appointmentId, 'appointment_id retourné dans la réponse 201').toBeTruthy();
   });
 
-  // Étape 4 : S voit le RDV dans l'agenda du jour (status requested)
-  test('Étape 4 — S GET /cabinet/appointments?date=... contient le RDV', async () => {
+  // Étape 4 : S voit le RDV dans l'agenda (signal réseau + UI selector)
+  test('Étape 4 — S agenda : GET /cabinet/appointments retourne le RDV + selector visible', async ({ page }) => {
+    // Signal réseau : RDV présent dans la réponse API
     await expect
       .poll(
         async () => {
-          const res = await authedFetch(
-            sToken,
-            `/cabinet/appointments?date=${rdvDate}`,
-          );
+          const res = await authedFetch(sToken, `/cabinet/appointments?date=${rdvDate}`);
           if (!res.ok) return [];
-          const body = await res.json();
+          const body = (await res.json()) as unknown;
           const list: { appointment_id: string }[] = Array.isArray(body)
             ? body
             : ((body as { data?: { appointment_id: string }[] }).data ?? []);
@@ -69,28 +65,56 @@ test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
         },
       )
       .toHaveLength(1);
+
+    // UI : S se connecte et vérifie que l'event est visible dans l'agenda
+    await loginAs('secretariat', page);
+    await page.goto(`${baseUrlFor('secretariat')}/agenda`);
+    await expect(
+      page.getByTestId(`agenda-event-${appointmentId}`),
+      `[data-testid="agenda-event-${appointmentId}"] doit être visible`,
+    ).toBeVisible({ timeout: 15_000 });
   });
 
-  // Étape 5 : S confirme → requested → confirmed
-  test('Étape 5 — S POST /cabinet/appointments/:id/confirm → 200 + status confirmed', async () => {
-    const confirmRes = await authedFetch(
-      sToken,
-      `/cabinet/appointments/${appointmentId}/confirm`,
-      { method: 'POST' },
-    );
+  // Étape 5 : S clique l'event → "Confirmer" (UI + signal réseau)
+  test('Étape 5 — S confirme via UI → POST /cabinet/appointments/:id/confirm 200', async ({ page }) => {
+    // S se connecte (contexte isolé de P grâce au page fixture serial)
+    await loginAs('secretariat', page);
+    await page.goto(`${baseUrlFor('secretariat')}/agenda`);
+    await page.getByTestId(`agenda-event-${appointmentId}`).click();
+
+    // Capture la réponse réseau déclenchée par le clic "Confirmer"
+    const [confirmRes] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes(`/appointments/${appointmentId}/confirm`) &&
+          r.request().method() === 'POST',
+        { timeout: 10_000 },
+      ),
+      page.getByRole('button', { name: 'Confirmer' }).click(),
+    ]);
+
     expect(
-      confirmRes.status,
-      `POST /v1/cabinet/appointments/${appointmentId}/confirm → 200 (obtenu ${confirmRes.status})`,
+      confirmRes.status(),
+      `POST /v1/cabinet/appointments/${appointmentId}/confirm → 200`,
     ).toBe(200);
     const body = (await confirmRes.json()) as { status: string };
     expect(body.status, 'status → confirmed après confirmation S').toBe('confirmed');
   });
 
-  // Étape 6 : P consulte /mes-rdv → statut "confirmé"
-  test('Étape 6 — P GET /appointments/:id → status confirmed', async () => {
-    const res = await authedFetch(pToken, `/appointments/${appointmentId}`);
-    expect(res.status, `GET /v1/appointments/${appointmentId} → 200`).toBe(200);
-    const appt = (await res.json()) as { status: string };
-    expect(appt.status, 'statut RDV côté patient → confirmed').toBe('confirmed');
+  // Étape 6 : P rafraîchit /mes-rdv → statut "Confirmé" affiché (signal réseau + UI)
+  test('Étape 6 — P voit le RDV en statut "Confirmé" sur /mes-rdv', async ({ page }) => {
+    // Signal réseau : API retourne status=confirmed côté patient
+    const apiRes = await authedFetch(pToken, `/appointments/${appointmentId}`);
+    expect(apiRes.status, `GET /v1/appointments/${appointmentId} → 200`).toBe(200);
+    const appt = (await apiRes.json()) as { status: string };
+    expect(appt.status, 'status API → confirmed').toBe('confirmed');
+
+    // UI : P se connecte, navigue sur /mes-rdv et vérifie le statut "Confirmé"
+    await loginAs('patient', page);
+    await page.goto(`${baseUrlFor('patient')}/mes-rdv`);
+    await expect(
+      page.getByTestId(`appointment-status-${appointmentId}`),
+      `appointment-status-${appointmentId} doit afficher "Confirmé"`,
+    ).toHaveText('Confirmé', { timeout: 15_000 });
   });
 });
