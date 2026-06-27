@@ -86,8 +86,10 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
 echo "[deploy] console"
 podman rm -f nubia-console >/dev/null 2>&1 || true
 # Astro SSR + node : 768Mi (node base ~150Mi + SSR working set).
+# Healthcheck via `node` (et non wget) car l'image node:alpine n'a PAS wget —
+# le healthcheck wget restait "starting" silencieusement (postmortem 2026-06-27).
 podman run -d --name nubia-console --network host --restart unless-stopped \
-  --health-cmd='wget -q -S --spider --timeout=3 http://127.0.0.1:4321/ 2>&1 | grep -q "HTTP/" || exit 1' \
+  --health-cmd='node -e "require(\"http\").get(\"http://127.0.0.1:4321/\",r=>process.exit(r.statusCode<500?0:1)).on(\"error\",()=>process.exit(1))"' \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=10s \
   -e HOST=0.0.0.0 -e PORT=4321 -e PUBLIC_API_BASE="$PUBLIC_API_BASE" \
   localhost/nubia-console:latest >/dev/null
