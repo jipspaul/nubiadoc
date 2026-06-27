@@ -45,14 +45,14 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     try {
       final result = await _searchProviders(query: query);
       result.fold(
-        (failure) => safeEmit(AppointmentsError(failure.message)),
-        (providers) => safeEmit(AppointmentsProvidersLoaded(
+        (failure) => emit(AppointmentsError(failure.message)),
+        (providers) => emit(AppointmentsProvidersLoaded(
           providers: providers,
           query: query,
         )),
       );
     } catch (_) {
-      safeEmit(const AppointmentsError('Erreur de recherche.'));
+      emit(const AppointmentsError('Erreur de recherche.'));
     }
   }
 
