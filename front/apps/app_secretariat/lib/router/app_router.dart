@@ -53,6 +53,8 @@ class AppRouter {
     return GoRouter(
       initialLocation: splash,
       refreshListenable: notifier,
+      // PostHog: capture les events $screen à chaque navigation.
+      observers: [PosthogObserver()],
       redirect: buildAuthGuard(
         notifier,
         loginRoute: login,

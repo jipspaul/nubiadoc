@@ -31,6 +31,9 @@ dependencies:
     path: ../../packages/nubia_a2ui
   nubia_app_shell:
     path: ../../packages/nubia_app_shell
+  pdf: ^3.11.1
+  path_provider: ^2.1.5
+  share_plus: ^10.0.0
 
 dev_dependencies:
   flutter_test:
