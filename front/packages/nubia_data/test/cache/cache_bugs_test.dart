@@ -5,8 +5,7 @@ import 'package:nubia_domain/src/entities/appointment.dart';
 import 'package:nubia_domain/src/repositories/appointment_repository.dart';
 
 import 'package:nubia_data/src/cache/appointments_cache.dart';
-import 'package:nubia_data/src/cache/drift/drift_appointments_cache.dart';
-import 'package:nubia_data/src/cache/drift/nubia_database.dart';
+import 'package:nubia_data/src/cache/cached_data.dart';
 import 'package:nubia_data/src/repositories/cached_appointments_repository_impl.dart';
 
 // ---------------------------------------------------------------------------
@@ -16,6 +15,45 @@ import 'package:nubia_data/src/repositories/cached_appointments_repository_impl.
 class MockAppointmentRepository extends Mock implements AppointmentRepository {}
 
 class MockAppointmentsCache extends Mock implements AppointmentsCache {}
+
+// Pure-Dart fake — separate buckets for list vs single (mirrors composite PK).
+class FakeAppointmentsCache implements AppointmentsCache {
+  final Map<String, Appointment> _singles = {};
+  List<Appointment>? _upcoming;
+
+  @override
+  Future<CachedData<List<Appointment>>?> getUpcoming() async {
+    if (_upcoming == null) return null;
+    return CachedData(data: List.of(_upcoming!), cachedAt: DateTime(2026));
+  }
+
+  @override
+  Future<CachedData<Appointment>?> getById(String id) async {
+    final a = _singles[id];
+    if (a == null) return null;
+    return CachedData(data: a, cachedAt: DateTime(2026));
+  }
+
+  @override
+  Future<void> saveUpcoming(List<Appointment> appointments) async =>
+      _upcoming = List.of(appointments);
+
+  @override
+  Future<void> saveOne(Appointment appointment) async =>
+      _singles[appointment.id] = appointment;
+
+  @override
+  Future<void> remove(String id) async => _singles.remove(id);
+
+  @override
+  Future<void> clear() async {
+    _singles.clear();
+    _upcoming = null;
+  }
+
+  @override
+  Future<void> clearUpcoming() async => _upcoming = null;
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -56,24 +94,17 @@ void main() {
   // -------------------------------------------------------------------------
   // T1 — composite-key alias : saveOne ne doit pas écraser les entrées de list
   // -------------------------------------------------------------------------
-  group('T1 — DriftAppointmentsCache : saveOne ne vide pas la liste upcoming',
-      () {
-    late NubiaDatabase db;
-    late DriftAppointmentsCache cache;
+  group('T1 — AppointmentsCache : saveOne ne vide pas la liste upcoming', () {
+    late FakeAppointmentsCache cache;
 
-    setUp(() {
-      db = NubiaDatabase.inMemory();
-      cache = DriftAppointmentsCache(db);
-    });
-
-    tearDown(() => db.close());
+    setUp(() => cache = FakeAppointmentsCache());
 
     test(
         'saveUpcoming([a1,a2]) puis saveOne(a1) → getUpcoming retourne toujours [a1,a2]',
         () async {
       await cache.saveUpcoming([_appt1, _appt2]);
 
-      // saveOne with same id as a list item — must NOT clobber the list row
+      // saveOne with same id as a list item — must NOT clobber the list bucket
       await cache.saveOne(_appt1);
 
       final result = await cache.getUpcoming();
