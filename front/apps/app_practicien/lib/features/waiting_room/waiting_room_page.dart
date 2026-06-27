@@ -140,12 +140,12 @@ class _LoadedViewState extends State<_LoadedView> {
                 ),
                 FilledButton.icon(
                   key: const Key('call_next_button'),
-                  onPressed:
-                      widget.state.actionInProgress || widget.state.entries.isEmpty
-                          ? null
-                          : () => context
-                              .read<WaitingRoomBloc>()
-                              .add(const WaitingRoomCallNextRequested()),
+                  onPressed: widget.state.actionInProgress ||
+                          widget.state.entries.isEmpty
+                      ? null
+                      : () => context
+                          .read<WaitingRoomBloc>()
+                          .add(const WaitingRoomCallNextRequested()),
                   icon: const Icon(Icons.arrow_forward, size: 18),
                   label: Text(NubiaL10n.callNext),
                 ),

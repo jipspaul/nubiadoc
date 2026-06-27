@@ -32,8 +32,8 @@ class CabinetMessagingPage extends StatelessWidget {
               key: const Key('cabinet_messaging_error'),
               message: state.message,
               onRetry: () => context.read<CabinetMessagingBloc>().add(
-                const CabinetMessagingConversationsLoadRequested(),
-              ),
+                    const CabinetMessagingConversationsLoadRequested(),
+                  ),
             );
           }
           if (state is CabinetMessagingConversationsLoaded) {
@@ -62,8 +62,8 @@ class CabinetMessagingPage extends StatelessWidget {
               key: const Key('cabinet_messaging_thread_error'),
               message: state.message,
               onRetry: () => context.read<CabinetMessagingBloc>().add(
-                const CabinetMessagingBackRequested(),
-              ),
+                    const CabinetMessagingBackRequested(),
+                  ),
             );
           }
           return const SizedBox.shrink();
@@ -171,8 +171,8 @@ class _ConversationsListState extends State<_ConversationsList> {
                       ? Badge(label: Text('${conv.unreadCount}'))
                       : null,
                   onTap: () => context.read<CabinetMessagingBloc>().add(
-                    CabinetMessagingThreadOpened(conv),
-                  ),
+                        CabinetMessagingThreadOpened(conv),
+                      ),
                 );
               },
             ),
@@ -208,11 +208,11 @@ class _ThreadViewState extends State<_ThreadView> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     context.read<CabinetMessagingBloc>().add(
-      CabinetMessagingSendRequested(
-        conversationId: widget.state.conversation.id,
-        text: text,
-      ),
-    );
+          CabinetMessagingSendRequested(
+            conversationId: widget.state.conversation.id,
+            text: text,
+          ),
+        );
     _controller.clear();
   }
 
@@ -231,8 +231,8 @@ class _ThreadViewState extends State<_ThreadView> {
                   key: const Key('cabinet_messaging_back_button'),
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () => context.read<CabinetMessagingBloc>().add(
-                    const CabinetMessagingBackRequested(),
-                  ),
+                        const CabinetMessagingBackRequested(),
+                      ),
                 ),
                 Expanded(
                   child: Text(
@@ -328,8 +328,8 @@ class _MessageBubble extends StatelessWidget {
         child: Text(
           message.text ?? '',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-          ),
+                color: isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+              ),
         ),
       ),
     );
