@@ -130,3 +130,4 @@ podman ps --format '  {{.Names}}  {{.Status}}'
 # trigger-test (forgejo restart 2026-06-27 — verify concurrency lock cleared)
 # trigger-test post fix cancel-in-progress (2026-06-27 ~02:15)
 # trigger post runner-restart
+# trigger after stabilization
