@@ -1,11 +1,13 @@
-import 'package:bloc/bloc.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'appointments_event.dart';
 import 'appointments_state.dart';
 
-class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
+class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
+    with SafeEmitMixin<AppointmentsState> {
   final SearchProvidersUseCase _searchProviders;
   final SearchSlotsUseCase _searchSlots;
   final HoldSlotUseCase _holdSlot;
@@ -41,14 +43,14 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     try {
       final result = await _searchProviders(query: query);
       result.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (providers) => emit(AppointmentsProvidersLoaded(
+        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (providers) => safeEmit(AppointmentsProvidersLoaded(
           providers: providers,
           query: query,
         )),
       );
     } catch (_) {
-      emit(const AppointmentsError('Erreur de recherche.'));
+      safeEmit(const AppointmentsError('Erreur de recherche.'));
     }
   }
 
@@ -60,14 +62,14 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     try {
       final result = await _searchSlots(providerId: event.provider.id);
       result.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (slots) => emit(AppointmentsSlotsLoaded(
+        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (slots) => safeEmit(AppointmentsSlotsLoaded(
           provider: event.provider,
           slots: slots,
         )),
       );
     } catch (_) {
-      emit(const AppointmentsError('Erreur de chargement des créneaux.'));
+      safeEmit(const AppointmentsError('Erreur de chargement des créneaux.'));
     }
   }
 
@@ -82,11 +84,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
     try {
       final holdResult = await _holdSlot(event.slot.id);
       holdResult.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (_) => emit(current.copyWith(selectedSlot: event.slot)),
+        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (_) => safeEmit(current.copyWith(selectedSlot: event.slot)),
       );
     } catch (_) {
-      emit(const AppointmentsError('Erreur lors de la sélection du créneau.'));
+      safeEmit(const AppointmentsError('Erreur lors de la sélection du créneau.'));
     }
   }
 
@@ -115,11 +117,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
         motif: current.motif.trim(),
       );
       result.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (appointment) => emit(AppointmentsBookingSuccess(appointment)),
+        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (appointment) => safeEmit(AppointmentsBookingSuccess(appointment)),
       );
     } catch (_) {
-      emit(const AppointmentsError('Erreur lors de la réservation.'));
+      safeEmit(const AppointmentsError('Erreur lors de la réservation.'));
     }
   }
 }
