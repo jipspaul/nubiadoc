@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-27T05:59
+Last run: 2026-06-27T06:11
 
 ## Faux positifs connus (méthode C)
 
@@ -15,44 +15,45 @@ Last run: 2026-06-27T05:59
 | /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
 
 
+
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /appointments | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /mes-rdv | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /documents | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /financial | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /profile | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /notifications | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /reviews | 2026-06-27 | 2026-06-27T05:59 | login_failed | No input found for email |
+| / | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
+| /appointments | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
+| /mes-rdv | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
+| /documents | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
+| /financial | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
+| /profile | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
+| /notifications | 2026-06-24 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
+| /reviews | 2026-06-27 | 2026-06-27T06:11 | login_failed | No inputs found (tag=BODY) |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /agenda | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /patients | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /messages | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /consultation | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /ordonnances | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /waiting-room | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /ordonnances/new | 2026-06-27 | 2026-06-27T05:59 | login_failed | No input found for email |
+| / | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=99%) |
+| /agenda | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=99%) |
+| /patients | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /messages | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /consultation | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /ordonnances | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /waiting-room | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /ordonnances/new | 2026-06-27 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /agenda | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /bookable-slots | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /patients | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /appointments | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /devis | 2026-06-24 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /messages | 2026-06-27 | 2026-06-27T05:59 | login_failed | No input found for email |
-| /admin-membres | 2026-06-27 | 2026-06-27T05:59 | login_failed | No input found for email |
+| / | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=99%) |
+| /agenda | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /bookable-slots | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=99%) |
+| /patients | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /appointments | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /devis | 2026-06-24 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /messages | 2026-06-27 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=100%) |
+| /admin-membres | 2026-06-27 | 2026-06-27T06:11 | blank-canvas | blank-canvas (0 err, white=98%) |
