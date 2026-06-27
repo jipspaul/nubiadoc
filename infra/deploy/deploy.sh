@@ -131,3 +131,4 @@ podman ps --format '  {{.Names}}  {{.Status}}'
 # trigger-test post fix cancel-in-progress (2026-06-27 ~02:15)
 # trigger post runner-restart
 # trigger after stabilization
+# validation post fix DinD startup race
