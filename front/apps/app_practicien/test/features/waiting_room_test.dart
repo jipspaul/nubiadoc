@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +10,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/waiting_room/waiting_room_bloc.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_event.dart';
+import 'package:app_practicien/features/waiting_room/waiting_room_page.dart';
 import 'package:app_practicien/features/waiting_room/waiting_room_state.dart';
 import 'package:app_practicien/pro_config.dart';
 
@@ -300,6 +303,59 @@ void main() {
           .called(1);
 
       await tester.pumpAndSettle();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Pull-to-refresh spinner — B3
+  // ---------------------------------------------------------------------------
+
+  group('pull-to-refresh spinner — B3', () {
+    testWidgets('spinner reste visible jusqu\'à émission terminale',
+        (tester) async {
+      final mockBloc = MockWaitingRoomBloc();
+      final loaded = WaitingRoomLoaded(entries: [_entry]);
+      final ctrl = StreamController<WaitingRoomState>();
+
+      whenListen<WaitingRoomState>(
+        mockBloc,
+        ctrl.stream,
+        initialState: loaded,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<WaitingRoomBloc>.value(
+            value: mockBloc,
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump(); // initState + BlocBuilder initial build
+
+      // Trigger pull-to-refresh
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('waiting_room_refresh'))),
+      );
+      await gesture.moveBy(const Offset(0, 400));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+      // Let snap animation play so spinner is fully visible
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Future still pending → spinner visible
+      expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+
+      // Emit terminal state → completer completes → dismiss animation
+      ctrl.add(loaded);
+      await tester.pump();
+      // RefreshProgressIndicator has a repeating animation: pump explicit
+      // duration rather than pumpAndSettle (which would never settle)
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(RefreshProgressIndicator), findsNothing);
+      await ctrl.close();
     });
   });
 

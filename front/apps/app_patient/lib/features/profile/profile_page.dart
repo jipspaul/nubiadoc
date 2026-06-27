@@ -29,9 +29,8 @@ class ProfilePage extends StatelessWidget {
         if (state is ProfileError) {
           return NubiaErrorWidget(
             message: state.message,
-            onRetry: () => context
-                .read<ProfileBloc>()
-                .add(const ProfileLoadRequested()),
+            onRetry: () =>
+                context.read<ProfileBloc>().add(const ProfileLoadRequested()),
           );
         }
         if (state is ProfileLoaded) {

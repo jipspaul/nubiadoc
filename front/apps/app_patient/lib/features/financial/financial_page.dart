@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -28,8 +30,9 @@ class FinancialPage extends StatelessWidget {
           return NubiaErrorWidget(
             key: const Key('financial_error'),
             message: state.message,
-            onRetry: () =>
-                context.read<FinancialBloc>().add(const FinancialLoadRequested()),
+            onRetry: () => context
+                .read<FinancialBloc>()
+                .add(const FinancialLoadRequested()),
           );
         }
         if (state is FinancialLoaded) {
@@ -58,36 +61,55 @@ class FinancialPage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _QuoteListView extends StatelessWidget {
+class _QuoteListView extends StatefulWidget {
   const _QuoteListView({required this.state});
 
   final FinancialLoaded state;
 
   @override
+  State<_QuoteListView> createState() => _QuoteListViewState();
+}
+
+class _QuoteListViewState extends State<_QuoteListView> {
+  Completer<void>? _refreshCompleter;
+
+  @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () async =>
-          context.read<FinancialBloc>().add(const FinancialLoadRequested()),
-      child: state.quotes.isEmpty
-          ? LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: SizedBox(
-                  height: constraints.maxHeight,
-                  child: const NubiaEmptyState(
-                    key: Key('financial_empty'),
-                    icon: Icons.receipt_long_outlined,
-                    title: 'Aucun devis en attente.',
+    return BlocListener<FinancialBloc, FinancialState>(
+      listener: (context, state) {
+        if (state is FinancialLoaded || state is FinancialError) {
+          _refreshCompleter?.complete();
+          _refreshCompleter = null;
+        }
+      },
+      child: RefreshIndicator(
+        onRefresh: () {
+          _refreshCompleter = Completer<void>();
+          context.read<FinancialBloc>().add(const FinancialLoadRequested());
+          return _refreshCompleter!.future;
+        },
+        child: widget.state.quotes.isEmpty
+            ? LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SizedBox(
+                    height: constraints.maxHeight,
+                    child: const NubiaEmptyState(
+                      key: Key('financial_empty'),
+                      icon: Icons.receipt_long_outlined,
+                      title: 'Aucun devis en attente.',
+                    ),
                   ),
                 ),
+              )
+            : ListView.builder(
+                key: const Key('financial_list'),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: widget.state.quotes.length,
+                itemBuilder: (context, i) =>
+                    _QuoteTile(quote: widget.state.quotes[i]),
               ),
-            )
-          : ListView.builder(
-              key: const Key('financial_list'),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: state.quotes.length,
-              itemBuilder: (context, i) => _QuoteTile(quote: state.quotes[i]),
-            ),
+      ),
     );
   }
 }

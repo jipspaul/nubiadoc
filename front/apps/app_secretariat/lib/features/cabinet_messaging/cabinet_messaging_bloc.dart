@@ -1,11 +1,13 @@
 import 'package:bloc/bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'cabinet_messaging_event.dart';
 import 'cabinet_messaging_state.dart';
 
 class CabinetMessagingBloc
-    extends Bloc<CabinetMessagingEvent, CabinetMessagingState> {
+    extends Bloc<CabinetMessagingEvent, CabinetMessagingState>
+    with SafeEmitMixin<CabinetMessagingState> {
   final ListCabinetConversationsUseCase _listConversations;
   final GetCabinetConversationUseCase _getMessages;
   final SendMessageCabinetUseCase _sendMessage;
@@ -32,12 +34,14 @@ class CabinetMessagingBloc
     try {
       final result = await _listConversations();
       result.fold(
-        (failure) => emit(CabinetMessagingConversationsError(failure.message)),
+        (failure) =>
+            safeEmit(CabinetMessagingConversationsError(failure.message)),
         (conversations) =>
-            emit(CabinetMessagingConversationsLoaded(conversations)),
+            safeEmit(CabinetMessagingConversationsLoaded(conversations)),
       );
     } catch (_) {
-      emit(const CabinetMessagingConversationsError('Erreur de chargement.'));
+      safeEmit(
+          const CabinetMessagingConversationsError('Erreur de chargement.'));
     }
   }
 
@@ -49,17 +53,17 @@ class CabinetMessagingBloc
     try {
       final result = await _getMessages(event.conversation.id);
       result.fold(
-        (failure) => emit(CabinetMessagingThreadError(
+        (failure) => safeEmit(CabinetMessagingThreadError(
           conversationId: event.conversation.id,
           message: failure.message,
         )),
-        (messages) => emit(CabinetMessagingThreadLoaded(
+        (messages) => safeEmit(CabinetMessagingThreadLoaded(
           conversation: event.conversation,
           messages: messages,
         )),
       );
     } catch (_) {
-      emit(CabinetMessagingThreadError(
+      safeEmit(CabinetMessagingThreadError(
           conversationId: event.conversation.id,
           message: 'Erreur de chargement.'));
     }
@@ -79,14 +83,14 @@ class CabinetMessagingBloc
         text: event.text,
       );
       result.fold(
-        (failure) => emit(current.copyWith(sending: false)),
-        (message) => emit(current.copyWith(
+        (failure) => safeEmit(current.copyWith(sending: false)),
+        (message) => safeEmit(current.copyWith(
           sending: false,
           messages: [...current.messages, message],
         )),
       );
     } catch (_) {
-      emit(current.copyWith(sending: false));
+      safeEmit(current.copyWith(sending: false));
     }
   }
 
@@ -98,12 +102,14 @@ class CabinetMessagingBloc
     try {
       final result = await _listConversations();
       result.fold(
-        (failure) => emit(CabinetMessagingConversationsError(failure.message)),
+        (failure) =>
+            safeEmit(CabinetMessagingConversationsError(failure.message)),
         (conversations) =>
-            emit(CabinetMessagingConversationsLoaded(conversations)),
+            safeEmit(CabinetMessagingConversationsLoaded(conversations)),
       );
     } catch (_) {
-      emit(const CabinetMessagingConversationsError('Erreur de chargement.'));
+      safeEmit(
+          const CabinetMessagingConversationsError('Erreur de chargement.'));
     }
   }
 }

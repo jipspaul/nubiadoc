@@ -36,6 +36,8 @@ class AppRouter {
     return GoRouter(
       initialLocation: splash,
       refreshListenable: notifier,
+      // PostHog: capture les events $screen à chaque navigation.
+      observers: [PosthogObserver()],
       redirect: buildAuthGuard(
         notifier,
         loginRoute: login,
@@ -110,7 +112,8 @@ class AppRouter {
                   key: const Key('ordonnances_new'),
                   icon: Icons.medication_outlined,
                   title: 'Nouvelle ordonnance',
-                  subtitle: 'Saisissez les médicaments à prescrire pour ce patient.',
+                  subtitle:
+                      'Saisissez les médicaments à prescrire pour ce patient.',
                 ),
               ),
             ),

@@ -5,7 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'profile_event.dart';
 import 'profile_state.dart';
 
-class ProfileBloc extends Bloc<ProfileEvent, ProfileState> with SafeEmitMixin<ProfileState> {
+class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
+    with SafeEmitMixin<ProfileState> {
   final GetAccountUseCase _getAccount;
   final UserSettingsRepository _userSettings;
   final NotificationRepository _notificationRepo;
@@ -50,15 +51,14 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> with SafeEmitMixin<Pr
     BiometricToggleRequested event,
     Emitter<ProfileState> emit,
   ) async {
+    if (state is! ProfileLoaded) return;
+    final previous = state as ProfileLoaded;
+    emit(ProfileLoaded(previous.account,
+        biometricEnabled: event.enabled, notifPrefs: previous.notifPrefs));
     try {
       await _userSettings.setBiometricEnabled(event.enabled);
-      if (state is ProfileLoaded) {
-        final current = state as ProfileLoaded;
-        safeEmit(ProfileLoaded(current.account,
-            biometricEnabled: event.enabled, notifPrefs: current.notifPrefs));
-      }
-    } catch (_) {
-      // Keep current state — no Loading was emitted
+    } catch (e) {
+      safeEmit(ProfileToggleFailed(previous, e.toString()));
     }
   }
 
@@ -67,16 +67,16 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> with SafeEmitMixin<Pr
     Emitter<ProfileState> emit,
   ) async {
     if (state is! ProfileLoaded) return;
-    final current = state as ProfileLoaded;
+    final previous = state as ProfileLoaded;
     final updated =
-        (current.notifPrefs ?? const NotificationPreferences.allEnabled())
+        (previous.notifPrefs ?? const NotificationPreferences.allEnabled())
             .copyWith(emailEnabled: event.enabled);
+    emit(ProfileLoaded(previous.account,
+        biometricEnabled: previous.biometricEnabled, notifPrefs: updated));
     try {
       await _notificationRepo.updatePreferences(updated);
-      safeEmit(ProfileLoaded(current.account,
-          biometricEnabled: current.biometricEnabled, notifPrefs: updated));
-    } catch (_) {
-      // Keep current state — no Loading was emitted
+    } catch (e) {
+      safeEmit(ProfileToggleFailed(previous, e.toString()));
     }
   }
 
@@ -85,16 +85,16 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> with SafeEmitMixin<Pr
     Emitter<ProfileState> emit,
   ) async {
     if (state is! ProfileLoaded) return;
-    final current = state as ProfileLoaded;
+    final previous = state as ProfileLoaded;
     final updated =
-        (current.notifPrefs ?? const NotificationPreferences.allEnabled())
+        (previous.notifPrefs ?? const NotificationPreferences.allEnabled())
             .copyWith(pushEnabled: event.enabled);
+    emit(ProfileLoaded(previous.account,
+        biometricEnabled: previous.biometricEnabled, notifPrefs: updated));
     try {
       await _notificationRepo.updatePreferences(updated);
-      safeEmit(ProfileLoaded(current.account,
-          biometricEnabled: current.biometricEnabled, notifPrefs: updated));
-    } catch (_) {
-      // Keep current state — no Loading was emitted
+    } catch (e) {
+      safeEmit(ProfileToggleFailed(previous, e.toString()));
     }
   }
 }

@@ -34,9 +34,8 @@ class AppointmentDto {
     if (json['duration_minutes'] != null) {
       durationMinutes = (json['duration_minutes'] as num).toInt();
     } else if (endsAt != null) {
-      durationMinutes = DateTime.parse(endsAt)
-          .difference(DateTime.parse(startsAt))
-          .inMinutes;
+      durationMinutes =
+          DateTime.parse(endsAt).difference(DateTime.parse(startsAt)).inMinutes;
     } else {
       durationMinutes = 0;
     }

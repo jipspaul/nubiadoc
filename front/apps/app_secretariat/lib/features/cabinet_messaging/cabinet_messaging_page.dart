@@ -40,7 +40,14 @@ class CabinetMessagingPage extends StatelessWidget {
               title: 'Aucune conversation',
             );
           }
-          return _ConversationsList(conversations: state.conversations);
+          return _ConversationsList(
+            conversations: state.conversations,
+            onRefresh: () async {
+              context.read<CabinetMessagingBloc>().add(
+                    const CabinetMessagingConversationsLoadRequested(),
+                  );
+            },
+          );
         }
         if (state is CabinetMessagingThreadLoading) {
           return const Center(
@@ -69,9 +76,13 @@ class CabinetMessagingPage extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ConversationsList extends StatefulWidget {
-  const _ConversationsList({required this.conversations});
+  const _ConversationsList({
+    required this.conversations,
+    required this.onRefresh,
+  });
 
   final List<CabinetConversation> conversations;
+  final Future<void> Function() onRefresh;
 
   @override
   State<_ConversationsList> createState() => _ConversationsListState();
@@ -118,43 +129,39 @@ class _ConversationsListState extends State<_ConversationsList> {
         Expanded(
           child: RefreshIndicator(
             key: const Key('cabinet_messaging_refresh'),
-            onRefresh: () async {
-              context
-                  .read<CabinetMessagingBloc>()
-                  .add(const CabinetMessagingConversationsLoadRequested());
-            },
+            onRefresh: widget.onRefresh,
             child: ListView.separated(
-            key: const Key('cabinet_messaging_conversations_list'),
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final conv = filtered[index];
-              return ListTile(
-                key: Key('conv_${conv.id}'),
-                leading: CircleAvatar(
-                  child: Text(
-                    conv.patientName.isNotEmpty
-                        ? conv.patientName[0].toUpperCase()
-                        : '?',
+              key: const Key('cabinet_messaging_conversations_list'),
+              itemCount: filtered.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final conv = filtered[index];
+                return ListTile(
+                  key: Key('conv_${conv.id}'),
+                  leading: CircleAvatar(
+                    child: Text(
+                      conv.patientName.isNotEmpty
+                          ? conv.patientName[0].toUpperCase()
+                          : '?',
+                    ),
                   ),
-                ),
-                title: Text(conv.patientName),
-                subtitle: conv.lastMessage?.text != null
-                    ? Text(
-                        conv.lastMessage!.text!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    : null,
-                trailing: conv.unreadCount > 0
-                    ? Badge(label: Text('${conv.unreadCount}'))
-                    : null,
-                onTap: () => context
-                    .read<CabinetMessagingBloc>()
-                    .add(CabinetMessagingThreadOpened(conv)),
-              );
-            },
-          ),
+                  title: Text(conv.patientName),
+                  subtitle: conv.lastMessage?.text != null
+                      ? Text(
+                          conv.lastMessage!.text!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : null,
+                  trailing: conv.unreadCount > 0
+                      ? Badge(label: Text('${conv.unreadCount}'))
+                      : null,
+                  onTap: () => context
+                      .read<CabinetMessagingBloc>()
+                      .add(CabinetMessagingThreadOpened(conv)),
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -309,4 +316,3 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 }
-

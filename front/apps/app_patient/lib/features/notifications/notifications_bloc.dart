@@ -5,7 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'notifications_event.dart';
 import 'notifications_state.dart';
 
-class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> with SafeEmitMixin<NotificationsState> {
+class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
+    with SafeEmitMixin<NotificationsState> {
   final NotificationRepository _repository;
 
   NotificationsBloc({required NotificationRepository repository})

@@ -5,7 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'home_event.dart';
 import 'home_state.dart';
 
-class HomeBloc extends Bloc<HomeEvent, HomeState> with SafeEmitMixin<HomeState> {
+class HomeBloc extends Bloc<HomeEvent, HomeState>
+    with SafeEmitMixin<HomeState> {
   final GetDashboardSummaryUseCase _getDashboardSummary;
 
   HomeBloc({required GetDashboardSummaryUseCase getDashboardSummary})

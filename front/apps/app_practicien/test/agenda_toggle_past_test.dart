@@ -83,8 +83,9 @@ Widget _wrapFullPage(MockAgendaBloc bloc) => MaterialApp(
                       ? (context.watch<AgendaBloc>().state as AgendaLoaded)
                           .includePast
                       : false,
-                  onPressed: () =>
-                      context.read<AgendaBloc>().add(const TogglePastIncluded()),
+                  onPressed: () => context
+                      .read<AgendaBloc>()
+                      .add(const TogglePastIncluded()),
                 ),
               ],
             ),

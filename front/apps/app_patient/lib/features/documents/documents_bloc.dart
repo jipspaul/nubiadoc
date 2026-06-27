@@ -5,7 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'documents_event.dart';
 import 'documents_state.dart';
 
-class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> with SafeEmitMixin<DocumentsState> {
+class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
+    with SafeEmitMixin<DocumentsState> {
   final GetDocumentsUseCase _getDocuments;
   final GetDocumentSignedUrlUseCase _getSignedUrl;
   final UploadDocumentUseCase _upload;
@@ -47,8 +48,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState> with SafeEmitMi
   ) async {
     final current = state;
     if (current is DocumentsLoaded) {
-      emit(
-          DocumentsLoaded(current.documents, activeFilter: event.category));
+      emit(DocumentsLoaded(current.documents, activeFilter: event.category));
     }
   }
 

@@ -29,6 +29,19 @@ final _slot = Slot(
 );
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(
+      Slot(
+        id: '',
+        cabinetId: '',
+        practitionerId: '',
+        startsAt: DateTime(2026),
+        endsAt: DateTime(2026),
+        isAvailable: true,
+      ),
+    );
+  });
+
   // --- Cloisonnement invariant --------------------------------------------------
   group('ProConfig — cloisonnement', () {
     test('includeClinical est false', () {
@@ -77,7 +90,8 @@ void main() {
               to: any(named: 'to'),
               practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
-        return BookableSlotsBloc(listSlots: useCase, createSlot: createSlotUseCase);
+        return BookableSlotsBloc(
+            listSlots: useCase, createSlot: createSlotUseCase);
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       expect: () => [
@@ -97,12 +111,38 @@ void main() {
         ).thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
-        return BookableSlotsBloc(listSlots: useCase, createSlot: createSlotUseCase);
+        return BookableSlotsBloc(
+            listSlots: useCase, createSlot: createSlotUseCase);
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       expect: () => [
         const BookableSlotsLoading(),
         const BookableSlotsError('Erreur réseau'),
+      ],
+    );
+
+    blocTest<BookableSlotsBloc, BookableSlotsState>(
+      'create → émet Loading, SlotCreatedSuccess, Loading, Loaded',
+      build: () {
+        when(() => repo.create(any())).thenAnswer((_) async => Right(_slot));
+        when(
+          () => repo.list(
+              from: any(named: 'from'),
+              to: any(named: 'to'),
+              practitionerId: any(named: 'practitionerId')),
+        ).thenAnswer((_) async => Right([_slot]));
+        return BookableSlotsBloc(
+            listSlots: useCase, createSlot: createSlotUseCase);
+      },
+      act: (bloc) => bloc.add(CreateSlotRequested(
+        startsAt: DateTime(2026, 6, 20, 9, 0),
+        endsAt: DateTime(2026, 6, 20, 9, 30),
+      )),
+      expect: () => [
+        const BookableSlotsLoading(),
+        const BookableSlotsSlotCreatedSuccess(),
+        const BookableSlotsLoading(),
+        BookableSlotsLoaded([_slot]),
       ],
     );
 
@@ -115,7 +155,8 @@ void main() {
               to: any(named: 'to'),
               practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
-        return BookableSlotsBloc(listSlots: useCase, createSlot: createSlotUseCase);
+        return BookableSlotsBloc(
+            listSlots: useCase, createSlot: createSlotUseCase);
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       verify: (bloc) {
@@ -182,6 +223,21 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Erreur réseau'), findsOneWidget);
+    });
+
+    testWidgets('affiche le snackbar sur SlotCreatedSuccess', (tester) async {
+      whenListen(
+        bloc,
+        Stream.fromIterable([
+          const BookableSlotsLoading(),
+          const BookableSlotsSlotCreatedSuccess(),
+        ]),
+        initialState: const BookableSlotsInitial(),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pump();
+
+      expect(find.text('Créneau ajouté'), findsOneWidget);
     });
   });
 }

@@ -142,13 +142,12 @@ class _LoadedView extends StatelessWidget {
         CcamPicker(
           key: const Key('ccam_picker'),
           useCase: const StubGetActsUseCase(),
-          onActSelected: (act) =>
-              context.read<ConsultationCliniqueBloc>().add(
-                    ConsultationCliniqueActAddRequested(
-                      ccamCode: act.code,
-                      label: act.label,
-                    ),
-                  ),
+          onActSelected: (act) => context.read<ConsultationCliniqueBloc>().add(
+                ConsultationCliniqueActAddRequested(
+                  ccamCode: act.code,
+                  label: act.label,
+                ),
+              ),
         ),
         const Divider(height: 1),
         Expanded(

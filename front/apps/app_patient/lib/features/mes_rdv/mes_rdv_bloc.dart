@@ -5,7 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'mes_rdv_event.dart';
 import 'mes_rdv_state.dart';
 
-class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState> with SafeEmitMixin<MesRdvState> {
+class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
+    with SafeEmitMixin<MesRdvState> {
   final GetUpcomingAppointmentsUseCase _getUpcoming;
   final GetAppointmentHistoryUseCase _getHistory;
   final CancelAppointmentUseCase _cancel;

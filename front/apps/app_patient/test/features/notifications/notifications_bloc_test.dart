@@ -106,8 +106,7 @@ void main() {
       'est ignoré si le state courant n\'est pas Loaded',
       build: makeBloc,
       // état initial = NotificationsInitial
-      act: (bloc) =>
-          bloc.add(const NotificationMarkReadRequested('1')),
+      act: (bloc) => bloc.add(const NotificationMarkReadRequested('1')),
       expect: () => <NotificationsState>[],
     );
 

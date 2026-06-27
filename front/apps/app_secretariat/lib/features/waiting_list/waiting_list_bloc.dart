@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'waiting_list_event.dart';
 import 'waiting_list_state.dart';
 
-class WaitingListBloc extends Bloc<WaitingListEvent, WaitingListState> {
+class WaitingListBloc extends Bloc<WaitingListEvent, WaitingListState>
+    with SafeEmitMixin<WaitingListState> {
   final ListWaitingListUseCase _list;
   final OfferSlotToWaitingPatientUseCase _offerSlot;
 
@@ -26,11 +28,11 @@ class WaitingListBloc extends Bloc<WaitingListEvent, WaitingListState> {
     try {
       final result = await _list();
       result.fold(
-        (failure) => emit(WaitingListError(failure.message)),
-        (entries) => emit(WaitingListLoaded(entries)),
+        (failure) => safeEmit(WaitingListError(failure.message)),
+        (entries) => safeEmit(WaitingListLoaded(entries)),
       );
     } catch (_) {
-      emit(const WaitingListError('Erreur de chargement.'));
+      safeEmit(const WaitingListError('Erreur de chargement.'));
     }
   }
 
@@ -41,14 +43,14 @@ class WaitingListBloc extends Bloc<WaitingListEvent, WaitingListState> {
     try {
       final result = await _offerSlot(event.id);
       await result.fold(
-        (failure) async => emit(WaitingListError(failure.message)),
+        (failure) async => safeEmit(WaitingListError(failure.message)),
         (_) async {
-          emit(const WaitingListOfferSuccess());
+          safeEmit(const WaitingListOfferSuccess());
           await _onLoad(const WaitingListLoadRequested(), emit);
         },
       );
     } catch (_) {
-      emit(const WaitingListError('Erreur inattendue.'));
+      safeEmit(const WaitingListError('Erreur inattendue.'));
     }
   }
 }

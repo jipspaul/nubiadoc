@@ -31,11 +31,9 @@ class CabinetQuoteDto {
         cabinetId: json['cabinet_id'] as String? ?? '',
         patientId: json['patient_id'] as String,
         patientName: json['patient_name'] as String,
-        totalCents:
-            ((json['total_amount'] ?? json['total_cents']) as num? ?? 0)
-                .toInt(),
-        patientShareCents:
-            (json['patient_share_cents'] as num? ?? 0).toInt(),
+        totalCents: ((json['total_amount'] ?? json['total_cents']) as num? ?? 0)
+            .toInt(),
+        patientShareCents: (json['patient_share_cents'] as num? ?? 0).toInt(),
         status: json['status'] as String,
         createdAt: json['created_at'] as String,
         signedAt: json['signed_at'] as String?,

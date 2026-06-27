@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'patients_event.dart';
 import 'patients_state.dart';
 
-class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
+class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
+    with SafeEmitMixin<PatientsState> {
   final ListCabinetPatientsUseCase _list;
 
   PatientsBloc({required ListCabinetPatientsUseCase listPatients})
@@ -21,11 +23,11 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState> {
     try {
       final result = await _list();
       result.fold(
-        (failure) => emit(PatientsError(failure.message)),
-        (patients) => emit(PatientsLoaded(patients)),
+        (failure) => safeEmit(PatientsError(failure.message)),
+        (patients) => safeEmit(PatientsLoaded(patients)),
       );
     } catch (_) {
-      emit(const PatientsError('Erreur de chargement.'));
+      safeEmit(const PatientsError('Erreur de chargement.'));
     }
   }
 }

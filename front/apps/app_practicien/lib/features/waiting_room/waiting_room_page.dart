@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
@@ -102,64 +104,83 @@ class _LoadingView extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _LoadedView extends StatelessWidget {
+class _LoadedView extends StatefulWidget {
   const _LoadedView({required this.state});
   final WaitingRoomLoaded state;
 
   @override
+  State<_LoadedView> createState() => _LoadedViewState();
+}
+
+class _LoadedViewState extends State<_LoadedView> {
+  Completer<void>? _refreshCompleter;
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (state.actionInProgress)
-          const LinearProgressIndicator(
-              key: Key('waiting_room_action_progress')),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${state.entries.length} patient(s) en attente',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              FilledButton.icon(
-                key: const Key('call_next_button'),
-                onPressed: state.actionInProgress || state.entries.isEmpty
-                    ? null
-                    : () => context
-                        .read<WaitingRoomBloc>()
-                        .add(const WaitingRoomCallNextRequested()),
-                icon: const Icon(Icons.arrow_forward, size: 18),
-                label: Text(NubiaL10n.callNext),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: state.entries.isEmpty
-              ? const NubiaEmptyState(
-                  key: Key('waiting_room_empty'),
-                  icon: Icons.event_seat_outlined,
-                  title: NubiaL10n.waitingRoom,
-                  subtitle: NubiaL10n.noWaitingRoom,
-                )
-              : RefreshIndicator(
-                  key: const Key('waiting_room_refresh'),
-                  onRefresh: () async => context
-                      .read<WaitingRoomBloc>()
-                      .add(const WaitingRoomLoadRequested()),
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: state.entries.length,
-                    itemBuilder: (context, i) =>
-                        _EntryCard(entry: state.entries[i], position: i + 1),
+    return BlocListener<WaitingRoomBloc, WaitingRoomState>(
+      listenWhen: (_, s) => s is WaitingRoomLoaded || s is WaitingRoomError,
+      listener: (_, __) {
+        _refreshCompleter?.complete();
+        _refreshCompleter = null;
+      },
+      child: Column(
+        children: [
+          if (widget.state.actionInProgress)
+            const LinearProgressIndicator(
+                key: Key('waiting_room_action_progress')),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${widget.state.entries.length} patient(s) en attente',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-        ),
-      ],
+                FilledButton.icon(
+                  key: const Key('call_next_button'),
+                  onPressed:
+                      widget.state.actionInProgress || widget.state.entries.isEmpty
+                          ? null
+                          : () => context
+                              .read<WaitingRoomBloc>()
+                              .add(const WaitingRoomCallNextRequested()),
+                  icon: const Icon(Icons.arrow_forward, size: 18),
+                  label: Text(NubiaL10n.callNext),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: widget.state.entries.isEmpty
+                ? const NubiaEmptyState(
+                    key: Key('waiting_room_empty'),
+                    icon: Icons.event_seat_outlined,
+                    title: NubiaL10n.waitingRoom,
+                    subtitle: NubiaL10n.noWaitingRoom,
+                  )
+                : RefreshIndicator(
+                    key: const Key('waiting_room_refresh'),
+                    onRefresh: () {
+                      _refreshCompleter = Completer<void>();
+                      context
+                          .read<WaitingRoomBloc>()
+                          .add(const WaitingRoomLoadRequested());
+                      return _refreshCompleter!.future;
+                    },
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: widget.state.entries.length,
+                      itemBuilder: (context, i) => _EntryCard(
+                          entry: widget.state.entries[i], position: i + 1),
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -28,14 +30,17 @@ class AgendaPage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _AgendaBody extends StatelessWidget {
+class _AgendaBody extends StatefulWidget {
   const _AgendaBody();
 
   @override
+  State<_AgendaBody> createState() => _AgendaBodyState();
+}
+
+class _AgendaBodyState extends State<_AgendaBody> {
+  @override
   Widget build(BuildContext context) {
-    return BlocListener<AgendaBloc, AgendaState>(
-      listenWhen: (_, current) =>
-          current is AgendaLoaded && current.actionError != null,
+    return BlocConsumer<AgendaBloc, AgendaState>(
       listener: (context, state) {
         if (state is AgendaLoaded && state.actionError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -43,29 +48,27 @@ class _AgendaBody extends StatelessWidget {
           );
         }
       },
-      child: BlocBuilder<AgendaBloc, AgendaState>(
-        builder: (context, state) {
-          if (state is AgendaInitial || state is AgendaLoading) {
-            return const Center(
-              key: Key('agenda_loading'),
-              child: CircularProgressIndicator(),
-            );
-          }
-          if (state is AgendaError) {
-            return NubiaErrorWidget(
-              key: const Key('agenda_error'),
-              message: state.message,
-              onRetry: () => context.read<AgendaBloc>().add(
-                    AgendaLoadRequested(weekStart: _currentWeekStart()),
-                  ),
-            );
-          }
-          if (state is AgendaLoaded) {
-            return _LoadedView(state: state);
-          }
-          return const SizedBox.shrink();
-        },
-      ),
+      builder: (context, state) {
+        if (state is AgendaInitial || state is AgendaLoading) {
+          return const Center(
+            key: Key('agenda_loading'),
+            child: CircularProgressIndicator(),
+          );
+        }
+        if (state is AgendaError) {
+          return NubiaErrorWidget(
+            key: const Key('agenda_error'),
+            message: state.message,
+            onRetry: () => context.read<AgendaBloc>().add(
+                  AgendaLoadRequested(weekStart: _currentWeekStart()),
+                ),
+          );
+        }
+        if (state is AgendaLoaded) {
+          return _LoadedView(state: state);
+        }
+        return const SizedBox.shrink();
+      },
     );
   }
 }
@@ -82,6 +85,7 @@ class _LoadedView extends StatefulWidget {
 
 class _LoadedViewState extends State<_LoadedView> {
   String? _practitionerFilter;
+  Completer<void>? _refreshCompleter;
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +100,14 @@ class _LoadedViewState extends State<_LoadedView> {
             .where((e) => e.practitionerId == _practitionerFilter)
             .toList();
 
-    return Column(
+    return BlocListener<AgendaBloc, AgendaState>(
+      listener: (context, state) {
+        if (state is AgendaLoaded || state is AgendaError) {
+          _refreshCompleter?.complete();
+          _refreshCompleter = null;
+        }
+      },
+      child: Column(
       children: [
         if (widget.state.actionInProgress)
           const LinearProgressIndicator(key: Key('agenda_action_progress')),
@@ -163,9 +174,13 @@ class _LoadedViewState extends State<_LoadedView> {
                 )
               : RefreshIndicator(
                   key: const Key('agenda_refresh_indicator'),
-                  onRefresh: () async => context.read<AgendaBloc>().add(
-                        AgendaLoadRequested(weekStart: _currentWeekStart()),
-                      ),
+                  onRefresh: () {
+                    _refreshCompleter = Completer<void>();
+                    context.read<AgendaBloc>().add(
+                          AgendaLoadRequested(weekStart: _currentWeekStart()),
+                        );
+                    return _refreshCompleter!.future;
+                  },
                   child: ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -176,6 +191,7 @@ class _LoadedViewState extends State<_LoadedView> {
                 ),
         ),
       ],
+      ),
     );
   }
 

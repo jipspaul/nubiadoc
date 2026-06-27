@@ -72,10 +72,12 @@ podman rm -f nubia-api >/dev/null 2>&1 || true
 # le burst au boot (init pool DB + warmup tokio workers). Postmortem 2026-06-24
 # soir : 768Mi a fait crash le boot.
 # Healthcheck : pas de /v1/health garanti, on check juste qu'une route renvoie
-# du HTTP (peu importe 200/401/404 — on veut savoir si tokio est UP). wget
-# --spider exit 0 si HTTP répond, exit 1 si pas de réponse → exactement ce qu'on veut.
+# du HTTP (peu importe 200/401/404 — on veut savoir si tokio est UP).
+# Postmortem 2026-06-27 : `wget -q --spider` est silencieux donc `grep` ne
+# voyait rien → healthcheck éternellement "starting". Fix : `-S` pour faire
+# émettre les headers du serveur, puis grep sur la ligne `HTTP/x.x <code>`.
 podman run -d --name nubia-api --network host --restart unless-stopped \
-  --health-cmd='wget -q --spider --timeout=3 http://127.0.0.1:3000/ 2>&1 | grep -qE "200|301|302|401|404" || exit 1' \
+  --health-cmd='wget -q -S --spider --timeout=3 http://127.0.0.1:3000/ 2>&1 | grep -qE "HTTP/.* (200|301|302|401|404)" || exit 1' \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=20s \
   -e APP_DATABASE_URL=postgres://nubia_app@127.0.0.1:5432/nubia \
   -e APP_PORT=3000 -e JWT_SECRET=dev-only-not-for-prod -e LOGIN_RATE_MAX_ATTEMPTS=10000 \
@@ -84,8 +86,10 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
 echo "[deploy] console"
 podman rm -f nubia-console >/dev/null 2>&1 || true
 # Astro SSR + node : 768Mi (node base ~150Mi + SSR working set).
+# Healthcheck via `node` (et non wget) car l'image node:alpine n'a PAS wget —
+# le healthcheck wget restait "starting" silencieusement (postmortem 2026-06-27).
 podman run -d --name nubia-console --network host --restart unless-stopped \
-  --health-cmd='wget -q --spider --timeout=3 http://127.0.0.1:4321/ || exit 1' \
+  --health-cmd='node -e "require(\"http\").get(\"http://127.0.0.1:4321/\",r=>process.exit(r.statusCode<500?0:1)).on(\"error\",()=>process.exit(1))"' \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=10s \
   -e HOST=0.0.0.0 -e PORT=4321 -e PUBLIC_API_BASE="$PUBLIC_API_BASE" \
   localhost/nubia-console:latest >/dev/null
@@ -94,7 +98,7 @@ echo "[deploy] web (nginx statique 8081/8082/8083)"
 podman rm -f nubia-web >/dev/null 2>&1 || true
 # nginx statique : 256Mi largement suffisant (juste sert des fichiers).
 podman run -d --name nubia-web --network host --restart unless-stopped \
-  --health-cmd='wget -q --spider --timeout=3 http://127.0.0.1:8081/ || exit 1' \
+  --health-cmd='wget -q -S --spider --timeout=3 http://127.0.0.1:8081/ 2>&1 | grep -q "HTTP/" || exit 1' \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=5s \
   -v /opt/nubia/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
   -v /opt/nubia/www:/www:ro \
@@ -121,3 +125,10 @@ fi
 
 echo "[deploy] OK — état final des conteneurs :"
 podman ps --format '  {{.Names}}  {{.Status}}'
+
+# re-deploy 2026-06-27 — validate LXC recovery + new healthchecks
+# trigger-test (forgejo restart 2026-06-27 — verify concurrency lock cleared)
+# trigger-test post fix cancel-in-progress (2026-06-27 ~02:15)
+# trigger post runner-restart
+# trigger after stabilization
+# validation post fix DinD startup race

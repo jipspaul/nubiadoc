@@ -46,21 +46,24 @@ class _NubiaProAppState extends State<NubiaProApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: _auth,
-      child: MaterialApp.router(
-        title: ProConfig.appTitle,
-        theme: NubiaTheme.light,
-        darkTheme: NubiaTheme.dark,
-        themeMode: ThemeMode.system,
-        routerConfig: _router,
-        debugShowCheckedModeBanner: false,
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [Locale('fr')],
+    // PostHogWidget enveloppe l'arbre pour le session replay (masqué — santé).
+    return PostHogWidget(
+      child: BlocProvider.value(
+        value: _auth,
+        child: MaterialApp.router(
+          title: ProConfig.appTitle,
+          theme: NubiaTheme.light,
+          darkTheme: NubiaTheme.dark,
+          themeMode: ThemeMode.system,
+          routerConfig: _router,
+          debugShowCheckedModeBanner: false,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('fr')],
+        ),
       ),
     );
   }

@@ -5,7 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
-class DashboardBloc extends Bloc<DashboardEvent, DashboardState> with SafeEmitMixin<DashboardState> {
+class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
+    with SafeEmitMixin<DashboardState> {
   final GetDashboardSummaryUseCase _getSummary;
 
   DashboardBloc({required GetDashboardSummaryUseCase getDashboardSummary})

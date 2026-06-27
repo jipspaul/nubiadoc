@@ -5,7 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'reviews_event.dart';
 import 'reviews_state.dart';
 
-class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState> with SafeEmitMixin<ReviewsState> {
+class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState>
+    with SafeEmitMixin<ReviewsState> {
   final GetProviderReviewsUseCase _getProviderReviews;
   final SubmitReviewUseCase _submitReview;
 

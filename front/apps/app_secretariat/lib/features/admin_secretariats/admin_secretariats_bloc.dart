@@ -1,11 +1,13 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'admin_secretariats_event.dart';
 import 'admin_secretariats_state.dart';
 
 class AdminSecretiariatsBloc
-    extends Bloc<AdminSecretiariatsEvent, AdminSecretiariatsState> {
+    extends Bloc<AdminSecretiariatsEvent, AdminSecretiariatsState>
+    with SafeEmitMixin<AdminSecretiariatsState> {
   final ListSecretiariatsUseCase _listSecretariats;
 
   AdminSecretiariatsBloc({
@@ -23,12 +25,12 @@ class AdminSecretiariatsBloc
     try {
       final result = await _listSecretariats();
       result.fold(
-        (failure) => emit(AdminSecretiariatsError(failure.message)),
+        (failure) => safeEmit(AdminSecretiariatsError(failure.message)),
         (secretariats) =>
-            emit(AdminSecretiariatsLoaded(secretariats: secretariats)),
+            safeEmit(AdminSecretiariatsLoaded(secretariats: secretariats)),
       );
     } catch (_) {
-      emit(const AdminSecretiariatsError('Erreur de chargement.'));
+      safeEmit(const AdminSecretiariatsError('Erreur de chargement.'));
     }
   }
 }

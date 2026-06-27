@@ -154,9 +154,13 @@ class _AppointmentList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: () {
-        context.read<MesRdvBloc>().add(const MesRdvLoadRequested());
-        return Future<void>.delayed(Duration.zero);
+      onRefresh: () async {
+        final bloc = context.read<MesRdvBloc>();
+        bloc.add(const MesRdvLoadRequested());
+        await bloc.stream.firstWhere(
+          (s) => s is MesRdvLoaded || s is MesRdvError,
+          orElse: () => const MesRdvLoading(),
+        );
       },
       child: appointments.isEmpty
           ? LayoutBuilder(
@@ -390,4 +394,3 @@ class _StatusChip extends StatelessWidget {
     };
   }
 }
-

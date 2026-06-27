@@ -6,7 +6,8 @@ import 'financial_event.dart';
 import 'financial_state.dart';
 
 /// Bloc du wedge financier : liste devis → détail → signature Yousign → paiement acompte.
-class FinancialBloc extends Bloc<FinancialEvent, FinancialState> with SafeEmitMixin<FinancialState> {
+class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
+    with SafeEmitMixin<FinancialState> {
   FinancialBloc({
     required GetPendingQuotesUseCase getPendingQuotes,
     required GetQuoteByIdUseCase getQuoteById,

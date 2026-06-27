@@ -5,7 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'messaging_event.dart';
 import 'messaging_state.dart';
 
-class MessagingBloc extends Bloc<MessagingEvent, MessagingState> with SafeEmitMixin<MessagingState> {
+class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
+    with SafeEmitMixin<MessagingState> {
   final GetConversationsUseCase _getConversations;
   final GetConversationMessagesUseCase _getMessages;
   final SendMessageUseCase _sendMessage;

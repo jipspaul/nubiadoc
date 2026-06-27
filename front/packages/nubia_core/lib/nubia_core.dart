@@ -31,3 +31,13 @@ export 'src/session/fcm_token_provider.dart';
 
 // i18n
 export 'src/l10n/nubia_l10n.dart';
+
+// Bloc helpers
+export 'src/bloc/safe_emit_mixin.dart';
+
+// Observability (PostHog: analytics, session replay, error tracking)
+export 'src/observability/nubia_observability.dart';
+// Widgets PostHog requis par les apps (wrap + navigator observer) — exposés
+// via nubia_core pour éviter une dépendance directe à posthog_flutter.
+export 'package:posthog_flutter/posthog_flutter.dart'
+    show PostHogWidget, PosthogObserver;
