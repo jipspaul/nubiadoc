@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -62,6 +64,23 @@ class PatientDetailLoaded extends PatientsState {
 class PatientDetailError extends PatientsState {
   final String message;
   const PatientDetailError(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
+class PatientPdfReady extends PatientsState {
+  final Uint8List bytes;
+  final String filename;
+  const PatientPdfReady({required this.bytes, required this.filename});
+
+  @override
+  List<Object?> get props => [bytes, filename];
+}
+
+class PatientExportError extends PatientsState {
+  final String message;
+  const PatientExportError(this.message);
 
   @override
   List<Object?> get props => [message];

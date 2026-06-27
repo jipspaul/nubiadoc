@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:bloc/bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 import 'patients_event.dart';
 import 'patients_state.dart';
@@ -22,6 +26,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
     on<PatientsLoadRequested>(_onLoad);
     on<PatientsDetailLoadRequested>(_onDetailLoad);
     on<PatientsNotesUpdateRequested>(_onNotesUpdate);
+    on<PatientExportPdfRequested>(_onExportPdf);
   }
 
   Future<void> _onLoad(
@@ -76,4 +81,57 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
       safeEmit(current.copyWith(notesUpdating: false, notesError: 'Erreur inattendue.'));
     }
   }
+
+  Future<void> _onExportPdf(
+    PatientExportPdfRequested event,
+    Emitter<PatientsState> emit,
+  ) async {
+    final current = state;
+    if (current is! PatientDetailLoaded) return;
+    try {
+      final bytes = await _buildPatientPdf(event.patient);
+      emit(PatientPdfReady(
+        bytes: Uint8List.fromList(bytes),
+        filename: 'patient_${event.patient.id}.pdf',
+      ));
+      // Re-emit current state so the UI stays on the patient detail screen.
+      emit(current);
+    } catch (_) {
+      emit(const PatientExportError('Impossible de générer le PDF.'));
+      emit(current);
+    }
+  }
+
+  static Future<List<int>> _buildPatientPdf(CabinetPatient p) async {
+    final doc = pw.Document();
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Fiche patient',
+              style: pw.TextStyle(
+                fontSize: 24,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 16),
+            pw.Text('Nom : ${p.fullName}'),
+            if (p.birthDate != null)
+              pw.Text('Date de naissance : ${_fmt(p.birthDate!)}'),
+            if (p.email != null) pw.Text('Email : ${p.email!}'),
+            if (p.phone != null) pw.Text('Téléphone : ${p.phone!}'),
+            if (p.lastVisitAt != null)
+              pw.Text('Dernière visite : ${_fmt(p.lastVisitAt!)}'),
+          ],
+        ),
+      ),
+    );
+    return doc.save();
+  }
+
+  static String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
