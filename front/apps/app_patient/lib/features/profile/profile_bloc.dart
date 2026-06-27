@@ -58,7 +58,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
     try {
       await _userSettings.setBiometricEnabled(event.enabled);
     } catch (e) {
-      emit(ProfileToggleFailed(previous, e.toString()));
+      safeEmit(ProfileToggleFailed(previous, e.toString()));
     }
   }
 
@@ -76,7 +76,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
     try {
       await _notificationRepo.updatePreferences(updated);
     } catch (e) {
-      emit(ProfileToggleFailed(previous, e.toString()));
+      safeEmit(ProfileToggleFailed(previous, e.toString()));
     }
   }
 
@@ -94,7 +94,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
     try {
       await _notificationRepo.updatePreferences(updated);
     } catch (e) {
-      emit(ProfileToggleFailed(previous, e.toString()));
+      safeEmit(ProfileToggleFailed(previous, e.toString()));
     }
   }
 }
