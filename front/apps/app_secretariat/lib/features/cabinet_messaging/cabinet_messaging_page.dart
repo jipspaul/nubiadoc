@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -80,6 +82,7 @@ class _ConversationsList extends StatefulWidget {
 class _ConversationsListState extends State<_ConversationsList> {
   String _query = '';
   bool _showUnreadOnly = false;
+  Completer<void>? _refreshCompleter;
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +92,15 @@ class _ConversationsListState extends State<_ConversationsList> {
         .where((c) => !_showUnreadOnly || c.unreadCount > 0)
         .toList();
 
-    return Column(
+    return BlocListener<CabinetMessagingBloc, CabinetMessagingState>(
+      listenWhen: (_, s) =>
+          s is CabinetMessagingConversationsLoaded ||
+          s is CabinetMessagingConversationsError,
+      listener: (_, __) {
+        _refreshCompleter?.complete();
+        _refreshCompleter = null;
+      },
+      child: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -118,10 +129,12 @@ class _ConversationsListState extends State<_ConversationsList> {
         Expanded(
           child: RefreshIndicator(
             key: const Key('cabinet_messaging_refresh'),
-            onRefresh: () async {
+            onRefresh: () {
+              _refreshCompleter = Completer<void>();
               context
                   .read<CabinetMessagingBloc>()
                   .add(const CabinetMessagingConversationsLoadRequested());
+              return _refreshCompleter!.future;
             },
             child: ListView.separated(
               key: const Key('cabinet_messaging_conversations_list'),
@@ -158,6 +171,7 @@ class _ConversationsListState extends State<_ConversationsList> {
           ),
         ),
       ],
+      ),
     );
   }
 }
