@@ -85,4 +85,29 @@ export function mockExternalWebhook(
     },
     body,
   });
+
+/**
+ * Crée un RDV (P) puis le confirme (S). Retourne l'appointment_id.
+ * Extrait du scénario A1 pour être réutilisé par A4 et autres.
+ */
+export async function bookAndConfirmAppointment(
+  pToken: string,
+  sToken: string,
+  providerId: string,
+  slotId: string,
+): Promise<string> {
+  const bookRes = await authedFetch(pToken, '/appointments', {
+    method: 'POST',
+    body: JSON.stringify({ provider_id: providerId, slot_id: slotId, motif: 'e2e-a4-waiting-room' }),
+  });
+  if (!bookRes.ok) throw new Error(`POST /appointments échoué: HTTP ${bookRes.status}`);
+  const { appointment_id } = (await bookRes.json()) as { appointment_id: string };
+
+  const confirmRes = await authedFetch(sToken, `/cabinet/appointments/${appointment_id}/confirm`, {
+    method: 'POST',
+  });
+  if (!confirmRes.ok)
+    throw new Error(`POST /cabinet/appointments/:id/confirm échoué: HTTP ${confirmRes.status}`);
+
+  return appointment_id;
 }
