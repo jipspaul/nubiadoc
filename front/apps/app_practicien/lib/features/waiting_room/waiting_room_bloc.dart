@@ -53,7 +53,8 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
         (_) async => _onLoad(const WaitingRoomLoadRequested(), emit),
       );
     } catch (_) {
-      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 }
