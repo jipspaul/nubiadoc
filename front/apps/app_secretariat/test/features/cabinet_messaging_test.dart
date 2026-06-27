@@ -37,23 +37,25 @@ void main() {
 
   // --- CabinetConversation : pas de champ clinique -----------------------------
   group('CabinetConversation — cloisonnement champs cliniques', () {
-    test('CabinetConversation ne porte pas de champ motif ni notes_medicales',
-        () {
-      final conv = CabinetConversation(
-        id: 'c1',
-        patientId: 'p1',
-        patientName: 'Jean Dupont',
-        unreadCount: 2,
-      );
-      final json = {
-        'id': conv.id,
-        'patientId': conv.patientId,
-        'patientName': conv.patientName,
-        'unreadCount': conv.unreadCount,
-      };
-      expect(json.containsKey('motif'), isFalse);
-      expect(json.containsKey('notesMedicales'), isFalse);
-    });
+    test(
+      'CabinetConversation ne porte pas de champ motif ni notes_medicales',
+      () {
+        final conv = CabinetConversation(
+          id: 'c1',
+          patientId: 'p1',
+          patientName: 'Jean Dupont',
+          unreadCount: 2,
+        );
+        final json = {
+          'id': conv.id,
+          'patientId': conv.patientId,
+          'patientName': conv.patientName,
+          'unreadCount': conv.unreadCount,
+        };
+        expect(json.containsKey('motif'), isFalse);
+        expect(json.containsKey('notesMedicales'), isFalse);
+      },
+    );
   });
 
   // --- CabinetMessagingBloc ----------------------------------------------------
@@ -93,8 +95,9 @@ void main() {
     blocTest<CabinetMessagingBloc, CabinetMessagingState>(
       'émet Loading puis Loaded sur succès',
       build: () {
-        when(() => repo.getConversations())
-            .thenAnswer((_) async => Right(conversations));
+        when(
+          () => repo.getConversations(),
+        ).thenAnswer((_) async => Right(conversations));
         return CabinetMessagingBloc(
           listConversations: listConversations,
           getMessages: getMessages,
@@ -112,9 +115,9 @@ void main() {
     blocTest<CabinetMessagingBloc, CabinetMessagingState>(
       'émet Loading puis Error sur échec réseau',
       build: () {
-        when(() => repo.getConversations()).thenAnswer(
-          (_) async => Left(const NetworkFailure('Erreur réseau')),
-        );
+        when(
+          () => repo.getConversations(),
+        ).thenAnswer((_) async => Left(const NetworkFailure('Erreur réseau')));
         return CabinetMessagingBloc(
           listConversations: listConversations,
           getMessages: getMessages,
@@ -132,8 +135,9 @@ void main() {
     blocTest<CabinetMessagingBloc, CabinetMessagingState>(
       'ouvre un thread — émet ThreadLoading puis ThreadLoaded',
       build: () {
-        when(() => repo.getMessages('conv1'))
-            .thenAnswer((_) async => Right(messages));
+        when(
+          () => repo.getMessages('conv1'),
+        ).thenAnswer((_) async => Right(messages));
         return CabinetMessagingBloc(
           listConversations: listConversations,
           getMessages: getMessages,
@@ -167,8 +171,9 @@ void main() {
     blocTest<CabinetMessagingBloc, CabinetMessagingState>(
       'les conversations chargées n\'exposent aucun champ clinique',
       build: () {
-        when(() => repo.getConversations())
-            .thenAnswer((_) async => Right(conversations));
+        when(
+          () => repo.getConversations(),
+        ).thenAnswer((_) async => Right(conversations));
         return CabinetMessagingBloc(
           listConversations: listConversations,
           getMessages: getMessages,
@@ -199,22 +204,25 @@ void main() {
     });
 
     Widget buildPage() => MaterialApp(
-          theme: NubiaTheme.light,
-          home: BlocProvider<CabinetMessagingBloc>.value(
-            value: bloc,
-            child: const CabinetMessagingPage(),
-          ),
-        );
+      theme: NubiaTheme.light,
+      home: BlocProvider<CabinetMessagingBloc>.value(
+        value: bloc,
+        child: const CabinetMessagingPage(),
+      ),
+    );
 
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const CabinetMessagingInitial());
       await tester.pumpWidget(buildPage());
       expect(
-          find.byKey(const Key('cabinet_messaging_loading')), findsOneWidget);
+        find.byKey(const Key('cabinet_messaging_loading')),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('affiche les conversations — aucun champ clinique visible',
-        (tester) async {
+    testWidgets('affiche les conversations — aucun champ clinique visible', (
+      tester,
+    ) async {
       when(() => bloc.state).thenReturn(
         const CabinetMessagingConversationsLoaded([
           CabinetConversation(
@@ -237,8 +245,9 @@ void main() {
     });
 
     testWidgets('affiche un message si la liste est vide', (tester) async {
-      when(() => bloc.state)
-          .thenReturn(const CabinetMessagingConversationsLoaded([]));
+      when(
+        () => bloc.state,
+      ).thenReturn(const CabinetMessagingConversationsLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -282,35 +291,37 @@ void main() {
     });
 
     testWidgets(
-        'pull-to-refresh déclenche CabinetMessagingConversationsLoadRequested',
-        (tester) async {
-      when(() => bloc.state).thenReturn(
-        const CabinetMessagingConversationsLoaded([
-          CabinetConversation(
-            id: 'conv1',
-            patientId: 'p1',
-            patientName: 'Marie Curie',
-            unreadCount: 0,
-          ),
-        ]),
-      );
-      await tester.pumpWidget(buildPage());
-      await tester.pumpAndSettle();
+      'pull-to-refresh déclenche CabinetMessagingConversationsLoadRequested',
+      (tester) async {
+        when(() => bloc.state).thenReturn(
+          const CabinetMessagingConversationsLoaded([
+            CabinetConversation(
+              id: 'conv1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              unreadCount: 0,
+            ),
+          ]),
+        );
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
 
-      await tester.fling(
-        find.byKey(const Key('cabinet_messaging_conversations_list')),
-        const Offset(0, 300),
-        1000,
-      );
-      await tester.pumpAndSettle();
+        await tester.fling(
+          find.byKey(const Key('cabinet_messaging_conversations_list')),
+          const Offset(0, 300),
+          1000,
+        );
+        await tester.pumpAndSettle();
 
-      verify(
-        () => bloc.add(const CabinetMessagingConversationsLoadRequested()),
-      ).called(1);
-    });
+        verify(
+          () => bloc.add(const CabinetMessagingConversationsLoadRequested()),
+        ).called(1);
+      },
+    );
 
-    testWidgets('segment Non lus — 3 conversations dont 1 unread → 1 visible',
-        (tester) async {
+    testWidgets('segment Non lus — 3 conversations dont 1 unread → 1 visible', (
+      tester,
+    ) async {
       when(() => bloc.state).thenReturn(
         const CabinetMessagingConversationsLoaded([
           CabinetConversation(
