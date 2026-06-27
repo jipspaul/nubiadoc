@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -11,26 +9,12 @@ import 'cabinet_messaging_state.dart';
 
 /// Écran "Messages" côté secrétariat — liste des conversations patient + thread.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
-class CabinetMessagingPage extends StatefulWidget {
+class CabinetMessagingPage extends StatelessWidget {
   const CabinetMessagingPage({super.key});
 
   @override
-  State<CabinetMessagingPage> createState() => _CabinetMessagingPageState();
-}
-
-class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
-  Completer<void>? _refreshCompleter;
-
-  @override
   Widget build(BuildContext context) {
-    return BlocConsumer<CabinetMessagingBloc, CabinetMessagingState>(
-      listener: (context, state) {
-        if (state is CabinetMessagingConversationsLoaded ||
-            state is CabinetMessagingConversationsError) {
-          _refreshCompleter?.complete();
-          _refreshCompleter = null;
-        }
-      },
+    return BlocBuilder<CabinetMessagingBloc, CabinetMessagingState>(
       builder: (context, state) {
         if (state is CabinetMessagingInitial ||
             state is CabinetMessagingConversationsLoading) {
@@ -58,12 +42,10 @@ class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
           }
           return _ConversationsList(
             conversations: state.conversations,
-            onRefresh: () {
-              _refreshCompleter = Completer<void>();
+            onRefresh: () async {
               context.read<CabinetMessagingBloc>().add(
                     const CabinetMessagingConversationsLoadRequested(),
                   );
-              return _refreshCompleter!.future;
             },
           );
         }
