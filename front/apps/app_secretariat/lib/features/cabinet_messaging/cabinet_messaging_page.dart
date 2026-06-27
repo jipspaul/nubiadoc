@@ -30,8 +30,8 @@ class CabinetMessagingPage extends StatelessWidget {
               key: const Key('cabinet_messaging_error'),
               message: state.message,
               onRetry: () => context.read<CabinetMessagingBloc>().add(
-                    const CabinetMessagingConversationsLoadRequested(),
-                  ),
+                const CabinetMessagingConversationsLoadRequested(),
+              ),
             );
           }
           if (state is CabinetMessagingConversationsLoaded) {
@@ -57,9 +57,9 @@ class CabinetMessagingPage extends StatelessWidget {
             return NubiaErrorWidget(
               key: const Key('cabinet_messaging_thread_error'),
               message: state.message,
-              onRetry: () => context
-                  .read<CabinetMessagingBloc>()
-                  .add(const CabinetMessagingBackRequested()),
+              onRetry: () => context.read<CabinetMessagingBloc>().add(
+                const CabinetMessagingBackRequested(),
+              ),
             );
           }
           return const SizedBox.shrink();
@@ -88,7 +88,8 @@ class _ConversationsListState extends State<_ConversationsList> {
   Widget build(BuildContext context) {
     final filtered = widget.conversations
         .where(
-            (c) => c.patientName.toLowerCase().contains(_query.toLowerCase()))
+          (c) => c.patientName.toLowerCase().contains(_query.toLowerCase()),
+        )
         .where((c) => !_showUnreadOnly || c.unreadCount > 0)
         .toList();
 
@@ -122,9 +123,9 @@ class _ConversationsListState extends State<_ConversationsList> {
           child: RefreshIndicator(
             key: const Key('cabinet_messaging_refresh'),
             onRefresh: () async {
-              context
-                  .read<CabinetMessagingBloc>()
-                  .add(const CabinetMessagingConversationsLoadRequested());
+              context.read<CabinetMessagingBloc>().add(
+                const CabinetMessagingConversationsLoadRequested(),
+              );
             },
             child: ListView.separated(
               key: const Key('cabinet_messaging_conversations_list'),
@@ -152,9 +153,9 @@ class _ConversationsListState extends State<_ConversationsList> {
                   trailing: conv.unreadCount > 0
                       ? Badge(label: Text('${conv.unreadCount}'))
                       : null,
-                  onTap: () => context
-                      .read<CabinetMessagingBloc>()
-                      .add(CabinetMessagingThreadOpened(conv)),
+                  onTap: () => context.read<CabinetMessagingBloc>().add(
+                    CabinetMessagingThreadOpened(conv),
+                  ),
                 );
               },
             ),
@@ -188,10 +189,12 @@ class _ThreadViewState extends State<_ThreadView> {
   void _send() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    context.read<CabinetMessagingBloc>().add(CabinetMessagingSendRequested(
-          conversationId: widget.state.conversation.id,
-          text: text,
-        ));
+    context.read<CabinetMessagingBloc>().add(
+      CabinetMessagingSendRequested(
+        conversationId: widget.state.conversation.id,
+        text: text,
+      ),
+    );
     _controller.clear();
   }
 
@@ -209,9 +212,9 @@ class _ThreadViewState extends State<_ThreadView> {
                 IconButton(
                   key: const Key('cabinet_messaging_back_button'),
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => context
-                      .read<CabinetMessagingBloc>()
-                      .add(const CabinetMessagingBackRequested()),
+                  onPressed: () => context.read<CabinetMessagingBloc>().add(
+                    const CabinetMessagingBackRequested(),
+                  ),
                 ),
                 Expanded(
                   child: Text(
@@ -253,8 +256,10 @@ class _ThreadViewState extends State<_ThreadView> {
                     hintText: 'Votre message…',
                     border: OutlineInputBorder(),
                     isDense: true,
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                   ),
                   onSubmitted: (_) => _send(),
                 ),
@@ -305,8 +310,8 @@ class _MessageBubble extends StatelessWidget {
         child: Text(
           message.text ?? '',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-              ),
+            color: isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+          ),
         ),
       ),
     );
