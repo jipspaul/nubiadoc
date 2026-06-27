@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -58,30 +60,48 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
   }
 }
 
-class _SecretariatsList extends StatelessWidget {
+class _SecretariatsList extends StatefulWidget {
   const _SecretariatsList({required this.secretariats});
 
   final List<Secretariat> secretariats;
 
   @override
+  State<_SecretariatsList> createState() => _SecretariatsListState();
+}
+
+class _SecretariatsListState extends State<_SecretariatsList> {
+  Completer<void>? _refreshCompleter;
+
+  @override
   Widget build(BuildContext context) {
-    if (secretariats.isEmpty) {
+    if (widget.secretariats.isEmpty) {
       return const NubiaEmptyState(
         icon: Icons.business_outlined,
         title: 'Aucun secrétariat enregistré.',
       );
     }
-    return RefreshIndicator(
-      key: const Key('admin_secretariats_refresh'),
-      onRefresh: () async {
-        context
-            .read<AdminSecretiariatsBloc>()
-            .add(const AdminSecretiariatsLoadRequested());
+    return BlocListener<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+      listenWhen: (_, s) =>
+          s is AdminSecretiariatsLoaded || s is AdminSecretiariatsError,
+      listener: (_, __) {
+        _refreshCompleter?.complete();
+        _refreshCompleter = null;
       },
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: secretariats.length,
-        itemBuilder: (_, i) => _SecretariatTile(secretariat: secretariats[i]),
+      child: RefreshIndicator(
+        key: const Key('admin_secretariats_refresh'),
+        onRefresh: () {
+          _refreshCompleter = Completer<void>();
+          context
+              .read<AdminSecretiariatsBloc>()
+              .add(const AdminSecretiariatsLoadRequested());
+          return _refreshCompleter!.future;
+        },
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: widget.secretariats.length,
+          itemBuilder: (_, i) =>
+              _SecretariatTile(secretariat: widget.secretariats[i]),
+        ),
       ),
     );
   }
