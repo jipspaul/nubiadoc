@@ -50,7 +50,10 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState>
       );
       result.fold(
         (failure) => safeEmit(BookableSlotsError(failure.message)),
-        (_) => add(const BookableSlotsLoadRequested()),
+        (_) {
+          safeEmit(const BookableSlotsSlotCreatedSuccess());
+          add(const BookableSlotsLoadRequested());
+        },
       );
     } catch (_) {
       safeEmit(const BookableSlotsError('Erreur de chargement.'));

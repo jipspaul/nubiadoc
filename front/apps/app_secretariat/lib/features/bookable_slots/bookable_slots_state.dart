@@ -40,6 +40,16 @@ class BookableSlotsLoaded extends BookableSlotsState {
   int get hashCode => Object.hashAll(slots);
 }
 
+class BookableSlotsSlotCreatedSuccess extends BookableSlotsState {
+  const BookableSlotsSlotCreatedSuccess();
+
+  @override
+  bool operator ==(Object other) => other is BookableSlotsSlotCreatedSuccess;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+}
+
 class BookableSlotsError extends BookableSlotsState {
   const BookableSlotsError(this.message);
 
