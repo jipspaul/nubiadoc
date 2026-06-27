@@ -198,8 +198,12 @@ void main() {
       bloc = _MockCabinetMessagingBloc();
     });
 
+    // NoSplash évite le shader InkSparkle (M3) absent du test runner VM,
+    // ce qui débloque pumpAndSettle() après les taps SegmentedButton.
     Widget buildPage() => MaterialApp(
-          theme: NubiaTheme.light,
+          theme: NubiaTheme.light.copyWith(
+            splashFactory: NoSplash.splashFactory,
+          ),
           home: BlocProvider<CabinetMessagingBloc>.value(
             value: bloc,
             child: const Scaffold(body: CabinetMessagingPage()),
