@@ -250,21 +250,22 @@ void main() {
     );
 
     blocTest<OrdonnancesBloc, OrdonnancesState>(
-      'émet Loading puis Signed après signature réussie',
+      'émet SigningInProgress puis Signed après signature réussie',
       build: () {
         when(() => mockSign(any()))
             .thenAnswer((_) async => Right(_prescriptionSigned));
         return _makeBloc(create: mockCreate, sign: mockSign);
       },
+      seed: () => OrdonnancesCreated(_prescription),
       act: (bloc) => bloc.add(const OrdonnancesSignRequested('presc-1')),
       expect: () => [
-        const OrdonnancesLoading(),
+        OrdonnancesSigningInProgress(_prescription),
         OrdonnancesSigned(_prescriptionSigned),
       ],
     );
 
     blocTest<OrdonnancesBloc, OrdonnancesState>(
-      'émet Loading puis Error si la signature échoue',
+      'émet SigningInProgress puis Error si la signature échoue',
       build: () {
         when(() => mockSign(any())).thenAnswer(
           (_) async => Left(ServerFailure(
@@ -274,9 +275,10 @@ void main() {
         );
         return _makeBloc(create: mockCreate, sign: mockSign);
       },
+      seed: () => OrdonnancesCreated(_prescription),
       act: (bloc) => bloc.add(const OrdonnancesSignRequested('presc-1')),
       expect: () => [
-        const OrdonnancesLoading(),
+        OrdonnancesSigningInProgress(_prescription),
         const OrdonnancesError('Impossible de signer.'),
       ],
     );
@@ -310,10 +312,12 @@ void main() {
     });
 
     testWidgets('affiche la confirmation après signature', (tester) async {
-      when(() => mockSign(any()))
-          .thenAnswer((_) async => Right(_prescriptionSigned));
-      final bloc = _makeBloc(create: mockCreate, sign: mockSign)
-        ..add(const OrdonnancesSignRequested('presc-1'));
+      final bloc = MockOrdonnancesBloc();
+      whenListen(
+        bloc,
+        Stream.value(OrdonnancesSigned(_prescriptionSigned)),
+        initialState: OrdonnancesSigned(_prescriptionSigned),
+      );
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
       expect(find.byKey(const Key('ordonnances_signed')), findsOneWidget);

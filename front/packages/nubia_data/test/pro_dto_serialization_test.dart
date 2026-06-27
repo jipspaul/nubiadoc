@@ -16,7 +16,9 @@ import 'package:nubia_domain/src/entities/member.dart';
 
 void main() {
   group('CabinetPatientDto (GET /v1/cabinet/patients)', () {
-    test('fromJson désérialise la réponse réelle de l\'API (sans cabinet_id ni email)', () {
+    test(
+        'fromJson désérialise la réponse réelle de l\'API (sans cabinet_id ni email)',
+        () {
       final json = {
         'id': 'd0000000-0000-0000-0000-0000000000d5',
         'first_name': 'Karim',
@@ -36,7 +38,9 @@ void main() {
       expect(domain.lastVisitAt, isNull);
     });
 
-    test('fromJson tolère cabinet_id et champs optionnels présents (rétrocompat)', () {
+    test(
+        'fromJson tolère cabinet_id et champs optionnels présents (rétrocompat)',
+        () {
       final json = {
         'id': 'pat-1',
         'cabinet_id': 'cab-1',
@@ -185,7 +189,8 @@ void main() {
   });
 
   group('MemberDto (GET /v1/cabinet/members)', () {
-    test('fromJson désérialise la réponse réelle de l\'API (user_id, active)', () {
+    test('fromJson désérialise la réponse réelle de l\'API (user_id, active)',
+        () {
       final json = {
         'user_id': 'mem-1',
         'first_name': 'Luc',
@@ -222,7 +227,9 @@ void main() {
   });
 
   group('SecretariatDto (GET /v1/cabinet/secretariats)', () {
-    test('fromJson désérialise la réponse réelle de l\'API (id, name, created_at)', () {
+    test(
+        'fromJson désérialise la réponse réelle de l\'API (id, name, created_at)',
+        () {
       final json = {
         'id': 'sec-1',
         'name': 'Secrétariat A',
@@ -240,7 +247,8 @@ void main() {
   });
 
   group('CabinetQuoteDto (GET /v1/cabinet/quotes)', () {
-    test('fromJson désérialise la réponse réelle de l\'API (total_amount, sans cabinet_id ni patient_share_cents)',
+    test(
+        'fromJson désérialise la réponse réelle de l\'API (total_amount, sans cabinet_id ni patient_share_cents)',
         () {
       final json = {
         'id': 'a1000000-0000-0000-0000-000000000003',
@@ -262,8 +270,7 @@ void main() {
       expect(domain.signedAt, isNull);
     });
 
-    test('fromJson tolère total_cents (rétrocompat) et cabinet_id présent',
-        () {
+    test('fromJson tolère total_cents (rétrocompat) et cabinet_id présent', () {
       final json = {
         'id': 'q-1',
         'cabinet_id': 'cab-1',
@@ -284,7 +291,9 @@ void main() {
   });
 
   group('CabinetConversationDto (GET /v1/cabinet/conversations)', () {
-    test('fromJson désérialise la forme réelle de l\'API (patient_first/last_name)', () {
+    test(
+        'fromJson désérialise la forme réelle de l\'API (patient_first/last_name)',
+        () {
       final json = {
         'id': 'c1000000-0000-0000-0000-000000000002',
         'patient_first_name': 'Marc',
@@ -308,7 +317,9 @@ void main() {
       expect(domain.lastMessageAt, isNotNull);
     });
 
-    test('fromJson accepte patient_name direct (champ absent dans l\'API réelle)', () {
+    test(
+        'fromJson accepte patient_name direct (champ absent dans l\'API réelle)',
+        () {
       final json = {
         'id': 'conv-2',
         'patient_id': 'pat-2',

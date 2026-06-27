@@ -110,7 +110,8 @@ class AppRouter {
                   key: const Key('ordonnances_new'),
                   icon: Icons.medication_outlined,
                   title: 'Nouvelle ordonnance',
-                  subtitle: 'Saisissez les médicaments à prescrire pour ce patient.',
+                  subtitle:
+                      'Saisissez les médicaments à prescrire pour ce patient.',
                 ),
               ),
             ),

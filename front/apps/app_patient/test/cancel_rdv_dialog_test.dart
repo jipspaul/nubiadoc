@@ -82,8 +82,7 @@ void main() {
 
   testWidgets('confirmer appelle CancelAppointmentUseCase avec le RDV',
       (tester) async {
-    when(() => mockCancel(any()))
-        .thenAnswer((_) async => Right(_appt));
+    when(() => mockCancel(any())).thenAnswer((_) async => Right(_appt));
 
     await tester.pumpWidget(_buildTestScaffold(mockCancel));
     await tester.tap(find.byKey(const Key('open_dialog')));

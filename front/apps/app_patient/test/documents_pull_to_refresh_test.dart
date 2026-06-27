@@ -41,8 +41,9 @@ void main() {
       (tester) async {
     whenListen(
       mockBloc,
-      Stream<DocumentsState>.fromIterable([DocumentsLoaded([doc])])
-          .asBroadcastStream(),
+      Stream<DocumentsState>.fromIterable([
+        DocumentsLoaded([doc])
+      ]).asBroadcastStream(),
       initialState: DocumentsLoaded([doc]),
     );
 
