@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-28T17:32
+Last run: 2026-06-28T17:43
 
 ## Faux positifs connus (méthode C)
 
@@ -25,40 +25,40 @@ Last run: 2026-06-28T17:32
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /appointments | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /mes-rdv | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /documents | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /financial | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /profile | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /notifications | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /reviews | 2026-06-27 | 2026-06-28T17:32 | OK | — |
+| / | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /appointments | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /mes-rdv | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /documents | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /financial | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /profile | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /notifications | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /reviews | 2026-06-27 | 2026-06-28T17:43 | OK | — |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-28T17:32 | login_failed | — |
-| /agenda | 2026-06-24 | 2026-06-28T17:32 | login_failed | — |
-| /patients | 2026-06-24 | 2026-06-28T17:32 | login_failed | — |
-| /messages | 2026-06-27 | 2026-06-28T17:32 | login_failed | — |
-| /consultation | 2026-06-24 | 2026-06-28T17:32 | login_failed | — |
-| /ordonnances | 2026-06-24 | 2026-06-28T17:32 | login_failed | — |
-| /waiting-room | 2026-06-24 | 2026-06-28T17:32 | login_failed | — |
-| /ordonnances/new | 2026-06-27 | 2026-06-28T17:32 | login_failed | — |
+| / | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /agenda | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /patients | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /messages | 2026-06-27 | 2026-06-28T17:43 | OK | — |
+| /consultation | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /ordonnances | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /waiting-room | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /ordonnances/new | 2026-06-27 | 2026-06-28T17:43 | OK | — |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /agenda | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /bookable-slots | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /patients | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /appointments | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /devis | 2026-06-24 | 2026-06-28T17:32 | OK | — |
-| /messages | 2026-06-27 | 2026-06-28T17:32 | OK | — |
-| /admin-membres | 2026-06-27 | 2026-06-28T17:32 | OK | — |
+| / | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /agenda | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /bookable-slots | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /patients | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /appointments | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /devis | 2026-06-24 | 2026-06-28T17:43 | OK | — |
+| /messages | 2026-06-27 | 2026-06-28T17:43 | OK | — |
+| /admin-membres | 2026-06-27 | 2026-06-28T17:43 | OK | — |
 
