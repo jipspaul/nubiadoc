@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'patients_bloc.dart';
 import 'patients_event.dart';
@@ -135,11 +136,31 @@ class _PatientDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<PatientsBloc, PatientsState>(
-      listenWhen: (_, s) => s is PatientDetailLoaded && s.notesError != null,
+      listenWhen: (_, s) =>
+          (s is PatientDetailLoaded && s.notesError != null) ||
+          s is PatientPdfReady ||
+          s is PatientExportError,
       listener: (context, state) {
         if (state is PatientDetailLoaded && state.notesError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.notesError!)),
+          );
+        }
+        if (state is PatientPdfReady) {
+          Share.shareXFiles(
+            [
+              XFile.fromData(
+                state.bytes,
+                name: state.filename,
+                mimeType: 'application/pdf',
+              ),
+            ],
+            subject: 'Fiche patient',
+          );
+        }
+        if (state is PatientExportError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message)),
           );
         }
       },
@@ -281,6 +302,15 @@ class _DetailViewState extends State<_DetailView> {
                   ),
               child: const Text('Enregistrer les notes'),
             ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const Key('btn_export_pdf'),
+            onPressed: () => context
+                .read<PatientsBloc>()
+                .add(PatientExportPdfRequested(p)),
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: const Text('Exporter PDF'),
+          ),
         ],
       ),
     );

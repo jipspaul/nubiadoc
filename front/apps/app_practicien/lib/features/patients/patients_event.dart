@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 abstract class PatientsEvent extends Equatable {
   const PatientsEvent();
@@ -26,4 +27,12 @@ class PatientsNotesUpdateRequested extends PatientsEvent {
 
   @override
   List<Object?> get props => [id, notes];
+}
+
+class PatientExportPdfRequested extends PatientsEvent {
+  final CabinetPatient patient;
+  const PatientExportPdfRequested(this.patient);
+
+  @override
+  List<Object?> get props => [patient];
 }
