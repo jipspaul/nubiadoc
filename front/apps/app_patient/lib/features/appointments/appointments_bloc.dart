@@ -90,8 +90,7 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         (_) => safeEmit(current.copyWith(selectedSlot: event.slot)),
       );
     } catch (_) {
-      safeEmit(
-          const AppointmentsError('Erreur lors de la sélection du créneau.'));
+      safeEmit(const AppointmentsError('Erreur lors de la sélection du créneau.'));
     }
   }
 

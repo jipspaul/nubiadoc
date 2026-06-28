@@ -204,12 +204,12 @@ void main() {
     });
 
     Widget buildPage() => MaterialApp(
-          theme: NubiaTheme.light,
-          home: BlocProvider<CabinetMessagingBloc>.value(
-            value: bloc,
-            child: const CabinetMessagingPage(),
-          ),
-        );
+      theme: NubiaTheme.light,
+      home: BlocProvider<CabinetMessagingBloc>.value(
+        value: bloc,
+        child: const CabinetMessagingPage(),
+      ),
+    );
 
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const CabinetMessagingInitial());
@@ -311,8 +311,7 @@ void main() {
           const Offset(0, 300),
           1000,
         );
-        await tester.pump();
-        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
 
         verify(
           () => bloc.add(const CabinetMessagingConversationsLoadRequested()),
