@@ -5,7 +5,7 @@ Validation des parcours utilisateurs sur le déploiement de test, via Playwright
 
 - **Date** : 2026-06-23
 - **Environnement** : `https://{patient,praticien,secretariat}.doc.nubia-link.com` (LXC de test), API `https://api.doc.nubia-link.com/v1`
-- **Méthode** : login réel (compte démo) puis navigation in-app par routes (`location.hash`), capture des écrans + erreurs console + réponses API ≥ 400.
+- **Méthode** : login réel (compte démo) puis navigation in-app par routes (`page.goto('<baseUrl>/<route>')`), capture des écrans + erreurs console + réponses API ≥ 400.
 - **Comptes démo** : patient `marc.dubois@patient.test`, praticien `hugo.marin@cabinet-lyon.test`, secrétaire `sonia.accueil@cabinet-lyon.test` — tous `Nubia2026!`.
 - **Captures** : `qa/screenshots/`.
 
@@ -139,7 +139,9 @@ La première destination est « Salle d'attente » (non implémentée) plutôt q
 | **Secrétariat** | Salle d'attente, Agenda, Créneaux, Patients, RDV, Liste d'attente, Devis, Messages, Membres, Secrétariats | Accueil placeholder ; data screens spinner/skeleton infini |
 
 ## Reproduire
-Harnais Playwright (depuis `web-console/`, `playwright` installé) : viewport **1000×700**, login par coordonnées (champs ~y326/388, bouton ~y459), puis navigation in-app via `location.hash` (l'app utilise le hash routing). Les écrans canvas Flutter ne sont pas inspectables par sélecteur DOM ; la validation se fait par capture d'écran + erreurs console/réseau.
+Harnais Playwright (depuis `web-console/`, `playwright` installé) : viewport **1000×700**, login via `loginAs(role, page)` (remplissage formulaire), puis navigation in-app via `page.goto('<baseUrl>/<route>')` (rechargement complet — l'app utilise le **path routing** go_router, pas le hash routing). Les écrans canvas Flutter ne sont pas inspectables par sélecteur DOM ; la validation se fait par capture d'écran + erreurs console/réseau.
+
+> ⚠️ **Ne pas utiliser `location.hash`** pour naviguer : go_router ignore les changements de hash et la page reste sur la vue courante (faux positif « blank canvas »). Utiliser exclusivement `page.goto(url)` pour tout changement de route.
 
 ## Priorisation suggérée
 1. **BUG-01** (contrats API/DTO + filets de sécurité d'erreur) — débloque l'essentiel des parcours.

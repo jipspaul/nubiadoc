@@ -10,6 +10,10 @@
  *   3. Vérifie que l'URL n'est plus /login (dashboard effectivement rendu)
  *   4. Logout (vidage du storage + navigation vers /login → redirigé par l'auth guard)
  *
+ * Navigation inter-pages : TOUJOURS via page.goto(url) — l'app utilise le path
+ * routing go_router. Ne jamais modifier location.hash directement (go_router
+ * l'ignore ; la page resterait sur la vue courante → faux positif « blank canvas »).
+ *
  * Lancement : melos run e2e -- --grep _smoke
  * (ou: cd front/test/e2e && npx playwright test scenarios/_smoke.spec.ts)
  */
@@ -49,3 +53,17 @@ for (const role of ROLES) {
     await expect(page).toHaveURL(/\/login/);
   });
 }
+
+// Régression QA-20260627-15 : la page secretariat/messages apparaissait vide
+// quand le QA-agent naviguait via location.hash au lieu de page.goto().
+// go_router (path routing) ignore les changements de hash → canvas blanc.
+// Ce test valide la navigation par URL complète.
+test('_smoke — secretariat : /messages rendu via page.goto (non blank)', async ({ page }) => {
+  await loginAs('secretariat', page);
+  await page.goto(`${baseUrlFor('secretariat')}/messages`);
+  await page.waitForLoadState('networkidle');
+  await expect(page).toHaveURL(/\/messages/);
+  await expect(
+    page.getByRole('navigation').or(page.locator('nav, [role="navigation"]')).first(),
+  ).toBeVisible({ timeout: 10_000 });
+});
