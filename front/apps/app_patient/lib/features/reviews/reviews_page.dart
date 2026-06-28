@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -63,49 +61,35 @@ class ReviewsPage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _ReviewsContent extends StatefulWidget {
+class _ReviewsContent extends StatelessWidget {
   const _ReviewsContent({required this.reviews});
 
   final List<Review> reviews;
 
   @override
-  State<_ReviewsContent> createState() => _ReviewsContentState();
-}
-
-class _ReviewsContentState extends State<_ReviewsContent> {
-  Completer<void>? _refreshCompleter;
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.reviews.isEmpty) {
+    if (reviews.isEmpty) {
       return const NubiaEmptyState(
         key: Key('reviews_empty'),
         icon: Icons.rate_review_outlined,
         title: 'Aucun avis pour ce prestataire.',
       );
     }
-    return BlocListener<ReviewsBloc, ReviewsState>(
-      listener: (context, state) {
-        if (state is ReviewsLoaded || state is ReviewsError) {
-          _refreshCompleter?.complete();
-          _refreshCompleter = null;
-        }
+    return RefreshIndicator(
+      onRefresh: () async {
+        final bloc = context.read<ReviewsBloc>();
+        bloc.add(ReviewsLoadRequested(reviews.first.providerId));
+        await bloc.stream.firstWhere(
+          (s) => s is ReviewsLoaded || s is ReviewsError,
+          orElse: () => const ReviewsLoading(),
+        );
       },
-      child: RefreshIndicator(
-        onRefresh: () {
-          _refreshCompleter = Completer<void>();
-          context
-              .read<ReviewsBloc>()
-              .add(ReviewsLoadRequested(widget.reviews.first.providerId));
-          return _refreshCompleter!.future;
-        },
-        child: ListView.separated(
-          key: const Key('reviews_list'),
-          padding: const EdgeInsets.all(16),
-          itemCount: widget.reviews.length,
-          separatorBuilder: (_, __) => const Divider(),
-          itemBuilder: (context, i) => _ReviewCard(review: widget.reviews[i]),
-        ),
+      child: ListView.separated(
+        key: const Key('reviews_list'),
+        padding: const EdgeInsets.all(16),
+        itemCount: reviews.length,
+        separatorBuilder: (_, __) => const Divider(),
+        itemBuilder: (context, i) => _ReviewCard(review: reviews[i]),
       ),
     );
   }
