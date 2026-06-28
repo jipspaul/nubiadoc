@@ -9,13 +9,9 @@
   "scripts": {
     "test": "playwright test --config=e2e.config.ts",
     "test:c1c2": "playwright test --config=e2e.config.ts scenarios/c1-c2-cloisonnement-rls.spec.ts",
-<<<<<<< HEAD
     "test:a1": "playwright test --config=e2e.config.ts scenarios/a1-booking-confirmation.spec.ts",
     "test:b1": "playwright test --config=e2e.config.ts scenarios/b1-wedge-quote-sign-pay.spec.ts",
-    "test:d3": "playwright test --config=e2e.config.ts scenarios/d3-messaging-realtime.spec.ts"
-=======
     "test:d3": "playwright test --config=e2e.config.ts scenarios/d3-messaging-realtime.spec.ts",
     "test:a4": "playwright test --config=e2e.config.ts scenarios/a4-waiting-room-realtime.spec.ts"
->>>>>>> 5c181287 (test(e2e): A4 — waiting room temps réel P→S→D→P via WS — ferme #2950)
   }
 }
