@@ -97,7 +97,8 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
         ),
       );
     } catch (_) {
-      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 
@@ -122,7 +123,8 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
         ),
       );
     } catch (_) {
-      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 }

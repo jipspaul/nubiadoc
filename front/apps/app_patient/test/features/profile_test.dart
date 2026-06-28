@@ -164,8 +164,8 @@ void main() {
             .thenThrow(Exception('Biometric save failed'));
         return _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
       },
-      seed: () =>
-          const ProfileLoaded(_account, biometricEnabled: false, notifPrefs: _prefs),
+      seed: () => const ProfileLoaded(_account,
+          biometricEnabled: false, notifPrefs: _prefs),
       act: (bloc) => bloc.add(const BiometricToggleRequested(enabled: true)),
       expect: () => [
         isA<ProfileLoaded>()
@@ -184,15 +184,16 @@ void main() {
             .thenThrow(Exception('Network error'));
         return _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
       },
-      seed: () =>
-          const ProfileLoaded(_account, biometricEnabled: false, notifPrefs: _prefs),
+      seed: () => const ProfileLoaded(_account,
+          biometricEnabled: false, notifPrefs: _prefs),
       act: (bloc) => bloc.add(const ToggleEmailRdv(enabled: false)),
       expect: () => [
         isA<ProfileLoaded>()
             .having((s) => s.notifPrefs?.emailEnabled, 'emailEnabled', false),
-        isA<ProfileToggleFailed>()
-            .having((s) => s.previousState.notifPrefs?.emailEnabled,
-                'previousState.emailEnabled', true),
+        isA<ProfileToggleFailed>().having(
+            (s) => s.previousState.notifPrefs?.emailEnabled,
+            'previousState.emailEnabled',
+            true),
       ],
     );
 
@@ -203,15 +204,16 @@ void main() {
             .thenThrow(Exception('Network error'));
         return _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
       },
-      seed: () =>
-          const ProfileLoaded(_account, biometricEnabled: false, notifPrefs: _prefs),
+      seed: () => const ProfileLoaded(_account,
+          biometricEnabled: false, notifPrefs: _prefs),
       act: (bloc) => bloc.add(const TogglePushRdv(enabled: false)),
       expect: () => [
         isA<ProfileLoaded>()
             .having((s) => s.notifPrefs?.pushEnabled, 'pushEnabled', false),
-        isA<ProfileToggleFailed>()
-            .having((s) => s.previousState.notifPrefs?.pushEnabled,
-                'previousState.pushEnabled', true),
+        isA<ProfileToggleFailed>().having(
+            (s) => s.previousState.notifPrefs?.pushEnabled,
+            'previousState.pushEnabled',
+            true),
       ],
     );
   });

@@ -57,10 +57,12 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
       final result = await _getQuoteById(event.quoteId);
       result.fold(
         (f) => safeEmit(FinancialError(message: f.message, quotes: prevQuotes)),
-        (quote) => safeEmit(FinancialQuoteDetail(quote: quote, quotes: prevQuotes)),
+        (quote) =>
+            safeEmit(FinancialQuoteDetail(quote: quote, quotes: prevQuotes)),
       );
     } catch (_) {
-      safeEmit(FinancialError(message: 'Erreur de chargement.', quotes: prevQuotes));
+      safeEmit(
+          FinancialError(message: 'Erreur de chargement.', quotes: prevQuotes));
     }
   }
 
@@ -81,7 +83,8 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     try {
       final result = await _initiateSignature(current.quote.id);
       result.fold(
-        (f) => safeEmit(FinancialError(message: f.message, quotes: current.quotes)),
+        (f) => safeEmit(
+            FinancialError(message: f.message, quotes: current.quotes)),
         (url) => safeEmit(FinancialSignatureInProgress(
           quote: current.quote,
           quotes: current.quotes,
@@ -103,9 +106,10 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     try {
       final result = await _getQuoteById(current.quote.id);
       result.fold(
-        (f) => safeEmit(FinancialError(message: f.message, quotes: current.quotes)),
-        (quote) =>
-            safeEmit(FinancialQuoteDetail(quote: quote, quotes: current.quotes)),
+        (f) => safeEmit(
+            FinancialError(message: f.message, quotes: current.quotes)),
+        (quote) => safeEmit(
+            FinancialQuoteDetail(quote: quote, quotes: current.quotes)),
       );
     } catch (_) {
       safeEmit(FinancialError(
@@ -129,7 +133,8 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
         idempotencyKey: event.idempotencyKey,
       );
       result.fold(
-        (f) => safeEmit(FinancialError(message: f.message, quotes: current.quotes)),
+        (f) => safeEmit(
+            FinancialError(message: f.message, quotes: current.quotes)),
         (_) => safeEmit(FinancialPaymentSuccess(
           quote: current.quote,
           quotes: current.quotes,
