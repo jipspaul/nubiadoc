@@ -69,7 +69,8 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
         (_) async => _onLoad(const MesRdvLoadRequested(), emit),
       );
     } catch (_) {
-      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 
@@ -90,7 +91,8 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
         (_) async => _onLoad(const MesRdvLoadRequested(), emit),
       );
     } catch (_) {
-      safeEmit(current.copyWith(actionInProgress: false, actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
     }
   }
 }

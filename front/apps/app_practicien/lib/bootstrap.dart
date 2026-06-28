@@ -8,7 +8,8 @@ import 'session/pro_di.dart';
 
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NubiaObservability.init(); // PostHog: analytics + replay + error tracking
+  await NubiaObservability
+      .init(); // PostHog: analytics + replay + error tracking
   registerCore(getIt);
   registerData(
     getIt,
