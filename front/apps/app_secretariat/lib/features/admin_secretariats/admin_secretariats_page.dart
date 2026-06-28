@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -15,6 +17,8 @@ class AdminSecretiariatsPage extends StatefulWidget {
 }
 
 class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
+  Completer<void>? _refreshCompleter;
+
   @override
   void initState() {
     super.initState();
@@ -38,15 +42,24 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
           ),
         ],
       ),
-      body: BlocBuilder<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+      body: BlocConsumer<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+        listener: (context, state) {
+          if (state is AdminSecretiariatsLoaded ||
+              state is AdminSecretiariatsError) {
+            _refreshCompleter?.complete();
+            _refreshCompleter = null;
+          }
+        },
         builder: (context, state) {
           if (state is AdminSecretiariatsLoaded) {
             return _SecretariatsList(
               secretariats: state.secretariats,
-              onRefresh: () async {
+              onRefresh: () {
+                _refreshCompleter = Completer<void>();
                 context
                     .read<AdminSecretiariatsBloc>()
                     .add(const AdminSecretiariatsLoadRequested());
+                return _refreshCompleter!.future;
               },
             );
           }

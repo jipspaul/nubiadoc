@@ -227,7 +227,8 @@ void main() {
         const Offset(0, 300),
         800,
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
       // 1 appel depuis initState + 1 depuis le pull-to-refresh
       verify(() => bloc.add(const AdminSecretiariatsLoadRequested())).called(2);

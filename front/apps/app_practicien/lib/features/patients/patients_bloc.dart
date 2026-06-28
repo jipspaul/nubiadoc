@@ -78,7 +78,8 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
         (updated) => safeEmit(PatientDetailLoaded(updated)),
       );
     } catch (_) {
-      safeEmit(current.copyWith(notesUpdating: false, notesError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(
+          notesUpdating: false, notesError: 'Erreur inattendue.'));
     }
   }
 

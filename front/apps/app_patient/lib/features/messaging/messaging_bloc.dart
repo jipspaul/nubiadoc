@@ -37,7 +37,8 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
       final result = await _getConversations();
       result.fold(
         (failure) => safeEmit(MessagingConversationsError(failure.message)),
-        (conversations) => safeEmit(MessagingConversationsLoaded(conversations)),
+        (conversations) =>
+            safeEmit(MessagingConversationsLoaded(conversations)),
       );
     } catch (_) {
       safeEmit(const MessagingConversationsError('Erreur de chargement.'));
@@ -104,7 +105,8 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
       final result = await _getConversations();
       result.fold(
         (failure) => safeEmit(MessagingConversationsError(failure.message)),
-        (conversations) => safeEmit(MessagingConversationsLoaded(conversations)),
+        (conversations) =>
+            safeEmit(MessagingConversationsLoaded(conversations)),
       );
     } catch (_) {
       safeEmit(const MessagingConversationsError('Erreur de chargement.'));

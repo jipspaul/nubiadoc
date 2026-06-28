@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -14,61 +16,59 @@ class CabinetMessagingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<CabinetMessagingBloc, CabinetMessagingState>(
-      builder: (context, state) {
-        if (state is CabinetMessagingInitial ||
-            state is CabinetMessagingConversationsLoading) {
-          return const Center(
-            key: Key('cabinet_messaging_loading'),
-            child: CircularProgressIndicator(),
-          );
-        }
-        if (state is CabinetMessagingConversationsError) {
-          return NubiaErrorWidget(
-            key: const Key('cabinet_messaging_error'),
-            message: state.message,
-            onRetry: () => context.read<CabinetMessagingBloc>().add(
-                  const CabinetMessagingConversationsLoadRequested(),
-                ),
-          );
-        }
-        if (state is CabinetMessagingConversationsLoaded) {
-          if (state.conversations.isEmpty) {
-            return const NubiaEmptyState(
-              key: Key('cabinet_messaging_empty'),
-              icon: Icons.chat_bubble_outline,
-              title: 'Aucune conversation',
+    return Scaffold(
+      appBar: AppBar(title: const Text('Messages')),
+      body: BlocBuilder<CabinetMessagingBloc, CabinetMessagingState>(
+        builder: (context, state) {
+          if (state is CabinetMessagingInitial ||
+              state is CabinetMessagingConversationsLoading) {
+            return const Center(
+              key: Key('cabinet_messaging_loading'),
+              child: CircularProgressIndicator(),
             );
           }
-          return _ConversationsList(
-            conversations: state.conversations,
-            onRefresh: () async {
-              context.read<CabinetMessagingBloc>().add(
+          if (state is CabinetMessagingConversationsError) {
+            return NubiaErrorWidget(
+              key: const Key('cabinet_messaging_error'),
+              message: state.message,
+              onRetry: () => context.read<CabinetMessagingBloc>().add(
                     const CabinetMessagingConversationsLoadRequested(),
-                  );
-            },
-          );
-        }
-        if (state is CabinetMessagingThreadLoading) {
-          return const Center(
-            key: Key('cabinet_messaging_thread_loading'),
-            child: CircularProgressIndicator(),
-          );
-        }
-        if (state is CabinetMessagingThreadLoaded) {
-          return _ThreadView(state: state);
-        }
-        if (state is CabinetMessagingThreadError) {
-          return NubiaErrorWidget(
-            key: const Key('cabinet_messaging_thread_error'),
-            message: state.message,
-            onRetry: () => context
-                .read<CabinetMessagingBloc>()
-                .add(const CabinetMessagingBackRequested()),
-          );
-        }
-        return const SizedBox.shrink();
-      },
+                  ),
+            );
+          }
+          if (state is CabinetMessagingConversationsLoaded) {
+            if (state.conversations.isEmpty) {
+              return const NubiaEmptyState(
+                key: Key('cabinet_messaging_empty'),
+                icon: Icons.chat_bubble_outline,
+                title: 'Aucune conversation',
+              );
+            }
+            return _ConversationsList(
+              conversations: state.conversations,
+            );
+          }
+          if (state is CabinetMessagingThreadLoading) {
+            return const Center(
+              key: Key('cabinet_messaging_thread_loading'),
+              child: CircularProgressIndicator(),
+            );
+          }
+          if (state is CabinetMessagingThreadLoaded) {
+            return _ThreadView(state: state);
+          }
+          if (state is CabinetMessagingThreadError) {
+            return NubiaErrorWidget(
+              key: const Key('cabinet_messaging_thread_error'),
+              message: state.message,
+              onRetry: () => context.read<CabinetMessagingBloc>().add(
+                    const CabinetMessagingBackRequested(),
+                  ),
+            );
+          }
+          return const SizedBox.shrink();
+        },
+      ),
     );
   }
 }
@@ -78,11 +78,9 @@ class CabinetMessagingPage extends StatelessWidget {
 class _ConversationsList extends StatefulWidget {
   const _ConversationsList({
     required this.conversations,
-    required this.onRefresh,
   });
 
   final List<CabinetConversation> conversations;
-  final Future<void> Function() onRefresh;
 
   @override
   State<_ConversationsList> createState() => _ConversationsListState();
@@ -91,16 +89,26 @@ class _ConversationsList extends StatefulWidget {
 class _ConversationsListState extends State<_ConversationsList> {
   String _query = '';
   bool _showUnreadOnly = false;
+  Completer<void>? _refreshCompleter;
 
   @override
   Widget build(BuildContext context) {
     final filtered = widget.conversations
         .where(
-            (c) => c.patientName.toLowerCase().contains(_query.toLowerCase()))
+          (c) => c.patientName.toLowerCase().contains(_query.toLowerCase()),
+        )
         .where((c) => !_showUnreadOnly || c.unreadCount > 0)
         .toList();
 
-    return Column(
+    return BlocListener<CabinetMessagingBloc, CabinetMessagingState>(
+      listener: (context, state) {
+        if (state is CabinetMessagingConversationsLoaded ||
+            state is CabinetMessagingConversationsError) {
+          _refreshCompleter?.complete();
+          _refreshCompleter = null;
+        }
+      },
+      child: Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -129,7 +137,13 @@ class _ConversationsListState extends State<_ConversationsList> {
         Expanded(
           child: RefreshIndicator(
             key: const Key('cabinet_messaging_refresh'),
-            onRefresh: widget.onRefresh,
+            onRefresh: () {
+              _refreshCompleter = Completer<void>();
+              context.read<CabinetMessagingBloc>().add(
+                    const CabinetMessagingConversationsLoadRequested(),
+                  );
+              return _refreshCompleter!.future;
+            },
             child: ListView.separated(
               key: const Key('cabinet_messaging_conversations_list'),
               itemCount: filtered.length,
@@ -156,15 +170,16 @@ class _ConversationsListState extends State<_ConversationsList> {
                   trailing: conv.unreadCount > 0
                       ? Badge(label: Text('${conv.unreadCount}'))
                       : null,
-                  onTap: () => context
-                      .read<CabinetMessagingBloc>()
-                      .add(CabinetMessagingThreadOpened(conv)),
+                  onTap: () => context.read<CabinetMessagingBloc>().add(
+                        CabinetMessagingThreadOpened(conv),
+                      ),
                 );
               },
             ),
           ),
         ),
       ],
+      ),
     );
   }
 }
@@ -192,10 +207,12 @@ class _ThreadViewState extends State<_ThreadView> {
   void _send() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    context.read<CabinetMessagingBloc>().add(CabinetMessagingSendRequested(
-          conversationId: widget.state.conversation.id,
-          text: text,
-        ));
+    context.read<CabinetMessagingBloc>().add(
+          CabinetMessagingSendRequested(
+            conversationId: widget.state.conversation.id,
+            text: text,
+          ),
+        );
     _controller.clear();
   }
 
@@ -213,9 +230,9 @@ class _ThreadViewState extends State<_ThreadView> {
                 IconButton(
                   key: const Key('cabinet_messaging_back_button'),
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => context
-                      .read<CabinetMessagingBloc>()
-                      .add(const CabinetMessagingBackRequested()),
+                  onPressed: () => context.read<CabinetMessagingBloc>().add(
+                        const CabinetMessagingBackRequested(),
+                      ),
                 ),
                 Expanded(
                   child: Text(
@@ -257,8 +274,10 @@ class _ThreadViewState extends State<_ThreadView> {
                     hintText: 'Votre message…',
                     border: OutlineInputBorder(),
                     isDense: true,
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                   ),
                   onSubmitted: (_) => _send(),
                 ),
