@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'patients_bloc.dart';
@@ -140,25 +143,31 @@ class _PatientDetailBody extends StatelessWidget {
           (s is PatientDetailLoaded && s.notesError != null) ||
           s is PatientPdfReady ||
           s is PatientExportError,
-      listener: (context, state) {
+      listener: (context, state) async {
         if (state is PatientDetailLoaded && state.notesError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.notesError!)),
           );
         }
         if (state is PatientPdfReady) {
-          Share.shareXFiles(
-            [
-              XFile.fromData(
-                state.bytes,
-                name: state.filename,
-                mimeType: 'application/pdf',
-              ),
-            ],
-            subject: 'Fiche patient',
-          );
+          try {
+            final dir = await getTemporaryDirectory();
+            final file = File('${dir.path}/${state.filename}');
+            await file.writeAsBytes(state.bytes);
+            if (!context.mounted) return;
+            await Share.shareXFiles(
+              [XFile(file.path, mimeType: 'application/pdf')],
+              subject: 'Fiche patient',
+            );
+          } catch (_) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Échec de l'export PDF")),
+            );
+          }
         }
         if (state is PatientExportError) {
+          if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.message)),
           );
