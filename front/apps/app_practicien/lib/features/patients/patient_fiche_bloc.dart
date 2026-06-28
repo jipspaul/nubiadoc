@@ -134,8 +134,7 @@ Future<List<int>> _buildPatientPdf(CabinetPatient patient) async {
             ],
             if (patient.lastVisitAt != null) ...[
               pw.SizedBox(height: 8),
-              pw.Text(
-                  'Dernière visite : ${_formatDate(patient.lastVisitAt!)}'),
+              pw.Text('Dernière visite : ${_formatDate(patient.lastVisitAt!)}'),
             ],
           ],
         ),
