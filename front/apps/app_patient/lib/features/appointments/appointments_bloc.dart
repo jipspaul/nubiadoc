@@ -1,11 +1,13 @@
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'appointments_event.dart';
 import 'appointments_state.dart';
 
-class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState> {
+class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
+    with SafeEmitMixin<AppointmentsState> {
   final SearchProvidersUseCase _searchProviders;
   final SearchSlotsUseCase _searchSlots;
   final HoldSlotUseCase _holdSlot;
