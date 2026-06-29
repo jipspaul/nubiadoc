@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-29T08:22:26.853Z
+Last run: 2026-06-29T08:28:38.888Z
 
 ## Faux positifs connus (méthode C)
 
@@ -21,39 +21,39 @@ Last run: 2026-06-29T08:22:26.853Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /appointments | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /mes-rdv | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /documents | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /financial | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /profile | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /reviews | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /notifications | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
+| / | 2026-06-28 | 2026-06-29T08:27:32.373Z | OK | — |
+| /appointments | 2026-06-29 | 2026-06-29T08:27:34.470Z | OK | — |
+| /mes-rdv | 2026-06-28 | 2026-06-29T08:27:36.603Z | OK | — |
+| /documents | 2026-06-28 | 2026-06-29T08:27:38.675Z | OK | — |
+| /financial | 2026-06-28 | 2026-06-29T08:27:40.751Z | OK | — |
+| /profile | 2026-06-29 | 2026-06-29T08:27:42.819Z | OK | — |
+| /messaging | 2026-06-29 | 2026-06-29T08:27:44.883Z | OK | — |
+| /notifications | 2026-06-29 | 2026-06-29T08:27:46.951Z | OK | — |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /agenda | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /waiting-room | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /patients | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /messages | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /consultation | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /ordonnances | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /ordonnances/new | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
+| / | 2026-06-28 | 2026-06-29T08:27:58.310Z | OK | — |
+| /agenda | 2026-06-29 | 2026-06-29T08:28:00.386Z | OK | — |
+| /waiting-room | 2026-06-28 | 2026-06-29T08:28:02.455Z | OK | — |
+| /patients | 2026-06-28 | 2026-06-29T08:28:04.571Z | OK | — |
+| /messages | 2026-06-29 | 2026-06-29T08:28:06.667Z | OK | — |
+| /consultation | 2026-06-28 | 2026-06-29T08:28:08.753Z | OK | — |
+| /ordonnances | 2026-06-29 | 2026-06-29T08:28:10.929Z | OK | — |
+| /ordonnances/new | 2026-06-28 | 2026-06-29T08:28:12.985Z | OK | — |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /salle-attente | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /bookable-slots | 2026-06-24 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /patients | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /devis | 2026-06-24 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /liste-attente | 2026-06-28 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /appointments | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
-| /admin-membres | 2026-06-29 | 2026-06-29T08:22:26.853Z | login_failed | login failed |
+| / | 2026-06-28 | 2026-06-29T08:28:24.312Z | OK | — |
+| /salle-attente | 2026-06-29 | 2026-06-29T08:28:26.384Z | OK | — |
+| /bookable-slots | 2026-06-24 | 2026-06-29T08:28:28.448Z | OK | — |
+| /patients | 2026-06-28 | 2026-06-29T08:28:30.524Z | OK | — |
+| /appointments | 2026-06-29 | 2026-06-29T08:28:32.607Z | OK | — |
+| /liste-attente | 2026-06-28 | 2026-06-29T08:28:34.680Z | OK | — |
+| /devis | 2026-06-24 | 2026-06-29T08:28:36.749Z | OK | — |
+| /admin-membres | 2026-06-29 | 2026-06-29T08:28:38.821Z | OK | — |
