@@ -3,6 +3,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/account_setup/account_setup_cubit.dart';
+import '../features/coverage_setup/coverage_setup_cubit.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/dashboard/dashboard_bloc.dart';
 import '../features/signup/signup_cubit.dart';
@@ -38,6 +39,10 @@ void registerPatient(GetIt gi) {
 
   gi.registerFactory<AccountSetupCubit>(
     () => AccountSetupCubit(updateAccount: gi<UpdateAccountUseCase>()),
+  );
+
+  gi.registerFactory<CoverageSetupCubit>(
+    () => CoverageSetupCubit(updateCoverage: gi<UpdateCoverageUseCase>()),
   );
 
   gi.registerFactory<DashboardBloc>(
