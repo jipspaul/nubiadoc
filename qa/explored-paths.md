@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-29T08:49:23.320Z
+Last run: 2026-06-29T17:53:25.934Z
 
 ## Faux positifs connus (méthode C)
 
@@ -14,7 +14,6 @@ Last run: 2026-06-29T08:49:23.320Z
 | /notifications | patient | 2026-06-25 | déjà résolu — BlocBuilder exhaustif, try/catch, GetIt enregistré, flutter analyze vert | ferme #2833 |
 | /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
 | [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via pushState+popstate |
-
 
 ## patient
 
@@ -57,3 +56,4 @@ Last run: 2026-06-29T08:49:23.320Z
 | /liste-attente | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
 | /appointments | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
 | /admin-membres | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+
