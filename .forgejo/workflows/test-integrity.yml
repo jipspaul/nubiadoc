@@ -105,7 +105,10 @@ jobs:
           #   Dart  : skip: true (named param)
           # Exclude markdown / rst / txt docs (false positives when docs cite
           # these patterns as examples) and the workflow file itself.
-          added=$(git diff "$base" "$head" -- ':!*.md' ':!*.rst' ':!*.txt' ':!.forgejo/workflows/test-integrity.yml' | grep -E '^\+' | grep -v '^+++' | grep -nE '(#\[ignore|\.skip\(|xit\(|xdescribe\(|xtest\(|@pytest\.mark\.(skip|xfail)|@unittest\.skip|pytest\.skip\(|t\.Skip(Now)?\(|skip:\s*true)' || true)
+          # `\.skip\(` was too broad — matched business methods like `cubit.skip()`
+          # in non-test code (postmortem 2026-06-29 PR #3013). Narrowed to the
+          # actual JS/TS test-framework call sites: it/describe/test/context.skip(.
+          added=$(git diff "$base" "$head" -- ':!*.md' ':!*.rst' ':!*.txt' ':!.forgejo/workflows/test-integrity.yml' | grep -E '^\+' | grep -v '^+++' | grep -nE '(#\[ignore|(^|[^.a-zA-Z0-9_])(it|describe|test|context)\.skip\(|xit\(|xdescribe\(|xtest\(|@pytest\.mark\.(skip|xfail)|@unittest\.skip|pytest\.skip\(|t\.Skip(Now)?\(|skip:\s*true)' || true)
           if [ -n "$added" ]; then
             echo "::error::New skip/ignore marker(s) introduced in this PR:"
             echo "$added" | head -20 | sed 's/^/  /'
