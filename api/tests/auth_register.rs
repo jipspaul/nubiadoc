@@ -233,6 +233,151 @@ async fn register_password_no_digit_returns_422_password_policy() {
     assert_eq!(v["code"], "password_policy");
 }
 
+// ── Test 4 : invitation_token valide → 201 + JWT pro ─────────────────────────
+
+#[tokio::test]
+async fn register_with_valid_invite_token_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let cabinet_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let email = format!("invite_{}@test.local", Uuid::new_v4());
+    let raw_token = Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, 'Test Cabinet Invite', 'dentaire')",
+    )
+    .bind(cabinet_id)
+    .execute(&owner_db)
+    .await
+    .expect("insert cabinet");
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind, \
+         password_reset_token, password_reset_expires_at) \
+         VALUES ($1, $2, NULL, 'pro', \
+                 encode(digest($3, 'sha256'), 'hex'), now() + interval '72 hours')",
+    )
+    .bind(user_id)
+    .bind(&email)
+    .bind(&raw_token)
+    .execute(&owner_db)
+    .await
+    .expect("insert invited user");
+
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role) VALUES ($1, $2, 'secretary')",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(&owner_db)
+    .await
+    .expect("insert membership");
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/register")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "email": email,
+                        "password": "password1",
+                        "accept_cgu": true,
+                        "cgu_version": "v1",
+                        "invitation_token": raw_token
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert!(v["account_id"].is_string(), "account_id doit être présent");
+    assert!(v["access_token"].is_string(), "access_token doit être présent");
+    assert!(v["refresh_token"].is_string(), "refresh_token doit être présent");
+
+    sqlx::query("DELETE FROM cabinet_membership WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&owner_db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM refresh_token WHERE app_user_id = $1")
+        .bind(user_id)
+        .execute(&owner_db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&owner_db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&owner_db)
+        .await
+        .ok();
+}
+
+// ── Test 5 : invitation_token invalide → 400 invitation_invalid ───────────────
+
+#[tokio::test]
+async fn register_with_invalid_invite_token_returns_400() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/register")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "email": format!("invalid_invite_{}@test.local", Uuid::new_v4()),
+                        "password": "password1",
+                        "accept_cgu": true,
+                        "cgu_version": "v1",
+                        "invitation_token": "totally-invalid-token-that-does-not-exist"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(v["code"], "invitation_invalid");
+}
+
 // ── Test 3 : accept_cgu: false → 422 cgu_required ────────────────────────────
 
 #[tokio::test]
