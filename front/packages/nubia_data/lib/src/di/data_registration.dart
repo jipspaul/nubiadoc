@@ -6,6 +6,7 @@ import '../cache/drift/drift_appointments_cache.dart';
 import '../cache/drift/nubia_database.dart';
 import '../remote/account/account_api.dart';
 import '../remote/auth/auth_api.dart';
+import '../remote/auth/pro_register_api.dart';
 import '../remote/billing/billing_api.dart';
 import '../remote/cabinet_agenda/cabinet_agenda_api.dart';
 import '../remote/cabinet_appointments/cabinet_appointments_api.dart';
@@ -32,6 +33,7 @@ import '../repositories/account_repository_impl.dart';
 import '../repositories/search_repository_impl.dart';
 import '../repositories/appointment_repository_impl.dart';
 import '../repositories/auth_repository_impl.dart';
+import '../repositories/pro_register_repository_impl.dart';
 import '../repositories/billing_repository_impl.dart';
 import '../repositories/cabinet_agenda_repository_impl.dart';
 import '../repositories/cabinet_appointments_repository_impl.dart';
@@ -83,6 +85,7 @@ void registerData(
   gi
     ..registerLazySingleton<AccountApi>(() => AccountApi(gi()))
     ..registerLazySingleton<AuthApi>(() => AuthApi(gi()))
+    ..registerLazySingleton<ProRegisterApi>(() => ProRegisterApi(gi()))
     ..registerLazySingleton<BillingApi>(() => BillingApi(gi()))
     ..registerLazySingleton<DashboardApi>(() => DashboardApi(gi()))
     ..registerLazySingleton<DocumentApi>(() => DocumentApi(gi()))
@@ -118,6 +121,9 @@ void registerData(
     )
     ..registerLazySingleton<AuthRepository>(
       () => AuthRepositoryImpl(gi(), gi(), gi()),
+    )
+    ..registerLazySingleton<ProRegisterRepository>(
+      () => ProRegisterRepositoryImpl(gi(), gi()),
     )
     ..registerLazySingleton<BillingRepository>(
       () => BillingRepositoryImpl(gi()),
@@ -157,6 +163,7 @@ void _registerUseCases(GetIt gi) {
   gi
     // auth
     ..registerFactory(() => LoginUseCase(gi()))
+    ..registerFactory(() => ProRegisterUseCase(gi()))
     ..registerFactory(() => LogoutUseCase(gi()))
     ..registerFactory(() => RegisterUseCase(gi()))
     ..registerFactory(() => GetMeUseCase(gi()))

@@ -1,6 +1,7 @@
 // Nubia domain layer — entities, value objects, repository ports, use cases, failures.
 
 export 'src/error/failure.dart';
+export 'src/entities/pro_session.dart';
 export 'src/entities/consent.dart';
 export 'src/entities/app_notification.dart';
 export 'src/entities/appointment.dart';
@@ -27,6 +28,7 @@ export 'src/value_objects/amount_cents.dart';
 export 'src/repositories/account_repository.dart';
 export 'src/repositories/appointment_repository.dart';
 export 'src/repositories/auth_repository.dart';
+export 'src/repositories/pro_register_repository.dart';
 export 'src/repositories/billing_repository.dart';
 export 'src/repositories/clinical_session_repository.dart';
 export 'src/repositories/dashboard_repository.dart';
@@ -65,6 +67,7 @@ export 'src/usecases/appointments/modify_appointment_use_case.dart';
 export 'src/usecases/appointments/get_directions_use_case.dart';
 export 'src/usecases/auth/get_me_use_case.dart';
 export 'src/usecases/auth/login_use_case.dart';
+export 'src/usecases/auth/pro_register_use_case.dart';
 export 'src/usecases/auth/logout_use_case.dart';
 export 'src/usecases/auth/register_use_case.dart';
 export 'src/usecases/billing/get_pending_quotes_use_case.dart';
