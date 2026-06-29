@@ -310,8 +310,14 @@ async fn register_with_valid_invite_token_returns_201() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
     assert!(v["account_id"].is_string(), "account_id doit être présent");
-    assert!(v["access_token"].is_string(), "access_token doit être présent");
-    assert!(v["refresh_token"].is_string(), "refresh_token doit être présent");
+    assert!(
+        v["access_token"].is_string(),
+        "access_token doit être présent"
+    );
+    assert!(
+        v["refresh_token"].is_string(),
+        "refresh_token doit être présent"
+    );
 
     sqlx::query("DELETE FROM cabinet_membership WHERE cabinet_id = $1")
         .bind(cabinet_id)

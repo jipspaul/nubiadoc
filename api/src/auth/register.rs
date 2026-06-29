@@ -114,20 +114,20 @@ pub async fn register(
             .execute(&mut *mem_tx)
             .await
             .map_err(|_| AppError::Internal)?;
-        let memberships = sqlx::query(
-            "SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1)",
-        )
-        .bind(invited_user_id)
-        .fetch_all(&mut *mem_tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+        let memberships =
+            sqlx::query("SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1)")
+                .bind(invited_user_id)
+                .fetch_all(&mut *mem_tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
         let _ = mem_tx.rollback().await;
 
         let mem = memberships.first().ok_or(AppError::InvitationInvalid)?;
         let cabinet_id: Uuid = mem.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
         let role: String = mem.try_get("role").map_err(|_| AppError::Internal)?;
-        let secretariat_id: Option<Uuid> =
-            mem.try_get("secretariat_id").map_err(|_| AppError::Internal)?;
+        let secretariat_id: Option<Uuid> = mem
+            .try_get("secretariat_id")
+            .map_err(|_| AppError::Internal)?;
 
         let salt = SaltString::generate(&mut OsRng);
         let password_hash = Argon2::default()
