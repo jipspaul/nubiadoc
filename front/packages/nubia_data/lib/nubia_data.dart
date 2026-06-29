@@ -40,6 +40,7 @@ export 'src/cache/drift/nubia_database.dart';
 export 'src/cache/drift/drift_appointments_cache.dart';
 
 // Remote APIs & DTOs (pro/cabinet surface)
+export 'src/remote/cabinet_info/cabinet_info_api.dart';
 export 'src/remote/cabinet_agenda/cabinet_agenda_api.dart';
 export 'src/remote/cabinet_messaging/cabinet_messaging_api.dart';
 export 'src/remote/cabinet_messaging/cabinet_messaging_dto.dart';
@@ -62,6 +63,7 @@ export 'src/remote/waiting_room/waiting_room_api.dart';
 export 'src/remote/waiting_room/waiting_room_dto.dart';
 
 // Repository implementations
+export 'src/repositories/cabinet_repository_impl.dart';
 export 'src/repositories/account_repository_impl.dart';
 export 'src/repositories/appointment_repository_impl.dart';
 export 'src/repositories/auth_repository_impl.dart';
