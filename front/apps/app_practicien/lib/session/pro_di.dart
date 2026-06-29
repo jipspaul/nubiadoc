@@ -9,6 +9,7 @@ import '../features/dashboard/today_notes_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/ordonnances/ordonnances_bloc.dart';
 import '../features/patients/patients_bloc.dart';
+import '../features/register/pro_register_cubit.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
@@ -20,6 +21,17 @@ void registerPro(GetIt gi) {
       tokenStorage: gi<TokenStorage>(),
       deviceRegistration: gi<DeviceRegistrationService>(),
       app: 'practicien',
+    ),
+  );
+
+  gi.registerFactory<ProRegisterUseCase>(
+    () => ProRegisterUseCase(gi<AuthRepository>()),
+  );
+
+  gi.registerFactory<ProRegisterCubit>(
+    () => ProRegisterCubit(
+      register: gi<ProRegisterUseCase>(),
+      authCubit: gi<ProAuthCubit>(),
     ),
   );
 

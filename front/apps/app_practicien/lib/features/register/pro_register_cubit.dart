@@ -1,42 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
-// ---------------------------------------------------------------------------
-// Request value object
-// ---------------------------------------------------------------------------
-
-class ProRegisterRequest extends Equatable {
-  const ProRegisterRequest({
-    required this.email,
-    required this.password,
-    required this.firstName,
-    required this.lastName,
-    this.rpps,
-    this.adeli,
-    required this.raisonSociale,
-    this.siret,
-    required this.specialite,
-  });
-
-  final String email;
-  final String password;
-  final String firstName;
-  final String lastName;
-  final String? rpps;
-  final String? adeli;
-  final String raisonSociale;
-  final String? siret;
-  final String specialite;
-
-  @override
-  List<Object?> get props =>
-      [email, password, firstName, lastName, rpps, adeli, raisonSociale, siret, specialite];
-}
-
-// ---------------------------------------------------------------------------
-// States
-// ---------------------------------------------------------------------------
+import '../../session/pro_auth_cubit.dart';
 
 sealed class ProRegisterState extends Equatable {
   const ProRegisterState();
@@ -54,35 +21,46 @@ final class ProRegisterLoading extends ProRegisterState {
 }
 
 final class ProRegisterSuccess extends ProRegisterState {
-  const ProRegisterSuccess();
+  final String accountId;
+  const ProRegisterSuccess(this.accountId);
+
+  @override
+  List<Object?> get props => [accountId];
 }
 
 final class ProRegisterFailure extends ProRegisterState {
-  const ProRegisterFailure(this.message);
   final String message;
+  const ProRegisterFailure(this.message);
 
   @override
   List<Object?> get props => [message];
 }
 
-// ---------------------------------------------------------------------------
-// Cubit
-// ---------------------------------------------------------------------------
-
-/// Cubit d'inscription praticien.
-///
-/// Le use case ProRegisterUseCase (D1) sera injecté ici une fois disponible.
-/// Pour l'instant le `submit` émet une erreur temporaire tant que D1 n'est
-/// pas mergé.
 class ProRegisterCubit extends Cubit<ProRegisterState>
     with SafeEmitMixin<ProRegisterState> {
-  ProRegisterCubit() : super(const ProRegisterIdle());
+  ProRegisterCubit({
+    required ProRegisterUseCase register,
+    required ProAuthCubit authCubit,
+  })  : _register = register,
+        _authCubit = authCubit,
+        super(const ProRegisterIdle());
+
+  final ProRegisterUseCase _register;
+  final ProAuthCubit _authCubit;
 
   Future<void> submit(ProRegisterRequest request) async {
-    safeEmit(const ProRegisterLoading());
-    // TODO(D1): appeler ProRegisterUseCase quand disponible.
-    safeEmit(const ProRegisterFailure(
-      'Inscription praticien non encore disponible.',
-    ));
+    emit(const ProRegisterLoading());
+    try {
+      final result = await _register(request);
+      await result.fold(
+        (failure) async => safeEmit(ProRegisterFailure(failure.message)),
+        (accountId) async {
+          await _authCubit.restore();
+          safeEmit(ProRegisterSuccess(accountId));
+        },
+      );
+    } catch (_) {
+      safeEmit(const ProRegisterFailure('Erreur lors de la création du compte.'));
+    }
   }
 }
