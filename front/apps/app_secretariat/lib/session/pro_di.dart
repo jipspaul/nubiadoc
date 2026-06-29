@@ -20,6 +20,7 @@ void registerPro(GetIt gi) {
       () => ProAuthCubit(
         login: gi<LoginUseCase>(),
         logout: gi<LogoutUseCase>(),
+        register: gi<RegisterUseCase>(),
         tokenStorage: gi<TokenStorage>(),
         deviceRegistration: gi<DeviceRegistrationService>(),
         app: 'secretariat',

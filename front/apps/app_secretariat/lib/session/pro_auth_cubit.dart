@@ -35,11 +35,13 @@ class ProAuthCubit extends Cubit<AuthState> {
   ProAuthCubit({
     required LoginUseCase login,
     required LogoutUseCase logout,
+    required RegisterUseCase register,
     required TokenStorage tokenStorage,
     required DeviceRegistrationService deviceRegistration,
     required String app,
   })  : _login = login,
         _logout = logout,
+        _register = register,
         _tokenStorage = tokenStorage,
         _deviceRegistration = deviceRegistration,
         _app = app,
@@ -47,6 +49,7 @@ class ProAuthCubit extends Cubit<AuthState> {
 
   final LoginUseCase _login;
   final LogoutUseCase _logout;
+  final RegisterUseCase _register;
   final TokenStorage _tokenStorage;
   final DeviceRegistrationService _deviceRegistration;
   final String _app;
@@ -77,6 +80,30 @@ class ProAuthCubit extends Cubit<AuthState> {
       );
     } catch (_) {
       emit(const AuthUnauthenticated('Erreur de connexion.'));
+    }
+  }
+
+  Future<void> registerWithInvitation({
+    required String email,
+    required String password,
+    required String inviteToken,
+  }) async {
+    emit(const AuthLoading());
+    try {
+      final result = await _register(
+        email: email,
+        password: password,
+        inviteToken: inviteToken,
+      );
+      result.fold(
+        (failure) => emit(AuthUnauthenticated(failure.message)),
+        (_) {
+          _deviceRegistration.registerOnLogin(_app);
+          emit(AuthAuthenticated(_session()));
+        },
+      );
+    } catch (_) {
+      emit(const AuthUnauthenticated("Erreur lors de l'inscription."));
     }
   }
 
