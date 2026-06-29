@@ -57,7 +57,6 @@ void main() {
             regime: any(named: 'regime'),
             amc: any(named: 'amc'),
             numeroAdherent: any(named: 'numeroAdherent'),
-            thirdPartyPayment: any(named: 'thirdPartyPayment'),
           ),
         ).thenAnswer((_) async => const Right(_coverage));
         return makeCubit();
@@ -85,7 +84,6 @@ void main() {
             regime: any(named: 'regime'),
             amc: any(named: 'amc'),
             numeroAdherent: any(named: 'numeroAdherent'),
-            thirdPartyPayment: any(named: 'thirdPartyPayment'),
           ),
         ).thenAnswer(
           (_) async => const Left(
@@ -112,7 +110,6 @@ void main() {
             regime: any(named: 'regime'),
             amc: any(named: 'amc'),
             numeroAdherent: any(named: 'numeroAdherent'),
-            thirdPartyPayment: any(named: 'thirdPartyPayment'),
           ),
         ).thenAnswer((_) async => const Left(NetworkFailure()));
         return makeCubit();
