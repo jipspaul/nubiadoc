@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-29T08:35:28.308Z
+Last run: 2026-06-29T08:49:23.320Z
 
 ## Faux positifs connus (méthode C)
 
@@ -13,7 +13,7 @@ Last run: 2026-06-29T08:35:28.308Z
 | /agenda | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète, ferme #2732 |
 | /notifications | patient | 2026-06-25 | déjà résolu — BlocBuilder exhaustif, try/catch, GetIt enregistré, flutter analyze vert | ferme #2833 |
 | /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
-| [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via page.goto() |
+| [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via pushState+popstate |
 
 
 ## patient
@@ -21,39 +21,39 @@ Last run: 2026-06-29T08:35:28.308Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
-| /appointments | 2026-06-29 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
-| /mes-rdv | 2026-06-28 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
-| /documents | 2026-06-28 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
-| /financial | 2026-06-28 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
-| /profile | 2026-06-29 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
-| /reviews | 2026-06-29 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
-| /notifications | 2026-06-29 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
+| / | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /appointments | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /mes-rdv | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /documents | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /financial | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /profile | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /reviews | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /notifications | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /agenda | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /waiting-room | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /patients | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /messages | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /consultation | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /ordonnances | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /ordonnances/new | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| / | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /agenda | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /waiting-room | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /patients | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /messages | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /consultation | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /ordonnances | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /ordonnances/new | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /salle-attente | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /bookable-slots | 2026-06-24 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /patients | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /devis | 2026-06-24 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /liste-attente | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /appointments | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
-| /admin-membres | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| / | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /salle-attente | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /bookable-slots | 2026-06-24 | 2026-06-29T08:49:23.320Z | OK | — |
+| /patients | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /devis | 2026-06-24 | 2026-06-29T08:49:23.320Z | OK | — |
+| /liste-attente | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /appointments | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /admin-membres | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
