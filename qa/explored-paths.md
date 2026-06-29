@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-29T17:53:25.934Z
+Last run: 2026-06-29T18:21:33.433Z
 
 ## Faux positifs connus (méthode C)
 
@@ -13,47 +13,54 @@ Last run: 2026-06-29T17:53:25.934Z
 | /agenda | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète, ferme #2732 |
 | /notifications | patient | 2026-06-25 | déjà résolu — BlocBuilder exhaustif, try/catch, GetIt enregistré, flutter analyze vert | ferme #2833 |
 | /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
-| [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via pushState+popstate |
+| [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via location.hash (in-page, sans page.goto) |
 
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /appointments | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
-| /mes-rdv | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /documents | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /financial | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /profile | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| / | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
+| /appointments | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
+| /mes-rdv | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
+| /documents | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
+| /financial | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
+| /profile | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
 | /reviews | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
 | /notifications | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /messaging | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
+| /oubliettes | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /agenda | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| / | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
+| /agenda | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
 | /waiting-room | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /patients | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /messages | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
-| /consultation | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /ordonnances | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /patients | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
+| /messages | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
+| /consultation | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
+| /ordonnances | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
 | /ordonnances/new | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| /a2ui-demo | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
+| /register-pro | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
+| / | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
 | /salle-attente | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
-| /bookable-slots | 2026-06-24 | 2026-06-29T08:49:23.320Z | OK | — |
-| /patients | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /devis | 2026-06-24 | 2026-06-29T08:49:23.320Z | OK | — |
+| /bookable-slots | 2026-06-24 | 2026-06-29T18:21:33.433Z | OK | — |
+| /patients | 2026-06-28 | 2026-06-29T18:21:33.433Z | OK | — |
+| /devis | 2026-06-24 | 2026-06-29T18:21:33.433Z | OK | — |
 | /liste-attente | 2026-06-28 | 2026-06-29T08:49:23.320Z | OK | — |
-| /appointments | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /appointments | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
 | /admin-membres | 2026-06-29 | 2026-06-29T08:49:23.320Z | OK | — |
+| /agenda | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
+| /messages | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
+| /admin-secretariats | 2026-06-29 | 2026-06-29T18:21:33.433Z | OK | — |
 
