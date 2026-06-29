@@ -38,7 +38,6 @@ class CoverageSetupCubit extends Cubit<CoverageSetupState>
 
   final UpdateCoverageUseCase _updateCoverage;
 
-  /// Soumet la couverture santé via PATCH /v1/account/coverage.
   Future<void> submit({
     required HealthInsuranceRegime regime,
     String? amc,
@@ -56,6 +55,5 @@ class CoverageSetupCubit extends Cubit<CoverageSetupState>
     );
   }
 
-  /// Passe l'étape sans enregistrer de données.
   void skip() => safeEmit(const CoverageSetupSuccess());
 }

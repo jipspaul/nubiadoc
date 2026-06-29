@@ -20,6 +20,12 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
   final _numeroAdherent = TextEditingController();
   final _nss = TextEditingController();
 
+  static String _regimeLabel(HealthInsuranceRegime r) => switch (r) {
+        HealthInsuranceRegime.regimeGeneral => 'Régime général',
+        HealthInsuranceRegime.ame => 'AME',
+        HealthInsuranceRegime.css => 'CSS',
+      };
+
   @override
   void dispose() {
     _amc.dispose();
@@ -27,12 +33,6 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
     _nss.dispose();
     super.dispose();
   }
-
-  static String _regimeLabel(HealthInsuranceRegime r) => switch (r) {
-        HealthInsuranceRegime.regimeGeneral => 'Régime général',
-        HealthInsuranceRegime.ame => 'AME',
-        HealthInsuranceRegime.css => 'CSS',
-      };
 
   @override
   Widget build(BuildContext context) {
