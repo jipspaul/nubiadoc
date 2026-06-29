@@ -126,7 +126,7 @@ class AppRouter {
         GoRoute(
           path: registerPro,
           builder: (_, __) => BlocProvider(
-            create: (_) => ProRegisterCubit(),
+            create: (_) => GetIt.instance<ProRegisterCubit>(),
             child: const ProRegisterPage(),
           ),
         ),
