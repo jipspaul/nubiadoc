@@ -103,7 +103,7 @@ class ProAuthCubit extends Cubit<AuthState> {
         },
       );
     } catch (_) {
-      emit(const AuthUnauthenticated("Erreur lors de l'inscription."));
+      emit(const AuthUnauthenticated('Erreur de connexion.'));
     }
   }
 
