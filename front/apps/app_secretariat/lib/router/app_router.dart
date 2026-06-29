@@ -22,6 +22,7 @@ import '../features/devis/devis_bloc.dart';
 import '../features/devis/devis_detail_page.dart';
 import '../features/devis/devis_page.dart';
 import '../features/login/login_page.dart';
+import '../features/onboarding/onboarding_page.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/patients/patients_page.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
@@ -48,6 +49,7 @@ class AppRouter {
   static const messages = '/messages';
   static const adminMembres = '/admin-membres';
   static const adminSecretariats = '/admin-secretariats';
+  static const onboard = '/onboard';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -60,7 +62,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash},
+        authRoutes: const {login, splash, onboard},
       ),
       routes: [
         GoRoute(
@@ -148,6 +150,12 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
             child: const AdminSecretiariatsPage(),
+          ),
+        ),
+        GoRoute(
+          path: onboard,
+          builder: (_, state) => OnboardingPage(
+            invitationToken: state.uri.queryParameters['invitation_token'],
           ),
         ),
       ],
