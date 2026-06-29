@@ -9,6 +9,7 @@ import '../features/dashboard/today_notes_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/ordonnances/ordonnances_bloc.dart';
 import '../features/patients/patients_bloc.dart';
+import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
@@ -33,6 +34,10 @@ void registerPro(GetIt gi) {
       register: gi<ProRegisterUseCase>(),
       authCubit: gi<ProAuthCubit>(),
     ),
+  );
+
+  gi.registerFactory<CabinetInfoCubit>(
+    () => CabinetInfoCubit(updateCabinet: gi<UpdateCabinetUseCase>()),
   );
 
   gi.registerFactory<DashboardBloc>(
