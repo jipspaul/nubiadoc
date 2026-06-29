@@ -274,7 +274,9 @@ async fn register_invited(
     let _ = m_tx.rollback().await;
 
     let m_row = m_row.ok_or(AppError::Internal)?;
-    let cabinet_id: Uuid = m_row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = m_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
     let role: String = m_row.try_get("role").map_err(|_| AppError::Internal)?;
     let secretariat_id: Option<Uuid> = m_row
         .try_get("secretariat_id")
