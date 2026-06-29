@@ -162,6 +162,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetMeUseCase(gi()))
     // account
     ..registerFactory(() => GetAccountUseCase(gi()))
+    ..registerFactory(() => UpdateAccountUseCase(gi()))
     ..registerFactory(() => GetCoverageUseCase(gi()))
     ..registerFactory(() => GetNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => ListConsentsUseCase(gi()))

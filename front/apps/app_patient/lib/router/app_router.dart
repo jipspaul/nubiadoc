@@ -13,6 +13,8 @@ import '../features/financial/financial_bloc.dart';
 import '../features/financial/financial_event.dart';
 import '../features/financial/financial_page.dart';
 import '../features/documents/documents_page.dart';
+import '../features/account_setup/account_setup_cubit.dart';
+import '../features/account_setup/account_setup_page.dart';
 import '../features/login/login_page.dart';
 import '../features/signup/signup_cubit.dart';
 import '../features/signup/signup_page.dart';
@@ -43,6 +45,7 @@ class AppRouter {
   static const login = '/login';
   static const signup = '/signup';
   static const accountSetup = '/account-setup';
+  static const coverageSetup = '/coverage-setup';
   static const home = '/';
   static const a2uiDemo = '/a2ui-demo';
   static const appointments = '/appointments';
@@ -86,8 +89,15 @@ class AppRouter {
         ),
         GoRoute(
           path: accountSetup,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<AccountSetupCubit>(),
+            child: const AccountSetupPage(),
+          ),
+        ),
+        GoRoute(
+          path: coverageSetup,
           builder: (_, __) => const Scaffold(
-            body: Center(child: Text('Configuration du compte')),
+            body: Center(child: Text('Configuration de la couverture')),
           ),
         ),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
