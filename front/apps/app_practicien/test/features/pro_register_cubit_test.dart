@@ -21,8 +21,12 @@ class MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
 
 const _request = ProRegisterRequest(
   email: 'alice@example.com',
-  password: 'secret',
-  inviteToken: 'tok-xyz',
+  password: 'Secret1!',
+  firstName: 'Alice',
+  lastName: 'Martin',
+  rpps: '12345678901',
+  raisonSociale: 'Cabinet Test',
+  specialite: 'Chirurgie dentaire',
 );
 
 // ---------------------------------------------------------------------------
