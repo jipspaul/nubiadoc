@@ -4,6 +4,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/appointments/appointments_bloc.dart';
 import '../features/dashboard/dashboard_bloc.dart';
+import '../features/signup/signup_cubit.dart';
 import '../features/documents/documents_bloc.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
@@ -24,6 +25,13 @@ void registerPatient(GetIt gi) {
       logout: gi<LogoutUseCase>(),
       tokenStorage: gi<TokenStorage>(),
       deviceRegistration: gi<DeviceRegistrationService>(),
+    ),
+  );
+
+  gi.registerFactory<SignupCubit>(
+    () => SignupCubit(
+      register: gi<RegisterUseCase>(),
+      authCubit: gi<AuthCubit>(),
     ),
   );
 
