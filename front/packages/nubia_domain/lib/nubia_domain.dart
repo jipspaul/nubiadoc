@@ -67,6 +67,7 @@ export 'src/usecases/auth/get_me_use_case.dart';
 export 'src/usecases/auth/login_use_case.dart';
 export 'src/usecases/auth/logout_use_case.dart';
 export 'src/usecases/auth/register_use_case.dart';
+export 'src/usecases/auth/pro_register_use_case.dart';
 export 'src/usecases/billing/get_pending_quotes_use_case.dart';
 export 'src/usecases/billing/get_quote_by_id_use_case.dart';
 export 'src/usecases/billing/initiate_deposit_use_case.dart';
