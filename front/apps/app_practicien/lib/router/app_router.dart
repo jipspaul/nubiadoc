@@ -13,6 +13,8 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/ordonnances/ordonnances_page.dart';
 import '../features/login/login_page.dart';
 import '../features/patients/patients_page.dart';
+import '../features/cabinet/cabinet_info_cubit.dart';
+import '../features/cabinet/cabinet_info_page.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/register/pro_register_page.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
@@ -34,6 +36,7 @@ class AppRouter {
   static const ordonnances = '/ordonnances';
   static const a2uiDemo = '/a2ui-demo';
   static const registerPro = '/register-pro';
+  static const cabinetSetup = '/cabinet-setup';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -46,7 +49,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash, registerPro},
+        authRoutes: const {login, splash, registerPro, cabinetSetup},
       ),
       routes: [
         GoRoute(
@@ -128,6 +131,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<ProRegisterCubit>(),
             child: const ProRegisterPage(),
+          ),
+        ),
+        GoRoute(
+          path: cabinetSetup,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<CabinetInfoCubit>(),
+            child: const CabinetInfoPage(),
           ),
         ),
       ],

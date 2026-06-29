@@ -141,6 +141,9 @@ export 'src/repositories/cabinet_message_repository.dart';
 export 'src/usecases/cabinet_messaging/list_cabinet_conversations_use_case.dart';
 export 'src/usecases/cabinet_messaging/get_cabinet_conversation_use_case.dart';
 export 'src/usecases/cabinet_messaging/send_message_cabinet_use_case.dart';
+// cabinet info pro
+export 'src/repositories/cabinet_repository.dart';
+export 'src/usecases/cabinet_info/update_cabinet_use_case.dart';
 // cabinet dashboard pro
 export 'src/repositories/cabinet_dashboard_repository.dart';
 export 'src/usecases/cabinet_dashboard/get_pro_dashboard_summary_use_case.dart';
