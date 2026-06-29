@@ -64,7 +64,7 @@ void main() {
     blocTest<CoverageSetupCubit, CoverageSetupState>(
       'skip émet [Success] sans appeler le use case',
       build: makeCubit,
-      act: (c) => c.skip(),
+      act: (c) => c.skipStep(),
       expect: () => [isA<CoverageSetupSuccess>()],
       verify: (_) => verifyNever(
         () => mockUseCase(
