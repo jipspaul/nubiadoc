@@ -23,6 +23,10 @@ const _coverage = HealthCoverage(regime: HealthInsuranceRegime.regimeGeneral);
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(HealthInsuranceRegime.regimeGeneral);
+  });
+
   group('CoverageSetupCubit', () {
     late MockUpdateCoverageUseCase mockUseCase;
 
