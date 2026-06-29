@@ -8,18 +8,14 @@ class CreateSlotDialog extends StatefulWidget {
 }
 
 class _CreateSlotDialogState extends State<CreateSlotDialog> {
-  late DateTime _date;
-  late TimeOfDay _startTime;
-  late TimeOfDay _endTime;
-
-  @override
-  void initState() {
-    super.initState();
-    final now = DateTime.now();
-    _date = DateTime(now.year, now.month, now.day);
-    _startTime = const TimeOfDay(hour: 9, minute: 0);
-    _endTime = const TimeOfDay(hour: 9, minute: 30);
+  static DateTime _todayMidnight() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
   }
+
+  DateTime _date = _todayMidnight();
+  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _endTime = const TimeOfDay(hour: 9, minute: 30);
 
   String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
       '${d.month.toString().padLeft(2, '0')}/'
