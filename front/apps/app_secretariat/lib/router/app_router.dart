@@ -22,6 +22,7 @@ import '../features/devis/devis_bloc.dart';
 import '../features/devis/devis_detail_page.dart';
 import '../features/devis/devis_page.dart';
 import '../features/login/login_page.dart';
+import '../features/onboarding/onboarding_page.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/patients/patients_page.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
@@ -34,6 +35,7 @@ class AppRouter {
 
   static const splash = '/splash';
   static const login = '/login';
+  static const onboard = '/onboard';
   static const home = '/';
   static const agenda = '/agenda';
   static const bookableSlots = '/bookable-slots';
@@ -60,7 +62,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash},
+        authRoutes: const {login, onboard, splash},
       ),
       routes: [
         GoRoute(
@@ -69,6 +71,13 @@ class AppRouter {
               const Scaffold(body: Center(child: CircularProgressIndicator())),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
+        GoRoute(
+          path: onboard,
+          builder: (_, state) => OnboardingPage(
+            invitationToken:
+                state.uri.queryParameters['invitation_token'],
+          ),
+        ),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
         GoRoute(
           path: agenda,
