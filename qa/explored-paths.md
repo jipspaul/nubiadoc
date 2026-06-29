@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-29T08:28:53.490Z
+Last run: 2026-06-29T08:35:28.308Z
 
 ## Faux positifs connus (méthode C)
 
@@ -21,39 +21,39 @@ Last run: 2026-06-29T08:28:53.490Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /appointments | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /mes-rdv | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /documents | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /financial | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /profile | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /reviews | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /notifications | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
+| / | 2026-06-28 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
+| /appointments | 2026-06-29 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
+| /mes-rdv | 2026-06-28 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
+| /documents | 2026-06-28 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
+| /financial | 2026-06-28 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
+| /profile | 2026-06-29 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
+| /reviews | 2026-06-29 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
+| /notifications | 2026-06-29 | 2026-06-29T08:35:28.308Z | login_failed | login failed |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /agenda | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /waiting-room | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /patients | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /messages | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /consultation | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /ordonnances | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /ordonnances/new | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
+| / | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /agenda | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /waiting-room | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /patients | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /messages | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /consultation | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /ordonnances | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /ordonnances/new | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| / | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /salle-attente | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /bookable-slots | 2026-06-24 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /patients | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /devis | 2026-06-24 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /liste-attente | 2026-06-28 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /appointments | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
-| /admin-membres | 2026-06-29 | 2026-06-29T08:28:53.490Z | login_failed | login failed |
+| / | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /salle-attente | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /bookable-slots | 2026-06-24 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /patients | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /devis | 2026-06-24 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /liste-attente | 2026-06-28 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /appointments | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
+| /admin-membres | 2026-06-29 | 2026-06-29T08:35:28.308Z | navigation | navigation: navigation |
