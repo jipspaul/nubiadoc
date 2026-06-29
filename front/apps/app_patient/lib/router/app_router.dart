@@ -14,6 +14,8 @@ import '../features/financial/financial_event.dart';
 import '../features/financial/financial_page.dart';
 import '../features/documents/documents_page.dart';
 import '../features/login/login_page.dart';
+import '../features/signup/signup_cubit.dart';
+import '../features/signup/signup_page.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
 import '../features/mes_rdv/prepare_rdv_page.dart';
@@ -39,6 +41,8 @@ class AppRouter {
 
   static const splash = '/splash';
   static const login = '/login';
+  static const signup = '/signup';
+  static const accountSetup = '/account-setup';
   static const home = '/';
   static const a2uiDemo = '/a2ui-demo';
   static const appointments = '/appointments';
@@ -64,7 +68,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash},
+        authRoutes: const {login, signup, splash},
       ),
       routes: [
         GoRoute(
@@ -73,6 +77,19 @@ class AppRouter {
               const Scaffold(body: Center(child: CircularProgressIndicator())),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
+        GoRoute(
+          path: signup,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<SignupCubit>(),
+            child: const SignupPage(),
+          ),
+        ),
+        GoRoute(
+          path: accountSetup,
+          builder: (_, __) => const Scaffold(
+            body: Center(child: Text('Configuration du compte')),
+          ),
+        ),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
