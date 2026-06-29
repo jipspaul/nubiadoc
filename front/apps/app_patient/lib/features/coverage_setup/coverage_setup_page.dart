@@ -73,19 +73,23 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 4),
-                    ...HealthInsuranceRegime.values.map(
-                      (r) => RadioListTile<HealthInsuranceRegime>(
-                        key: Key('regime_${r.name}'),
-                        title: Text(_regimeLabel(r)),
-                        value: r,
-                        groupValue: _regime,
-                        onChanged: loading
-                            ? null
-                            : (v) {
-                                if (v != null) setState(() => _regime = v);
-                              },
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
+                    RadioGroup<HealthInsuranceRegime>(
+                      groupValue: _regime,
+                      onChanged: (v) {
+                        if (!loading && v != null) setState(() => _regime = v);
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: HealthInsuranceRegime.values
+                            .map(
+                              (r) => RadioListTile<HealthInsuranceRegime>(
+                                key: Key('regime_${r.name}'),
+                                title: Text(_regimeLabel(r)),
+                                value: r,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            )
+                            .toList(),
                       ),
                     ),
                     const SizedBox(height: 16),
