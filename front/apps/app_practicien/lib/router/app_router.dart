@@ -13,6 +13,8 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/ordonnances/ordonnances_page.dart';
 import '../features/login/login_page.dart';
 import '../features/patients/patients_page.dart';
+import '../features/register/pro_register_cubit.dart';
+import '../features/register/pro_register_page.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
@@ -31,6 +33,7 @@ class AppRouter {
   static const consultation = '/consultation';
   static const ordonnances = '/ordonnances';
   static const a2uiDemo = '/a2ui-demo';
+  static const registerPro = '/register-pro';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -43,7 +46,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash},
+        authRoutes: const {login, splash, registerPro},
       ),
       routes: [
         GoRoute(
@@ -120,6 +123,13 @@ class AppRouter {
           ],
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
+        GoRoute(
+          path: registerPro,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<ProRegisterCubit>(),
+            child: const ProRegisterPage(),
+          ),
+        ),
       ],
     );
   }
