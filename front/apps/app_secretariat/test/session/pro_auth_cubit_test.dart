@@ -134,7 +134,7 @@ void main() {
         isA<AuthUnauthenticated>().having(
           (s) => s.message,
           'message',
-          'Erreur de connexion.',
+          "Erreur lors de l'inscription.",
         ),
       ],
       verify: (_) {

@@ -15,6 +15,7 @@ import '../features/financial/financial_page.dart';
 import '../features/documents/documents_page.dart';
 import '../features/account_setup/account_setup_cubit.dart';
 import '../features/account_setup/account_setup_page.dart';
+import '../features/coverage_setup/coverage_setup_page.dart';
 import '../features/login/login_page.dart';
 import '../features/signup/signup_cubit.dart';
 import '../features/signup/signup_page.dart';
@@ -71,7 +72,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, signup, splash},
+        authRoutes: const {login, splash, signup, accountSetup, coverageSetup},
       ),
       routes: [
         GoRoute(
@@ -94,12 +95,7 @@ class AppRouter {
             child: const AccountSetupPage(),
           ),
         ),
-        GoRoute(
-          path: coverageSetup,
-          builder: (_, __) => const Scaffold(
-            body: Center(child: Text('Configuration de la couverture')),
-          ),
-        ),
+        GoRoute(path: coverageSetup, builder: (_, __) => const CoverageSetupPage()),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
