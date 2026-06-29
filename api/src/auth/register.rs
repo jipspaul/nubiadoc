@@ -11,7 +11,6 @@ use axum::{
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use sqlx::Row;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
@@ -48,6 +47,8 @@ pub struct RegisterBody {
     password: String,
     accept_cgu: bool,
     cgu_version: String,
+    /// Token d'invitation envoyé par email lors de `POST /v1/cabinet/members`.
+    /// Si présent, finalise le compte secrétariat invité au lieu de créer un compte patient.
     invitation_token: Option<String>,
 }
 
@@ -60,10 +61,7 @@ pub(crate) struct RegisterResponse {
 
 /// `POST /v1/auth/register` — crée un compte patient (app_user + patient_account +
 /// consent_record) en transaction atomique, puis émet les tokens.
-///
-/// Si `invitation_token` est présent : finalise le compte collaborateur invité
-/// (app_user déjà créé par `POST /v1/cabinet/members`), pose le mot de passe,
-/// marque l'invitation consommée, et émet un JWT pro.
+/// Si `invitation_token` est présent, finalise le compte secrétariat invité au lieu.
 pub async fn register(
     State(state): State<AppState>,
     Json(body): Json<RegisterBody>,
@@ -78,124 +76,8 @@ pub async fn register(
         return Err(AppError::PasswordPolicy);
     }
 
-    if let Some(ref invite_tok) = body.invitation_token {
-        let token_hash = hex::encode(Sha256::digest(invite_tok.as_bytes()));
-
-        // Cherche l'utilisateur invité par son token hashé (RLS : app.current_reset_token_hash).
-        let mut auth_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-        sqlx::query("SELECT set_config('app.current_reset_token_hash', $1, true)")
-            .bind(&token_hash)
-            .execute(&mut *auth_tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-        let user_row = sqlx::query(
-            "SELECT id, password_reset_expires_at FROM app_user \
-             WHERE password_reset_token = $1",
-        )
-        .bind(&token_hash)
-        .fetch_optional(&mut *auth_tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-        let _ = auth_tx.rollback().await;
-
-        let user_row = user_row.ok_or(AppError::InvitationInvalid)?;
-        let expires_at: chrono::DateTime<Utc> = user_row
-            .try_get("password_reset_expires_at")
-            .map_err(|_| AppError::Internal)?;
-        if expires_at <= Utc::now() {
-            return Err(AppError::InvitationInvalid);
-        }
-        let invited_user_id: Uuid = user_row.try_get("id").map_err(|_| AppError::Internal)?;
-
-        // Récupère le cabinet et le rôle via user_all_memberships (SECURITY DEFINER).
-        let mut mem_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
-            .bind(invited_user_id.to_string())
-            .execute(&mut *mem_tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-        let memberships =
-            sqlx::query("SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1)")
-                .bind(invited_user_id)
-                .fetch_all(&mut *mem_tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
-        let _ = mem_tx.rollback().await;
-
-        let mem = memberships.first().ok_or(AppError::InvitationInvalid)?;
-        let cabinet_id: Uuid = mem.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-        let role: String = mem.try_get("role").map_err(|_| AppError::Internal)?;
-        let secretariat_id: Option<Uuid> = mem
-            .try_get("secretariat_id")
-            .map_err(|_| AppError::Internal)?;
-
-        let salt = SaltString::generate(&mut OsRng);
-        let password_hash = Argon2::default()
-            .hash_password(body.password.as_bytes(), &salt)
-            .map_err(|_| AppError::Internal)?
-            .to_string();
-
-        let raw_token = Uuid::new_v4().to_string();
-
-        let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
-            .bind(invited_user_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-        sqlx::query(
-            "UPDATE app_user SET \
-             password_hash = $1, \
-             password_reset_token = NULL, \
-             password_reset_expires_at = NULL \
-             WHERE id = $2",
-        )
-        .bind(&password_hash)
-        .bind(invited_user_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-        sqlx::query(
-            r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
-               VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
-        )
-        .bind(invited_user_id)
-        .bind(&raw_token)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-        tx.commit().await.map_err(|_| AppError::Internal)?;
-
-        let exp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            + 900;
-        let claims = ProRegisterClaims {
-            sub: invited_user_id,
-            kind: "pro".to_string(),
-            cabinet_id,
-            role,
-            secretariat_id,
-            exp,
-        };
-        let access_token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-        )
-        .map_err(|_| AppError::Internal)?;
-
-        return Ok((
-            StatusCode::CREATED,
-            Json(RegisterResponse {
-                account_id: invited_user_id,
-                access_token,
-                refresh_token: raw_token,
-            }),
-        ));
+    if let Some(ref invite_token) = body.invitation_token {
+        return register_invited(state, invite_token, &body.password).await;
     }
 
     let salt = SaltString::generate(&mut OsRng);
@@ -284,6 +166,155 @@ pub async fn register(
             account_id,
             access_token,
             refresh_token: raw_token,
+        }),
+    ))
+}
+
+/// Finalise le compte d'un secrétariat invité : valide le token d'invitation,
+/// pose le mot de passe, et émet un JWT pro avec cabinet_id + role.
+async fn register_invited(
+    state: AppState,
+    invite_token: &str,
+    password: &str,
+) -> Result<(StatusCode, Json<RegisterResponse>), AppError> {
+    // Calcule le hash SHA-256 du token brut via le même mécanisme que reset_password.
+    // Pose app.current_reset_token_hash pour activer la policy user_reset_token_select.
+    let token_hash = {
+        let mut h_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+        let h_row = sqlx::query("SELECT encode(digest($1, 'sha256'), 'hex') AS h")
+            .bind(invite_token)
+            .fetch_one(&mut *h_tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        let _ = h_tx.rollback().await;
+        h_row
+            .try_get::<String, _>("h")
+            .map_err(|_| AppError::Internal)?
+    };
+
+    // Recherche l'utilisateur invité par token (policy user_reset_token_select).
+    let mut lookup_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_reset_token_hash', $1, true)")
+        .bind(&token_hash)
+        .execute(&mut *lookup_tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let row = sqlx::query(
+        "SELECT id, password_reset_expires_at FROM app_user \
+         WHERE password_reset_token = $1",
+    )
+    .bind(&token_hash)
+    .fetch_optional(&mut *lookup_tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let _ = lookup_tx.rollback().await;
+
+    let row = row.ok_or(AppError::InvitationInvalid)?;
+
+    let expires_at: chrono::DateTime<chrono::Utc> = row
+        .try_get("password_reset_expires_at")
+        .map_err(|_| AppError::Internal)?;
+    if expires_at <= chrono::Utc::now() {
+        return Err(AppError::InvitationInvalid);
+    }
+
+    let user_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|_| AppError::Internal)?
+        .to_string();
+
+    let raw_refresh = Uuid::new_v4().to_string();
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // app_user a FORCE RLS user_self_select : pose current_user_id avant tout DML.
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "UPDATE app_user \
+         SET password_hash = $1, \
+             password_reset_token = NULL, \
+             password_reset_expires_at = NULL, \
+             updated_at = now() \
+         WHERE id = $2",
+    )
+    .bind(&password_hash)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
+           VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
+    )
+    .bind(user_id)
+    .bind(&raw_refresh)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Récupère le membership via user_all_memberships (SECURITY DEFINER, contourne la RLS).
+    let mut m_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    let m_row = sqlx::query(
+        "SELECT cabinet_id, role, secretariat_id FROM user_all_memberships($1) LIMIT 1",
+    )
+    .bind(user_id)
+    .fetch_optional(&mut *m_tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let _ = m_tx.rollback().await;
+
+    let m_row = m_row.ok_or(AppError::Internal)?;
+    let cabinet_id: Uuid = m_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    let role: String = m_row.try_get("role").map_err(|_| AppError::Internal)?;
+    let secretariat_id: Option<Uuid> = m_row
+        .try_get("secretariat_id")
+        .map_err(|_| AppError::Internal)?;
+
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        + 900;
+    let claims = ProRegisterClaims {
+        sub: user_id,
+        kind: "pro".to_string(),
+        cabinet_id,
+        role,
+        secretariat_id,
+        exp,
+    };
+    let access_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+    )
+    .map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        user_id = %user_id,
+        cabinet_id = %cabinet_id,
+        "invited secretary registered"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(RegisterResponse {
+            account_id: user_id,
+            access_token,
+            refresh_token: raw_refresh,
         }),
     ))
 }
