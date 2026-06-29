@@ -11,6 +11,7 @@ abstract class AccountRepository {
     String? firstName,
     String? lastName,
     String? phone,
+    DateTime? dateOfBirth,
   });
 
   Future<Either<Failure, HealthCoverage>> getCoverage();

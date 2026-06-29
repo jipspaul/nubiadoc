@@ -28,12 +28,16 @@ class AccountRepositoryImpl implements AccountRepository {
     String? firstName,
     String? lastName,
     String? phone,
+    DateTime? dateOfBirth,
   }) async {
     try {
       final body = <String, dynamic>{};
       if (firstName != null) body['first_name'] = firstName;
       if (lastName != null) body['last_name'] = lastName;
       if (phone != null) body['phone'] = phone;
+      if (dateOfBirth != null) {
+        body['birth_date'] = dateOfBirth.toIso8601String().substring(0, 10);
+      }
       final dto = await _api.updateAccount(body);
       return Right(dto.toDomain());
     } on DioException catch (e) {
