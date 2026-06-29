@@ -139,6 +139,7 @@ pub(crate) enum AppError {
     NoActiveMembership,
     LastAdminCannotBeRemoved,
     StartAtNotFuture,
+    InvitationInvalid,
 }
 
 impl IntoResponse for AppError {
@@ -282,6 +283,11 @@ impl IntoResponse for AppError {
             AppError::HasBooking => {
                 (StatusCode::CONFLICT, Json(json!({"code": "has_booking"}))).into_response()
             }
+            AppError::InvitationInvalid => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"code": "invitation_invalid"})),
+            )
+                .into_response(),
         }
     }
 }
