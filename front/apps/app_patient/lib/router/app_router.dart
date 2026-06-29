@@ -31,6 +31,10 @@ import '../features/messaging/messaging_page.dart';
 import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
 import '../features/reviews/reviews_page.dart';
+import '../features/signup/signup_cubit.dart';
+import '../features/signup/signup_page.dart';
+import '../features/account_setup/account_setup_page.dart';
+import '../features/coverage_setup/coverage_setup_page.dart';
 
 /// Patient router. Route names are app-owned; the auth guard is the shared
 /// [buildAuthGuard] from nubia_core.
@@ -39,6 +43,9 @@ class AppRouter {
 
   static const splash = '/splash';
   static const login = '/login';
+  static const signup = '/signup';
+  static const accountSetup = '/account-setup';
+  static const coverageSetup = '/coverage-setup';
   static const home = '/';
   static const a2uiDemo = '/a2ui-demo';
   static const appointments = '/appointments';
@@ -64,7 +71,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash},
+        authRoutes: const {login, splash, signup, accountSetup, coverageSetup},
       ),
       routes: [
         GoRoute(
@@ -73,6 +80,15 @@ class AppRouter {
               const Scaffold(body: Center(child: CircularProgressIndicator())),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
+        GoRoute(
+          path: signup,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<SignupCubit>(),
+            child: const SignupPage(),
+          ),
+        ),
+        GoRoute(path: accountSetup, builder: (_, __) => const AccountSetupPage()),
+        GoRoute(path: coverageSetup, builder: (_, __) => const CoverageSetupPage()),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
