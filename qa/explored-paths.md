@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-29T20:30:03.334Z
+Last run: 2026-06-29T20:39:35.579Z
 
 ## Faux positifs connus (méthode C)
 
@@ -11,9 +11,9 @@ Last run: 2026-06-29T20:30:03.334Z
 | /profile | patient | 2026-06-25 | idem CSS Flutter | faux positif — ferme #2728 |
 | /messages | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète, ferme #2734 |
 | /agenda | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète, ferme #2732 |
-| /notifications | patient | 2026-06-25 | déjà résolu — BlocBuilder exhaustif, try/catch, GetIt enregistré, flutter analyze vert | ferme #2833 |
-| /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
-| [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via page.goto() avec /#/route |
+| /notifications | patient | 2026-06-25 | déjà résolu — ferme #2833 |
+| /ordonnances | praticien | 2026-06-25 | déjà résolu — ferme #2853 #2854 |
+| [*] blank-canvas | ALL | 2026-06-27 | go_router location.hash ignoré | faux positif — ferme #2920-#2935. Naviger via page.goto() avec /#/route |
 
 
 ## patient
