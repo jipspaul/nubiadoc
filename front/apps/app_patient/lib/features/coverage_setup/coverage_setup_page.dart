@@ -73,23 +73,19 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 4),
-                    RadioGroup<HealthInsuranceRegime>(
-                      groupValue: _regime,
-                      onChanged: (v) {
-                        if (!loading && v != null) setState(() => _regime = v);
-                      },
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: HealthInsuranceRegime.values
-                            .map(
-                              (r) => RadioListTile<HealthInsuranceRegime>(
-                                key: Key('regime_${r.name}'),
-                                title: Text(_regimeLabel(r)),
-                                value: r,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            )
-                            .toList(),
+                    ...HealthInsuranceRegime.values.map(
+                      (r) => RadioListTile<HealthInsuranceRegime>(
+                        key: Key('regime_${r.name}'),
+                        title: Text(_regimeLabel(r)),
+                        value: r,
+                        groupValue: _regime,
+                        onChanged: loading
+                            ? null
+                            : (v) {
+                                if (v != null) setState(() => _regime = v);
+                              },
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -109,9 +105,9 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
                     ),
                     const SizedBox(height: 12),
                     NubiaTextField(
+                      variant: NubiaTextFieldVariant.password,
                       controller: _nss,
                       label: 'Numéro de sécurité sociale',
-                      variant: NubiaTextFieldVariant.password,
                       enabled: !loading,
                       onChanged: (_) => setState(() {}),
                     ),
@@ -138,8 +134,7 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
                       variant: NubiaButtonVariant.tertiary,
                       onPressed: loading
                           ? null
-                          : () =>
-                              context.read<CoverageSetupCubit>().skip(),
+                          : () => context.read<CoverageSetupCubit>().skip(),
                     ),
                   ],
                 ),

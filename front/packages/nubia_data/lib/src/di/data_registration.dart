@@ -164,6 +164,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetAccountUseCase(gi()))
     ..registerFactory(() => UpdateAccountUseCase(gi()))
     ..registerFactory(() => GetCoverageUseCase(gi()))
+    ..registerFactory(() => UpdateCoverageUseCase(gi()))
     ..registerFactory(() => GetNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => ListConsentsUseCase(gi()))
     ..registerFactory(() => ListDependentsUseCase(gi()))
