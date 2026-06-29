@@ -55,5 +55,5 @@ class CoverageSetupCubit extends Cubit<CoverageSetupState>
     );
   }
 
-  void skip() => safeEmit(const CoverageSetupSuccess());
+  void skipStep() => safeEmit(const CoverageSetupSuccess());
 }

@@ -138,7 +138,7 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
                       variant: NubiaButtonVariant.tertiary,
                       onPressed: loading
                           ? null
-                          : () => context.read<CoverageSetupCubit>().skip(),
+                          : () => context.read<CoverageSetupCubit>().skipStep(),
                     ),
                   ],
                 ),
