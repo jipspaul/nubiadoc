@@ -11,6 +11,7 @@ import 'package:app_secretariat/features/bookable_slots/bookable_slots_bloc.dart
 import 'package:app_secretariat/features/bookable_slots/bookable_slots_event.dart';
 import 'package:app_secretariat/features/bookable_slots/bookable_slots_page.dart';
 import 'package:app_secretariat/features/bookable_slots/bookable_slots_state.dart';
+import 'package:app_secretariat/features/bookable_slots/create_slot_dialog.dart';
 import 'package:app_secretariat/pro_config.dart';
 
 class _MockSlotsRepository extends Mock implements SlotsRepository {}
@@ -238,6 +239,61 @@ void main() {
       await tester.pump();
 
       expect(find.text('Créneau ajouté'), findsOneWidget);
+    });
+  });
+
+  // --- CreateSlotDialog : non-régression LateInitializationError ---------------
+  group('CreateSlotDialog', () {
+    Widget buildApp() => MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => TextButton(
+                onPressed: () => showDialog<dynamic>(
+                  context: ctx,
+                  builder: (_) => const CreateSlotDialog(),
+                ),
+                child: const Text('ouvrir'),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets(
+        's\'ouvre sans LateInitializationError et affiche les champs par défaut',
+        (tester) async {
+      await tester.pumpWidget(buildApp());
+      await tester.tap(find.text('ouvrir'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Créer un créneau'), findsOneWidget);
+      expect(find.text('Date'), findsOneWidget);
+      expect(find.text('Heure début'), findsOneWidget);
+      expect(find.text('Heure fin'), findsOneWidget);
+      expect(find.text('Créer'), findsOneWidget);
+      expect(find.text('Annuler'), findsOneWidget);
+    });
+
+    testWidgets('affiche la date du jour au format DD/MM/YYYY', (tester) async {
+      await tester.pumpWidget(buildApp());
+      await tester.tap(find.text('ouvrir'));
+      await tester.pumpAndSettle();
+
+      final now = DateTime.now();
+      final day = now.day.toString().padLeft(2, '0');
+      final month = now.month.toString().padLeft(2, '0');
+      expect(find.textContaining('$day/$month/${now.year}'), findsOneWidget);
+    });
+
+    testWidgets('Annuler ferme le dialogue sans pop de valeur',
+        (tester) async {
+      await tester.pumpWidget(buildApp());
+      await tester.tap(find.text('ouvrir'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Créer un créneau'), findsNothing);
     });
   });
 }
