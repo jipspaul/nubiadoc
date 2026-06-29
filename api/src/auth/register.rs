@@ -8,7 +8,6 @@ use axum::{
     extract::{Json, State},
     http::StatusCode,
 };
-use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
