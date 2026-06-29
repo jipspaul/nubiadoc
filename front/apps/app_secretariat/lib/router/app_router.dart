@@ -35,6 +35,7 @@ class AppRouter {
 
   static const splash = '/splash';
   static const login = '/login';
+  static const onboard = '/onboard';
   static const home = '/';
   static const agenda = '/agenda';
   static const bookableSlots = '/bookable-slots';
@@ -49,7 +50,6 @@ class AppRouter {
   static const messages = '/messages';
   static const adminMembres = '/admin-membres';
   static const adminSecretariats = '/admin-secretariats';
-  static const onboard = '/onboard';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -62,7 +62,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash, onboard},
+        authRoutes: const {login, onboard, splash},
       ),
       routes: [
         GoRoute(
@@ -71,6 +71,13 @@ class AppRouter {
               const Scaffold(body: Center(child: CircularProgressIndicator())),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
+        GoRoute(
+          path: onboard,
+          builder: (_, state) => OnboardingPage(
+            invitationToken:
+                state.uri.queryParameters['invitation_token'],
+          ),
+        ),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
         GoRoute(
           path: agenda,
@@ -150,12 +157,6 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
             child: const AdminSecretiariatsPage(),
-          ),
-        ),
-        GoRoute(
-          path: onboard,
-          builder: (_, state) => OnboardingPage(
-            invitationToken: state.uri.queryParameters['invitation_token'],
           ),
         ),
       ],
