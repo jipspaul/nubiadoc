@@ -53,7 +53,6 @@ export 'src/usecases/account/get_account_use_case.dart';
 export 'src/usecases/account/update_account_use_case.dart';
 export 'src/usecases/account/update_coverage_use_case.dart';
 export 'src/usecases/account/get_coverage_use_case.dart';
-export 'src/usecases/account/update_coverage_use_case.dart';
 export 'src/usecases/account/get_notification_preferences_use_case.dart';
 export 'src/usecases/account/list_consents_use_case.dart';
 export 'src/usecases/account/list_dependents_use_case.dart';
