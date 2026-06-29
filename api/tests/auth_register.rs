@@ -274,3 +274,249 @@ async fn register_cgu_not_accepted_returns_422() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["code"], "cgu_required");
 }
+
+// ── Tests invitation_token ────────────────────────────────────────────────────
+
+/// Crée un utilisateur invité (password_hash=NULL) avec membership dans un cabinet.
+/// Retourne (user_id, cabinet_id, raw_invite_token).
+async fn create_invited_secretary(db: &PgPool) -> (Uuid, Uuid, String) {
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let raw_token = uuid::Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO app_user \
+         (id, email, password_hash, kind, \
+          password_reset_token, password_reset_expires_at) \
+         VALUES ($1, $2, NULL, 'pro', \
+                 encode(digest($3, 'sha256'), 'hex'), now() + interval '72 hours')",
+    )
+    .bind(user_id)
+    .bind(format!("invited-sec-{}@test.local", user_id))
+    .bind(&raw_token)
+    .execute(db)
+    .await
+    .expect("insert invited app_user");
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentiste')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet invite {}", user_id))
+        .execute(db)
+        .await
+        .expect("insert cabinet");
+
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
+         VALUES ($1, $2, 'secretary', true)",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(db)
+    .await
+    .expect("insert cabinet_membership");
+
+    (user_id, cabinet_id, raw_token)
+}
+
+async fn cleanup_invited(db: &PgPool, user_id: Uuid, cabinet_id: Uuid) {
+    sqlx::query("DELETE FROM cabinet_membership WHERE user_id = $1")
+        .bind(user_id)
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM refresh_token WHERE app_user_id = $1")
+        .bind(user_id)
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(db)
+        .await
+        .ok();
+}
+
+// ── Test invitation 1 : token valide → 201 + access_token pro ────────────────
+
+#[tokio::test]
+async fn register_with_valid_invitation_token_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let (user_id, cabinet_id, raw_token) = create_invited_secretary(&owner_db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/register")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "email": format!("invited-sec-{}@test.local", user_id),
+                        "password": "password1",
+                        "accept_cgu": true,
+                        "cgu_version": "v1",
+                        "invitation_token": raw_token
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(v["account_id"].is_string(), "account_id doit être présent");
+    assert!(
+        v["access_token"].is_string(),
+        "access_token doit être présent"
+    );
+    assert!(
+        v["refresh_token"].is_string(),
+        "refresh_token doit être présent"
+    );
+
+    cleanup_invited(&owner_db, user_id, cabinet_id).await;
+}
+
+// ── Test invitation 2 : token invalide → 400 invitation_invalid ──────────────
+
+#[tokio::test]
+async fn register_with_invalid_invitation_token_returns_400() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/register")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "email": "anyone@test.local",
+                        "password": "password1",
+                        "accept_cgu": true,
+                        "cgu_version": "v1",
+                        "invitation_token": "totally-invalid-token-that-does-not-exist"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "invitation_invalid");
+}
+
+// ── Test invitation 3 : token expiré → 400 invitation_invalid ────────────────
+
+#[tokio::test]
+async fn register_with_expired_invitation_token_returns_400() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let raw_token = uuid::Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO app_user \
+         (id, email, password_hash, kind, \
+          password_reset_token, password_reset_expires_at) \
+         VALUES ($1, $2, NULL, 'pro', \
+                 encode(digest($3, 'sha256'), 'hex'), now() - interval '1 hour')",
+    )
+    .bind(user_id)
+    .bind(format!("expired-inv-{}@test.local", user_id))
+    .bind(&raw_token)
+    .execute(&owner_db)
+    .await
+    .expect("insert expired invited app_user");
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentiste')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet expired {}", user_id))
+        .execute(&owner_db)
+        .await
+        .expect("insert cabinet");
+
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
+         VALUES ($1, $2, 'secretary', true)",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(&owner_db)
+    .await
+    .expect("insert cabinet_membership");
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/register")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "email": format!("expired-inv-{}@test.local", user_id),
+                        "password": "password1",
+                        "accept_cgu": true,
+                        "cgu_version": "v1",
+                        "invitation_token": raw_token
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "invitation_invalid");
+
+    cleanup_invited(&owner_db, user_id, cabinet_id).await;
+}
