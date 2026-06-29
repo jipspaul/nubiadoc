@@ -14,6 +14,10 @@ import '../features/financial/financial_event.dart';
 import '../features/financial/financial_page.dart';
 import '../features/documents/documents_page.dart';
 import '../features/login/login_page.dart';
+import '../features/signup/signup_cubit.dart';
+import '../features/signup/signup_page.dart';
+import '../features/account_setup/account_setup_page.dart';
+import '../features/coverage_setup/coverage_setup_page.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
 import '../features/mes_rdv/prepare_rdv_page.dart';
@@ -31,10 +35,6 @@ import '../features/messaging/messaging_page.dart';
 import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
 import '../features/reviews/reviews_page.dart';
-import '../features/signup/signup_cubit.dart';
-import '../features/signup/signup_page.dart';
-import '../features/account_setup/account_setup_page.dart';
-import '../features/coverage_setup/coverage_setup_page.dart';
 
 /// Patient router. Route names are app-owned; the auth guard is the shared
 /// [buildAuthGuard] from nubia_core.
