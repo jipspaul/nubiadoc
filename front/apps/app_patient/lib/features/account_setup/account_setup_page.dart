@@ -179,15 +179,16 @@ class _DatePickerField extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
       child: InputDecorator(
+        isEmpty: value == null,
         decoration: InputDecoration(
           labelText: label,
+          hintText: 'JJ/MM/AAAA',
           border: const OutlineInputBorder(),
           suffixIcon: const Icon(Icons.calendar_today_outlined),
         ),
-        child: Text(
-          value ?? '',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
+        child: value != null
+            ? Text(value!, style: Theme.of(context).textTheme.bodyMedium)
+            : const SizedBox.shrink(),
       ),
     );
   }
