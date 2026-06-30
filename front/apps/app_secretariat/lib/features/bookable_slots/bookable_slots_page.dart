@@ -65,6 +65,9 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
           );
         },
         child: BlocBuilder<BookableSlotsBloc, BookableSlotsState>(
+          // SlotCreatedSuccess est transitoire : on garde l'affichage précédent
+          // pendant le rechargement pour éviter un flash de spinner.
+          buildWhen: (_, state) => state is! BookableSlotsSlotCreatedSuccess,
           builder: (context, state) {
             if (state is BookableSlotsLoaded) {
               final slots = state.slots;
@@ -89,6 +92,7 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
                     .add(const BookableSlotsLoadRequested()),
               );
             }
+            // BookableSlotsInitial, BookableSlotsLoading
             return const Center(child: CircularProgressIndicator());
           },
         ),
