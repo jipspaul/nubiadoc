@@ -70,6 +70,42 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<Failure, String>> registerPro({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    String? rpps,
+    String? adeli,
+    required String raisonSociale,
+    String? siret,
+    required String specialite,
+  }) async {
+    try {
+      final response = await _api.registerPro(
+        email: email,
+        password: password,
+        firstName: firstName,
+        lastName: lastName,
+        rpps: rpps,
+        adeli: adeli,
+        raisonSociale: raisonSociale,
+        siret: siret,
+        specialite: specialite,
+      );
+      await _tokenStorage.saveTokens(
+        access: response.accessToken,
+        refresh: response.refreshToken,
+      );
+      return Right(response.accountId);
+    } on DioException catch (e) {
+      return Left(_mapDioError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, PatientAccount>> getMe() async {
     try {
       final dto = await _api.getMe();

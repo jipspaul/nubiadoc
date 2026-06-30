@@ -13,6 +13,17 @@ abstract class AuthRepository {
     required String password,
     required String inviteToken,
   });
+  Future<Either<Failure, String>> registerPro({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    String? rpps,
+    String? adeli,
+    required String raisonSociale,
+    String? siret,
+    required String specialite,
+  });
   Future<Either<Failure, PatientAccount>> getMe();
   Future<Either<Failure, void>> logout();
   Future<Either<Failure, void>> refreshToken();
