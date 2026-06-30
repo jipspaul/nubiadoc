@@ -26,8 +26,9 @@ class AdminSecretiariatsBloc
       final result = await _listSecretariats();
       result.fold(
         (failure) => safeEmit(AdminSecretiariatsError(failure.message)),
-        (secretariats) =>
-            safeEmit(AdminSecretiariatsLoaded(secretariats: secretariats)),
+        (secretariats) => secretariats.isEmpty
+            ? safeEmit(const AdminSecretiariatsEmpty())
+            : safeEmit(AdminSecretiariatsLoaded(secretariats: secretariats)),
       );
     } catch (_) {
       safeEmit(const AdminSecretiariatsError('Erreur de chargement.'));
