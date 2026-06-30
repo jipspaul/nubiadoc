@@ -21,10 +21,18 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ProfileBloc, ProfileState>(
+    return BlocConsumer<ProfileBloc, ProfileState>(
+      listenWhen: (_, current) => current is ProfileToggleFailed,
+      listener: (context, state) {
+        if (state is ProfileToggleFailed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message)),
+          );
+        }
+      },
       builder: (context, state) {
         if (state is ProfileInitial || state is ProfileLoading) {
-          return const _ProfileSkeleton();
+          return const Center(child: CircularProgressIndicator());
         }
         if (state is ProfileError) {
           return NubiaErrorWidget(
@@ -41,58 +49,16 @@ class ProfilePage extends StatelessWidget {
             pushRdv: state.notifPrefs?.pushEnabled ?? true,
           );
         }
+        if (state is ProfileToggleFailed) {
+          return _ProfileContent(
+            account: state.previousState.account,
+            biometricEnabled: state.previousState.biometricEnabled,
+            emailRdv: state.previousState.notifPrefs?.emailEnabled ?? true,
+            pushRdv: state.previousState.notifPrefs?.pushEnabled ?? true,
+          );
+        }
         return const SizedBox.shrink();
       },
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _ProfileSkeleton extends StatelessWidget {
-  const _ProfileSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        // header: avatar + name/email
-        Row(
-          children: [
-            NubiaSkeletonLoader(width: 64, height: 64, borderRadius: 32),
-            SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  NubiaSkeletonLoader(height: 18),
-                  SizedBox(height: 8),
-                  NubiaSkeletonLoader(width: 140, height: 14),
-                ],
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 24),
-        // info section: 2 rows
-        NubiaSkeletonLoader(height: 14),
-        SizedBox(height: 12),
-        NubiaSkeletonLoader(height: 36),
-        SizedBox(height: 8),
-        NubiaSkeletonLoader(height: 36),
-        SizedBox(height: 24),
-        // account section: 4 tiles
-        NubiaSkeletonLoader(height: 14),
-        SizedBox(height: 12),
-        NubiaSkeletonLoader(height: 48),
-        SizedBox(height: 8),
-        NubiaSkeletonLoader(height: 48),
-        SizedBox(height: 8),
-        NubiaSkeletonLoader(height: 48),
-        SizedBox(height: 8),
-        NubiaSkeletonLoader(height: 48),
-      ],
     );
   }
 }
