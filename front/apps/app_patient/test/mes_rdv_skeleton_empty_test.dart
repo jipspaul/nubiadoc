@@ -28,20 +28,22 @@ class _MesRdvPageStub extends StatelessWidget {
     return BlocBuilder<MesRdvBloc, MesRdvState>(
       builder: (context, state) {
         if (state is MesRdvLoading || state is MesRdvInitial) {
-          return const Column(
-            children: [
-              NubiaSkeletonLoader(height: 80),
-              SizedBox(height: 8),
-              NubiaSkeletonLoader(height: 80),
-              SizedBox(height: 8),
-              NubiaSkeletonLoader(height: 80),
-            ],
+          return const Center(
+            key: Key('mes_rdv_loading'),
+            child: CircularProgressIndicator(),
+          );
+        }
+        if (state is MesRdvError) {
+          return Center(
+            key: const Key('mes_rdv_error'),
+            child: Text(state.message),
           );
         }
         if (state is MesRdvLoaded &&
             state.upcoming.isEmpty &&
             state.history.isEmpty) {
           return const NubiaEmptyState(
+            key: Key('mes_rdv_empty'),
             icon: Icons.calendar_today_outlined,
             title: 'Aucun rendez-vous',
           );
@@ -64,15 +66,42 @@ Widget _wrap(MesRdvBloc bloc) => MaterialApp(
 // ---------------------------------------------------------------------------
 
 void main() {
-  group('MesRdvPage — skeleton Loading', () {
-    testWidgets('affiche NubiaSkeletonLoader en état Loading', (tester) async {
+  group('MesRdvPage — Loading', () {
+    testWidgets('affiche CircularProgressIndicator en état Loading',
+        (tester) async {
       final bloc = _MockMesRdvBloc();
       when(() => bloc.state).thenReturn(const MesRdvLoading());
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
 
-      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+      expect(find.byKey(const Key('mes_rdv_loading')), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('affiche CircularProgressIndicator en état Initial',
+        (tester) async {
+      final bloc = _MockMesRdvBloc();
+      when(() => bloc.state).thenReturn(const MesRdvInitial());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('mes_rdv_loading')), findsOneWidget);
+    });
+  });
+
+  group('MesRdvPage — Error', () {
+    testWidgets('affiche le message d\'erreur en état Error', (tester) async {
+      final bloc = _MockMesRdvBloc();
+      when(() => bloc.state)
+          .thenReturn(const MesRdvError('Erreur de chargement.'));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('mes_rdv_error')), findsOneWidget);
+      expect(find.text('Erreur de chargement.'), findsOneWidget);
     });
   });
 
@@ -87,6 +116,7 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
 
+      expect(find.byKey(const Key('mes_rdv_empty')), findsOneWidget);
       expect(find.byType(NubiaEmptyState), findsOneWidget);
     });
   });

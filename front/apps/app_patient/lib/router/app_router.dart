@@ -20,7 +20,6 @@ import '../features/coverage_setup/coverage_setup_page.dart';
 import '../features/login/login_page.dart';
 import '../features/signup/signup_cubit.dart';
 import '../features/signup/signup_page.dart';
-import '../features/mes_rdv/mes_rdv_bloc.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
 import '../features/mes_rdv/prepare_rdv_page.dart';
 import '../features/notifications/notifications_bloc.dart';
@@ -117,17 +116,14 @@ class AppRouter {
         ),
         GoRoute(
           path: mesRdv,
-          builder: (context, __) => BlocProvider(
-            create: (_) => GetIt.instance<MesRdvBloc>(),
-            child: Scaffold(
-              floatingActionButton: FloatingActionButton.extended(
-                key: const Key('book_rdv_fab'),
-                onPressed: () => context.go(AppRouter.book),
-                icon: const Icon(Icons.add),
-                label: const Text('Booker un RDV'),
-              ),
-              body: const MesRdvPage(),
+          builder: (context, __) => Scaffold(
+            floatingActionButton: FloatingActionButton.extended(
+              key: const Key('book_rdv_fab'),
+              onPressed: () => context.go(AppRouter.book),
+              icon: const Icon(Icons.add),
+              label: const Text('Booker un RDV'),
             ),
+            body: const MesRdvPage(),
           ),
         ),
         GoRoute(
