@@ -45,6 +45,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
   final Map<String, _Surface> _surfaces = {};
   String? _activeSurfaceId;
+  Object? _error;
 
   @override
   void initState() {
@@ -56,7 +57,9 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     );
     _sub = widget.transport
         .connect(widget.endpoint, headers: widget.headers)
-        .listen(_apply, onError: (_) {});
+        .listen(_apply, onError: (e) {
+      if (mounted) setState(() => _error = e);
+    });
   }
 
   void _apply(A2uiMessage msg) {
@@ -94,11 +97,18 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
   @override
   Widget build(BuildContext context) {
+    if (_error != null) {
+      return const Center(
+        child: Icon(Icons.error_outline, size: 48),
+      );
+    }
     final id = _activeSurfaceId;
-    if (id == null) return const SizedBox.shrink();
+    if (id == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     final surface = _surfaces[id]!;
     final rootId = surface.root;
-    if (rootId == null) return const SizedBox.shrink();
+    if (rootId == null) return const Center(child: CircularProgressIndicator());
 
     return AnimatedBuilder(
       animation: surface.dataModel,
