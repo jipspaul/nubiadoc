@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/profile/profile_bloc.dart';
@@ -85,12 +84,13 @@ void main() {
   });
 
   group('ProfilePage', () {
-    testWidgets('affiche le skeleton loader en état initial', (tester) async {
+    testWidgets('affiche un indicateur de chargement en état initial',
+        (tester) async {
       final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
 
       await tester.pumpWidget(_wrap(bloc));
 
-      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
     testWidgets('affiche les informations du compte en état loaded',
@@ -122,6 +122,22 @@ void main() {
 
       expect(find.text('Erreur réseau.'), findsOneWidget);
       expect(find.text('Réessayer'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche le contenu précédent et un snackbar en état ProfileToggleFailed',
+        (tester) async {
+      final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
+      const loaded = ProfileLoaded(_account,
+          biometricEnabled: false, notifPrefs: _prefs);
+      final failed = ProfileToggleFailed(loaded, 'Erreur biométrie');
+
+      await tester.pumpWidget(_wrap(bloc));
+      bloc.emit(failed);
+      await tester.pump();
+
+      expect(find.byKey(const Key('profile_content')), findsOneWidget);
+      expect(find.text('Erreur biométrie'), findsOneWidget);
     });
   });
 
