@@ -85,7 +85,7 @@ void main() {
 
       await tester.pumpWidget(_wrap(bloc));
 
-      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
     testWidgets('affiche les cartes de résumé en état loaded', (tester) async {

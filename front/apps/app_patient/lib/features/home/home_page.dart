@@ -20,14 +20,7 @@ class HomePage extends StatelessWidget {
     return BlocBuilder<HomeBloc, HomeState>(
       builder: (context, state) {
         if (state is HomeInitial || state is HomeLoading) {
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: 4,
-            itemBuilder: (_, __) => const Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: NubiaSkeletonLoader(height: 72),
-            ),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
         if (state is HomeError) {
           return NubiaErrorWidget(
