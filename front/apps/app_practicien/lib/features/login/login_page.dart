@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
@@ -70,6 +71,21 @@ class _LoginPageState extends State<LoginPage> {
                                 email: _email.text.trim(),
                                 password: _password.text,
                               ),
+                    ),
+                    const SizedBox(height: 16),
+                    Column(
+                      children: [
+                        const Text('Nouveau praticien sur Nubia ?'),
+                        TextButton(
+                          key: const Key('register_pro_link'),
+                          onPressed: () => context.go('/register-pro'),
+                          child: const Text('Créer mon compte praticien'),
+                        ),
+                        Text(
+                          'RPPS ou ADELI requis',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ],
                 ),
