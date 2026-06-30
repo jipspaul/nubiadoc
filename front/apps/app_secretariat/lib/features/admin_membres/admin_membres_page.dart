@@ -64,25 +64,28 @@ class _AdminMembresPageState extends State<AdminMembresPage>
         label: const Text('Ajouter membre'),
       ),
       body: BlocBuilder<AdminMembresBloc, AdminMembresState>(
-        builder: (context, state) {
-          if (state is AdminMembresLoaded) {
-            return TabBarView(
+        builder: (context, state) => switch (state) {
+          AdminMembresInitial() || AdminMembresLoading() => const Center(
+              child: CircularProgressIndicator(),
+            ),
+          AdminMembresEmpty() => const NubiaEmptyState(
+              key: Key('admin_membres_empty'),
+              icon: Icons.group_outlined,
+              title: 'Aucun membre ni secrétariat enregistré.',
+            ),
+          AdminMembresLoaded(:final members, :final secretariats) => TabBarView(
               controller: _tabController,
               children: [
-                _MembersList(members: state.members),
-                _SecretariatsList(secretariats: state.secretariats),
+                _MembersList(members: members),
+                _SecretariatsList(secretariats: secretariats),
               ],
-            );
-          }
-          if (state is AdminMembresError) {
-            return NubiaErrorWidget(
-              message: state.message,
+            ),
+          AdminMembresError(:final message) => NubiaErrorWidget(
+              message: message,
               onRetry: () => context
                   .read<AdminMembresBloc>()
                   .add(const AdminMembresLoadRequested()),
-            );
-          }
-          return const Center(child: CircularProgressIndicator());
+            ),
         },
       ),
     );
