@@ -19,21 +19,28 @@ Widget _wrap(DashboardBloc bloc) => MaterialApp(
         child: Scaffold(
           body: BlocBuilder<DashboardBloc, DashboardState>(
             builder: (context, state) {
-              if (state is! DashboardLoaded) {
-                return const CircularProgressIndicator(
-                  key: Key('dashboard_loading'),
+              if (state is DashboardLoaded) {
+                return Column(
+                  key: const Key('dashboard_loaded'),
+                  children: [
+                    Text('RDV: ${state.todayCount}',
+                        key: const Key('stat_rdv_today')),
+                    Text('En attente: ${state.pendingCount}',
+                        key: const Key('stat_pending')),
+                    Text('Liste attente: ${state.waitingCount}',
+                        key: const Key('stat_waiting_list')),
+                  ],
                 );
               }
-              return Column(
-                key: const Key('dashboard_loaded'),
-                children: [
-                  Text('RDV: ${state.todayCount}',
-                      key: const Key('stat_rdv_today')),
-                  Text('En attente: ${state.pendingCount}',
-                      key: const Key('stat_pending')),
-                  Text('Liste attente: ${state.waitingCount}',
-                      key: const Key('stat_waiting_list')),
-                ],
+              if (state is DashboardError) {
+                return Text(
+                  state.message,
+                  key: const Key('dashboard_error'),
+                );
+              }
+              // DashboardInitial, DashboardLoading
+              return const CircularProgressIndicator(
+                key: Key('dashboard_loading'),
               );
             },
           ),
@@ -61,10 +68,23 @@ void main() {
       bloc = _MockDashboardBloc();
     });
 
-    testWidgets('affiche le chargement en état non-Loaded', (tester) async {
+    testWidgets('affiche le chargement en état DashboardInitial', (tester) async {
+      when(() => bloc.state).thenReturn(const DashboardInitial());
+      await tester.pumpWidget(_wrap(bloc));
+      expect(find.byKey(const Key('dashboard_loading')), findsOneWidget);
+    });
+
+    testWidgets('affiche le chargement en état DashboardLoading', (tester) async {
       when(() => bloc.state).thenReturn(const DashboardLoading());
       await tester.pumpWidget(_wrap(bloc));
       expect(find.byKey(const Key('dashboard_loading')), findsOneWidget);
+    });
+
+    testWidgets('affiche une erreur en état DashboardError', (tester) async {
+      when(() => bloc.state)
+          .thenReturn(const DashboardError(message: 'Erreur test'));
+      await tester.pumpWidget(_wrap(bloc));
+      expect(find.byKey(const Key('dashboard_error')), findsOneWidget);
     });
 
     testWidgets('émet state avec counts → assert valeurs visibles',
