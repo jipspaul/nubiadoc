@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../messages/a2ui_message.dart';
 import '../model/component_def.dart';
@@ -45,7 +46,8 @@ class _A2uiRendererState extends State<A2uiRenderer> {
 
   final Map<String, _Surface> _surfaces = {};
   String? _activeSurfaceId;
-  Object? _error;
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -57,32 +59,44 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     );
     _sub = widget.transport
         .connect(widget.endpoint, headers: widget.headers)
-        .listen(_apply, onError: (e) {
-      if (mounted) setState(() => _error = e);
-    });
+        .listen(
+          _apply,
+          onError: (Object e) => setState(() {
+            _error = e.toString();
+            _loading = false;
+          }),
+          onDone: () => setState(() => _loading = false),
+        );
   }
 
   void _apply(A2uiMessage msg) {
-    setState(() {
-      switch (msg) {
-        case CreateSurface(:final surfaceId, :final root):
-          _surfaces[surfaceId] = _Surface(root: root);
-          _activeSurfaceId = surfaceId;
-        case UpdateComponents(:final surfaceId, :final components):
-          final s = _surfaces.putIfAbsent(surfaceId, _Surface.new);
-          for (final def in components) {
-            s.components[def.id] = def;
-            s.root ??= def.id;
-          }
-        case UpdateDataModel(:final surfaceId, :final patch):
-          _surfaces.putIfAbsent(surfaceId, _Surface.new).dataModel.merge(patch);
-        case DeleteSurface(:final surfaceId):
-          _surfaces.remove(surfaceId);
-          if (_activeSurfaceId == surfaceId) {
-            _activeSurfaceId = _surfaces.isEmpty ? null : _surfaces.keys.last;
-          }
-      }
-    });
+    try {
+      setState(() {
+        switch (msg) {
+          case CreateSurface(:final surfaceId, :final root):
+            _surfaces[surfaceId] = _Surface(root: root);
+            _activeSurfaceId = surfaceId;
+          case UpdateComponents(:final surfaceId, :final components):
+            final s = _surfaces.putIfAbsent(surfaceId, _Surface.new);
+            for (final def in components) {
+              s.components[def.id] = def;
+              s.root ??= def.id;
+            }
+          case UpdateDataModel(:final surfaceId, :final patch):
+            _surfaces.putIfAbsent(surfaceId, _Surface.new).dataModel.merge(patch);
+          case DeleteSurface(:final surfaceId):
+            _surfaces.remove(surfaceId);
+            if (_activeSurfaceId == surfaceId) {
+              _activeSurfaceId = _surfaces.isEmpty ? null : _surfaces.keys.last;
+            }
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -98,13 +112,25 @@ class _A2uiRendererState extends State<A2uiRenderer> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
-      return const Center(
-        child: Icon(Icons.error_outline, size: 48),
+      return NubiaErrorWidget(
+        key: const Key('a2ui_renderer_error'),
+        message: _error!,
       );
     }
     final id = _activeSurfaceId;
     if (id == null) {
-      return const Center(child: CircularProgressIndicator());
+      if (_loading) {
+        return const Center(
+          key: Key('a2ui_renderer_loading'),
+          child: CircularProgressIndicator(),
+        );
+      }
+      return const NubiaEmptyState(
+        key: Key('a2ui_renderer_empty'),
+        icon: Icons.web_outlined,
+        title: 'Surface vide',
+        subtitle: 'Aucun contenu A2UI reçu.',
+      );
     }
     final surface = _surfaces[id]!;
     final rootId = surface.root;
