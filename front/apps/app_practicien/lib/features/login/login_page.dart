@@ -78,19 +78,28 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                     ),
                     const SizedBox(height: 16),
-                    Column(
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Text('Nouveau praticien sur Nubia ?'),
                         TextButton(
                           key: const Key('register_pro_link'),
                           onPressed: () => context.go('/register-pro'),
-                          child: const Text('Créer mon compte praticien'),
-                        ),
-                        Text(
-                          'RPPS ou ADELI requis',
-                          style: Theme.of(context).textTheme.bodySmall,
+                          child: Text(
+                            'Créer mon compte praticien',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
                         ),
                       ],
+                    ),
+                    Center(
+                      child: Text(
+                        'RPPS ou ADELI requis',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
                   ],
                 ),
