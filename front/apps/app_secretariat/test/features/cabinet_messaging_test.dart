@@ -369,5 +369,99 @@ void main() {
       expect(find.byKey(const Key('cabinet_messaging_error')), findsOneWidget);
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
+
+    testWidgets(
+      'affiche le chargement en état ConversationsLoading',
+      (tester) async {
+        when(() => bloc.state).thenReturn(
+          const CabinetMessagingConversationsLoading(),
+        );
+        await tester.pumpWidget(buildPage());
+        expect(
+          find.byKey(const Key('cabinet_messaging_loading')),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('affiche le chargement du thread', (tester) async {
+      when(() => bloc.state).thenReturn(
+        const CabinetMessagingThreadLoading('conv1'),
+      );
+      await tester.pumpWidget(buildPage());
+      expect(
+        find.byKey(const Key('cabinet_messaging_thread_loading')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('affiche le thread avec ses messages', (tester) async {
+      when(() => bloc.state).thenReturn(
+        CabinetMessagingThreadLoaded(
+          conversation: const CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          messages: [
+            Message(
+              id: 'msg1',
+              conversationId: 'conv1',
+              sender: MessageSender.patient,
+              text: 'Bonjour',
+              urgency: MessageUrgency.normal,
+              sentAt: DateTime(2026, 1, 1),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('cabinet_messaging_thread_messages')),
+        findsOneWidget,
+      );
+      expect(find.text('Bonjour'), findsOneWidget);
+    });
+
+    testWidgets('affiche le thread vide', (tester) async {
+      when(() => bloc.state).thenReturn(
+        CabinetMessagingThreadLoaded(
+          conversation: const CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          messages: const [],
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('cabinet_messaging_thread_empty')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('affiche l\'erreur de chargement du thread', (tester) async {
+      when(() => bloc.state).thenReturn(
+        const CabinetMessagingThreadError(
+          conversationId: 'conv1',
+          message: 'Erreur de chargement du thread',
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('cabinet_messaging_thread_error')),
+        findsOneWidget,
+      );
+      expect(find.text('Erreur de chargement du thread'), findsOneWidget);
+    });
   });
 }

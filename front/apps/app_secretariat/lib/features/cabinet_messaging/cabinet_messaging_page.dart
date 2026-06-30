@@ -17,59 +17,50 @@ class CabinetMessagingPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Messages')),
       body: BlocBuilder<CabinetMessagingBloc, CabinetMessagingState>(
-        builder: (context, state) {
-          if (state is CabinetMessagingInitial ||
-              state is CabinetMessagingConversationsLoading) {
-            return const Center(
+        builder: (context, state) => switch (state) {
+          CabinetMessagingInitial() ||
+          CabinetMessagingConversationsLoading() =>
+            const Center(
               key: Key('cabinet_messaging_loading'),
               child: CircularProgressIndicator(),
-            );
-          }
-          if (state is CabinetMessagingConversationsError) {
-            return NubiaErrorWidget(
+            ),
+          CabinetMessagingConversationsError(:final message) =>
+            NubiaErrorWidget(
               key: const Key('cabinet_messaging_error'),
-              message: state.message,
+              message: message,
               onRetry: () => context.read<CabinetMessagingBloc>().add(
                 const CabinetMessagingConversationsLoadRequested(),
               ),
-            );
-          }
-          if (state is CabinetMessagingConversationsLoaded) {
-            if (state.conversations.isEmpty) {
-              return const NubiaEmptyState(
-                key: Key('cabinet_messaging_empty'),
-                icon: Icons.chat_bubble_outline,
-                title: 'Aucune conversation',
-              );
-            }
-            return _ConversationsList(
-              conversations: state.conversations,
-              onRefresh: () async {
-                context.read<CabinetMessagingBloc>().add(
-                      const CabinetMessagingConversationsLoadRequested(),
-                    );
-              },
-            );
-          }
-          if (state is CabinetMessagingThreadLoading) {
-            return const Center(
+            ),
+          CabinetMessagingConversationsLoaded(:final conversations) =>
+            conversations.isEmpty
+                ? const NubiaEmptyState(
+                    key: Key('cabinet_messaging_empty'),
+                    icon: Icons.chat_bubble_outline,
+                    title: 'Aucune conversation',
+                  )
+                : _ConversationsList(
+                    conversations: conversations,
+                    onRefresh: () async {
+                      context.read<CabinetMessagingBloc>().add(
+                        const CabinetMessagingConversationsLoadRequested(),
+                      );
+                    },
+                  ),
+          CabinetMessagingThreadLoading() =>
+            const Center(
               key: Key('cabinet_messaging_thread_loading'),
               child: CircularProgressIndicator(),
-            );
-          }
-          if (state is CabinetMessagingThreadLoaded) {
-            return _ThreadView(state: state);
-          }
-          if (state is CabinetMessagingThreadError) {
-            return NubiaErrorWidget(
+            ),
+          final CabinetMessagingThreadLoaded s => _ThreadView(state: s),
+          CabinetMessagingThreadError(:final message) =>
+            NubiaErrorWidget(
               key: const Key('cabinet_messaging_thread_error'),
-              message: state.message,
+              message: message,
               onRetry: () => context.read<CabinetMessagingBloc>().add(
                 const CabinetMessagingBackRequested(),
               ),
-            );
-          }
-          return const SizedBox.shrink();
+            ),
         },
       ),
     );
