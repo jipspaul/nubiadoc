@@ -103,6 +103,7 @@ class _SignupPageState extends State<SignupPage> {
                           : () => context.read<SignupCubit>().register(
                                 _email.text.trim(),
                                 _password.text,
+                                acceptCgu: _cguAccepted,
                               ),
                     ),
                   ],

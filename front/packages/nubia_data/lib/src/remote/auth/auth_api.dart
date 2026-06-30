@@ -21,14 +21,18 @@ class AuthApi {
   Future<AuthResponseDto> register({
     required String email,
     required String password,
-    required String inviteToken,
+    required bool acceptCgu,
+    required String cguVersion,
+    String? inviteToken,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/register',
       data: {
         'email': email,
         'password': password,
-        'invite_token': inviteToken,
+        'accept_cgu': acceptCgu,
+        'cgu_version': cguVersion,
+        if (inviteToken != null) 'invite_token': inviteToken,
       },
     );
     return AuthResponseDto.fromJson(response.data!);

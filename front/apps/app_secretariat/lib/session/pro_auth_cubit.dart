@@ -87,12 +87,16 @@ class ProAuthCubit extends Cubit<AuthState> {
     required String email,
     required String password,
     required String inviteToken,
+    required bool acceptCgu,
+    String cguVersion = '1.0',
   }) async {
     emit(const AuthLoading());
     try {
       final result = await _register(
         email: email,
         password: password,
+        acceptCgu: acceptCgu,
+        cguVersion: cguVersion,
         inviteToken: inviteToken,
       );
       result.fold(

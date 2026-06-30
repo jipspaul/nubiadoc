@@ -10,11 +10,15 @@ class RegisterUseCase {
   Future<Either<Failure, PatientAccount>> call({
     required String email,
     required String password,
-    required String inviteToken,
+    required bool acceptCgu,
+    required String cguVersion,
+    String? inviteToken,
   }) {
     return _repository.register(
       email: email,
       password: password,
+      acceptCgu: acceptCgu,
+      cguVersion: cguVersion,
       inviteToken: inviteToken,
     );
   }

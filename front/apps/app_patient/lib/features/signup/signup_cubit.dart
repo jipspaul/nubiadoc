@@ -32,6 +32,8 @@ final class SignupFailure extends SignupState {
   List<Object?> get props => [message];
 }
 
+const _kCguVersion = '1.0';
+
 class SignupCubit extends Cubit<SignupState> with SafeEmitMixin<SignupState> {
   SignupCubit({
     required RegisterUseCase register,
@@ -43,13 +45,18 @@ class SignupCubit extends Cubit<SignupState> with SafeEmitMixin<SignupState> {
   final RegisterUseCase _register;
   final AuthCubit _authCubit;
 
-  Future<void> register(String email, String password) async {
+  Future<void> register(
+    String email,
+    String password, {
+    required bool acceptCgu,
+  }) async {
     emit(const SignupLoading());
     try {
       final result = await _register(
         email: email,
         password: password,
-        inviteToken: '',
+        acceptCgu: acceptCgu,
+        cguVersion: _kCguVersion,
       );
       await result.fold(
         (failure) async => safeEmit(SignupFailure(failure.message)),
