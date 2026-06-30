@@ -36,10 +36,14 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
         return;
       }
 
-      safeEmit(AdminMembresLoaded(
-        members: membersResult.getOrElse(() => []),
-        secretariats: secretariatsResult.getOrElse(() => []),
-      ));
+      final members = membersResult.getOrElse(() => []);
+      final secretariats = secretariatsResult.getOrElse(() => []);
+
+      if (members.isEmpty && secretariats.isEmpty) {
+        safeEmit(const AdminMembresEmpty());
+      } else {
+        safeEmit(AdminMembresLoaded(members: members, secretariats: secretariats));
+      }
     } catch (_) {
       safeEmit(const AdminMembresError('Erreur de chargement.'));
     }
