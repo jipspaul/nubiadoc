@@ -18,7 +18,6 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
   HealthInsuranceRegime _regime = HealthInsuranceRegime.regimeGeneral;
   final _amc = TextEditingController();
   final _numeroAdherent = TextEditingController();
-  final _nss = TextEditingController();
 
   static String _regimeLabel(HealthInsuranceRegime r) => switch (r) {
         HealthInsuranceRegime.regimeGeneral => 'Régime général',
@@ -30,7 +29,6 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
   void dispose() {
     _amc.dispose();
     _numeroAdherent.dispose();
-    _nss.dispose();
     super.dispose();
   }
 
@@ -104,14 +102,6 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
                     NubiaTextField(
                       controller: _numeroAdherent,
                       label: 'Numéro adhérent (optionnel)',
-                      enabled: !loading,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 12),
-                    NubiaTextField(
-                      variant: NubiaTextFieldVariant.password,
-                      controller: _nss,
-                      label: 'Numéro de sécurité sociale',
                       enabled: !loading,
                       onChanged: (_) => setState(() {}),
                     ),
