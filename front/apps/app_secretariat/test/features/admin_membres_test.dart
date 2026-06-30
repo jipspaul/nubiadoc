@@ -198,6 +198,12 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
+    testWidgets('affiche le chargement en état Loading', (tester) async {
+      when(() => bloc.state).thenReturn(const AdminMembresLoading());
+      await tester.pumpWidget(buildPage());
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
     testWidgets('affiche les membres — aucun champ clinique visible',
         (tester) async {
       when(() => bloc.state).thenReturn(
