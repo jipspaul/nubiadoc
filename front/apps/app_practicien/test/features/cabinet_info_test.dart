@@ -166,6 +166,17 @@ void main() {
       expect(_submitButton(tester).onPressed, isNotNull);
     });
 
+    testWidgets('CabinetInfoLoading → spinner affiché, bouton désactivé',
+        (tester) async {
+      when(() => cubit.state).thenReturn(const CabinetInfoLoading());
+      await tester.pumpWidget(_wrap(cubit));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      final btn = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(btn.onPressed, isNull);
+    });
+
     testWidgets('CabinetInfoFailure → snackbar affiché', (tester) async {
       whenListen(
         cubit,
