@@ -197,7 +197,7 @@ void main() {
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const DevisInitial());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
     testWidgets('affiche les devis — aucun champ clinique visible',
