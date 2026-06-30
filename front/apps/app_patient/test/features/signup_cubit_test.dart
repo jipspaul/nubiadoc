@@ -50,13 +50,15 @@ void main() {
           () => mockRegister(
             email: any(named: 'email'),
             password: any(named: 'password'),
-            inviteToken: any(named: 'inviteToken'),
+            acceptCgu: any(named: 'acceptCgu'),
+            cguVersion: any(named: 'cguVersion'),
           ),
         ).thenAnswer((_) async => const Right(_account));
         when(() => mockAuth.restore()).thenAnswer((_) async {});
         return makeCubit();
       },
-      act: (c) => c.register('alice@example.com', 'secret'),
+      act: (c) =>
+          c.register('alice@example.com', 'secret', acceptCgu: true),
       expect: () => [isA<SignupLoading>(), isA<SignupSuccess>()],
       verify: (_) => verify(() => mockAuth.restore()).called(1),
     );
@@ -68,7 +70,8 @@ void main() {
           () => mockRegister(
             email: any(named: 'email'),
             password: any(named: 'password'),
-            inviteToken: any(named: 'inviteToken'),
+            acceptCgu: any(named: 'acceptCgu'),
+            cguVersion: any(named: 'cguVersion'),
           ),
         ).thenAnswer(
           (_) async => const Left(
@@ -80,7 +83,8 @@ void main() {
         );
         return makeCubit();
       },
-      act: (c) => c.register('alice@example.com', 'secret'),
+      act: (c) =>
+          c.register('alice@example.com', 'secret', acceptCgu: true),
       expect: () => [
         isA<SignupLoading>(),
         isA<SignupFailure>()
@@ -95,14 +99,16 @@ void main() {
           () => mockRegister(
             email: any(named: 'email'),
             password: any(named: 'password'),
-            inviteToken: any(named: 'inviteToken'),
+            acceptCgu: any(named: 'acceptCgu'),
+            cguVersion: any(named: 'cguVersion'),
           ),
         ).thenAnswer(
           (_) async => const Left(NetworkFailure()),
         );
         return makeCubit();
       },
-      act: (c) => c.register('alice@example.com', 'secret'),
+      act: (c) =>
+          c.register('alice@example.com', 'secret', acceptCgu: true),
       expect: () => [
         isA<SignupLoading>(),
         isA<SignupFailure>().having(

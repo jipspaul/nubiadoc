@@ -129,6 +129,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                                       email: _email.text.trim(),
                                       password: _password.text,
                                       inviteToken: widget.invitationToken!,
+                                      acceptCgu: _cguAccepted,
                                     )
                             : null,
                       ),

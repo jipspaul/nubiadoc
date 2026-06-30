@@ -11,7 +11,9 @@ abstract class AuthRepository {
   Future<Either<Failure, PatientAccount>> register({
     required String email,
     required String password,
-    required String inviteToken,
+    required bool acceptCgu,
+    required String cguVersion,
+    String? inviteToken,
   });
   Future<Either<Failure, String>> registerPro({
     required String email,

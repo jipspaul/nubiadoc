@@ -59,6 +59,8 @@ void main() {
           () => mockRegister(
             email: any(named: 'email'),
             password: any(named: 'password'),
+            acceptCgu: any(named: 'acceptCgu'),
+            cguVersion: any(named: 'cguVersion'),
             inviteToken: any(named: 'inviteToken'),
           ),
         ).thenAnswer((_) async => const Right(_account));
@@ -68,6 +70,7 @@ void main() {
         email: 'alice@example.com',
         password: 's3cr3t',
         inviteToken: 'tok-valid',
+        acceptCgu: true,
       ),
       expect: () => [
         const AuthLoading(),
@@ -85,6 +88,8 @@ void main() {
           () => mockRegister(
             email: any(named: 'email'),
             password: any(named: 'password'),
+            acceptCgu: any(named: 'acceptCgu'),
+            cguVersion: any(named: 'cguVersion'),
             inviteToken: any(named: 'inviteToken'),
           ),
         ).thenAnswer(
@@ -98,6 +103,7 @@ void main() {
         email: 'alice@example.com',
         password: 's3cr3t',
         inviteToken: '',
+        acceptCgu: true,
       ),
       expect: () => [
         const AuthLoading(),
@@ -119,6 +125,8 @@ void main() {
           () => mockRegister(
             email: any(named: 'email'),
             password: any(named: 'password'),
+            acceptCgu: any(named: 'acceptCgu'),
+            cguVersion: any(named: 'cguVersion'),
             inviteToken: any(named: 'inviteToken'),
           ),
         ).thenThrow(Exception('Erreur réseau'));
@@ -128,6 +136,7 @@ void main() {
         email: 'alice@example.com',
         password: 's3cr3t',
         inviteToken: 'tok-valid',
+        acceptCgu: true,
       ),
       expect: () => [
         const AuthLoading(),

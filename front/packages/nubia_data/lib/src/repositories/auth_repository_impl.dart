@@ -46,12 +46,16 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Either<Failure, PatientAccount>> register({
     required String email,
     required String password,
-    required String inviteToken,
+    required bool acceptCgu,
+    required String cguVersion,
+    String? inviteToken,
   }) async {
     try {
       final response = await _api.register(
         email: email,
         password: password,
+        acceptCgu: acceptCgu,
+        cguVersion: cguVersion,
         inviteToken: inviteToken,
       );
       await _tokenStorage.saveTokens(
