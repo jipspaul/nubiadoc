@@ -10,26 +10,25 @@ class OubliettesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<OubliettesBloc, OubliettesState>(
-      builder: (context, state) {
-        if (state is OubliettesInitial || state is OubliettesLoading) {
-          return const Center(
+      builder: (context, state) => switch (state) {
+        OubliettesInitial() || OubliettesLoading() => const Center(
             key: Key('oubliettes_loading'),
             child: CircularProgressIndicator(),
-          );
-        }
-        if (state is OubliettesError) {
-          return NubiaErrorWidget(
+          ),
+        OubliettesEmpty() => const NubiaEmptyState(
+            key: Key('oubliettes_empty'),
+            icon: Icons.inbox_outlined,
+            title: 'Aucun document récent',
+            subtitle: 'Les documents consultés récemment apparaîtront ici',
+          ),
+        OubliettesError(:final message) => NubiaErrorWidget(
             key: const Key('oubliettes_error'),
-            message: state.message,
+            message: message,
             onRetry: () => context
                 .read<OubliettesBloc>()
                 .add(const OubliettesLoadRequested()),
-          );
-        }
-        if (state is OubliettesLoaded) {
-          return _OubliettesContent(items: state.items);
-        }
-        return const SizedBox.shrink();
+          ),
+        OubliettesLoaded(:final items) => _OubliettesContent(items: items),
       },
     );
   }
@@ -44,14 +43,6 @@ class _OubliettesContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const NubiaEmptyState(
-        key: Key('oubliettes_empty'),
-        icon: Icons.inbox_outlined,
-        title: 'Aucun document récent',
-        subtitle: 'Les documents consultés récemment apparaîtront ici',
-      );
-    }
     return ListView.builder(
       key: const Key('oubliettes_list'),
       padding: const EdgeInsets.all(16),
