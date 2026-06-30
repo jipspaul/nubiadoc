@@ -28,15 +28,7 @@ class _DocumentsPageStub extends StatelessWidget {
     return BlocBuilder<DocumentsBloc, DocumentsState>(
       builder: (context, state) {
         if (state is DocumentsLoading || state is DocumentsInitial) {
-          return const Column(
-            children: [
-              NubiaSkeletonLoader(height: 56),
-              SizedBox(height: 8),
-              NubiaSkeletonLoader(height: 56),
-              SizedBox(height: 8),
-              NubiaSkeletonLoader(height: 56),
-            ],
-          );
+          return const Center(child: CircularProgressIndicator());
         }
         if (state is DocumentsLoaded && state.documents.isEmpty) {
           return const NubiaEmptyState(
@@ -62,15 +54,16 @@ Widget _wrap(DocumentsBloc bloc) => MaterialApp(
 // ---------------------------------------------------------------------------
 
 void main() {
-  group('DocumentsPage — skeleton Loading', () {
-    testWidgets('affiche NubiaSkeletonLoader en état Loading', (tester) async {
+  group('DocumentsPage — loading', () {
+    testWidgets('affiche CircularProgressIndicator en état Loading',
+        (tester) async {
       final bloc = _MockDocumentsBloc();
       when(() => bloc.state).thenReturn(const DocumentsLoading());
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
 
-      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
   });
 
