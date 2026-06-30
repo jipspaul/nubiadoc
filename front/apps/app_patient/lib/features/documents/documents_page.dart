@@ -73,16 +73,9 @@ class _DocumentsBody extends StatelessWidget {
       child: BlocBuilder<DocumentsBloc, DocumentsState>(
         builder: (context, state) {
           if (state is DocumentsLoading || state is DocumentsInitial) {
-            return ListView(
-              key: const Key('documents_loading'),
-              padding: const EdgeInsets.all(16),
-              children: List.generate(
-                3,
-                (_) => const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: NubiaSkeletonLoader(height: 72),
-                ),
-              ),
+            return const Center(
+              key: Key('documents_loading'),
+              child: CircularProgressIndicator(),
             );
           }
           if (state is DocumentsError) {
