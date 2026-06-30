@@ -72,7 +72,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash, signup, accountSetup, coverageSetup},
+        authRoutes: const {login, splash, signup},
       ),
       routes: [
         GoRoute(
