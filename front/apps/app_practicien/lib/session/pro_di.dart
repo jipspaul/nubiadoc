@@ -15,7 +15,7 @@ import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
 void registerPro(GetIt gi) {
-  gi.registerFactory<ProAuthCubit>(
+  gi.registerLazySingleton<ProAuthCubit>(
     () => ProAuthCubit(
       login: gi<LoginUseCase>(),
       logout: gi<LogoutUseCase>(),
