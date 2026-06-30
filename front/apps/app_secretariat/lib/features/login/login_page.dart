@@ -5,6 +5,47 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
 
+class _InvitationHelpCard extends StatelessWidget {
+  const _InvitationHelpCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('login_invitation_help_card'),
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline,
+                color: Theme.of(context).colorScheme.primary, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pas de compte ?',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "Le compte secrétariat se crée sur invitation par le praticien. "
+                    "Si vous avez reçu un lien d'invitation par email, ouvrez-le pour finaliser votre inscription.",
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Professional login (shared backend `POST /v1/auth/login`).
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -71,6 +112,8 @@ class _LoginPageState extends State<LoginPage> {
                                 password: _password.text,
                               ),
                     ),
+                    const SizedBox(height: 24),
+                    const _InvitationHelpCard(),
                   ],
                 ),
               );
