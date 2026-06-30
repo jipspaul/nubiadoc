@@ -28,15 +28,7 @@ class _ReviewsPageStub extends StatelessWidget {
     return BlocBuilder<ReviewsBloc, ReviewsState>(
       builder: (context, state) {
         if (state is ReviewsLoading || state is ReviewsInitial) {
-          return const Column(
-            children: [
-              NubiaSkeletonLoader(height: 72),
-              SizedBox(height: 8),
-              NubiaSkeletonLoader(height: 72),
-              SizedBox(height: 8),
-              NubiaSkeletonLoader(height: 72),
-            ],
-          );
+          return const Center(child: CircularProgressIndicator());
         }
         if (state is ReviewsLoaded && state.reviews.isEmpty) {
           return const NubiaEmptyState(
@@ -62,15 +54,16 @@ Widget _wrap(ReviewsBloc bloc) => MaterialApp(
 // ---------------------------------------------------------------------------
 
 void main() {
-  group('ReviewsPage — skeleton Loading', () {
-    testWidgets('affiche NubiaSkeletonLoader en état Loading', (tester) async {
+  group('ReviewsPage — loading', () {
+    testWidgets('affiche CircularProgressIndicator en état Loading',
+        (tester) async {
       final bloc = _MockReviewsBloc();
       when(() => bloc.state).thenReturn(const ReviewsLoading());
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
 
-      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
   });
 
