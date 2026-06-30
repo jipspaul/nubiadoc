@@ -39,6 +39,38 @@ class AuthApi {
     return PatientAccountDto.fromJson(response.data!);
   }
 
+  Future<ProRegisterResponseDto> registerPro({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    String? rpps,
+    String? adeli,
+    required String raisonSociale,
+    String? siret,
+    required String specialite,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/pro/register',
+      data: {
+        'email': email,
+        'password': password,
+        'practitioner': {
+          'first_name': firstName,
+          'last_name': lastName,
+          if (rpps != null) 'rpps': rpps,
+          if (adeli != null) 'adeli': adeli,
+        },
+        'cabinet': {
+          'raison_sociale': raisonSociale,
+          if (siret != null) 'siret': siret,
+          'specialite': specialite,
+        },
+      },
+    );
+    return ProRegisterResponseDto.fromJson(response.data!);
+  }
+
   Future<TokenResponseDto> refresh({required String refreshToken}) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/refresh',

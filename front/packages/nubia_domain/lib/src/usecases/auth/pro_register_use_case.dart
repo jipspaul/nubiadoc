@@ -41,7 +41,6 @@ class ProRegisterRequest extends Equatable {
 }
 
 class ProRegisterUseCase {
-  // ignore: unused_field
   final AuthRepository _repository;
   const ProRegisterUseCase(this._repository);
 
@@ -51,10 +50,16 @@ class ProRegisterUseCase {
         ValidationFailure(message: 'RPPS ou ADELI requis.'),
       );
     }
-    // Stub — pending D1 backend endpoint (registerPro).
-    return const Left(
-      ServerFailure(
-          message: 'Inscription praticien non disponible.', statusCode: 501),
+    return _repository.registerPro(
+      email: request.email,
+      password: request.password,
+      firstName: request.firstName,
+      lastName: request.lastName,
+      rpps: request.rpps,
+      adeli: request.adeli,
+      raisonSociale: request.raisonSociale,
+      siret: request.siret,
+      specialite: request.specialite,
     );
   }
 }
