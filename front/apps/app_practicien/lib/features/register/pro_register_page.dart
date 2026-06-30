@@ -137,6 +137,7 @@ class _ProRegisterPageState extends State<ProRegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('register_pro_scaffold'),
       appBar: AppBar(title: const Text('Créer un compte praticien')),
       body: Center(
         child: ConstrainedBox(
