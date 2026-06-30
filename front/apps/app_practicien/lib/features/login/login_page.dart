@@ -34,7 +34,12 @@ class _LoginPageState extends State<LoginPage> {
           constraints: const BoxConstraints(maxWidth: 420),
           child: BlocBuilder<ProAuthCubit, AuthState>(
             builder: (context, state) {
-              final loading = state is AuthLoading;
+              final (loading, errorMessage) = switch (state) {
+                AuthUnknown() => (false, null as String?),
+                AuthLoading() => (true, null),
+                AuthAuthenticated() => (false, null),
+                AuthUnauthenticated(:final message) => (false, message),
+              };
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -55,10 +60,9 @@ class _LoginPageState extends State<LoginPage> {
                       label: 'Mot de passe',
                       variant: NubiaTextFieldVariant.password,
                     ),
-                    if (state is AuthUnauthenticated &&
-                        state.message != null) ...[
+                    if (errorMessage != null) ...[
                       const SizedBox(height: 12),
-                      Text(state.message!,
+                      Text(errorMessage,
                           style: TextStyle(
                               color: Theme.of(context).colorScheme.error)),
                     ],
