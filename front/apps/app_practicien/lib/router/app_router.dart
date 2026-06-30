@@ -49,7 +49,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash, registerPro, cabinetSetup},
+        authRoutes: const {login, splash, registerPro},
       ),
       routes: [
         GoRoute(
