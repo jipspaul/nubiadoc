@@ -79,8 +79,9 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Text('Pas encore de compte ?'),
                         TextButton(
