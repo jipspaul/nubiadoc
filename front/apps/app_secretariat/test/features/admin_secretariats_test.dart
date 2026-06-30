@@ -101,6 +101,20 @@ void main() {
     );
 
     blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+      'émet Loading puis Empty sur liste vide',
+      build: () {
+        when(() => secretariatRepo.list())
+            .thenAnswer((_) async => const Right([]));
+        return AdminSecretiariatsBloc(listSecretariats: listSecretariats);
+      },
+      act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
+      expect: () => [
+        const AdminSecretiariatsLoading(),
+        const AdminSecretiariatsEmpty(),
+      ],
+    );
+
+    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
       'émet Loading puis Error sur échec',
       build: () {
         when(() => secretariatRepo.list()).thenAnswer(
@@ -151,10 +165,25 @@ void main() {
           ),
         );
 
-    testWidgets('affiche le chargement en état initial', (tester) async {
+    testWidgets('affiche le chargement en état Initial', (tester) async {
       when(() => bloc.state).thenReturn(const AdminSecretiariatsInitial());
       await tester.pumpWidget(buildPage());
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('affiche le chargement en état Loading', (tester) async {
+      when(() => bloc.state).thenReturn(const AdminSecretiariatsLoading());
+      await tester.pumpWidget(buildPage());
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('affiche l\'état vide', (tester) async {
+      when(() => bloc.state).thenReturn(const AdminSecretiariatsEmpty());
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('admin_secretariats_empty')), findsOneWidget);
+      expect(find.text('Aucun secrétariat enregistré.'), findsOneWidget);
     });
 
     testWidgets('affiche les secrétariats — aucun champ clinique visible',
@@ -182,16 +211,6 @@ void main() {
       expect(find.text('Notes médicales'), findsNothing);
       expect(find.textContaining('motif'), findsNothing);
       expect(find.textContaining('notes'), findsNothing);
-    });
-
-    testWidgets('affiche un message si la liste est vide', (tester) async {
-      when(() => bloc.state).thenReturn(
-        const AdminSecretiariatsLoaded(secretariats: []),
-      );
-      await tester.pumpWidget(buildPage());
-      await tester.pumpAndSettle();
-
-      expect(find.text('Aucun secrétariat enregistré.'), findsOneWidget);
     });
 
     testWidgets('affiche le message d\'erreur', (tester) async {
