@@ -1,11 +1,35 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
 
+import 'package:app_patient/features/appointments/appointments_bloc.dart';
+import 'package:app_patient/features/appointments/appointments_event.dart';
+import 'package:app_patient/features/appointments/appointments_state.dart';
 import 'package:app_patient/features/booking/book_appointment_page.dart';
 
+class _MockAppointmentsBloc
+    extends MockBloc<AppointmentsEvent, AppointmentsState>
+    implements AppointmentsBloc {}
+
 void main() {
-  testWidgets('tap FAB "Booker un RDV" navigue vers /book', (tester) async {
+  late _MockAppointmentsBloc mockBloc;
+
+  setUp(() {
+    mockBloc = _MockAppointmentsBloc();
+    when(() => mockBloc.state).thenReturn(const AppointmentsInitial());
+    when(() => mockBloc.stream).thenAnswer((_) => const Stream.empty());
+    GetIt.instance.registerFactory<AppointmentsBloc>(() => mockBloc);
+  });
+
+  tearDown(() async {
+    await GetIt.instance.reset();
+  });
+
+  testWidgets('tap FAB "Booker un RDV" navigue vers /book et affiche le formulaire',
+      (tester) async {
     final router = GoRouter(
       initialLocation: '/mes-rdv',
       routes: [
@@ -34,6 +58,7 @@ void main() {
     await tester.tap(find.byKey(const Key('book_rdv_fab')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Booking flow viendra (FR1.33+)'), findsOneWidget);
+    expect(find.byKey(const Key('book_appointment_scaffold')), findsOneWidget);
+    expect(find.byKey(const Key('search_field')), findsOneWidget);
   });
 }
