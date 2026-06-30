@@ -247,5 +247,16 @@ void main() {
 
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
+
+    testWidgets('affiche NubiaEmptyState en état AdminMembresEmpty',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const AdminMembresEmpty());
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('admin_membres_empty')), findsOneWidget);
+      expect(find.text('Aucun membre ni secrétariat enregistré.'),
+          findsOneWidget);
+    });
   });
 }
