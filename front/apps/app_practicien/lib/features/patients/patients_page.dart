@@ -43,17 +43,6 @@ class _PatientsBodyState extends State<_PatientsBody> {
   Widget build(BuildContext context) {
     return BlocBuilder<PatientsBloc, PatientsState>(
       builder: (context, state) {
-        if (state is PatientsInitial || state is PatientsLoading) {
-          return ListView.builder(
-            key: const Key('patients_loading'),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: 6,
-            itemBuilder: (_, __) => const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: NubiaSkeletonLoader(height: 56),
-            ),
-          );
-        }
         if (state is PatientsError) {
           return NubiaErrorWidget(
             key: const Key('patients_error'),
@@ -109,7 +98,10 @@ class _PatientsBodyState extends State<_PatientsBody> {
             ],
           );
         }
-        return const SizedBox.shrink();
+        return const Center(
+          key: Key('patients_loading'),
+          child: CircularProgressIndicator(),
+        );
       },
     );
   }
@@ -174,17 +166,6 @@ class _PatientDetailBody extends StatelessWidget {
         }
       },
       builder: (context, state) {
-        if (state is PatientsInitial || state is PatientsLoading) {
-          return ListView.builder(
-            key: const Key('patient_detail_loading'),
-            padding: const EdgeInsets.all(16),
-            itemCount: 4,
-            itemBuilder: (_, __) => const Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: NubiaSkeletonLoader(height: 56),
-            ),
-          );
-        }
         if (state is PatientDetailError) {
           return NubiaErrorWidget(
             key: const Key('patient_detail_error'),
@@ -194,7 +175,10 @@ class _PatientDetailBody extends StatelessWidget {
         if (state is PatientDetailLoaded) {
           return _DetailView(state: state);
         }
-        return const SizedBox.shrink();
+        return const Center(
+          key: Key('patient_detail_loading'),
+          child: CircularProgressIndicator(),
+        );
       },
     );
   }
