@@ -72,3 +72,22 @@ class AuthResponseDto {
     );
   }
 }
+
+class ProRegisterResponseDto {
+  final String accountId;
+  final String accessToken;
+  final String refreshToken;
+
+  const ProRegisterResponseDto({
+    required this.accountId,
+    required this.accessToken,
+    required this.refreshToken,
+  });
+
+  factory ProRegisterResponseDto.fromJson(Map<String, dynamic> json) =>
+      ProRegisterResponseDto(
+        accountId: json['account_id'] as String,
+        accessToken: json['access_token'] as String,
+        refreshToken: json['refresh_token'] as String? ?? '',
+      );
+}
