@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-30T14:31:09.813Z
+Last run: 2026-06-30T14:41:59.628Z
 
 ## Faux positifs connus (méthode C)
 
@@ -21,56 +21,56 @@ Last run: 2026-06-30T14:31:09.813Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /signup | 2026-06-30 | 2026-06-30T14:31:27.084Z | blank-canvas | blank-canvas P0 |
-| /account-setup | 2026-06-30 | 2026-06-30T14:31:32.443Z | blank-canvas | blank-canvas P0 |
-| /coverage-setup | 2026-06-30 | 2026-06-30T14:31:37.812Z | blank-canvas | blank-canvas P0 |
-| /oubliettes | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /book | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /a2ui-demo | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /reviews | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| / | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /appointments | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /mes-rdv | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /documents | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /financial | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /profile | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /messaging | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /notifications | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /login | 2026-06-30 | 2026-06-30T14:31:21.705Z | blank-canvas | blank-canvas P0 |
+| /signup | 2026-06-30 | 2026-06-30T14:42:33.065Z | blank-canvas | blank-canvas P0 |
+| /account-setup | 2026-06-30 | 2026-06-30T14:42:40.025Z | blank-canvas | blank-canvas P0 |
+| /coverage-setup | 2026-06-30 | 2026-06-30T14:42:46.868Z | blank-canvas | blank-canvas P0 |
+| /oubliettes | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /book | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /a2ui-demo | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /reviews | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| / | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /appointments | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /mes-rdv | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /documents | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /financial | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /profile | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /messaging | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /notifications | 2026-06-30 | 2026-06-30T14:43:43.964Z | login_failed | login_failed |
+| /login | 2026-06-30 | 2026-06-30T14:42:54.080Z | blank-canvas | blank-canvas P0 |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /register-pro | 2026-06-30 | 2026-06-30T14:32:26.927Z | blank-canvas | blank-canvas P0 |
-| /a2ui-demo | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| / | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /agenda | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /waiting-room | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /patients | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /messages | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /consultation | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /ordonnances | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /cabinet-setup | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /login | 2026-06-30 | 2026-06-30T14:32:21.539Z | blank-canvas | blank-canvas P0 |
+| /register-pro | 2026-06-30 | 2026-06-30T14:43:51.156Z | blank-canvas | blank-canvas P0 |
+| /a2ui-demo | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| / | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| /agenda | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| /waiting-room | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| /patients | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| /messages | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| /consultation | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| /ordonnances | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| /cabinet-setup | 2026-06-30 | 2026-06-30T14:45:18.217Z | login_failed | login_failed |
+| /login | 2026-06-30 | 2026-06-30T14:43:58.284Z | blank-canvas | blank-canvas P0 |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /onboard | 2026-06-30 | 2026-06-30T14:33:46.153Z | blank-canvas | blank-canvas P0 |
-| /messages | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /admin-membres | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /admin-secretariats | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /a2ui-demo | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| / | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /agenda | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /appointments | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /salle-attente | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /patients | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /liste-attente | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /bookable-slots | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /devis | 2026-06-30 | 2026-06-30T13:30:55.061Z | OK | — |
-| /login | 2026-06-30 | 2026-06-30T14:33:40.667Z | blank-canvas | blank-canvas P0 |
+| /onboard | 2026-06-30 | 2026-06-30T14:45:24.924Z | blank-canvas | blank-canvas P0 |
+| /messages | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /admin-membres | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /admin-secretariats | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /a2ui-demo | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| / | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /agenda | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /appointments | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /salle-attente | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /patients | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /liste-attente | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /bookable-slots | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /devis | 2026-06-30 | 2026-06-30T14:46:21.809Z | login_failed | login_failed |
+| /login | 2026-06-30 | 2026-06-30T14:45:31.950Z | blank-canvas | blank-canvas P0 |
