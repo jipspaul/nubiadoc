@@ -72,6 +72,7 @@ class _AccountSetupPageState extends State<AccountSetupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('account_setup_scaffold'),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -86,7 +87,12 @@ class _AccountSetupPageState extends State<AccountSetupPage> {
               }
             },
             builder: (context, state) {
-              final loading = state is AccountSetupLoading;
+              final loading = switch (state) {
+                AccountSetupIdle() => false,
+                AccountSetupLoading() => true,
+                AccountSetupSuccess() => false,
+                AccountSetupFailure() => false,
+              };
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Column(

@@ -213,5 +213,44 @@ void main() {
 
       expect(find.text('Erreur serveur.'), findsOneWidget);
     });
+
+    testWidgets('AccountSetupIdle : scaffold et formulaire visibles',
+        (tester) async {
+      when(() => cubit.state).thenReturn(const AccountSetupIdle());
+      await tester.pumpWidget(_wrap(cubit));
+
+      expect(find.byKey(const Key('account_setup_scaffold')), findsOneWidget);
+      expect(find.text('Mon profil'), findsOneWidget);
+      expect(find.text('Continuer'), findsOneWidget);
+    });
+
+    testWidgets('AccountSetupLoading : bouton en cours de chargement',
+        (tester) async {
+      when(() => cubit.state).thenReturn(const AccountSetupLoading());
+      await tester.pumpWidget(_wrap(cubit));
+
+      expect(find.byKey(const Key('account_setup_scaffold')), findsOneWidget);
+      final btn = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(btn.onPressed, isNull);
+    });
+
+    testWidgets('AccountSetupSuccess : scaffold visible avant redirection',
+        (tester) async {
+      when(() => cubit.state).thenReturn(const AccountSetupSuccess());
+      await tester.pumpWidget(_wrap(cubit));
+
+      expect(find.byKey(const Key('account_setup_scaffold')), findsOneWidget);
+      expect(find.text('Mon profil'), findsOneWidget);
+    });
+
+    testWidgets('AccountSetupFailure statique : formulaire visible',
+        (tester) async {
+      when(() => cubit.state)
+          .thenReturn(const AccountSetupFailure('Erreur réseau.'));
+      await tester.pumpWidget(_wrap(cubit));
+
+      expect(find.byKey(const Key('account_setup_scaffold')), findsOneWidget);
+      expect(find.text('Mon profil'), findsOneWidget);
+    });
   });
 }
