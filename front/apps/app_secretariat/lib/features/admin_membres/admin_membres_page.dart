@@ -35,6 +35,7 @@ class _AdminMembresPageState extends State<AdminMembresPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('admin_membres_scaffold'),
       appBar: AppBar(
         title: const Text('Membres & Secrétariats'),
         actions: [
