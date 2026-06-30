@@ -169,7 +169,22 @@ void main() {
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const WaitingListInitial());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+    });
+
+    testWidgets('affiche le skeleton en état Loading', (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingListLoading());
+      await tester.pumpWidget(buildPage());
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
+    });
+
+    testWidgets('OfferSuccess affiche l\'état vide (rechargement en cours)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const WaitingListOfferSuccess());
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NubiaEmptyState), findsOneWidget);
     });
 
     testWidgets('affiche les patients — aucun champ clinique visible',
