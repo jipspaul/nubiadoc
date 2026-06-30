@@ -91,14 +91,7 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      itemCount: 5,
-      itemBuilder: (_, __) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: NubiaSkeletonLoader(height: 72),
-      ),
-    );
+    return const Center(child: CircularProgressIndicator());
   }
 }
 
