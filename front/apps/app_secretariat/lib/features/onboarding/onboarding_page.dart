@@ -63,6 +63,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         }
       },
       child: Scaffold(
+        key: const Key('onboarding_scaffold'),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
