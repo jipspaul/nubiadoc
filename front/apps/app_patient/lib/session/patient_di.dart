@@ -20,7 +20,7 @@ import 'auth_cubit.dart';
 
 /// Registers patient-app blocs/cubits on top of registerCore + registerData.
 void registerPatient(GetIt gi) {
-  gi.registerFactory<AuthCubit>(
+  gi.registerLazySingleton<AuthCubit>(
     () => AuthCubit(
       login: gi<LoginUseCase>(),
       getMe: gi<GetMeUseCase>(),

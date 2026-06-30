@@ -12,11 +12,6 @@ class RegisterUseCase {
     required String password,
     required String inviteToken,
   }) {
-    if (inviteToken.isEmpty) {
-      return Future.value(
-        const Left(ValidationFailure(message: "Jeton d'invitation manquant.")),
-      );
-    }
     return _repository.register(
       email: email,
       password: password,
