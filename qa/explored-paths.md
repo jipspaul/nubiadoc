@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-06-29T21:04:21.267Z
+Last run: 2026-06-30T06:43:16.927Z
 
 ## Faux positifs connus (méthode C)
 
@@ -21,42 +21,40 @@ Last run: 2026-06-29T21:04:21.267Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /profile | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /mes-rdv | 2026-06-28 | 2026-06-29T21:04:21.267Z | OK | — |
-| /documents | 2026-06-28 | 2026-06-29T19:25:04.747Z | OK | — |
-| /financial | 2026-06-28 | 2026-06-29T21:04:21.267Z | OK | — |
-| /reviews | 2026-06-29 | 2026-06-29T19:25:10.929Z | OK | — |
-| /book | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| / | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /appointments | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /messaging | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /oubliettes | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
+| / | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /appointments | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /mes-rdv | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /documents | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /financial | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /profile | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /messaging | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /reviews | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /ordonnances | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /waiting-room | 2026-06-28 | 2026-06-29T19:25:29.496Z | OK | — |
-| /consultation | 2026-06-28 | 2026-06-29T21:04:21.267Z | OK | — |
-| /cabinet-setup | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| / | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /agenda | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /patients | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /messages | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /register-pro | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
+| / | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /agenda | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /waiting-room | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /patients | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /messages | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /consultation | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /ordonnances | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /cabinet-setup | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /appointments | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /salle-attente | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /messages | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| /agenda | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
-| / | 2026-06-28 | 2026-06-29T21:04:21.267Z | OK | — |
-| /patients | 2026-06-28 | 2026-06-29T21:04:21.267Z | OK | — |
-| /liste-attente | 2026-06-28 | 2026-06-29T21:04:21.267Z | OK | — |
-| /admin-secretariats | 2026-06-29 | 2026-06-29T21:04:21.267Z | OK | — |
+| / | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /agenda | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /appointments | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /salle-attente | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /patients | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /liste-attente | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /bookable-slots | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+| /devis | 2026-06-30 | 2026-06-30T06:43:16.927Z | blank-canvas | blank-canvas |
+
