@@ -35,16 +35,7 @@ class AppointmentsPage extends StatelessWidget {
             return _SearchInput(key: const Key('search_input'));
           }
           if (state is AppointmentsSearchLoading) {
-            return ListView(
-              padding: const EdgeInsets.all(16),
-              children: List.generate(
-                3,
-                (_) => const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: NubiaSkeletonLoader(height: 72),
-                ),
-              ),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
           if (state is AppointmentsProvidersLoaded) {
             return _ProvidersList(state: state);
