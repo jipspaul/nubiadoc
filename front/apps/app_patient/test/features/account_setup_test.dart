@@ -230,7 +230,7 @@ void main() {
       await tester.pumpWidget(_wrap(cubit));
 
       expect(find.byKey(const Key('account_setup_scaffold')), findsOneWidget);
-      final btn = _submitButton(tester);
+      final btn = tester.widget<FilledButton>(find.byType(FilledButton));
       expect(btn.onPressed, isNull);
     });
 
