@@ -90,6 +90,7 @@ class _LoginPageState extends State<LoginPage> {
                       children: [
                         const Text('Pas encore de compte ?'),
                         TextButton(
+                          key: const Key('signup_link'),
                           onPressed: () => context.go('/signup'),
                           child: Text(
                             'Créer mon compte',
