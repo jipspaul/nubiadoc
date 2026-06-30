@@ -55,6 +55,10 @@ final class OubliettesLoading extends OubliettesState {
   const OubliettesLoading();
 }
 
+final class OubliettesEmpty extends OubliettesState {
+  const OubliettesEmpty();
+}
+
 final class OubliettesLoaded extends OubliettesState {
   final List<OublietteItem> items;
 
@@ -88,24 +92,32 @@ class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
     Emitter<OubliettesState> emit,
   ) async {
     emit(const OubliettesLoading());
-    // Mock local — la route /v1/documents?recent=true viendra plus tard.
-    final items = [
-      OublietteItem(
-        id: '1',
-        title: 'Ordonnance Dr Martin',
-        seenAt: DateTime(2026, 6, 19),
-      ),
-      OublietteItem(
-        id: '2',
-        title: 'Radio panoramique',
-        seenAt: DateTime(2026, 6, 18),
-      ),
-      OublietteItem(
-        id: '3',
-        title: 'Bilan sanguin',
-        seenAt: DateTime(2026, 6, 15),
-      ),
-    ];
-    emit(OubliettesLoaded(items));
+    try {
+      // Mock local — la route /v1/documents?recent=true viendra plus tard.
+      final items = [
+        OublietteItem(
+          id: '1',
+          title: 'Ordonnance Dr Martin',
+          seenAt: DateTime(2026, 6, 19),
+        ),
+        OublietteItem(
+          id: '2',
+          title: 'Radio panoramique',
+          seenAt: DateTime(2026, 6, 18),
+        ),
+        OublietteItem(
+          id: '3',
+          title: 'Bilan sanguin',
+          seenAt: DateTime(2026, 6, 15),
+        ),
+      ];
+      if (items.isEmpty) {
+        safeEmit(const OubliettesEmpty());
+      } else {
+        safeEmit(OubliettesLoaded(items));
+      }
+    } catch (e) {
+      safeEmit(OubliettesError(e.toString()));
+    }
   }
 }
