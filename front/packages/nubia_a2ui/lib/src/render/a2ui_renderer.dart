@@ -134,7 +134,7 @@ class _A2uiRendererState extends State<A2uiRenderer> {
     }
     final surface = _surfaces[id]!;
     final rootId = surface.root;
-    if (rootId == null) return const SizedBox.shrink();
+    if (rootId == null) return const Center(child: CircularProgressIndicator());
 
     return AnimatedBuilder(
       animation: surface.dataModel,
