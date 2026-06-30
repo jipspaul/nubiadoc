@@ -120,8 +120,10 @@ class _DashboardContent extends StatelessWidget {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
         return switch (state) {
-          DashboardInitial() || DashboardLoading() => const _DashboardSkeleton(
-              key: Key('dashboard_loading'),
+          DashboardInitial() ||
+          DashboardLoading() =>
+            const Center(
+              child: CircularProgressIndicator(key: Key('dashboard_loading')),
             ),
           DashboardError(:final message) => NubiaErrorWidget(
               key: const Key('dashboard_error'),
@@ -135,28 +137,6 @@ class _DashboardContent extends StatelessWidget {
             ),
         };
       },
-    );
-  }
-}
-
-class _DashboardSkeleton extends StatelessWidget {
-  const _DashboardSkeleton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 16,
-        children: List.generate(
-          4,
-          (_) => const SizedBox(
-            width: 160,
-            child: NubiaSkeletonLoader(height: 96),
-          ),
-        ),
-      ),
     );
   }
 }
