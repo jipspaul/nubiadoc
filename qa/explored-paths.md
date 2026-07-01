@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-07-01T04:11:55.988Z
+Last run: 2026-07-01T04:20:39.242Z
 
 ## Faux positifs connus (méthode C)
 
@@ -17,10 +17,10 @@ Last run: 2026-07-01T04:11:55.988Z
 | Login | ALL | 2026-06-30 | canvas click coords: email y=380, pw y=420, btn y=490 | fix appliqué run 13:15 |
 | Auth routes | ALL | 2026-06-30 | Flutter HTML renderer white background = not blank | fix: skip white ratio for auth routes |
 | /signup | patient | 2026-06-30 | CSS Flutter placeholder (NubiaTextField) | faux positif — ferme #3083 |
-| /messages | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA (pas d'exception app) | faux positif — ferme #3136 |
+| /messages | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA | faux positif — ferme #3136 |
 | /patients/:id | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA | faux positif — ferme #3132 |
 | /agenda | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA | faux positif — ferme #3134 |
-| / | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA | fix: try/catch ajouté TodayNotesBloc — ferme #3133 |
+| / | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA | ferme #3133 |
 | /ordonnances | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA | faux positif — ferme #3138 |
 | /cabinet-setup | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA | faux positif — ferme #3140 |
 
@@ -29,23 +29,60 @@ Last run: 2026-07-01T04:11:55.988Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T04:11:55.988Z | OK | — |
-| /signup | 2026-06-30 | 2026-07-01T04:11:55.988Z | OK | — |
-| /account-setup | 2026-06-30 | 2026-07-01T04:11:55.988Z | OK | — |
-| /coverage-setup | 2026-06-30 | 2026-07-01T04:11:55.988Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /signup | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /account-setup | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /coverage-setup | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| / | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /a2ui-demo | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /appointments | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /mes-rdv | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /documents | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /financial | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /profile | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /messaging | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /reviews | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /notifications | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /oubliettes | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /rdv/test-appt-id/prepare | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /book | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T04:11:55.988Z | OK | — |
-| /register-pro | 2026-06-30 | 2026-07-01T04:11:55.988Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /register-pro | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| / | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /agenda | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /waiting-room | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /patients | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /patients/test-patient-id | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /messages | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /consultation | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /ordonnances | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /ordonnances/new | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /a2ui-demo | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /cabinet-setup | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T04:11:55.988Z | OK | — |
-| /onboard | 2026-06-30 | 2026-07-01T04:11:55.988Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /onboard | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| / | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /agenda | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /bookable-slots | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /a2ui-demo | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /salle-attente | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /patients | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /appointments | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /liste-attente | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /devis | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /devis/test-devis-id | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /messages | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /admin-membres | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
+| /admin-secretariats | 2026-06-30 | 2026-07-01T04:20:39.242Z | OK | — |
