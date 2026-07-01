@@ -7,6 +7,8 @@ import '../features/coverage_setup/coverage_setup_cubit.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/dashboard/dashboard_bloc.dart';
 import '../features/signup/signup_cubit.dart';
+import '../features/forgot_password/forgot_password_cubit.dart';
+import '../features/reset_password/reset_password_cubit.dart';
 import '../features/documents/documents_bloc.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
@@ -35,6 +37,14 @@ void registerPatient(GetIt gi) {
       register: gi<RegisterUseCase>(),
       authCubit: gi<AuthCubit>(),
     ),
+  );
+
+  gi.registerFactory<ForgotPasswordCubit>(
+    () => ForgotPasswordCubit(forgotPassword: gi<ForgotPasswordUseCase>()),
+  );
+
+  gi.registerFactory<ResetPasswordCubit>(
+    () => ResetPasswordCubit(resetPassword: gi<ResetPasswordUseCase>()),
   );
 
   gi.registerFactory<AccountSetupCubit>(

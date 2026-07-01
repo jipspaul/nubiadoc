@@ -159,6 +159,47 @@ class AuthRepositoryImpl implements AuthRepository {
     return token != null;
   }
 
+  @override
+  Future<Either<Failure, void>> forgotPassword({required String email}) async {
+    try {
+      await _api.forgotPassword(email: email);
+      return const Right(null);
+    } on DioException catch (e) {
+      return Left(_mapDioError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> resetPassword({
+    required String token,
+    required String newPassword,
+  }) async {
+    try {
+      await _api.resetPassword(token: token, newPassword: newPassword);
+      return const Right(null);
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      if (statusCode == 404 || statusCode == 410) {
+        return const Left(
+          ValidationFailure(message: 'Ce lien de réinitialisation est invalide ou a expiré.'),
+        );
+      }
+      if (statusCode == 422) {
+        return const Left(
+          ValidationFailure(
+            message:
+                'Le mot de passe doit contenir au moins 8 caractères dont 1 chiffre.',
+          ),
+        );
+      }
+      return Left(_mapDioError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
   Failure _mapDioError(DioException e) {
     final statusCode = e.response?.statusCode;
     if (statusCode == 401) return const UnauthorizedFailure();

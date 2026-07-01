@@ -18,6 +18,10 @@ import '../features/account_setup/account_setup_page.dart';
 import '../features/coverage_setup/coverage_setup_cubit.dart';
 import '../features/coverage_setup/coverage_setup_page.dart';
 import '../features/login/login_page.dart';
+import '../features/forgot_password/forgot_password_cubit.dart';
+import '../features/forgot_password/forgot_password_page.dart';
+import '../features/reset_password/reset_password_cubit.dart';
+import '../features/reset_password/reset_password_page.dart';
 import '../features/signup/signup_cubit.dart';
 import '../features/signup/signup_page.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
@@ -44,6 +48,8 @@ class AppRouter {
 
   static const splash = '/splash';
   static const login = '/login';
+  static const forgotPassword = '/forgot-password';
+  static const resetPassword = '/reset-password';
   static const signup = '/signup';
   static const accountSetup = '/account-setup';
   static const coverageSetup = '/coverage-setup';
@@ -72,7 +78,7 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash, signup},
+        authRoutes: const {login, splash, signup, forgotPassword, resetPassword},
       ),
       routes: [
         GoRoute(
@@ -81,6 +87,20 @@ class AppRouter {
               const Scaffold(body: Center(child: CircularProgressIndicator())),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
+        GoRoute(
+          path: forgotPassword,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<ForgotPasswordCubit>(),
+            child: const ForgotPasswordPage(),
+          ),
+        ),
+        GoRoute(
+          path: resetPassword,
+          builder: (_, state) => BlocProvider(
+            create: (_) => GetIt.instance<ResetPasswordCubit>(),
+            child: ResetPasswordPage(token: state.uri.queryParameters['token']),
+          ),
+        ),
         GoRoute(
           path: signup,
           builder: (_, __) => BlocProvider(

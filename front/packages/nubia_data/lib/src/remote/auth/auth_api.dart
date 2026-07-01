@@ -82,4 +82,22 @@ class AuthApi {
     );
     return TokenResponseDto.fromJson(response.data!);
   }
+
+  /// Réponse neutre (204) que l'email existe ou non — anti-énumération.
+  Future<void> forgotPassword({required String email}) async {
+    await _dio.post<void>(
+      '/auth/password/forgot',
+      data: {'email': email},
+    );
+  }
+
+  Future<void> resetPassword({
+    required String token,
+    required String newPassword,
+  }) async {
+    await _dio.post<void>(
+      '/auth/password/reset',
+      data: {'token': token, 'new_password': newPassword},
+    );
+  }
 }

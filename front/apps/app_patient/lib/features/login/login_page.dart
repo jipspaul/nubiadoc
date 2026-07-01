@@ -84,7 +84,16 @@ class _LoginPageState extends State<LoginPage> {
                                 password: _password.text,
                               ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        key: const Key('forgot_password_link'),
+                        onPressed: () => context.go('/forgot-password'),
+                        child: const Text('Mot de passe oublié ?'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Wrap(
                       alignment: WrapAlignment.center,
                       crossAxisAlignment: WrapCrossAlignment.center,
