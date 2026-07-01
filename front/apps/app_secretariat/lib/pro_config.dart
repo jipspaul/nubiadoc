@@ -42,6 +42,11 @@ class ProConfig {
         route: '/agenda',
       ),
       shell.ProNavDestination(
+        label: 'Créneaux',
+        icon: Icons.event_available_outlined,
+        route: '/bookable-slots',
+      ),
+      shell.ProNavDestination(
         label: 'Patients',
         icon: Icons.groups_outlined,
         route: '/patients',

@@ -11,6 +11,8 @@ import '../../session/pro_auth_cubit.dart';
 import '../admin_secretariats/admin_secretariats_bloc.dart';
 import '../admin_secretariats/admin_secretariats_page.dart';
 import '../agenda/agenda_page.dart';
+import '../bookable_slots/bookable_slots_bloc.dart';
+import '../bookable_slots/bookable_slots_page.dart';
 import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
@@ -57,6 +59,11 @@ class DashboardPage extends StatelessWidget {
           body = BlocProvider(
             create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
             child: const AdminSecretiariatsBody(),
+          );
+        } else if (destination.route == '/bookable-slots') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<BookableSlotsBloc>(),
+            child: const BookableSlotsBody(),
           );
         } else {
           body = Center(

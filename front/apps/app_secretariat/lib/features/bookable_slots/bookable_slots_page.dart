@@ -8,6 +8,68 @@ import 'bookable_slots_event.dart';
 import 'bookable_slots_state.dart';
 import 'create_slot_dialog.dart';
 
+/// Body-only content for bookable slots. Can be embedded in any layout that
+/// provides [BookableSlotsBloc] via [BlocProvider] (e.g. [ProShell]
+/// bodyBuilder or the full-page [BookableSlotsPage]).
+class BookableSlotsBody extends StatefulWidget {
+  const BookableSlotsBody({super.key});
+
+  @override
+  State<BookableSlotsBody> createState() => _BookableSlotsBodyState();
+}
+
+class _BookableSlotsBodyState extends State<BookableSlotsBody> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<BookableSlotsBloc>().add(const BookableSlotsLoadRequested());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<BookableSlotsBloc, BookableSlotsState>(
+      listenWhen: (_, state) => state is BookableSlotsSlotCreatedSuccess,
+      listener: (context, _) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Créneau ajouté')),
+        );
+      },
+      child: BlocBuilder<BookableSlotsBloc, BookableSlotsState>(
+        // SlotCreatedSuccess est transitoire : on garde l'affichage précédent
+        // pendant le rechargement pour éviter un flash de spinner.
+        buildWhen: (_, state) => state is! BookableSlotsSlotCreatedSuccess,
+        builder: (context, state) {
+          if (state is BookableSlotsLoaded) {
+            final slots = state.slots;
+            if (slots.isEmpty) {
+              return const NubiaEmptyState(
+                icon: Icons.event_available_outlined,
+                title: 'Aucun créneau',
+                subtitle: 'Aucun créneau disponible.',
+              );
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: slots.length,
+              itemBuilder: (_, i) => _SlotTile(slot: slots[i]),
+            );
+          }
+          if (state is BookableSlotsError) {
+            return NubiaErrorWidget(
+              message: state.message,
+              onRetry: () => context
+                  .read<BookableSlotsBloc>()
+                  .add(const BookableSlotsLoadRequested()),
+            );
+          }
+          // BookableSlotsInitial, BookableSlotsLoading
+          return const Center(child: CircularProgressIndicator());
+        },
+      ),
+    );
+  }
+}
+
 class BookableSlotsPage extends StatefulWidget {
   const BookableSlotsPage({super.key});
 
@@ -16,12 +78,6 @@ class BookableSlotsPage extends StatefulWidget {
 }
 
 class _BookableSlotsPageState extends State<BookableSlotsPage> {
-  @override
-  void initState() {
-    super.initState();
-    context.read<BookableSlotsBloc>().add(const BookableSlotsLoadRequested());
-  }
-
   Future<void> _openCreateSlotDialog() async {
     final result = await showDialog<({DateTime startsAt, DateTime endsAt})>(
       context: context,
@@ -57,46 +113,7 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
         icon: const Icon(Icons.add),
         label: const Text('Créer un créneau'),
       ),
-      body: BlocListener<BookableSlotsBloc, BookableSlotsState>(
-        listenWhen: (_, state) => state is BookableSlotsSlotCreatedSuccess,
-        listener: (context, _) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Créneau ajouté')),
-          );
-        },
-        child: BlocBuilder<BookableSlotsBloc, BookableSlotsState>(
-          // SlotCreatedSuccess est transitoire : on garde l'affichage précédent
-          // pendant le rechargement pour éviter un flash de spinner.
-          buildWhen: (_, state) => state is! BookableSlotsSlotCreatedSuccess,
-          builder: (context, state) {
-            if (state is BookableSlotsLoaded) {
-              final slots = state.slots;
-              if (slots.isEmpty) {
-                return const NubiaEmptyState(
-                  icon: Icons.event_available_outlined,
-                  title: 'Aucun créneau',
-                  subtitle: 'Aucun créneau disponible.',
-                );
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: slots.length,
-                itemBuilder: (_, i) => _SlotTile(slot: slots[i]),
-              );
-            }
-            if (state is BookableSlotsError) {
-              return NubiaErrorWidget(
-                message: state.message,
-                onRetry: () => context
-                    .read<BookableSlotsBloc>()
-                    .add(const BookableSlotsLoadRequested()),
-              );
-            }
-            // BookableSlotsInitial, BookableSlotsLoading
-            return const Center(child: CircularProgressIndicator());
-          },
-        ),
-      ),
+      body: const BookableSlotsBody(),
     );
   }
 }
