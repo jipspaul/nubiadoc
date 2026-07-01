@@ -17,6 +17,7 @@ Last run: 2026-07-01T00:00:11.586Z
 | Login | ALL | 2026-06-30 | canvas click coords: email y=380, pw y=420, btn y=490 | fix appliqué run 13:15 |
 | Auth routes | ALL | 2026-06-30 | Flutter HTML renderer white background = not blank | fix: skip white ratio for auth routes |
 | /signup | patient | 2026-06-30 | CSS Flutter placeholder (NubiaTextField) | faux positif — ferme #3083 |
+| /messages | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA (pas d'exception app — bloc + widget déjà couverts, tous states gérés, tests verts) | faux positif — ferme #3136 |
 
 
 
