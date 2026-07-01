@@ -9,14 +9,17 @@ import 'admin_secretariats_bloc.dart';
 import 'admin_secretariats_event.dart';
 import 'admin_secretariats_state.dart';
 
-class AdminSecretiariatsPage extends StatefulWidget {
-  const AdminSecretiariatsPage({super.key});
+/// Body-only content for the secrétariats admin list. Can be embedded in any
+/// layout that provides [AdminSecretiariatsBloc] via [BlocProvider] (e.g.
+/// [ProShell] bodyBuilder or the full-page [AdminSecretiariatsPage]).
+class AdminSecretiariatsBody extends StatefulWidget {
+  const AdminSecretiariatsBody({super.key});
 
   @override
-  State<AdminSecretiariatsPage> createState() => _AdminSecretiariatsPageState();
+  State<AdminSecretiariatsBody> createState() => _AdminSecretiariatsBodyState();
 }
 
-class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
+class _AdminSecretiariatsBodyState extends State<AdminSecretiariatsBody> {
   Completer<void>? _refreshCompleter;
 
   @override
@@ -26,6 +29,50 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
         .read<AdminSecretiariatsBloc>()
         .add(const AdminSecretiariatsLoadRequested());
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+      listener: (context, state) {
+        if (state is AdminSecretiariatsLoaded ||
+            state is AdminSecretiariatsEmpty ||
+            state is AdminSecretiariatsError) {
+          _refreshCompleter?.complete();
+          _refreshCompleter = null;
+        }
+      },
+      builder: (context, state) => switch (state) {
+        AdminSecretiariatsInitial() ||
+        AdminSecretiariatsLoading() =>
+          const Center(child: CircularProgressIndicator()),
+        AdminSecretiariatsEmpty() => const NubiaEmptyState(
+            key: Key('admin_secretariats_empty'),
+            icon: Icons.business_outlined,
+            title: 'Aucun secrétariat enregistré.',
+          ),
+        AdminSecretiariatsLoaded(:final secretariats) => _SecretariatsList(
+            secretariats: secretariats,
+            onRefresh: () {
+              _refreshCompleter = Completer<void>();
+              context
+                  .read<AdminSecretiariatsBloc>()
+                  .add(const AdminSecretiariatsLoadRequested());
+              return _refreshCompleter!.future;
+            },
+          ),
+        AdminSecretiariatsError(:final message) => NubiaErrorWidget(
+            message: message,
+            onRetry: () => context
+                .read<AdminSecretiariatsBloc>()
+                .add(const AdminSecretiariatsLoadRequested()),
+          ),
+      },
+    );
+  }
+}
+
+class AdminSecretiariatsPage extends StatelessWidget {
+  const AdminSecretiariatsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -43,41 +90,7 @@ class _AdminSecretiariatsPageState extends State<AdminSecretiariatsPage> {
           ),
         ],
       ),
-      body: BlocConsumer<AdminSecretiariatsBloc, AdminSecretiariatsState>(
-        listener: (context, state) {
-          if (state is AdminSecretiariatsLoaded ||
-              state is AdminSecretiariatsEmpty ||
-              state is AdminSecretiariatsError) {
-            _refreshCompleter?.complete();
-            _refreshCompleter = null;
-          }
-        },
-        builder: (context, state) => switch (state) {
-          AdminSecretiariatsInitial() || AdminSecretiariatsLoading() =>
-            const Center(child: CircularProgressIndicator()),
-          AdminSecretiariatsEmpty() => const NubiaEmptyState(
-              key: Key('admin_secretariats_empty'),
-              icon: Icons.business_outlined,
-              title: 'Aucun secrétariat enregistré.',
-            ),
-          AdminSecretiariatsLoaded(:final secretariats) => _SecretariatsList(
-              secretariats: secretariats,
-              onRefresh: () {
-                _refreshCompleter = Completer<void>();
-                context
-                    .read<AdminSecretiariatsBloc>()
-                    .add(const AdminSecretiariatsLoadRequested());
-                return _refreshCompleter!.future;
-              },
-            ),
-          AdminSecretiariatsError(:final message) => NubiaErrorWidget(
-              message: message,
-              onRetry: () => context
-                  .read<AdminSecretiariatsBloc>()
-                  .add(const AdminSecretiariatsLoadRequested()),
-            ),
-        },
-      ),
+      body: const AdminSecretiariatsBody(),
     );
   }
 }

@@ -8,6 +8,8 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../admin_secretariats/admin_secretariats_bloc.dart';
+import '../admin_secretariats/admin_secretariats_page.dart';
 import '../agenda/agenda_page.dart';
 import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
@@ -51,6 +53,11 @@ class DashboardPage extends StatelessWidget {
           );
         } else if (destination.route == '/agenda') {
           body = const AgendaPage();
+        } else if (destination.route == '/admin-secretariats') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
+            child: const AdminSecretiariatsBody(),
+          );
         } else {
           body = Center(
             child: NubiaEmptyState(
@@ -87,9 +94,8 @@ class _DashboardContent extends StatelessWidget {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
         return switch (state) {
-          DashboardInitial() ||
-          DashboardLoading() =>
-            const Center(child: CircularProgressIndicator(key: Key('dashboard_loading'))),
+          DashboardInitial() || DashboardLoading() => const Center(
+              child: CircularProgressIndicator(key: Key('dashboard_loading'))),
           DashboardError(:final message) => NubiaErrorWidget(
               key: const Key('dashboard_error'),
               message: message,
