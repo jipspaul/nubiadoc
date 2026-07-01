@@ -1,3 +1,5 @@
+import 'package:file_picker/file_picker.dart';
+
 /// Result of a file pick operation.
 class PickedFile {
   final String path;
@@ -22,28 +24,21 @@ abstract class FilePickerService {
   Future<PickedFile?> pickFile();
 }
 
-/// Default runtime implementation.
-///
-/// Note: requires `file_picker` package to be added to pubspec.yaml when
-/// targeting real devices. For now it returns `null` (no-op) until the
-/// dependency is wired up.
+/// Default runtime implementation backed by the `file_picker` package.
 class DefaultFilePickerService extends FilePickerService {
   const DefaultFilePickerService();
 
   @override
   Future<PickedFile?> pickFile() async {
-    // TODO(flutter-agent): wire file_picker package once added to pubspec.yaml.
-    // Example integration:
-    //   final result = await FilePicker.platform.pickFiles(withData: false);
-    //   if (result == null || result.files.isEmpty) return null;
-    //   final f = result.files.first;
-    //   return PickedFile(
-    //     path: f.path!,
-    //     name: f.name,
-    //     mimeType: f.extension != null
-    //         ? 'application/${f.extension}'
-    //         : 'application/octet-stream',
-    //   );
-    return null;
+    final result = await FilePicker.platform.pickFiles(withData: false);
+    if (result == null || result.files.isEmpty) return null;
+    final f = result.files.first;
+    return PickedFile(
+      path: f.path!,
+      name: f.name,
+      mimeType: f.extension != null
+          ? 'application/${f.extension}'
+          : 'application/octet-stream',
+    );
   }
 }
