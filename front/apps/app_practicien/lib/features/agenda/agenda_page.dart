@@ -237,6 +237,7 @@ class _LoadedViewState extends State<_LoadedView> {
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
+      currentDate: widget.state.weekStart,
       initialDateRange: _range ??
           DateTimeRange(
             start: widget.state.weekStart,

@@ -72,10 +72,14 @@ class TodayNotesBloc extends Bloc<TodayNotesEvent, TodayNotesState> {
     Emitter<TodayNotesState> emit,
   ) async {
     emit(const TodayNotesLoading());
-    final result = await _getTodayNotes();
-    result.fold(
-      (failure) => emit(TodayNotesError(failure.message)),
-      (entries) => emit(TodayNotesLoaded(entries)),
-    );
+    try {
+      final result = await _getTodayNotes();
+      result.fold(
+        (failure) => emit(TodayNotesError(failure.message)),
+        (entries) => emit(TodayNotesLoaded(entries)),
+      );
+    } catch (_) {
+      emit(const TodayNotesError('Erreur de chargement.'));
+    }
   }
 }
