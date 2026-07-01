@@ -15,13 +15,21 @@ class DashboardDto {
     required this.pendingQuestionnaires,
   });
 
-  factory DashboardDto.fromJson(Map<String, dynamic> json) => DashboardDto(
-        upcomingAppointments: (json['upcoming_appointments'] as num).toInt(),
-        documentsToSign: (json['documents_to_sign'] as num).toInt(),
-        pendingPaymentsCents: (json['pending_payments_cents'] as num).toInt(),
-        unreadMessages: (json['unread_messages'] as num).toInt(),
-        pendingQuestionnaires: (json['pending_questionnaires'] as num).toInt(),
-      );
+  factory DashboardDto.fromJson(Map<String, dynamic> json) {
+    final toSign = (json['to_sign'] as List<dynamic>?) ?? [];
+    final toPay = (json['to_pay'] as List<dynamic>?) ?? [];
+    final pendingPaymentsCents = toPay.fold<int>(
+      0,
+      (sum, item) => sum + (item['amount_cents'] as num).toInt(),
+    );
+    return DashboardDto(
+      upcomingAppointments: json['next_appointment'] != null ? 1 : 0,
+      documentsToSign: toSign.length,
+      pendingPaymentsCents: pendingPaymentsCents,
+      unreadMessages: (json['unread_messages'] as num).toInt(),
+      pendingQuestionnaires: (json['reminders'] as num).toInt(),
+    );
+  }
 
   DashboardSummary toDomain() => DashboardSummary(
         upcomingAppointments: upcomingAppointments,
