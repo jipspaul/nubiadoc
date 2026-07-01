@@ -9,7 +9,7 @@ class DashboardApi {
 
   Future<DashboardDto> getSummary() async {
     final response = await _dio.get<Map<String, dynamic>>(
-      '/account/dashboard',
+      '/dashboard',
     );
     return DashboardDto.fromJson(response.data!);
   }
