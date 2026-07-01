@@ -67,11 +67,16 @@ class AuthRepositoryImpl implements AuthRepository {
             PatientAccount(id: '', firstName: '', lastName: '', email: email),
       );
     } on DioException catch (e) {
-      // 404/410 sur un register avec invite_token = invitation inconnue ou expirée.
+      // 400 + code=invitation_invalid sur un register avec invitation_token =
+      // invitation inconnue ou expirée (voir AppError::InvitationInvalid côté API).
       final statusCode = e.response?.statusCode;
+      final apiCode = e.response?.data is Map
+          ? (e.response!.data as Map)['code'] as String?
+          : null;
       if (inviteToken != null &&
           inviteToken.isNotEmpty &&
-          (statusCode == 404 || statusCode == 410)) {
+          statusCode == 400 &&
+          apiCode == 'invitation_invalid') {
         return const Left(InvalidInviteFailure());
       }
       return Left(_mapDioError(e));

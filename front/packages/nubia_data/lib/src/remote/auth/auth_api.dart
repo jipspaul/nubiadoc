@@ -32,7 +32,7 @@ class AuthApi {
         'password': password,
         'accept_cgu': acceptCgu,
         'cgu_version': cguVersion,
-        if (inviteToken != null) 'invite_token': inviteToken,
+        if (inviteToken != null) 'invitation_token': inviteToken,
       },
     );
     return AuthResponseDto.fromJson(response.data!);
