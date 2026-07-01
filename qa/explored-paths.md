@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-07-01T07:25:31.401Z
+Last run: 2026-07-01T07:36:28.017Z
 
 ## Faux positifs connus (méthode C)
 
@@ -11,8 +11,8 @@ Last run: 2026-07-01T07:25:31.401Z
 | /profile | patient | 2026-06-25 | idem CSS Flutter | faux positif — ferme #2728 |
 | /messages | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète, ferme #2734 |
 | /agenda | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète, ferme #2732 |
-| /notifications | patient | 2026-06-25 | déjà résolu — BlocBuilder exhaustif, try/catch, GetIt enregistré, flutter analyze vert | ferme #2833 |
-| /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
+| /notifications | patient | 2026-06-25 | déjà résolu | ferme #2833 |
+| /ordonnances | praticien | 2026-06-25 | déjà résolu | ferme #2853 #2854 |
 | [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via location.hash (in-page, sans page.goto) |
 
 ## patient
@@ -20,22 +20,22 @@ Last run: 2026-07-01T07:25:31.401Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T07:26:08.480Z | OK | — |
-| /signup | 2026-06-30 | 2026-07-01T07:26:14.444Z | OK | — |
-| /account-setup | 2026-06-30 | 2026-07-01T07:26:20.044Z | OK | — |
-| /coverage-setup | 2026-06-30 | 2026-07-01T07:26:25.594Z | OK | — |
-| / | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /a2ui-demo | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /appointments | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /mes-rdv | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /documents | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /financial | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /profile | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /messaging | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /reviews | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /notifications | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /oubliettes | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
-| /rdv/test-appt-id/prepare | 2026-06-30 | 2026-07-01T07:26:25.856Z | skip-no-login | login failed |
+| /login | 2026-06-30 | 2026-07-01T07:36:50.440Z | OK | — |
+| /signup | 2026-06-30 | 2026-07-01T07:36:56.002Z | OK | — |
+| /account-setup | 2026-06-30 | 2026-07-01T07:37:01.570Z | OK | — |
+| /coverage-setup | 2026-06-30 | 2026-07-01T07:37:07.135Z | OK | — |
+| / | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /a2ui-demo | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /appointments | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /mes-rdv | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /documents | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /financial | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /profile | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /messaging | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /reviews | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /notifications | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /oubliettes | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
+| /rdv/test-appt-id/prepare | 2026-06-30 | 2026-07-01T07:36:45.078Z | skip-no-login | login failed run2 |
 | /book | 2026-06-30 | 2026-07-01T06:19:01.634Z | OK | — |
 
 ## praticien
@@ -62,19 +62,19 @@ Last run: 2026-07-01T07:25:31.401Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T07:28:05.275Z | OK | — |
-| /onboard | 2026-06-30 | 2026-07-01T07:28:10.944Z | OK | — |
-| / | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /agenda | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /bookable-slots | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /a2ui-demo | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /salle-attente | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /patients | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /appointments | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /liste-attente | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /devis | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /devis/test-devis-id | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /messages | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /admin-membres | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
-| /admin-secretariats | 2026-06-30 | 2026-07-01T07:28:11.206Z | skip-no-login | login failed |
+| /login | 2026-06-30 | 2026-07-01T07:37:29.872Z | OK | — |
+| /onboard | 2026-06-30 | 2026-07-01T07:37:35.400Z | OK | — |
+| / | 2026-06-30 | 2026-07-01T07:37:24.548Z | skip-no-login | login failed run2 |
+| /agenda | 2026-06-30 | 2026-07-01T07:37:24.548Z | skip-no-login | login failed run2 |
+| /bookable-slots | 2026-06-30 | 2026-07-01T07:37:24.548Z | skip-no-login | login failed run2 |
+| /a2ui-demo | 2026-06-30 | 2026-07-01T07:37:24.548Z | skip-no-login | login failed run2 |
+| /salle-attente | 2026-06-30 | 2026-07-01T07:37:24.548Z | skip-no-login | login failed run2 |
+| /patients | 2026-06-30 | 2026-07-01T07:37:24.548Z | skip-no-login | login failed run2 |
+| /appointments | 2026-06-30 | 2026-07-01T07:37:24.549Z | skip-no-login | login failed run2 |
+| /liste-attente | 2026-06-30 | 2026-07-01T07:37:24.549Z | skip-no-login | login failed run2 |
+| /devis | 2026-06-30 | 2026-07-01T07:37:24.549Z | skip-no-login | login failed run2 |
+| /devis/test-devis-id | 2026-06-30 | 2026-07-01T07:37:24.549Z | skip-no-login | login failed run2 |
+| /messages | 2026-06-30 | 2026-07-01T07:37:24.549Z | skip-no-login | login failed run2 |
+| /admin-membres | 2026-06-30 | 2026-07-01T07:37:24.549Z | skip-no-login | login failed run2 |
+| /admin-secretariats | 2026-06-30 | 2026-07-01T07:37:24.549Z | skip-no-login | login failed run2 |
 
