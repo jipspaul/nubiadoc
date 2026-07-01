@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-07-01T08:55:12.231Z
+Last run: 2026-07-01T09:00:57.243Z
 
 ## Faux positifs connus (méthode C)
 
@@ -20,22 +20,22 @@ Last run: 2026-07-01T08:55:12.231Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T08:56:05.867Z | OK | — |
-| /signup | 2026-06-30 | 2026-07-01T08:56:09.041Z | OK | — |
-| /account-setup | 2026-06-30 | 2026-07-01T08:05:25.716Z | OK | — |
-| /coverage-setup | 2026-06-30 | 2026-07-01T08:05:31.792Z | OK | — |
-| / | 2026-06-30 | 2026-07-01T08:05:00.752Z | failed-requests | "Erreur serveur lors du chargement du tableau de bord" — #3153 |
-| /a2ui-demo | 2026-06-30 | 2026-07-01T08:05:35.101Z | OK | — |
-| /appointments | 2026-06-30 | 2026-07-01T08:05:38.384Z | OK | — |
-| /mes-rdv | 2026-06-30 | 2026-07-01T08:05:41.672Z | OK | — |
-| /documents | 2026-06-30 | 2026-07-01T08:05:44.990Z | OK | — |
-| /financial | 2026-06-30 | 2026-07-01T08:05:48.286Z | OK | — |
-| /profile | 2026-06-30 | 2026-07-01T08:05:04.055Z | failed-requests | "Erreur serveur lors de la mise à jour du compte" — see #3038 |
-| /messaging | 2026-06-30 | 2026-07-01T08:05:51.566Z | OK | — |
-| /reviews | 2026-06-30 | 2026-07-01T08:05:07.374Z | failed-requests | "Erreur lors de la récupération des avis" — #3040 open |
-| /notifications | 2026-06-30 | 2026-07-01T08:05:54.858Z | OK | — |
-| /oubliettes | 2026-06-30 | 2026-07-01T08:05:58.149Z | OK | — |
-| /rdv/test-appt-id/prepare | 2026-06-30 | 2026-07-01T08:06:01.436Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T09:01:31.134Z | OK | — |
+| /signup | 2026-06-30 | 2026-07-01T09:01:33.904Z | OK | — |
+| /account-setup | 2026-06-30 | 2026-07-01T09:01:36.649Z | OK | — |
+| /coverage-setup | 2026-06-30 | 2026-07-01T09:01:39.435Z | OK | — |
+| / | 2026-06-30 | 2026-07-01T09:01:22.823Z | OK | — |
+| /a2ui-demo | 2026-06-30 | 2026-07-01T09:01:42.185Z | OK | — |
+| /appointments | 2026-06-30 | 2026-07-01T09:01:44.934Z | OK | — |
+| /mes-rdv | 2026-06-30 | 2026-07-01T09:01:47.701Z | OK | — |
+| /documents | 2026-06-30 | 2026-07-01T09:01:50.461Z | OK | — |
+| /financial | 2026-06-30 | 2026-07-01T09:01:53.221Z | OK | — |
+| /profile | 2026-06-30 | 2026-07-01T09:01:25.566Z | OK | — |
+| /messaging | 2026-06-30 | 2026-07-01T09:01:56.008Z | OK | — |
+| /reviews | 2026-06-30 | 2026-07-01T09:01:28.300Z | OK | — |
+| /notifications | 2026-06-30 | 2026-07-01T09:01:58.784Z | OK | — |
+| /oubliettes | 2026-06-30 | 2026-07-01T09:02:01.545Z | OK | — |
+| /rdv/test-appt-id/prepare | 2026-06-30 | 2026-07-01T09:02:04.358Z | OK | — |
 | /book | 2026-06-30 | 2026-07-01T06:19:01.634Z | OK | — |
 
 ## praticien
@@ -43,8 +43,8 @@ Last run: 2026-07-01T08:55:12.231Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T08:56:54.682Z | OK | — |
-| /register-pro | 2026-06-30 | 2026-07-01T08:56:57.831Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T09:02:52.193Z | OK | — |
+| /register-pro | 2026-06-30 | 2026-07-01T09:02:55.078Z | OK | — |
 | / | 2026-06-30 | 2026-07-01T07:26:50.894Z | OK | — |
 | /agenda | 2026-06-30 | 2026-07-01T07:26:53.678Z | OK | — |
 | /waiting-room | 2026-06-30 | 2026-07-01T07:26:56.467Z | OK | — |
@@ -62,8 +62,8 @@ Last run: 2026-07-01T08:55:12.231Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T08:57:43.381Z | OK | — |
-| /onboard | 2026-06-30 | 2026-07-01T08:57:46.527Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T09:03:46.103Z | OK | — |
+| /onboard | 2026-06-30 | 2026-07-01T09:03:48.963Z | OK | — |
 | / | 2026-06-30 | 2026-07-01T08:06:40.824Z | OK | — |
 | /agenda | 2026-06-30 | 2026-07-01T08:06:18.820Z | failed-requests | "Impossible de charger l'agenda" — #3050 open |
 | /bookable-slots | 2026-06-30 | 2026-07-01T08:06:44.114Z | OK | — |
