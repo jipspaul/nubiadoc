@@ -6,18 +6,27 @@ import 'router_notifier.dart';
 /// Builds a [GoRouter] redirect guard shared by every Nubia app.
 ///
 /// - Unauthenticated users on a non-auth route → redirected to [loginRoute].
-/// - Authenticated users on an auth route (other than [splashRoute]) →
-///   redirected to [homeRoute].
+/// - Authenticated users on a [guestOnlyRoutes] route (other than
+///   [splashRoute]) → redirected to [homeRoute].
 ///
 /// [authRoutes] is the set of locations that are reachable while logged out
 /// (login, register, onboarding, splash…). Each app passes its own set.
+///
+/// [guestOnlyRoutes] defaults to [authRoutes] and controls the second
+/// redirect above. Pass a narrower set to exclude a route from it — e.g. a
+/// registration flow that itself authenticates the user mid-flow (to save
+/// its new session) then explicitly navigates to a post-signup page: without
+/// exclusion, the auth-state flip would race that explicit navigation and
+/// bounce the user to [homeRoute] instead.
 GoRouterRedirect buildAuthGuard(
   RouterNotifier notifier, {
   required String loginRoute,
   required String homeRoute,
   required String splashRoute,
   required Set<String> authRoutes,
+  Set<String>? guestOnlyRoutes,
 }) {
+  final bounceWhenAuthenticated = guestOnlyRoutes ?? authRoutes;
   return (BuildContext context, GoRouterState state) {
     final authenticated = notifier.isAuthenticated;
     final location = state.matchedLocation;
@@ -32,7 +41,9 @@ GoRouterRedirect buildAuthGuard(
     }
 
     if (!authenticated && !onAuthRoute) return loginRoute;
-    if (authenticated && onAuthRoute) return homeRoute;
+    if (authenticated && bounceWhenAuthenticated.contains(location)) {
+      return homeRoute;
+    }
     return null;
   };
 }
