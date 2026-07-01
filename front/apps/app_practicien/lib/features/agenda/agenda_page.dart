@@ -238,7 +238,11 @@ class _LoadedViewState extends State<_LoadedView> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
       currentDate: widget.state.weekStart,
-      initialDateRange: _range,
+      initialDateRange: _range ??
+          DateTimeRange(
+            start: widget.state.weekStart,
+            end: widget.state.weekStart.add(const Duration(days: 6)),
+          ),
     );
     if (picked != null && mounted) setState(() => _range = picked);
   }

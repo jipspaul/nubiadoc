@@ -191,5 +191,15 @@ void main() {
 
       expect(find.text('Erreur serveur.'), findsOneWidget);
     });
+
+    testWidgets('CabinetInfoSuccess → formulaire toujours affiché (listener gère la navigation)',
+        (tester) async {
+      when(() => cubit.state).thenReturn(const CabinetInfoSuccess());
+      await tester.pumpWidget(_wrap(cubit));
+      await tester.pump();
+
+      expect(find.byKey(const Key('cabinet_setup_scaffold')), findsOneWidget);
+      expect(find.text('Enregistrer'), findsOneWidget);
+    });
   });
 }
