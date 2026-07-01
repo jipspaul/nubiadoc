@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-07-01T04:36:05.039Z
+Last run: 2026-07-01T05:27:22.204Z
 
 ## Faux positifs connus (méthode C)
 
@@ -14,25 +14,21 @@ Last run: 2026-07-01T04:36:05.039Z
 | /notifications | patient | 2026-06-25 | déjà résolu | ferme #2833 |
 | /ordonnances | praticien | 2026-06-25 | déjà résolu | ferme #2853 #2854 |
 | [*] blank-canvas | ALL | 2026-06-27 | go_router path routing | faux positif — ferme #2920-#2935 |
-| Login | ALL | 2026-06-30 | canvas click coords: email y=380, pw y=420, btn y=490 | fix appliqué run 13:15 |
-| Auth routes | ALL | 2026-06-30 | Flutter HTML renderer white background = not blank | fix: skip white ratio for auth routes |
-| /signup | patient | 2026-06-30 | CSS Flutter placeholder (NubiaTextField) | faux positif — ferme #3083 |
-| /messages | praticien | 2026-07-01 | page.goto: browser/context closed pendant run QA | faux positif — ferme #3136 |
-| /patients/:id | praticien | 2026-07-01 | page.goto: browser/context closed pendant run QA | faux positif — ferme #3132 |
-| /agenda | praticien | 2026-07-01 | page.goto: browser/context closed pendant run QA | faux positif — ferme #3134 |
-| / | praticien | 2026-07-01 | page.goto: browser/context closed pendant run QA | ferme #3133 |
-| /ordonnances | praticien | 2026-07-01 | page.goto: browser/context closed pendant run QA | faux positif — ferme #3138 |
-| /cabinet-setup | praticien | 2026-07-01 | page.goto: browser/context closed pendant run QA | faux positif — ferme #3140 |
+| Login | ALL | 2026-06-30 | canvas click coords | fix appliqué |
+| Auth routes | ALL | 2026-06-30 | Flutter HTML renderer white = not blank | fix applied |
+| /signup | patient | 2026-06-30 | CSS placeholder | faux positif — ferme #3083 |
+| /messages | praticien | 2026-07-01 | context closed during QA | faux positif — ferme #3136 |
+| /patients/:id | praticien | 2026-07-01 | context closed during QA | faux positif — ferme #3132 |
 
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
-| /signup | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
-| /account-setup | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
-| /coverage-setup | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T05:27:22.204Z | OK | — |
+| /signup | 2026-06-30 | 2026-07-01T05:27:22.204Z | OK | — |
+| /account-setup | 2026-06-30 | 2026-07-01T05:27:22.204Z | OK | — |
+| /coverage-setup | 2026-06-30 | 2026-07-01T05:27:22.204Z | OK | — |
 | / | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
 | /a2ui-demo | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
 | /appointments | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
@@ -52,8 +48,8 @@ Last run: 2026-07-01T04:36:05.039Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
-| /register-pro | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T05:27:22.204Z | OK | — |
+| /register-pro | 2026-06-30 | 2026-07-01T05:27:22.204Z | OK | — |
 | / | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
 | /agenda | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
 | /waiting-room | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
@@ -71,8 +67,8 @@ Last run: 2026-07-01T04:36:05.039Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
-| /onboard | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T05:27:22.204Z | OK | — |
+| /onboard | 2026-06-30 | 2026-07-01T05:27:22.204Z | OK | — |
 | / | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
 | /agenda | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
 | /bookable-slots | 2026-06-30 | 2026-07-01T04:36:05.039Z | OK | — |
