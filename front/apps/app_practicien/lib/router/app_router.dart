@@ -50,6 +50,11 @@ class AppRouter {
         homeRoute: home,
         splashRoute: splash,
         authRoutes: const {login, splash, registerPro},
+        // registerPro authentifie l'utilisateur en cours de flow (pour que
+        // /cabinet-setup ne soit pas lui-même bloqué par le guard) puis
+        // navigue explicitement vers cabinet-setup : ne pas le renvoyer vers
+        // home entre-temps (course avec le listener du RouterNotifier).
+        guestOnlyRoutes: const {login, splash},
       ),
       routes: [
         GoRoute(
