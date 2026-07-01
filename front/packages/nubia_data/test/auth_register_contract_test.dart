@@ -52,11 +52,11 @@ void main() {
           reason: 'cgu_version manquant → API 422');
       expect(captured['email'], 'test@example.com');
       expect(captured['password'], 'pass12345');
-      expect(captured.containsKey('invite_token'), isFalse,
-          reason: 'invite_token absent pour un signup self-service');
+      expect(captured.containsKey('invitation_token'), isFalse,
+          reason: 'invitation_token absent pour un signup self-service');
     });
 
-    test('inclut invite_token quand fourni', () async {
+    test('inclut invitation_token quand fourni', () async {
       final api = AuthApi(_FakeApiClient(dio));
       await api.register(
         email: 'pro@example.com',
@@ -66,7 +66,8 @@ void main() {
         inviteToken: 'tok-abc',
       );
 
-      expect(captured['invite_token'], 'tok-abc');
+      expect(captured['invitation_token'], 'tok-abc',
+          reason: 'le champ doit correspondre à RegisterBody.invitation_token côté API');
     });
   });
 }
