@@ -11,6 +11,7 @@ Last run: 2026-07-01T18:31:21.291Z
 | /profile | patient | 2026-06-25 | idem CSS Flutter | faux positif — ferme #2728 |
 | /messages | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète, ferme #2734 |
 | /agenda | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète, ferme #2732 |
+| /agenda | secretariat | 2026-07-01 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — feature complète (AgendaPage : liste des créneaux, filtre praticien, prise de RDV, confirmation ; câblée dans app_router.dart et ProShell.bodyBuilder), ferme #3172 |
 | /notifications | patient | 2026-06-25 | déjà résolu — BlocBuilder exhaustif, try/catch, GetIt enregistré, flutter analyze vert | ferme #2833 |
 | /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
 | [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via location.hash (in-page, sans page.goto) |
