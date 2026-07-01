@@ -21,6 +21,7 @@ Last run: 2026-07-01T00:00:11.586Z
 | /patients/:id | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA (pas d'exception app — PatientsBloc._onDetailLoad try/catch + SafeEmitMixin, PatientDetailPage/BlocConsumer couvre Loading/Loaded/Error, 17 tests bloc+widget verts) | faux positif — ferme #3132 |
 | /agenda | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA (pas d'exception app — AgendaBloc couvre Initial/Loading/Loaded/Error avec try/catch + SafeEmitMixin, AgendaPage/AgendaBody gèrent tous les states, route déjà wrappée dans BlocProvider, 20 tests bloc+widget verts) | faux positif — ferme #3134 |
 | / | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA — DashboardBloc et TodayNotesBloc couvrent tous les states avec try/catch, _DashboardContent gère Initial/Loading/Loaded/Error via switch exhaustif, TodayNotesCard gère tous les states, route non wrappée en BlocProvider (normal : bloc créé dans bodyBuilder), tests bloc+widget verts | fix: try/catch ajouté TodayNotesBloc — ferme #3133 |
+| /ordonnances | praticien | 2026-07-01 | page.goto: browser/context closed pendant le run QA (pas d'exception app — OrdonnancesBloc._onCreate/_onSign ont déjà try/catch + emit Error, OrdonnancesBody gère tous les states (Initial/Loading/Created/SigningInProgress/Signed/Loaded vide/Error), route déjà wrappée dans BlocProvider (dans OrdonnancesPage), tests bloc+widget verts) | faux positif — ferme #3138 |
 
 
 
