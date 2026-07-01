@@ -113,6 +113,7 @@ class AppRouter {
             GoRoute(
               path: 'new',
               builder: (_, state) => Scaffold(
+                key: const Key('ordonnances_new_scaffold'),
                 appBar: AppBar(title: const Text('Nouvelle ordonnance')),
                 body: NubiaEmptyState(
                   key: const Key('ordonnances_new'),

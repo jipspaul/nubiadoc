@@ -153,6 +153,9 @@ class _OrdonnancesBodyDirect extends StatelessWidget {
         if (state is OrdonnancesCreated) {
           return _CreatedTestView(prescription: state.prescription);
         }
+        if (state is OrdonnancesSigningInProgress) {
+          return _CreatedTestView(prescription: state.prescription);
+        }
         if (state is OrdonnancesLoaded && state.ordonnances.isEmpty) {
           return const NubiaEmptyState(
             key: Key('ordonnances_empty'),
@@ -358,6 +361,19 @@ void main() {
 
       expect(find.text('Amoxicilline 500 mg'), findsNothing);
       expect(find.text('Ibuprofène 400 mg'), findsOneWidget);
+    });
+
+    testWidgets('affiche la vue créée pendant OrdonnancesSigningInProgress',
+        (tester) async {
+      final bloc = MockOrdonnancesBloc();
+      whenListen(
+        bloc,
+        Stream.value(OrdonnancesSigningInProgress(_prescription)),
+        initialState: OrdonnancesSigningInProgress(_prescription),
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+      expect(find.byKey(const Key('ordonnances_created')), findsOneWidget);
     });
 
     testWidgets('affiche NubiaEmptyState sur OrdonnancesLoaded vide',
