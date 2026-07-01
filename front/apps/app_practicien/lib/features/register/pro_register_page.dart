@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'pro_register_cubit.dart';
 
 /// Liste statique des spécialités dentaires.
@@ -148,6 +150,8 @@ class _ProRegisterPageState extends State<ProRegisterPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(state.message)),
                 );
+              } else if (state is ProRegisterSuccess) {
+                context.go(AppRouter.home);
               }
             },
             builder: (context, state) {
