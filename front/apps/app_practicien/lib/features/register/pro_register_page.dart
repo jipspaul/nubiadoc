@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'pro_register_cubit.dart';
 
 /// Liste statique des spécialités dentaires.
@@ -144,7 +146,9 @@ class _ProRegisterPageState extends State<ProRegisterPage> {
           constraints: const BoxConstraints(maxWidth: 480),
           child: BlocConsumer<ProRegisterCubit, ProRegisterState>(
             listener: (context, state) {
-              if (state is ProRegisterFailure) {
+              if (state is ProRegisterSuccess) {
+                context.go(AppRouter.cabinetSetup);
+              } else if (state is ProRegisterFailure) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(state.message)),
                 );
