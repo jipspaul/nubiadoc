@@ -146,7 +146,9 @@ class _ProRegisterPageState extends State<ProRegisterPage> {
           constraints: const BoxConstraints(maxWidth: 480),
           child: BlocConsumer<ProRegisterCubit, ProRegisterState>(
             listener: (context, state) {
-              if (state is ProRegisterFailure) {
+              if (state is ProRegisterSuccess) {
+                context.go(AppRouter.cabinetSetup);
+              } else if (state is ProRegisterFailure) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(state.message)),
                 );
