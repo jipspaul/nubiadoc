@@ -17,12 +17,14 @@ import '../home/home_page.dart';
 import '../profile/profile_bloc.dart';
 import '../profile/profile_event.dart';
 import '../profile/profile_page.dart';
-import 'dashboard_bloc.dart';
-import 'dashboard_event.dart';
-import 'dashboard_state.dart';
 
 /// Patient home shell: 5-tab bottom nav (Rechercher / Mes RDV / Messages /
 /// Documents / Profil).
+///
+/// Le résumé agrégé (`GetDashboardSummaryUseCase`) est chargé et affiché par
+/// [HomePage] (onglet « Rechercher »), scopé à cet onglet. Le shell lui-même
+/// ne doit pas dépendre de cet appel : un échec ne doit pas bloquer l'accès
+/// aux autres onglets (Mes RDV, Messages, Documents, Profil).
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -57,92 +59,70 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) => GetIt.instance<DashboardBloc>()
-            ..add(const DashboardLoadRequested()),
+    return BlocProvider.value(
+      value: _messagingBloc,
+      child: Scaffold(
+        appBar: NubiaAppBar(
+          title: _tabs[_index].label,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.auto_awesome_outlined),
+              tooltip: 'Démo A2UI',
+              onPressed: () => context.push('/a2ui-demo'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Se déconnecter',
+              onPressed: () => context.read<AuthCubit>().signOut(),
+            ),
+          ],
         ),
-        BlocProvider.value(value: _messagingBloc),
-      ],
-      child: BlocBuilder<DashboardBloc, DashboardState>(
-        builder: (context, state) {
-          if (state is DashboardError) {
-            return Scaffold(
-              body: NubiaErrorWidget(
-                key: const Key('dashboard_error'),
-                message: state.message,
-                onRetry: () => context
-                    .read<DashboardBloc>()
-                    .add(const DashboardLoadRequested()),
+        body: switch (_index) {
+          0 => BlocProvider(
+              create: (_) => GetIt.instance<HomeBloc>()
+                ..add(const HomeLoadRequested()),
+              child: const HomePage(),
+            ),
+          1 => const MesRdvPage(),
+          2 => const MessagingPage(),
+          3 => const DocumentsPage(),
+          4 => BlocProvider(
+              create: (_) => GetIt.instance<ProfileBloc>()
+                ..add(const ProfileLoadRequested()),
+              child: const ProfilePage(),
+            ),
+          _ => Center(
+              child: NubiaEmptyState(
+                icon: Icons.construction_outlined,
+                title: _tabs[_index].label,
+                subtitle: 'Écran en cours de développement.',
               ),
-            );
-          }
-          return Scaffold(
-            appBar: NubiaAppBar(
-              title: _tabs[_index].label,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.auto_awesome_outlined),
-                  tooltip: 'Démo A2UI',
-                  onPressed: () => context.push('/a2ui-demo'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  tooltip: 'Se déconnecter',
-                  onPressed: () => context.read<AuthCubit>().signOut(),
-                ),
-              ],
             ),
-            body: switch (_index) {
-              0 => BlocProvider(
-                  create: (_) => GetIt.instance<HomeBloc>()
-                    ..add(const HomeLoadRequested()),
-                  child: const HomePage(),
-                ),
-              1 => const MesRdvPage(),
-              2 => const MessagingPage(),
-              3 => const DocumentsPage(),
-              4 => BlocProvider(
-                  create: (_) => GetIt.instance<ProfileBloc>()
-                    ..add(const ProfileLoadRequested()),
-                  child: const ProfilePage(),
-                ),
-              _ => Center(
-                  child: NubiaEmptyState(
-                    icon: Icons.construction_outlined,
-                    title: _tabs[_index].label,
-                    subtitle: 'Écran en cours de développement.',
-                  ),
-                ),
-            },
-            bottomNavigationBar:
-                BlocSelector<MessagingBloc, MessagingState, int>(
-              selector: (s) => s is MessagingConversationsLoaded
-                  ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
-                  : 0,
-              builder: (context, unreadCount) {
-                return NavigationBar(
-                  selectedIndex: _index,
-                  onDestinationSelected: (i) => setState(() => _index = i),
-                  destinations: [
-                    for (int i = 0; i < _tabs.length; i++)
-                      NavigationDestination(
-                        icon: i == 2
-                            ? Badge.count(
-                                count: unreadCount,
-                                isLabelVisible: unreadCount > 0,
-                                child: Icon(_tabs[i].icon),
-                              )
-                            : Icon(_tabs[i].icon),
-                        label: _tabs[i].label,
-                      ),
-                  ],
-                );
-              },
-            ),
-          );
         },
+        bottomNavigationBar: BlocSelector<MessagingBloc, MessagingState, int>(
+          selector: (s) => s is MessagingConversationsLoaded
+              ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
+              : 0,
+          builder: (context, unreadCount) {
+            return NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: [
+                for (int i = 0; i < _tabs.length; i++)
+                  NavigationDestination(
+                    icon: i == 2
+                        ? Badge.count(
+                            count: unreadCount,
+                            isLabelVisible: unreadCount > 0,
+                            child: Icon(_tabs[i].icon),
+                          )
+                        : Icon(_tabs[i].icon),
+                    label: _tabs[i].label,
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
