@@ -162,6 +162,8 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => LogoutUseCase(gi()))
     ..registerFactory(() => RegisterUseCase(gi()))
     ..registerFactory(() => GetMeUseCase(gi()))
+    ..registerFactory(() => ForgotPasswordUseCase(gi()))
+    ..registerFactory(() => ResetPasswordUseCase(gi()))
     // account
     ..registerFactory(() => GetAccountUseCase(gi()))
     ..registerFactory(() => UpdateAccountUseCase(gi()))
