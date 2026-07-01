@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nubia_data/src/remote/scheduling/appointment_dto.dart';
 import 'package:nubia_data/src/remote/auth/auth_dto.dart';
 import 'package:nubia_data/src/remote/account/account_dto.dart';
+import 'package:nubia_data/src/remote/dashboard/dashboard_dto.dart';
 import 'package:nubia_data/src/remote/quotes_api.dart';
 import 'package:nubia_data/src/remote/payments_api.dart';
 
@@ -84,6 +85,53 @@ void main() {
       final dto = PaymentIntentDto.fromJson(json);
       expect(dto.paymentId, 'pi-stripe-xyz');
       expect(dto.clientSecret, 'pi_xyz_secret_abc');
+    });
+  });
+
+  group('DashboardDto (GET /v1/dashboard)', () {
+    test('fromJson désérialise un patient avec données (next_appointment, to_sign, to_pay)', () {
+      final json = {
+        'next_appointment': {
+          'appointment_id': 'appt-abc',
+          'starts_at': '2026-08-01T10:00:00Z',
+          'status': 'confirmed',
+        },
+        'to_sign': [
+          {'quote_id': 'q-1', 'amount_cents': 12000},
+          {'quote_id': 'q-2', 'amount_cents': 8000},
+        ],
+        'to_pay': [
+          {'payment_id': 'pay-1', 'amount_cents': 5000},
+        ],
+        'unread_messages': 3,
+        'reminders': 1,
+      };
+      final dto = DashboardDto.fromJson(json);
+      expect(dto.upcomingAppointments, 1);
+      expect(dto.documentsToSign, 2);
+      expect(dto.pendingPaymentsCents, 5000);
+      expect(dto.unreadMessages, 3);
+      expect(dto.pendingQuestionnaires, 1);
+      final domain = dto.toDomain();
+      expect(domain.upcomingAppointments, 1);
+      expect(domain.documentsToSign, 2);
+      expect(domain.pendingPaymentsCents, 5000);
+    });
+
+    test('fromJson désérialise un patient sans données (null / listes vides)', () {
+      final json = {
+        'next_appointment': null,
+        'to_sign': [],
+        'to_pay': [],
+        'unread_messages': 0,
+        'reminders': 0,
+      };
+      final dto = DashboardDto.fromJson(json);
+      expect(dto.upcomingAppointments, 0);
+      expect(dto.documentsToSign, 0);
+      expect(dto.pendingPaymentsCents, 0);
+      expect(dto.unreadMessages, 0);
+      expect(dto.pendingQuestionnaires, 0);
     });
   });
 }
