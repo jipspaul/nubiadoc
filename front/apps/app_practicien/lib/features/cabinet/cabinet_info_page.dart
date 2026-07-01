@@ -58,6 +58,7 @@ class _CabinetInfoPageState extends State<CabinetInfoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('cabinet_setup_scaffold'),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
