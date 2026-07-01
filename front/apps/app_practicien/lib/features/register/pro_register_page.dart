@@ -151,7 +151,7 @@ class _ProRegisterPageState extends State<ProRegisterPage> {
                   SnackBar(content: Text(state.message)),
                 );
               } else if (state is ProRegisterSuccess) {
-                context.go(AppRouter.home);
+                context.go(AppRouter.cabinetSetup);
               }
             },
             builder: (context, state) {
