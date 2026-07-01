@@ -34,6 +34,10 @@ class InvalidCredentialsFailure extends Failure {
   const InvalidCredentialsFailure() : super('E-mail ou mot de passe incorrect');
 }
 
+class InvalidInviteFailure extends Failure {
+  const InvalidInviteFailure() : super('Invitation invalide ou expirée.');
+}
+
 class NotFoundFailure extends Failure {
   const NotFoundFailure([super.message = 'Ressource introuvable.']);
 }

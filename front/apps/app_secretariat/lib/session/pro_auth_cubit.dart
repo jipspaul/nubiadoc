@@ -22,8 +22,9 @@ class AuthAuthenticated extends AuthState {
 }
 
 class AuthUnauthenticated extends AuthState {
-  const AuthUnauthenticated([this.message]);
+  const AuthUnauthenticated([this.message, this.invalidInvite = false]);
   final String? message;
+  final bool invalidInvite;
 }
 
 /// Professional auth cubit. Reuses the shared [LoginUseCase]; the role is
@@ -100,7 +101,10 @@ class ProAuthCubit extends Cubit<AuthState> {
         inviteToken: inviteToken,
       );
       result.fold(
-        (failure) => emit(AuthUnauthenticated(failure.message)),
+        (failure) => emit(AuthUnauthenticated(
+          failure.message,
+          failure is InvalidInviteFailure,
+        )),
         (_) {
           _deviceRegistration.registerOnLogin(_app);
           emit(AuthAuthenticated(_session()));
