@@ -152,8 +152,6 @@ class _ProRegisterPageState extends State<ProRegisterPage> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(state.message)),
                 );
-              } else if (state is ProRegisterSuccess) {
-                context.go(AppRouter.home);
               }
             },
             builder: (context, state) {
