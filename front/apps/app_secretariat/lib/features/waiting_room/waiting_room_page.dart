@@ -33,12 +33,14 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
           final entries = state.entries;
           if (entries.isEmpty) {
             return const NubiaEmptyState(
+              key: Key('waiting_room_empty'),
               icon: Icons.people_outline,
               title: 'Salle d\'attente vide',
               subtitle: NubiaL10n.noWaitingRoom,
             );
           }
           return ListView.builder(
+            key: const Key('waiting_room_list'),
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: entries.length,
             itemBuilder: (_, i) => _WaitingEntryTile(entry: entries[i]),
@@ -64,6 +66,7 @@ class WaitingRoomPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('waiting_room_scaffold'),
       appBar: AppBar(
         title: Text(NubiaL10n.waitingRoom),
         actions: [
