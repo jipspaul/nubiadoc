@@ -1,6 +1,6 @@
 # QA Explored Paths
 
-Last run: 2026-07-01T08:04:43.778Z
+Last run: 2026-07-01T08:35:57.303Z
 
 ## Faux positifs connus (méthode C)
 
@@ -13,15 +13,15 @@ Last run: 2026-07-01T08:04:43.778Z
 | /agenda | praticien | 2026-06-25 | idem CSS Flutter `flt-text-editing::placeholder` | faux positif — ferme #2732 |
 | /notifications | patient | 2026-06-25 | déjà résolu | ferme #2833 |
 | /ordonnances | praticien | 2026-06-25 | déjà résolu | ferme #2853 #2854 |
-| [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via location.hash (in-page, sans page.goto) |
+| [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré | faux positif — ferme #2920-#2935 |
 
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T08:05:13.517Z | OK | — |
-| /signup | 2026-06-30 | 2026-07-01T08:05:19.587Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T08:36:38.833Z | OK | — |
+| /signup | 2026-06-30 | 2026-07-01T08:36:40.875Z | OK | — |
 | /account-setup | 2026-06-30 | 2026-07-01T08:05:25.716Z | OK | — |
 | /coverage-setup | 2026-06-30 | 2026-07-01T08:05:31.792Z | OK | — |
 | / | 2026-06-30 | 2026-07-01T08:05:00.752Z | failed-requests | "Erreur serveur lors du chargement du tableau de bord" — #3153 |
@@ -43,8 +43,8 @@ Last run: 2026-07-01T08:04:43.778Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T07:26:42.527Z | OK | — |
-| /register-pro | 2026-06-30 | 2026-07-01T07:26:48.111Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T08:37:06.540Z | OK | — |
+| /register-pro | 2026-06-30 | 2026-07-01T08:37:08.582Z | OK | — |
 | / | 2026-06-30 | 2026-07-01T07:26:50.894Z | OK | — |
 | /agenda | 2026-06-30 | 2026-07-01T07:26:53.678Z | OK | — |
 | /waiting-room | 2026-06-30 | 2026-07-01T07:26:56.467Z | OK | — |
@@ -62,8 +62,8 @@ Last run: 2026-07-01T08:04:43.778Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | --- | --- | --- | --- | --- |
-| /login | 2026-06-30 | 2026-07-01T08:06:31.450Z | OK | — |
-| /onboard | 2026-06-30 | 2026-07-01T08:06:37.512Z | OK | — |
+| /login | 2026-06-30 | 2026-07-01T08:37:34.095Z | OK | — |
+| /onboard | 2026-06-30 | 2026-07-01T08:37:36.144Z | OK | — |
 | / | 2026-06-30 | 2026-07-01T08:06:40.824Z | OK | — |
 | /agenda | 2026-06-30 | 2026-07-01T08:06:18.820Z | failed-requests | "Impossible de charger l'agenda" — #3050 open |
 | /bookable-slots | 2026-06-30 | 2026-07-01T08:06:44.114Z | OK | — |
@@ -77,4 +77,3 @@ Last run: 2026-07-01T08:04:43.778Z
 | /messages | 2026-06-30 | 2026-07-01T08:07:03.834Z | OK | — |
 | /admin-membres | 2026-06-30 | 2026-07-01T08:07:07.134Z | OK | — |
 | /admin-secretariats | 2026-06-30 | 2026-07-01T08:07:10.430Z | OK | — |
-
