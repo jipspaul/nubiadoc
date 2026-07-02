@@ -9,7 +9,6 @@ Tu es dans la **couche données Nubia**. PostgreSQL 16 + PostGIS + pgTAP. Source
 - `Makefile` — cibles `db-create`, `db-migrate`, `test`, `seed`, `reset`.
 - `README.md` — rôles, RLS, chiffrement, rétention, audit, runbook.
 - `SCHEMA.md` — vue d'ensemble du schéma (généré ou maintenu à la main).
-- `PROMPT-construction-db.md` — historique des décisions data.
 
 ## Règles dures
 1. **3 rôles séparés** :

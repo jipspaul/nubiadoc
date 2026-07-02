@@ -331,6 +331,6 @@ P3  Étape 11 README + ARCHITECTURE                                     p3-docs
 - **Manager** (`secretariat_membership.role='manager'`) **provisionne des comptes secrétaires** : `POST /v1/cabinet/secretariats/:id/staff` (crée l'`app_user` pro `secretary` ou rattache un existant + membership ; autorisé `{admin, manager}`) — **R13**, UI **W58**.
 
 ### 13.6 Backlog atomique
-Détail des tâches (P10–P14, R7–R13, W51–W58, ED5/ES5/ES6/EX4) + dépendances : **`PLAN-ATOMIC.md` §H**.
+Détail des tâches (P10–P14, R7–R13, W51–W58, ED5/ES5/ES6/EX4) + dépendances : issues Forgejo.
 
 > ⚠️ **Hypothèses prises en mode autonome** (à confirmer) : établissement=cabinet ; secrétariat sous-unité ; manager = rôle secrétariat ; patient↔secrétariat dérivé. Si l'établissement doit être une entité **au-dessus** du cabinet (multi-cabinets juridiques), la frontière tenant change et `secretariat.cabinet_id` devient `establishment_id` — revoir P10/P13.
