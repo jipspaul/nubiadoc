@@ -34,11 +34,15 @@ class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState>
     try {
       final result = await _getProviderReviews(event.providerId);
       result.fold(
-        (failure) => safeEmit(ReviewsError(failure.message)),
+        (failure) => safeEmit(
+          ReviewsError(failure.message, providerId: event.providerId),
+        ),
         (reviews) => safeEmit(ReviewsLoaded(reviews)),
       );
     } catch (_) {
-      safeEmit(const ReviewsError('Erreur de chargement.'));
+      safeEmit(
+        ReviewsError('Erreur de chargement.', providerId: event.providerId),
+      );
     }
   }
 
