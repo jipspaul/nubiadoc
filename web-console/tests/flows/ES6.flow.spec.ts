@@ -1,5 +1,5 @@
 /**
- * ES6 — Flow E2E : manager provisionne secrétaire (section C du PLAN-ATOMIC)
+ * ES6 — Flow E2E : manager provisionne secrétaire
  *
  * Valide :
  *   1. Manager (admin) login → navigue vers /manager/personnel

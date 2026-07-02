@@ -8,7 +8,7 @@
 - Commits faits par les agents (push auto via leur token Forgejo) ; humains review/merge.
 - Avant de commencer : `git pull` puis lecture de `AGENTS.md` racine. L'état d'avancement vit dans les issues Forgejo + le git log, pas dans un fichier-journal partagé.
 - Tout choix structurant (archi, dépendance) → noté dans le message de commit / la PR, et si transverse dans `docs/`.
-- Le détail fin par brique vit dans `docs/09-backlog-issues.md` + les issues Forgejo.
+- Le détail fin par brique vit dans les issues Forgejo.
 
 ## Fin d'étape
 1. Push sur la branche `agent/<…>` puis ouvrir la PR vers `main` (en français, impératif).
@@ -17,4 +17,4 @@
 ## Pointeurs
 - Routing par dossier : `AGENTS.md` (racine).
 - État courant : issues Forgejo (label `state:*`) + `git log --oneline`.
-- Backlog : `docs/09-backlog-issues.md`.
+- Backlog : issues Forgejo.

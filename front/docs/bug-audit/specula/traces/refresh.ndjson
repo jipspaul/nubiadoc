@@ -1,7 +1,0 @@
-{"tag":"refresh","action":"Recv401","req":"r1","refreshing":false,"refreshDone":"none","phase":"got401"}
-{"tag":"refresh","action":"BeginRefresh","req":"r1","refreshing":true,"refreshDone":"none","phase":"refreshing"}
-{"tag":"refresh","action":"Recv401","req":"r2","refreshing":true,"refreshDone":"none","phase":"got401"}
-{"tag":"refresh","action":"DropWhileRefreshing","req":"r2","refreshing":true,"refreshDone":"none","phase":"dropped"}
-{"tag":"refresh","action":"Recv401","req":"r3","refreshing":true,"refreshDone":"none","phase":"got401"}
-{"tag":"refresh","action":"DropWhileRefreshing","req":"r3","refreshing":true,"refreshDone":"none","phase":"dropped"}
-{"tag":"refresh","action":"RefreshSucceed","req":"r1","refreshing":false,"refreshDone":"ok","phase":"retried_ok"}

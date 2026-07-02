@@ -78,7 +78,7 @@ tests/flows/
   ...
 ```
 
-Un fichier par parcours (EP*, ED*, ES*, EX*). Cf. `web-console/PLAN-ATOMIC.md §D`.
+Un fichier par parcours (EP*, ED*, ES*, EX*).
 
 ## Reset d'état entre parcours
 
