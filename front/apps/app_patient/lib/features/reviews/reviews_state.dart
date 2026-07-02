@@ -27,11 +27,12 @@ final class ReviewsLoaded extends ReviewsState {
 
 final class ReviewsError extends ReviewsState {
   final String message;
+  final String providerId;
 
-  const ReviewsError(this.message);
+  const ReviewsError(this.message, {required this.providerId});
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, providerId];
 }
 
 final class ReviewSubmitting extends ReviewsState {
