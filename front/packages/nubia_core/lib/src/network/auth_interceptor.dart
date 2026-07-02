@@ -80,9 +80,23 @@ class AuthInterceptor extends Interceptor {
     // Suppress unhandled-error if no concurrent request is awaiting the future.
     _refreshCompleter!.future.ignore();
     try {
-      final refreshToken = await _tokenStorage.getRefreshToken();
+      String? refreshToken;
+      var storageReadFailed = false;
+      try {
+        refreshToken = await _tokenStorage.getRefreshToken();
+      } catch (_) {
+        // Same class of race as the onRequest read above: a storage read
+        // landing mid-write (e.g. right after login) must not escape as an
+        // uncaught exception — Dio would wrap it into a client-side
+        // DioException with zero network trace instead of ever reaching
+        // the refresh endpoint. Treat it as transiently unavailable rather
+        // than "logged out" so we don't wipe valid tokens on a race.
+        storageReadFailed = true;
+      }
       if (refreshToken == null) {
-        await _tokenStorage.clearTokens();
+        if (!storageReadFailed) {
+          await _tokenStorage.clearTokens();
+        }
         _refreshCompleter!.completeError(Exception('no refresh token'));
         handler.next(err);
         return;
