@@ -1,0 +1,44 @@
+# E2E Playwright multi-rôle (front/test/e2e) contre l'environnement de test.
+#
+# NIGHTLY + déclenchement manuel — PAS per-PR : la suite prend ~5 min à cause
+# du throttle anti rate-limit login (5/min par IP, api/src/auth/login.rs) et
+# dépend d'un environnement externe (*.doc.nubia-link.com) qui peut être
+# indisponible sans que la PR soit en cause.
+#
+# Les credentials par défaut sont les comptes du seed démo (db/seed/README.md),
+# committés — pas des secrets. Surcharger via variables d'env du runner si
+# l'environnement cible change (cf. front/test/e2e/README.md).
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  front-e2e:
+    runs-on: docker
+    container:
+      image: mcr.microsoft.com/playwright:v1.49.1-jammy
+    env:
+      PATIENT_BASE_URL: https://patient.doc.nubia-link.com
+      PRACTICIEN_BASE_URL: https://praticien.doc.nubia-link.com
+      SECRETARIAT_BASE_URL: https://secretariat.doc.nubia-link.com
+      API_BASE_URL: https://api.doc.nubia-link.com/v1
+      WS_BASE_URL: wss://api.doc.nubia-link.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sanity check env de test
+        run: |
+          curl -fsS -m 10 "$API_BASE_URL/health" >/dev/null \
+            || { echo "::error::API de l'env de test injoignable — run annulé (pas une régression front)"; exit 1; }
+      - working-directory: front/test/e2e
+        run: npm install
+      - name: Run suite E2E
+        working-directory: front/test/e2e
+        run: npx playwright test --config=e2e.config.ts
+      - name: Upload rapport en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-test-results
+          path: front/test/e2e/test-results/
+          retention-days: 7
