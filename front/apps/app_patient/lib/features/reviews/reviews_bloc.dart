@@ -24,6 +24,12 @@ class ReviewsBloc extends Bloc<ReviewsEvent, ReviewsState>
     ReviewsLoadRequested event,
     Emitter<ReviewsState> emit,
   ) async {
+    // Pas de prestataire ciblé (ex. accès direct à /reviews sans contexte) :
+    // état vide explicite plutôt qu'un appel API voué à échouer.
+    if (event.providerId.isEmpty) {
+      safeEmit(const ReviewsLoaded([]));
+      return;
+    }
     emit(const ReviewsLoading());
     try {
       final result = await _getProviderReviews(event.providerId);
