@@ -8,30 +8,27 @@
  * Refs : front/docs/e2e-scenarios.md §C1 + §C2 — docs/07-conformite.md
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { loginApi, authedFetch } from '../fixtures/helpers';
+import { loginAs, gotoRoute, credentialsFor } from '../fixtures/login';
+import { findOpenSlot } from '../fixtures/cabinet';
 
-const S_URL = process.env.SECRETARIAT_BASE_URL ?? 'http://localhost:4201';
+const S_EMAIL = credentialsFor('secretariat').email;
+const S_PASS = credentialsFor('secretariat').password;
+const P1_EMAIL = credentialsFor('patient').email;
+const P1_PASS = credentialsFor('patient').password;
+// patient.reset@nubia.test : seul autre compte patient du seed avec un hash
+// utilisable (les autres sont en SEED_PLACEHOLDER) — cf. db/seed/seed_e2e.sql.
+const P2_EMAIL = process.env.CRED_PATIENT2_EMAIL ?? 'patient.reset@nubia.test';
+const P2_PASS = process.env.CRED_PATIENT2_PASSWORD ?? 'NubiaDemo1!';
 
-const S_EMAIL = process.env.CRED_SECRETARIAT_EMAIL ?? 'secretariat@nubia-demo.fr';
-const S_PASS = process.env.CRED_SECRETARIAT_PASSWORD ?? 'demo-pass';
-const P1_EMAIL = process.env.CRED_PATIENT_EMAIL ?? 'patient1@nubia-demo.fr';
-const P1_PASS = process.env.CRED_PATIENT_PASSWORD ?? 'demo-pass';
-const P2_EMAIL = process.env.CRED_PATIENT2_EMAIL ?? 'patient2@nubia-demo.fr';
-const P2_PASS = process.env.CRED_PATIENT2_PASSWORD ?? 'demo-pass';
-
-const PATIENT_ID = process.env.DEMO_PATIENT_ID ?? 'demo-patient-001';
-const CONSULT_ID = process.env.DEMO_CONSULTATION_ID ?? 'demo-consult-001';
-const PROVIDER_ID = process.env.DEMO_PROVIDER_ID ?? 'demo-provider-001';
-const SLOT_ID = process.env.DEMO_SLOT_ID ?? 'demo-slot-001';
-
-async function secretariatBrowserLogin(page: Page): Promise<void> {
-  await page.goto(`${S_URL}/login`);
-  await page.getByLabel('Email').fill(S_EMAIL);
-  await page.getByLabel('Mot de passe').fill(S_PASS);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
-  await page.waitForURL(`${S_URL}/**`, { timeout: 15_000 });
-}
+// UUIDs du seed démo (db/seed/seed.sql) : Marc Dubois (table patient) / Dr Marin.
+const PATIENT_ID =
+  process.env.DEMO_PATIENT_ID ?? 'd0000000-0000-0000-0000-0000000000d1';
+const CONSULT_ID =
+  process.env.DEMO_CONSULTATION_ID ?? 'demo-consult-001';
+const PROVIDER_ID =
+  process.env.DEMO_PROVIDER_ID ?? 'f0000000-0000-0000-0000-0000000000f1';
 
 // ---------------------------------------------------------------------------
 // C1 — Secrétariat NE PEUT PAS accéder au clinique
@@ -61,8 +58,8 @@ test.describe('C1 — Cloisonnement clinique (secrétariat)', () => {
   });
 
   test('UI /patients/:id — onglet "Notes cliniques" absent du DOM', async ({ page }) => {
-    await secretariatBrowserLogin(page);
-    await page.goto(`${S_URL}/patients/${PATIENT_ID}`);
+    await loginAs('secretariat', page);
+    await gotoRoute(page, 'secretariat', `/patients/${PATIENT_ID}`);
     await page.waitForLoadState('networkidle');
 
     await expect(
@@ -87,12 +84,13 @@ test.describe('C2 — RLS multi-patient', () => {
       loginApi(P2_EMAIL, P2_PASS),
     ]);
 
-    // P1 réserve un RDV et capture appointment_id=X
+    // P1 réserve un RDV et capture appointment_id=X (slot open réel du jour)
+    const { slotId } = await findOpenSlot(PROVIDER_ID);
     const bookRes = await authedFetch(p1Token, '/appointments', {
       method: 'POST',
       body: JSON.stringify({
         provider_id: PROVIDER_ID,
-        slot_id: SLOT_ID,
+        slot_id: slotId,
         motif: 'e2e-c2-rls-test',
       }),
     });
@@ -100,18 +98,18 @@ test.describe('C2 — RLS multi-patient', () => {
       throw new Error(`P1 booking échoué: HTTP ${bookRes.status}`);
     }
     const booked = await bookRes.json();
-    appointmentX = booked.appointment_id as string;
+    appointmentX = booked.id as string; // AppointmentDetail.id
   });
 
   test('P2 GET /appointments ne contient pas le RDV X de P1', async () => {
     const res = await authedFetch(p2Token, '/appointments');
     expect(res.status).toBe(200);
     const body = await res.json();
-    const list: { appointment_id: string }[] = Array.isArray(body)
+    const list: { id: string }[] = Array.isArray(body)
       ? body
       : (body.data ?? []);
     expect(
-      list.map((a) => a.appointment_id),
+      list.map((a) => a.id),
       `Le RDV ${appointmentX} de P1 ne doit pas apparaître dans la liste de P2`,
     ).not.toContain(appointmentX);
   });

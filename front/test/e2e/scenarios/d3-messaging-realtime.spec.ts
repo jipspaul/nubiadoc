@@ -11,13 +11,16 @@
 
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { loginApi, authedFetch } from '../fixtures/helpers';
+import { credentialsFor, gotoRoute } from '../fixtures/login';
 
 const WS_BASE = (process.env.WS_BASE_URL ?? 'ws://localhost:8080') + '/v1/ws';
-const P_EMAIL = process.env.CRED_PATIENT_EMAIL ?? 'patient1@nubia-demo.fr';
-const P_PASS = process.env.CRED_PATIENT_PASSWORD ?? 'demo-pass';
-const S_EMAIL = process.env.CRED_SECRETARIAT_EMAIL ?? 'secretariat@nubia-demo.fr';
-const S_PASS = process.env.CRED_SECRETARIAT_PASSWORD ?? 'demo-pass';
-const CABINET_ID = process.env.DEMO_CABINET_ID ?? 'demo-cabinet-001';
+const P_EMAIL = credentialsFor('patient').email;
+const P_PASS = credentialsFor('patient').password;
+const S_EMAIL = credentialsFor('secretariat').email;
+const S_PASS = credentialsFor('secretariat').password;
+// Cabinet Lyon — seed démo (db/seed/seed.sql).
+const CABINET_ID =
+  process.env.DEMO_CABINET_ID ?? '11111111-1111-1111-1111-111111111111';
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -65,10 +68,12 @@ test.describe('D3 — Messagerie cabinet temps réel', () => {
       body: JSON.stringify({ cabinet_id: CABINET_ID }),
     });
     if (!res.ok) throw new Error(`POST /conversations échoué: HTTP ${res.status}`);
-    conversationId = ((await res.json()) as { conversation_id: string }).conversation_id;
+    conversationId = ((await res.json()) as { id: string }).id; // CreateConversationResponse.id
   });
 
-  test('Étapes 1-2 : P envoie → S reçoit via WS en ≤2s', async ({ context }) => {
+  // BLOQUÉ API : le hub WS ne supporte que le canal `waiting_room`
+  // (api/src/realtime/channels.rs) — aucun event message_created n'est publié.
+  test.fixme('Étapes 1-2 : P envoie → S reçoit via WS en ≤2s', async ({ context }) => {
     const channel = `conversation:${conversationId}`;
     const ws = await subscribeWs(context, sToken, channel, 'message_created');
     await wait(300); // laisse le WS s'établir côté browser
@@ -85,7 +90,9 @@ test.describe('D3 — Messagerie cabinet temps réel', () => {
     if (latencyMs !== null && latencyMs > 2000) console.warn(`[D3] WS S←P latence ${latencyMs}ms > 2s`);
   });
 
-  test('Étapes 3-4 : S répond → P reçoit via WS en ≤2s', async ({ context }) => {
+  // BLOQUÉ API : seul GET /v1/cabinet/conversations existe côté cabinet —
+  // pas de POST messages ni de read (cf. issue rust-api « messagerie cabinet »).
+  test.fixme('Étapes 3-4 : S répond → P reçoit via WS en ≤2s', async ({ context }) => {
     const channel = `conversation:${conversationId}`;
     const ws = await subscribeWs(context, pToken, channel, 'message_created');
     await wait(300);
@@ -106,7 +113,7 @@ test.describe('D3 — Messagerie cabinet temps réel', () => {
     if (latencyMs !== null && latencyMs > 2000) console.warn(`[D3] WS P←S latence ${latencyMs}ms > 2s`);
   });
 
-  test('Étape 5 : S marque lu → P reçoit event read (double coche)', async ({ context }) => {
+  test.fixme('Étape 5 : S marque lu → P reçoit event read (double coche)', async ({ context }) => {
     const channel = `conversation:${conversationId}`;
     const ws = await subscribeWs(context, pToken, channel, 'read');
     await wait(300);

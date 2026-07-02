@@ -6,20 +6,27 @@
  *
  * Chaque test :
  *   1. Ouvre une page isolée
- *   2. Lance loginAs(role, page) → attend que le dashboard soit chargé
- *   3. Vérifie que l'URL n'est plus /login (dashboard effectivement rendu)
- *   4. Logout (vidage du storage + navigation vers /login → redirigé par l'auth guard)
+ *   2. Lance loginAs(role, page) → active la sémantique Flutter + login form
+ *   3. Vérifie que la route logique n'est plus /login (dashboard rendu)
+ *   4. Logout (vidage du storage + reload → l'auth guard redirige vers /login)
  *
- * Navigation inter-pages : TOUJOURS via page.goto(url) — l'app utilise le path
- * routing go_router. Ne jamais modifier location.hash directement (go_router
- * l'ignore ; la page resterait sur la vue courante → faux positif « blank canvas »).
+ * Navigation inter-pages : TOUJOURS via gotoRoute()/waitForRoutePrefix() des
+ * fixtures — app_practicien route par pathname (usePathUrlStrategy) tandis que
+ * patient/secretariat routent par fragment `#/...` (défaut Flutter web). Un
+ * page.goto brut ou une assertion toHaveURL casse sur l'une ou l'autre app.
  *
  * Lancement : melos run e2e -- --grep _smoke
  * (ou: cd front/test/e2e && npx playwright test scenarios/_smoke.spec.ts)
  */
 
 import { test, expect } from '@playwright/test';
-import { loginAs, baseUrlFor, type Role } from '../fixtures/login';
+import {
+  loginAs,
+  gotoRoute,
+  currentRoute,
+  waitForRoutePrefix,
+  type Role,
+} from '../fixtures/login';
 
 const ROLES: Role[] = ['patient', 'practicien', 'secretariat'];
 
@@ -29,41 +36,36 @@ for (const role of ROLES) {
     await loginAs(role, page);
 
     // ── Dashboard chargé ──────────────────────────────────────────────────
-    // loginAs a déjà attendu waitForURL(**) — on vérifie qu'on n'est plus sur /login
-    await expect(page).not.toHaveURL(/\/login/);
+    expect(await currentRoute(page, role)).not.toMatch(/^\/login/);
 
-    // Vérification minimale : l'app a rendu un élément de navigation principal
-    // (nav rail desktop ou drawer mobile, selon le breakpoint du browser headless)
-    await expect(
-      page.getByRole('navigation').or(page.locator('nav, [role="navigation"]')).first(),
-    ).toBeVisible({ timeout: 10_000 });
+    // L'app a rendu du contenu sémantique au-delà du placeholder
+    // d'accessibilité (l'arbre flt-semantics n'existe que si un frame a
+    // été rendu avec la sémantique active).
+    await expect(page.locator('flt-semantics').first()).toBeAttached({
+      timeout: 10_000,
+    });
 
     // ── Logout ─────────────────────────────────────────────────────────────
-    // On vide le storage côté browser (équivalent déconnexion).
-    // L'auth guard Flutter redirige automatiquement vers /login à la prochaine
-    // navigation, ce qui valide que la session est bien supprimée.
+    // Vidage du storage puis reload : le RouterNotifier garde l'état auth en
+    // mémoire, seul un reboot de l'app force restore() → plus de token →
+    // l'auth guard redirige vers /login. (Un simple goto ne recharge pas les
+    // apps en hash routing.)
     await page.evaluate(() => {
       localStorage.clear();
       sessionStorage.clear();
     });
-
-    const baseUrl = baseUrlFor(role);
-    await page.goto(`${baseUrl}/`);
-    await page.waitForURL(`${baseUrl}/login`, { timeout: 10_000 });
-    await expect(page).toHaveURL(/\/login/);
+    await page.reload();
+    await waitForRoutePrefix(page, role, '/login');
   });
 }
 
-// Régression QA-20260627-15 : la page secretariat/messages apparaissait vide
-// quand le QA-agent naviguait via location.hash au lieu de page.goto().
-// go_router (path routing) ignore les changements de hash → canvas blanc.
-// Ce test valide la navigation par URL complète.
-test('_smoke — secretariat : /messages rendu via page.goto (non blank)', async ({ page }) => {
+// Régression QA-20260627-15 : la page secretariat/messages apparaissait vide.
+// Ce test valide la navigation in-app vers /messages + rendu non-vide.
+test('_smoke — secretariat : /messages rendu (non blank)', async ({ page }) => {
   await loginAs('secretariat', page);
-  await page.goto(`${baseUrlFor('secretariat')}/messages`);
-  await page.waitForLoadState('networkidle');
-  await expect(page).toHaveURL(/\/messages/);
-  await expect(
-    page.getByRole('navigation').or(page.locator('nav, [role="navigation"]')).first(),
-  ).toBeVisible({ timeout: 10_000 });
+  await gotoRoute(page, 'secretariat', '/messages');
+  await waitForRoutePrefix(page, 'secretariat', '/messages');
+  await expect(page.locator('flt-semantics').first()).toBeAttached({
+    timeout: 10_000,
+  });
 });

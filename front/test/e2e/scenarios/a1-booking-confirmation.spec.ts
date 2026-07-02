@@ -10,15 +10,15 @@
 
 import { test, expect } from '@playwright/test';
 import { loginApi, authedFetch } from '../fixtures/helpers';
-import { loginAs, baseUrlFor } from '../fixtures/login';
-import { bookAppointment } from '../fixtures/cabinet';
+import { loginAs, gotoRoute, credentialsFor } from '../fixtures/login';
+import { bookAppointment, findOpenSlot } from '../fixtures/cabinet';
 
-const P_EMAIL     = process.env.CRED_PATIENT_EMAIL       ?? 'patient1@nubia-demo.fr';
-const P_PASS      = process.env.CRED_PATIENT_PASSWORD    ?? 'demo-pass';
-const S_EMAIL     = process.env.CRED_SECRETARIAT_EMAIL   ?? 'secretariat@nubia-demo.fr';
-const S_PASS      = process.env.CRED_SECRETARIAT_PASSWORD ?? 'demo-pass';
-const PROVIDER_ID = process.env.DEMO_PROVIDER_ID         ?? 'demo-provider-001';
-const SLOT_ID     = process.env.DEMO_SLOT_ID             ?? 'demo-slot-001';
+const P_EMAIL     = credentialsFor('patient').email;
+const P_PASS      = credentialsFor('patient').password;
+const S_EMAIL     = credentialsFor('secretariat').email;
+const S_PASS      = credentialsFor('secretariat').password;
+// Dr Hugo Marin — seed démo (db/seed/seed.sql:97).
+const PROVIDER_ID = process.env.DEMO_PROVIDER_ID ?? 'f0000000-0000-0000-0000-0000000000f1';
 
 test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
   test.describe.configure({ mode: 'serial' });
@@ -26,7 +26,7 @@ test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
   let pToken: string;
   let sToken: string;
   let appointmentId: string;
-  const rdvDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (today)
+  let rdvDate: string; // dérivée du créneau réellement réservé
 
   test.beforeAll(async () => {
     // Étapes 1 + 3 : logins API en parallèle (browser login dans les tests)
@@ -35,11 +35,14 @@ test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
       loginApi(S_EMAIL, S_PASS),
     ]);
 
-    // Étape 2 : P réserve un RDV — motif horodaté pour idempotence inter-runs
+    // Étape 2 : P réserve un RDV — les slots du seed étant régénérés chaque
+    // jour, on cherche un créneau open réel plutôt qu'un SLOT_ID figé.
+    const { slotId, startsAt } = await findOpenSlot(PROVIDER_ID);
+    rdvDate = startsAt.slice(0, 10);
     const motif = `e2e-a1-${Date.now().toString(36)}`;
     appointmentId = await bookAppointment(pToken, {
       providerId: PROVIDER_ID,
-      slotId: SLOT_ID,
+      slotId,
       motif,
     });
   });
@@ -53,10 +56,10 @@ test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
           const res = await authedFetch(sToken, `/cabinet/appointments?date=${rdvDate}`);
           if (!res.ok) return [];
           const body = (await res.json()) as unknown;
-          const list: { appointment_id: string }[] = Array.isArray(body)
+          const list: { id: string }[] = Array.isArray(body)
             ? body
             : ((body as { data?: { appointment_id: string }[] }).data ?? []);
-          return list.filter((a) => a.appointment_id === appointmentId);
+          return list.filter((a) => a.id === appointmentId);
         },
         {
           message: `RDV ${appointmentId} doit apparaître dans GET /cabinet/appointments?date=${rdvDate}`,
@@ -68,10 +71,12 @@ test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
 
     // UI : S se connecte et vérifie que l'event est visible dans l'agenda
     await loginAs('secretariat', page);
-    await page.goto(`${baseUrlFor('secretariat')}/agenda`);
+    await gotoRoute(page, 'secretariat', '/agenda');
+    // Flutter web n'émet pas de data-testid : on s'appuie sur l'arbre
+    // sémantique (nom du patient réservant, affiché sur la tuile agenda).
     await expect(
-      page.getByTestId(`agenda-event-${appointmentId}`),
-      `[data-testid="agenda-event-${appointmentId}"] doit être visible`,
+      page.getByText('Marc Dubois').first(),
+      'la tuile agenda du RDV (patient Marc Dubois) doit être visible',
     ).toBeVisible({ timeout: 15_000 });
   });
 
@@ -79,8 +84,8 @@ test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
   test('Étape 5 — S confirme via UI → POST /cabinet/appointments/:id/confirm 200', async ({ page }) => {
     // S se connecte (contexte isolé de P grâce au page fixture serial)
     await loginAs('secretariat', page);
-    await page.goto(`${baseUrlFor('secretariat')}/agenda`);
-    await page.getByTestId(`agenda-event-${appointmentId}`).click();
+    await gotoRoute(page, 'secretariat', '/agenda');
+    await page.getByText('Marc Dubois').first().click();
 
     // Capture la réponse réseau déclenchée par le clic "Confirmer"
     const [confirmRes] = await Promise.all([
@@ -111,10 +116,10 @@ test.describe('A1 — Booking + confirmation patient/secrétariat', () => {
 
     // UI : P se connecte, navigue sur /mes-rdv et vérifie le statut "Confirmé"
     await loginAs('patient', page);
-    await page.goto(`${baseUrlFor('patient')}/mes-rdv`);
+    await gotoRoute(page, 'patient', '/mes-rdv');
     await expect(
-      page.getByTestId(`appointment-status-${appointmentId}`),
-      `appointment-status-${appointmentId} doit afficher "Confirmé"`,
-    ).toHaveText('Confirmé', { timeout: 15_000 });
+      page.getByText('Confirmé').first(),
+      'le statut "Confirmé" doit être visible sur /mes-rdv',
+    ).toBeVisible({ timeout: 15_000 });
   });
 });

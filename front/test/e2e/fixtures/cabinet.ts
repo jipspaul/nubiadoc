@@ -10,7 +10,7 @@
  *   const appointmentId = await bookAppointment(pToken, { providerId, slotId, motif });
  */
 
-import { authedFetch } from './helpers';
+import { API, authedFetch } from './helpers';
 
 export interface AppointmentOpts {
   /** ID du praticien cible. */
@@ -21,7 +21,7 @@ export interface AppointmentOpts {
 }
 
 export interface AgendaEvent {
-  appointment_id: string;
+  id: string;
   status: string;
   date: string;
   slot_id: string;
@@ -46,8 +46,35 @@ export async function bookAppointment(
     }),
   });
   if (!res.ok) throw new Error(`bookAppointment échoué: HTTP ${res.status}`);
-  const body = (await res.json()) as { appointment_id: string };
-  return body.appointment_id;
+  // POST /v1/appointments renvoie AppointmentDetail — la clé est `id`.
+  const body = (await res.json()) as { id: string };
+  return body.id;
+}
+
+/**
+ * Trouve un créneau `open` pour un praticien via la recherche publique
+ * (GET /v1/search/slots — les slots du seed sont régénérés chaque jour, il
+ * n'existe donc pas de SLOT_ID stable). Retourne le premier créneau et sa date.
+ */
+export async function findOpenSlot(
+  providerId: string,
+): Promise<{ slotId: string; startsAt: string }> {
+  const res = await fetch(`${API}/search/slots`);
+  if (!res.ok) throw new Error(`findOpenSlot échoué: HTTP ${res.status}`);
+  const body = (await res.json()) as {
+    data: Array<{
+      provider_id: string;
+      slots: Array<{ slot_id: string; starts_at: string }>;
+    }>;
+  };
+  const provider = body.data.find((p) => p.provider_id === providerId);
+  const slot = provider?.slots[0];
+  if (!slot) {
+    throw new Error(
+      `findOpenSlot: aucun créneau open pour provider ${providerId} — relancer seed_slots.sql ?`,
+    );
+  }
+  return { slotId: slot.slot_id, startsAt: slot.starts_at };
 }
 
 /**
