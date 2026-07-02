@@ -2,10 +2,12 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
 import 'package:app_practicien/features/register/pro_register_cubit.dart';
 import 'package:app_practicien/features/register/pro_register_page.dart';
+import 'package:app_practicien/router/app_router.dart';
 
 // ---------------------------------------------------------------------------
 // Mock
@@ -95,6 +97,42 @@ void main() {
 
       final button = tester.widget<FilledButton>(find.byType(FilledButton));
       expect(button.onPressed, isNotNull);
+    });
+
+    // Non-régression #3192/#3196/#3198 (flow C praticien) : après une
+    // inscription réussie, la page doit naviguer vers /cabinet-setup — le
+    // listener du BlocConsumer doit couvrir ProRegisterSuccess.
+    testWidgets('navigue vers /cabinet-setup sur ProRegisterSuccess',
+        (tester) async {
+      final cubit = MockProRegisterCubit();
+      whenListen(
+        cubit,
+        Stream.fromIterable([const ProRegisterSuccess('account-1')]),
+        initialState: const ProRegisterLoading(),
+      );
+
+      final router = GoRouter(
+        initialLocation: AppRouter.registerPro,
+        routes: [
+          GoRoute(
+            path: AppRouter.registerPro,
+            builder: (_, __) => BlocProvider<ProRegisterCubit>.value(
+              value: cubit,
+              child: const ProRegisterPage(),
+            ),
+          ),
+          GoRoute(
+            path: AppRouter.cabinetSetup,
+            builder: (_, __) =>
+                const Scaffold(body: Text('cabinet-setup page')),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+
+      expect(find.text('cabinet-setup page'), findsOneWidget);
     });
 
     testWidgets('snackbar affiché sur ProRegisterFailure', (tester) async {
