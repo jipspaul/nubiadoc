@@ -9,7 +9,11 @@ import { request as playwrightRequest } from '@playwright/test';
 // re-frapperait /auth/login (rate-limité). TTL court, JWT valides bien plus
 // longtemps que la durée d'un run.
 const CACHE_DIR = join(__dirname, '..', '.e2e-cache');
-const CACHE_TTL_MS = 20 * 60 * 1000;
+// 10 min : STRICTEMENT sous la TTL des access tokens (900s, login.rs). Un
+// token/session caché au-delà expirerait en plein run → refresh → rotation du
+// refresh token → le replay d'un snapshot périmé RÉVOQUE TOUTE LA CHAÎNE du
+// compte (auth/refresh.rs) et fait tomber tous les tests suivants du rôle.
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 export function diskCacheRead(name: string): Record<string, unknown> {
   try {
