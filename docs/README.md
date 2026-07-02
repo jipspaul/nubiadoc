@@ -26,6 +26,7 @@ plan d'exécution réaliste.
 | `10-deploiement-poc-vps.md` | ⚠️ **Perdu au reset git** (POC mono-VPS Podman). À recréer ; `infra/poc/` (compose + Caddyfile) est sauvé. |
 | [`11-marketplace-recherche.md`](./11-marketplace-recherche.md) | **Scope marketplace** : plateforme deux faces, compte patient global, recherche multi-axes (adresse/GPS/praticien/spécialité/besoin), taxonomie multi-profession, carte, salle d'attente virtuelle, téléconsult, avis, ranking, impacts archi/données (PostGIS, Meilisearch), conformité (RPPS, avis, géoloc). |
 | [`12-api-reference.md`](./12-api-reference.md) | **Référence API complète** (contrats) prête à développer : conventions transverses (auth JWT, RBAC, RLS, idempotence, erreurs RFC 9457, pagination), **toutes les routes** par module (auth/onboarding RPPS, cabinet, compte/couverture/proches, RDV/préparation, docs, messagerie, **wedge**, marketplace, back-office clinique/devis/ordonnance, notifications, **WebSocket**, webhooks), + annexes (V2 assistant, codes d'erreur, matrice rôles, ordre d'implémentation). |
+| [`13-plan-fin-fronts-flutter.md`](./13-plan-fin-fronts-flutter.md) | **Plan d'action fronts Flutter** : définition de « fini », chantiers restants par phase (assainissement backlog QA, P0, gaps fonctionnels, tests, E2E, stabilisation). Carte stable — le suivi vit dans les issues Forgejo. |
 
 > Design & UX : voir [`../design/`](../design/) — design system, user stories (dont marketplace), flux et **maquettes HTML** (`design/mockups/nubia-maquettes.html` + `nubia-marketplace.html`).
 
