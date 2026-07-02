@@ -26,8 +26,8 @@ void main() {
     });
   });
 
-  group('PatientAccountDto (GET /v1/me response)', () {
-    test('fromJson désérialise le profil du porteur du token', () {
+  group('PatientAccountDto', () {
+    test('fromJson désérialise un profil patient complet (forme account)', () {
       final json = {
         'id': 'user-42',
         'first_name': 'Camille',
@@ -40,6 +40,35 @@ void main() {
       expect(dto.id, 'user-42');
       expect(dto.email, 'camille@example.com');
       expect(dto.phone, '+33612345678');
+    });
+
+    // Non-régression #3100/#3022 : le vrai contrat de GET /v1/me est
+    // MeResponse {user_id, email, kind, account_id, memberships} — l'ancien
+    // parsing attendait {id, first_name, …} et jetait, faisant retomber
+    // AuthCubit.restore() en Unauthenticated après signup.
+    test('fromMeJson désérialise le contrat réel de GET /v1/me (patient)', () {
+      final json = {
+        'user_id': 'b3b0c8e2-0000-0000-0000-000000000001',
+        'email': 'camille@example.com',
+        'kind': 'patient',
+        'account_id': 'a1a0c8e2-0000-0000-0000-000000000002',
+        'memberships': <dynamic>[],
+      };
+      final dto = PatientAccountDto.fromMeJson(json);
+      expect(dto.id, 'a1a0c8e2-0000-0000-0000-000000000002');
+      expect(dto.email, 'camille@example.com');
+    });
+
+    test('fromMeJson retombe sur user_id quand account_id est null (pro)', () {
+      final json = {
+        'user_id': 'b3b0c8e2-0000-0000-0000-000000000001',
+        'email': 'pro@example.com',
+        'kind': 'pro',
+        'account_id': null,
+        'memberships': <dynamic>[],
+      };
+      final dto = PatientAccountDto.fromMeJson(json);
+      expect(dto.id, 'b3b0c8e2-0000-0000-0000-000000000001');
     });
   });
 

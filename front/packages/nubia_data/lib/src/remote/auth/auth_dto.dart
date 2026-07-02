@@ -43,6 +43,18 @@ class PatientAccountDto {
         dateOfBirth: json['date_of_birth'] as String?,
       );
 
+  /// `GET /v1/me` renvoie `{user_id, email, kind, account_id, memberships}`
+  /// (MeResponse côté API) — pas de first/last name à ce niveau. `account_id`
+  /// est null pour les tokens pro sans compte patient : on retombe sur
+  /// `user_id`.
+  factory PatientAccountDto.fromMeJson(Map<String, dynamic> json) =>
+      PatientAccountDto(
+        id: (json['account_id'] ?? json['user_id']) as String,
+        firstName: '',
+        lastName: '',
+        email: json['email'] as String,
+      );
+
   PatientAccount toDomain() => PatientAccount(
         id: id,
         firstName: firstName,
