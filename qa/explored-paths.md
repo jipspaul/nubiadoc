@@ -18,6 +18,7 @@ Last run: 2026-07-01T20:47:05.000Z
 | /ordonnances | praticien | 2026-06-25 | déjà résolu — OrdonnancesPage, BlocBuilder exhaustif, GetIt, flutter analyze vert | ferme #2853 #2854 |
 | [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via location.hash (in-page, sans page.goto) |
 | / et /account-setup | patient | 2026-07-01 | méthode C : scan DOM incluait le texte de balises `<style>` injectées (CSS `::placeholder`) via `.textContent` d'un `div` ancêtre | faux positif — ferme #3199 #3201. Fix harness : exclure `style`/`script` du scan DOM + filtre anti-CSS-boilerplate (`::placeholder`, `caret-color`, `-webkit-autofill`) |
+| flow C (register praticien) | praticien | 2026-07-01 | déjà résolu — détections 20:25–20:36 antérieures au merge du fix #3194 (21:11, `context.go(cabinetSetup)` sur ProRegisterSuccess dans le listener du BlocConsumer) + follow-ups #3193 (08aac18b) et #3195 (7c4968b0, guestOnlyRoutes anti-course du guard) ; test widget de non-régression ajouté (pro_register_page_test.dart : ProRegisterSuccess → /cabinet-setup) | doublons périmés — ferme #3192 #3196 #3198 |
 
 ## Notes méthodologiques harness
 
