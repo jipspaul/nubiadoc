@@ -152,8 +152,9 @@ test.describe('B1 — Devis → signature Yousign → paiement Stripe', () => {
 
   test('Webhook Stripe → payment status=paid (POST /webhooks/stripe → 200)', async () => {
     // L'env de test déployé a un vrai secret Stripe → notre HMAC de dev est
-    // refusé (401). Le test ne tourne que si le secret est fourni.
-    test.skip(
+    // refusé (401). Le step ne tourne que si le secret est fourni (fixme
+    // conditionnel : marqué à réactiver, visible dans les rapports).
+    test.fixme(
       !process.env.STRIPE_WEBHOOK_SECRET,
       'STRIPE_WEBHOOK_SECRET requis pour signer le webhook mock',
     );
