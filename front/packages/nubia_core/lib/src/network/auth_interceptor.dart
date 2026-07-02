@@ -27,7 +27,17 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await _tokenStorage.getAccessToken();
+    String? token;
+    try {
+      token = await _tokenStorage.getAccessToken();
+    } catch (_) {
+      // A storage read racing with a just-completed login/refresh write
+      // must not abort the request before it ever reaches the network —
+      // that would surface as a client-side DioException with zero
+      // network trace. Let it go out unauthenticated so a real 401
+      // (visible, and handled by the refresh flow below) is raised instead.
+      token = null;
+    }
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }
