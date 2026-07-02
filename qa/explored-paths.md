@@ -19,6 +19,11 @@ Last run: 2026-07-01T20:47:05.000Z
 | [*] blank-canvas | ALL | 2026-06-27 | go_router path routing — location.hash ignoré (canvas blanc) | faux positif — ferme #2920-#2935. Naviger via location.hash (in-page, sans page.goto) |
 | / et /account-setup | patient | 2026-07-01 | méthode C : scan DOM incluait le texte de balises `<style>` injectées (CSS `::placeholder`) via `.textContent` d'un `div` ancêtre | faux positif — ferme #3199 #3201. Fix harness : exclure `style`/`script` du scan DOM + filtre anti-CSS-boilerplate (`::placeholder`, `caret-color`, `-webkit-autofill`) |
 | flow C (register praticien) | praticien | 2026-07-01 | déjà résolu — détections 20:25–20:36 antérieures au merge du fix #3194 (21:11, `context.go(cabinetSetup)` sur ProRegisterSuccess dans le listener du BlocConsumer) + follow-ups #3193 (08aac18b) et #3195 (7c4968b0, guestOnlyRoutes anti-course du guard) ; test widget de non-régression ajouté (pro_register_page_test.dart : ProRegisterSuccess → /cabinet-setup) | doublons périmés — ferme #3192 #3196 #3198 |
+| /messaging, /consultation, /devis, /login, /a2ui-demo | patient, praticien, secretariat | 2026-07-02 | périmé — détections blank-canvas des 29-30/06 (canvasCount:0) antérieures au run complet 2026-07-01T20:47 où TOUTES les routes des 3 apps sont OK ; même famille que #2920-#2935 (artefact harness) | doublons périmés — ferme #3039 #3046 #3056 #3079 #3092 |
+| /waiting-room | praticien | 2026-07-02 | périmé — détection navigation du 01/07 (flutterViewPresent:false, pageTitle vide = page pas chargée, transient) ; route OK au run complet 2026-07-01T20:47 | doublon périmé — ferme #3135 |
+| flow C step 1 | praticien | 2026-07-02 | déjà documenté faux positif usePathUrlStrategy (cf. notes méthodologiques : #3188-#3191 « postés puis fermés ») — #3190 resté ouvert par erreur ; les runs suivants passent l'étape 1 | faux positif — ferme #3190 |
+| / (root) | patient | 2026-07-02 | déjà documenté — ligne « ferme #3199 #3201 » du 01/07 (méthode C, CSS ::placeholder) ; l'issue n'avait pas été fermée effectivement | faux positif — ferme #3199 |
+| /reviews | patient | 2026-07-02 | même famille méthode C : marker = CSS `flt-text-editing::placeholder` capté dans le DOM, aucun hit grep source ; route OK au run 2026-07-01T20:47 | faux positif — ferme #3167 |
 
 ## Notes méthodologiques harness
 
