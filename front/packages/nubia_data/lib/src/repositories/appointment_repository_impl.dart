@@ -1,35 +1,28 @@
 import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:nubia_domain/src/error/failure.dart';
-import 'package:nubia_data/src/remote/scheduling/appointment_dto.dart';
 import 'package:nubia_data/src/remote/scheduling/scheduling_api.dart';
 import 'package:nubia_domain/src/entities/appointment.dart';
 import 'package:nubia_domain/src/entities/directions_result.dart';
 import 'package:nubia_domain/src/repositories/appointment_repository.dart';
 
+// Remote-only implementation: this class must not cache. Offline support is
+// provided by the Drift-backed CachedAppointmentsRepositoryImpl decorator
+// (see data_registration.dart, `useCache`), which wraps this class.
 class AppointmentRepositoryImpl implements AppointmentRepository {
-  static const _boxName = 'appointments';
-
   final SchedulingApi _api;
 
   const AppointmentRepositoryImpl(this._api);
-
-  Box<Map<dynamic, dynamic>> get _box =>
-      Hive.box<Map<dynamic, dynamic>>(_boxName);
 
   @override
   Future<Either<Failure, List<Appointment>>> getUpcoming() async {
     try {
       final dtos = await _api.getUpcoming();
       final appointments = dtos.map((d) => d.toDomain()).toList();
-      _cacheUpcoming(appointments);
       return Right(appointments);
     } on DioException catch (e) {
       if (e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout) {
-        final cached = _getCachedUpcoming();
-        if (cached.isNotEmpty) return Right(cached);
         return const Left(OfflineFailure());
       }
       if (e.response?.statusCode == 401) {
@@ -220,41 +213,5 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
     } catch (e) {
       return const Left(ParseFailure());
     }
-  }
-
-  void _cacheUpcoming(List<Appointment> appointments) {
-    if (!_box.isOpen) return;
-    _box.put(
-      'upcoming',
-      {
-        'data': appointments
-            .map((a) => {
-                  'id': a.id,
-                  'cabinet_id': a.cabinetId,
-                  'practitioner_name': a.practitionerName,
-                  'practitioner_specialty': a.practitionerSpecialty,
-                  'starts_at': a.startsAt.toIso8601String(),
-                  'duration_minutes': a.duration.inMinutes,
-                  'motif': a.motif,
-                  'status': a.status.name,
-                  'type': a.type.name,
-                  'cabinet_address': a.cabinetAddress,
-                  'cabinet_phone': a.cabinetPhone,
-                })
-            .toList(),
-      },
-    );
-  }
-
-  List<Appointment> _getCachedUpcoming() {
-    if (!_box.isOpen) return [];
-    final raw = _box.get('upcoming');
-    if (raw == null) return [];
-    final list = raw['data'];
-    if (list is! List) return [];
-    return list.whereType<Map<dynamic, dynamic>>().map((m) {
-      final json = Map<String, dynamic>.from(m);
-      return AppointmentDto.fromJson(json).toDomain();
-    }).toList();
   }
 }
