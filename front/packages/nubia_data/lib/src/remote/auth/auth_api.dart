@@ -40,7 +40,7 @@ class AuthApi {
 
   Future<PatientAccountDto> getMe() async {
     final response = await _dio.get<Map<String, dynamic>>('/me');
-    return PatientAccountDto.fromJson(response.data!);
+    return PatientAccountDto.fromMeJson(response.data!);
   }
 
   Future<ProRegisterResponseDto> registerPro({

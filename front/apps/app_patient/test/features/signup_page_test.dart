@@ -2,11 +2,13 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'package:app_patient/features/signup/signup_cubit.dart';
 import 'package:app_patient/features/signup/signup_page.dart';
+import 'package:app_patient/router/app_router.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -67,6 +69,41 @@ void main() {
       await tester.pump();
 
       expect(_submitButton(tester).onPressed, isNotNull);
+    });
+
+    // Non-régression #3100/#3022 (flow A) : après une inscription réussie, la
+    // page doit naviguer vers /account-setup.
+    testWidgets('SignupSuccess → navigue vers /account-setup', (tester) async {
+      whenListen(
+        cubit,
+        Stream.fromIterable([const SignupSuccess()]),
+        initialState: const SignupLoading(),
+      );
+
+      final router = GoRouter(
+        initialLocation: AppRouter.signup,
+        routes: [
+          GoRoute(
+            path: AppRouter.signup,
+            builder: (_, __) => BlocProvider<SignupCubit>.value(
+              value: cubit,
+              child: const SignupPage(),
+            ),
+          ),
+          GoRoute(
+            path: AppRouter.accountSetup,
+            builder: (_, __) =>
+                const Scaffold(body: Text('account-setup page')),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('account-setup page'), findsOneWidget);
     });
 
     testWidgets('SignupFailure → snackbar affiché avec le message',

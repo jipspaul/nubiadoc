@@ -79,6 +79,11 @@ class AppRouter {
         homeRoute: home,
         splashRoute: splash,
         authRoutes: const {login, splash, signup, forgotPassword, resetPassword},
+        // signup authentifie l'utilisateur en cours de flow (restore() après
+        // le 201) puis navigue explicitement vers /account-setup : ne pas le
+        // renvoyer vers home entre-temps (course avec le listener du
+        // RouterNotifier — même fix que praticien/register-pro, #3195).
+        guestOnlyRoutes: const {login, splash},
       ),
       routes: [
         GoRoute(
