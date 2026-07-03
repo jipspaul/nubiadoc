@@ -38,6 +38,33 @@ class AgendaEntryDto {
         isFree: (json['is_free'] as bool?) ?? true,
       );
 
+  /// Construit une entrée depuis un `AgendaSlot` du back
+  /// (`{ id, practitioner_id, starts_at, ends_at, status, motif_admin }`),
+  /// en résolvant le nom du praticien via la table renvoyée à côté.
+  factory AgendaEntryDto.fromSlotJson(
+    Map<String, dynamic> json, {
+    required Map<String, String> practitionerNames,
+  }) {
+    final practitionerId = json['practitioner_id'] as String;
+    final status = (json['status'] as String?) ?? '';
+    return AgendaEntryDto(
+      id: json['id'] as String,
+      // Le back ne renvoie pas cabinet_id sur l'agenda (scopé JWT côté serveur).
+      cabinetId: (json['cabinet_id'] as String?) ?? '',
+      practitionerId: practitionerId,
+      practitionerName: practitionerNames[practitionerId] ?? '',
+      startsAt: json['starts_at'] as String,
+      endsAt: json['ends_at'] as String,
+      patientId: json['patient_id'] as String?,
+      patientName: json['patient_name'] as String?,
+      // Secrétariat : seul le motif administratif est exposé (R.4127-72).
+      motif: json['motif_admin'] as String? ?? json['motif'] as String?,
+      // Les entrées de l'agenda sont des rendez-vous ; libre seulement si le
+      // statut l'indique explicitement.
+      isFree: status == 'free' || status == 'open' || status == 'available',
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'practitioner_id': practitionerId,
         'starts_at': startsAt,

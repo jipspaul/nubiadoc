@@ -9,11 +9,17 @@ class CabinetQuotesApi {
   CabinetQuotesApi(ApiClient client) : _dio = client.dio;
 
   Future<List<CabinetQuoteDto>> list({int page = 1}) async {
-    final response = await _dio.get<Map<String, dynamic>>(
+    // Le back renvoie un tableau nu `[CabinetQuoteItem]` (pas de wrapper
+    // `{data}`). On tolère les deux formes par robustesse.
+    final response = await _dio.get<dynamic>(
       '/cabinet/quotes',
       queryParameters: {'page': page},
     );
-    final data = (response.data!['data'] as List<dynamic>?) ?? [];
+    final raw = response.data;
+    final data = raw is List
+        ? raw
+        : ((raw as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
+            const []);
     return data
         .map((e) => CabinetQuoteDto.fromJson(e as Map<String, dynamic>))
         .toList();

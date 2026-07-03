@@ -19,6 +19,13 @@ class MembersRepositoryImpl implements MembersRepository {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }
+      if (e.response?.statusCode == 403) {
+        // Route admin-only : un secrétaire simple n'y a pas accès.
+        return const Left(ServerFailure(
+          message: 'Accès réservé aux administrateurs du cabinet.',
+          statusCode: 403,
+        ));
+      }
       return Left(ServerFailure(
         message: 'Impossible de charger les membres.',
         statusCode: e.response?.statusCode,

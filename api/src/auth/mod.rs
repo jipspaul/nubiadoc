@@ -1223,6 +1223,7 @@ pub async fn patch_cabinet_provider(
 #[derive(Serialize)]
 pub struct CabinetMemberItem {
     user_id: Uuid,
+    cabinet_id: Uuid,
     email: String,
     first_name: Option<String>,
     last_name: Option<String>,
@@ -1276,20 +1277,27 @@ pub async fn get_cabinet_members(
             .await
             .map_err(|_| AppError::Internal)?;
 
-        let email_row = sqlx::query("SELECT email FROM app_user WHERE id = $1")
-            .bind(user_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-        let email = email_row
-            .and_then(|r| r.try_get::<String, _>("email").ok())
-            .unwrap_or_default();
+        let user_row =
+            sqlx::query("SELECT email, first_name, last_name FROM app_user WHERE id = $1")
+                .bind(user_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        let (email, first_name, last_name) = match user_row {
+            Some(r) => (
+                r.try_get::<String, _>("email").unwrap_or_default(),
+                r.try_get::<Option<String>, _>("first_name").unwrap_or(None),
+                r.try_get::<Option<String>, _>("last_name").unwrap_or(None),
+            ),
+            None => (String::new(), None, None),
+        };
 
         members.push(CabinetMemberItem {
             user_id,
+            cabinet_id: claims.cabinet_id,
             email,
-            first_name: None,
-            last_name: None,
+            first_name,
+            last_name,
             role,
             active,
             joined_at: joined_at.to_rfc3339(),
@@ -1517,6 +1525,7 @@ pub async fn post_cabinet_members(
         StatusCode::CREATED,
         Json(CabinetMemberItem {
             user_id,
+            cabinet_id: claims.cabinet_id,
             email: body.email,
             first_name: Some(body.first_name),
             last_name: Some(body.last_name),
