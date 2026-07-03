@@ -5,6 +5,7 @@ import 'package:nubia_data/src/remote/account/account_dto.dart';
 import 'package:nubia_data/src/remote/dashboard/dashboard_dto.dart';
 import 'package:nubia_data/src/remote/quotes_api.dart';
 import 'package:nubia_data/src/remote/payments_api.dart';
+import 'package:nubia_data/src/remote/search/search_dto.dart';
 
 void main() {
   group('AppointmentDto (POST /v1/appointments/:id/cancel response)', () {
@@ -161,6 +162,56 @@ void main() {
       expect(dto.pendingPaymentsCents, 0);
       expect(dto.unreadMessages, 0);
       expect(dto.pendingQuestionnaires, 0);
+    });
+  });
+
+  group('ProviderResultDto (GET /v1/search/providers → data[])', () {
+    test('parse le contrat réel : provider_id, distance_m, geo', () {
+      final json = {
+        'provider_id': 'f0000000-0000-0000-0000-0000000000f1',
+        'display_name': 'Dr Hugo Marin',
+        'specialty': 'Chirurgie dentaire',
+        'sector': '1',
+        'distance_m': 2500.0,
+        'next_slot_at': '2026-07-04T09:00:00Z',
+        'rating_avg': 4.6,
+        'geo': {'lat': 45.758, 'lng': 4.835},
+        'is_listed': true,
+      };
+      final dto = ProviderResultDto.fromJson(json);
+      final domain = dto.toDomain();
+      expect(domain.id, 'f0000000-0000-0000-0000-0000000000f1');
+      expect(domain.specialty, 'Chirurgie dentaire');
+      expect(domain.distanceKm, closeTo(2.5, 1e-9));
+      expect(domain.lat, closeTo(45.758, 1e-9));
+      expect(domain.lng, closeTo(4.835, 1e-9));
+      expect(domain.hasLocation, isTrue);
+      expect(domain.ratingAvg, 4.6);
+    });
+
+    test('specialty null → libellé de repli, pas de geo → hasLocation false', () {
+      final dto = ProviderResultDto.fromJson({
+        'provider_id': 'p1',
+        'display_name': 'Cabinet X',
+        'is_listed': true,
+      });
+      final domain = dto.toDomain();
+      expect(domain.specialty, 'Praticien');
+      expect(domain.hasLocation, isFalse);
+    });
+  });
+
+  group('SlotDto.fromAvailabilityJson (GET /providers/:id/availability)', () {
+    test('parse slot_id/starts_at/ends_at', () {
+      final dto = SlotDto.fromAvailabilityJson({
+        'slot_id': 's1',
+        'starts_at': '2026-07-04T09:00:00Z',
+        'ends_at': '2026-07-04T09:30:00Z',
+        'motif': null,
+      });
+      final slot = dto.toDomain();
+      expect(slot.id, 's1');
+      expect(slot.isAvailable, isTrue);
     });
   });
 }

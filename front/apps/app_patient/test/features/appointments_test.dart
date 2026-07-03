@@ -147,7 +147,7 @@ void main() {
       bloc = _MockAppointmentsBloc();
     });
 
-    testWidgets('filtre localement les praticiens par nom', (tester) async {
+    testWidgets('affiche la liste des praticiens chargés', (tester) async {
       when(() => bloc.state).thenReturn(
         const AppointmentsProvidersLoaded(
             providers: providers, query: 'dentiste'),
@@ -162,13 +162,9 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
+      // Barre de recherche persistante + les 3 praticiens.
+      expect(find.byKey(const Key('search_field')), findsOneWidget);
       expect(find.byType(ListTile), findsNWidgets(3));
-
-      await tester.enterText(
-          find.byKey(const Key('local_search_field')), 'mar');
-      await tester.pumpAndSettle();
-
-      expect(find.byType(ListTile), findsOneWidget);
       expect(find.text('Dr Martin'), findsOneWidget);
     });
   });
@@ -195,15 +191,24 @@ void main() {
     );
 
     blocTest<AppointmentsBloc, AppointmentsState>(
-      'émet [Initial] quand la query est vide',
-      build: () => _makeBloc(
-        searchProviders: mockSearchProviders,
-        searchSlots: mockSearchSlots,
-        holdSlot: mockHoldSlot,
-        bookAppointment: mockBookAppointment,
-      ),
+      'query vide = annuaire par défaut (charge quand même des praticiens)',
+      build: () {
+        when(() => mockSearchProviders(query: any(named: 'query')))
+            .thenAnswer((_) async => const Right([]));
+        return _makeBloc(
+          searchProviders: mockSearchProviders,
+          searchSlots: mockSearchSlots,
+          holdSlot: mockHoldSlot,
+          bookAppointment: mockBookAppointment,
+        );
+      },
       act: (bloc) => bloc.add(const AppointmentsSearchChanged('')),
-      expect: () => [const AppointmentsInitial()],
+      expect: () => [
+        const AppointmentsSearchLoading(),
+        isA<AppointmentsProvidersLoaded>(),
+      ],
+      verify: (_) =>
+          verify(() => mockSearchProviders(query: '')).called(1),
     );
 
     blocTest<AppointmentsBloc, AppointmentsState>(

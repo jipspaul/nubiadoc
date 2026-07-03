@@ -7,6 +7,10 @@ class ProviderResult extends Equatable {
   final String specialty;
   final String? address;
   final double? distanceKm;
+  final double? lat;
+  final double? lng;
+  final double? ratingAvg;
+  final DateTime? nextSlotAt;
 
   const ProviderResult({
     required this.id,
@@ -14,7 +18,13 @@ class ProviderResult extends Equatable {
     required this.specialty,
     this.address,
     this.distanceKm,
+    this.lat,
+    this.lng,
+    this.ratingAvg,
+    this.nextSlotAt,
   });
+
+  bool get hasLocation => lat != null && lng != null;
 
   @override
   List<Object?> get props => [id];

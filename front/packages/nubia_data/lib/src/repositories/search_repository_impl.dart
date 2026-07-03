@@ -66,10 +66,10 @@ class SearchRepositoryImpl implements SearchRepository {
   }
 
   @override
-  Future<Either<Failure, Slot>> holdSlot(String slotId) async {
+  Future<Either<Failure, String>> holdSlot(String slotId) async {
     try {
-      final dto = await _api.holdSlot(slotId);
-      return Right(dto.toDomain());
+      final token = await _api.holdSlot(slotId);
+      return Right(token);
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {
         return const Left(ValidationFailure(
