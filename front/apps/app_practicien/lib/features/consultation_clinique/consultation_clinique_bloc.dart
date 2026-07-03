@@ -11,14 +11,17 @@ class ConsultationCliniqueBloc
   final GetSessionUseCase _getSession;
   final AddActUseCase _addAct;
   final CompleteSessionUseCase _completeSession;
+  final ListClinicalSessionsUseCase _listSessions;
 
   ConsultationCliniqueBloc({
     required GetSessionUseCase getSession,
     required AddActUseCase addAct,
     required CompleteSessionUseCase completeSession,
+    required ListClinicalSessionsUseCase listSessions,
   })  : _getSession = getSession,
         _addAct = addAct,
         _completeSession = completeSession,
+        _listSessions = listSessions,
         super(const ConsultationCliniqueInitial()) {
     on<ConsultationCliniqueLoadRequested>(_onLoad);
     on<ConsultationCliniqueActAddRequested>(_onActAdd);
@@ -95,6 +98,17 @@ class ConsultationCliniqueBloc
     ConsultationHistoriqueRequested event,
     Emitter<ConsultationCliniqueState> emit,
   ) async {
-    emit(const ConsultationHistoriqueLoaded(sessions: []));
+    emit(const ConsultationCliniqueLoading());
+    try {
+      final result = await _listSessions();
+      result.fold(
+        (failure) => safeEmit(ConsultationCliniqueError(failure.message)),
+        (sessions) =>
+            safeEmit(ConsultationHistoriqueLoaded(sessions: sessions)),
+      );
+    } catch (_) {
+      safeEmit(
+          const ConsultationCliniqueError("Erreur de chargement de l'historique."));
+    }
   }
 }

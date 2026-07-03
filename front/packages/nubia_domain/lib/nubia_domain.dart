@@ -79,6 +79,7 @@ export 'src/usecases/billing/initiate_signature_use_case.dart';
 export 'src/usecases/clinical/add_act_use_case.dart';
 export 'src/usecases/clinical/complete_session_use_case.dart';
 export 'src/usecases/clinical/get_session_use_case.dart';
+export 'src/usecases/clinical/list_clinical_sessions_use_case.dart';
 export 'src/usecases/clinical/remove_act_use_case.dart';
 export 'src/usecases/clinical/start_session_use_case.dart';
 export 'src/usecases/dashboard/get_dashboard_summary_use_case.dart';
