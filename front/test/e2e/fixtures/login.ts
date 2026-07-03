@@ -158,10 +158,10 @@ export async function waitForAppReady(page: Page, role: Role): Promise<void> {
 }
 
 // Cache de session par rôle (process worker, workers=1 → partagé par tout le
-// run) : flutter_secure_storage web garde tout dans localStorage (ciphertext
-// FlutterSecureStorage.* + clé maître "FlutterSecureStorage"), donc rejouer
-// ces entrées AVANT le boot de l'app restaure la session sans re-frapper
-// /auth/login — qui est rate-limité (429) quand chaque spec se re-loge.
+// run) : les jetons vivent dans localStorage (clés nubia_* en clair sur le
+// web depuis le KvStore ; ancien format FlutterSecureStorage.* toléré), donc
+// rejouer ces entrées AVANT le boot de l'app restaure la session sans
+// re-frapper /auth/login — rate-limité (429) quand chaque spec se re-loge.
 const sessionCache = new Map<Role, Record<string, string>>(
   Object.entries(diskCacheRead('sessions.json')) as Array<
     [Role, Record<string, string>]
@@ -197,7 +197,7 @@ export async function loginAs(
     const refreshed = await page.evaluate(() =>
       Object.fromEntries(
         Object.entries(localStorage).filter(([k]) =>
-          k.startsWith('FlutterSecureStorage'),
+          k.startsWith('FlutterSecureStorage') || k.startsWith('nubia_'),
         ),
       ),
     );
@@ -239,7 +239,7 @@ export async function loginAs(
   const entries = await page.evaluate(() =>
     Object.fromEntries(
       Object.entries(localStorage).filter(([k]) =>
-        k.startsWith('FlutterSecureStorage'),
+        k.startsWith('FlutterSecureStorage') || k.startsWith('nubia_'),
       ),
     ),
   );

@@ -1,35 +1,37 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'kv_store.dart';
 
-/// Stores JWT access + refresh tokens and FCM device token in the device keychain.
+/// Stores JWT access + refresh tokens and FCM device token.
+///
+/// Backed by [KvStore] : keychain sécurisé sur mobile/desktop, localStorage sur
+/// le web (persistance fiable au rechargement).
 class TokenStorage {
   static const _accessKey = 'nubia_access_token';
   static const _refreshKey = 'nubia_refresh_token';
   static const _fcmKey = 'nubia_fcm_token';
 
-  final FlutterSecureStorage _storage;
-  const TokenStorage(this._storage);
+  final KvStore _store;
+  const TokenStorage(this._store);
 
-  Future<String?> getAccessToken() => _storage.read(key: _accessKey);
-  Future<String?> getRefreshToken() => _storage.read(key: _refreshKey);
-  Future<String?> getFcmToken() => _storage.read(key: _fcmKey);
+  Future<String?> getAccessToken() => _store.read(_accessKey);
+  Future<String?> getRefreshToken() => _store.read(_refreshKey);
+  Future<String?> getFcmToken() => _store.read(_fcmKey);
 
   Future<void> saveTokens(
       {required String access, required String refresh}) async {
     await Future.wait([
-      _storage.write(key: _accessKey, value: access),
-      _storage.write(key: _refreshKey, value: refresh),
+      _store.write(_accessKey, access),
+      _store.write(_refreshKey, refresh),
     ]);
   }
 
-  Future<void> saveFcmToken(String token) =>
-      _storage.write(key: _fcmKey, value: token);
+  Future<void> saveFcmToken(String token) => _store.write(_fcmKey, token);
 
   Future<void> clearTokens() async {
     await Future.wait([
-      _storage.delete(key: _accessKey),
-      _storage.delete(key: _refreshKey),
+      _store.delete(_accessKey),
+      _store.delete(_refreshKey),
     ]);
   }
 
-  Future<void> clearFcmToken() => _storage.delete(key: _fcmKey);
+  Future<void> clearFcmToken() => _store.delete(_fcmKey);
 }

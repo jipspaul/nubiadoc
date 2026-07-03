@@ -1,4 +1,4 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../storage/kv_store.dart';
 import 'package:get_it/get_it.dart';
 
 import '../network/api_client.dart';
@@ -16,10 +16,8 @@ final GetIt getIt = GetIt.instance;
 /// Apps call this first in their bootstrap, then register their data layer
 /// ([nubia_data.registerData]) and their own blocs.
 void registerCore(GetIt gi) {
-  if (!gi.isRegistered<FlutterSecureStorage>()) {
-    gi.registerLazySingleton<FlutterSecureStorage>(
-      () => const FlutterSecureStorage(),
-    );
+  if (!gi.isRegistered<KvStore>()) {
+    gi.registerLazySingleton<KvStore>(createKvStore);
   }
   gi
     ..registerLazySingleton<TokenStorage>(() => TokenStorage(gi()))
