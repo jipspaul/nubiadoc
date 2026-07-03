@@ -19,34 +19,6 @@ abstract class GetActsUseCase {
   Future<List<CcamAct>> search(String prefix);
 }
 
-class StubGetActsUseCase implements GetActsUseCase {
-  static const _db = [
-    CcamAct(code: 'HBLD001', label: 'Détartrage sus et sous-gingival'),
-    CcamAct(code: 'HBLD002', label: 'Radiographie rétro-alvéolaire'),
-    CcamAct(code: 'HBLD003', label: 'Extraction dentaire simple'),
-    CcamAct(code: 'HBLD004', label: 'Obturation coronaire composite'),
-    CcamAct(code: 'HBLD005', label: 'Scellement sillon carie'),
-    CcamAct(code: 'HBLD006', label: 'Désensibilisation dentinaire'),
-    CcamAct(code: 'HBLD007', label: 'Traitement endodontique monoradiculé'),
-    CcamAct(code: 'HBLD008', label: 'Contention parodontale'),
-  ];
-
-  const StubGetActsUseCase();
-
-  @override
-  Future<List<CcamAct>> search(String prefix) async {
-    final q = prefix.toLowerCase();
-    return _db
-        .where(
-          (a) =>
-              a.code.toLowerCase().contains(q) ||
-              a.label.toLowerCase().contains(q),
-        )
-        .take(8)
-        .toList();
-  }
-}
-
 class CcamPicker extends StatefulWidget {
   final GetActsUseCase useCase;
   final void Function(CcamAct act) onActSelected;

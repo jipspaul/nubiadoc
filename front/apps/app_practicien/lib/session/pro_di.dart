@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
+import 'package:nubia_data/nubia_data.dart';
 
 import '../features/agenda/agenda_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
@@ -11,6 +12,8 @@ import '../features/ordonnances/ordonnances_bloc.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/register/pro_register_cubit.dart';
+import '../features/consultation_clinique/ccam_picker.dart';
+import '../features/consultation_clinique/api_get_acts_use_case.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
@@ -69,6 +72,10 @@ void registerPro(GetIt gi) {
       getMessages: gi<GetCabinetConversationUseCase>(),
       sendMessage: gi<SendMessageCabinetUseCase>(),
     ),
+  );
+
+  gi.registerFactory<GetActsUseCase>(
+    () => ApiGetActsUseCase(gi<ClinicalSessionApi>()),
   );
 
   gi.registerFactory<ConsultationCliniqueBloc>(

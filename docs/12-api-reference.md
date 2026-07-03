@@ -386,6 +386,7 @@
 | Méthode | Chemin | Rôle | Description |
 |---|---|---|---|
 | POST | `/v1/cabinet/appointments/{id}/start` | practitioner | Démarre la séance (`appointment→in_progress`). |
+| GET | `/v1/ccam/acts` | practitioner | Référentiel CCAM (actes dentaires), recherche `?q=` code/libellé (accent-insensible). |
 | GET | `/v1/cabinet/consultations` | practitioner | Historique des séances du cabinet (filtres `patient_id`, `status` ; tri `started_at` desc ; `limit` ≤ 100). Sans note clinique. |
 | GET | `/v1/cabinet/consultations/{id}` | practitioner | Contexte clinique de la séance. |
 | POST | `/v1/cabinet/consultations/{id}/acts` | practitioner | Ajouter un acte **CCAM** réalisé. |

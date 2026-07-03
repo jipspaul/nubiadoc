@@ -8,6 +8,22 @@ class ClinicalSessionApi {
 
   ClinicalSessionApi(ApiClient client) : _dio = client.dio;
 
+  /// GET /v1/ccam/acts?q= — référentiel CCAM (#3226). Retourne des couples
+  /// (code, label) filtrés par code ou libellé (accent-insensible côté API).
+  Future<List<({String code, String label})>> searchCcamActs(String q) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/ccam/acts',
+      queryParameters: {if (q.trim().isNotEmpty) 'q': q.trim()},
+    );
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
+        .map((e) => (
+              code: (e as Map<String, dynamic>)['code'] as String,
+              label: e['label'] as String,
+            ))
+        .toList();
+  }
+
   /// POST /v1/cabinet/appointments/{appointmentId}/start
   Future<ClinicalSessionDto> startSession(String appointmentId) async {
     final response = await _dio.post<Map<String, dynamic>>(
