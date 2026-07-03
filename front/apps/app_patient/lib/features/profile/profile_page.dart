@@ -359,10 +359,28 @@ class _AvatarPickerState extends State<_AvatarPicker> {
       allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
     );
     if (picked == null || !mounted) return;
+
+    // MIME déterminé par les octets magiques (fiable), pas par l'extension :
+    // sur le web, file_picker renvoie souvent un type générique qui fait
+    // échouer l'upload (422). Voir aussi l'API qui n'accepte que JPEG/PNG/WebP.
+    final mime = _detectImageMime(picked.bytes);
+    if (mime == null) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Format non supporté. Choisissez une image JPEG, PNG ou WebP.'),
+      ));
+      return;
+    }
+    if (picked.bytes.lengthInBytes > 300 * 1024) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Image trop lourde (300 Ko max).'),
+      ));
+      return;
+    }
+
     setState(() => _busy = true);
     final result = await GetIt.instance<UpdateAvatarUseCase>().call(
       bytes: picked.bytes,
-      mimeType: picked.mimeType,
+      mimeType: mime,
     );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -370,6 +388,25 @@ class _AvatarPickerState extends State<_AvatarPicker> {
       (f) => messenger.showSnackBar(SnackBar(content: Text(f.message))),
       (_) => setState(() => _bytes = picked.bytes),
     );
+  }
+
+  /// Détecte le type MIME d'une image par sa signature (magic bytes), pour ne
+  /// pas dépendre de l'extension (peu fiable sur Flutter web). Null si ce n'est
+  /// pas une image supportée.
+  static String? _detectImageMime(Uint8List b) {
+    if (b.length >= 8 &&
+        b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) {
+      return 'image/png';
+    }
+    if (b.length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) {
+      return 'image/jpeg';
+    }
+    if (b.length >= 12 &&
+        b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46 && // RIFF
+        b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50) {
+      return 'image/webp';
+    }
+    return null;
   }
 
   @override

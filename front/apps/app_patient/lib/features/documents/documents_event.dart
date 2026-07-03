@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -40,18 +42,18 @@ final class DocumentsFilterChanged extends DocumentsEvent {
 }
 
 final class DocumentsUploadRequested extends DocumentsEvent {
-  final String filePath;
+  final Uint8List bytes;
   final String filename;
   final String mimeType;
   final DocumentCategory category;
 
   const DocumentsUploadRequested({
-    required this.filePath,
+    required this.bytes,
     required this.filename,
     required this.mimeType,
     required this.category,
   });
 
   @override
-  List<Object?> get props => [filePath, filename, mimeType, category];
+  List<Object?> get props => [bytes, filename, mimeType, category];
 }

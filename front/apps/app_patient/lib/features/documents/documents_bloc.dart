@@ -86,7 +86,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
     emit(const DocumentsUploading());
     try {
       final result = await _upload(
-        filePath: event.filePath,
+        bytes: event.bytes,
         filename: event.filename,
         mimeType: event.mimeType,
         category: event.category,

@@ -12,7 +12,7 @@ abstract class DocumentRepository {
 
   /// Uploads a file as a multipart/form-data POST to /v1/documents.
   Future<Either<Failure, Document>> upload({
-    required String filePath,
+    required List<int> bytes,
     required String filename,
     required String mimeType,
     required DocumentCategory category,

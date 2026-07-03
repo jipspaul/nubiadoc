@@ -9,13 +9,13 @@ class UploadDocumentUseCase {
   const UploadDocumentUseCase(this._repository);
 
   Future<Either<Failure, Document>> call({
-    required String filePath,
+    required List<int> bytes,
     required String filename,
     required String mimeType,
     required DocumentCategory category,
   }) =>
       _repository.upload(
-        filePath: filePath,
+        bytes: bytes,
         filename: filename,
         mimeType: mimeType,
         category: category,

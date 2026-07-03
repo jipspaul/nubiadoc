@@ -51,14 +51,14 @@ class DocumentRepositoryImpl implements DocumentRepository {
 
   @override
   Future<Either<Failure, Document>> upload({
-    required String filePath,
+    required List<int> bytes,
     required String filename,
     required String mimeType,
     required DocumentCategory category,
   }) async {
     try {
       final dto = await _api.upload(
-        filePath: filePath,
+        bytes: bytes,
         filename: filename,
         mimeType: mimeType,
         category: _categoryToApi(category),
