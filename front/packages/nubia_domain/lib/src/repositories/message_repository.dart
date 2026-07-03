@@ -17,7 +17,7 @@ abstract class MessageRepository {
   /// Returns the newly created document ID which can be passed as an
   /// `attachmentId` when calling [send].
   Future<Either<Failure, String>> uploadAttachment({
-    required String filePath,
+    required List<int> bytes,
     required String filename,
     required String mimeType,
   });

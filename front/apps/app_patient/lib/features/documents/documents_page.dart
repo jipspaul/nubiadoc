@@ -190,32 +190,58 @@ class _DocumentsLoaded extends StatelessWidget {
           child: FloatingActionButton(
             key: const Key('upload_fab'),
             tooltip: 'Envoyer un document',
-            onPressed: () async {
-              final bloc = context.read<DocumentsBloc>();
-              final messenger = ScaffoldMessenger.of(context);
-              final file = await GetIt.instance<FilePickerService>().pickFile();
-              if (file == null) return;
-              final path = file.path;
-              // L'upload de documents passe par MultipartFile.fromFile (path)
-              // — indisponible sur le web où le picker ne fournit que des
-              // bytes. Migration vers fromBytes à faire (suivi séparé).
-              if (path == null) {
-                messenger.showSnackBar(const SnackBar(
-                    content: Text(
-                        "L'envoi de documents n'est pas encore disponible sur le web.")));
-                return;
-              }
-              bloc.add(DocumentsUploadRequested(
-                filePath: path,
-                filename: file.name,
-                mimeType: file.mimeType,
-                category: DocumentCategory.other,
-              ));
-            },
+            onPressed: () => _pickAndUpload(context),
             child: const Icon(Icons.upload_file_outlined),
           ),
         ),
       ],
     );
+  }
+
+  // Catégories réellement acceptées par l'API (api/src/documents.rs).
+  static const _uploadCategories = <(String, DocumentCategory)>[
+    ('Ordonnance', DocumentCategory.prescription),
+    ('Radio', DocumentCategory.xray),
+    ('Devis', DocumentCategory.quote),
+    ('Facture', DocumentCategory.invoice),
+    ('Carte mutuelle', DocumentCategory.mutualCard),
+    ('Photo', DocumentCategory.photo),
+    ('Compte-rendu', DocumentCategory.report),
+    ('Consigne', DocumentCategory.instructions),
+  ];
+
+  Future<void> _pickAndUpload(BuildContext context) async {
+    final bloc = context.read<DocumentsBloc>();
+    final file = await GetIt.instance<FilePickerService>().pickFile();
+    if (file == null || !context.mounted) return;
+
+    final category = await showModalBottomSheet<DocumentCategory>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Type de document'),
+            ),
+            for (final (label, cat) in _uploadCategories)
+              ListTile(
+                key: Key('upload_cat_${cat.name}'),
+                title: Text(label),
+                onTap: () => Navigator.pop(ctx, cat),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (category == null) return;
+
+    bloc.add(DocumentsUploadRequested(
+      bytes: file.bytes,
+      filename: file.name,
+      mimeType: file.mimeType,
+      category: category,
+    ));
   }
 }

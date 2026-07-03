@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -350,7 +351,7 @@ void main() {
       "émet [Uploading, UploadSuccess] lors d'un upload réussi",
       build: () {
         when(() => mockUpload(
-              filePath: any(named: 'filePath'),
+              bytes: any(named: 'bytes'),
               filename: any(named: 'filename'),
               mimeType: any(named: 'mimeType'),
               category: any(named: 'category'),
@@ -361,8 +362,8 @@ void main() {
           upload: mockUpload,
         );
       },
-      act: (bloc) => bloc.add(const DocumentsUploadRequested(
-        filePath: '/tmp/test.pdf',
+      act: (bloc) => bloc.add(DocumentsUploadRequested(
+        bytes: Uint8List.fromList([1, 2, 3]),
         filename: 'test.pdf',
         mimeType: 'application/pdf',
         category: DocumentCategory.quote,
@@ -378,7 +379,7 @@ void main() {
       "émet [Uploading, UploadFailure] lors d'un upload en échec",
       build: () {
         when(() => mockUpload(
-              filePath: any(named: 'filePath'),
+              bytes: any(named: 'bytes'),
               filename: any(named: 'filename'),
               mimeType: any(named: 'mimeType'),
               category: any(named: 'category'),
@@ -391,8 +392,8 @@ void main() {
           upload: mockUpload,
         );
       },
-      act: (bloc) => bloc.add(const DocumentsUploadRequested(
-        filePath: '/tmp/test.pdf',
+      act: (bloc) => bloc.add(DocumentsUploadRequested(
+        bytes: Uint8List.fromList([1, 2, 3]),
         filename: 'test.pdf',
         mimeType: 'application/pdf',
         category: DocumentCategory.quote,

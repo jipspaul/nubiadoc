@@ -72,13 +72,13 @@ class MessageRepositoryImpl implements MessageRepository {
 
   @override
   Future<Either<Failure, String>> uploadAttachment({
-    required String filePath,
+    required List<int> bytes,
     required String filename,
     required String mimeType,
   }) async {
     try {
       final dto = await _documentApi.upload(
-        filePath: filePath,
+        bytes: bytes,
         filename: filename,
         mimeType: mimeType,
         category: 'photo',
