@@ -15,27 +15,27 @@ class _MockSearchSlots extends Mock implements SearchSlotsUseCase {}
 
 class _MockHoldSlot extends Mock implements HoldSlotUseCase {}
 
-class _MockBookAppointment extends Mock implements BookAppointmentUseCase {}
+class _MockConfirmBooking extends Mock implements ConfirmBookingUseCase {}
 
 void main() {
   group('AppointmentsBloc — restartable (lost-update)', () {
     late _MockSearchProviders searchProviders;
     late _MockSearchSlots searchSlots;
     late _MockHoldSlot holdSlot;
-    late _MockBookAppointment bookAppointment;
+    late _MockConfirmBooking confirmBooking;
 
     setUp(() {
       searchProviders = _MockSearchProviders();
       searchSlots = _MockSearchSlots();
       holdSlot = _MockHoldSlot();
-      bookAppointment = _MockBookAppointment();
+      confirmBooking = _MockConfirmBooking();
     });
 
     AppointmentsBloc makeBloc() => AppointmentsBloc(
           searchProviders: searchProviders,
           searchSlots: searchSlots,
           holdSlot: holdSlot,
-          bookAppointment: bookAppointment,
+          confirmBooking: confirmBooking,
         );
 
     test(

@@ -211,6 +211,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => SearchProvidersUseCase(gi()))
     ..registerFactory(() => SearchSlotsUseCase(gi()))
     ..registerFactory(() => HoldSlotUseCase(gi()))
+    ..registerFactory(() => ConfirmBookingUseCase(gi()))
     // notifications / devices
     ..registerFactory(() => RegisterDeviceUseCase(gi()));
 }

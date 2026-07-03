@@ -41,18 +41,23 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
   final ProviderResult provider;
   final List<Slot> slots;
   final Slot? selectedSlot;
+  // hold_token du créneau sélectionné (POST /v1/slots/:id/hold), requis pour
+  // confirmer la réservation via POST /v1/bookings.
+  final String? holdToken;
   final String motif;
 
   const AppointmentsSlotsLoaded({
     required this.provider,
     required this.slots,
     this.selectedSlot,
+    this.holdToken,
     this.motif = '',
   });
 
   AppointmentsSlotsLoaded copyWith({
     Slot? selectedSlot,
     bool clearSelectedSlot = false,
+    String? holdToken,
     String? motif,
   }) {
     return AppointmentsSlotsLoaded(
@@ -60,12 +65,13 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
       slots: slots,
       selectedSlot:
           clearSelectedSlot ? null : (selectedSlot ?? this.selectedSlot),
+      holdToken: clearSelectedSlot ? null : (holdToken ?? this.holdToken),
       motif: motif ?? this.motif,
     );
   }
 
   @override
-  List<Object?> get props => [provider, slots, selectedSlot, motif];
+  List<Object?> get props => [provider, slots, selectedSlot, holdToken, motif];
 }
 
 class AppointmentsBookingLoading extends AppointmentsState {

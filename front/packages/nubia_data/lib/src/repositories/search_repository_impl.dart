@@ -87,4 +87,37 @@ class SearchRepositoryImpl implements SearchRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, String>> confirmBooking({
+    required String slotId,
+    required String holdToken,
+    required String motif,
+    required String idempotencyKey,
+  }) async {
+    try {
+      final appointmentId = await _api.confirmBooking(
+        slotId: slotId,
+        holdToken: holdToken,
+        motif: motif,
+        idempotencyKey: idempotencyKey,
+      );
+      return Right(appointmentId);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        return const Left(ValidationFailure(
+          message: 'Ce créneau n\'est plus disponible.',
+        ));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Erreur lors de la réservation du rendez-vous.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }

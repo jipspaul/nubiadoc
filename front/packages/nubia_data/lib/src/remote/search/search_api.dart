@@ -46,4 +46,20 @@ class SearchApi {
     );
     return response.data!['hold_token'] as String;
   }
+
+  /// POST /v1/bookings → { appointment_id }. Confirme la réservation d'un
+  /// créneau tenu via [holdSlot] (contrat `docs/12-api-reference.md` §12.3).
+  Future<String> confirmBooking({
+    required String slotId,
+    required String holdToken,
+    required String motif,
+    required String idempotencyKey,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/bookings',
+      data: {'slot_id': slotId, 'hold_token': holdToken, 'motif': motif},
+      options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+    );
+    return response.data!['appointment_id'] as String;
+  }
 }
