@@ -29,8 +29,9 @@ class CabinetQuoteDto {
       CabinetQuoteDto(
         id: json['id'] as String,
         cabinetId: json['cabinet_id'] as String? ?? '',
-        patientId: json['patient_id'] as String,
-        patientName: json['patient_name'] as String,
+        // patient_id / patient_name sont Option côté back (LEFT JOIN patient).
+        patientId: json['patient_id'] as String? ?? '',
+        patientName: json['patient_name'] as String? ?? 'Patient inconnu',
         totalCents: ((json['total_amount'] ?? json['total_cents']) as num? ?? 0)
             .toInt(),
         patientShareCents: (json['patient_share_cents'] as num? ?? 0).toInt(),

@@ -408,7 +408,10 @@ fn build_router(
             "/v1/cabinet/waiting-list/:id/offer",
             post(scheduling::offer_waiting_list_slot),
         )
-        .route("/v1/cabinet/slots", post(scheduling::create_cabinet_slot))
+        .route(
+            "/v1/cabinet/slots",
+            get(scheduling::list_cabinet_slots).post(scheduling::create_cabinet_slot),
+        )
         .route(
             "/v1/cabinet/slots/:id",
             patch(scheduling::patch_cabinet_slot).delete(scheduling::delete_cabinet_slot),

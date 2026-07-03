@@ -13,17 +13,40 @@ class CabinetAgendaApi {
     DateTime? to,
     String? practitionerId,
   }) async {
-    final response = await _dio.get<List<dynamic>>(
+    // Le back renvoie un objet { practitioners: [...], slots: [...] } (séparés
+    // pour le cloisonnement R.4127-72), pas un tableau plat. On fusionne ici :
+    // chaque slot est enrichi du nom de son praticien.
+    final response = await _dio.get<Map<String, dynamic>>(
       '/cabinet/agenda',
       queryParameters: {
-        if (from != null) 'from': from.toIso8601String(),
-        if (to != null) 'to': to.toIso8601String(),
+        // L'API attend `date=YYYY-MM-DD` (+ `view`), pas `from`/`to`.
+        if (from != null) 'date': _dateOnly(from),
+        if (from != null && to != null)
+          'view': to.difference(from).inDays > 1 ? 'week' : 'day',
         if (practitionerId != null) 'practitioner_id': practitionerId,
       },
     );
-    return (response.data!)
-        .map((e) => AgendaEntryDto.fromJson(e as Map<String, dynamic>))
+    final data = response.data ?? const <String, dynamic>{};
+
+    final names = <String, String>{
+      for (final p in (data['practitioners'] as List<dynamic>? ?? const []))
+        (p as Map<String, dynamic>)['id'] as String:
+            (p['display_name'] as String?) ?? '',
+    };
+
+    return (data['slots'] as List<dynamic>? ?? const [])
+        .map((e) => AgendaEntryDto.fromSlotJson(
+              e as Map<String, dynamic>,
+              practitionerNames: names,
+            ))
         .toList();
+  }
+
+  static String _dateOnly(DateTime dt) {
+    final d = dt.toUtc();
+    return '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
   }
 
   Future<AgendaEntryDto> getById(String id) async {

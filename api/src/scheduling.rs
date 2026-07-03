@@ -1549,6 +1549,105 @@ pub async fn create_cabinet_slot(
     ))
 }
 
+/// Élément de la liste `GET /v1/cabinet/slots` (contrat front `SlotDto`).
+#[derive(Serialize)]
+pub struct CabinetSlotListItem {
+    pub id: Uuid,
+    pub cabinet_id: Uuid,
+    pub practitioner_id: Uuid,
+    pub starts_at: String,
+    pub ends_at: String,
+    /// `true` si le créneau est ouvert (statut `open`), `false` sinon.
+    pub is_available: bool,
+}
+
+/// Query params de `GET /v1/cabinet/slots`.
+#[derive(Deserialize)]
+pub struct ListSlotsQuery {
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub practitioner_id: Option<Uuid>,
+}
+
+/// `GET /v1/cabinet/slots` — liste les créneaux réservables du cabinet (§13).
+///
+/// Token pro requis (secretary, practitioner, admin, manager). `cabinet_id`
+/// extrait du JWT, RLS scopée via `app.current_cabinet_id` (fail-closed).
+/// Filtres optionnels `from`/`to` (ISO 8601) et `practitioner_id`.
+pub async fn list_cabinet_slots(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Query(params): Query<ListSlotsQuery>,
+) -> Result<Json<Vec<CabinetSlotListItem>>, AppError> {
+    let from = params
+        .from
+        .as_deref()
+        .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok());
+    let to = params
+        .to
+        .as_deref()
+        .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok());
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT id, cabinet_id, practitioner_id, starts_at, ends_at, status \
+         FROM availability_slot \
+         WHERE cabinet_id = $1 \
+           AND ($2::timestamptz IS NULL OR starts_at >= $2) \
+           AND ($3::timestamptz IS NULL OR starts_at < $3) \
+           AND ($4::uuid IS NULL OR practitioner_id = $4) \
+         ORDER BY starts_at",
+    )
+    .bind(claims.cabinet_id)
+    .bind(from)
+    .bind(to)
+    .bind(params.practitioner_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let items = rows
+        .into_iter()
+        .map(|row| {
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+            let practitioner_id: Uuid = row
+                .try_get("practitioner_id")
+                .map_err(|_| AppError::Internal)?;
+            let starts_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+            let ends_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("ends_at").map_err(|_| AppError::Internal)?;
+            let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+            Ok(CabinetSlotListItem {
+                id,
+                cabinet_id,
+                practitioner_id,
+                starts_at: starts_at.to_rfc3339(),
+                ends_at: ends_at.to_rfc3339(),
+                is_available: status == "open",
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        count = items.len(),
+        "cabinet slots listed"
+    );
+
+    Ok(Json(items))
+}
+
 /// Corps de `PATCH /v1/cabinet/slots/:id`.
 #[derive(Deserialize)]
 pub struct PatchSlotBody {
