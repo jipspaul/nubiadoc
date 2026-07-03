@@ -160,13 +160,11 @@ async fn create_slot(state: &AppState, cabinet_id: Uuid, prac_id: Uuid, starts: 
     assert_eq!(resp.status(), StatusCode::CREATED);
 }
 
-fn state() -> impl std::future::Future<Output = AppState> {
-    async {
-        AppState {
-            db: app_pool().await,
-            jwt_secret: JWT_SECRET.to_string(),
-            mailer: Arc::new(StubMailer),
-        }
+async fn state() -> AppState {
+    AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
     }
 }
 
