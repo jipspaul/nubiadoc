@@ -26,9 +26,7 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
   void initState() {
     super.initState();
     // Annuaire par défaut au chargement : l'écran n'est jamais vide.
-    context
-        .read<AppointmentsBloc>()
-        .add(const AppointmentsSearchChanged(''));
+    context.read<AppointmentsBloc>().add(const AppointmentsSearchChanged(''));
   }
 
   @override
@@ -49,49 +47,74 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
           );
         }
       },
+      // Le retour système / navigateur / geste swipe ne pop pas la route (la
+      // recherche est l'onglet racine) : quand on est sur un sous-écran
+      // (créneaux, confirmation…), on l'intercepte pour revenir à l'annuaire
+      // plutôt que de quitter l'app (#3260).
       child: BlocBuilder<AppointmentsBloc, AppointmentsState>(
         builder: (context, state) {
-          // Recherche + résultats : la barre de recherche reste toujours montée.
-          if (state is AppointmentsInitial ||
-              state is AppointmentsSearchLoading ||
-              state is AppointmentsProvidersLoaded) {
-            final providers = state is AppointmentsProvidersLoaded
-                ? state.providers
-                : const <ProviderResult>[];
-            return _SearchView(
-              providers: providers,
-              loading: state is AppointmentsSearchLoading,
-            );
-          }
-          if (state is AppointmentsSlotsLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state is AppointmentsSlotsLoaded) {
-            return _SlotsView(state: state);
-          }
-          if (state is AppointmentsBookingLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state is AppointmentsBookingSuccess) {
-            return const NubiaEmptyState(
-              key: Key('booking_success'),
-              icon: Icons.check_circle_outline,
-              title: 'Rendez-vous confirmé !',
-              subtitle: 'Vous allez recevoir une confirmation.',
-            );
-          }
-          if (state is AppointmentsError) {
-            return NubiaErrorWidget(
-              message: state.message,
-              onRetry: () => context
-                  .read<AppointmentsBloc>()
-                  .add(const AppointmentsSearchChanged('')),
-            );
-          }
-          return const SizedBox.shrink();
+          final onSubView = _isSubView(state);
+          return PopScope(
+            canPop: !onSubView,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) {
+                context
+                    .read<AppointmentsBloc>()
+                    .add(const AppointmentsSearchChanged(''));
+              }
+            },
+            child: _content(context, state),
+          );
         },
       ),
     );
+  }
+
+  static bool _isSubView(AppointmentsState state) =>
+      state is AppointmentsSlotsLoading ||
+      state is AppointmentsSlotsLoaded ||
+      state is AppointmentsBookingLoading ||
+      state is AppointmentsError;
+
+  Widget _content(BuildContext context, AppointmentsState state) {
+    // Recherche + résultats : la barre de recherche reste toujours montée.
+    if (state is AppointmentsInitial ||
+        state is AppointmentsSearchLoading ||
+        state is AppointmentsProvidersLoaded) {
+      final providers = state is AppointmentsProvidersLoaded
+          ? state.providers
+          : const <ProviderResult>[];
+      return _SearchView(
+        providers: providers,
+        loading: state is AppointmentsSearchLoading,
+      );
+    }
+    if (state is AppointmentsSlotsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state is AppointmentsSlotsLoaded) {
+      return _SlotsView(state: state);
+    }
+    if (state is AppointmentsBookingLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state is AppointmentsBookingSuccess) {
+      return const NubiaEmptyState(
+        key: Key('booking_success'),
+        icon: Icons.check_circle_outline,
+        title: 'Rendez-vous confirmé !',
+        subtitle: 'Vous allez recevoir une confirmation.',
+      );
+    }
+    if (state is AppointmentsError) {
+      return NubiaErrorWidget(
+        message: state.message,
+        onRetry: () => context
+            .read<AppointmentsBloc>()
+            .add(const AppointmentsSearchChanged('')),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 
@@ -122,16 +145,13 @@ class _SearchViewState extends State<_SearchView> {
   void _onChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
-      context
-          .read<AppointmentsBloc>()
-          .add(AppointmentsSearchChanged(value));
+      context.read<AppointmentsBloc>().add(AppointmentsSearchChanged(value));
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final geoProviders =
-        widget.providers.where((p) => p.hasLocation).toList();
+    final geoProviders = widget.providers.where((p) => p.hasLocation).toList();
     return Column(
       children: [
         Padding(
@@ -160,8 +180,7 @@ class _SearchViewState extends State<_SearchView> {
             },
           ),
         ),
-        if (geoProviders.isNotEmpty)
-          _ProvidersMap(providers: geoProviders),
+        if (geoProviders.isNotEmpty) _ProvidersMap(providers: geoProviders),
         Expanded(
           child: widget.loading && widget.providers.isEmpty
               ? const Center(child: CircularProgressIndicator())
@@ -275,15 +294,30 @@ class _SlotsView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(4, 8, 16, 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                state.provider.displayName,
-                style: Theme.of(context).textTheme.titleMedium,
+              IconButton(
+                key: const Key('slots_back'),
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Retour aux praticiens',
+                onPressed: () => context
+                    .read<AppointmentsBloc>()
+                    .add(const AppointmentsSearchChanged('')),
               ),
-              Text(state.provider.specialty),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      state.provider.displayName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Text(state.provider.specialty),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
