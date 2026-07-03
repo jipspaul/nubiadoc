@@ -1,3 +1,4 @@
+import 'package:get_it/get_it.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -141,7 +142,7 @@ class _LoadedView extends StatelessWidget {
         ),
         CcamPicker(
           key: const Key('ccam_picker'),
-          useCase: const StubGetActsUseCase(),
+          useCase: GetIt.instance<GetActsUseCase>(),
           onActSelected: (act) => context.read<ConsultationCliniqueBloc>().add(
                 ConsultationCliniqueActAddRequested(
                   ccamCode: act.code,
