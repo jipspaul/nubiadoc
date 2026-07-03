@@ -173,6 +173,8 @@
 | GET | `/v1/account/coverage` | patient | Couverture santé. |
 | PATCH | `/v1/account/coverage` | patient | Régime oblig., n° sécu, mutuelle, tiers payant (US-P29). |
 | POST | `/v1/account/coverage/card` | patient | Upload carte mutuelle recto/verso (→ `document`). |
+| GET | `/v1/account/avatar` | patient | Photo de profil (octets + content-type ; 404 si aucune). |
+| PUT | `/v1/account/avatar` | patient | Pose la photo de profil (`{mime, data_base64}` ; JPEG/PNG/WebP ≤ 300 Ko ; 422 sinon). |
 | GET | `/v1/account/consents` | patient | Consentements (purpose/granted). |
 | PUT | `/v1/account/consents/{purpose}` | patient | Donne/révoque un consentement (`consent_record`). |
 | GET | `/v1/account/notification-preferences` | patient | Préférences notif. |

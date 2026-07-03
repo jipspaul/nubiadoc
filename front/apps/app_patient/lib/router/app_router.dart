@@ -34,6 +34,9 @@ import '../features/oubliettes/oubliettes_page.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/profile/profile_page.dart';
+import '../features/dependents/dependents_page.dart';
+import '../features/consents/consents_page.dart';
+import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/messaging/messaging_event.dart';
 import '../features/messaging/messaging_page.dart';
@@ -60,6 +63,9 @@ class AppRouter {
   static const documents = '/documents';
   static const financial = '/financial';
   static const profile = '/profile';
+  static const profileDependents = '/profile/dependents';
+  static const profileConsents = '/profile/consents';
+  static const profileNotifications = '/profile/notifications';
   static const messaging = '/messaging';
   static const reviews = '/reviews';
   static const notifications = '/notifications';
@@ -179,6 +185,18 @@ class AppRouter {
               body: const ProfilePage(),
             ),
           ),
+        ),
+        GoRoute(
+          path: profileDependents,
+          builder: (_, __) => const DependentsPage(),
+        ),
+        GoRoute(
+          path: profileConsents,
+          builder: (_, __) => const ConsentsPage(),
+        ),
+        GoRoute(
+          path: profileNotifications,
+          builder: (_, __) => const NotificationPrefsPage(),
         ),
         GoRoute(
           path: messaging,

@@ -166,6 +166,12 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => ResetPasswordUseCase(gi()))
     // account
     ..registerFactory(() => GetAccountUseCase(gi()))
+    ..registerFactory(() => AddDependentUseCase(gi()))
+    ..registerFactory(() => DeleteDependentUseCase(gi()))
+    ..registerFactory(() => SetConsentUseCase(gi()))
+    ..registerFactory(() => GetAvatarUseCase(gi()))
+    ..registerFactory(() => UpdateAvatarUseCase(gi()))
+    ..registerFactory(() => UpdateNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => UpdateAccountUseCase(gi()))
     ..registerFactory(() => GetCoverageUseCase(gi()))
     ..registerFactory(() => UpdateCoverageUseCase(gi()))

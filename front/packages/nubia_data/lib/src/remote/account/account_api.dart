@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/account/account_dto.dart';
@@ -73,5 +75,38 @@ class AccountApi {
         .cast<Map<String, dynamic>>()
         .map(ConsentDto.fromJson)
         .toList();
+  }
+
+  Future<void> putConsent({required String purpose, required bool granted}) async {
+    await _dio.put<Map<String, dynamic>>(
+      '/account/consents/$purpose',
+      data: {'granted': granted},
+    );
+  }
+
+  /// GET /v1/account/avatar — octets bruts + content-type, null si 404.
+  Future<(List<int>, String)?> getAvatar() async {
+    try {
+      final response = await _dio.get<List<int>>(
+        '/account/avatar',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final mime =
+          response.headers.value('content-type') ?? 'application/octet-stream';
+      return (response.data ?? const <int>[], mime);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<void> putAvatar({
+    required List<int> bytes,
+    required String mimeType,
+  }) async {
+    await _dio.put<void>(
+      '/account/avatar',
+      data: {'mime': mimeType, 'data_base64': base64Encode(bytes)},
+    );
   }
 }

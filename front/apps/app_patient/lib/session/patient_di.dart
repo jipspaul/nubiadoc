@@ -4,6 +4,9 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/account_setup/account_setup_cubit.dart';
 import '../features/coverage_setup/coverage_setup_cubit.dart';
+import '../features/dependents/dependents_cubit.dart';
+import '../features/consents/consents_cubit.dart';
+import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/dashboard/dashboard_bloc.dart';
 import '../features/signup/signup_cubit.dart';
@@ -82,6 +85,28 @@ void registerPatient(GetIt gi) {
       getAccount: gi<GetAccountUseCase>(),
       userSettings: gi<UserSettingsRepository>(),
       notificationRepo: gi<NotificationRepository>(),
+    ),
+  );
+
+  gi.registerFactory<DependentsCubit>(
+    () => DependentsCubit(
+      list: gi<ListDependentsUseCase>(),
+      add: gi<AddDependentUseCase>(),
+      remove: gi<DeleteDependentUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<ConsentsCubit>(
+    () => ConsentsCubit(
+      list: gi<ListConsentsUseCase>(),
+      set: gi<SetConsentUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<NotificationPrefsCubit>(
+    () => NotificationPrefsCubit(
+      get: gi<GetNotificationPreferencesUseCase>(),
+      update: gi<UpdateNotificationPreferencesUseCase>(),
     ),
   );
 

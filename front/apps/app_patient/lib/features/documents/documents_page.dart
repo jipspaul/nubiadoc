@@ -192,10 +192,21 @@ class _DocumentsLoaded extends StatelessWidget {
             tooltip: 'Envoyer un document',
             onPressed: () async {
               final bloc = context.read<DocumentsBloc>();
+              final messenger = ScaffoldMessenger.of(context);
               final file = await GetIt.instance<FilePickerService>().pickFile();
               if (file == null) return;
+              final path = file.path;
+              // L'upload de documents passe par MultipartFile.fromFile (path)
+              // — indisponible sur le web où le picker ne fournit que des
+              // bytes. Migration vers fromBytes à faire (suivi séparé).
+              if (path == null) {
+                messenger.showSnackBar(const SnackBar(
+                    content: Text(
+                        "L'envoi de documents n'est pas encore disponible sur le web.")));
+                return;
+              }
               bloc.add(DocumentsUploadRequested(
-                filePath: file.path,
+                filePath: path,
                 filename: file.name,
                 mimeType: file.mimeType,
                 category: DocumentCategory.other,
