@@ -56,17 +56,26 @@ class MessageDto {
     this.readAt,
   });
 
-  factory MessageDto.fromJson(Map<String, dynamic> json) => MessageDto(
+  /// Contrat réel : {id, body, sender, created_at, read_at} — pas de
+  /// conversation_id (injecté par l'appelant), `body`≠`text`, `created_at`≠
+  /// `sent_at`. Reste rétro-compatible avec l'ancienne forme.
+  factory MessageDto.fromJson(
+    Map<String, dynamic> json, {
+    String conversationId = '',
+  }) =>
+      MessageDto(
         id: json['id'] as String,
-        conversationId: json['conversation_id'] as String,
+        conversationId:
+            (json['conversation_id'] as String?) ?? conversationId,
         sender: json['sender'] as String,
-        text: json['text'] as String?,
+        text: (json['text'] as String?) ?? (json['body'] as String?),
         attachmentIds: (json['attachment_ids'] as List<dynamic>?)
                 ?.map((e) => e as String)
                 .toList() ??
             const [],
         urgency: json['urgency'] as String? ?? 'normal',
-        sentAt: json['sent_at'] as String,
+        sentAt: (json['sent_at'] as String?) ??
+            (json['created_at'] as String),
         readAt: json['read_at'] as String?,
       );
 
@@ -74,7 +83,7 @@ class MessageDto {
         id: id,
         conversationId: conversationId,
         sender:
-            sender == 'cabinet' ? MessageSender.cabinet : MessageSender.patient,
+            sender == 'patient' ? MessageSender.patient : MessageSender.cabinet,
         text: text,
         attachmentIds: attachmentIds,
         urgency:

@@ -8,17 +8,24 @@ class MessagingApi {
   MessagingApi(ApiClient client) : _dio = client.dio;
 
   Future<List<ConversationDto>> getConversations() async {
-    final response = await _dio.get<List<dynamic>>('/conversations');
-    return (response.data!)
+    // GET /v1/conversations → { data: [...] }
+    final response = await _dio.get<Map<String, dynamic>>('/conversations');
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
         .map((e) => ConversationDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<MessageDto>> getMessages(String conversationId) async {
+    // GET /v1/conversations/:id/messages → { data: [...], page }
     final response = await _dio
-        .get<List<dynamic>>('/conversations/$conversationId/messages');
-    return (response.data!)
-        .map((e) => MessageDto.fromJson(e as Map<String, dynamic>))
+        .get<Map<String, dynamic>>('/conversations/$conversationId/messages');
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
+        .map((e) => MessageDto.fromJson(
+              e as Map<String, dynamic>,
+              conversationId: conversationId,
+            ))
         .toList();
   }
 

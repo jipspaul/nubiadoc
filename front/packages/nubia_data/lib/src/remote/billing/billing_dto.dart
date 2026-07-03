@@ -21,17 +21,25 @@ class QuoteLineItemDto {
     required this.patientShareCents,
   });
 
-  factory QuoteLineItemDto.fromJson(Map<String, dynamic> json) =>
-      QuoteLineItemDto(
-        id: json['id'] as String,
-        label: json['label'] as String,
-        ccamCode: json['ccam_code'] as String?,
-        toothLabel: json['tooth_label'] as String?,
-        totalCents: (json['total_cents'] as num).toInt(),
-        amoShareCents: (json['amo_share_cents'] as num).toInt(),
-        amcShareCents: (json['amc_share_cents'] as num).toInt(),
-        patientShareCents: (json['patient_share_cents'] as num).toInt(),
-      );
+  /// Contrat réel (api/src/billing.rs) : {id, label, ccam_code, tooth,
+  /// unit_amount_cents, amo_part_cents?, amc_part_cents?}. Le reste à charge
+  /// patient = montant - remboursements (0 si part inconnue).
+  factory QuoteLineItemDto.fromJson(Map<String, dynamic> json) {
+    final total = (json['unit_amount_cents'] ?? json['total_cents'] ?? 0 as num)
+        .toInt();
+    final amo = (json['amo_part_cents'] as num?)?.toInt() ?? 0;
+    final amc = (json['amc_part_cents'] as num?)?.toInt() ?? 0;
+    return QuoteLineItemDto(
+      id: json['id'] as String,
+      label: json['label'] as String,
+      ccamCode: json['ccam_code'] as String?,
+      toothLabel: (json['tooth'] ?? json['tooth_label']) as String?,
+      totalCents: total,
+      amoShareCents: amo,
+      amcShareCents: amc,
+      patientShareCents: (total - amo - amc).clamp(0, total),
+    );
+  }
 
   QuoteLineItem toDomain() => QuoteLineItem(
         id: id,
@@ -74,22 +82,51 @@ class QuoteDto {
     this.documentId,
   });
 
-  factory QuoteDto.fromJson(Map<String, dynamic> json) => QuoteDto(
-        id: json['id'] as String,
-        cabinetId: json['cabinet_id'] as String,
-        practitionerName: json['practitioner_name'] as String,
-        items: (json['items'] as List<dynamic>? ?? [])
-            .map((e) => QuoteLineItemDto.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        totalCents: (json['total_cents'] as num).toInt(),
-        patientShareCents: (json['patient_share_cents'] as num).toInt(),
-        depositCents: (json['deposit_cents'] as num).toInt(),
-        status: json['status'] as String,
-        createdAt: json['created_at'] as String,
-        signedAt: json['signed_at'] as String?,
-        expiresAt: json['expires_at'] as String?,
-        documentId: json['document_id'] as String?,
-      );
+  /// Détail : GET /v1/quotes/:id → {id, status, total_amount_cents, currency,
+  /// signed_at, created_at, items:[...]}. Champs absents de l'API
+  /// (cabinet_id, practitioner_name, deposit) → valeurs neutres.
+  factory QuoteDto.fromJson(Map<String, dynamic> json) {
+    final items = (json['items'] as List<dynamic>? ?? [])
+        .map((e) => QuoteLineItemDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final total =
+        (json['total_amount_cents'] ?? json['total_cents'] ?? 0 as num).toInt();
+    final patientShare = items.isEmpty
+        ? total
+        : items.fold<int>(0, (s, i) => s + i.patientShareCents);
+    return QuoteDto(
+      id: json['id'] as String,
+      cabinetId: (json['cabinet_id'] as String?) ?? '',
+      practitionerName: (json['practitioner_name'] as String?) ?? '',
+      items: items,
+      totalCents: total,
+      patientShareCents:
+          (json['patient_share_cents'] as num?)?.toInt() ?? patientShare,
+      depositCents: (json['deposit_cents'] as num?)?.toInt() ?? 0,
+      status: json['status'] as String,
+      createdAt: json['created_at'] as String,
+      signedAt: json['signed_at'] as String?,
+      expiresAt: json['expires_at'] as String?,
+      documentId: json['document_id'] as String?,
+    );
+  }
+
+  /// Liste : GET /v1/quotes → items résumés {id, status,
+  /// total_amount_cents, currency, created_at} (sans lignes ni parts).
+  factory QuoteDto.fromSummaryJson(Map<String, dynamic> json) {
+    final total = (json['total_amount_cents'] as num?)?.toInt() ?? 0;
+    return QuoteDto(
+      id: json['id'] as String,
+      cabinetId: '',
+      practitionerName: '',
+      items: const [],
+      totalCents: total,
+      patientShareCents: total,
+      depositCents: 0,
+      status: json['status'] as String,
+      createdAt: json['created_at'] as String,
+    );
+  }
 
   Quote toDomain() => Quote(
         id: id,

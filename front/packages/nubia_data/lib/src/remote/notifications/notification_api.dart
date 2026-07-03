@@ -9,8 +9,10 @@ class NotificationApi {
   NotificationApi(ApiClient client) : _dio = client.dio;
 
   Future<List<NotificationDto>> getNotifications() async {
-    final response = await _dio.get<List<dynamic>>('/notifications');
-    return (response.data!)
+    // GET /v1/notifications → { data: [...], page }
+    final response = await _dio.get<Map<String, dynamic>>('/notifications');
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
         .map((e) => NotificationDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
