@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 // ---------------------------------------------------------------------------
 // Model
@@ -83,9 +84,16 @@ final class OubliettesError extends OubliettesState {
 
 class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
     with SafeEmitMixin<OubliettesState> {
-  OubliettesBloc() : super(const OubliettesInitial()) {
+  OubliettesBloc({required GetDocumentsUseCase getDocuments})
+      : _getDocuments = getDocuments,
+        super(const OubliettesInitial()) {
     on<OubliettesLoadRequested>(_onLoad);
   }
+
+  final GetDocumentsUseCase _getDocuments;
+
+  /// Nombre de documents récents affichés dans les oubliettes.
+  static const _recentLimit = 10;
 
   Future<void> _onLoad(
     OubliettesLoadRequested event,
@@ -93,31 +101,28 @@ class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
   ) async {
     emit(const OubliettesLoading());
     try {
-      // Mock local — la route /v1/documents?recent=true viendra plus tard.
-      final items = [
-        OublietteItem(
-          id: '1',
-          title: 'Ordonnance Dr Martin',
-          seenAt: DateTime(2026, 6, 19),
-        ),
-        OublietteItem(
-          id: '2',
-          title: 'Radio panoramique',
-          seenAt: DateTime(2026, 6, 18),
-        ),
-        OublietteItem(
-          id: '3',
-          title: 'Bilan sanguin',
-          seenAt: DateTime(2026, 6, 15),
-        ),
-      ];
-      if (items.isEmpty) {
-        safeEmit(const OubliettesEmpty());
-      } else {
-        safeEmit(OubliettesLoaded(items));
-      }
-    } catch (e) {
-      safeEmit(OubliettesError(e.toString()));
+      // Documents récents du coffre-fort (GET /v1/documents, tri date desc).
+      final result = await _getDocuments();
+      result.fold(
+        (failure) => safeEmit(OubliettesError(failure.message)),
+        (documents) {
+          if (documents.isEmpty) {
+            safeEmit(const OubliettesEmpty());
+            return;
+          }
+          final items = documents
+              .take(_recentLimit)
+              .map((d) => OublietteItem(
+                    id: d.id,
+                    title: d.name,
+                    seenAt: d.createdAt,
+                  ))
+              .toList();
+          safeEmit(OubliettesLoaded(items));
+        },
+      );
+    } catch (_) {
+      safeEmit(const OubliettesError('Erreur lors du chargement.'));
     }
   }
 }
