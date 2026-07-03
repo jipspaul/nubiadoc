@@ -367,6 +367,14 @@ fn build_router(
             "/v1/cabinet/conversations",
             get(cabinet_messaging::list_cabinet_conversations),
         )
+        .route(
+            "/v1/cabinet/conversations/:id/messages",
+            post(cabinet_messaging::send_cabinet_message),
+        )
+        .route(
+            "/v1/cabinet/conversations/:id/read",
+            post(cabinet_messaging::mark_cabinet_conversation_read),
+        )
         .route("/v1/cabinet/agenda", get(scheduling::get_cabinet_agenda))
         .route(
             "/v1/cabinet/waiting-room",
@@ -418,6 +426,7 @@ fn build_router(
             "/v1/treatment-plans/:id",
             get(treatment_plans::get_treatment_plan),
         )
+        .route("/v1/payments", get(billing::list_payments))
         .route("/v1/quotes", get(billing::list_quotes))
         .route("/v1/cabinet/quotes", get(billing::list_cabinet_quotes))
         .route("/v1/quotes/:id", get(billing::get_quote))

@@ -503,6 +503,7 @@ fn triage(body: &str) -> (&'static str, Option<String>) {
 /// `triage_flag` calculé par mots-clés — priorisation visuelle uniquement (§07 §8.3).
 pub async fn send_message(
     State(state): State<AppState>,
+    axum::Extension(hub): axum::Extension<std::sync::Arc<crate::realtime::WsHub>>,
     claims: PatientAccountClaims,
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendMessageBody>,
@@ -558,6 +559,18 @@ pub async fn send_message(
     let message_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Temps réel : notifie les abonnés du fil (secrétariat/praticien) — #3238.
+    let channel = format!("conversation:{conversation_id}");
+    hub.publish_named(
+        &channel,
+        serde_json::json!({
+            "channel": channel,
+            "event": "message_created",
+            "data": { "message_id": message_id, "sender_kind": "patient" }
+        })
+        .to_string(),
+    );
 
     // Stub notification au cabinet — implémentation réelle avec NUB-T4.
     tracing::info!(

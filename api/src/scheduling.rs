@@ -293,6 +293,7 @@ pub struct CallNextResponse {
 /// Aucun patient en file → `{ called: false }`. Notification stub (NUB-T3).
 pub async fn call_next_patient(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<crate::realtime::WsHub>>,
     claims: ProPractitionerClaims,
 ) -> Result<Json<CallNextResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -373,6 +374,27 @@ pub async fn call_next_patient(
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Temps réel : « c'est votre tour » vers le patient abonné + salle d'attente — #3238.
+    let queue_channel = format!("patient_queue:{appointment_id}");
+    hub.publish_named(
+        &queue_channel,
+        serde_json::json!({
+            "channel": queue_channel,
+            "event": "your_turn",
+            "data": { "appointment_id": appointment_id }
+        })
+        .to_string(),
+    );
+    hub.publish(
+        claims.cabinet_id,
+        serde_json::json!({
+            "channel": "waiting_room",
+            "event": "queue_updated",
+            "data": { "appointment_id": appointment_id, "status": "in_progress" }
+        })
+        .to_string(),
+    );
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,

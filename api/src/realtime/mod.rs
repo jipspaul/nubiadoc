@@ -34,6 +34,8 @@ use crate::AppState;
 /// `create_appointment` l'utilisent pour notifier les abonnés WS.
 pub struct WsHub {
     senders: Mutex<HashMap<Uuid, broadcast::Sender<String>>>,
+    /// Canaux nommés (`conversation:<uuid>`, `patient_queue:<uuid>`) — #3238.
+    named: Mutex<HashMap<String, broadcast::Sender<String>>>,
 }
 
 impl Default for WsHub {
@@ -46,6 +48,7 @@ impl WsHub {
     pub fn new() -> Self {
         Self {
             senders: Mutex::new(HashMap::new()),
+            named: Mutex::new(HashMap::new()),
         }
     }
 
@@ -64,6 +67,25 @@ impl WsHub {
     pub fn publish(&self, cabinet_id: Uuid, msg: String) {
         let map = self.senders.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(tx) = map.get(&cabinet_id) {
+            let _ = tx.send(msg);
+        }
+    }
+
+    /// Retourne un `Receiver` pour un canal nommé (`conversation:<uuid>`,
+    /// `patient_queue:<uuid>`). Crée le canal s'il n'existe pas encore.
+    pub fn subscribe_named(&self, key: &str) -> broadcast::Receiver<String> {
+        let mut map = self.named.lock().unwrap_or_else(|e| e.into_inner());
+        let tx = map.entry(key.to_owned()).or_insert_with(|| {
+            let (tx, _) = broadcast::channel(128);
+            tx
+        });
+        tx.subscribe()
+    }
+
+    /// Publie sur un canal nommé. No-op s'il n'a aucun abonné.
+    pub fn publish_named(&self, key: &str, msg: String) {
+        let map = self.named.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(tx) = map.get(key) {
             let _ = tx.send(msg);
         }
     }
@@ -160,10 +182,16 @@ pub async fn ws_handshake(
         }
     };
 
-    ws.on_upgrade(move |socket| handle_socket(socket, session, hub))
+    let db = state.db.clone();
+    ws.on_upgrade(move |socket| handle_socket(socket, session, hub, db))
 }
 
-async fn handle_socket(mut socket: WebSocket, session: WsSession, hub: Arc<WsHub>) {
+async fn handle_socket(
+    mut socket: WebSocket,
+    session: WsSession,
+    hub: Arc<WsHub>,
+    db: sqlx::PgPool,
+) {
     tracing::debug!(
         user_id = %session.user_id,
         kind = %session.kind,
@@ -192,9 +220,11 @@ async fn handle_socket(mut socket: WebSocket, session: WsSession, hub: Arc<WsHub
                             text.as_str(),
                             &session,
                             &hub,
+                            &db,
                             &bc_tx,
                             &mut bc_task,
-                        );
+                        )
+                        .await;
                         if socket.send(Message::Text(reply)).await.is_err() {
                             break;
                         }
@@ -219,10 +249,11 @@ async fn handle_socket(mut socket: WebSocket, session: WsSession, hub: Arc<WsHub
 }
 
 /// Traite un message texte entrant et retourne la réponse à envoyer.
-fn handle_client_op(
+async fn handle_client_op(
     text: &str,
     session: &WsSession,
     hub: &Arc<WsHub>,
+    db: &sqlx::PgPool,
     bc_tx: &tokio::sync::mpsc::Sender<String>,
     bc_task: &mut Option<tokio::task::JoinHandle<()>>,
 ) -> String {
@@ -240,40 +271,206 @@ fn handle_client_op(
 
         Some("subscribe") => {
             let channel = v.get("channel").and_then(|c| c.as_str()).unwrap_or("");
-            if channel != "waiting_room" {
-                return json!({"error": "unknown_channel"}).to_string();
-            }
-            if session.kind != "pro" {
-                return json!({"error": "forbidden", "channel": "waiting_room"}).to_string();
-            }
-            let Some(cabinet_id) = session.cabinet_id else {
-                return json!({"error": "forbidden", "channel": "waiting_room"}).to_string();
-            };
 
-            if let Some(old) = bc_task.take() {
-                old.abort();
-            }
-
-            let mut receiver = hub.subscribe(cabinet_id);
-            let tx_clone = bc_tx.clone();
-            *bc_task = Some(tokio::spawn(async move {
-                use tokio::sync::broadcast::error::RecvError;
-                loop {
-                    match receiver.recv().await {
-                        Ok(msg) => {
-                            if tx_clone.send(msg).await.is_err() {
-                                break;
-                            }
-                        }
-                        Err(RecvError::Lagged(_)) => continue,
-                        Err(RecvError::Closed) => break,
-                    }
+            // ── waiting_room (historique) : pros du cabinet uniquement ──────
+            if channel == "waiting_room" {
+                if session.kind != "pro" {
+                    return json!({"error": "forbidden", "channel": channel}).to_string();
                 }
-            }));
+                let Some(cabinet_id) = session.cabinet_id else {
+                    return json!({"error": "forbidden", "channel": channel}).to_string();
+                };
+                spawn_bridge(
+                    bc_task,
+                    bc_tx,
+                    BridgeSource::Cabinet(hub.subscribe(cabinet_id)),
+                );
+                return json!({"op": "subscribed", "channel": channel}).to_string();
+            }
 
-            json!({"op": "subscribed", "channel": "waiting_room"}).to_string()
+            // ── conversation:<uuid> : patient propriétaire OU pro du cabinet ──
+            if let Some(id) = channel.strip_prefix("conversation:") {
+                let Ok(conversation_id) = Uuid::parse_str(id) else {
+                    return json!({"error": "unknown_channel"}).to_string();
+                };
+                if !authorize_conversation(db, session, conversation_id).await {
+                    return json!({"error": "forbidden", "channel": channel}).to_string();
+                }
+                spawn_bridge(
+                    bc_task,
+                    bc_tx,
+                    BridgeSource::Named(hub.subscribe_named(channel)),
+                );
+                return json!({"op": "subscribed", "channel": channel}).to_string();
+            }
+
+            // ── patient_queue:<uuid> : patient du RDV OU pro du cabinet ──────
+            if let Some(id) = channel.strip_prefix("patient_queue:") {
+                let Ok(appointment_id) = Uuid::parse_str(id) else {
+                    return json!({"error": "unknown_channel"}).to_string();
+                };
+                if !authorize_patient_queue(db, session, appointment_id).await {
+                    return json!({"error": "forbidden", "channel": channel}).to_string();
+                }
+                spawn_bridge(
+                    bc_task,
+                    bc_tx,
+                    BridgeSource::Named(hub.subscribe_named(channel)),
+                );
+                return json!({"op": "subscribed", "channel": channel}).to_string();
+            }
+
+            json!({"error": "unknown_channel"}).to_string()
         }
 
         _ => json!({"error": "unknown_op"}).to_string(),
     }
+}
+
+/// Source du bridge broadcast→client (deux hubs : cabinet legacy + nommé).
+enum BridgeSource {
+    Cabinet(broadcast::Receiver<String>),
+    Named(broadcast::Receiver<String>),
+}
+
+/// (Re)lance la task qui relaie un Receiver broadcast vers le client WS.
+fn spawn_bridge(
+    bc_task: &mut Option<tokio::task::JoinHandle<()>>,
+    bc_tx: &tokio::sync::mpsc::Sender<String>,
+    source: BridgeSource,
+) {
+    if let Some(old) = bc_task.take() {
+        old.abort();
+    }
+    let mut receiver = match source {
+        BridgeSource::Cabinet(r) | BridgeSource::Named(r) => r,
+    };
+    let tx_clone = bc_tx.clone();
+    *bc_task = Some(tokio::spawn(async move {
+        use tokio::sync::broadcast::error::RecvError;
+        loop {
+            match receiver.recv().await {
+                Ok(msg) => {
+                    if tx_clone.send(msg).await.is_err() {
+                        break;
+                    }
+                }
+                Err(RecvError::Lagged(_)) => continue,
+                Err(RecvError::Closed) => break,
+            }
+        }
+    }));
+}
+
+/// Le porteur du token peut-il écouter `conversation:<id>` ?
+/// Pro : la conversation appartient à son cabinet. Patient : la conversation
+/// est la sienne (RLS `conversation_patient_read` via app.patient_account_id).
+async fn authorize_conversation(
+    db: &sqlx::PgPool,
+    session: &WsSession,
+    conversation_id: Uuid,
+) -> bool {
+    let Ok(mut tx) = db.begin().await else {
+        return false;
+    };
+    let ok = match (
+        session.kind.as_str(),
+        session.cabinet_id,
+        session.account_id,
+    ) {
+        ("pro", Some(cabinet_id), _) => {
+            if sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+                .bind(cabinet_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .is_err()
+            {
+                return false;
+            }
+            sqlx::query("SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2")
+                .bind(conversation_id)
+                .bind(cabinet_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .ok()
+                .flatten()
+                .is_some()
+        }
+        ("patient", _, Some(account_id)) => {
+            if sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+                .bind(account_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .is_err()
+            {
+                return false;
+            }
+            sqlx::query("SELECT 1 FROM conversation WHERE id = $1")
+                .bind(conversation_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .ok()
+                .flatten()
+                .is_some()
+        }
+        _ => false,
+    };
+    let _ = tx.rollback().await;
+    ok
+}
+
+/// Le porteur du token peut-il écouter `patient_queue:<appointment_id>` ?
+/// Patient : le RDV est le sien (RLS patient sur appointment). Pro : RDV du cabinet.
+async fn authorize_patient_queue(
+    db: &sqlx::PgPool,
+    session: &WsSession,
+    appointment_id: Uuid,
+) -> bool {
+    let Ok(mut tx) = db.begin().await else {
+        return false;
+    };
+    let ok = match (
+        session.kind.as_str(),
+        session.cabinet_id,
+        session.account_id,
+    ) {
+        ("pro", Some(cabinet_id), _) => {
+            if sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+                .bind(cabinet_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .is_err()
+            {
+                return false;
+            }
+            sqlx::query("SELECT 1 FROM appointment WHERE id = $1 AND cabinet_id = $2")
+                .bind(appointment_id)
+                .bind(cabinet_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .ok()
+                .flatten()
+                .is_some()
+        }
+        ("patient", _, Some(account_id)) => {
+            if sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+                .bind(account_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .is_err()
+            {
+                return false;
+            }
+            sqlx::query("SELECT 1 FROM appointment WHERE id = $1")
+                .bind(appointment_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .ok()
+                .flatten()
+                .is_some()
+        }
+        _ => false,
+    };
+    let _ = tx.rollback().await;
+    ok
 }
