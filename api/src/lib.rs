@@ -343,6 +343,10 @@ fn build_router(
             get(clinical::list_patient_documents).post(clinical::upload_patient_document),
         )
         .route(
+            "/v1/cabinet/consultations",
+            get(consultations::list_consultations),
+        )
+        .route(
             "/v1/cabinet/consultations/:id",
             get(consultations::get_consultation_context),
         )

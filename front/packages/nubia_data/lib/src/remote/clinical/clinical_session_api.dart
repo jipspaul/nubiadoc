@@ -16,6 +16,23 @@ class ClinicalSessionApi {
     return ClinicalSessionDto.fromJson(response.data!);
   }
 
+  /// GET /v1/cabinet/consultations — historique des séances (#3232).
+  Future<List<ClinicalSessionDto>> listSessions({
+    String? patientId,
+    String? status,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/consultations',
+      queryParameters: {
+        if (patientId != null) 'patient_id': patientId,
+        if (status != null) 'status': status,
+      },
+    );
+    return (response.data!['data'] as List<dynamic>)
+        .map((e) => ClinicalSessionDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// GET /v1/cabinet/consultations/{consultationId}
   Future<ClinicalSessionDto> getSession(String consultationId) async {
     final response = await _dio.get<Map<String, dynamic>>(

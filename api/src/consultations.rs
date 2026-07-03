@@ -1,7 +1,7 @@
 //! Handlers `/v1/cabinet/consultations/:id` — contexte et complétion d'une séance.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -780,4 +780,129 @@ pub async fn delete_consultation_act(
     );
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ── GET /v1/cabinet/consultations ────────────────────────────────────────────
+
+/// Un élément de `GET /v1/cabinet/consultations` (historique des séances).
+/// Volontairement sans note clinique : la liste sert l'historique (praticien),
+/// le détail chiffré passe par `GET /v1/cabinet/consultations/:id`.
+#[derive(Serialize)]
+pub struct ConsultationListItem {
+    pub id: Uuid,
+    pub appointment_id: Uuid,
+    pub patient_id: Uuid,
+    pub patient_name: String,
+    pub practitioner: PractitionerSummary,
+    pub status: String,
+    pub started_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+    pub acts_count: i64,
+}
+
+/// Réponse de `GET /v1/cabinet/consultations`.
+#[derive(Serialize)]
+pub struct ConsultationListResponse {
+    pub data: Vec<ConsultationListItem>,
+}
+
+/// Query de `GET /v1/cabinet/consultations`.
+#[derive(Deserialize)]
+pub struct ListConsultationsQuery {
+    pub patient_id: Option<Uuid>,
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+}
+
+/// `GET /v1/cabinet/consultations` — historique des séances du cabinet (#3232).
+///
+/// Praticien uniquement (R.4127-72, §07 §4.1) — secrétaire → 403.
+/// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
+/// RLS tenant-scoped via `app.current_cabinet_id`.
+/// Filtres : `patient_id`, `status` (in_progress|completed|cancelled).
+/// Tri `started_at` DESC, `limit` 1..=100 (défaut 50).
+/// `status` inconnu → 422.
+pub async fn list_consultations(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Query(query): Query<ListConsultationsQuery>,
+) -> Result<Json<ConsultationListResponse>, AppError> {
+    if let Some(s) = query.status.as_deref() {
+        if !matches!(s, "in_progress" | "completed" | "cancelled") {
+            return Err(AppError::ValidationError);
+        }
+    }
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT cs.id, cs.appointment_id, cs.practitioner_id, cs.status, \
+                cs.started_at, cs.completed_at, \
+                a.patient_id, \
+                COALESCE(pat.first_name || ' ' || pat.last_name, '') AS patient_name, \
+                COALESCE(prov.display_name, '') AS practitioner_name, \
+                (SELECT count(*) FROM consultation_act ca \
+                  WHERE ca.appointment_id = cs.appointment_id \
+                    AND ca.cabinet_id = cs.cabinet_id) AS acts_count \
+         FROM consultation_session cs \
+         JOIN appointment a ON a.id = cs.appointment_id \
+         LEFT JOIN patient pat ON pat.id = a.patient_id \
+                               AND pat.cabinet_id = cs.cabinet_id \
+         LEFT JOIN provider prov ON prov.practitioner_id = cs.practitioner_id \
+                                 AND prov.cabinet_id = cs.cabinet_id \
+         WHERE cs.cabinet_id = $1 \
+           AND ($2::uuid IS NULL OR a.patient_id = $2) \
+           AND ($3::text IS NULL OR cs.status = $3) \
+         ORDER BY cs.started_at DESC \
+         LIMIT $4",
+    )
+    .bind(claims.cabinet_id)
+    .bind(query.patient_id)
+    .bind(query.status.as_deref())
+    .bind(limit)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .into_iter()
+        .map(|r| {
+            let started_at: chrono::DateTime<chrono::Utc> =
+                r.try_get("started_at").map_err(|_| AppError::Internal)?;
+            let completed_at: Option<chrono::DateTime<chrono::Utc>> =
+                r.try_get("completed_at").map_err(|_| AppError::Internal)?;
+            Ok(ConsultationListItem {
+                id: r.try_get("id").map_err(|_| AppError::Internal)?,
+                appointment_id: r
+                    .try_get("appointment_id")
+                    .map_err(|_| AppError::Internal)?,
+                patient_id: r.try_get("patient_id").map_err(|_| AppError::Internal)?,
+                patient_name: r.try_get("patient_name").map_err(|_| AppError::Internal)?,
+                practitioner: PractitionerSummary {
+                    id: r
+                        .try_get("practitioner_id")
+                        .map_err(|_| AppError::Internal)?,
+                    display_name: r
+                        .try_get("practitioner_name")
+                        .map_err(|_| AppError::Internal)?,
+                },
+                status: r.try_get("status").map_err(|_| AppError::Internal)?,
+                started_at: started_at.to_rfc3339(),
+                completed_at: completed_at.map(|t| t.to_rfc3339()),
+                acts_count: r.try_get("acts_count").map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(ConsultationListResponse { data }))
 }

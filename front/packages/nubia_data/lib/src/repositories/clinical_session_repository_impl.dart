@@ -30,6 +30,27 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
   }
 
   @override
+  Future<Either<Failure, List<ClinicalSession>>> listSessions({
+    String? patientId,
+    String? status,
+  }) async {
+    try {
+      final dtos = await _api.listSessions(patientId: patientId, status: status);
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible de charger l'historique des consultations.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, ClinicalSession>> getSession(
       String consultationId) async {
     try {
