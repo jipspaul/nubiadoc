@@ -13,4 +13,7 @@ run() { # role, file
 run nubia_seed  seed.sql
 run nubia_seed  seed_e2e.sql
 run nubia_owner seed_slots.sql
+# Annuaire de démo : 14 praticiens Paris géolocalisés + ~3 sem. de créneaux.
+# Rôle nubia_owner (BYPASSRLS ; régénère les créneaux ouverts depuis now()).
+run nubia_owner seed_paris_providers.sql
 echo "[seed] terminé"
