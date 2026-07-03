@@ -888,44 +888,32 @@ pub async fn hold_slot(
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Atomic claim via try_claim_slot() SECURITY DEFINER (cf. migration 0095) :
-    // - NULL  → slot inexistant      (404)
-    // - 'held' → claim réussi         (200)
-    // - autre  → slot pas open        (409)
-    // Cette fonction bypasse slot_cabinet_write qui bloquerait UPDATE sur les
-    // slots marketplace à cabinet_id=NULL (la policy demande cabinet_id=GUC).
-    let claim_status: Option<String> = sqlx::query_scalar("SELECT try_claim_slot($1)")
-        .bind(slot_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    // Claim + INSERT atomiques via claim_and_hold_slot() SECURITY DEFINER
+    // (cf. migration 0120). La fonction contourne la RLS `slot_holds` (policy
+    // slot_hold_cabinet_isolation, migration 0110) qui exige app.current_cabinet_id
+    // — GUC jamais posé dans le parcours patient, d'où l'ancien 500 (#3259).
+    // Retour : NULL → 404 ; 'claimed' → 200 ; autre ('taken'/statut) → 409.
+    let row =
+        sqlx::query("SELECT claim_result, hold_expires_at FROM claim_and_hold_slot($1, $2, $3)")
+            .bind(slot_id)
+            .bind(claims.sub)
+            .bind(&hold_token)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
-    match claim_status.as_deref() {
+    let claim_result: Option<String> = row
+        .try_get("claim_result")
+        .map_err(|_| AppError::Internal)?;
+    match claim_result.as_deref() {
         None => return Err(AppError::NotFound),
-        Some("held") => {} // claim réussi, continue with INSERT
+        Some("claimed") => {} // claim + hold réussis
         Some(_) => return Err(AppError::SlotTaken),
     };
 
-    // INSERT dans slot_holds — contrainte UNIQUE slot_id → 409 si race condition.
-    let result = sqlx::query(
-        "INSERT INTO slot_holds (slot_id, user_id, hold_token, expires_at) \
-         VALUES ($1, $2, $3, now() + interval '5 minutes') \
-         RETURNING expires_at",
-    )
-    .bind(slot_id)
-    .bind(claims.sub)
-    .bind(&hold_token)
-    .fetch_one(&mut *tx)
-    .await;
-
-    let row = match result {
-        Ok(row) => row,
-        Err(e) if is_unique_violation(&e) => return Err(AppError::SlotTaken),
-        Err(_) => return Err(AppError::Internal),
-    };
-
-    let expires_at: chrono::DateTime<chrono::Utc> =
-        row.try_get("expires_at").map_err(|_| AppError::Internal)?;
+    let expires_at: chrono::DateTime<chrono::Utc> = row
+        .try_get("hold_expires_at")
+        .map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -936,11 +924,4 @@ pub async fn hold_slot(
             expires_at: expires_at.to_rfc3339(),
         }),
     ))
-}
-
-fn is_unique_violation(e: &sqlx::Error) -> bool {
-    matches!(
-        e,
-        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505")
-    )
 }
