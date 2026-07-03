@@ -43,3 +43,9 @@ class AppointmentsMotifChanged extends AppointmentsEvent {
 class AppointmentsBookingConfirmed extends AppointmentsEvent {
   const AppointmentsBookingConfirmed();
 }
+
+/// Retour à la liste des praticiens depuis les créneaux (bouton retour
+/// système/AppBar, geste swipe-back).
+class AppointmentsBackToSearch extends AppointmentsEvent {
+  const AppointmentsBackToSearch();
+}
