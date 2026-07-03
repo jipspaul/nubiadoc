@@ -215,6 +215,15 @@ class AuthRepositoryImpl implements AuthRepository {
   Failure _mapDioError(DioException e) {
     final statusCode = e.response?.statusCode;
     if (statusCode == 401) return const UnauthorizedFailure();
+    // /auth/login est rate-limité (5/min par IP, 10/5min par email) : sans ce
+    // cas, l'utilisateur voyait « Erreur serveur lors de l'authentification »
+    // pour un simple excès de tentatives — anxiogène et faux.
+    if (statusCode == 429) {
+      return const ValidationFailure(
+        message:
+            'Trop de tentatives de connexion. Patientez une minute puis réessayez.',
+      );
+    }
     if (e.type == DioExceptionType.connectionError ||
         e.type == DioExceptionType.connectionTimeout) {
       return const NetworkFailure();

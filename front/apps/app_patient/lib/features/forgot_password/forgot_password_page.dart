@@ -15,6 +15,10 @@ class ForgotPasswordPage extends StatefulWidget {
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _email = TextEditingController();
 
+  static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  bool get _emailValid => _emailRe.hasMatch(_email.text.trim());
+
   @override
   void dispose() {
     _email.dispose();
@@ -56,6 +60,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       NubiaTextField(
                         controller: _email,
                         label: 'E-mail',
+                        errorText:
+                            _email.text.trim().isNotEmpty && !_emailValid
+                                ? 'E-mail invalide.'
+                                : null,
+                        onChanged: (_) => setState(() {}),
                       ),
                       if (state is ForgotPasswordFailure) ...[
                         const SizedBox(height: 12),
@@ -68,7 +77,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         key: const Key('forgot_password_submit'),
                         label: 'Envoyer le lien',
                         isLoading: loading,
-                        onPressed: loading
+                        onPressed: (loading || !_emailValid)
                             ? null
                             : () => context
                                 .read<ForgotPasswordCubit>()
