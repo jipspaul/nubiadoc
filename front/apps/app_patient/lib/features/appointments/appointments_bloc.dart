@@ -13,6 +13,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
   final HoldSlotUseCase _holdSlot;
   final BookAppointmentUseCase _bookAppointment;
 
+  // Dernière liste de praticiens affichée, pour revenir en arrière depuis les
+  // créneaux sans refaire d'appel réseau.
+  AppointmentsProvidersLoaded _lastProvidersLoaded =
+      const AppointmentsProvidersLoaded(providers: [], query: '');
+
   AppointmentsBloc({
     required SearchProvidersUseCase searchProviders,
     required SearchSlotsUseCase searchSlots,
@@ -30,6 +35,7 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     on<AppointmentsMotifChanged>(_onMotifChanged);
     on<AppointmentsBookingConfirmed>(_onBookingConfirmed,
         transformer: droppable());
+    on<AppointmentsBackToSearch>(_onBackToSearch, transformer: droppable());
   }
 
   Future<void> _onSearchChanged(
@@ -44,14 +50,26 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
       final result = await _searchProviders(query: query);
       result.fold(
         (failure) => emit(AppointmentsError(failure.message)),
-        (providers) => emit(AppointmentsProvidersLoaded(
-          providers: providers,
-          query: query,
-        )),
+        (providers) {
+          _lastProvidersLoaded = AppointmentsProvidersLoaded(
+            providers: providers,
+            query: query,
+          );
+          emit(_lastProvidersLoaded);
+        },
       );
     } catch (_) {
       emit(const AppointmentsError('Erreur de recherche.'));
     }
+  }
+
+  void _onBackToSearch(
+    AppointmentsBackToSearch event,
+    Emitter<AppointmentsState> emit,
+  ) {
+    // Retour instantané à la dernière liste de praticiens connue, sans
+    // refaire d'appel réseau.
+    emit(_lastProvidersLoaded);
   }
 
   Future<void> _onProviderSelected(

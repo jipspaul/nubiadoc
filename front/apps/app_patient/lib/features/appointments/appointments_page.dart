@@ -51,47 +51,65 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
       },
       child: BlocBuilder<AppointmentsBloc, AppointmentsState>(
         builder: (context, state) {
-          // Recherche + résultats : la barre de recherche reste toujours montée.
-          if (state is AppointmentsInitial ||
-              state is AppointmentsSearchLoading ||
-              state is AppointmentsProvidersLoaded) {
-            final providers = state is AppointmentsProvidersLoaded
-                ? state.providers
-                : const <ProviderResult>[];
-            return _SearchView(
-              providers: providers,
-              loading: state is AppointmentsSearchLoading,
-            );
-          }
-          if (state is AppointmentsSlotsLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state is AppointmentsSlotsLoaded) {
-            return _SlotsView(state: state);
-          }
-          if (state is AppointmentsBookingLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state is AppointmentsBookingSuccess) {
-            return const NubiaEmptyState(
-              key: Key('booking_success'),
-              icon: Icons.check_circle_outline,
-              title: 'Rendez-vous confirmé !',
-              subtitle: 'Vous allez recevoir une confirmation.',
-            );
-          }
-          if (state is AppointmentsError) {
-            return NubiaErrorWidget(
-              message: state.message,
-              onRetry: () => context
+          // Créneaux/booking d'un praticien : le retour (système, swipe-back,
+          // AppBar) doit ramener à la liste des praticiens plutôt que de
+          // quitter l'onglet (il n'y a pas de route dédiée à ce sous-écran).
+          final isProviderSubScreen = state is AppointmentsSlotsLoading ||
+              state is AppointmentsSlotsLoaded ||
+              state is AppointmentsBookingLoading;
+          return PopScope(
+            canPop: !isProviderSubScreen,
+            onPopInvokedWithResult: (didPop, result) {
+              if (didPop) return;
+              context
                   .read<AppointmentsBloc>()
-                  .add(const AppointmentsSearchChanged('')),
-            );
-          }
-          return const SizedBox.shrink();
+                  .add(const AppointmentsBackToSearch());
+            },
+            child: _buildBody(context, state),
+          );
         },
       ),
     );
+  }
+
+  Widget _buildBody(BuildContext context, AppointmentsState state) {
+    // Recherche + résultats : la barre de recherche reste toujours montée.
+    if (state is AppointmentsInitial ||
+        state is AppointmentsSearchLoading ||
+        state is AppointmentsProvidersLoaded) {
+      final providers = state is AppointmentsProvidersLoaded
+          ? state.providers
+          : const <ProviderResult>[];
+      return _SearchView(
+        providers: providers,
+        loading: state is AppointmentsSearchLoading,
+      );
+    }
+    if (state is AppointmentsSlotsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state is AppointmentsSlotsLoaded) {
+      return _SlotsView(state: state);
+    }
+    if (state is AppointmentsBookingLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state is AppointmentsBookingSuccess) {
+      return const NubiaEmptyState(
+        key: Key('booking_success'),
+        icon: Icons.check_circle_outline,
+        title: 'Rendez-vous confirmé !',
+        subtitle: 'Vous allez recevoir une confirmation.',
+      );
+    }
+    if (state is AppointmentsError) {
+      return NubiaErrorWidget(
+        message: state.message,
+        onRetry: () =>
+            context.read<AppointmentsBloc>().add(const AppointmentsSearchChanged('')),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 
