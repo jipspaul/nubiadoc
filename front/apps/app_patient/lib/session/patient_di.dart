@@ -151,5 +151,7 @@ void registerPatient(GetIt gi) {
     ),
   );
 
-  gi.registerFactory<OubliettesBloc>(() => OubliettesBloc());
+  gi.registerFactory<OubliettesBloc>(
+    () => OubliettesBloc(getDocuments: gi<GetDocumentsUseCase>()),
+  );
 }
