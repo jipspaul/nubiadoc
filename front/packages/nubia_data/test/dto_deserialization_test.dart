@@ -6,6 +6,10 @@ import 'package:nubia_data/src/remote/dashboard/dashboard_dto.dart';
 import 'package:nubia_data/src/remote/quotes_api.dart';
 import 'package:nubia_data/src/remote/payments_api.dart';
 import 'package:nubia_data/src/remote/search/search_dto.dart';
+import 'package:nubia_data/src/remote/notifications/notification_dto.dart';
+import 'package:nubia_data/src/remote/messaging/messaging_dto.dart';
+import 'package:nubia_data/src/remote/billing/billing_dto.dart';
+
 
 void main() {
   group('AppointmentDto (POST /v1/appointments/:id/cancel response)', () {
@@ -212,6 +216,66 @@ void main() {
       final slot = dto.toDomain();
       expect(slot.id, 's1');
       expect(slot.isAvailable, isTrue);
+    });
+  });
+
+  group('Contrats réels vérifiés sur env déployé (QA)', () {
+    test('NotificationDto : kind→type, is_read→read, pas de body', () {
+      final dto = NotificationDto.fromJson({
+        'id': 'n1', 'kind': 'rdv_rappel', 'title': 'Rappel RDV',
+        'is_read': false, 'created_at': '2026-06-02T18:00:00Z',
+      });
+      final d = dto.toDomain();
+      expect(d.title, 'Rappel RDV');
+      expect(d.read, isFalse);
+      expect(d.body, '');
+    });
+
+    test('MessageDto : body→text, created_at→sentAt, conversationId injecté', () {
+      final dto = MessageDto.fromJson({
+        'id': 'm1', 'body': 'Bonjour', 'sender': 'patient',
+        'created_at': '2026-07-02T09:45:54Z', 'read_at': null,
+      }, conversationId: 'c1');
+      final m = dto.toDomain();
+      expect(m.text, 'Bonjour');
+      expect(m.conversationId, 'c1');
+      expect(m.sender.toString(), contains('patient'));
+    });
+
+    test('ConversationDto : liste résumé (cabinet_name, unread_count)', () {
+      final dto = ConversationDto.fromJson({
+        'id': 'c1', 'cabinet_id': 'cab', 'cabinet_name': 'Cabinet Lyon',
+        'last_message_at': '2026-07-02T09:45:54Z', 'unread_count': 0,
+      });
+      final c = dto.toDomain();
+      expect(c.cabinetName, 'Cabinet Lyon');
+      expect(c.unreadCount, 0);
+      expect(c.lastMessage, isNull);
+    });
+
+    test('QuoteDto.fromSummaryJson : liste devis (total_amount_cents)', () {
+      final q = QuoteDto.fromSummaryJson({
+        'id': 'q1', 'status': 'signed', 'total_amount_cents': 38000,
+        'currency': 'EUR', 'created_at': '2026-07-03T06:15:29Z',
+      }).toDomain();
+      expect(q.totalCents, 38000);
+      expect(q.status.toString(), contains('signed'));
+      expect(q.items, isEmpty);
+    });
+
+    test('QuoteDto.fromJson : détail avec items unit_amount_cents/amo_part', () {
+      final q = QuoteDto.fromJson({
+        'id': 'q1', 'status': 'signed', 'total_amount_cents': 38000,
+        'created_at': '2026-07-03T06:15:29Z',
+        'signed_at': '2026-07-03T06:15:29Z',
+        'items': [
+          {'id': 'i1', 'label': 'Composite', 'ccam_code': null, 'tooth': null,
+           'unit_amount_cents': 30000, 'amo_part_cents': 10000, 'amc_part_cents': 5000},
+        ],
+      }).toDomain();
+      expect(q.items, hasLength(1));
+      expect(q.items.first.totalCents, 30000);
+      expect(q.items.first.patientShareCents, 15000); // 30000-10000-5000
     });
   });
 }

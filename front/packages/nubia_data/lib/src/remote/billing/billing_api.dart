@@ -9,9 +9,11 @@ class BillingApi {
 
   /// GET /v1/billing/quotes
   Future<List<QuoteDto>> getQuotes() async {
-    final response = await _dio.get<List<dynamic>>('/billing/quotes');
-    return (response.data ?? [])
-        .map((e) => QuoteDto.fromJson(e as Map<String, dynamic>))
+    // GET /v1/billing/quotes → { data: [résumés] }
+    final response = await _dio.get<Map<String, dynamic>>('/billing/quotes');
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
+        .map((e) => QuoteDto.fromSummaryJson(e as Map<String, dynamic>))
         .toList();
   }
 

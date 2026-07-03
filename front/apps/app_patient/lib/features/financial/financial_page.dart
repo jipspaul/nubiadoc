@@ -127,10 +127,14 @@ class _QuoteTile extends StatelessWidget {
       key: Key('quote_item_${quote.id}'),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: ListTile(
-        title: Text(quote.practitionerName),
+        // L'API ne renvoie pas de nom de praticien sur la liste : on titre par
+        // date, avec le montant en évidence.
+        title: Text(quote.practitionerName.isNotEmpty
+            ? quote.practitionerName
+            : 'Devis du ${_formatListDate(quote.createdAt)}'),
         subtitle: Text(_formatStatus(quote.status)),
         trailing: Text(
-          _formatCents(quote.patientShareCents),
+          _formatCents(quote.totalCents),
           style: Theme.of(context).textTheme.titleSmall,
         ),
         onTap: () =>
@@ -139,7 +143,10 @@ class _QuoteTile extends StatelessWidget {
     );
   }
 
-  String _formatStatus(QuoteStatus status) => switch (status) {
+  String _formatListDate(DateTime dt) =>
+    '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+
+String _formatStatus(QuoteStatus status) => switch (status) {
         QuoteStatus.draft => 'Brouillon',
         QuoteStatus.sent => 'En attente de signature',
         QuoteStatus.signed => 'Signé',
