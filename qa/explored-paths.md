@@ -1,5 +1,12 @@
 # QA Explored Paths
 
+> **Avant d'explorer / d'ouvrir une issue : lire `qa/route-manifest.md`** —
+> liste des routes à tester (auth, stratégie d'URL, contenu attendu) et
+> **règles anti-faux-positifs**. La plupart des issues fermées venaient de ne
+> pas les respecter (route authed testée déconnectée, CSS `::placeholder`,
+> mauvaise stratégie hash/path, env déployé en retard sur main).
+
+
 Last run: 2026-07-02T07:06:22.000Z
 
 ## Faux positifs connus (méthode C)
