@@ -21,7 +21,7 @@ void main() {
         _host(
           const QuoteCard(
             title: 'Plan de soins implantaire',
-            status: QuoteStatus.sent,
+            status: QuoteCardStatus.sent,
             lines: _lines,
             subtitle: 'Dr Claire Lefèvre',
             total: '2 060 €',
@@ -46,7 +46,7 @@ void main() {
         _host(
           const QuoteCard(
             title: 'Devis',
-            status: QuoteStatus.signed,
+            status: QuoteCardStatus.signed,
             lines: _lines,
           ),
         ),
@@ -62,7 +62,7 @@ void main() {
         _host(
           QuoteCard(
             title: 'Devis',
-            status: QuoteStatus.sent,
+            status: QuoteCardStatus.sent,
             lines: _lines,
             ctaLabel: 'Signer le devis',
             onCtaPressed: () => tapped = true,

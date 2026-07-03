@@ -6,7 +6,7 @@ import 'package:nubia_design_system/src/widgets/nubia_card.dart';
 import 'package:nubia_design_system/src/widgets/status_pill.dart';
 
 /// Statut d'un devis dans le WEDGE (devis → signature → paiement).
-enum QuoteStatus {
+enum QuoteCardStatus {
   /// Brouillon (non encore envoyé).
   draft,
 
@@ -66,7 +66,7 @@ class QuoteCard extends StatelessWidget {
   });
 
   final String title;
-  final QuoteStatus status;
+  final QuoteCardStatus status;
   final List<QuoteLine> lines;
   final String? subtitle;
   final String totalLabel;
@@ -203,19 +203,19 @@ class _StatusStyle {
   final String label;
   final StatusPillVariant variant;
 
-  static _StatusStyle of(QuoteStatus status) {
+  static _StatusStyle of(QuoteCardStatus status) {
     switch (status) {
-      case QuoteStatus.draft:
+      case QuoteCardStatus.draft:
         return const _StatusStyle('Brouillon', StatusPillVariant.info);
-      case QuoteStatus.sent:
+      case QuoteCardStatus.sent:
         return const _StatusStyle('À signer', StatusPillVariant.warning);
-      case QuoteStatus.signed:
+      case QuoteCardStatus.signed:
         return const _StatusStyle('Signé', StatusPillVariant.success);
-      case QuoteStatus.paid:
+      case QuoteCardStatus.paid:
         return const _StatusStyle('Payé', StatusPillVariant.success);
-      case QuoteStatus.expired:
+      case QuoteCardStatus.expired:
         return const _StatusStyle('Expiré', StatusPillVariant.error);
-      case QuoteStatus.refused:
+      case QuoteCardStatus.refused:
         return const _StatusStyle('Refusé', StatusPillVariant.error);
     }
   }
