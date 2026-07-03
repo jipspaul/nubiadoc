@@ -168,11 +168,6 @@ async fn cleanup_fixture(
         .execute(&mut *tx)
         .await
         .ok();
-    for (table, id) in [
-        ("message", conversation_id), // par conversation_id ci-dessous
-    ] {
-        let _ = (table, id);
-    }
     sqlx::query("DELETE FROM message WHERE conversation_id = $1")
         .bind(conversation_id)
         .execute(&mut *tx)
