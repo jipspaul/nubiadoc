@@ -893,18 +893,18 @@ pub async fn hold_slot(
     // slot_hold_cabinet_isolation, migration 0110) qui exige app.current_cabinet_id
     // — GUC jamais posé dans le parcours patient, d'où l'ancien 500 (#3259).
     // Retour : NULL → 404 ; 'claimed' → 200 ; autre ('taken'/statut) → 409.
-    let row = sqlx::query(
-        "SELECT claim_result, hold_expires_at FROM claim_and_hold_slot($1, $2, $3)",
-    )
-    .bind(slot_id)
-    .bind(claims.sub)
-    .bind(&hold_token)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let row =
+        sqlx::query("SELECT claim_result, hold_expires_at FROM claim_and_hold_slot($1, $2, $3)")
+            .bind(slot_id)
+            .bind(claims.sub)
+            .bind(&hold_token)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
-    let claim_result: Option<String> =
-        row.try_get("claim_result").map_err(|_| AppError::Internal)?;
+    let claim_result: Option<String> = row
+        .try_get("claim_result")
+        .map_err(|_| AppError::Internal)?;
     match claim_result.as_deref() {
         None => return Err(AppError::NotFound),
         Some("claimed") => {} // claim + hold réussis
