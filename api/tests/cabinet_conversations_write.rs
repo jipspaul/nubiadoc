@@ -130,13 +130,11 @@ async fn cleanup_fixture(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid, conver
     tx.commit().await.ok();
 }
 
-fn state() -> impl std::future::Future<Output = AppState> {
-    async {
-        AppState {
-            db: app_pool().await,
-            jwt_secret: JWT_SECRET.to_string(),
-            mailer: Arc::new(StubMailer),
-        }
+async fn state() -> AppState {
+    AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
     }
 }
 
