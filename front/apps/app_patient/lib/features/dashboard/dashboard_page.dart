@@ -5,15 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../session/auth_cubit.dart';
+import '../appointments/appointments_bloc.dart';
+import '../appointments/appointments_page.dart';
 import '../documents/documents_page.dart';
 import '../mes_rdv/mes_rdv_page.dart';
 import '../messaging/messaging_bloc.dart';
 import '../messaging/messaging_event.dart';
 import '../messaging/messaging_page.dart';
 import '../messaging/messaging_state.dart';
-import '../home/home_bloc.dart';
-import '../home/home_event.dart';
-import '../home/home_page.dart';
 import '../profile/profile_bloc.dart';
 import '../profile/profile_event.dart';
 import '../profile/profile_page.dart';
@@ -21,10 +20,10 @@ import '../profile/profile_page.dart';
 /// Patient home shell: 5-tab bottom nav (Rechercher / Mes RDV / Messages /
 /// Documents / Profil).
 ///
-/// Le résumé agrégé (`GetDashboardSummaryUseCase`) est chargé et affiché par
-/// [HomePage] (onglet « Rechercher »), scopé à cet onglet. Le shell lui-même
-/// ne doit pas dépendre de cet appel : un échec ne doit pas bloquer l'accès
-/// aux autres onglets (Mes RDV, Messages, Documents, Profil).
+/// L'onglet « Rechercher » affiche l'annuaire ([AppointmentsPage] : barre de
+/// recherche + carte + liste des praticiens). Le shell lui-même ne doit pas
+/// dépendre d'un appel réseau : un échec d'un onglet ne doit pas bloquer
+/// l'accès aux autres (Mes RDV, Messages, Documents, Profil).
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -79,9 +78,8 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         body: switch (_index) {
           0 => BlocProvider(
-              create: (_) => GetIt.instance<HomeBloc>()
-                ..add(const HomeLoadRequested()),
-              child: const HomePage(),
+              create: (_) => GetIt.instance<AppointmentsBloc>(),
+              child: const AppointmentsPage(),
             ),
           1 => const MesRdvPage(),
           2 => const MessagingPage(),
