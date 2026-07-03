@@ -22,8 +22,7 @@ class MockSearchSlotsUseCase extends Mock implements SearchSlotsUseCase {}
 
 class MockHoldSlotUseCase extends Mock implements HoldSlotUseCase {}
 
-class MockBookAppointmentUseCase extends Mock
-    implements BookAppointmentUseCase {}
+class MockConfirmBookingUseCase extends Mock implements ConfirmBookingUseCase {}
 
 class _MockAppointmentsBloc
     extends MockBloc<AppointmentsEvent, AppointmentsState>
@@ -44,13 +43,13 @@ AppointmentsBloc _makeBloc({
   required MockSearchProvidersUseCase searchProviders,
   required MockSearchSlotsUseCase searchSlots,
   required MockHoldSlotUseCase holdSlot,
-  required MockBookAppointmentUseCase bookAppointment,
+  required MockConfirmBookingUseCase confirmBooking,
 }) =>
     AppointmentsBloc(
       searchProviders: searchProviders,
       searchSlots: searchSlots,
       holdSlot: holdSlot,
-      bookAppointment: bookAppointment,
+      confirmBooking: confirmBooking,
     );
 
 // ---------------------------------------------------------------------------
@@ -61,13 +60,13 @@ void main() {
   late MockSearchProvidersUseCase mockSearchProviders;
   late MockSearchSlotsUseCase mockSearchSlots;
   late MockHoldSlotUseCase mockHoldSlot;
-  late MockBookAppointmentUseCase mockBookAppointment;
+  late MockConfirmBookingUseCase mockConfirmBooking;
 
   setUp(() {
     mockSearchProviders = MockSearchProvidersUseCase();
     mockSearchSlots = MockSearchSlotsUseCase();
     mockHoldSlot = MockHoldSlotUseCase();
-    mockBookAppointment = MockBookAppointmentUseCase();
+    mockConfirmBooking = MockConfirmBookingUseCase();
   });
 
   group('AppointmentsPage', () {
@@ -77,7 +76,7 @@ void main() {
         searchProviders: mockSearchProviders,
         searchSlots: mockSearchSlots,
         holdSlot: mockHoldSlot,
-        bookAppointment: mockBookAppointment,
+        confirmBooking: mockConfirmBooking,
       );
 
       await tester.pumpWidget(_wrap(bloc));
@@ -95,7 +94,7 @@ void main() {
         searchProviders: mockSearchProviders,
         searchSlots: mockSearchSlots,
         holdSlot: mockHoldSlot,
-        bookAppointment: mockBookAppointment,
+        confirmBooking: mockConfirmBooking,
       );
 
       bloc.add(const AppointmentsSearchChanged('dentiste'));
@@ -120,7 +119,7 @@ void main() {
         searchProviders: mockSearchProviders,
         searchSlots: mockSearchSlots,
         holdSlot: mockHoldSlot,
-        bookAppointment: mockBookAppointment,
+        confirmBooking: mockConfirmBooking,
       );
 
       bloc.add(const AppointmentsSearchChanged('dentiste'));
@@ -179,7 +178,7 @@ void main() {
           searchProviders: mockSearchProviders,
           searchSlots: mockSearchSlots,
           holdSlot: mockHoldSlot,
-          bookAppointment: mockBookAppointment,
+          confirmBooking: mockConfirmBooking,
         );
       },
       act: (bloc) => bloc.add(const AppointmentsSearchChanged('ortho')),
@@ -199,7 +198,7 @@ void main() {
           searchProviders: mockSearchProviders,
           searchSlots: mockSearchSlots,
           holdSlot: mockHoldSlot,
-          bookAppointment: mockBookAppointment,
+          confirmBooking: mockConfirmBooking,
         );
       },
       act: (bloc) => bloc.add(const AppointmentsSearchChanged('')),
@@ -207,8 +206,7 @@ void main() {
         const AppointmentsSearchLoading(),
         isA<AppointmentsProvidersLoaded>(),
       ],
-      verify: (_) =>
-          verify(() => mockSearchProviders(query: '')).called(1),
+      verify: (_) => verify(() => mockSearchProviders(query: '')).called(1),
     );
 
     blocTest<AppointmentsBloc, AppointmentsState>(
@@ -220,7 +218,7 @@ void main() {
           searchProviders: mockSearchProviders,
           searchSlots: mockSearchSlots,
           holdSlot: mockHoldSlot,
-          bookAppointment: mockBookAppointment,
+          confirmBooking: mockConfirmBooking,
         );
       },
       act: (bloc) => bloc.add(const AppointmentsSearchChanged('dentiste')),

@@ -11,7 +11,7 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
   final SearchProvidersUseCase _searchProviders;
   final SearchSlotsUseCase _searchSlots;
   final HoldSlotUseCase _holdSlot;
-  final BookAppointmentUseCase _bookAppointment;
+  final ConfirmBookingUseCase _confirmBooking;
 
   // Dernière liste de praticiens affichée, pour revenir en arrière depuis les
   // créneaux sans refaire d'appel réseau.
@@ -22,11 +22,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     required SearchProvidersUseCase searchProviders,
     required SearchSlotsUseCase searchSlots,
     required HoldSlotUseCase holdSlot,
-    required BookAppointmentUseCase bookAppointment,
+    required ConfirmBookingUseCase confirmBooking,
   })  : _searchProviders = searchProviders,
         _searchSlots = searchSlots,
         _holdSlot = holdSlot,
-        _bookAppointment = bookAppointment,
+        _confirmBooking = confirmBooking,
         super(const AppointmentsInitial()) {
     on<AppointmentsSearchChanged>(_onSearchChanged, transformer: restartable());
     on<AppointmentsProviderSelected>(_onProviderSelected,
@@ -103,10 +103,14 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
       final holdResult = await _holdSlot(event.slot.id);
       holdResult.fold(
         (failure) => safeEmit(AppointmentsError(failure.message)),
-        (_) => safeEmit(current.copyWith(selectedSlot: event.slot)),
+        (holdToken) => safeEmit(current.copyWith(
+          selectedSlot: event.slot,
+          holdToken: holdToken,
+        )),
       );
     } catch (_) {
-      safeEmit(const AppointmentsError('Erreur lors de la sélection du créneau.'));
+      safeEmit(
+          const AppointmentsError('Erreur lors de la sélection du créneau.'));
     }
   }
 
@@ -126,17 +130,32 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     final current = state;
     if (current is! AppointmentsSlotsLoaded) return;
     final slot = current.selectedSlot;
-    if (slot == null || current.motif.trim().isEmpty) return;
+    final holdToken = current.holdToken;
+    if (slot == null || holdToken == null || current.motif.trim().isEmpty) {
+      return;
+    }
+    final motif = current.motif.trim();
 
     emit(const AppointmentsBookingLoading());
     try {
-      final result = await _bookAppointment(
+      final result = await _confirmBooking(
         slotId: slot.id,
-        motif: current.motif.trim(),
+        holdToken: holdToken,
+        motif: motif,
+        idempotencyKey: '${slot.id}-booking-$holdToken',
       );
       result.fold(
         (failure) => safeEmit(AppointmentsError(failure.message)),
-        (appointment) => safeEmit(AppointmentsBookingSuccess(appointment)),
+        (appointmentId) => safeEmit(AppointmentsBookingSuccess(Appointment(
+          id: appointmentId,
+          cabinetId: slot.cabinetId,
+          practitionerName: current.provider.displayName,
+          practitionerSpecialty: current.provider.specialty,
+          startsAt: slot.startsAt,
+          duration: slot.duration,
+          motif: motif,
+          status: AppointmentStatus.requested,
+        ))),
       );
     } catch (_) {
       safeEmit(const AppointmentsError('Erreur lors de la réservation.'));

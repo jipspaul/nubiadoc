@@ -67,7 +67,7 @@ void registerPatient(GetIt gi) {
       searchProviders: gi<SearchProvidersUseCase>(),
       searchSlots: gi<SearchSlotsUseCase>(),
       holdSlot: gi<HoldSlotUseCase>(),
-      bookAppointment: gi<BookAppointmentUseCase>(),
+      confirmBooking: gi<ConfirmBookingUseCase>(),
     ),
   );
 

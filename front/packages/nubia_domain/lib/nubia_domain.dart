@@ -106,6 +106,7 @@ export 'src/repositories/search_repository.dart';
 export 'src/usecases/search/search_providers_use_case.dart';
 export 'src/usecases/search/search_slots_use_case.dart';
 export 'src/usecases/search/hold_slot_use_case.dart';
+export 'src/usecases/search/confirm_booking_use_case.dart';
 // agenda pro
 export 'src/usecases/agenda/get_cabinet_agenda_use_case.dart';
 export 'src/usecases/agenda/confirm_appointment_use_case.dart';
