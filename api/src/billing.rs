@@ -892,3 +892,74 @@ pub async fn list_cabinet_quotes(
 
     Ok(Json(items))
 }
+
+// ── GET /v1/payments ─────────────────────────────────────────────────────────
+
+/// Un paiement du patient connecté.
+#[derive(Serialize)]
+pub struct PaymentItem {
+    pub payment_id: Uuid,
+    pub quote_id: Option<Uuid>,
+    pub kind: String,
+    pub status: String,
+    pub amount_cents: i64,
+    pub currency: String,
+    pub created_at: String,
+}
+
+/// Réponse de `GET /v1/payments`.
+#[derive(Serialize)]
+pub struct ListPaymentsResponse {
+    pub data: Vec<PaymentItem>,
+}
+
+/// `GET /v1/payments` — paiements du patient connecté, tous cabinets confondus (#3238).
+///
+/// Token `kind:"patient"` requis. RLS `payment_patient_read` via
+/// `app.patient_account_id` (migration 0029) — aucune fuite cross-patient.
+/// Tri `created_at` DESC, 100 max.
+pub async fn list_payments(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<ListPaymentsResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT id, quote_id, kind, status, (amount * 100)::bigint AS amount_cents, \
+                currency, created_at \
+         FROM payment \
+         ORDER BY created_at DESC \
+         LIMIT 100",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .into_iter()
+        .map(|r| {
+            let created_at: chrono::DateTime<chrono::Utc> =
+                r.try_get("created_at").map_err(|_| AppError::Internal)?;
+            let currency: String = r.try_get("currency").map_err(|_| AppError::Internal)?;
+            Ok(PaymentItem {
+                payment_id: r.try_get("id").map_err(|_| AppError::Internal)?,
+                quote_id: r.try_get("quote_id").map_err(|_| AppError::Internal)?,
+                kind: r.try_get("kind").map_err(|_| AppError::Internal)?,
+                status: r.try_get("status").map_err(|_| AppError::Internal)?,
+                amount_cents: r.try_get("amount_cents").map_err(|_| AppError::Internal)?,
+                currency: currency.trim().to_string(),
+                created_at: created_at.to_rfc3339(),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(ListPaymentsResponse { data }))
+}

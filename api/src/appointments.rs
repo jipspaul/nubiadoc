@@ -304,6 +304,7 @@ pub struct CheckinResponse {
 /// Vérifie la fenêtre starts_at ± 30 min / + 60 min → sinon `409 {"error":"out_of_window"}`.
 pub async fn checkin_appointment(
     State(state): State<AppState>,
+    Extension(hub): Extension<std::sync::Arc<crate::realtime::WsHub>>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
     body: Option<Json<CheckinBody>>,
@@ -405,6 +406,17 @@ pub async fn checkin_appointment(
     .map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Temps réel : le patient apparaît dans la salle d'attente du cabinet — #3238.
+    hub.publish(
+        cabinet_id,
+        serde_json::json!({
+            "channel": "waiting_room",
+            "event": "checked_in",
+            "data": { "appointment_id": id, "checkin_at": checkin_at.to_rfc3339() }
+        })
+        .to_string(),
+    );
 
     tracing::info!(
         account_id = %claims.account_id,

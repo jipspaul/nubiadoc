@@ -2,7 +2,8 @@
 //!
 //! Section 18 — messagerie priorisée cabinet. Tri urgent en tête.
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -313,4 +314,150 @@ pub async fn list_cabinet_conversations(
         data,
         page: PageInfo { next_cursor, limit },
     }))
+}
+
+// ── POST /v1/cabinet/conversations/:id/messages ──────────────────────────────
+
+/// Corps de `POST /v1/cabinet/conversations/:id/messages`.
+#[derive(Deserialize)]
+pub struct SendCabinetMessageBody {
+    pub body: String,
+}
+
+/// Réponse de `POST /v1/cabinet/conversations/:id/messages`.
+#[derive(Serialize)]
+pub struct SendCabinetMessageResponse {
+    pub message_id: Uuid,
+}
+
+/// `POST /v1/cabinet/conversations/:id/messages` — réponse du cabinet dans un
+/// fil patient (#3238). Secrétaire et praticien (`sender_kind` dérivé du rôle).
+///
+/// `cabinet_id` extrait du JWT (invariant tenancy), RLS `tenant_isolation`.
+/// Conversation hors tenant → 404. Body vide → 422.
+/// Chiffrement POC : `body_ciphertext` = UTF-8 brut (NUB-T3 pour le réel).
+/// Publie `message_created` sur le canal WS `conversation:<id>`.
+pub async fn send_cabinet_message(
+    State(state): State<AppState>,
+    axum::Extension(hub): axum::Extension<std::sync::Arc<crate::realtime::WsHub>>,
+    claims: ProSecretaryPlusClaims,
+    Path(conversation_id): Path<Uuid>,
+    Json(body): Json<SendCabinetMessageBody>,
+) -> Result<(StatusCode, Json<SendCabinetMessageResponse>), AppError> {
+    if body.body.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    let sender_kind = if claims.role == "secretary" {
+        "secretary"
+    } else {
+        "practitioner"
+    };
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Conversation du cabinet uniquement (RLS + garde explicite).
+    sqlx::query("SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2")
+        .bind(conversation_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+
+    let row = sqlx::query(
+        "INSERT INTO message \
+         (cabinet_id, conversation_id, sender_kind, sender_id, \
+          body_ciphertext, body_key_ref, triage_flag) \
+         VALUES ($1, $2, $3, $4, $5, 'poc-stub', 'normal') \
+         RETURNING id",
+    )
+    .bind(claims.cabinet_id)
+    .bind(conversation_id)
+    .bind(sender_kind)
+    .bind(claims.sub)
+    .bind(body.body.as_bytes())
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let message_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Temps réel : notifie le patient abonné au fil — #3238.
+    let channel = format!("conversation:{conversation_id}");
+    hub.publish_named(
+        &channel,
+        serde_json::json!({
+            "channel": channel,
+            "event": "message_created",
+            "data": { "message_id": message_id, "sender_kind": sender_kind }
+        })
+        .to_string(),
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(SendCabinetMessageResponse { message_id }),
+    ))
+}
+
+// ── POST /v1/cabinet/conversations/:id/read ──────────────────────────────────
+
+/// `POST /v1/cabinet/conversations/:id/read` — marque les messages patient du
+/// fil comme lus par le cabinet (#3238). Publie `read` sur le canal WS
+/// `conversation:<id>` (double coche côté patient). Conversation hors tenant → 404.
+pub async fn mark_cabinet_conversation_read(
+    State(state): State<AppState>,
+    axum::Extension(hub): axum::Extension<std::sync::Arc<crate::realtime::WsHub>>,
+    claims: ProSecretaryPlusClaims,
+    Path(conversation_id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2")
+        .bind(conversation_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+
+    sqlx::query(
+        "UPDATE message SET read_at = now() \
+         WHERE conversation_id = $1 AND cabinet_id = $2 \
+           AND sender_kind = 'patient' AND read_at IS NULL",
+    )
+    .bind(conversation_id)
+    .bind(claims.cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let channel = format!("conversation:{conversation_id}");
+    hub.publish_named(
+        &channel,
+        serde_json::json!({
+            "channel": channel,
+            "event": "read",
+            "data": { "conversation_id": conversation_id, "by": "cabinet" }
+        })
+        .to_string(),
+    );
+
+    Ok(StatusCode::NO_CONTENT)
 }
