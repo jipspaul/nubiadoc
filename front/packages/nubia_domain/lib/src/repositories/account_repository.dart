@@ -44,6 +44,28 @@ abstract class AccountRepository {
   });
 
   Future<Either<Failure, List<Consent>>> getConsents();
+
+  /// PUT /v1/account/consents/{purpose} — donne ou révoque un consentement.
+  Future<Either<Failure, void>> setConsent({
+    required String purpose,
+    required bool granted,
+  });
+
+  /// GET /v1/account/avatar — photo de profil (null si aucune).
+  Future<Either<Failure, AvatarImage?>> getAvatar();
+
+  /// PUT /v1/account/avatar — photo de profil (image ≤ 300 Ko).
+  Future<Either<Failure, void>> setAvatar({
+    required List<int> bytes,
+    required String mimeType,
+  });
+}
+
+/// Photo de profil : octets + type MIME.
+class AvatarImage {
+  final List<int> bytes;
+  final String mimeType;
+  const AvatarImage({required this.bytes, required this.mimeType});
 }
 
 enum CoverageCardSide { recto, verso }

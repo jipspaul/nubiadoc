@@ -3549,3 +3549,103 @@ pub async fn pro_verification(
         }),
     ))
 }
+
+// ── Avatar du compte patient (GET/PUT /v1/account/avatar) ───────────────────
+
+/// Corps de `PUT /v1/account/avatar`.
+#[derive(Deserialize)]
+pub struct PutAvatarBody {
+    /// Type MIME (`image/jpeg`, `image/png`, `image/webp`).
+    mime: String,
+    /// Image encodée base64 (≤ 300 Ko décodés).
+    data_base64: String,
+}
+
+const AVATAR_MAX_BYTES: usize = 300 * 1024;
+const AVATAR_MIMES: [&str; 3] = ["image/jpeg", "image/png", "image/webp"];
+
+/// `PUT /v1/account/avatar` — pose la photo de profil du compte patient.
+///
+/// Token `kind:"patient"` requis. RLS `account_self_update` via
+/// `app.current_account_id`. MIME hors liste ou image > 300 Ko → 422.
+pub async fn put_account_avatar(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Json(body): Json<PutAvatarBody>,
+) -> Result<StatusCode, AppError> {
+    if !AVATAR_MIMES.contains(&body.mime.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(body.data_base64.trim())
+        .map_err(|_| AppError::ValidationError)?;
+    if bytes.is_empty() || bytes.len() > AVATAR_MAX_BYTES {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let updated = sqlx::query(
+        "UPDATE patient_account SET avatar = $1, avatar_mime = $2, updated_at = now() \
+         WHERE id = $3 AND deleted_at IS NULL",
+    )
+    .bind(&bytes)
+    .bind(&body.mime)
+    .bind(claims.account_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `GET /v1/account/avatar` — photo de profil du compte patient.
+///
+/// 200 avec les octets + Content-Type, 404 si aucun avatar.
+pub async fn get_account_avatar(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<axum::response::Response, AppError> {
+    use axum::response::IntoResponse;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT avatar, avatar_mime FROM patient_account \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+    let _ = tx.rollback().await;
+
+    let avatar: Option<Vec<u8>> = row.try_get("avatar").map_err(|_| AppError::Internal)?;
+    let mime: Option<String> = row.try_get("avatar_mime").map_err(|_| AppError::Internal)?;
+    match (avatar, mime) {
+        (Some(bytes), Some(mime)) => Ok((
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, mime)],
+            bytes,
+        )
+            .into_response()),
+        _ => Err(AppError::NotFound),
+    }
+}

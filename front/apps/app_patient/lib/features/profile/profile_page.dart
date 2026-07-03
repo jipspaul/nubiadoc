@@ -1,8 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import '../../session/auth_cubit.dart';
 import 'profile_bloc.dart';
 import 'profile_event.dart';
@@ -111,21 +117,25 @@ class _ProfileContent extends StatelessWidget {
           key: const Key('tile_coverage'),
           icon: Icons.health_and_safety_outlined,
           title: 'Couverture santé',
+          onTap: () => context.push(AppRouter.coverageSetup),
         ),
         _SectionTile(
           key: const Key('tile_dependents'),
           icon: Icons.people_outline,
           title: 'Mes proches',
+          onTap: () => context.push(AppRouter.profileDependents),
         ),
         _SectionTile(
           key: const Key('tile_consents'),
           icon: Icons.verified_user_outlined,
           title: 'Consentements',
+          onTap: () => context.push(AppRouter.profileConsents),
         ),
         _SectionTile(
           key: const Key('tile_notifications'),
           icon: Icons.notifications_outlined,
           title: 'Préférences notifications',
+          onTap: () => context.push(AppRouter.profileNotifications),
         ),
         const Divider(),
         Padding(
@@ -188,23 +198,11 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: colorScheme.primaryContainer,
-            child: Text(
-              _initials(account),
-              style: TextStyle(
-                color: colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-          ),
+          _AvatarPicker(initials: _initials(account)),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -218,7 +216,7 @@ class _ProfileHeader extends StatelessWidget {
                 Text(
                   account.email,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                 ),
               ],
@@ -278,10 +276,12 @@ class _SectionTile extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
+    required this.onTap,
   });
 
   final IconData icon;
   final String title;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -289,6 +289,7 @@ class _SectionTile extends StatelessWidget {
       leading: Icon(icon),
       title: Text(title),
       trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 }
@@ -308,6 +309,117 @@ class _LogoutTile extends StatelessWidget {
         style: TextStyle(color: Theme.of(context).colorScheme.error),
       ),
       onTap: () => context.read<AuthCubit>().signOut(),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Avatar cliquable : charge la photo de profil (GET /account/avatar), affiche
+/// l'image ou les initiales, et permet d'en téléverser une nouvelle
+/// (PUT /account/avatar). Autonome — ne dépend pas du ProfileBloc.
+class _AvatarPicker extends StatefulWidget {
+  const _AvatarPicker({required this.initials});
+  final String initials;
+
+  @override
+  State<_AvatarPicker> createState() => _AvatarPickerState();
+}
+
+class _AvatarPickerState extends State<_AvatarPicker> {
+  Uint8List? _bytes;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    // Tolérant aux harness de test qui n'enregistrent pas ce use case :
+    // l'avatar est une amélioration, pas un prérequis du header.
+    if (!GetIt.instance.isRegistered<GetAvatarUseCase>()) return;
+    final result = await GetIt.instance<GetAvatarUseCase>().call();
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (avatar) => setState(() => _bytes =
+          avatar == null ? null : Uint8List.fromList(avatar.bytes)),
+    );
+  }
+
+  Future<void> _pickAndUpload() async {
+    if (!GetIt.instance.isRegistered<FilePickerService>() ||
+        !GetIt.instance.isRegistered<UpdateAvatarUseCase>()) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final picked = await GetIt.instance<FilePickerService>().pickFile(
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'],
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _busy = true);
+    final result = await GetIt.instance<UpdateAvatarUseCase>().call(
+      bytes: picked.bytes,
+      mimeType: picked.mimeType,
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.fold(
+      (f) => messenger.showSnackBar(SnackBar(content: Text(f.message))),
+      (_) => setState(() => _bytes = picked.bytes),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: 'Modifier la photo de profil',
+      child: InkWell(
+        key: const Key('avatar_picker'),
+        onTap: _busy ? null : _pickAndUpload,
+        customBorder: const CircleBorder(),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircleAvatar(
+              radius: 32,
+              backgroundColor: colorScheme.primaryContainer,
+              backgroundImage:
+                  _bytes != null ? MemoryImage(_bytes!) : null,
+              child: _bytes != null
+                  ? null
+                  : Text(
+                      widget.initials,
+                      style: TextStyle(
+                        color: colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+            ),
+            if (_busy)
+              const SizedBox(
+                width: 64,
+                height: 64,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: CircleAvatar(
+                radius: 11,
+                backgroundColor: colorScheme.primary,
+                child: Icon(Icons.photo_camera,
+                    size: 13, color: colorScheme.onPrimary),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

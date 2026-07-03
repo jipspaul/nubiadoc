@@ -201,4 +201,51 @@ class AccountRepositoryImpl implements AccountRepository {
         return 'autre';
     }
   }
+
+  @override
+  Future<Either<Failure, void>> setConsent({
+    required String purpose,
+    required bool granted,
+  }) async {
+    try {
+      await _api.putConsent(purpose: purpose, granted: granted);
+      return const Right(null);
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, AvatarImage?>> getAvatar() async {
+    try {
+      final result = await _api.getAvatar();
+      if (result == null) return const Right(null);
+      return Right(AvatarImage(bytes: result.$1, mimeType: result.$2));
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> setAvatar({
+    required List<int> bytes,
+    required String mimeType,
+  }) async {
+    try {
+      await _api.putAvatar(bytes: bytes, mimeType: mimeType);
+      return const Right(null);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 422) {
+        return const Left(ValidationFailure(
+            message: 'Image invalide (JPEG/PNG/WebP, 300 Ko max).'));
+      }
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }
