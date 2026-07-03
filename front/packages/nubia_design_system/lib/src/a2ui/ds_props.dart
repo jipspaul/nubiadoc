@@ -4,6 +4,7 @@ import '../widgets/nubia_avatar.dart';
 import '../widgets/nubia_badge.dart';
 import '../widgets/nubia_button.dart';
 import '../widgets/nubia_card.dart';
+import '../widgets/nubia_checkbox.dart';
 import '../widgets/nubia_chip.dart';
 import '../widgets/nubia_primitives.dart';
 import '../widgets/nubia_text_field.dart';
@@ -71,12 +72,18 @@ class DsProps {
 
   // --- prop helpers ---------------------------------------------------------
 
-  static String str(Map<String, dynamic> p, String key,
-          [String fallback = '']) =>
+  static String str(
+    Map<String, dynamic> p,
+    String key, [
+    String fallback = '',
+  ]) =>
       p[key]?.toString() ?? fallback;
 
-  static bool boolean(Map<String, dynamic> p, String key,
-      [bool fallback = false]) {
+  static bool boolean(
+    Map<String, dynamic> p,
+    String key, [
+    bool fallback = false,
+  ]) {
     final v = p[key];
     if (v is bool) return v;
     if (v is String) return v == 'true';
@@ -112,8 +119,10 @@ class DsProps {
     );
   }
 
-  static Widget textField(Map<String, dynamic> p,
-      {ValueChanged<String>? onChanged}) {
+  static Widget textField(
+    Map<String, dynamic> p, {
+    ValueChanged<String>? onChanged,
+  }) {
     return NubiaTextField(
       variant: textFieldVariants[str(p, 'variant', 'outlined')] ??
           NubiaTextFieldVariant.outlined,
@@ -161,8 +170,10 @@ class DsProps {
     );
   }
 
-  static Widget checkbox(Map<String, dynamic> p,
-      {ValueChanged<bool>? onChanged}) {
+  static Widget checkbox(
+    Map<String, dynamic> p, {
+    ValueChanged<bool>? onChanged,
+  }) {
     return NubiaCheckbox(
       value: boolean(p, 'value'),
       label: p['label'] as String?,
@@ -170,8 +181,10 @@ class DsProps {
     );
   }
 
-  static Widget slider(Map<String, dynamic> p,
-      {ValueChanged<double>? onChanged}) {
+  static Widget slider(
+    Map<String, dynamic> p, {
+    ValueChanged<double>? onChanged,
+  }) {
     return NubiaSlider(
       value: number(p, 'value', 0),
       min: number(p, 'min', 0),
@@ -180,8 +193,10 @@ class DsProps {
     );
   }
 
-  static Widget choicePicker(Map<String, dynamic> p,
-      {ValueChanged<String>? onChanged}) {
+  static Widget choicePicker(
+    Map<String, dynamic> p, {
+    ValueChanged<String>? onChanged,
+  }) {
     final options =
         (p['options'] as List?)?.map((e) => e.toString()).toList() ?? const [];
     return NubiaChoicePicker(
