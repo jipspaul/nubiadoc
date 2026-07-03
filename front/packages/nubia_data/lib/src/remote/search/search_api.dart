@@ -7,40 +7,43 @@ class SearchApi {
 
   SearchApi(ApiClient client) : _dio = client.dio;
 
+  /// GET /v1/search/providers → { data: [ProviderItem], facets, page }.
+  /// `q` vide/absent = annuaire par défaut (praticiens listés).
   Future<List<ProviderResultDto>> searchProviders({
     required String query,
   }) async {
-    final response = await _dio.get<List<dynamic>>(
+    final trimmed = query.trim();
+    final response = await _dio.get<Map<String, dynamic>>(
       '/search/providers',
-      queryParameters: {'q': query},
+      queryParameters: {if (trimmed.isNotEmpty) 'q': trimmed},
     );
-    return (response.data!)
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
         .map((e) => ProviderResultDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
+  /// GET /v1/providers/:id/availability → { data: [AvailabilitySlotItem] }.
+  /// 50 prochains créneaux ouverts du praticien.
   Future<List<SlotDto>> searchSlots({
     required String providerId,
     DateTime? from,
     DateTime? to,
   }) async {
-    final params = <String, dynamic>{'provider_id': providerId};
-    if (from != null) params['from'] = from.toIso8601String();
-    if (to != null) params['to'] = to.toIso8601String();
-
-    final response = await _dio.get<List<dynamic>>(
-      '/search/slots',
-      queryParameters: params,
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/providers/$providerId/availability',
     );
-    return (response.data!)
-        .map((e) => SlotDto.fromJson(e as Map<String, dynamic>))
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
+        .map((e) => SlotDto.fromAvailabilityJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  Future<SlotDto> holdSlot(String slotId) async {
+  /// POST /v1/slots/:id/hold → { hold_token, expires_at }.
+  Future<String> holdSlot(String slotId) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/slots/$slotId/hold',
     );
-    return SlotDto.fromJson(response.data!);
+    return response.data!['hold_token'] as String;
   }
 }

@@ -14,5 +14,6 @@ abstract class SearchRepository {
     DateTime? to,
   });
 
-  Future<Either<Failure, Slot>> holdSlot(String slotId);
+  /// Bloque un créneau 5 min ; retourne le hold_token.
+  Future<Either<Failure, String>> holdSlot(String slotId);
 }

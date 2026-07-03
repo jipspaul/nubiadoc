@@ -37,10 +37,8 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     Emitter<AppointmentsState> emit,
   ) async {
     final query = event.query.trim();
-    if (query.isEmpty) {
-      emit(const AppointmentsInitial());
-      return;
-    }
+    // Requête vide = annuaire par défaut : on affiche quand même des résultats
+    // (l'API renvoie les praticiens listés). L'écran n'est jamais vide au départ.
     emit(const AppointmentsSearchLoading());
     try {
       final result = await _searchProviders(query: query);
