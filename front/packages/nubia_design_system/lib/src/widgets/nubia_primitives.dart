@@ -29,37 +29,6 @@ class NubiaTabs extends StatelessWidget {
   }
 }
 
-/// CheckBox — a labelled boolean input.
-class NubiaCheckbox extends StatelessWidget {
-  const NubiaCheckbox({
-    super.key,
-    required this.value,
-    this.label,
-    this.onChanged,
-  });
-
-  final bool value;
-  final String? label;
-  final ValueChanged<bool>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onChanged == null ? null : () => onChanged!(!value),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Checkbox(
-            value: value,
-            onChanged: onChanged == null ? null : (v) => onChanged!(v ?? false),
-          ),
-          if (label != null) Flexible(child: Text(label!)),
-        ],
-      ),
-    );
-  }
-}
-
 /// DateTimeInput — opens a native date (and optionally time) picker.
 class NubiaDateTimeInput extends StatelessWidget {
   const NubiaDateTimeInput({

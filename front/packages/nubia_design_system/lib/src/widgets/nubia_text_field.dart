@@ -18,6 +18,12 @@ enum NubiaTextFieldVariant {
   /// Champ multiligne (textarea) — `maxLines` est forcé à 4 si non précisé.
   multiline,
 
+  /// Champ montant : suffixe `€`, clavier numérique, chiffres tabulaires.
+  amount,
+
+  /// Champ téléphone : icône préfixe + clavier téléphone.
+  phone,
+
   /// Champ avec widget suffixe personnalisé (ex. unité, bouton).
   withSuffix,
 }
@@ -81,10 +87,19 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
           decoration: _outlined(context),
           maxLines: widget.maxLines ?? 4,
         );
-      case NubiaTextFieldVariant.withSuffix:
+      case NubiaTextFieldVariant.amount:
         return _buildTextField(
-          decoration: _withSuffix(context),
+          decoration: _amount(context),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
         );
+      case NubiaTextFieldVariant.phone:
+        return _buildTextField(
+          decoration: _phone(context),
+          keyboardType: TextInputType.phone,
+        );
+      case NubiaTextFieldVariant.withSuffix:
+        return _buildTextField(decoration: _withSuffix(context));
     }
   }
 
@@ -92,6 +107,8 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
     required InputDecoration decoration,
     bool obscureText = false,
     int? maxLines,
+    TextInputType? keyboardType,
+    TextStyle? style,
   }) {
     return TextField(
       controller: widget.controller,
@@ -99,30 +116,24 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
       obscureText: obscureText,
       maxLines: obscureText ? 1 : (maxLines ?? 1),
       enabled: widget.enabled,
-      decoration: decoration.copyWith(
-        errorText: widget.errorText,
-      ),
+      keyboardType: keyboardType,
+      style: style,
+      decoration: decoration.copyWith(errorText: widget.errorText),
     );
   }
 
   InputDecoration _base(BuildContext context) {
-    return InputDecoration(
-      labelText: widget.label,
-      hintText: widget.hint,
-    );
+    return InputDecoration(labelText: widget.label, hintText: widget.hint);
   }
 
   InputDecoration _outlined(BuildContext context) {
-    return _base(context).copyWith(
-      border: const OutlineInputBorder(),
-    );
+    return _base(context).copyWith(border: const OutlineInputBorder());
   }
 
   InputDecoration _filled(BuildContext context) {
-    return _base(context).copyWith(
-      filled: true,
-      border: const UnderlineInputBorder(),
-    );
+    return _base(
+      context,
+    ).copyWith(filled: true, border: const UnderlineInputBorder());
   }
 
   InputDecoration _search(BuildContext context) {
@@ -143,6 +154,23 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
         tooltip:
             _obscure ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
       ),
+    );
+  }
+
+  InputDecoration _amount(BuildContext context) {
+    return _base(context).copyWith(
+      border: const OutlineInputBorder(),
+      suffixText: '€',
+      suffixStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    );
+  }
+
+  InputDecoration _phone(BuildContext context) {
+    return _base(context).copyWith(
+      border: const OutlineInputBorder(),
+      prefixIcon: const Icon(Icons.phone_outlined),
     );
   }
 
