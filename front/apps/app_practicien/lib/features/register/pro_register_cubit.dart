@@ -60,7 +60,8 @@ class ProRegisterCubit extends Cubit<ProRegisterState>
         },
       );
     } catch (_) {
-      safeEmit(const ProRegisterFailure('Erreur lors de la création du compte.'));
+      safeEmit(
+          const ProRegisterFailure('Erreur lors de la création du compte.'));
     }
   }
 }

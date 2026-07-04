@@ -20,7 +20,8 @@ class MockProRegisterCubit extends MockCubit<ProRegisterState>
 // Helpers
 // ---------------------------------------------------------------------------
 
-Widget _buildPage(ProRegisterCubit cubit) => BlocProvider<ProRegisterCubit>.value(
+Widget _buildPage(ProRegisterCubit cubit) =>
+    BlocProvider<ProRegisterCubit>.value(
       value: cubit,
       child: const ProRegisterPage(),
     );
@@ -30,8 +31,7 @@ Future<void> _fillValidForm(WidgetTester tester) async {
   await tester.pump();
   await tester.enterText(find.widgetWithText(TextField, 'Nom'), 'Martin');
   await tester.pump();
-  await tester.enterText(
-      find.widgetWithText(TextField, 'E-mail professionnel'),
+  await tester.enterText(find.widgetWithText(TextField, 'E-mail professionnel'),
       'alice@cabinet.fr');
   await tester.pump();
   await tester.enterText(
@@ -42,16 +42,15 @@ Future<void> _fillValidForm(WidgetTester tester) async {
   await tester.pump();
 
   // Scroll and fill RPPS
-  await tester.ensureVisible(
-      find.widgetWithText(TextField, 'RPPS (11 chiffres)'));
+  await tester
+      .ensureVisible(find.widgetWithText(TextField, 'RPPS (11 chiffres)'));
   await tester.pump();
   await tester.enterText(
       find.widgetWithText(TextField, 'RPPS (11 chiffres)'), '12345678901');
   await tester.pump();
 
   // Scroll and fill raison sociale
-  await tester.ensureVisible(
-      find.widgetWithText(TextField, 'Raison sociale'));
+  await tester.ensureVisible(find.widgetWithText(TextField, 'Raison sociale'));
   await tester.pump();
   await tester.enterText(
       find.widgetWithText(TextField, 'Raison sociale'), 'Cabinet Test');
@@ -72,7 +71,8 @@ Future<void> _fillValidForm(WidgetTester tester) async {
 
 void main() {
   group('ProRegisterPage', () {
-    testWidgets('bouton désactivé quand formulaire invalide (vide)', (tester) async {
+    testWidgets('bouton désactivé quand formulaire invalide (vide)',
+        (tester) async {
       final cubit = MockProRegisterCubit();
       whenListen(cubit, Stream<ProRegisterState>.empty(),
           initialState: const ProRegisterIdle());
@@ -163,14 +163,16 @@ void main() {
       expect(find.text('11 chiffres requis.'), findsOneWidget);
     });
 
-    testWidgets('erreur inline SIRET si différent de 14 chiffres', (tester) async {
+    testWidgets('erreur inline SIRET si différent de 14 chiffres',
+        (tester) async {
       final cubit = MockProRegisterCubit();
       whenListen(cubit, Stream<ProRegisterState>.empty(),
           initialState: const ProRegisterIdle());
 
       await tester.pumpApp(_buildPage(cubit));
       await tester.enterText(
-          find.widgetWithText(TextField, 'SIRET (14 chiffres, optionnel)'), '123');
+          find.widgetWithText(TextField, 'SIRET (14 chiffres, optionnel)'),
+          '123');
       await tester.pump();
 
       expect(find.text('14 chiffres requis.'), findsOneWidget);

@@ -107,8 +107,8 @@ class ConsultationCliniqueBloc
             safeEmit(ConsultationHistoriqueLoaded(sessions: sessions)),
       );
     } catch (_) {
-      safeEmit(
-          const ConsultationCliniqueError("Erreur de chargement de l'historique."));
+      safeEmit(const ConsultationCliniqueError(
+          "Erreur de chargement de l'historique."));
     }
   }
 }
