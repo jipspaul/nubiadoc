@@ -101,8 +101,9 @@ class _DashboardContent extends StatelessWidget {
     return BlocBuilder<DashboardBloc, DashboardState>(
       builder: (context, state) {
         return switch (state) {
-          DashboardInitial() || DashboardLoading() => const Center(
-              child: CircularProgressIndicator(key: Key('dashboard_loading'))),
+          DashboardInitial() ||
+          DashboardLoading() =>
+            const _DashboardSkeleton(),
           DashboardError(:final message) => NubiaErrorWidget(
               key: const Key('dashboard_error'),
               message: message,
@@ -115,36 +116,236 @@ class _DashboardContent extends StatelessWidget {
             :final pendingCount,
             :final waitingCount,
           ) =>
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Wrap(
+            _DashboardLoadedView(
+              todayCount: todayCount,
+              pendingCount: pendingCount,
+              waitingCount: waitingCount,
+            ),
+        };
+      },
+    );
+  }
+}
+
+/// Largeur maximale du contenu centré (poste de travail desktop).
+const double _kContentMaxWidth = 1120;
+
+/// Vue chargée du tableau de bord opérationnel : en-tête + tuiles de flux du
+/// jour ([MetricTile]) + cartes récapitulatives. Purement administratif —
+/// aucune donnée clinique n'est affichée (cloisonnement secrétariat).
+class _DashboardLoadedView extends StatelessWidget {
+  const _DashboardLoadedView({
+    required this.todayCount,
+    required this.pendingCount,
+    required this.waitingCount,
+  });
+
+  final int todayCount;
+  final int pendingCount;
+  final int waitingCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
+    final metrics = <Widget>[
+      MetricTile(
+        key: const Key('stat_rdv_today'),
+        icon: Icons.calendar_today_outlined,
+        value: '$todayCount',
+        label: "RDV aujourd'hui",
+      ),
+      MetricTile(
+        key: const Key('stat_pending'),
+        icon: Icons.pending_actions_outlined,
+        value: '$pendingCount',
+        label: 'RDV à confirmer',
+        variant: MetricTileVariant.warning,
+      ),
+      MetricTile(
+        key: const Key('stat_waiting_list'),
+        icon: Icons.format_list_bulleted_outlined,
+        value: '$waitingCount',
+        label: "Liste d'attente",
+      ),
+    ];
+
+    return SingleChildScrollView(
+      key: const Key('dashboard_loaded'),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _kContentMaxWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tableau de bord',
+                style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Flux du jour — activité administrative du cabinet',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Wrap(
                 key: const Key('dashboard_stats_row'),
                 spacing: 16,
                 runSpacing: 16,
                 children: [
-                  _StatCard(
-                    key: const Key('stat_rdv_today'),
-                    icon: Icons.calendar_today_outlined,
-                    label: "RDV aujourd'hui",
-                    count: todayCount,
+                  for (final tile in metrics) SizedBox(width: 220, child: tile),
+                ],
+              ),
+              const SizedBox(height: 28),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final twoColumns = constraints.maxWidth >= 720;
+                  final cards = [
+                    _DashboardPanel(
+                      icon: Icons.event_available_outlined,
+                      title: 'Prochains rendez-vous',
+                      body: todayCount == 0
+                          ? 'Aucun rendez-vous planifié aujourd’hui.'
+                          : '$todayCount rendez-vous au programme du jour.',
+                      hint: 'Consultez l’agenda du cabinet pour le détail.',
+                    ),
+                    _DashboardPanel(
+                      icon: Icons.pending_actions_outlined,
+                      title: 'À traiter',
+                      body: pendingCount == 0
+                          ? 'Aucune demande en attente de confirmation.'
+                          : '$pendingCount demande(s) à confirmer.',
+                      hint: waitingCount == 0
+                          ? 'Liste d’attente vide.'
+                          : '$waitingCount patient(s) en liste d’attente.',
+                    ),
+                  ];
+                  if (!twoColumns) {
+                    return Column(
+                      children: [
+                        for (final c in cards) ...[
+                          c,
+                          if (c != cards.last) const SizedBox(height: 16),
+                        ],
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: cards[0]),
+                      const SizedBox(width: 16),
+                      Expanded(child: cards[1]),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Carte récapitulative du tableau de bord (titre + texte + indice).
+class _DashboardPanel extends StatelessWidget {
+  const _DashboardPanel({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.hint,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
+    return NubiaCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: cs.primary),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: textTheme.titleMedium?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            body,
+            style: textTheme.bodyMedium?.copyWith(color: cs.onSurface),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            hint,
+            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton de chargement du tableau de bord (tuiles + cartes).
+class _DashboardSkeleton extends StatelessWidget {
+  const _DashboardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      key: const Key('dashboard_loading'),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _kContentMaxWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              NubiaSkeletonLoader(width: 220, height: 28),
+              SizedBox(height: 24),
+              Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  SizedBox(
+                    width: 220,
+                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
                   ),
-                  _StatCard(
-                    key: const Key('stat_pending'),
-                    icon: Icons.pending_actions_outlined,
-                    label: 'En attente',
-                    count: pendingCount,
+                  SizedBox(
+                    width: 220,
+                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
                   ),
-                  _StatCard(
-                    key: const Key('stat_waiting_list'),
-                    icon: Icons.format_list_bulleted_outlined,
-                    label: 'Liste attente',
-                    count: waitingCount,
+                  SizedBox(
+                    width: 220,
+                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
                   ),
                 ],
               ),
-            ),
-        };
-      },
+              SizedBox(height: 28),
+              NubiaSkeletonLoader(height: 120, borderRadius: 12),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -165,45 +366,6 @@ class ContextBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Text(label!),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.count,
-  });
-
-  final IconData icon;
-  final String label;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 32),
-            const SizedBox(height: 8),
-            Text(
-              '$count',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

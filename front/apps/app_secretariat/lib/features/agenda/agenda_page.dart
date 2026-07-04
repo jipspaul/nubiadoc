@@ -56,10 +56,7 @@ class _AgendaBodyState extends State<_AgendaBody> {
       },
       builder: (context, state) {
         if (state is AgendaInitial || state is AgendaLoading) {
-          return const Center(
-            key: Key('agenda_loading'),
-            child: CircularProgressIndicator(),
-          );
+          return const _AgendaSkeleton();
         }
         if (state is AgendaError) {
           return NubiaErrorWidget(
@@ -120,17 +117,37 @@ class _LoadedViewState extends State<_LoadedView> {
         if (widget.state.actionInProgress)
           const LinearProgressIndicator(key: Key('agenda_action_progress')),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(
-                  '${widget.state.entries.length} créneau(x) cette semaine',
-                  style: Theme.of(context).textTheme.titleMedium,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Agenda du cabinet',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${widget.state.entries.length} créneau(x) cette semaine',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
                 ),
               ),
-              FilledButton.icon(
+              NubiaButton(
                 key: const Key('new_appointment_button'),
+                label: 'Nouveau RDV',
+                icon: Icons.add,
                 onPressed: widget.state.actionInProgress
                     ? null
                     : () => _showNewAppointmentDialog(
@@ -138,30 +155,39 @@ class _LoadedViewState extends State<_LoadedView> {
                           widget.state,
                           practitioners,
                         ),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Nouveau RDV'),
               ),
             ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: DropdownButton<String?>(
-            key: const Key('practitioner_filter_dropdown'),
-            isExpanded: true,
-            value: _practitionerFilter,
-            onChanged: (v) => setState(() => _practitionerFilter = v),
-            items: [
-              const DropdownMenuItem<String?>(
-                value: null,
-                child: Text('Tous les praticiens'),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: InputDecorator(
+            decoration: InputDecoration(
+              isDense: true,
+              labelText: 'Praticien',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-              for (final p in practitioners.entries)
-                DropdownMenuItem<String?>(
-                  value: p.key,
-                  child: Text(p.value),
-                ),
-            ],
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                key: const Key('practitioner_filter_dropdown'),
+                isExpanded: true,
+                value: _practitionerFilter,
+                onChanged: (v) => setState(() => _practitionerFilter = v),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Tous les praticiens'),
+                  ),
+                  for (final p in practitioners.entries)
+                    DropdownMenuItem<String?>(
+                      value: p.key,
+                      child: Text(p.value),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
         const Divider(height: 1),
@@ -363,35 +389,158 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
 
 // ---------------------------------------------------------------------------
 
+String _initialsFrom(String? name) {
+  if (name == null || name.trim().isEmpty) return '–';
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.length == 1) {
+    final p = parts.first;
+    return (p.length <= 2 ? p : p.substring(0, 2)).toUpperCase();
+  }
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+      .toUpperCase();
+}
+
 class _EntryCard extends StatelessWidget {
   const _EntryCard({required this.entry});
   final AgendaEntry entry;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+
     final time =
         '${entry.startsAt.hour.toString().padLeft(2, '0')}:${entry.startsAt.minute.toString().padLeft(2, '0')}';
+    final endTime =
+        '${entry.endsAt.hour.toString().padLeft(2, '0')}:${entry.endsAt.minute.toString().padLeft(2, '0')}';
 
-    return Card(
+    // Sous-titre : motif administratif du RDV + praticien (aucune donnée
+    // clinique — cloisonnement secrétariat).
+    final subtitleParts = <String>[
+      if (entry.motif != null && entry.motif!.isNotEmpty) entry.motif!,
+      entry.practitionerName,
+    ];
+
+    return Padding(
       key: Key('entry_${entry.id}'),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Text(time, style: const TextStyle(fontSize: 11)),
-        ),
-        title: Text(entry.patientName ?? 'Créneau libre'),
-        subtitle: entry.motif != null ? Text(entry.motif!) : null,
-        trailing: entry.isFree
-            ? null
-            : FilledButton.tonal(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: NubiaCard(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 56,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    time,
+                    style: textTheme.titleMedium?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  Text(
+                    endTime,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            NubiaAvatar(
+              initials: entry.isFree ? '+' : _initialsFrom(entry.patientName),
+              radius: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.isFree
+                        ? 'Créneau libre'
+                        : (entry.patientName ?? 'Patient'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.titleMedium?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (subtitleParts.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitleParts.join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            if (entry.isFree)
+              const StatusPill(label: 'Libre', variant: StatusPillVariant.info)
+            else ...[
+              const StatusPill(
+                label: 'À confirmer',
+                variant: StatusPillVariant.warning,
+              ),
+              const SizedBox(width: 12),
+              NubiaButton(
                 key: Key('confirm_${entry.id}'),
+                label: 'Confirmer',
+                size: NubiaButtonSize.sm,
+                variant: NubiaButtonVariant.secondary,
                 onPressed: () => context.read<AgendaBloc>().add(
                       AgendaAppointmentConfirmRequested(
                           appointmentId: entry.id),
                     ),
-                child: const Text('Confirmer'),
               ),
+            ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// Skeleton de chargement de l'agenda (barre d'outils + liste de cartes).
+class _AgendaSkeleton extends StatelessWidget {
+  const _AgendaSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('agenda_loading'),
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: const [
+            Expanded(child: NubiaSkeletonLoader(height: 24)),
+            SizedBox(width: 12),
+            NubiaSkeletonLoader(width: 132, height: 44, borderRadius: 8),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const NubiaSkeletonLoader(height: 48, borderRadius: 8),
+        const SizedBox(height: 16),
+        for (var i = 0; i < 5; i++) ...[
+          const NubiaSkeletonLoader(height: 76, borderRadius: 12),
+          const SizedBox(height: 12),
+        ],
+      ],
     );
   }
 }

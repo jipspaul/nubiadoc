@@ -49,9 +49,9 @@ class _BookableSlotsBodyState extends State<BookableSlotsBody> {
               );
             }
             return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
               itemCount: slots.length,
-              itemBuilder: (_, i) => _SlotTile(slot: slots[i]),
+              itemBuilder: (_, i) => _SlotCard(slot: slots[i]),
             );
           }
           if (state is BookableSlotsError) {
@@ -63,7 +63,7 @@ class _BookableSlotsBodyState extends State<BookableSlotsBody> {
             );
           }
           // BookableSlotsInitial, BookableSlotsLoading
-          return const Center(child: CircularProgressIndicator());
+          return const _BookableSlotsSkeleton();
         },
       ),
     );
@@ -118,13 +118,17 @@ class _BookableSlotsPageState extends State<BookableSlotsPage> {
   }
 }
 
-class _SlotTile extends StatelessWidget {
-  const _SlotTile({required this.slot});
+class _SlotCard extends StatelessWidget {
+  const _SlotCard({required this.slot});
 
   final Slot slot;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
     final start = TimeOfDay.fromDateTime(slot.startsAt);
     final end = TimeOfDay.fromDateTime(slot.endsAt);
     final dateLabel = '${slot.startsAt.day.toString().padLeft(2, '0')}/'
@@ -132,18 +136,87 @@ class _SlotTile extends StatelessWidget {
         '${slot.startsAt.year}';
     final timeLabel = '${start.format(context)} – ${end.format(context)}';
 
-    return ListTile(
-      leading: Icon(
-        slot.isAvailable
-            ? Icons.event_available_outlined
-            : Icons.event_busy_outlined,
-        color: slot.isAvailable ? Colors.green : Colors.grey,
+    final Color accentFg = slot.isAvailable ? cs.primary : tokens.textTertiary;
+    final Color accentBg =
+        slot.isAvailable ? tokens.primarySubtleBg : cs.surfaceContainerHighest;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NubiaCard(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: accentBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                slot.isAvailable
+                    ? Icons.event_available_outlined
+                    : Icons.event_busy_outlined,
+                size: 22,
+                color: accentFg,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    timeLabel,
+                    style: textTheme.titleMedium?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateLabel,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            slot.isAvailable
+                ? const StatusPill(
+                    label: 'Disponible',
+                    variant: StatusPillVariant.success,
+                  )
+                : const StatusPill(
+                    label: 'Indisponible',
+                    variant: StatusPillVariant.warning,
+                  ),
+          ],
+        ),
       ),
-      title: Text(timeLabel),
-      subtitle: Text(dateLabel),
-      trailing: slot.isAvailable
-          ? const Chip(label: Text('Disponible'))
-          : const Chip(label: Text('Indisponible')),
+    );
+  }
+}
+
+/// Skeleton de chargement des créneaux réservables (liste de cartes).
+class _BookableSlotsSkeleton extends StatelessWidget {
+  const _BookableSlotsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      children: [
+        for (var i = 0; i < 6; i++) ...[
+          const NubiaSkeletonLoader(height: 72, borderRadius: 12),
+          const SizedBox(height: 12),
+        ],
+      ],
     );
   }
 }

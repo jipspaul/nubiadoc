@@ -189,16 +189,16 @@ void main() {
           ),
         );
 
-    testWidgets('affiche le chargement en état initial', (tester) async {
+    testWidgets('affiche le skeleton en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const BookableSlotsInitial());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
-    testWidgets('affiche le chargement en état Loading', (tester) async {
+    testWidgets('affiche le skeleton en état Loading', (tester) async {
       when(() => bloc.state).thenReturn(const BookableSlotsLoading());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
     testWidgets('affiche les créneaux — aucun champ clinique visible',
@@ -290,8 +290,7 @@ void main() {
       expect(find.textContaining('$day/$month/${now.year}'), findsOneWidget);
     });
 
-    testWidgets('Annuler ferme le dialogue sans pop de valeur',
-        (tester) async {
+    testWidgets('Annuler ferme le dialogue sans pop de valeur', (tester) async {
       await tester.pumpWidget(buildApp());
       await tester.tap(find.text('ouvrir'));
       await tester.pumpAndSettle();
