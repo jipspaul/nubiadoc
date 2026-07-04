@@ -1161,6 +1161,56 @@ impl FromRequestParts<AppState> for PharmaMemberClaims {
     }
 }
 
+/// Claims JWT pharmacie avec rôle décisionnaire (`pharmacist` ou `admin`) —
+/// rejette `preparator` (403). Requis pour refuser une commande ou envoyer
+/// un devis.
+#[derive(Debug, Deserialize)]
+pub(crate) struct PharmaPharmacistClaims {
+    pub(crate) sub: Uuid,
+    pub(crate) pharmacy_id: Uuid,
+    role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for PharmaPharmacistClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        let basic = decode::<KindClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if basic.kind != "pharma" {
+            return Err(AppError::Forbidden);
+        }
+
+        let claims = decode::<PharmaPharmacistClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if claims.role != "pharmacist" && claims.role != "admin" {
+            return Err(AppError::Forbidden);
+        }
+
+        Ok(claims)
+    }
+}
+
 /// Claims JWT pro avec accès secrétariat+ (secretary, practitioner, admin).
 ///
 /// Renvoie `401` si absent/invalide, `403` si `kind != "pro"`.
