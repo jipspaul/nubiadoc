@@ -87,15 +87,16 @@ pub async fn list_conversations(
              SELECT \
                  c.id, \
                  c.cabinet_id, \
-                 cab.raison_sociale AS cabinet_name, \
+                 COALESCE(cab.raison_sociale, ph.raison_sociale) AS cabinet_name, \
                  (SELECT MAX(m.created_at) FROM message m WHERE m.conversation_id = c.id) \
                      AS last_message_at, \
                  (SELECT COUNT(*) FROM message m \
                   WHERE m.conversation_id = c.id \
-                    AND m.sender_kind IN ('practitioner','secretary') \
+                    AND m.sender_kind IN ('practitioner','secretary','pharmacist') \
                     AND m.read_at IS NULL) AS unread_count \
              FROM conversation c \
-             JOIN cabinet cab ON cab.id = c.cabinet_id \
+             LEFT JOIN cabinet cab ON cab.id = c.cabinet_id \
+             LEFT JOIN pharmacy ph ON ph.id = c.pharmacy_id \
          ) \
          SELECT id, cabinet_id, cabinet_name, last_message_at, unread_count \
          FROM conv \
@@ -145,7 +146,12 @@ pub async fn list_conversations(
 
     for row in visible {
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-        let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+        // NULL pour un fil pharmacie (lot B6) : le front identifie le
+        // destinataire par le nom ; nil sentinel pour rester rétro-compatible.
+        let cabinet_id: Uuid = row
+            .try_get::<Option<Uuid>, _>("cabinet_id")
+            .map_err(|_| AppError::Internal)?
+            .unwrap_or(Uuid::nil());
         let cabinet_name: String = row
             .try_get("cabinet_name")
             .map_err(|_| AppError::Internal)?;
@@ -239,6 +245,8 @@ pub async fn get_conversation_messages(
         .map_err(|_| AppError::Internal)?;
 
     // Vérifie que la conversation est accessible (RLS filtre si hors tenant → None = 404).
+    // cabinet_id est NULL pour un fil pharmacie (lot B6) : l'audit est alors
+    // journalisé avec le sentinel nil (entité hors cabinet, pattern /v1/me).
     let conv_row = sqlx::query("SELECT cabinet_id FROM conversation WHERE id = $1")
         .bind(conversation_id)
         .fetch_optional(&mut *tx)
@@ -247,8 +255,9 @@ pub async fn get_conversation_messages(
 
     let conv_row = conv_row.ok_or(AppError::NotFound)?;
     let cabinet_id: Uuid = conv_row
-        .try_get("cabinet_id")
-        .map_err(|_| AppError::Internal)?;
+        .try_get::<Option<Uuid>, _>("cabinet_id")
+        .map_err(|_| AppError::Internal)?
+        .unwrap_or(Uuid::nil());
 
     let cursor_clause = if cursor.is_some() {
         " AND (created_at < $3 OR (created_at = $3 AND id < $4))"
@@ -391,25 +400,37 @@ pub async fn mark_conversation_read(
         .map_err(|_| AppError::Internal)?;
 
     // Vérifie que la conversation est accessible (RLS filtre si hors tenant → None = 404).
-    let conv_row = sqlx::query("SELECT cabinet_id FROM conversation WHERE id = $1")
+    let conv_row = sqlx::query("SELECT cabinet_id, pharmacy_id FROM conversation WHERE id = $1")
         .bind(conversation_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
     let conv_row = conv_row.ok_or(AppError::NotFound)?;
-    let cabinet_id: Uuid = conv_row
+    let cabinet_id: Option<Uuid> = conv_row
         .try_get("cabinet_id")
         .map_err(|_| AppError::Internal)?;
-
-    // Scope RLS cabinet pour UPDATE message (policy tenant_isolation WITH CHECK).
-    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(cabinet_id.to_string())
-        .execute(&mut *tx)
-        .await
+    let pharmacy_id: Option<Uuid> = conv_row
+        .try_get("pharmacy_id")
         .map_err(|_| AppError::Internal)?;
 
-    // Marque lus les messages non lus envoyés par le cabinet (practitioner/secretary).
+    // Scope RLS de l'ancre du fil pour l'UPDATE (valeur DB, jamais client).
+    if let Some(cabinet_id) = cabinet_id {
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+    if let Some(pharmacy_id) = pharmacy_id {
+        sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+            .bind(pharmacy_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    // Marque lus les messages non lus envoyés par le soignant (cabinet ou pharmacie).
     match body.last_read_message_id {
         Some(last_id) => {
             sqlx::query(
@@ -417,7 +438,7 @@ pub async fn mark_conversation_read(
                  SET read_at = now() \
                  WHERE conversation_id = $1 \
                    AND id <= $2 \
-                   AND sender_kind IN ('practitioner', 'secretary') \
+                   AND sender_kind IN ('practitioner', 'secretary', 'pharmacist') \
                    AND read_at IS NULL",
             )
             .bind(conversation_id)
@@ -431,7 +452,7 @@ pub async fn mark_conversation_read(
                 "UPDATE message \
                  SET read_at = now() \
                  WHERE conversation_id = $1 \
-                   AND sender_kind IN ('practitioner', 'secretary') \
+                   AND sender_kind IN ('practitioner', 'secretary', 'pharmacist') \
                    AND read_at IS NULL",
             )
             .bind(conversation_id)
@@ -520,32 +541,52 @@ pub async fn send_message(
         .map_err(|_| AppError::Internal)?;
 
     // Vérifie que la conversation est accessible (RLS filtre si hors tenant → None = 404).
-    let conv_row = sqlx::query("SELECT cabinet_id FROM conversation WHERE id = $1")
+    let conv_row = sqlx::query("SELECT cabinet_id, pharmacy_id FROM conversation WHERE id = $1")
         .bind(conversation_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
     let conv_row = conv_row.ok_or(AppError::NotFound)?;
-    let cabinet_id: Uuid = conv_row
+    let cabinet_id: Option<Uuid> = conv_row
         .try_get("cabinet_id")
         .map_err(|_| AppError::Internal)?;
-
-    // Scope RLS cabinet pour INSERT message (policy tenant_isolation WITH CHECK).
-    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(cabinet_id.to_string())
-        .execute(&mut *tx)
-        .await
+    let pharmacy_id: Option<Uuid> = conv_row
+        .try_get("pharmacy_id")
         .map_err(|_| AppError::Internal)?;
+
+    // Scope RLS de l'ancre du fil (valeur DB, jamais client) pour l'INSERT :
+    // tenant_isolation (cabinet) ou message_pharmacy_all (pharmacie, lot B6).
+    // Un fil pharmacie n'est jamais priorisé : triage forcé normal.
+    let (triage_flag, triage_reason) = if pharmacy_id.is_some() {
+        ("normal", None)
+    } else {
+        (triage_flag, triage_reason)
+    };
+    if let Some(cabinet_id) = cabinet_id {
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+    if let Some(pharmacy_id) = pharmacy_id {
+        sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+            .bind(pharmacy_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
 
     let row = sqlx::query(
         "INSERT INTO message \
-         (cabinet_id, conversation_id, sender_kind, sender_id, \
+         (cabinet_id, pharmacy_id, conversation_id, sender_kind, sender_id, \
           body_ciphertext, body_key_ref, triage_flag, triage_reason) \
-         VALUES ($1, $2, 'patient', $3, $4, $5, $6, $7) \
+         VALUES ($1, $2, $3, 'patient', $4, $5, $6, $7, $8) \
          RETURNING id",
     )
     .bind(cabinet_id)
+    .bind(pharmacy_id)
     .bind(conversation_id)
     .bind(claims.sub)
     .bind(body.body.as_bytes())
@@ -588,44 +629,158 @@ pub async fn send_message(
 }
 
 /// Corps de la requête `POST /v1/conversations`.
+/// `cabinet_id` XOR `pharmacy_id` (scope patient_cabinet vs patient_pharmacy).
 #[derive(Deserialize)]
 pub struct CreateConversationBody {
-    pub cabinet_id: Uuid,
+    pub cabinet_id: Option<Uuid>,
+    pub pharmacy_id: Option<Uuid>,
     pub subject: Option<String>,
 }
 
 /// Réponse de `POST /v1/conversations`.
 #[derive(Serialize)]
 pub struct CreateConversationResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cabinet_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pharmacy_id: Option<Uuid>,
     pub id: Uuid,
-    pub cabinet_id: Uuid,
     pub subject: Option<String>,
     pub created_at: String,
 }
 
-/// `POST /v1/conversations` — crée un fil de messagerie patient ↔ cabinet.
+/// `POST /v1/conversations` — crée un fil patient ↔ cabinet OU patient ↔
+/// pharmacie (lot B6, scope `patient_pharmacy`).
 ///
-/// Token `kind:"patient"` requis. Body : `{ cabinet_id, subject? }`.
-/// Cabinet inexistant → `404`. Idempotent sur `(patient_account_id, cabinet_id)`.
-/// Retourne `201 + { id, cabinet_id, subject, created_at }`.
+/// Token `kind:"patient"` requis. Body : `{ cabinet_id | pharmacy_id, subject? }`
+/// (exactement l'un des deux → 422 sinon). Destinataire inexistant → `404`.
+/// Idempotent par destinataire. Retourne `201 + { id, …, subject, created_at }`.
 pub async fn create_conversation(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Json(body): Json<CreateConversationBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    match (body.cabinet_id, body.pharmacy_id) {
+        (Some(cabinet_id), None) => {
+            create_cabinet_conversation(state, claims, cabinet_id, body.subject).await
+        }
+        (None, Some(pharmacy_id)) => {
+            create_pharmacy_conversation(state, claims, pharmacy_id, body.subject).await
+        }
+        _ => Err(AppError::ValidationError),
+    }
+}
+
+/// Fil patient ↔ pharmacie : pharmacie listée uniquement (404 sinon),
+/// idempotent sur (patient_account_id, pharmacy_id). Le nom minimisé
+/// (« Prénom N. ») est dénormalisé pour l'affichage côté pharmacie.
+async fn create_pharmacy_conversation(
+    state: AppState,
+    claims: PatientAccountClaims,
+    pharmacy_id: Uuid,
+    subject: Option<String>,
+) -> Result<(StatusCode, Json<CreateConversationResponse>), AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Pharmacie listée uniquement (policy annuaire public).
+    sqlx::query("SELECT 1 FROM pharmacy WHERE id = $1 AND is_listed")
+        .bind(pharmacy_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+
+    // Nom minimisé pour la pharmacie (le compte lit sa propre fiche).
+    let name_row = sqlx::query("SELECT first_name, last_name FROM patient_account WHERE id = $1")
+        .bind(claims.account_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let first_name: String = name_row
+        .try_get("first_name")
+        .map_err(|_| AppError::Internal)?;
+    let last_name: String = name_row
+        .try_get("last_name")
+        .map_err(|_| AppError::Internal)?;
+    let initial = last_name
+        .chars()
+        .next()
+        .map(|c| format!(" {}.", c.to_uppercase()))
+        .unwrap_or_default();
+    let display_name = format!("{first_name}{initial}");
+
+    // Idempotent : une conversation par (compte, pharmacie).
+    let existing = sqlx::query(
+        "SELECT id, pharmacy_id, subject, created_at FROM conversation          WHERE patient_account_id = $1 AND pharmacy_id = $2",
+    )
+    .bind(claims.account_id)
+    .bind(pharmacy_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let row = match existing {
+        Some(row) => row,
+        None => sqlx::query(
+            "INSERT INTO conversation              (patient_account_id, pharmacy_id, scope, subject, patient_display_name)              VALUES ($1, $2, 'patient_pharmacy', $3, $4)              RETURNING id, pharmacy_id, subject, created_at",
+        )
+        .bind(claims.account_id)
+        .bind(pharmacy_id)
+        .bind(subject.as_deref())
+        .bind(&display_name)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+    };
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let subject: Option<String> = row.try_get("subject").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateConversationResponse {
+            id,
+            cabinet_id: None,
+            pharmacy_id: Some(pharmacy_id),
+            subject,
+            created_at: created_at.to_rfc3339(),
+        }),
+    ))
+}
+
+async fn create_cabinet_conversation(
+    state: AppState,
+    claims: PatientAccountClaims,
+    body_cabinet_id: Uuid,
+    body_subject: Option<String>,
+) -> Result<(StatusCode, Json<CreateConversationResponse>), AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope RLS au cabinet cible (SET LOCAL — scoped à tx).
     // Doit être positionné AVANT la lecture de `cabinet` (RLS tenant_isolation s'y applique).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(body.cabinet_id.to_string())
+        .bind(body_cabinet_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
     // Vérifie que le cabinet existe (RLS tenant_isolation filtre sur app.current_cabinet_id).
     let cabinet_exists = sqlx::query("SELECT 1 FROM cabinet WHERE id = $1 LIMIT 1")
-        .bind(body.cabinet_id)
+        .bind(body_cabinet_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -638,7 +793,7 @@ pub async fn create_conversation(
     let patient_linked = sqlx::query(
         "SELECT 1 FROM patient WHERE cabinet_id = $1 AND patient_account_id = $2 LIMIT 1",
     )
-    .bind(body.cabinet_id)
+    .bind(body_cabinet_id)
     .bind(claims.account_id)
     .fetch_optional(&mut *tx)
     .await
@@ -656,8 +811,8 @@ pub async fn create_conversation(
          RETURNING id, cabinet_id, subject, created_at",
     )
     .bind(claims.account_id)
-    .bind(body.cabinet_id)
-    .bind(body.subject.as_deref())
+    .bind(body_cabinet_id)
+    .bind(body_subject.as_deref())
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -669,7 +824,7 @@ pub async fn create_conversation(
              WHERE patient_account_id = $1 AND cabinet_id = $2",
         )
         .bind(claims.account_id)
-        .bind(body.cabinet_id)
+        .bind(body_cabinet_id)
         .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?,
@@ -685,7 +840,7 @@ pub async fn create_conversation(
 
     tracing::info!(
         patient_account_id = %claims.account_id,
-        cabinet_id = %body.cabinet_id,
+        cabinet_id = %body_cabinet_id,
         conversation_id = %id,
         "conversation created"
     );
@@ -694,7 +849,8 @@ pub async fn create_conversation(
         StatusCode::CREATED,
         Json(CreateConversationResponse {
             id,
-            cabinet_id,
+            cabinet_id: Some(cabinet_id),
+            pharmacy_id: None,
             subject,
             created_at: created_at.to_rfc3339(),
         }),

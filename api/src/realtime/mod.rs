@@ -414,6 +414,27 @@ async fn authorize_conversation(
         session.cabinet_id,
         session.account_id,
     ) {
+        ("pharma", _, _) => {
+            let Some(pharmacy_id) = session.pharmacy_id else {
+                return false;
+            };
+            if sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+                .bind(pharmacy_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .is_err()
+            {
+                return false;
+            }
+            sqlx::query("SELECT 1 FROM conversation WHERE id = $1 AND pharmacy_id = $2")
+                .bind(conversation_id)
+                .bind(pharmacy_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .ok()
+                .flatten()
+                .is_some()
+        }
         ("pro", Some(cabinet_id), _) => {
             if sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
                 .bind(cabinet_id.to_string())
