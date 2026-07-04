@@ -5,3 +5,4 @@
 //! réciproquement aucun endpoint `/v1/cabinet/*` n'accepte un token pharmacie.
 
 pub mod directory;
+pub mod orders;

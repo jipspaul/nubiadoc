@@ -1108,6 +1108,59 @@ impl FromRequestParts<AppState> for ProPractitionerClaims {
     }
 }
 
+/// Claims JWT pharmacie, tout rôle actif (`pharmacist`, `preparator`, `admin`).
+///
+/// Émis par `POST /v1/auth/select-pharmacy-context` (`kind == "pharma"`).
+/// Renvoie `401` si absent/invalide, `403` si `kind != "pharma"` — un token
+/// pro ou patient ne peut jamais ouvrir l'espace pharmacie (cloisonnement
+/// structurel, docs/07 §4).
+#[derive(Debug, Deserialize)]
+pub(crate) struct PharmaMemberClaims {
+    pub(crate) sub: Uuid,
+    pub(crate) pharmacy_id: Uuid,
+    #[allow(dead_code)] // consommé au lot B3 (reject réservé pharmacist/admin)
+    pub(crate) role: String,
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for PharmaMemberClaims {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        let token = auth.strip_prefix("Bearer ").ok_or(AppError::Unauthorized)?;
+
+        let key = DecodingKey::from_secret(state.jwt_secret.as_bytes());
+        let mut validation = Validation::default();
+        validation.validate_exp = true;
+
+        // Première passe : extrait uniquement `kind` pour renvoyer 403 (pas 401)
+        // si le token est valide mais n'est pas un token pharmacie (ex. pro/patient).
+        let basic = decode::<KindClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if basic.kind != "pharma" {
+            return Err(AppError::Forbidden);
+        }
+
+        // Deuxième passe : décode les champs pharmacie obligatoires.
+        let claims = decode::<PharmaMemberClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        Ok(claims)
+    }
+}
+
 /// Claims JWT pro avec accès secrétariat+ (secretary, practitioner, admin).
 ///
 /// Renvoie `401` si absent/invalide, `403` si `kind != "pro"`.

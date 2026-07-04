@@ -673,3 +673,25 @@ pharmacy_membership(id, pharmacy_id FK, user_id FK app_user,
 - Index GIST sur `geo` (recherche de proximité PostGIS).
 
 À venir (lots B2–B7, issues #3307–#3312) : `pharmacy_order` (partage d'ordonnance cross-tenant + commande click-and-collect), `stock_request`, extension `conversation`/`message` (scope `patient_pharmacy`), `pharmacy_quote`.
+
+### 11.2 Commande click-and-collect (lot B2, migration 0124)
+`pharmacy_order` = objet de **partage d'ordonnance cross-tenant** ET commande :
+
+```
+pharmacy_order(id, pharmacy_id FK, cabinet_id FK, patient_account_id FK,
+               prescription_id FK, document_id FK,
+               created_by_kind CHECK ('patient','practitioner'), created_by,
+               consent_record_id FK,
+               status CHECK ('received','preparing','ready','picked_up','rejected','cancelled'),
+               pharmacy_name, patient_display_name (minimisé « Prénom N. »),
+               pickup_token_hash char(64), pickup_token_expires_at,
+               picked_up_by, rejection_reason,
+               received_at, preparing_at, ready_at, picked_up_at, cancelled_at,
+               created_at, updated_at)
+```
+
+- **3 ancres RLS permissives** : pharmacie (SELECT/UPDATE, WITH CHECK interdit `cancelled` et le changement de tenant), patient (SELECT/INSERT/UPDATE, WITH CHECK interdit `picked_up`/`rejected`), cabinet d'origine (SELECT/INSERT). Fail-closed sans GUC. Pas de DELETE pour `nubia_app` (REVOKE).
+- **Une commande active max par ordonnance** : index unique partiel sur `prescription_id WHERE status IN ('received','preparing','ready')`.
+- **`document_pharmacy_read`** : la pharmacie ne lit que le PDF signé (`document`) de ses commandes — jamais `prescription`/`prescription_item` (cloisonnement `07` §4, testé).
+- `patient_account.pharmacy_id` : pharmacie déclarée du patient ; fonction SECURITY DEFINER `patient_declared_pharmacy(patient_id)` pour la présélection praticien (le handler vérifie d'abord l'appartenance du patient au cabinet).
+- Consentement au partage : `consent_record` (purpose `partage_pharmacie`, upsert par (patient_account_id, purpose)).
