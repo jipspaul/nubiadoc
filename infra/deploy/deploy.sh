@@ -29,7 +29,10 @@ cd /opt/nubia
 PUBLIC_API_BASE="${PUBLIC_API_BASE:-http://192.168.1.100:3000}"
 
 echo "[deploy] build image api (COPY-only, binaire musl pré-compilé)"
-podman build -t localhost/nubia-api:latest -f api-ctx/api.Dockerfile api-ctx
+# --no-cache : le layer COPY du binaire peut être servi depuis le cache podman
+# (même tag :latest) et faire tourner un binaire périmé. On force un rebuild
+# d'image à chaque déploiement (COPY-only, donc quasi instantané).
+podman build --no-cache -t localhost/nubia-api:latest -f api-ctx/api.Dockerfile api-ctx
 
 echo "[deploy] build image console (node amd64 natif)"
 podman build --build-arg PUBLIC_API_BASE="$PUBLIC_API_BASE" \

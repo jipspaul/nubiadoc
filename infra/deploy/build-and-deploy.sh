@@ -33,6 +33,11 @@ if command -v puro >/dev/null 2>&1; then FLUTTER="puro flutter"; else FLUTTER="f
 mkdir -p "$OUT/api-ctx"
 
 say "1/6 cross-compile API ($TARGET, statique)"
+# `cargo clean -p nubia-api` force la recompilation de NOTRE crate (les deps
+# restent en cache → build rapide). Sans ça, le cache CI (restore-keys
+# `deploy-rust-`) peut rejouer un `target/` où nubia-api est jugé à jour et
+# servir un binaire périmé — cause de fixes backend non déployés.
+( cd "$ROOT/api" && cargo clean -p nubia-api --release --target "$TARGET" 2>/dev/null || true )
 ( cd "$ROOT/api" && SQLX_OFFLINE=true cargo zigbuild --target "$TARGET" --release --bin nubia-api )
 cp "$ROOT/api/target/$TARGET/release/nubia-api" "$OUT/api-ctx/nubia-api"
 
