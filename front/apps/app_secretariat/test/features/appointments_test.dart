@@ -266,10 +266,10 @@ void main() {
           ),
         );
 
-    testWidgets('affiche le chargement en état Loading', (tester) async {
+    testWidgets('affiche le skeleton en état Loading', (tester) async {
       when(() => bloc.state).thenReturn(const AppointmentsLoading());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
     testWidgets('affiche le menu initial en état Initial', (tester) async {
