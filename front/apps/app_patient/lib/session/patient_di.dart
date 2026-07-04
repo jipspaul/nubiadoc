@@ -19,12 +19,34 @@ import '../features/messaging/messaging_bloc.dart';
 import '../features/home/home_bloc.dart';
 import '../features/notifications/notifications_bloc.dart';
 import '../features/oubliettes/oubliettes_bloc.dart';
+import '../features/pharmacy/my_pharmacy_cubit.dart';
+import '../features/pharmacy/pharmacy_search_cubit.dart';
+import '../features/pharmacy_orders/send_prescription_cubit.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/reviews/reviews_bloc.dart';
 import 'auth_cubit.dart';
 
 /// Registers patient-app blocs/cubits on top of registerCore + registerData.
 void registerPatient(GetIt gi) {
+  gi.registerFactory<MyPharmacyCubit>(
+    () => MyPharmacyCubit(
+      getMyPharmacy: gi<GetMyPharmacyUseCase>(),
+      setMyPharmacy: gi<SetMyPharmacyUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<PharmacySearchCubit>(
+    () => PharmacySearchCubit(search: gi<SearchPharmaciesUseCase>()),
+  );
+
+  gi.registerFactory<SendPrescriptionCubit>(
+    () => SendPrescriptionCubit(
+      listPrescriptions: gi<ListMyPrescriptionsUseCase>(),
+      getMyPharmacy: gi<GetMyPharmacyUseCase>(),
+      createOrder: gi<CreatePharmacyOrderUseCase>(),
+    ),
+  );
+
   gi.registerLazySingleton<AuthCubit>(
     () => AuthCubit(
       login: gi<LoginUseCase>(),

@@ -598,3 +598,68 @@ pub async fn send_prescription(
     );
     Ok((StatusCode::CREATED, Json(order)))
 }
+
+// ── GET /v1/account/prescriptions ─────────────────────────────────────────────
+
+/// Une ordonnance du patient (vue compte — id nécessaire pour l'envoi en
+/// pharmacie, lot F7).
+#[derive(Serialize)]
+pub struct AccountPrescriptionItem {
+    pub id: Uuid,
+    pub status: String,
+    pub document_id: Option<Uuid>,
+    pub created_at: String,
+    pub signed_at: Option<String>,
+}
+
+/// Réponse de `GET /v1/account/prescriptions`.
+#[derive(Serialize)]
+pub struct AccountPrescriptionsResponse {
+    pub data: Vec<AccountPrescriptionItem>,
+}
+
+/// `GET /v1/account/prescriptions` — ordonnances visibles par le compte
+/// patient (policy `prescription_patient_read`, 0109). Fournit les ids
+/// nécessaires à `POST /v1/account/prescriptions/{id}/order`.
+pub async fn list_account_prescriptions(
+    State(state): State<AppState>,
+    claims: crate::auth::PatientAccountClaims,
+) -> Result<Json<AccountPrescriptionsResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT id, status, document_id, created_at, signed_at \
+         FROM prescription WHERE deleted_at IS NULL \
+         ORDER BY created_at DESC LIMIT 100",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .iter()
+        .map(|row| {
+            Ok(AccountPrescriptionItem {
+                id: row.try_get("id").map_err(|_| AppError::Internal)?,
+                status: row.try_get("status").map_err(|_| AppError::Internal)?,
+                document_id: row.try_get("document_id").map_err(|_| AppError::Internal)?,
+                created_at: row
+                    .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .map_err(|_| AppError::Internal)?
+                    .to_rfc3339(),
+                signed_at: row
+                    .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("signed_at")
+                    .map_err(|_| AppError::Internal)?
+                    .map(|dt| dt.to_rfc3339()),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(AccountPrescriptionsResponse { data }))
+}

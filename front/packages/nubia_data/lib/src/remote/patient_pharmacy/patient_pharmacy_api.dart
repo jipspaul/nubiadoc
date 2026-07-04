@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/pharmacy_directory/pharmacy_dto.dart';
 import 'package:nubia_data/src/remote/pharmacy_orders/pharmacy_order_dto.dart';
+import 'package:nubia_data/src/remote/patient_pharmacy/patient_prescription_dto.dart';
 
 /// Pharmacie déclarée + commandes, espace patient (/v1/account/*).
 class PatientPharmacyApi {
@@ -67,5 +68,18 @@ class PatientPharmacyApi {
     final response = await _dio
         .get<Map<String, dynamic>>('/account/orders/$id/pickup-token');
     return response.data!['token'] as String;
+  }
+
+  /// GET /v1/account/prescriptions — ordonnances du compte.
+  Future<List<PatientPrescriptionDto>> listPrescriptions() async {
+    final response = await _dio.get<dynamic>('/account/prescriptions');
+    final raw = response.data;
+    final data = raw is List
+        ? raw
+        : ((raw as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
+            const []);
+    return data
+        .map((e) => PatientPrescriptionDto.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }

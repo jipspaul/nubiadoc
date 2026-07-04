@@ -28,8 +28,7 @@ Widget _wrap(SignupCubit cubit) => BlocProvider<SignupCubit>.value(
       ),
     );
 
-FilledButton _submitButton(WidgetTester tester) =>
-    tester.widget<FilledButton>(
+FilledButton _submitButton(WidgetTester tester) => tester.widget<FilledButton>(
       find.ancestor(
         of: find.text('Créer mon compte'),
         matching: find.byType(FilledButton),

@@ -53,8 +53,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       const SizedBox(height: 16),
                       TextButton(
                         onPressed: () => context.go('/forgot-password'),
-                        child:
-                            const Text('Demander un nouveau lien'),
+                        child: const Text('Demander un nouveau lien'),
                       ),
                     ],
                   ),
@@ -105,12 +104,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                             isLoading: loading,
                             onPressed: (!_formValid || loading)
                                 ? null
-                                : () => context
-                                    .read<ResetPasswordCubit>()
-                                    .submit(
-                                      token: token,
-                                      newPassword: _password.text,
-                                    ),
+                                : () =>
+                                    context.read<ResetPasswordCubit>().submit(
+                                          token: token,
+                                          newPassword: _password.text,
+                                        ),
                           ),
                         ],
                       ),

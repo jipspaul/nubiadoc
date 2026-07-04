@@ -11,7 +11,8 @@ import 'package:app_patient/features/forgot_password/forgot_password_page.dart';
 class MockForgotPasswordCubit extends MockCubit<ForgotPasswordState>
     implements ForgotPasswordCubit {}
 
-Widget _wrap(ForgotPasswordCubit cubit) => BlocProvider<ForgotPasswordCubit>.value(
+Widget _wrap(ForgotPasswordCubit cubit) =>
+    BlocProvider<ForgotPasswordCubit>.value(
       value: cubit,
       child: MaterialApp(
         theme: NubiaTheme.light,
@@ -71,8 +72,8 @@ void main() {
 
       await tester.pumpWidget(_wrap(cubit));
 
-      expect(
-          find.byKey(const Key('forgot_password_confirmation')), findsOneWidget);
+      expect(find.byKey(const Key('forgot_password_confirmation')),
+          findsOneWidget);
       expect(find.byKey(const Key('forgot_password_submit')), findsNothing);
     });
 

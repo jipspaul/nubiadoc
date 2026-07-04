@@ -57,8 +57,7 @@ void main() {
         when(() => mockAuth.restore()).thenAnswer((_) async {});
         return makeCubit();
       },
-      act: (c) =>
-          c.register('alice@example.com', 'secret', acceptCgu: true),
+      act: (c) => c.register('alice@example.com', 'secret', acceptCgu: true),
       expect: () => [isA<SignupLoading>(), isA<SignupSuccess>()],
       verify: (_) => verify(() => mockAuth.restore()).called(1),
     );
@@ -83,8 +82,7 @@ void main() {
         );
         return makeCubit();
       },
-      act: (c) =>
-          c.register('alice@example.com', 'secret', acceptCgu: true),
+      act: (c) => c.register('alice@example.com', 'secret', acceptCgu: true),
       expect: () => [
         isA<SignupLoading>(),
         isA<SignupFailure>()
@@ -107,8 +105,7 @@ void main() {
         );
         return makeCubit();
       },
-      act: (c) =>
-          c.register('alice@example.com', 'secret', acceptCgu: true),
+      act: (c) => c.register('alice@example.com', 'secret', acceptCgu: true),
       expect: () => [
         isA<SignupLoading>(),
         isA<SignupFailure>().having(

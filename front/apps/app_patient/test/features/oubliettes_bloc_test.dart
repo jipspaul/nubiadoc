@@ -39,8 +39,12 @@ void main() {
     expect: () => [
       const OubliettesLoading(),
       OubliettesLoaded([
-        OublietteItem(id: 'a', title: 'Ordonnance Dr Martin', seenAt: DateTime(2026, 6, 19)),
-        OublietteItem(id: 'b', title: 'Radio panoramique', seenAt: DateTime(2026, 6, 18)),
+        OublietteItem(
+            id: 'a',
+            title: 'Ordonnance Dr Martin',
+            seenAt: DateTime(2026, 6, 19)),
+        OublietteItem(
+            id: 'b', title: 'Radio panoramique', seenAt: DateTime(2026, 6, 18)),
       ]),
     ],
   );
@@ -60,7 +64,8 @@ void main() {
     'échec usecase → OubliettesError',
     build: () {
       when(() => getDocuments(category: any(named: 'category'))).thenAnswer(
-          (_) async => const Left(ServerFailure(message: 'boom', statusCode: 500)));
+          (_) async =>
+              const Left(ServerFailure(message: 'boom', statusCode: 500)));
       return build();
     },
     act: (b) => b.add(const OubliettesLoadRequested()),

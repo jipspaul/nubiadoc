@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_data/src/remote/patient_pharmacy/patient_pharmacy_api.dart';
 import 'package:nubia_data/src/repositories/pharmacy_failure_mapper.dart';
+import 'package:nubia_domain/src/entities/patient_prescription.dart';
 import 'package:nubia_domain/src/entities/pharmacy.dart';
 import 'package:nubia_domain/src/entities/pharmacy_order.dart';
 import 'package:nubia_domain/src/error/failure.dart';
@@ -65,5 +66,14 @@ class PatientPharmacyRepositoryImpl implements PatientPharmacyRepository {
       guardPharmacyCall(
         () => _api.getPickupToken(id),
         errorMessage: 'Impossible de générer le code de retrait.',
+      );
+
+  @override
+  Future<Either<Failure, List<PatientPrescription>>> listPrescriptions() =>
+      guardPharmacyCall(
+        () async => (await _api.listPrescriptions())
+            .map((dto) => dto.toDomain())
+            .toList(),
+        errorMessage: 'Impossible de charger vos ordonnances.',
       );
 }
