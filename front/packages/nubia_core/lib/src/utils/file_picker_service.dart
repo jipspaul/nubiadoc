@@ -49,6 +49,7 @@ class DefaultFilePickerService extends FilePickerService {
     final bytes = f.bytes;
     if (bytes == null) return null;
     return PickedFile(
+      // `PlatformFile.path` throws on web — bytes is the only reliable source there.
       path: kIsWeb ? null : f.path,
       name: f.name,
       mimeType: _mimeFromExtension(f.extension),
