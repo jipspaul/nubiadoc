@@ -8,6 +8,7 @@ import 'package:nubia_data/src/remote/payments_api.dart';
 import 'package:nubia_data/src/remote/search/search_dto.dart';
 import 'package:nubia_data/src/remote/notifications/notification_dto.dart';
 import 'package:nubia_data/src/remote/messaging/messaging_dto.dart';
+import 'package:nubia_data/src/remote/documents/document_dto.dart';
 import 'package:nubia_data/src/remote/billing/billing_dto.dart';
 
 void main() {
@@ -299,6 +300,44 @@ void main() {
       expect(c.cabinetName, 'Cabinet Lyon');
       expect(c.unreadCount, 0);
       expect(c.lastMessage, isNull);
+      // #3348 : le contrat liste renvoie `last_message_at` (pas d'aperçu
+      // texte) — on doit le mapper pour afficher l'horodatage du fil.
+      expect(c.lastMessageAt, DateTime.parse('2026-07-02T09:45:54Z'));
+    });
+
+    test('ConversationDto : last_message_at absent → lastMessageAt null', () {
+      final c = ConversationDto.fromJson({
+        'id': 'c1',
+        'cabinet_id': 'cab',
+        'cabinet_name': 'Cabinet Lyon',
+        'unread_count': 3,
+      }).toDomain();
+      expect(c.lastMessageAt, isNull);
+      expect(c.unreadCount, 3);
+    });
+
+    test('DocumentDto : size_bytes (contrat réel) → fileSizeBytes', () {
+      // #3349 : le champ réel est `size_bytes` (api/src/documents.rs).
+      final d = DocumentDto.fromJson({
+        'id': 'doc-1',
+        'category': 'devis',
+        'filename': 'Devis.pdf',
+        'mime_type': 'application/pdf',
+        'size_bytes': 204800,
+        'created_at': '2026-07-02T09:45:54Z',
+      }).toDomain();
+      expect(d.fileSizeBytes, 204800);
+    });
+
+    test('DocumentDto : size_bytes absent (contrat liste) → 0', () {
+      final d = DocumentDto.fromJson({
+        'id': 'doc-1',
+        'category': 'devis',
+        'filename': 'Devis.pdf',
+        'mime_type': 'application/pdf',
+        'created_at': '2026-07-02T09:45:54Z',
+      }).toDomain();
+      expect(d.fileSizeBytes, 0);
     });
 
     test('QuoteDto.fromSummaryJson : liste devis (total_amount_cents)', () {

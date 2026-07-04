@@ -11,12 +11,18 @@ class Conversation extends Equatable {
   final int unreadCount;
   final Message? lastMessage;
 
+  /// Horodatage du dernier message du fil (`last_message_at` du contrat liste).
+  /// `null` si le fil n'a encore aucun message. Le contrat liste ne renvoie
+  /// pas l'aperçu texte, d'où ce champ dédié pour afficher la date/heure.
+  final DateTime? lastMessageAt;
+
   const Conversation({
     required this.id,
     required this.cabinetId,
     required this.cabinetName,
     required this.unreadCount,
     this.lastMessage,
+    this.lastMessageAt,
   });
 
   @override

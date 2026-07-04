@@ -323,6 +323,8 @@ class _DocumentCard extends StatelessWidget {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
     final (icon, label) = _categoryMeta(doc.category);
+    final size = _formatSize(doc.fileSizeBytes);
+    final meta = size == null ? label : '$label · $size';
 
     return NubiaCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -350,7 +352,7 @@ class _DocumentCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$label · ${(doc.fileSizeBytes / 1024).round()} Ko',
+                  meta,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style:
@@ -369,6 +371,20 @@ class _DocumentCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Formate une taille en octets en libellé lisible (o / Ko / Mo).
+///
+/// Renvoie `null` quand la taille est inconnue (0) — le contrat liste
+/// `GET /v1/documents` (DocumentItem) ne renvoie pas encore `size_bytes` ;
+/// dans ce cas on masque la taille au lieu d'afficher « 0 Ko ».
+String? _formatSize(int bytes) {
+  if (bytes <= 0) return null;
+  if (bytes < 1024) return '$bytes o';
+  final ko = bytes / 1024;
+  if (ko < 1024) return '${ko.round()} Ko';
+  final mo = ko / 1024;
+  return '${mo.toStringAsFixed(mo < 10 ? 1 : 0)} Mo';
 }
 
 /// Icône + libellé français pour une catégorie de document.

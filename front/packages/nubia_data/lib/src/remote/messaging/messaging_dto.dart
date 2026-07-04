@@ -7,12 +7,17 @@ class ConversationDto {
   final int unreadCount;
   final MessageDto? lastMessage;
 
+  /// `last_message_at` du contrat `GET /v1/conversations` — horodatage ISO du
+  /// dernier message. Le contrat liste ne renvoie pas l'aperçu texte.
+  final String? lastMessageAt;
+
   const ConversationDto({
     required this.id,
     required this.cabinetId,
     required this.cabinetName,
     required this.unreadCount,
     this.lastMessage,
+    this.lastMessageAt,
   });
 
   factory ConversationDto.fromJson(Map<String, dynamic> json) =>
@@ -24,6 +29,7 @@ class ConversationDto {
         lastMessage: json['last_message'] == null
             ? null
             : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
+        lastMessageAt: json['last_message_at'] as String?,
       );
 
   Conversation toDomain() => Conversation(
@@ -32,6 +38,8 @@ class ConversationDto {
         cabinetName: cabinetName,
         unreadCount: unreadCount,
         lastMessage: lastMessage?.toDomain(),
+        lastMessageAt:
+            lastMessageAt == null ? null : DateTime.parse(lastMessageAt!),
       );
 }
 

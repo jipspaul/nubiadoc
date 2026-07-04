@@ -24,7 +24,10 @@ class DocumentDto {
         category: json['category'] as String,
         filename: json['filename'] as String,
         mimeType: json['mime_type'] as String,
-        fileSizeBytes: (json['file_size_bytes'] as num?)?.toInt() ??
+        // Contrat réel : le champ est `size_bytes` (api/src/documents.rs,
+        // DocumentDetail). On garde les anciens noms en repli par sûreté.
+        fileSizeBytes: (json['size_bytes'] as num?)?.toInt() ??
+            (json['file_size_bytes'] as num?)?.toInt() ??
             (json['size'] as num?)?.toInt() ??
             0,
         createdAt: json['created_at'] as String,
