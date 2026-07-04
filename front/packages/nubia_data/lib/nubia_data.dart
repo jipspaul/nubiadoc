@@ -23,6 +23,8 @@ export 'src/remote/notifications/notification_api.dart';
 export 'src/remote/notifications/notification_dto.dart';
 export 'src/remote/notifications/notification_preferences_dto.dart';
 export 'src/realtime/polling_pharmacy_order_events.dart';
+export 'src/realtime/ws_client.dart';
+export 'src/realtime/ws_pharmacy_order_events.dart';
 export 'src/remote/patient_pharmacy/patient_pharmacy_api.dart';
 export 'src/remote/patient_pharmacy/patient_prescription_dto.dart';
 export 'src/remote/pharmacy_directory/pharmacy_directory_api.dart';
