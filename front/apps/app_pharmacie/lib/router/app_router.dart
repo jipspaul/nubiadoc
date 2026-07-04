@@ -4,6 +4,7 @@ import 'package:nubia_core/nubia_core.dart';
 
 import '../features/home/pharma_home_page.dart';
 import '../features/login/login_page.dart';
+import '../features/order_detail/order_detail_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -37,6 +38,11 @@ class AppRouter {
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         GoRoute(path: orders, builder: (_, __) => const PharmaHomePage()),
+        GoRoute(
+          path: '/orders/:id',
+          builder: (_, state) =>
+              OrderDetailPage(orderId: state.pathParameters['id']!),
+        ),
         GoRoute(path: stock, builder: (_, __) => const PharmaHomePage()),
         GoRoute(path: messages, builder: (_, __) => const PharmaHomePage()),
         GoRoute(path: devis, builder: (_, __) => const PharmaHomePage()),

@@ -243,3 +243,47 @@ Tables avec en-têtes ; mises à jour live annoncées discrètement ; navigation
 - Étant donné le rôle secrétariat, quand j'ouvre une fiche patient, alors le contenu clinique n'est pas accessible (403 / masqué).
 
 > Les écrans secondaires (onboarding, profil/compte, suivi, plan de traitement, passeport, espace financier) suivent le **même gabarit** + la bibliothèque `01-composants.md`. À spécifier au fil de l'implémentation.
+
+---
+
+## Écran G — Pharmacie : file de commandes & retrait (lot F4, épic #3323)
+
+### Overview
+File des commandes click-and-collect de l'app pharmacie (`apps/app_pharmacie`). Le pharmacien voit les ordonnances transmises, filtre par statut, ouvre le détail, fait avancer la commande (`Reçue → En préparation → Prête → Retirée`) et consulte le PDF signé. Zéro donnée clinique : seul le nom minimisé (« Prénom N. ») et le PDF sont visibles.
+
+### Layout
+Desktop/tablet dans `ProShell` (rail gauche). Colonne : rangée de chips de filtre (Toutes/Reçues/En préparation/Prêtes) puis liste `ListRow`. Détail sur route dédiée `/orders/:id` : `PickupInfoCard` (patient minimisé, pill, horodatages), bouton secondaire « Ouvrir l'ordonnance (PDF) », bouton d'action contextuel unique.
+
+### Design tokens
+| Token | Usage |
+|---|---|
+| `infoBg/infoFg` | Pill « Reçue », « Retirée » |
+| `warningBg/warningFg` | Pill « En préparation » |
+| `successBg/successFg` | Pill « Prête » |
+| `dangerBg/dangerFg` | Pill « Refusée », « Annulée » |
+
+### Composants
+`NubiaChip` (filtres), `ListRow`, `StatusPill` (mapping unique `order_status_pill.dart`), `NubiaCard`, `NubiaButton` (primaire = action contextuelle, secondaire = PDF/refus), `NubiaEmptyState`, `NubiaErrorWidget`, `NubiaSkeletonLoader`.
+
+### États & interactions
+| État | Comportement |
+|---|---|
+| Chargement | 3 skeletons |
+| Vide | EmptyState « Aucune commande » |
+| Erreur | `NubiaErrorWidget` + réessayer |
+| Reçue | Boutons « Commencer la préparation » (primaire) + « Refuser la commande » (secondaire, motif obligatoire en dialogue) |
+| En préparation | « Marquer prête » |
+| Prête | « Scanner le retrait » (→ lot F5) |
+| Terminal | Aucune action |
+| Action en cours | Bouton en loading, double-tap bloqué |
+
+### Edge cases
+Transition refusée par le serveur (409) → message d'erreur, état rechargeable. Fil rafraîchi par le temps réel (polling puis WS) : la file se met à jour sans action. Pull-to-refresh (pattern Completer).
+
+### A11y
+Pills = texte + couleur (AA), cibles ≥ 44 px, clavier desktop, motif de refus obligatoire annoncé dans le dialogue.
+
+### Critères d'acceptation
+- Étant donné une commande « Reçue », quand le pharmacien tape « Commencer la préparation », alors le statut passe à « En préparation » et le patient est notifié.
+- Étant donné un refus sans motif saisi, alors l'action est bloquée.
+- Étant donné une commande d'une autre pharmacie, alors elle n'apparaît jamais (RLS, 404).

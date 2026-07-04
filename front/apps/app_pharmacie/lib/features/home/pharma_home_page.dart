@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pharma_config.dart';
 import '../../session/pharma_auth_cubit.dart';
+import '../orders/orders_bloc.dart';
+import '../orders/orders_event.dart';
+import '../orders/orders_page.dart';
 
 /// Entry point for the authenticated pharmacie home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile).
 ///
-/// Squelette (lot F3) : chaque destination affiche le placeholder par défaut
-/// du shell — les écrans métier arrivent avec les lots F4–F6.
+/// La destination « Commandes » affiche la file (lot F4) ; les autres
+/// destinations gardent le placeholder du shell (lots F5–F6).
 class PharmaHomePage extends StatelessWidget {
   const PharmaHomePage({super.key});
 
@@ -29,6 +34,21 @@ class PharmaHomePage extends StatelessWidget {
       config: PharmaConfig.shellConfig,
       session: session,
       onSignOut: () => context.read<PharmaAuthCubit>().signOut(),
+      bodyBuilder: (ctx, destination) {
+        if (destination.route == PharmaConfig.ordersRoute) {
+          return BlocProvider<OrdersBloc>(
+            create: (_) =>
+                GetIt.instance<OrdersBloc>()..add(const OrdersSubscribed()),
+            child: const OrdersView(),
+          );
+        }
+        // Placeholder par défaut du shell pour les destinations à venir.
+        return NubiaEmptyState(
+          icon: destination.icon,
+          title: destination.label,
+          subtitle: 'Bientôt disponible.',
+        );
+      },
     );
   }
 }
