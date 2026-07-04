@@ -8,11 +8,22 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
+import '../admin_membres/admin_membres_bloc.dart';
+import '../admin_membres/admin_membres_page.dart';
 import '../admin_secretariats/admin_secretariats_bloc.dart';
 import '../admin_secretariats/admin_secretariats_page.dart';
 import '../agenda/agenda_page.dart';
 import '../bookable_slots/bookable_slots_bloc.dart';
 import '../bookable_slots/bookable_slots_page.dart';
+import '../cabinet_messaging/cabinet_messaging_bloc.dart';
+import '../cabinet_messaging/cabinet_messaging_event.dart';
+import '../cabinet_messaging/cabinet_messaging_page.dart';
+import '../devis/devis_bloc.dart';
+import '../devis/devis_page.dart';
+import '../patients/patients_bloc.dart';
+import '../patients/patients_page.dart';
+import '../waiting_list/waiting_list_bloc.dart';
+import '../waiting_list/waiting_list_page.dart';
 import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
@@ -64,6 +75,32 @@ class DashboardPage extends StatelessWidget {
           body = BlocProvider(
             create: (_) => GetIt.instance<BookableSlotsBloc>(),
             child: const BookableSlotsBody(),
+          );
+        } else if (destination.route == '/liste-attente') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<WaitingListBloc>(),
+            child: const WaitingListPage(),
+          );
+        } else if (destination.route == '/patients') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<PatientsBloc>(),
+            child: const PatientsPage(),
+          );
+        } else if (destination.route == '/devis') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<DevisBloc>(),
+            child: const DevisPage(),
+          );
+        } else if (destination.route == '/messages') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<CabinetMessagingBloc>()
+              ..add(const CabinetMessagingConversationsLoadRequested()),
+            child: const CabinetMessagingPage(),
+          );
+        } else if (destination.route == '/admin-membres') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<AdminMembresBloc>(),
+            child: const AdminMembresPage(),
           );
         } else {
           body = Center(
