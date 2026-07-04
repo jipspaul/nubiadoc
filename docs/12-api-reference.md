@@ -522,7 +522,7 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 
 **Messagerie patient ↔ pharmacie (lot B6)** : `conversation`/`message` généralisés (scope `patient_pharmacy`, ancre `pharmacy_id`, `sender_kind='pharmacist'`, nom patient minimisé dénormalisé). Cloisonnement triadique préservé : un cabinet ne voit jamais un fil pharmacie et réciproquement (pgTAP). Patient : `POST /v1/conversations {pharmacy_id, subject?}` (XOR `cabinet_id`, 422 sinon), puis fils/messages/read habituels (`cabinet_id` null → sentinel nil, nom du destinataire = pharmacie). Pharmacie : `GET /v1/pharmacy/conversations`, `GET|POST …/{id}/messages`, `POST …/{id}/read` — mêmes formes JSON que `/v1/cabinet/*`, `triage_flag` forcé `normal` (la priorisation d'urgence reste un outil cabinet). Canal WS `conversation:<id>` étendu au `kind:"pharma"`.
 
-Les devis pharmacie arrivent avec le lot B7 (issue #3312).
+**Devis d'officine (lot B7)** : `pharmacy_quote` — produits + prix TTC en **centimes**, rattaché à une commande (`order_id`), volontairement distinct du devis dentaire `quote` (CCAM/AMO/AMC, eIDAS). Cycle `draft → sent → accepted|refused` (+ `expired`). Pharmacie : `GET|POST /v1/pharmacy/quotes` (création par `pharmacist`/`admin`, total calculé serveur), `POST …/{id}/send` (notifie le patient sans PII + WS). Patient : `GET /v1/account/pharmacy-quotes` (**jamais les brouillons**, RLS), `POST …/{id}/accept|refuse` (décision définitive — un devis décidé n'est plus modifiable, ni par le patient ni par la pharmacie).
 
 ---
 

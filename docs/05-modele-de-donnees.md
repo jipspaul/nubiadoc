@@ -701,3 +701,6 @@ pharmacy_order(id, pharmacy_id FK, cabinet_id FK, patient_account_id FK,
 
 ### 11.4 Messagerie pharmacie (lot B6, migration 0126)
 `conversation.pharmacy_id` + `patient_display_name` (nom minimisé) ; `cabinet_id` rendu nullable avec CHECK d'ancre (`cabinet_id OU pharmacy_id`) et CHECK de scope (`pharmacy_id ⇔ scope='patient_pharmacy'`) ; unique partiel (compte, pharmacie). `message.pharmacy_id` (même CHECK d'ancre), `sender_kind` étendu à `'pharmacist'`. Policies `conversation_pharmacy_all`/`message_pharmacy_all` (GUC `app.current_pharmacy_id`). Cloisonnement triadique testé (45_conversation_pharmacy_rls).
+
+### 11.5 Devis d'officine (lot B7, migration 0127)
+`pharmacy_quote(pharmacy_id, patient_account_id, order_id FK pharmacy_order, pharmacy_name, patient_display_name, items jsonb [{label, qty, unit_price_cents}], total_cents bigint, currency, status CHECK ('draft','sent','accepted','refused','expired'), sent_at, decided_at, timestamps)`. Deux ancres RLS : pharmacie (cycle complet, WITH CHECK interdit de forger la décision) ; patient (SELECT hors brouillons, UPDATE `sent → accepted|refused` uniquement — décision définitive). Pas de DELETE.

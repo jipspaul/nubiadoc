@@ -7,4 +7,5 @@
 pub mod directory;
 pub mod messaging;
 pub mod orders;
+pub mod quotes;
 pub mod stock;
