@@ -30,6 +30,7 @@ mod marketplace;
 mod medical_record;
 mod messaging;
 mod notifications;
+mod pharmacy;
 mod prescriptions;
 mod provider_secretariat;
 mod realtime;
@@ -207,6 +208,14 @@ fn build_router(
         .route(
             "/v1/auth/select-context",
             post(auth::select_context::select_context),
+        )
+        .route(
+            "/v1/auth/select-pharmacy-context",
+            post(auth::select_pharmacy_context::select_pharmacy_context),
+        )
+        .route(
+            "/v1/pharmacies",
+            get(pharmacy::directory::search_pharmacies),
         )
         .route("/v1/auth/mfa/enroll", post(auth::mfa_enroll::mfa_enroll))
         .route("/v1/auth/mfa/verify", post(auth::mfa_verify::mfa_verify))

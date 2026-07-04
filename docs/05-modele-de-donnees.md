@@ -654,3 +654,22 @@ CREATE TABLE assistant_query (        -- post-MVP, audit/observabilité de l'ass
 
 ### 10.9 Catégories de documents (ajouts)
 `document.category` accueille : `carte_mutuelle`, `ordonnance` (déjà), `passeport_implantaire`, `consentement`. (Énum applicative, pas de migration de type.)
+
+## 11. Extension pharmacie (épic #3323)
+
+### 11.1 Tenant pharmacie (lot B1, migrations 0121–0122)
+La pharmacie est un **tenant dédié**, distinct du cabinet, avec son propre GUC RLS `app.current_pharmacy_id` (cloisonnement structurel, `07` §4) :
+
+```
+pharmacy(id, raison_sociale, siret, finess, address jsonb, geo geography(Point,4326),
+         phone, settings jsonb, is_listed bool, created_at, updated_at, deleted_at)
+pharmacy_membership(id, pharmacy_id FK, user_id FK app_user,
+                    role CHECK ('pharmacist','preparator','admin'),
+                    active bool, created_at, left_at, UNIQUE(pharmacy_id, user_id))
+```
+
+- RLS FORCE sur les deux tables : policy tenant (`id`/`pharmacy_id` = GUC), plus `pharmacy_public_read` (SELECT seul, `is_listed AND deleted_at IS NULL`) pour l'annuaire `GET /v1/pharmacies`.
+- `user_pharmacy_memberships(user_id)` (SECURITY DEFINER, pattern 0089) alimente `GET /v1/me` et `POST /v1/auth/select-pharmacy-context`.
+- Index GIST sur `geo` (recherche de proximité PostGIS).
+
+À venir (lots B2–B7, issues #3307–#3312) : `pharmacy_order` (partage d'ordonnance cross-tenant + commande click-and-collect), `stock_request`, extension `conversation`/`message` (scope `patient_pharmacy`), `pharmacy_quote`.
