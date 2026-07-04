@@ -107,6 +107,8 @@ struct AnyClaims {
     cabinet_id: Option<Uuid>,
     #[serde(default)]
     account_id: Option<Uuid>,
+    #[serde(default)]
+    pharmacy_id: Option<Uuid>,
 }
 
 /// Contexte extrait du JWT, porté pour toute la durée de la connexion.
@@ -115,6 +117,7 @@ struct WsSession {
     kind: String,
     cabinet_id: Option<Uuid>,
     account_id: Option<Uuid>,
+    pharmacy_id: Option<Uuid>,
 }
 
 fn resolve_token(query: &WsQuery, headers: &HeaderMap) -> Option<String> {
@@ -139,6 +142,7 @@ fn verify_jwt(token: &str, secret: &str) -> Option<WsSession> {
             kind: d.claims.kind,
             cabinet_id: d.claims.cabinet_id,
             account_id: d.claims.account_id,
+            pharmacy_id: d.claims.pharmacy_id,
         })
 }
 
@@ -310,6 +314,38 @@ async fn handle_client_op(
                     return json!({"error": "unknown_channel"}).to_string();
                 };
                 if !authorize_patient_queue(db, session, appointment_id).await {
+                    return json!({"error": "forbidden", "channel": channel}).to_string();
+                }
+                spawn_bridge(
+                    bc_task,
+                    bc_tx,
+                    BridgeSource::Named(hub.subscribe_named(channel)),
+                );
+                return json!({"op": "subscribed", "channel": channel}).to_string();
+            }
+
+            // ── pharmacy_orders:<uuid> : staff de la pharmacie uniquement ────
+            if let Some(id) = channel.strip_prefix("pharmacy_orders:") {
+                let Ok(pharmacy_id) = Uuid::parse_str(id) else {
+                    return json!({"error": "unknown_channel"}).to_string();
+                };
+                if session.kind != "pharma" || session.pharmacy_id != Some(pharmacy_id) {
+                    return json!({"error": "forbidden", "channel": channel}).to_string();
+                }
+                spawn_bridge(
+                    bc_task,
+                    bc_tx,
+                    BridgeSource::Named(hub.subscribe_named(channel)),
+                );
+                return json!({"op": "subscribed", "channel": channel}).to_string();
+            }
+
+            // ── account_orders:<uuid> : patient titulaire uniquement ─────────
+            if let Some(id) = channel.strip_prefix("account_orders:") {
+                let Ok(account_id) = Uuid::parse_str(id) else {
+                    return json!({"error": "unknown_channel"}).to_string();
+                };
+                if session.kind != "patient" || session.account_id != Some(account_id) {
                     return json!({"error": "forbidden", "channel": channel}).to_string();
                 }
                 spawn_bridge(

@@ -423,6 +423,8 @@ pub struct SendPrescriptionBody {
 ///   evidence `{channel, collected_by}`) ; transition `signed → sent`.
 pub async fn send_prescription(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<crate::realtime::WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn crate::JobDispatcher>>,
     claims: ProPractitionerClaims,
     Path(prescription_id): Path<Uuid>,
     Json(body): Json<SendPrescriptionBody>,
@@ -562,9 +564,32 @@ pub async fn send_prescription(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    let order = crate::pharmacy::orders::order_from_row(&order_row)?;
+
+    // Notification du staff pharmacie « nouvelle commande » (lot B4).
+    let staff = crate::notify::notify_pharmacy_staff(
+        &mut tx,
+        body.pharmacy_id,
+        "order_received",
+        "Nouvelle commande reçue",
+        serde_json::json!({ "order_id": order.id, "status": "received" }),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let order = crate::pharmacy::orders::order_from_row(&order_row)?;
+    for (app_user_id, notification_id) in staff {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("pharmacy_orders:{}", body.pharmacy_id),
+        crate::notify::order_event(
+            &format!("pharmacy_orders:{}", body.pharmacy_id),
+            order.id,
+            "received",
+        ),
+    );
+
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
         prescription_id = %prescription_id,

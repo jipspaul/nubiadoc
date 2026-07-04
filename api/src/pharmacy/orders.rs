@@ -26,7 +26,9 @@ use crate::{
         AppError, PatientAccountClaims, PharmaMemberClaims, PharmaPharmacistClaims,
         ProSecretaryPlusClaims,
     },
-    AppState, StorageSigner,
+    notify,
+    realtime::WsHub,
+    AppState, JobDispatcher, StorageSigner,
 };
 
 // ── DTO commun ────────────────────────────────────────────────────────────────
@@ -254,6 +256,8 @@ pub struct CreateOrderBody {
 ///   evidence `{channel:"in_app"}`) ; `prescription.status` → `sent`.
 pub async fn create_account_order(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(prescription_id): Path<Uuid>,
     Json(body): Json<CreateOrderBody>,
@@ -385,9 +389,32 @@ pub async fn create_account_order(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    let order = order_from_row(&order_row)?;
+
+    // Notification du staff pharmacie « nouvelle commande » (lot B4).
+    let staff = notify::notify_pharmacy_staff(
+        &mut tx,
+        body.pharmacy_id,
+        "order_received",
+        "Nouvelle commande reçue",
+        serde_json::json!({ "order_id": order.id, "status": "received" }),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let order = order_from_row(&order_row)?;
+    for (app_user_id, notification_id) in staff {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("pharmacy_orders:{}", body.pharmacy_id),
+        notify::order_event(
+            &format!("pharmacy_orders:{}", body.pharmacy_id),
+            order.id,
+            "received",
+        ),
+    );
+
     tracing::info!(order_id = %order.id, "pharmacy order created by patient");
     Ok((StatusCode::CREATED, Json(order)))
 }
@@ -637,6 +664,8 @@ struct Transition<'a> {
 
 async fn pharmacy_transition(
     state: &AppState,
+    hub: &Arc<WsHub>,
+    dispatcher: &Arc<dyn JobDispatcher>,
     pharmacy_id: Uuid,
     actor_id: Uuid,
     t: Transition<'_>,
@@ -682,13 +711,18 @@ async fn pharmacy_transition(
 
     let order = order_from_row(&row)?;
 
-    // Audit dans le journal du cabinet d'origine (valeur DB, jamais client).
-    let cabinet_id: Uuid = sqlx::query("SELECT cabinet_id FROM pharmacy_order WHERE id = $1")
-        .bind(order_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?
+    // Audit dans le journal du cabinet d'origine (valeurs DB, jamais client).
+    let anchors =
+        sqlx::query("SELECT cabinet_id, patient_account_id FROM pharmacy_order WHERE id = $1")
+            .bind(order_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = anchors
         .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    let patient_account_id: Uuid = anchors
+        .try_get("patient_account_id")
         .map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
@@ -707,18 +741,53 @@ async fn pharmacy_transition(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Notification in-app du patient (titre générique, zéro PII — lot B4).
+    let pushed = notify::notify_patient_account(
+        &mut tx,
+        patient_account_id,
+        "order_status_changed",
+        "Votre commande a été mise à jour",
+        serde_json::json!({ "order_id": order_id, "status": order.status }),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push FCM + temps réel APRÈS commit (fire-and-forget, zéro PII).
+    if let Some((app_user_id, notification_id)) = pushed {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("pharmacy_orders:{pharmacy_id}"),
+        notify::order_event(
+            &format!("pharmacy_orders:{pharmacy_id}"),
+            order_id,
+            &order.status,
+        ),
+    );
+    hub.publish_named(
+        &format!("account_orders:{patient_account_id}"),
+        notify::order_event(
+            &format!("account_orders:{patient_account_id}"),
+            order_id,
+            &order.status,
+        ),
+    );
     Ok(order)
 }
 
 /// `POST /v1/pharmacy/orders/{id}/accept` — received → preparing.
 pub async fn accept_pharmacy_order(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDto>, AppError> {
     let order = pharmacy_transition(
         &state,
+        &hub,
+        &dispatcher,
         claims.pharmacy_id,
         claims.sub,
         Transition {
@@ -741,11 +810,15 @@ pub async fn accept_pharmacy_order(
 /// `POST /v1/pharmacy/orders/{id}/ready` — preparing → ready.
 pub async fn ready_pharmacy_order(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDto>, AppError> {
     let order = pharmacy_transition(
         &state,
+        &hub,
+        &dispatcher,
         claims.pharmacy_id,
         claims.sub,
         Transition {
@@ -776,6 +849,8 @@ pub struct RejectOrderBody {
 /// Motif obligatoire → 422 si vide.
 pub async fn reject_pharmacy_order(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PharmaPharmacistClaims,
     Path(id): Path<Uuid>,
     Json(body): Json<RejectOrderBody>,
@@ -786,6 +861,8 @@ pub async fn reject_pharmacy_order(
     }
     let order = pharmacy_transition(
         &state,
+        &hub,
+        &dispatcher,
         claims.pharmacy_id,
         claims.sub,
         Transition {
@@ -809,6 +886,8 @@ pub async fn reject_pharmacy_order(
 /// (réservé au patient titulaire ; une commande prête n'est plus annulable).
 pub async fn cancel_account_order(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDto>, AppError> {
@@ -869,7 +948,37 @@ pub async fn cancel_account_order(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Notification du staff pharmacie (annulation patient — lot B4).
+    let staff = notify::notify_pharmacy_staff(
+        &mut tx,
+        order.pharmacy_id,
+        "order_status_changed",
+        "Commande annulée par le patient",
+        serde_json::json!({ "order_id": id, "status": "cancelled" }),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    for (app_user_id, notification_id) in staff {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("pharmacy_orders:{}", order.pharmacy_id),
+        notify::order_event(
+            &format!("pharmacy_orders:{}", order.pharmacy_id),
+            id,
+            "cancelled",
+        ),
+    );
+    hub.publish_named(
+        &format!("account_orders:{}", claims.account_id),
+        notify::order_event(
+            &format!("account_orders:{}", claims.account_id),
+            id,
+            "cancelled",
+        ),
+    );
     Ok(Json(order))
 }
 
@@ -959,6 +1068,8 @@ pub struct PickupScanBody {
 /// - Succès : transition atomique single-use (`WHERE … AND status = 'ready'`).
 pub async fn pickup_scan(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PharmaMemberClaims,
     Json(body): Json<PickupScanBody>,
 ) -> Result<Json<OrderDto>, AppError> {
@@ -1022,12 +1133,17 @@ pub async fn pickup_scan(
 
     let order = order_from_row(&row)?;
 
-    let cabinet_id: Uuid = sqlx::query("SELECT cabinet_id FROM pharmacy_order WHERE id = $1")
-        .bind(order.id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?
+    let anchors =
+        sqlx::query("SELECT cabinet_id, patient_account_id FROM pharmacy_order WHERE id = $1")
+            .bind(order.id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = anchors
         .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    let patient_account_id: Uuid = anchors
+        .try_get("patient_account_id")
         .map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
@@ -1045,7 +1161,37 @@ pub async fn pickup_scan(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Notification patient « commande retirée » (lot B4).
+    let pushed = notify::notify_patient_account(
+        &mut tx,
+        patient_account_id,
+        "order_status_changed",
+        "Votre commande a été retirée",
+        serde_json::json!({ "order_id": order.id, "status": "picked_up" }),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    if let Some((app_user_id, notification_id)) = pushed {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("pharmacy_orders:{}", claims.pharmacy_id),
+        notify::order_event(
+            &format!("pharmacy_orders:{}", claims.pharmacy_id),
+            order.id,
+            "picked_up",
+        ),
+    );
+    hub.publish_named(
+        &format!("account_orders:{patient_account_id}"),
+        notify::order_event(
+            &format!("account_orders:{patient_account_id}"),
+            order.id,
+            "picked_up",
+        ),
+    );
 
     tracing::info!(order_id = %order.id, "pharmacy order picked up");
     Ok(Json(order))

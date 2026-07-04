@@ -30,6 +30,7 @@ mod marketplace;
 mod medical_record;
 mod messaging;
 mod notifications;
+mod notify;
 mod pharmacy;
 mod prescriptions;
 mod provider_secretariat;
@@ -78,6 +79,9 @@ pub trait JobDispatcher: Send + Sync {
     fn enqueue_verify_provider(&self, verification_id: Uuid);
     /// Enfile un job de notification cabinet suite à une demande de rappel patient.
     fn enqueue_notify_callback(&self, appointment_id: Uuid, cabinet_id: Uuid);
+    /// Enfile l'envoi du push FCM d'une notification in-app (payload sans PII :
+    /// le contenu réel est chargé authentifié à l'ouverture). Fire-and-forget.
+    fn enqueue_push_notification(&self, app_user_id: Uuid, notification_id: Uuid);
 }
 
 /// Implémentation no-op pour les tests et le dev local.
@@ -86,6 +90,7 @@ pub struct StubJobDispatcher;
 impl JobDispatcher for StubJobDispatcher {
     fn enqueue_verify_provider(&self, _verification_id: Uuid) {}
     fn enqueue_notify_callback(&self, _appointment_id: Uuid, _cabinet_id: Uuid) {}
+    fn enqueue_push_notification(&self, _app_user_id: Uuid, _notification_id: Uuid) {}
 }
 
 /// Secret Stripe pour la vérification HMAC-SHA256 des webhooks.
