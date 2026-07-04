@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../cache/appointments_cache.dart';
@@ -67,6 +68,8 @@ import '../repositories/stock_requests_repository_impl.dart';
 import '../repositories/user_settings_repository_impl.dart';
 import '../repositories/waiting_room_repository_impl.dart';
 import '../realtime/polling_pharmacy_order_events.dart';
+import '../realtime/ws_client.dart';
+import '../realtime/ws_pharmacy_order_events.dart';
 
 /// Registers the data layer: Dio APIs, repository implementations and use cases.
 ///
@@ -211,7 +214,17 @@ void _registerPatientPharmacy(GetIt gi) {
       () => PharmacyQuotesRepositoryImpl(gi()),
     )
     ..registerLazySingleton<PharmacyOrderEventsPort>(
-      () => PollingPharmacyOrderEvents(
+      // WebSocket (lot F10) avec fallback polling — swap invisible pour
+      // les blocs (même port).
+      () => WsPharmacyOrderEvents(
+        client: WsClient(
+          baseWsUrl: _wsUrl(),
+          accessTokenProvider: () => gi<TokenStorage>().getAccessToken(),
+        ),
+        accessTokenProvider: () => gi<TokenStorage>().getAccessToken(),
+        fallback: PollingPharmacyOrderEvents(
+          fetchOrder: (id) => gi<PatientPharmacyRepository>().getOrder(id),
+        ),
         fetchOrder: (id) => gi<PatientPharmacyRepository>().getOrder(id),
       ),
       dispose: (port) => port.dispose(),
@@ -257,7 +270,17 @@ void _registerPharmacy(GetIt gi) {
       () => CabinetMessageRepositoryImpl(gi()),
     )
     ..registerLazySingleton<PharmacyOrderEventsPort>(
-      () => PollingPharmacyOrderEvents(
+      // WebSocket (lot F10) avec fallback polling — swap invisible pour
+      // les blocs (même port).
+      () => WsPharmacyOrderEvents(
+        client: WsClient(
+          baseWsUrl: _wsUrl(),
+          accessTokenProvider: () => gi<TokenStorage>().getAccessToken(),
+        ),
+        accessTokenProvider: () => gi<TokenStorage>().getAccessToken(),
+        fallback: PollingPharmacyOrderEvents(
+          fetchOrders: () => gi<PharmacyOrdersRepository>().list(),
+        ),
         fetchOrders: () => gi<PharmacyOrdersRepository>().list(),
       ),
       dispose: (port) => port.dispose(),
@@ -278,6 +301,12 @@ void _registerPharmacy(GetIt gi) {
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
     ..registerFactory(() => SendMessageCabinetUseCase(gi()));
+}
+
+/// URL du WebSocket dérivée de l'API base (http→ws, /v1 → /v1/ws).
+String _wsUrl() {
+  final base = ApiConstants.baseUrl.replaceFirst('http', 'ws');
+  return base.endsWith('/') ? '${base}ws' : '$base/ws';
 }
 
 void _registerUseCases(GetIt gi) {
