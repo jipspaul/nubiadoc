@@ -23,6 +23,16 @@ class SearchApi {
         .toList();
   }
 
+  /// POST /v1/search/parse → { query:{...}, interpretation, source }.
+  /// Interprète une recherche en langage naturel (spécialité, lieu, secteur…).
+  Future<ParsedSearchDto> parseSearch(String query) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/search/parse',
+      data: {'q': query.trim()},
+    );
+    return ParsedSearchDto.fromJson(response.data ?? const {});
+  }
+
   /// GET /v1/providers/:id/availability → { data: [AvailabilitySlotItem] }.
   /// 50 prochains créneaux ouverts du praticien.
   Future<List<SlotDto>> searchSlots({

@@ -169,6 +169,54 @@ void main() {
       expect(find.byType(ProviderCard), findsNWidgets(3));
       expect(find.text('Dr Martin'), findsOneWidget);
     });
+
+    testWidgets('affiche la carte plein écran + chips de filtres rapides',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(
+            providers: providers, query: 'dentiste'),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<AppointmentsBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Carte immersive + feuille de résultats + chips.
+      expect(find.byKey(const Key('providers_map')), findsOneWidget);
+      expect(find.byKey(const Key('providers_list')), findsOneWidget);
+      expect(find.byKey(const Key('quick_filters')), findsOneWidget);
+    });
+
+    testWidgets(
+        'tap sur une ProviderCard ouvre le détail « Voir les créneaux »',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(
+            providers: providers, query: 'dentiste'),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<AppointmentsBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('provider_p1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('sheet_see_slots')), findsOneWidget);
+      expect(find.text('Voir les créneaux'), findsOneWidget);
+    });
   });
 
   group('AppointmentsBloc', () {

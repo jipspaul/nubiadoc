@@ -208,6 +208,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetProviderReviewsUseCase(gi()))
     ..registerFactory(() => SubmitReviewUseCase(gi()))
     // search
+    ..registerFactory(() => ParseSearchUseCase(gi()))
     ..registerFactory(() => SearchProvidersUseCase(gi()))
     ..registerFactory(() => SearchSlotsUseCase(gi()))
     ..registerFactory(() => HoldSlotUseCase(gi()))

@@ -10,7 +10,6 @@ import 'package:nubia_data/src/remote/notifications/notification_dto.dart';
 import 'package:nubia_data/src/remote/messaging/messaging_dto.dart';
 import 'package:nubia_data/src/remote/billing/billing_dto.dart';
 
-
 void main() {
   group('AppointmentDto (POST /v1/appointments/:id/cancel response)', () {
     test('fromJson désérialise un RDV annulé', () {
@@ -123,7 +122,9 @@ void main() {
   });
 
   group('DashboardDto (GET /v1/dashboard)', () {
-    test('fromJson désérialise un patient avec données (next_appointment, to_sign, to_pay)', () {
+    test(
+        'fromJson désérialise un patient avec données (next_appointment, to_sign, to_pay)',
+        () {
       final json = {
         'next_appointment': {
           'appointment_id': 'appt-abc',
@@ -152,7 +153,8 @@ void main() {
       expect(domain.pendingPaymentsCents, 5000);
     });
 
-    test('fromJson désérialise un patient sans données (null / listes vides)', () {
+    test('fromJson désérialise un patient sans données (null / listes vides)',
+        () {
       final json = {
         'next_appointment': null,
         'to_sign': [],
@@ -193,7 +195,8 @@ void main() {
       expect(domain.ratingAvg, 4.6);
     });
 
-    test('specialty null → libellé de repli, pas de geo → hasLocation false', () {
+    test('specialty null → libellé de repli, pas de geo → hasLocation false',
+        () {
       final dto = ProviderResultDto.fromJson({
         'provider_id': 'p1',
         'display_name': 'Cabinet X',
@@ -202,6 +205,41 @@ void main() {
       final domain = dto.toDomain();
       expect(domain.specialty, 'Praticien');
       expect(domain.hasLocation, isFalse);
+    });
+  });
+
+  group('ParsedSearchDto (POST /v1/search/parse)', () {
+    test('parse query structurée + interpretation + source', () {
+      final dto = ParsedSearchDto.fromJson({
+        'query': {
+          'q': 'dentiste',
+          'specialty': 'Chirurgie dentaire',
+          'place': 'Bastille',
+          'near': 'Paris',
+          'sector': '1',
+          'available': true,
+          'teleconsult': false,
+        },
+        'interpretation': 'Dentiste secteur 1 près de Bastille',
+        'source': 'llm',
+      });
+      final domain = dto.toDomain();
+      expect(domain.query.q, 'dentiste');
+      expect(domain.query.specialty, 'Chirurgie dentaire');
+      expect(domain.query.sector, '1');
+      expect(domain.query.available, isTrue);
+      expect(domain.query.teleconsult, isFalse);
+      expect(domain.interpretation, 'Dentiste secteur 1 près de Bastille');
+      expect(domain.source, 'llm');
+    });
+
+    test('champs absents → valeurs de repli (q vide, source keywords)', () {
+      final dto = ParsedSearchDto.fromJson({'query': {}});
+      final domain = dto.toDomain();
+      expect(domain.query.q, '');
+      expect(domain.query.specialty, isNull);
+      expect(domain.interpretation, '');
+      expect(domain.source, 'keywords');
     });
   });
 
@@ -222,8 +260,11 @@ void main() {
   group('Contrats réels vérifiés sur env déployé (QA)', () {
     test('NotificationDto : kind→type, is_read→read, pas de body', () {
       final dto = NotificationDto.fromJson({
-        'id': 'n1', 'kind': 'rdv_rappel', 'title': 'Rappel RDV',
-        'is_read': false, 'created_at': '2026-06-02T18:00:00Z',
+        'id': 'n1',
+        'kind': 'rdv_rappel',
+        'title': 'Rappel RDV',
+        'is_read': false,
+        'created_at': '2026-06-02T18:00:00Z',
       });
       final d = dto.toDomain();
       expect(d.title, 'Rappel RDV');
@@ -231,10 +272,14 @@ void main() {
       expect(d.body, '');
     });
 
-    test('MessageDto : body→text, created_at→sentAt, conversationId injecté', () {
+    test('MessageDto : body→text, created_at→sentAt, conversationId injecté',
+        () {
       final dto = MessageDto.fromJson({
-        'id': 'm1', 'body': 'Bonjour', 'sender': 'patient',
-        'created_at': '2026-07-02T09:45:54Z', 'read_at': null,
+        'id': 'm1',
+        'body': 'Bonjour',
+        'sender': 'patient',
+        'created_at': '2026-07-02T09:45:54Z',
+        'read_at': null,
       }, conversationId: 'c1');
       final m = dto.toDomain();
       expect(m.text, 'Bonjour');
@@ -244,8 +289,11 @@ void main() {
 
     test('ConversationDto : liste résumé (cabinet_name, unread_count)', () {
       final dto = ConversationDto.fromJson({
-        'id': 'c1', 'cabinet_id': 'cab', 'cabinet_name': 'Cabinet Lyon',
-        'last_message_at': '2026-07-02T09:45:54Z', 'unread_count': 0,
+        'id': 'c1',
+        'cabinet_id': 'cab',
+        'cabinet_name': 'Cabinet Lyon',
+        'last_message_at': '2026-07-02T09:45:54Z',
+        'unread_count': 0,
       });
       final c = dto.toDomain();
       expect(c.cabinetName, 'Cabinet Lyon');
@@ -255,22 +303,35 @@ void main() {
 
     test('QuoteDto.fromSummaryJson : liste devis (total_amount_cents)', () {
       final q = QuoteDto.fromSummaryJson({
-        'id': 'q1', 'status': 'signed', 'total_amount_cents': 38000,
-        'currency': 'EUR', 'created_at': '2026-07-03T06:15:29Z',
+        'id': 'q1',
+        'status': 'signed',
+        'total_amount_cents': 38000,
+        'currency': 'EUR',
+        'created_at': '2026-07-03T06:15:29Z',
       }).toDomain();
       expect(q.totalCents, 38000);
       expect(q.status.toString(), contains('signed'));
       expect(q.items, isEmpty);
     });
 
-    test('QuoteDto.fromJson : détail avec items unit_amount_cents/amo_part', () {
+    test('QuoteDto.fromJson : détail avec items unit_amount_cents/amo_part',
+        () {
       final q = QuoteDto.fromJson({
-        'id': 'q1', 'status': 'signed', 'total_amount_cents': 38000,
+        'id': 'q1',
+        'status': 'signed',
+        'total_amount_cents': 38000,
         'created_at': '2026-07-03T06:15:29Z',
         'signed_at': '2026-07-03T06:15:29Z',
         'items': [
-          {'id': 'i1', 'label': 'Composite', 'ccam_code': null, 'tooth': null,
-           'unit_amount_cents': 30000, 'amo_part_cents': 10000, 'amc_part_cents': 5000},
+          {
+            'id': 'i1',
+            'label': 'Composite',
+            'ccam_code': null,
+            'tooth': null,
+            'unit_amount_cents': 30000,
+            'amo_part_cents': 10000,
+            'amc_part_cents': 5000
+          },
         ],
       }).toDomain();
       expect(q.items, hasLength(1));

@@ -1,3 +1,4 @@
+import 'package:nubia_domain/src/entities/parsed_search.dart';
 import 'package:nubia_domain/src/entities/provider_result.dart';
 import 'package:nubia_domain/src/entities/slot.dart';
 
@@ -55,6 +56,62 @@ class ProviderResultDto {
         lng: lng,
         ratingAvg: ratingAvg,
         nextSlotAt: nextSlotAt == null ? null : DateTime.tryParse(nextSlotAt!),
+      );
+}
+
+/// Réponse de POST /v1/search/parse :
+/// `{ query:{q,specialty,place,near,sector,available,teleconsult},
+///    interpretation, source }`.
+class ParsedSearchDto {
+  final String q;
+  final String? specialty;
+  final String? place;
+  final String? near;
+  final String? sector;
+  final bool? available;
+  final bool? teleconsult;
+  final String interpretation;
+  final String source;
+
+  const ParsedSearchDto({
+    required this.q,
+    this.specialty,
+    this.place,
+    this.near,
+    this.sector,
+    this.available,
+    this.teleconsult,
+    required this.interpretation,
+    required this.source,
+  });
+
+  factory ParsedSearchDto.fromJson(Map<String, dynamic> json) {
+    final query = (json['query'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return ParsedSearchDto(
+      q: (query['q'] as String?) ?? '',
+      specialty: query['specialty'] as String?,
+      place: query['place'] as String?,
+      near: query['near'] as String?,
+      sector: query['sector'] as String?,
+      available: query['available'] as bool?,
+      teleconsult: query['teleconsult'] as bool?,
+      interpretation: (json['interpretation'] as String?) ?? '',
+      source: (json['source'] as String?) ?? 'keywords',
+    );
+  }
+
+  ParsedSearch toDomain() => ParsedSearch(
+        query: ParsedSearchQuery(
+          q: q,
+          specialty: specialty,
+          place: place,
+          near: near,
+          sector: sector,
+          available: available,
+          teleconsult: teleconsult,
+        ),
+        interpretation: interpretation,
+        source: source,
       );
 }
 

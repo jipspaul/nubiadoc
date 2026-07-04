@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'package:nubia_domain/src/entities/parsed_search.dart';
 import 'package:nubia_domain/src/entities/provider_result.dart';
 import 'package:nubia_domain/src/entities/slot.dart';
 import 'package:nubia_domain/src/error/failure.dart';
@@ -7,6 +8,12 @@ abstract class SearchRepository {
   Future<Either<Failure, List<ProviderResult>>> searchProviders({
     required String query,
   });
+
+  /// Interprète une recherche en langage naturel (POST /v1/search/parse).
+  /// Retourne les filtres structurés + une phrase d'interprétation. En cas
+  /// d'échec (endpoint non déployé, réseau), l'appelant retombe sur le texte
+  /// brut.
+  Future<Either<Failure, ParsedSearch>> parseSearch(String query);
 
   Future<Either<Failure, List<Slot>>> searchSlots({
     required String providerId,
