@@ -43,7 +43,10 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
             key: const Key('waiting_room_list'),
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: entries.length,
-            itemBuilder: (_, i) => _WaitingEntryTile(entry: entries[i]),
+            itemBuilder: (_, i) => _WaitingEntryTile(
+              entry: entries[i],
+              position: i + 1,
+            ),
           );
         }
         if (state is WaitingRoomError) {
@@ -100,28 +103,47 @@ class WaitingRoomPage extends StatelessWidget {
 }
 
 class _WaitingEntryTile extends StatelessWidget {
-  const _WaitingEntryTile({required this.entry});
+  const _WaitingEntryTile({required this.entry, required this.position});
 
   final WaitingRoomEntry entry;
+  final int position;
+
+  static String _initials(String name) {
+    final trimmed = name.trim();
+    return trimmed.isNotEmpty ? trimmed[0].toUpperCase() : '?';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final wait = entry.waitSoFar;
     final waitLabel = wait.inMinutes < 60
         ? '${wait.inMinutes} min'
         : '${wait.inHours} h ${wait.inMinutes.remainder(60)} min';
 
-    return ListTile(
-      leading: const Icon(Icons.person_outline),
-      title: Text(entry.patientName),
-      subtitle: Text('Arrivé il y a $waitLabel'),
-      trailing: entry.estimatedWaitMinutes != null
-          ? Text(
+    return ListRow(
+      leading: NubiaAvatar(initials: _initials(entry.patientName)),
+      title: entry.patientName,
+      subtitle: 'Position $position · Arrivé il y a $waitLabel',
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          const StatusPill(
+            label: 'En attente',
+            variant: StatusPillVariant.info,
+          ),
+          if (entry.estimatedWaitMinutes != null) ...[
+            const SizedBox(height: 4),
+            Text(
               '~${entry.estimatedWaitMinutes} min',
-              style: Theme.of(context).textTheme.bodySmall,
-            )
-          : null,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: tokens.textTertiary,
+                  ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
-

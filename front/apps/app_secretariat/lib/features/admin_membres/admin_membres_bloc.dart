@@ -42,7 +42,8 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
       if (members.isEmpty && secretariats.isEmpty) {
         safeEmit(const AdminMembresEmpty());
       } else {
-        safeEmit(AdminMembresLoaded(members: members, secretariats: secretariats));
+        safeEmit(
+            AdminMembresLoaded(members: members, secretariats: secretariats));
       }
     } catch (_) {
       safeEmit(const AdminMembresError('Erreur de chargement.'));
