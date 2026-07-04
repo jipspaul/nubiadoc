@@ -28,6 +28,7 @@ class _WaitingListPageState extends State<WaitingListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('waiting_list_scaffold'),
       appBar: AppBar(
         title: const Text('Liste d\'attente'),
         actions: [
@@ -59,12 +60,14 @@ class _WaitingListPageState extends State<WaitingListPage> {
                 : <WaitingListEntry>[];
             if (entries.isEmpty) {
               return const NubiaEmptyState(
+                key: Key('waiting_list_empty'),
                 icon: Icons.event_busy,
                 title: 'Pas d\'attente',
                 subtitle: 'Aucun patient en liste d\'attente',
               );
             }
             return RefreshIndicator(
+              key: const Key('waiting_list_refresh'),
               onRefresh: () {
                 _refreshCompleter = Completer<void>();
                 context
@@ -73,6 +76,7 @@ class _WaitingListPageState extends State<WaitingListPage> {
                 return _refreshCompleter!.future;
               },
               child: ListView.builder(
+                key: const Key('waiting_list_list'),
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 itemCount: entries.length,
@@ -88,27 +92,41 @@ class _WaitingListPageState extends State<WaitingListPage> {
                   .add(const WaitingListLoadRequested()),
             );
           }
-          return const Center(child: CircularProgressIndicator());
+          return const _WaitingListSkeleton();
         },
       ),
     );
   }
 }
 
+/// Ligne patient : avatar + nom + fenêtre souhaitée + CTA « combler ».
+///
+/// Cloisonnement : n'affiche que des données non-cliniques (nom, date de
+/// demande). Le champ `motif` porté par [WaitingListEntry] est volontairement
+/// ignoré par la vue.
 class _WaitingListTile extends StatelessWidget {
   const _WaitingListTile({required this.entry});
 
   final WaitingListEntry entry;
 
+  static String _initials(String name) {
+    final trimmed = name.trim();
+    return trimmed.isNotEmpty ? trimmed[0].toUpperCase() : '?';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: CircleAvatar(child: Text('${entry.position}')),
-      title: Text(entry.patientName),
-      subtitle: Text('Demande du ${_formatDate(entry.requestedAt)}'),
-      trailing: IconButton(
-        tooltip: 'Proposer un créneau',
-        icon: const Icon(Icons.calendar_today_outlined),
+    return ListRow(
+      key: Key('waiting_list_row_${entry.id}'),
+      leading: NubiaAvatar(initials: _initials(entry.patientName)),
+      title: entry.patientName,
+      subtitle: 'Fenêtre souhaitée · dès le ${_formatDate(entry.requestedAt)}',
+      trailing: NubiaButton(
+        key: Key('offer_slot_${entry.id}'),
+        label: 'Combler',
+        variant: NubiaButtonVariant.secondary,
+        size: NubiaButtonSize.sm,
+        icon: Icons.calendar_today_outlined,
         onPressed: () => context
             .read<WaitingListBloc>()
             .add(WaitingListOfferSlotRequested(entry.id)),
@@ -120,5 +138,40 @@ class _WaitingListTile extends StatelessWidget {
     return '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/'
         '${date.year}';
+  }
+}
+
+/// Skeleton de chargement : quelques lignes shimmer imitant la liste.
+class _WaitingListSkeleton extends StatelessWidget {
+  const _WaitingListSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      key: const Key('waiting_list_skeleton'),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: 6,
+      itemBuilder: (_, __) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            NubiaSkeletonLoader(width: 40, height: 40, borderRadius: 999),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  NubiaSkeletonLoader(width: 160, height: 14),
+                  SizedBox(height: 8),
+                  NubiaSkeletonLoader(width: 200, height: 12),
+                ],
+              ),
+            ),
+            SizedBox(width: 12),
+            NubiaSkeletonLoader(width: 96, height: 32),
+          ],
+        ),
+      ),
+    );
   }
 }

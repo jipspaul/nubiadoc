@@ -165,16 +165,23 @@ void main() {
           ),
         );
 
-    testWidgets('affiche le chargement en état Initial', (tester) async {
+    testWidgets('affiche le skeleton en état Initial', (tester) async {
       when(() => bloc.state).thenReturn(const AdminSecretiariatsInitial());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(
+        find.byKey(const Key('admin_secretariats_skeleton')),
+        findsOneWidget,
+      );
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
-    testWidgets('affiche le chargement en état Loading', (tester) async {
+    testWidgets('affiche le skeleton en état Loading', (tester) async {
       when(() => bloc.state).thenReturn(const AdminSecretiariatsLoading());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(
+        find.byKey(const Key('admin_secretariats_skeleton')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('affiche l\'état vide', (tester) async {
@@ -206,11 +213,30 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Secrétariat A'), findsOneWidget);
+      // Le statut est affiché via un NubiaBadge (jamais la couleur seule).
+      expect(find.byType(NubiaBadge), findsOneWidget);
+      expect(find.text('Actif'), findsOneWidget);
       // Cloisonnement : aucun libellé clinique ne doit apparaître
       expect(find.text('Motif'), findsNothing);
       expect(find.text('Notes médicales'), findsNothing);
       expect(find.textContaining('motif'), findsNothing);
       expect(find.textContaining('notes'), findsNothing);
+    });
+
+    testWidgets('le FAB ouvre la modale d\'invitation (action admin)',
+        (tester) async {
+      when(() => bloc.state).thenReturn(const AdminSecretiariatsEmpty());
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('invite_secretariat_fab')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Inviter un secrétariat'), findsWidgets);
+      expect(
+        find.byKey(const Key('invite_secretariat_email_field')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('affiche le message d\'erreur', (tester) async {
