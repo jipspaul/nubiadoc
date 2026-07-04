@@ -3,6 +3,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/order_detail/order_detail_bloc.dart';
+import '../features/pickup_scan/pickup_scan_cubit.dart';
 import '../features/orders/orders_bloc.dart';
 import 'pharma_auth_cubit.dart';
 
@@ -24,6 +25,10 @@ void registerPharma(GetIt gi) {
       list: gi<ListPharmacyOrdersUseCase>(),
       watch: gi<WatchPharmacyOrdersUseCase>(),
     ),
+  );
+
+  gi.registerFactory<PickupScanCubit>(
+    () => PickupScanCubit(confirmPickup: gi<ConfirmPharmacyPickupUseCase>()),
   );
 
   gi.registerFactory<OrderDetailBloc>(
