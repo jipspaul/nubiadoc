@@ -68,7 +68,9 @@ class CabinetAppointmentsApi {
   Future<CabinetAppointmentDto> confirm(String id) async {
     final response = await _dio
         .post<Map<String, dynamic>>('/cabinet/appointments/$id/confirm');
-    return CabinetAppointmentDto.fromJson(response.data!);
+    // La réponse 200 ne contient que { appointment_id, status } — pas le RDV
+    // complet. On parse via le factory dédié pour éviter une ParseFailure.
+    return CabinetAppointmentDto.fromConfirmResponse(response.data!);
   }
 
   Future<CabinetAppointmentDto> reschedule(

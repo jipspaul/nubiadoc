@@ -92,7 +92,9 @@ void main() {
               practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
         return BookableSlotsBloc(
-            listSlots: useCase, createSlot: createSlotUseCase);
+            listSlots: useCase,
+            createSlot: createSlotUseCase,
+            now: () => DateTime(2026, 6, 1));
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       expect: () => [
@@ -113,7 +115,9 @@ void main() {
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
         return BookableSlotsBloc(
-            listSlots: useCase, createSlot: createSlotUseCase);
+            listSlots: useCase,
+            createSlot: createSlotUseCase,
+            now: () => DateTime(2026, 6, 1));
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       expect: () => [
@@ -133,7 +137,9 @@ void main() {
               practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
         return BookableSlotsBloc(
-            listSlots: useCase, createSlot: createSlotUseCase);
+            listSlots: useCase,
+            createSlot: createSlotUseCase,
+            now: () => DateTime(2026, 6, 1));
       },
       act: (bloc) => bloc.add(CreateSlotRequested(
         startsAt: DateTime(2026, 6, 20, 9, 0),
@@ -157,7 +163,9 @@ void main() {
               practitionerId: any(named: 'practitionerId')),
         ).thenAnswer((_) async => Right([_slot]));
         return BookableSlotsBloc(
-            listSlots: useCase, createSlot: createSlotUseCase);
+            listSlots: useCase,
+            createSlot: createSlotUseCase,
+            now: () => DateTime(2026, 6, 1));
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       verify: (bloc) {
@@ -171,6 +179,58 @@ void main() {
         }
       },
     );
+  });
+
+  // --- sanitizeBookableSlots (issue #3365) ------------------------------------
+  group('sanitizeBookableSlots', () {
+    final now = DateTime(2026, 7, 4, 12, 0);
+
+    Slot slot({
+      required String id,
+      required DateTime start,
+      Duration duration = const Duration(minutes: 30),
+      bool available = true,
+      String practitioner = 'p1',
+    }) =>
+        Slot(
+          id: id,
+          cabinetId: 'c1',
+          practitionerId: practitioner,
+          startsAt: start,
+          endsAt: start.add(duration),
+          isAvailable: available,
+        );
+
+    test('masque les créneaux passés (endsAt avant maintenant)', () {
+      final past = slot(id: 'past', start: DateTime(2026, 6, 20, 9, 0));
+      final future = slot(id: 'future', start: DateTime(2026, 7, 10, 9, 0));
+      final result = sanitizeBookableSlots([past, future], now);
+      expect(result.map((s) => s.id), ['future']);
+    });
+
+    test('supprime les doublons (même praticien + même plage)', () {
+      final a = slot(id: 'a', start: DateTime(2026, 7, 10, 9, 0));
+      final dup = slot(id: 'b', start: DateTime(2026, 7, 10, 9, 0));
+      final result = sanitizeBookableSlots([a, dup], now);
+      expect(result.length, 1);
+    });
+
+    test('sur un doublon, garde le créneau disponible', () {
+      final busy = slot(
+          id: 'busy', start: DateTime(2026, 7, 10, 9, 0), available: false);
+      final free =
+          slot(id: 'free', start: DateTime(2026, 7, 10, 9, 0), available: true);
+      final result = sanitizeBookableSlots([busy, free], now);
+      expect(result.length, 1);
+      expect(result.single.isAvailable, isTrue);
+    });
+
+    test('trie par date de début croissante', () {
+      final later = slot(id: 'later', start: DateTime(2026, 7, 12, 9, 0));
+      final sooner = slot(id: 'sooner', start: DateTime(2026, 7, 10, 9, 0));
+      final result = sanitizeBookableSlots([later, sooner], now);
+      expect(result.map((s) => s.id), ['sooner', 'later']);
+    });
   });
 
   // --- BookableSlotsPage widget test ------------------------------------------

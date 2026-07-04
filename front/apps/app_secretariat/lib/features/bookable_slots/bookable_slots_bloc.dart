@@ -5,16 +5,45 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'bookable_slots_event.dart';
 import 'bookable_slots_state.dart';
 
+/// Nettoie la liste de créneaux avant affichage (issue #3365).
+///
+/// Les données de seed contiennent des créneaux périmés et des doublons. Côté
+/// front on :
+/// - masque les créneaux **passés** (`endsAt` avant/à [now]) ;
+/// - déduplique par praticien + plage horaire, en gardant de préférence le
+///   créneau **disponible** ;
+/// - trie par date de début croissante pour un affichage stable.
+List<Slot> sanitizeBookableSlots(List<Slot> slots, DateTime now) {
+  final byKey = <String, Slot>{};
+  for (final slot in slots) {
+    if (!slot.endsAt.isAfter(now)) continue; // créneau passé → masqué
+    final key = '${slot.practitionerId}|'
+        '${slot.startsAt.toIso8601String()}|'
+        '${slot.endsAt.toIso8601String()}';
+    final existing = byKey[key];
+    // Doublon : on privilégie le créneau disponible sur l'indisponible.
+    if (existing == null || (!existing.isAvailable && slot.isAvailable)) {
+      byKey[key] = slot;
+    }
+  }
+  final result = byKey.values.toList()
+    ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+  return result;
+}
+
 class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState>
     with SafeEmitMixin<BookableSlotsState> {
   final ListBookableSlotsUseCase _listSlots;
   final CreateSlotUseCase _createSlot;
+  final DateTime Function() _now;
 
   BookableSlotsBloc({
     required ListBookableSlotsUseCase listSlots,
     required CreateSlotUseCase createSlot,
+    DateTime Function()? now,
   })  : _listSlots = listSlots,
         _createSlot = createSlot,
+        _now = now ?? DateTime.now,
         super(const BookableSlotsInitial()) {
     on<BookableSlotsLoadRequested>(_onLoad);
     on<CreateSlotRequested>(_onCreate);
@@ -29,7 +58,8 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState>
       final result = await _listSlots();
       result.fold(
         (failure) => safeEmit(BookableSlotsError(failure.message)),
-        (slots) => safeEmit(BookableSlotsLoaded(slots)),
+        (slots) =>
+            safeEmit(BookableSlotsLoaded(sanitizeBookableSlots(slots, _now()))),
       );
     } catch (_) {
       safeEmit(const BookableSlotsError('Erreur de chargement.'));

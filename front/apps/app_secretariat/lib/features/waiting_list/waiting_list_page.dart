@@ -114,12 +114,32 @@ class _WaitingListTile extends StatelessWidget {
     return trimmed.isNotEmpty ? trimmed[0].toUpperCase() : '?';
   }
 
+  /// Nom affiché avec repli lisible : le back peut renvoyer une entrée sans
+  /// `patient_name` (patient sans fiche). On évite alors l'avatar « ? » et un
+  /// titre vide en affichant « Patient » + une référence courte dérivée de
+  /// l'identifiant (non-clinique).
+  static String _displayName(WaitingListEntry entry) {
+    final name = entry.patientName.trim();
+    if (name.isNotEmpty) return name;
+    final ref =
+        _shortRef(entry.patientId.isNotEmpty ? entry.patientId : entry.id);
+    return ref.isEmpty ? 'Patient' : 'Patient $ref';
+  }
+
+  static String _shortRef(String id) {
+    final hex = id.replaceAll('-', '');
+    if (hex.isEmpty) return '';
+    final start = hex.length >= 4 ? hex.length - 4 : 0;
+    return hex.substring(start).toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final displayName = _displayName(entry);
     return ListRow(
       key: Key('waiting_list_row_${entry.id}'),
-      leading: NubiaAvatar(initials: _initials(entry.patientName)),
-      title: entry.patientName,
+      leading: NubiaAvatar(initials: _initials(displayName)),
+      title: displayName,
       subtitle: 'Fenêtre souhaitée · dès le ${_formatDate(entry.requestedAt)}',
       trailing: NubiaButton(
         key: Key('offer_slot_${entry.id}'),
