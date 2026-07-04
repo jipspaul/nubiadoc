@@ -65,8 +65,7 @@ class MessageDto {
   }) =>
       MessageDto(
         id: json['id'] as String,
-        conversationId:
-            (json['conversation_id'] as String?) ?? conversationId,
+        conversationId: (json['conversation_id'] as String?) ?? conversationId,
         sender: json['sender'] as String,
         text: (json['text'] as String?) ?? (json['body'] as String?),
         attachmentIds: (json['attachment_ids'] as List<dynamic>?)
@@ -74,8 +73,7 @@ class MessageDto {
                 .toList() ??
             const [],
         urgency: json['urgency'] as String? ?? 'normal',
-        sentAt: (json['sent_at'] as String?) ??
-            (json['created_at'] as String),
+        sentAt: (json['sent_at'] as String?) ?? (json['created_at'] as String),
         readAt: json['read_at'] as String?,
       );
 

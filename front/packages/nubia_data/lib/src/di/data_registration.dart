@@ -21,6 +21,11 @@ import '../remote/documents/document_api.dart';
 import '../remote/members/members_api.dart';
 import '../remote/messaging/messaging_api.dart';
 import '../remote/notifications/notification_api.dart';
+import '../remote/patient_pharmacy/patient_pharmacy_api.dart';
+import '../remote/pharmacy_directory/pharmacy_directory_api.dart';
+import '../remote/pharmacy_orders/pharmacy_orders_api.dart';
+import '../remote/pharmacy_quotes/pharmacy_quotes_api.dart';
+import '../remote/pharmacy_stock/pharmacy_stock_api.dart';
 import '../remote/prescriptions/prescription_api.dart';
 import '../remote/reviews/review_api.dart';
 import '../remote/scheduling/scheduling_api.dart';
@@ -49,13 +54,19 @@ import '../repositories/document_repository_impl.dart';
 import '../repositories/members_repository_impl.dart';
 import '../repositories/message_repository_impl.dart';
 import '../repositories/notification_repository_impl.dart';
+import '../repositories/patient_pharmacy_repository_impl.dart';
+import '../repositories/pharmacy_directory_repository_impl.dart';
+import '../repositories/pharmacy_orders_repository_impl.dart';
+import '../repositories/pharmacy_quotes_repository_impl.dart';
 import '../repositories/prescription_repository_impl.dart';
 import '../repositories/review_repository_impl.dart';
 import '../repositories/secretariat_repository_impl.dart';
 import '../repositories/slots_repository_impl.dart';
 import '../repositories/today_notes_repository_impl.dart';
+import '../repositories/stock_requests_repository_impl.dart';
 import '../repositories/user_settings_repository_impl.dart';
 import '../repositories/waiting_room_repository_impl.dart';
+import '../realtime/polling_pharmacy_order_events.dart';
 
 /// Registers the data layer: Dio APIs, repository implementations and use cases.
 ///
@@ -75,12 +86,23 @@ import '../repositories/waiting_room_repository_impl.dart';
 /// [useCache] enables the offline cache layer for appointments. When `true`,
 /// [AppointmentRepository] is backed by [CachedAppointmentsRepositoryImpl]
 /// wrapping the remote implementation via a Drift SQLite cache.
+///
+/// [includePharmacy] gates the pharmacy-tenant stack (app pharmacie : JWT
+/// `kind:"pharma"`, /v1/pharmacy/*). Mutually exclusive with [includePro].
+/// When `false`, the patient-side pharmacy stack (/v1/account/*) is
+/// registered instead — the pharmacy-tenant repositories are never present
+/// in the other apps' containers.
 void registerData(
   GetIt gi, {
   bool includeClinical = true,
   bool includePro = false,
+  bool includePharmacy = false,
   bool useCache = false,
 }) {
+  assert(
+    !(includePro && includePharmacy),
+    'includePro et includePharmacy sont mutuellement exclusifs',
+  );
   // --- APIs (each takes ApiClient) -----------------------------------------
   gi
     ..registerLazySingleton<AccountApi>(() => AccountApi(gi()))
@@ -143,6 +165,17 @@ void registerData(
       () => SearchRepositoryImpl(gi()),
     );
 
+  // --- Annuaire pharmacie (toutes les apps) ---------------------------------
+  gi
+    ..registerLazySingleton<PharmacyDirectoryApi>(
+      () => PharmacyDirectoryApi(gi()),
+    )
+    ..registerLazySingleton<PharmacyDirectoryRepository>(
+      () => PharmacyDirectoryRepositoryImpl(gi()),
+    )
+    ..registerFactory(() => SearchPharmaciesUseCase(gi()))
+    ..registerFactory(() => GetPatientPharmacyUseCase(gi()));
+
   // --- Use cases ------------------------------------------------------------
   _registerUseCases(gi);
 
@@ -153,6 +186,98 @@ void registerData(
   if (includePro) {
     _registerPro(gi, includeClinical: includeClinical);
   }
+
+  if (includePharmacy) {
+    _registerPharmacy(gi);
+  } else {
+    _registerPatientPharmacy(gi);
+  }
+}
+
+/// Espace patient : pharmacie déclarée, commandes click-and-collect,
+/// devis d'officine (/v1/account/*).
+void _registerPatientPharmacy(GetIt gi) {
+  gi
+    ..registerLazySingleton<PatientPharmacyApi>(
+      () => PatientPharmacyApi(gi()),
+    )
+    ..registerLazySingleton<PatientPharmacyRepository>(
+      () => PatientPharmacyRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PharmacyQuotesApi>(
+      () => PharmacyQuotesApi(gi(), space: PharmacyQuotesSpace.patient),
+    )
+    ..registerLazySingleton<PharmacyQuotesRepository>(
+      () => PharmacyQuotesRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PharmacyOrderEventsPort>(
+      () => PollingPharmacyOrderEvents(
+        fetchOrder: (id) => gi<PatientPharmacyRepository>().getOrder(id),
+      ),
+      dispose: (port) => port.dispose(),
+    )
+    ..registerFactory(() => GetMyPharmacyUseCase(gi()))
+    ..registerFactory(() => SetMyPharmacyUseCase(gi()))
+    ..registerFactory(() => CreatePharmacyOrderUseCase(gi()))
+    ..registerFactory(() => ListPatientPharmacyOrdersUseCase(gi()))
+    ..registerFactory(() => GetPatientPharmacyOrderUseCase(gi()))
+    ..registerFactory(() => CancelPharmacyOrderUseCase(gi()))
+    ..registerFactory(() => GetPickupTokenUseCase(gi()))
+    ..registerFactory(() => WatchPatientPharmacyOrderUseCase(gi()))
+    ..registerFactory(() => ListPharmacyQuotesUseCase(gi()))
+    ..registerFactory(() => DecidePharmacyQuoteUseCase(gi()));
+}
+
+/// Espace pharmacie (tenant dédié, JWT kind="pharma") : commandes, stock,
+/// devis, messagerie (mêmes formes JSON que /v1/cabinet/* via basePath).
+void _registerPharmacy(GetIt gi) {
+  gi
+    ..registerLazySingleton<PharmacyOrdersApi>(
+      () => PharmacyOrdersApi(gi()),
+    )
+    ..registerLazySingleton<PharmacyOrdersRepository>(
+      () => PharmacyOrdersRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PharmacyStockApi>(
+      () => PharmacyStockApi(gi()),
+    )
+    ..registerLazySingleton<StockRequestsRepository>(
+      () => StockRequestsRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PharmacyQuotesApi>(
+      () => PharmacyQuotesApi(gi()),
+    )
+    ..registerLazySingleton<PharmacyQuotesRepository>(
+      () => PharmacyQuotesRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CabinetMessagingApi>(
+      () => CabinetMessagingApi(gi(), basePath: '/pharmacy'),
+    )
+    ..registerLazySingleton<CabinetMessageRepository>(
+      () => CabinetMessageRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PharmacyOrderEventsPort>(
+      () => PollingPharmacyOrderEvents(
+        fetchOrders: () => gi<PharmacyOrdersRepository>().list(),
+      ),
+      dispose: (port) => port.dispose(),
+    )
+    ..registerFactory(() => ListPharmacyOrdersUseCase(gi()))
+    ..registerFactory(() => GetPharmacyOrderUseCase(gi()))
+    ..registerFactory(() => AcceptPharmacyOrderUseCase(gi()))
+    ..registerFactory(() => MarkPharmacyOrderReadyUseCase(gi()))
+    ..registerFactory(() => RejectPharmacyOrderUseCase(gi()))
+    ..registerFactory(() => ConfirmPharmacyPickupUseCase(gi()))
+    ..registerFactory(() => GetPharmacyOrderPrescriptionUrlUseCase(gi()))
+    ..registerFactory(() => WatchPharmacyOrdersUseCase(gi()))
+    ..registerFactory(() => ListStockRequestsUseCase(gi()))
+    ..registerFactory(() => RespondStockRequestUseCase(gi()))
+    ..registerFactory(() => ListPharmacyQuotesUseCase(gi()))
+    ..registerFactory(() => CreatePharmacyQuoteUseCase(gi()))
+    ..registerFactory(() => SendPharmacyQuoteUseCase(gi()))
+    ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
+    ..registerFactory(() => GetCabinetConversationUseCase(gi()))
+    ..registerFactory(() => SendMessageCabinetUseCase(gi()));
 }
 
 void _registerUseCases(GetIt gi) {
@@ -236,7 +361,8 @@ void _registerClinical(GetIt gi) {
     ..registerFactory(() => StartSessionUseCase(gi()))
     // prescription use cases
     ..registerFactory(() => CreatePrescriptionUseCase(gi()))
-    ..registerFactory(() => SignPrescriptionUseCase(gi()));
+    ..registerFactory(() => SignPrescriptionUseCase(gi()))
+    ..registerFactory(() => SendPrescriptionToPharmacyUseCase(gi()));
 }
 
 /// Registers the pro/cabinet data stack.
@@ -352,6 +478,17 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
     ..registerFactory(() => SendMessageCabinetUseCase(gi()))
     ..registerFactory(() => GetTodayNotesUseCase(gi()));
+
+  // Demandes de stock vers les pharmacies (émission côté cabinet, lot B5).
+  gi
+    ..registerLazySingleton<PharmacyStockApi>(
+      () => PharmacyStockApi(gi(), basePath: '/cabinet'),
+    )
+    ..registerLazySingleton<StockRequestsRepository>(
+      () => StockRequestsRepositoryImpl(gi()),
+    )
+    ..registerFactory(() => ListStockRequestsUseCase(gi()))
+    ..registerFactory(() => CreateStockRequestUseCase(gi()));
 
   if (includeClinical) {
     gi

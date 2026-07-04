@@ -195,7 +195,8 @@ class AuthRepositoryImpl implements AuthRepository {
       final statusCode = e.response?.statusCode;
       if (statusCode == 404 || statusCode == 410) {
         return const Left(
-          ValidationFailure(message: 'Ce lien de réinitialisation est invalide ou a expiré.'),
+          ValidationFailure(
+              message: 'Ce lien de réinitialisation est invalide ou a expiré.'),
         );
       }
       if (statusCode == 422) {

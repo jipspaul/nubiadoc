@@ -77,7 +77,8 @@ class AccountApi {
         .toList();
   }
 
-  Future<void> putConsent({required String purpose, required bool granted}) async {
+  Future<void> putConsent(
+      {required String purpose, required bool granted}) async {
     await _dio.put<Map<String, dynamic>>(
       '/account/consents/$purpose',
       data: {'granted': granted},

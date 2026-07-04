@@ -6,11 +6,16 @@ import '../messaging/messaging_dto.dart';
 class CabinetMessagingApi {
   final Dio _dio;
 
-  CabinetMessagingApi(ApiClient client) : _dio = client.dio;
+  /// Espace API : `/cabinet` (praticien/secrétariat) ou `/pharmacy`
+  /// (app pharmacie — mêmes formes JSON, lot B6).
+  final String basePath;
+
+  CabinetMessagingApi(ApiClient client, {this.basePath = '/cabinet'})
+      : _dio = client.dio;
 
   Future<List<CabinetConversationDto>> getConversations() async {
     final response =
-        await _dio.get<Map<String, dynamic>>('/cabinet/conversations');
+        await _dio.get<Map<String, dynamic>>('$basePath/conversations');
     final data = response.data!['data'] as List<dynamic>;
     return data
         .map((e) => CabinetConversationDto.fromJson(e as Map<String, dynamic>))
@@ -19,7 +24,7 @@ class CabinetMessagingApi {
 
   Future<List<MessageDto>> getMessages(String conversationId) async {
     final response = await _dio.get<Map<String, dynamic>>(
-        '/cabinet/conversations/$conversationId/messages');
+        '$basePath/conversations/$conversationId/messages');
     final data = response.data!['data'] as List<dynamic>;
     return data
         .map((e) => MessageDto.fromJson(e as Map<String, dynamic>))
@@ -32,7 +37,7 @@ class CabinetMessagingApi {
     List<String> attachmentIds = const [],
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
-      '/cabinet/conversations/$conversationId/messages',
+      '$basePath/conversations/$conversationId/messages',
       data: {
         'text': text,
         if (attachmentIds.isNotEmpty) 'attachment_ids': attachmentIds,

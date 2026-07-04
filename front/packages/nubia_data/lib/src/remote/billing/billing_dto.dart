@@ -25,8 +25,8 @@ class QuoteLineItemDto {
   /// unit_amount_cents, amo_part_cents?, amc_part_cents?}. Le reste à charge
   /// patient = montant - remboursements (0 si part inconnue).
   factory QuoteLineItemDto.fromJson(Map<String, dynamic> json) {
-    final total = (json['unit_amount_cents'] ?? json['total_cents'] ?? 0 as num)
-        .toInt();
+    final total =
+        (json['unit_amount_cents'] ?? json['total_cents'] ?? 0 as num).toInt();
     final amo = (json['amo_part_cents'] as num?)?.toInt() ?? 0;
     final amc = (json['amc_part_cents'] as num?)?.toInt() ?? 0;
     return QuoteLineItemDto(
