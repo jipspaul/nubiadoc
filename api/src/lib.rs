@@ -572,6 +572,31 @@ fn build_router(
             post(pharmacy::orders::pickup_scan),
         )
         .route(
+            "/v1/cabinet/stock-requests",
+            get(pharmacy::stock::list_cabinet_stock_requests)
+                .post(pharmacy::stock::create_stock_request),
+        )
+        .route(
+            "/v1/cabinet/stock-requests/:id/cancel",
+            post(pharmacy::stock::cancel_stock_request),
+        )
+        .route(
+            "/v1/pharmacy/stock-requests",
+            get(pharmacy::stock::list_pharmacy_stock_requests),
+        )
+        .route(
+            "/v1/pharmacy/stock-requests/:id/accept",
+            post(pharmacy::stock::accept_stock_request),
+        )
+        .route(
+            "/v1/pharmacy/stock-requests/:id/reject",
+            post(pharmacy::stock::reject_stock_request),
+        )
+        .route(
+            "/v1/pharmacy/stock-requests/:id/fulfill",
+            post(pharmacy::stock::fulfill_stock_request),
+        )
+        .route(
             "/v1/account/prescriptions/:id/order",
             post(pharmacy::orders::create_account_order),
         )
