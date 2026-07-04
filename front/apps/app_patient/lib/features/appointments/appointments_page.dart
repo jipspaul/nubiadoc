@@ -26,9 +26,7 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
   void initState() {
     super.initState();
     // Annuaire par défaut au chargement : l'écran n'est jamais vide.
-    context
-        .read<AppointmentsBloc>()
-        .add(const AppointmentsSearchChanged(''));
+    context.read<AppointmentsBloc>().add(const AppointmentsSearchChanged(''));
   }
 
   @override
@@ -105,13 +103,69 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
     if (state is AppointmentsError) {
       return NubiaErrorWidget(
         message: state.message,
-        onRetry: () =>
-            context.read<AppointmentsBloc>().add(const AppointmentsSearchChanged('')),
+        onRetry: () => context
+            .read<AppointmentsBloc>()
+            .add(const AppointmentsSearchChanged('')),
       );
     }
     return const SizedBox.shrink();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Helpers de présentation (initiales, formatage date/heure)
+// ---------------------------------------------------------------------------
+
+const _weekdays = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
+const _months = [
+  'jan',
+  'fév',
+  'mar',
+  'avr',
+  'mai',
+  'jun',
+  'jul',
+  'aoû',
+  'sep',
+  'oct',
+  'nov',
+  'déc'
+];
+
+/// Initiales de repli pour l'avatar (ex. « Dr Claire Lefèvre » → « CL »).
+String _initialsOf(String name) {
+  final cleaned = name
+      .replaceAll(
+        RegExp(r'^(Dr|Dr\.|Pr|Pr\.|M\.|Mme|Mlle)\s+', caseSensitive: false),
+        '',
+      )
+      .trim();
+  final parts =
+      cleaned.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) {
+    final w = parts.first;
+    return (w.length >= 2 ? w.substring(0, 2) : w).toUpperCase();
+  }
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+/// Jour relatif court (« Aujourd'hui », « Demain » ou « Mar. 3 jun »).
+String _relativeDay(DateTime dt) {
+  final now = DateTime.now();
+  final day = DateTime(dt.year, dt.month, dt.day);
+  final today = DateTime(now.year, now.month, now.day);
+  final diff = day.difference(today).inDays;
+  if (diff == 0) return "Aujourd'hui";
+  if (diff == 1) return 'Demain';
+  return '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+}
+
+String _dayHeader(DateTime dt) =>
+    '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+
+String _hhmm(DateTime dt) =>
+    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
 // ---------------------------------------------------------------------------
 // Search view : barre de recherche persistante + carte MapTiler + liste
@@ -140,49 +194,29 @@ class _SearchViewState extends State<_SearchView> {
   void _onChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
-      context
-          .read<AppointmentsBloc>()
-          .add(AppointmentsSearchChanged(value));
+      context.read<AppointmentsBloc>().add(AppointmentsSearchChanged(value));
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final geoProviders =
-        widget.providers.where((p) => p.hasLocation).toList();
+    final geoProviders = widget.providers.where((p) => p.hasLocation).toList();
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: TextField(
+          child: NubiaSearchBar(
             key: const Key('search_field'),
             controller: _controller,
-            decoration: InputDecoration(
-              hintText: 'Spécialité, nom, ville…',
-              prefixIcon: const Icon(Icons.search),
-              border: const OutlineInputBorder(),
-              suffixIcon: _controller.text.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _controller.clear();
-                        _onChanged('');
-                        setState(() {});
-                      },
-                    ),
-            ),
-            onChanged: (v) {
-              _onChanged(v);
-              setState(() {});
-            },
+            hint: 'Spécialité, nom, ville…',
+            onChanged: _onChanged,
+            onClear: () => _onChanged(''),
           ),
         ),
-        if (geoProviders.isNotEmpty)
-          _ProvidersMap(providers: geoProviders),
+        if (geoProviders.isNotEmpty) _ProvidersMap(providers: geoProviders),
         Expanded(
           child: widget.loading && widget.providers.isEmpty
-              ? const Center(child: CircularProgressIndicator())
+              ? const _ProvidersSkeleton()
               : widget.providers.isEmpty
                   ? const NubiaEmptyState(
                       key: Key('empty_providers'),
@@ -192,18 +226,21 @@ class _SearchViewState extends State<_SearchView> {
                     )
                   : ListView.separated(
                       key: const Key('providers_list'),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                       itemCount: widget.providers.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, i) {
                         final provider = widget.providers[i];
-                        return ListTile(
+                        return ProviderCard(
                           key: Key('provider_${provider.id}'),
-                          leading: const Icon(Icons.person_outline),
-                          title: Text(provider.displayName),
-                          subtitle: Text(provider.specialty),
-                          trailing: provider.distanceKm != null
-                              ? Text(
-                                  '${provider.distanceKm!.toStringAsFixed(1)} km')
+                          name: provider.displayName,
+                          specialty: provider.specialty,
+                          initials: _initialsOf(provider.displayName),
+                          availabilityLabel: provider.nextSlotAt != null
+                              ? '1re dispo · ${_relativeDay(provider.nextSlotAt!)}'
+                              : null,
+                          distance: provider.distanceKm != null
+                              ? '${provider.distanceKm!.toStringAsFixed(1)} km'
                               : null,
                           onTap: () => context
                               .read<AppointmentsBloc>()
@@ -213,6 +250,24 @@ class _SearchViewState extends State<_SearchView> {
                     ),
         ),
       ],
+    );
+  }
+}
+
+/// Skeleton de chargement : quelques cartes praticien en shimmer.
+class _ProvidersSkeleton extends StatelessWidget {
+  const _ProvidersSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      itemCount: 5,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, __) => const NubiaSkeletonLoader(
+        height: 84,
+        borderRadius: 12,
+      ),
     );
   }
 }
@@ -236,51 +291,57 @@ class _ProvidersMap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      key: const Key('providers_map'),
-      height: 180,
-      width: double.infinity,
-      child: FlutterMap(
-        options: MapOptions(
-          initialCenter: _center,
-          initialZoom: providers.length == 1 ? 14 : 11,
-          interactionOptions: const InteractionOptions(
-            flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
-          ),
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: ApiConstants.mapTilerTilesUrl(),
-            userAgentPackageName: 'health.nubia.patient',
-          ),
-          MarkerLayer(
-            markers: [
-              for (final p in providers)
-                Marker(
-                  point: LatLng(p.lat!, p.lng!),
-                  width: 40,
-                  height: 40,
-                  child: Tooltip(
-                    message: p.displayName,
-                    child: GestureDetector(
-                      onTap: () => context
-                          .read<AppointmentsBloc>()
-                          .add(AppointmentsProviderSelected(p)),
-                      child: Icon(Icons.location_on,
-                          color: colorScheme.primary, size: 36),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          key: const Key('providers_map'),
+          height: 180,
+          width: double.infinity,
+          child: FlutterMap(
+            options: MapOptions(
+              initialCenter: _center,
+              initialZoom: providers.length == 1 ? 14 : 11,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+              ),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: ApiConstants.mapTilerTilesUrl(),
+                userAgentPackageName: 'health.nubia.patient',
+              ),
+              MarkerLayer(
+                markers: [
+                  for (final p in providers)
+                    Marker(
+                      point: LatLng(p.lat!, p.lng!),
+                      width: 40,
+                      height: 40,
+                      child: Tooltip(
+                        message: p.displayName,
+                        child: GestureDetector(
+                          onTap: () => context
+                              .read<AppointmentsBloc>()
+                              .add(AppointmentsProviderSelected(p)),
+                          child: Icon(Icons.location_on,
+                              color: colorScheme.primary, size: 36),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Slots view
+// Slots view : en-tête praticien + créneaux SlotChip groupés par jour
 // ---------------------------------------------------------------------------
 
 class _SlotsView extends StatelessWidget {
@@ -289,121 +350,185 @@ class _SlotsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>();
+    final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // En-tête praticien : retour + avatar + identité.
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(4, 8, 16, 8),
+          child: Row(
             children: [
-              Text(
-                state.provider.displayName,
-                style: Theme.of(context).textTheme.titleMedium,
+              IconButton(
+                key: const Key('slots_back'),
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Retour',
+                onPressed: () => context
+                    .read<AppointmentsBloc>()
+                    .add(const AppointmentsBackToSearch()),
               ),
-              Text(state.provider.specialty),
+              NubiaAvatar(
+                initials: _initialsOf(state.provider.displayName),
+                radius: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      state.provider.displayName,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      state.provider.specialty,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
+        Divider(height: 1, color: borderColor),
         if (state.slots.isEmpty)
-          const NubiaEmptyState(
-            icon: Icons.event_busy_outlined,
-            title: 'Aucun créneau disponible.',
+          const Expanded(
+            child: NubiaEmptyState(
+              icon: Icons.event_busy_outlined,
+              title: 'Aucun créneau disponible.',
+              subtitle: 'Revenez plus tard ou choisissez un autre praticien.',
+            ),
           )
         else
           Expanded(
-            child: ListView.builder(
-              itemCount: state.slots.length,
-              itemBuilder: (context, i) {
-                final slot = state.slots[i];
-                final isSelected = state.selectedSlot?.id == slot.id;
-                return ListTile(
-                  leading: Icon(
-                    Icons.access_time,
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                  ),
-                  title: Text(_formatDateTime(slot.startsAt)),
-                  subtitle: Text(_formatDuration(slot.duration)),
-                  selected: isSelected,
-                  enabled: slot.isAvailable,
+            child: _SlotsByDay(state: state),
+          ),
+        if (state.selectedSlot != null) _BookingPanel(state: state),
+      ],
+    );
+  }
+}
+
+/// Liste des créneaux groupés par jour, chaque jour = titre + [SlotChip].
+class _SlotsByDay extends StatelessWidget {
+  const _SlotsByDay({required this.state});
+  final AppointmentsSlotsLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    // Regroupement par jour en préservant l'ordre chronologique d'origine.
+    final groups = <DateTime, List<Slot>>{};
+    for (final slot in state.slots) {
+      final key = DateTime(
+        slot.startsAt.year,
+        slot.startsAt.month,
+        slot.startsAt.day,
+      );
+      groups.putIfAbsent(key, () => []).add(slot);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      children: [
+        for (final entry in groups.entries) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              _dayHeader(entry.key),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final slot in entry.value)
+                SlotChip(
+                  label: _hhmm(slot.startsAt),
+                  state: !slot.isAvailable
+                      ? SlotChipState.unavailable
+                      : state.selectedSlot?.id == slot.id
+                          ? SlotChipState.selected
+                          : SlotChipState.available,
                   onTap: slot.isAvailable
                       ? () => context
                           .read<AppointmentsBloc>()
                           .add(AppointmentsSlotSelected(slot))
                       : null,
-                );
-              },
-            ),
+                ),
+            ],
           ),
-        if (state.selectedSlot != null) ...[
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Motif de consultation',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    hintText: 'Ex. : Contrôle annuel, douleur…',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (v) => context
-                      .read<AppointmentsBloc>()
-                      .add(AppointmentsMotifChanged(v)),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: state.motif.trim().isEmpty
-                        ? null
-                        : () => context
-                            .read<AppointmentsBloc>()
-                            .add(const AppointmentsBookingConfirmed()),
-                    child: const Text('Confirmer le rendez-vous'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 20),
         ],
       ],
     );
   }
+}
 
-  String _formatDateTime(DateTime dt) {
-    final weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    final months = [
-      'jan',
-      'fév',
-      'mar',
-      'avr',
-      'mai',
-      'jun',
-      'jul',
-      'aoû',
-      'sep',
-      'oct',
-      'nov',
-      'déc'
-    ];
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]} — $h:$m';
-  }
+/// Panneau bas : motif de consultation + CTA de confirmation.
+class _BookingPanel extends StatelessWidget {
+  const _BookingPanel({required this.state});
+  final AppointmentsSlotsLoaded state;
 
-  String _formatDuration(Duration d) {
-    if (d.inMinutes < 60) return '${d.inMinutes} min';
-    final h = d.inHours;
-    final min = d.inMinutes.remainder(60);
-    return min > 0 ? '${h}h$min' : '${h}h';
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>();
+    final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: borderColor)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Motif de consultation',
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          NubiaTextField(
+            variant: NubiaTextFieldVariant.multiline,
+            maxLines: 2,
+            hint: 'Ex. : Contrôle annuel, douleur…',
+            onChanged: (v) => context
+                .read<AppointmentsBloc>()
+                .add(AppointmentsMotifChanged(v)),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: NubiaButton(
+              key: const Key('confirm_booking_button'),
+              label: 'Confirmer le rendez-vous',
+              size: NubiaButtonSize.lg,
+              icon: Icons.check_rounded,
+              onPressed: state.motif.trim().isEmpty
+                  ? null
+                  : () => context
+                      .read<AppointmentsBloc>()
+                      .add(const AppointmentsBookingConfirmed()),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

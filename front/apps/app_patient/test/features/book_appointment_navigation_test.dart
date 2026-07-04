@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'package:app_patient/features/appointments/appointments_bloc.dart';
 import 'package:app_patient/features/appointments/appointments_event.dart';
@@ -28,7 +29,8 @@ void main() {
     await GetIt.instance.reset();
   });
 
-  testWidgets('tap FAB "Booker un RDV" navigue vers /book et affiche le formulaire',
+  testWidgets(
+      'tap FAB "Booker un RDV" navigue vers /book et affiche le formulaire',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/mes-rdv',
@@ -52,7 +54,9 @@ void main() {
       ],
     );
 
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpWidget(
+      MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('book_rdv_fab')));
