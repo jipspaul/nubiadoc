@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'today_notes_bloc.dart';
@@ -13,42 +14,57 @@ class TodayNotesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<TodayNotesBloc, TodayNotesState>(
       builder: (context, state) {
+        final cs = Theme.of(context).colorScheme;
+        final textTheme = Theme.of(context).textTheme;
         final entries = switch (state) {
           TodayNotesLoaded(:final entries) => entries,
           _ => const <ClinicalNoteSummary>[],
         };
 
-        return Card(
+        return NubiaCard(
           key: const Key('today_notes_card'),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: Row(
                   children: [
-                    const Icon(Icons.notes_outlined, size: 20),
+                    Icon(
+                      Icons.notes_outlined,
+                      size: 20,
+                      color: cs.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Notes du jour',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: cs.onSurface,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                if (entries.isEmpty)
-                  const Center(
-                    key: Key('today_notes_empty'),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('Aucune consultation aujourd\'hui'),
-                    ),
-                  )
-                else
-                  ...entries.map((e) => _NoteRow(entry: e)),
-              ],
-            ),
+              ),
+              if (entries.isEmpty)
+                const Padding(
+                  key: Key('today_notes_empty'),
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: NubiaEmptyState(
+                    icon: Icons.event_available_outlined,
+                    title: 'Aucune consultation aujourd\'hui',
+                    subtitle: 'Les notes des consultations du jour '
+                        'apparaîtront ici.',
+                  ),
+                )
+              else
+                for (int i = 0; i < entries.length; i++)
+                  _NoteRow(
+                    entry: entries[i],
+                    showDivider: i < entries.length - 1,
+                  ),
+            ],
           ),
         );
       },
@@ -57,31 +73,46 @@ class TodayNotesCard extends StatelessWidget {
 }
 
 class _NoteRow extends StatelessWidget {
-  const _NoteRow({required this.entry});
+  const _NoteRow({required this.entry, required this.showDivider});
 
   final ClinicalNoteSummary entry;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
     final hour = entry.timestamp.hour.toString().padLeft(2, '0');
     final min = entry.timestamp.minute.toString().padLeft(2, '0');
 
-    return ListTile(
+    return ListRow(
       key: Key('today_note_${entry.id}'),
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        radius: 16,
-        child: Text(
-          entry.patientInitials,
-          style: const TextStyle(fontSize: 12),
-        ),
+      leading: NubiaAvatar(initials: entry.patientInitials, radius: 16),
+      title: '$hour:$min',
+      subtitle: 'Consultation',
+      trailing: StatusPill(
+        label: entry.status,
+        variant: _variantFor(entry.status),
       ),
-      title: Text('$hour:$min'),
-      trailing: Chip(
-        label: Text(entry.status),
-        visualDensity: VisualDensity.compact,
-      ),
+      showDivider: showDivider,
     );
+  }
+
+  /// Traduit le statut textuel d'une note en variante sémantique de pill.
+  StatusPillVariant _variantFor(String status) {
+    final normalized = status.toLowerCase();
+    if (normalized.contains('signé') ||
+        normalized.contains('validé') ||
+        normalized.contains('terminé') ||
+        normalized.contains('clôturé')) {
+      return StatusPillVariant.success;
+    }
+    if (normalized.contains('attente') ||
+        normalized.contains('brouillon') ||
+        normalized.contains('cours')) {
+      return StatusPillVariant.warning;
+    }
+    if (normalized.contains('annulé') || normalized.contains('erreur')) {
+      return StatusPillVariant.error;
+    }
+    return StatusPillVariant.info;
   }
 }

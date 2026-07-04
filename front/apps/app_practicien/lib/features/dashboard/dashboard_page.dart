@@ -122,9 +122,7 @@ class _DashboardContent extends StatelessWidget {
         return switch (state) {
           DashboardInitial() ||
           DashboardLoading() =>
-            const Center(
-              child: CircularProgressIndicator(key: Key('dashboard_loading')),
-            ),
+            const _DashboardLoadingView(key: Key('dashboard_loading')),
           DashboardError(:final message) => NubiaErrorWidget(
               key: const Key('dashboard_error'),
               message: message,
@@ -149,12 +147,15 @@ class _DashboardLoadedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      key: const Key('dashboard_loaded'),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SummaryGrid(summary: summary),
+          const _DashboardHeader(),
           const SizedBox(height: 16),
+          _SummaryGrid(summary: summary),
+          const SizedBox(height: 24),
           BlocProvider(
             create: (_) => GetIt.instance<TodayNotesBloc>()
               ..add(const TodayNotesLoadRequested()),
@@ -166,6 +167,66 @@ class _DashboardLoadedView extends StatelessWidget {
   }
 }
 
+/// Bandeau de titre du tableau de bord (hiérarchie `h2` + sous-titre `caption`).
+class _DashboardHeader extends StatelessWidget {
+  const _DashboardHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Ma journée',
+          style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Aperçu de votre activité clinique du jour',
+          style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+}
+
+/// Squelette de chargement : quatre tuiles de métrique animées.
+class _DashboardLoadingView extends StatelessWidget {
+  const _DashboardLoadingView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const NubiaSkeletonLoader(width: 160, height: 28),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              for (int i = 0; i < 4; i++)
+                const NubiaSkeletonLoader(
+                  width: 180,
+                  height: 108,
+                  borderRadius: 12,
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const NubiaSkeletonLoader(height: 180, borderRadius: 12),
+        ],
+      ),
+    );
+  }
+}
+
+/// Grille responsive de [MetricTile] alimentée par [ProDashboardSummary].
 class _SummaryGrid extends StatelessWidget {
   const _SummaryGrid({required this.summary});
 
@@ -173,60 +234,74 @@ class _SummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cards = [
+    final metrics = <({
+      Key key,
+      String label,
+      String value,
+      IconData icon,
+      MetricTileVariant variant,
+    })>[
       (
+        key: const Key('metric_appointments'),
         label: 'RDV aujourd\'hui',
         value: '${summary.todayAppointments}',
         icon: Icons.calendar_today_outlined,
+        variant: MetricTileVariant.neutral,
       ),
       (
+        key: const Key('metric_waiting_room'),
         label: 'Salle d\'attente',
         value: '${summary.waitingRoomCount}',
         icon: Icons.event_seat_outlined,
+        variant: MetricTileVariant.neutral,
       ),
       (
+        key: const Key('metric_messages'),
         label: 'Messages non lus',
         value: '${summary.unreadMessages}',
         icon: Icons.chat_bubble_outline,
+        variant: summary.unreadMessages > 0
+            ? MetricTileVariant.warning
+            : MetricTileVariant.neutral,
       ),
       (
+        key: const Key('metric_confirmations'),
         label: 'Confirmations en attente',
         value: '${summary.pendingConfirmations}',
         icon: Icons.pending_actions_outlined,
+        variant: summary.pendingConfirmations > 0
+            ? MetricTileVariant.warning
+            : MetricTileVariant.neutral,
       ),
     ];
 
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: [
-        for (final card in cards)
-          SizedBox(
-            width: 160,
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(card.icon, size: 32),
-                    const SizedBox(height: 8),
-                    Text(
-                      card.value,
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      card.label,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 16.0;
+        // Vise ~200 px par tuile, borné entre 1 et 4 colonnes.
+        final columns =
+            (constraints.maxWidth / 200).floor().clamp(1, metrics.length);
+        final tileWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final m in metrics)
+              SizedBox(
+                width: tileWidth,
+                child: MetricTile(
+                  key: m.key,
+                  icon: m.icon,
+                  value: m.value,
+                  label: m.label,
+                  variant: m.variant,
                 ),
               ),
-            ),
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
