@@ -7,6 +7,10 @@ import 'appointments_bloc.dart';
 import 'appointments_event.dart';
 import 'appointments_state.dart';
 
+/// Écran "Rendez-vous" côté secrétariat.
+///
+/// Cloisonnement : aucune donnée clinique (motif clinique, notes) affichée —
+/// seules les informations administratives du RDV sont exposées.
 class AppointmentsPage extends StatefulWidget {
   const AppointmentsPage({super.key});
 
@@ -41,7 +45,7 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
       body: BlocBuilder<AppointmentsBloc, AppointmentsState>(
         builder: (context, state) {
           if (state is AppointmentsLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const _AppointmentsSkeleton();
           }
           if (state is AppointmentsLoaded) {
             return _LoadedView(
@@ -67,6 +71,63 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Helpers statut / format
+// ---------------------------------------------------------------------------
+
+String statusLabel(CabinetAppointmentStatus status) {
+  switch (status) {
+    case CabinetAppointmentStatus.requested:
+      return 'En attente';
+    case CabinetAppointmentStatus.confirmed:
+      return 'Confirmé';
+    case CabinetAppointmentStatus.inProgress:
+      return 'En cours';
+    case CabinetAppointmentStatus.completed:
+      return 'Terminé';
+    case CabinetAppointmentStatus.cancelled:
+      return 'Annulé';
+    case CabinetAppointmentStatus.noShow:
+      return 'Absent';
+  }
+}
+
+StatusPillVariant statusVariant(CabinetAppointmentStatus status) {
+  switch (status) {
+    case CabinetAppointmentStatus.requested:
+      return StatusPillVariant.warning;
+    case CabinetAppointmentStatus.confirmed:
+      return StatusPillVariant.success;
+    case CabinetAppointmentStatus.inProgress:
+      return StatusPillVariant.info;
+    case CabinetAppointmentStatus.completed:
+      return StatusPillVariant.info;
+    case CabinetAppointmentStatus.cancelled:
+      return StatusPillVariant.error;
+    case CabinetAppointmentStatus.noShow:
+      return StatusPillVariant.error;
+  }
+}
+
+String _initialsFrom(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return '–';
+  if (parts.length == 1) {
+    final p = parts.first;
+    return (p.length <= 2 ? p : p.substring(0, 2)).toUpperCase();
+  }
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+      .toUpperCase();
+}
+
+String _formatDateTime(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/'
+    '${dt.month.toString().padLeft(2, '0')}/'
+    '${dt.year} '
+    '${dt.hour.toString().padLeft(2, '0')}:'
+    '${dt.minute.toString().padLeft(2, '0')}';
+
+// ---------------------------------------------------------------------------
 
 class _LoadedView extends StatelessWidget {
   const _LoadedView({
@@ -132,7 +193,7 @@ class _LoadedView extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: filtered.length,
                   itemBuilder: (_, i) =>
-                      _AppointmentTile(appointment: filtered[i]),
+                      _AppointmentCard(appointment: filtered[i]),
                 ),
         ),
       ],
@@ -140,44 +201,93 @@ class _LoadedView extends StatelessWidget {
   }
 }
 
-class _AppointmentTile extends StatelessWidget {
-  const _AppointmentTile({required this.appointment});
+class _AppointmentCard extends StatelessWidget {
+  const _AppointmentCard({required this.appointment});
 
   final CabinetAppointment appointment;
 
-  String _statusLabel(CabinetAppointmentStatus status) {
-    switch (status) {
-      case CabinetAppointmentStatus.requested:
-        return 'En attente';
-      case CabinetAppointmentStatus.confirmed:
-        return 'Confirmé';
-      case CabinetAppointmentStatus.inProgress:
-        return 'En cours';
-      case CabinetAppointmentStatus.completed:
-        return 'Terminé';
-      case CabinetAppointmentStatus.cancelled:
-        return 'Annulé';
-      case CabinetAppointmentStatus.noShow:
-        return 'Absent';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: const Icon(Icons.event_outlined),
-      title: Text(appointment.patientName),
-      subtitle: Text(appointment.practitionerName),
-      trailing: Chip(
-        label: Text(
-          _statusLabel(appointment.status),
-          style: const TextStyle(fontSize: 12),
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final canConfirm = appointment.status == CabinetAppointmentStatus.requested;
+
+    return Padding(
+      key: Key('appointment_${appointment.id}'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: NubiaCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                NubiaAvatar(
+                  initials: _initialsFrom(appointment.patientName),
+                  radius: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        appointment.patientName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${appointment.practitionerName} · '
+                        '${_formatDateTime(appointment.startsAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                StatusPill(
+                  label: statusLabel(appointment.status),
+                  variant: statusVariant(appointment.status),
+                ),
+              ],
+            ),
+            if (canConfirm) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: NubiaButton(
+                  key: Key('confirm_${appointment.id}'),
+                  label: 'Confirmer',
+                  size: NubiaButtonSize.sm,
+                  variant: NubiaButtonVariant.secondary,
+                  onPressed: () => context.read<AppointmentsBloc>().add(
+                        AppointmentConfirmRequested(
+                          appointmentId: appointment.id,
+                        ),
+                      ),
+                ),
+              ),
+            ],
+          ],
         ),
-        padding: EdgeInsets.zero,
       ),
     );
   }
 }
+
+// ---------------------------------------------------------------------------
 
 class _InitialView extends StatelessWidget {
   const _InitialView();
@@ -334,12 +444,23 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return NubiaCard(
+      state: NubiaCardState.interactive,
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, color: cs.primary),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              title,
+              style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
+            ),
+          ),
+          Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+        ],
       ),
     );
   }
@@ -353,56 +474,118 @@ class _SuccessView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 48),
-                const SizedBox(height: 12),
-                Text(
-                  'Opération effectuée',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text('Patient : ${appointment.patientName}'),
-                Text(
-                  'Date : ${_formatDate(appointment.startsAt)}',
-                ),
-                Text('Statut : ${_statusLabel(appointment.status)}'),
-              ],
-            ),
+        child: NubiaCard(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.check_circle, color: tokens.successFg, size: 40),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Opération effectuée',
+                    style: textTheme.titleMedium?.copyWith(
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _InfoLine(label: 'Patient', value: appointment.patientName),
+              const SizedBox(height: 8),
+              _InfoLine(
+                label: 'Date',
+                value: _formatDateTime(appointment.startsAt),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    'Statut',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  StatusPill(
+                    label: statusLabel(appointment.status),
+                    variant: statusVariant(appointment.status),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
 
-  String _formatDate(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/'
-      '${dt.month.toString().padLeft(2, '0')}/'
-      '${dt.year} '
-      '${dt.hour.toString().padLeft(2, '0')}:'
-      '${dt.minute.toString().padLeft(2, '0')}';
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({required this.label, required this.value});
 
-  String _statusLabel(CabinetAppointmentStatus status) {
-    switch (status) {
-      case CabinetAppointmentStatus.requested:
-        return 'Demandé';
-      case CabinetAppointmentStatus.confirmed:
-        return 'Confirmé';
-      case CabinetAppointmentStatus.inProgress:
-        return 'En cours';
-      case CabinetAppointmentStatus.completed:
-        return 'Terminé';
-      case CabinetAppointmentStatus.cancelled:
-        return 'Annulé';
-      case CabinetAppointmentStatus.noShow:
-        return 'Absent';
-    }
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 64,
+          child: Text(
+            label,
+            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: textTheme.bodyMedium?.copyWith(color: cs.onSurface),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Skeleton de chargement de la liste des rendez-vous.
+class _AppointmentsSkeleton extends StatelessWidget {
+  const _AppointmentsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('appointments_loading'),
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: const [
+            NubiaSkeletonLoader(width: 72, height: 32, borderRadius: 16),
+            SizedBox(width: 8),
+            NubiaSkeletonLoader(width: 96, height: 32, borderRadius: 16),
+            SizedBox(width: 8),
+            NubiaSkeletonLoader(width: 88, height: 32, borderRadius: 16),
+          ],
+        ),
+        const SizedBox(height: 16),
+        for (var i = 0; i < 5; i++) ...[
+          const NubiaSkeletonLoader(height: 84, borderRadius: 12),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
   }
 }

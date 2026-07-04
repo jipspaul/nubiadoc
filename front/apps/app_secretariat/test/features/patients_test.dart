@@ -158,10 +158,10 @@ void main() {
           ),
         );
 
-    testWidgets('affiche le chargement en état initial', (tester) async {
+    testWidgets('affiche le skeleton en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const PatientsInitial());
       await tester.pumpWidget(buildPage());
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
     testWidgets('affiche les patients — aucun champ clinique visible',
@@ -236,7 +236,7 @@ void main() {
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      expect(find.byType(ListTile), findsNWidgets(3));
+      expect(find.byType(ListRow), findsNWidgets(3));
 
       await tester.enterText(find.byType(TextField), 'ali');
       await tester.pump();
