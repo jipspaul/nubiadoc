@@ -119,15 +119,42 @@ class _MemberTile extends StatelessWidget {
 
   final Member member;
 
+  static String _roleLabel(MemberRole role) {
+    switch (role) {
+      case MemberRole.practitioner:
+        return 'Praticien';
+      case MemberRole.assistant:
+        return 'Assistant';
+      case MemberRole.secretary:
+        return 'Secrétaire';
+      case MemberRole.admin:
+        return 'Admin';
+    }
+  }
+
+  static NubiaBadgeVariant _roleVariant(MemberRole role) =>
+      role == MemberRole.admin
+          ? NubiaBadgeVariant.warning
+          : NubiaBadgeVariant.neutral;
+
+  static String _initials(String first, String last) {
+    final f = first.trim().isNotEmpty ? first.trim()[0] : '';
+    final l = last.trim().isNotEmpty ? last.trim()[0] : '';
+    final res = '$f$l'.toUpperCase();
+    return res.isNotEmpty ? res : '?';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: const Icon(Icons.person_outline),
-      title: Text(member.fullName),
-      subtitle: Text(member.email),
-      trailing: Text(
-        member.role.name,
-        style: Theme.of(context).textTheme.bodySmall,
+    return ListRow(
+      leading: NubiaAvatar(
+        initials: _initials(member.firstName, member.lastName),
+      ),
+      title: member.fullName,
+      subtitle: member.email,
+      trailing: NubiaBadge.label(
+        label: _roleLabel(member.role),
+        variant: _roleVariant(member.role),
       ),
     );
   }
@@ -161,10 +188,15 @@ class _SecretariatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: const Icon(Icons.business_outlined),
-      title: Text(secretariat.name),
-      subtitle: Text(secretariat.email),
+    final cs = Theme.of(context).colorScheme;
+    return ListRow(
+      leading: CircleAvatar(
+        backgroundColor: cs.primaryContainer,
+        foregroundColor: cs.onPrimaryContainer,
+        child: const Icon(Icons.business_outlined, size: 20),
+      ),
+      title: secretariat.name,
+      subtitle: secretariat.email,
     );
   }
 }

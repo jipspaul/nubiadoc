@@ -5,8 +5,11 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
 import 'devis_event.dart';
+import 'devis_page.dart' show formatEuros, mapQuoteStatus;
 import 'devis_state.dart';
 
+/// Détail d'un devis côté secrétariat.
+/// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
 class DevisDetailPage extends StatefulWidget {
   const DevisDetailPage({super.key, required this.id});
 
@@ -67,45 +70,80 @@ class _DevisDetailBody extends StatelessWidget {
     }
   }
 
-  String _formatEuros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
+  StatusPillVariant _statusVariant(CabinetQuoteStatus status) {
+    switch (status) {
+      case CabinetQuoteStatus.draft:
+        return StatusPillVariant.info;
+      case CabinetQuoteStatus.sent:
+        return StatusPillVariant.warning;
+      case CabinetQuoteStatus.signed:
+        return StatusPillVariant.success;
+      case CabinetQuoteStatus.expired:
+      case CabinetQuoteStatus.cancelled:
+        return StatusPillVariant.error;
+    }
+  }
+
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/'
+      '${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final hasDates = quote.expiresAt != null || quote.signedAt != null;
+    final hasItems = quote.items != null && quote.items!.isNotEmpty;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(quote.patientName, style: theme.textTheme.headlineSmall),
-        const SizedBox(height: 8),
-        Chip(label: Text(_statusLabel(quote.status))),
-        const SizedBox(height: 16),
-        _Row(label: 'Montant total', value: _formatEuros(quote.totalCents)),
-        _Row(
-          label: 'Part patient',
-          value: _formatEuros(quote.patientShareCents),
+        AmountHeader(
+          label: 'Total du plan de soins',
+          amount: formatEuros(quote.totalCents),
+          caption: quote.patientName,
+          remainingLabel: 'Part patient',
+          remainingAmount: formatEuros(quote.patientShareCents),
+          remainingCaption: 'Reste à charge',
         ),
-        if (quote.expiresAt != null)
-          _Row(
-            label: 'Expire le',
-            value:
-                '${quote.expiresAt!.day.toString().padLeft(2, '0')}/${quote.expiresAt!.month.toString().padLeft(2, '0')}/${quote.expiresAt!.year}',
+        const SizedBox(height: 16),
+        Center(
+          child: StatusPill(
+            label: _statusLabel(quote.status),
+            variant: _statusVariant(quote.status),
           ),
-        if (quote.signedAt != null)
-          _Row(
-            label: 'Signé le',
-            value:
-                '${quote.signedAt!.day.toString().padLeft(2, '0')}/${quote.signedAt!.month.toString().padLeft(2, '0')}/${quote.signedAt!.year}',
-          ),
-        if (quote.items != null && quote.items!.isNotEmpty) ...[
+        ),
+        if (hasDates) ...[
           const SizedBox(height: 16),
-          Text('Actes', style: theme.textTheme.titleMedium),
-          const Divider(),
-          ...quote.items!.map(
-            (item) => ListTile(
-              title: Text(item.label),
-              trailing: Text(_formatEuros(item.totalCents)),
-              contentPadding: EdgeInsets.zero,
+          NubiaCard(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (quote.expiresAt != null)
+                  _DateRow(
+                    label: 'Expire le',
+                    value: _formatDate(quote.expiresAt!),
+                  ),
+                if (quote.expiresAt != null && quote.signedAt != null)
+                  const SizedBox(height: 8),
+                if (quote.signedAt != null)
+                  _DateRow(
+                    label: 'Signé le',
+                    value: _formatDate(quote.signedAt!),
+                  ),
+              ],
             ),
+          ),
+        ],
+        if (hasItems) ...[
+          const SizedBox(height: 16),
+          QuoteCard(
+            title: 'Détail des actes',
+            status: mapQuoteStatus(quote.status),
+            lines: [
+              for (final item in quote.items!)
+                QuoteLine(
+                  label: item.label,
+                  amount: formatEuros(item.totalCents),
+                ),
+            ],
           ),
         ],
       ],
@@ -113,23 +151,31 @@ class _DevisDetailBody extends StatelessWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  const _Row({required this.label, required this.value});
+class _DateRow extends StatelessWidget {
+  const _DateRow({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          Text(value),
-        ],
-      ),
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

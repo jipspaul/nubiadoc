@@ -9,6 +9,8 @@ import 'devis_bloc.dart';
 import 'devis_event.dart';
 import 'devis_state.dart';
 
+/// Écran "Devis" côté secrétariat — liste des devis du cabinet.
+/// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
 class DevisPage extends StatefulWidget {
   const DevisPage({super.key});
 
@@ -65,9 +67,15 @@ class _DevisPageState extends State<DevisPage> {
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: quotes.length,
-              itemBuilder: (ctx, i) => _DevisTile(
-                quote: quotes[i],
-                onTap: () => ctx.go('/devis/${quotes[i].id}'),
+              itemBuilder: (ctx, i) => Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: _DevisCard(
+                  quote: quotes[i],
+                  onTap: () => ctx.go('/devis/${quotes[i].id}'),
+                ),
               ),
             );
           }
@@ -85,62 +93,49 @@ class _DevisPageState extends State<DevisPage> {
   }
 }
 
-class _DevisTile extends StatelessWidget {
-  const _DevisTile({required this.quote, this.onTap});
+/// Formate un montant en centimes vers une chaîne « 350.00 € ».
+String formatEuros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
+
+/// Mappe le statut métier ([CabinetQuoteStatus]) vers le statut du composant DS
+/// ([QuoteCardStatus]). Le WEDGE DS n'a pas d'état « annulé » : on le rapproche
+/// de « refusé » (variante danger, cycle clôturé négativement).
+QuoteCardStatus mapQuoteStatus(CabinetQuoteStatus status) {
+  switch (status) {
+    case CabinetQuoteStatus.draft:
+      return QuoteCardStatus.draft;
+    case CabinetQuoteStatus.sent:
+      return QuoteCardStatus.sent;
+    case CabinetQuoteStatus.signed:
+      return QuoteCardStatus.signed;
+    case CabinetQuoteStatus.expired:
+      return QuoteCardStatus.expired;
+    case CabinetQuoteStatus.cancelled:
+      return QuoteCardStatus.refused;
+  }
+}
+
+class _DevisCard extends StatelessWidget {
+  const _DevisCard({required this.quote, this.onTap});
 
   final CabinetQuote quote;
   final VoidCallback? onTap;
 
-  String _statusLabel(CabinetQuoteStatus status) {
-    switch (status) {
-      case CabinetQuoteStatus.draft:
-        return 'Brouillon';
-      case CabinetQuoteStatus.sent:
-        return 'Envoyé';
-      case CabinetQuoteStatus.signed:
-        return 'Signé';
-      case CabinetQuoteStatus.expired:
-        return 'Expiré';
-      case CabinetQuoteStatus.cancelled:
-        return 'Annulé';
-    }
-  }
-
-  Color _statusColor(CabinetQuoteStatus status) {
-    switch (status) {
-      case CabinetQuoteStatus.draft:
-        return Colors.grey;
-      case CabinetQuoteStatus.sent:
-        return Colors.blue;
-      case CabinetQuoteStatus.signed:
-        return Colors.green;
-      case CabinetQuoteStatus.expired:
-      case CabinetQuoteStatus.cancelled:
-        return Colors.red;
-    }
-  }
-
-  String _formatEuros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
-
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return InkWell(
       onTap: onTap,
-      leading: const Icon(Icons.receipt_long_outlined),
-      title: Text(quote.patientName),
-      subtitle: Text(
-        'Total : ${_formatEuros(quote.totalCents)} '
-        '— Part patient : ${_formatEuros(quote.patientShareCents)}',
-      ),
-      trailing: Chip(
-        label: Text(
-          _statusLabel(quote.status),
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
-        backgroundColor: _statusColor(quote.status),
-        padding: EdgeInsets.zero,
+      borderRadius: BorderRadius.circular(12),
+      child: QuoteCard(
+        title: quote.patientName,
+        status: mapQuoteStatus(quote.status),
+        lines: [
+          QuoteLine(label: 'Total', amount: formatEuros(quote.totalCents)),
+          QuoteLine(
+            label: 'Part patient',
+            amount: formatEuros(quote.patientShareCents),
+          ),
+        ],
       ),
     );
   }
 }
-
