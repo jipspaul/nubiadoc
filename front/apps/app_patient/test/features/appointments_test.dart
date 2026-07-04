@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/appointments/appointments_bloc.dart';
@@ -33,6 +34,7 @@ class _MockAppointmentsBloc
 // ---------------------------------------------------------------------------
 
 Widget _wrap(AppointmentsBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: BlocProvider.value(
         value: bloc,
         child: const Scaffold(body: AppointmentsPage()),
@@ -154,6 +156,7 @@ void main() {
       when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
 
       await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
         home: BlocProvider<AppointmentsBloc>.value(
           value: bloc,
           child: const Scaffold(body: AppointmentsPage()),
@@ -161,9 +164,9 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      // Barre de recherche persistante + les 3 praticiens.
+      // Barre de recherche persistante + les 3 praticiens (ProviderCard).
       expect(find.byKey(const Key('search_field')), findsOneWidget);
-      expect(find.byType(ListTile), findsNWidgets(3));
+      expect(find.byType(ProviderCard), findsNWidgets(3));
       expect(find.text('Dr Martin'), findsOneWidget);
     });
   });
