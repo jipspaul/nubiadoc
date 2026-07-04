@@ -1,0 +1,379 @@
+//! Devis d'officine (lot B7) — produits + prix TTC en centimes, distinct du
+//! devis dentaire (`quote` : CCAM/AMO/AMC, eIDAS).
+//!
+//! Espace pharmacie : `GET|POST /v1/pharmacy/quotes`, `POST …/{id}/send`
+//! (pharmacist/admin). Espace patient : `GET /v1/account/pharmacy-quotes`,
+//! `POST …/{id}/accept|refuse`.
+
+use std::sync::Arc;
+
+use axum::{
+    extract::{Extension, Path, State},
+    http::StatusCode,
+    Json,
+};
+use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgRow;
+use sqlx::Row;
+use uuid::Uuid;
+
+use crate::{
+    auth::{AppError, PatientAccountClaims, PharmaMemberClaims, PharmaPharmacistClaims},
+    notify,
+    realtime::WsHub,
+    AppState, JobDispatcher,
+};
+
+// ── DTO ───────────────────────────────────────────────────────────────────────
+
+/// Un devis d'officine dans les réponses API (mêmes clés des deux bords).
+#[derive(Serialize)]
+pub struct QuoteDto {
+    pub id: Uuid,
+    pub pharmacy_id: Uuid,
+    pub pharmacy_name: String,
+    pub patient_display_name: String,
+    pub order_id: Option<Uuid>,
+    pub items: serde_json::Value,
+    pub total_cents: i64,
+    pub status: String,
+    pub created_at: String,
+    pub sent_at: Option<String>,
+    pub decided_at: Option<String>,
+}
+
+const QUOTE_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, order_id, \
+     items, total_cents, status, created_at, sent_at, decided_at";
+
+fn quote_from_row(row: &PgRow) -> Result<QuoteDto, AppError> {
+    let to_rfc3339 = |value: chrono::DateTime<chrono::Utc>| value.to_rfc3339();
+    Ok(QuoteDto {
+        id: row.try_get("id").map_err(|_| AppError::Internal)?,
+        pharmacy_id: row.try_get("pharmacy_id").map_err(|_| AppError::Internal)?,
+        pharmacy_name: row
+            .try_get("pharmacy_name")
+            .map_err(|_| AppError::Internal)?,
+        patient_display_name: row
+            .try_get("patient_display_name")
+            .map_err(|_| AppError::Internal)?,
+        order_id: row.try_get("order_id").map_err(|_| AppError::Internal)?,
+        items: row.try_get("items").map_err(|_| AppError::Internal)?,
+        total_cents: row.try_get("total_cents").map_err(|_| AppError::Internal)?,
+        status: row.try_get("status").map_err(|_| AppError::Internal)?,
+        created_at: to_rfc3339(row.try_get("created_at").map_err(|_| AppError::Internal)?),
+        sent_at: row
+            .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("sent_at")
+            .map_err(|_| AppError::Internal)?
+            .map(to_rfc3339),
+        decided_at: row
+            .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("decided_at")
+            .map_err(|_| AppError::Internal)?
+            .map(to_rfc3339),
+    })
+}
+
+/// Réponse liste : `{ data: [...] }`.
+#[derive(Serialize)]
+pub struct QuotesResponse {
+    pub data: Vec<QuoteDto>,
+}
+
+// ── Espace pharmacie ──────────────────────────────────────────────────────────
+
+/// Une ligne du body de création.
+#[derive(Deserialize)]
+pub struct QuoteItemInput {
+    pub label: String,
+    pub qty: i64,
+    pub unit_price_cents: i64,
+}
+
+/// Body de `POST /v1/pharmacy/quotes`.
+#[derive(Deserialize)]
+pub struct CreateQuoteBody {
+    /// Commande à laquelle rattacher le devis (l'identité patient en découle).
+    pub order_id: Uuid,
+    pub items: Vec<QuoteItemInput>,
+}
+
+/// `POST /v1/pharmacy/quotes` — crée un devis (statut `draft`) rattaché à une
+/// commande de la pharmacie (404 hors tenant). Items vides, libellé vide,
+/// quantité ou prix négatif → 422. Le total est calculé côté serveur.
+pub async fn create_pharmacy_quote(
+    State(state): State<AppState>,
+    claims: PharmaPharmacistClaims,
+    Json(body): Json<CreateQuoteBody>,
+) -> Result<(StatusCode, Json<QuoteDto>), AppError> {
+    if body.items.is_empty()
+        || body
+            .items
+            .iter()
+            .any(|item| item.label.trim().is_empty() || item.qty <= 0 || item.unit_price_cents < 0)
+    {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(claims.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // La commande ancre le devis : identité patient et nom dénormalisés.
+    let order = sqlx::query(
+        "SELECT patient_account_id, pharmacy_name, patient_display_name \
+         FROM pharmacy_order WHERE id = $1",
+    )
+    .bind(body.order_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let patient_account_id: Uuid = order
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
+    let pharmacy_name: String = order
+        .try_get("pharmacy_name")
+        .map_err(|_| AppError::Internal)?;
+    let patient_display_name: String = order
+        .try_get("patient_display_name")
+        .map_err(|_| AppError::Internal)?;
+
+    let total_cents: i64 = body
+        .items
+        .iter()
+        .map(|item| item.qty * item.unit_price_cents)
+        .sum();
+    let items = serde_json::json!(body
+        .items
+        .iter()
+        .map(|item| {
+            serde_json::json!({
+                "label": item.label.trim(),
+                "qty": item.qty,
+                "unit_price_cents": item.unit_price_cents,
+            })
+        })
+        .collect::<Vec<_>>());
+
+    let row = sqlx::query(&format!(
+        "INSERT INTO pharmacy_quote \
+         (pharmacy_id, patient_account_id, order_id, pharmacy_name, \
+          patient_display_name, items, total_cents) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+         RETURNING {QUOTE_COLUMNS}",
+    ))
+    .bind(claims.pharmacy_id)
+    .bind(patient_account_id)
+    .bind(body.order_id)
+    .bind(&pharmacy_name)
+    .bind(&patient_display_name)
+    .bind(&items)
+    .bind(total_cents)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    Ok((StatusCode::CREATED, Json(quote_from_row(&row)?)))
+}
+
+/// `GET /v1/pharmacy/quotes` — devis de la pharmacie (brouillons compris).
+pub async fn list_pharmacy_quotes(
+    State(state): State<AppState>,
+    claims: PharmaMemberClaims,
+) -> Result<Json<QuotesResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(claims.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(&format!(
+        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote ORDER BY created_at DESC LIMIT 200",
+    ))
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .iter()
+        .map(quote_from_row)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Json(QuotesResponse { data }))
+}
+
+/// `POST /v1/pharmacy/quotes/{id}/send` — draft → sent (pharmacist/admin).
+/// Notifie le patient (sans PII) et publie sur son canal WS.
+pub async fn send_pharmacy_quote(
+    State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
+    claims: PharmaPharmacistClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<QuoteDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(claims.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
+        "UPDATE pharmacy_quote SET status = 'sent', sent_at = now(), updated_at = now() \
+         WHERE id = $1 AND status = 'draft' \
+         RETURNING {QUOTE_COLUMNS}",
+    ))
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        let exists = sqlx::query("SELECT 1 FROM pharmacy_quote WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(if exists.is_none() {
+            AppError::NotFound
+        } else {
+            AppError::InvalidStatus
+        });
+    };
+
+    let quote = quote_from_row(&row)?;
+
+    let patient_account_id: Uuid =
+        sqlx::query("SELECT patient_account_id FROM pharmacy_quote WHERE id = $1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+
+    // Notification patient (zéro PII — lot B4).
+    let pushed = notify::notify_patient_account(
+        &mut tx,
+        patient_account_id,
+        "pharmacy_quote_sent",
+        "Un devis vous attend",
+        serde_json::json!({ "pharmacy_quote_id": id, "status": "sent" }),
+    )
+    .await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    if let Some((app_user_id, notification_id)) = pushed {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("account_orders:{patient_account_id}"),
+        serde_json::json!({
+            "channel": format!("account_orders:{patient_account_id}"),
+            "event": "pharmacy_quote_sent",
+            "data": { "pharmacy_quote_id": id, "status": "sent" }
+        })
+        .to_string(),
+    );
+
+    Ok(Json(quote))
+}
+
+// ── Espace patient ────────────────────────────────────────────────────────────
+
+/// `GET /v1/account/pharmacy-quotes` — devis reçus (jamais les brouillons, RLS).
+pub async fn list_account_pharmacy_quotes(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<QuotesResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(&format!(
+        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote ORDER BY created_at DESC LIMIT 100",
+    ))
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .iter()
+        .map(quote_from_row)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Json(QuotesResponse { data }))
+}
+
+async fn decide_quote(
+    state: &AppState,
+    account_id: Uuid,
+    id: Uuid,
+    decision: &str,
+) -> Result<QuoteDto, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
+        "UPDATE pharmacy_quote \
+         SET status = $2, decided_at = now(), updated_at = now() \
+         WHERE id = $1 AND status = 'sent' \
+         RETURNING {QUOTE_COLUMNS}",
+    ))
+    .bind(id)
+    .bind(decision)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        let exists = sqlx::query("SELECT 1 FROM pharmacy_quote WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(if exists.is_none() {
+            AppError::NotFound
+        } else {
+            AppError::InvalidStatus
+        });
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    quote_from_row(&row)
+}
+
+/// `POST /v1/account/pharmacy-quotes/{id}/accept` — sent → accepted.
+pub async fn accept_pharmacy_quote(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<QuoteDto>, AppError> {
+    let quote = decide_quote(&state, claims.account_id, id, "accepted").await?;
+    Ok(Json(quote))
+}
+
+/// `POST /v1/account/pharmacy-quotes/{id}/refuse` — sent → refused.
+pub async fn refuse_pharmacy_quote(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<QuoteDto>, AppError> {
+    let quote = decide_quote(&state, claims.account_id, id, "refused").await?;
+    Ok(Json(quote))
+}

@@ -585,6 +585,27 @@ fn build_router(
             get(pharmacy::stock::list_pharmacy_stock_requests),
         )
         .route(
+            "/v1/pharmacy/quotes",
+            get(pharmacy::quotes::list_pharmacy_quotes)
+                .post(pharmacy::quotes::create_pharmacy_quote),
+        )
+        .route(
+            "/v1/pharmacy/quotes/:id/send",
+            post(pharmacy::quotes::send_pharmacy_quote),
+        )
+        .route(
+            "/v1/account/pharmacy-quotes",
+            get(pharmacy::quotes::list_account_pharmacy_quotes),
+        )
+        .route(
+            "/v1/account/pharmacy-quotes/:id/accept",
+            post(pharmacy::quotes::accept_pharmacy_quote),
+        )
+        .route(
+            "/v1/account/pharmacy-quotes/:id/refuse",
+            post(pharmacy::quotes::refuse_pharmacy_quote),
+        )
+        .route(
             "/v1/pharmacy/conversations",
             get(pharmacy::messaging::list_pharmacy_conversations),
         )
