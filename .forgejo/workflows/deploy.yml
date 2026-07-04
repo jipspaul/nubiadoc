@@ -59,7 +59,13 @@ jobs:
             echo "::warning::LXC ${DEPLOY_HOST}:22 unreachable — deploy SKIPPED. Restart the LXC then re-run this workflow."
           fi
 
-      - name: Cache toolchain Rust + build
+      # On cache la toolchain + les dépendances TÉLÉCHARGÉES (registry/git/bin,
+      # rustup, zig) — jamais périmées pour un même Cargo.lock — mais PLUS
+      # `api/target` (artefacts compilés). Le garder faisait tourner un binaire
+      # PÉRIMÉ après un fix backend (le cache rejouait un binaire déjà « à jour »)
+      # → réservation cassée en prod malgré le merge. Sans lui : recompilation
+      # fraîche à CHAQUE déploiement (deps cachées = reste rapide), binaire à jour.
+      - name: Cache toolchain Rust + deps (PAS api/target — évite binaire périmé)
         if: steps.preflight.outputs.reachable == 'true'
         uses: actions/cache@v4
         with:
@@ -69,7 +75,6 @@ jobs:
             ~/.cargo/bin
             ~/.rustup
             /opt/zig
-            api/target
           key: deploy-rust-${{ hashFiles('api/Cargo.lock') }}
           restore-keys: |
             deploy-rust-
