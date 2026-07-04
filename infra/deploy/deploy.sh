@@ -97,7 +97,7 @@ podman run -d --name nubia-console --network host --restart unless-stopped \
   -e HOST=0.0.0.0 -e PORT=4321 -e PUBLIC_API_BASE="$PUBLIC_API_BASE" \
   localhost/nubia-console:latest >/dev/null
 
-echo "[deploy] web (nginx statique 8081/8082/8083)"
+echo "[deploy] web (nginx statique 8081/8082/8083/8084)"
 podman rm -f nubia-web >/dev/null 2>&1 || true
 # nginx statique : 256Mi largement suffisant (juste sert des fichiers).
 podman run -d --name nubia-web --network host --restart unless-stopped \

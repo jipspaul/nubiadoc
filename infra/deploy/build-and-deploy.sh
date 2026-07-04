@@ -93,6 +93,7 @@ SW
 build_front app_patient    patient
 build_front app_practicien praticien
 build_front app_secretariat secretary
+build_front app_pharmacie   pharmacie
 
 say "4/6 provision LXC (idempotent)"
 SSH 'sh -s' < "$ROOT/infra/deploy/provision.sh"
@@ -116,7 +117,7 @@ tar czf - -C "$ROOT/web-console" \
     --exclude=test-results --exclude=playwright-report --exclude=blob-flows . \
   | SSH 'tar xzf - -C /opt/nubia/web-console-src'
 # bundles flutter
-for d in patient praticien secretary; do
+for d in patient praticien secretary pharmacie; do
   SSH "rm -rf /opt/nubia/www/$d && mkdir -p /opt/nubia/www/$d"
   tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
 done
@@ -130,6 +131,7 @@ cat <<EOF
    patient     http://${HOST}:8081
    praticien   http://${HOST}:8082
    secrétariat http://${HOST}:8083
+   pharmacie   http://${HOST}:8084
    console     http://${HOST}:4321
    api         http://${HOST}:3000/v1/health
 EOF
