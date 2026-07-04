@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Result of a file pick operation.
 class PickedFile {
@@ -48,7 +49,7 @@ class DefaultFilePickerService extends FilePickerService {
     final bytes = f.bytes;
     if (bytes == null) return null;
     return PickedFile(
-      path: f.path,
+      path: kIsWeb ? null : f.path,
       name: f.name,
       mimeType: _mimeFromExtension(f.extension),
       bytes: bytes,
