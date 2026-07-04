@@ -88,36 +88,91 @@ class _ConversationsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
+    return ListView.builder(
       key: const Key('messaging_conversations_list'),
       itemCount: conversations.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final conv = conversations[index];
-        return ListTile(
+        final last = conv.lastMessage;
+        return ListRow(
           key: Key('conv_${conv.id}'),
-          leading: CircleAvatar(
-            child: Text(
-              conv.cabinetName.isNotEmpty
-                  ? conv.cabinetName[0].toUpperCase()
-                  : '?',
-            ),
+          leading: NubiaAvatar(initials: _initials(conv.cabinetName)),
+          title: conv.cabinetName,
+          subtitle: last?.text,
+          unread: conv.unreadCount > 0,
+          trailing: _Trailing(
+            timestamp: last != null ? _formatTimestamp(last.sentAt) : null,
+            urgent: last?.urgency == MessageUrgency.urgent,
           ),
-          title: Text(conv.cabinetName),
-          subtitle: conv.lastMessage?.text != null
-              ? Text(
-                  conv.lastMessage!.text!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                )
-              : null,
-          trailing: conv.unreadCount > 0
-              ? Badge(label: Text('${conv.unreadCount}'))
-              : null,
           onTap: () =>
               context.read<MessagingBloc>().add(MessagingThreadOpened(conv)),
         );
       },
+    );
+  }
+
+  String _initials(String name) {
+    final trimmed = name.trim();
+    return trimmed.isNotEmpty ? trimmed.characters.first.toUpperCase() : '?';
+  }
+
+  String _formatTimestamp(DateTime dt) {
+    const months = [
+      'jan',
+      'fév',
+      'mar',
+      'avr',
+      'mai',
+      'jun',
+      'jul',
+      'aoû',
+      'sep',
+      'oct',
+      'nov',
+      'déc',
+    ];
+    final now = DateTime.now();
+    final sameDay =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    if (sameDay) {
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      return '$h:$m';
+    }
+    return '${dt.day} ${months[dt.month - 1]}';
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _Trailing extends StatelessWidget {
+  const _Trailing({required this.timestamp, required this.urgent});
+
+  final String? timestamp;
+  final bool urgent;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (timestamp != null)
+          Text(
+            timestamp!,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: tokens.textTertiary,
+                ),
+          ),
+        if (urgent) ...[
+          const SizedBox(height: 4),
+          const NubiaBadge.label(
+            label: 'Urgent',
+            variant: NubiaBadgeVariant.error,
+          ),
+        ],
+      ],
     );
   }
 }

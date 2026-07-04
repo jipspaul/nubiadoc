@@ -78,6 +78,7 @@ class _LoadedView extends StatefulWidget {
 
 class _LoadedViewState extends State<_LoadedView> {
   bool _sortAsc = false;
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -88,20 +89,20 @@ class _LoadedViewState extends State<_LoadedView> {
     final upcoming = [...widget.state.upcoming]..sort(compare);
     final history = [...widget.state.history]..sort(compare);
 
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          if (widget.state.actionInProgress)
-            const LinearProgressIndicator(key: Key('mes_rdv_action_progress')),
-          Row(
+    return Column(
+      children: [
+        if (widget.state.actionInProgress)
+          const LinearProgressIndicator(key: Key('mes_rdv_action_progress')),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+          child: Row(
             children: [
-              const Expanded(
-                child: TabBar(
-                  tabs: [
-                    Tab(text: 'À venir'),
-                    Tab(text: 'Historique'),
-                  ],
+              Expanded(
+                child: SegmentedControl(
+                  key: const Key('mes_rdv_segments'),
+                  segments: const ['À venir', 'Historique'],
+                  selectedIndex: _selectedIndex,
+                  onChanged: (i) => setState(() => _selectedIndex = i),
                 ),
               ),
               IconButton(
@@ -113,26 +114,28 @@ class _LoadedViewState extends State<_LoadedView> {
               ),
             ],
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _AppointmentList(
-                  key: const Key('upcoming_list'),
-                  appointments: upcoming,
-                  emptyLabel: 'Aucun rendez-vous à venir',
-                  isUpcoming: true,
-                ),
-                _AppointmentList(
-                  key: const Key('history_list'),
-                  appointments: history,
-                  emptyLabel: 'Aucun historique',
-                  isUpcoming: false,
-                ),
-              ],
-            ),
+        ),
+        Expanded(
+          child: IndexedStack(
+            index: _selectedIndex,
+            sizing: StackFit.expand,
+            children: [
+              _AppointmentList(
+                key: const Key('upcoming_list'),
+                appointments: upcoming,
+                emptyLabel: 'Aucun rendez-vous à venir',
+                isUpcoming: true,
+              ),
+              _AppointmentList(
+                key: const Key('history_list'),
+                appointments: history,
+                emptyLabel: 'Aucun historique',
+                isUpcoming: false,
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -178,7 +181,7 @@ class _AppointmentList extends StatelessWidget {
             )
           : ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemCount: appointments.length,
               itemBuilder: (context, i) =>
                   _AppointmentCard(appointment: appointments[i]),
@@ -195,31 +198,41 @@ class _AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: NubiaCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                NubiaAvatar(initials: _initials(appointment.practitionerName)),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    appointment.motif,
-                    style: Theme.of(context).textTheme.titleSmall,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        appointment.motif,
+                        style: textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${appointment.practitionerName} · ${appointment.practitionerSpecialty}',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                _StatusChip(status: appointment.status),
+                const SizedBox(width: 8),
+                _StatusPill(status: appointment.status),
               ],
             ),
-            const SizedBox(height: 6),
-            _IconRow(
-              icon: Icons.person_outline,
-              label:
-                  '${appointment.practitionerName} · ${appointment.practitionerSpecialty}',
-            ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 12),
             _IconRow(
               icon: Icons.calendar_today_outlined,
               label: _formatDateTime(appointment.startsAt),
@@ -242,6 +255,17 @@ class _AppointmentCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _initials(String name) {
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) {
+      return parts.first.characters.first.toUpperCase();
+    }
+    return (parts.first.characters.first + parts.last.characters.first)
+        .toUpperCase();
   }
 
   String _formatDateTime(DateTime dt) {
@@ -279,28 +303,31 @@ class _ActionButtons extends StatelessWidget {
       runSpacing: 8,
       children: [
         if (appointment.isUpcoming)
-          FilledButton.icon(
+          NubiaButton(
             key: Key('checkin_${appointment.id}'),
+            label: 'Check-in',
+            size: NubiaButtonSize.sm,
+            icon: Icons.check_circle_outline,
             onPressed: () => context
                 .read<MesRdvBloc>()
                 .add(MesRdvCheckinRequested(appointment.id)),
-            icon: const Icon(Icons.check_circle_outline, size: 16),
-            label: const Text('Check-in'),
           ),
         if (appointment.canModify)
-          OutlinedButton.icon(
+          NubiaButton(
             key: Key('modify_${appointment.id}'),
+            label: 'Modifier',
+            variant: NubiaButtonVariant.secondary,
+            size: NubiaButtonSize.sm,
+            icon: Icons.edit_calendar_outlined,
             onPressed: () => context.push('/appointments'),
-            icon: const Icon(Icons.edit_calendar_outlined, size: 16),
-            label: const Text('Modifier'),
           ),
         if (appointment.canCancel)
-          OutlinedButton.icon(
+          NubiaButton(
             key: Key('cancel_${appointment.id}'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-              side: BorderSide(color: Theme.of(context).colorScheme.error),
-            ),
+            label: 'Annuler',
+            variant: NubiaButtonVariant.destructive,
+            size: NubiaButtonSize.sm,
+            icon: Icons.cancel_outlined,
             onPressed: () async {
               final confirmed = await showDialog<bool>(
                 context: context,
@@ -327,8 +354,6 @@ class _ActionButtons extends StatelessWidget {
                     .add(MesRdvCancelRequested(appointment));
               }
             },
-            icon: const Icon(Icons.cancel_outlined, size: 16),
-            label: const Text('Annuler'),
           ),
       ],
     );
@@ -364,33 +389,19 @@ class _IconRow extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.status});
   final AppointmentStatus status;
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = _style(context);
-    return Chip(
-      label: Text(label),
-      labelStyle:
-          Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
-      backgroundColor: color.withValues(alpha: 0.12),
-      side: BorderSide.none,
-      padding: EdgeInsets.zero,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-    );
-  }
-
-  (String, Color) _style(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return switch (status) {
-      AppointmentStatus.confirmed => ('Confirmé', cs.primary),
-      AppointmentStatus.requested => ('En attente', cs.secondary),
-      AppointmentStatus.cancelled => ('Annulé', cs.error),
-      AppointmentStatus.completed => ('Terminé', cs.onSurfaceVariant),
-      AppointmentStatus.noShow => ('Absent', cs.error),
+    final (label, variant) = switch (status) {
+      AppointmentStatus.confirmed => ('Confirmé', StatusPillVariant.success),
+      AppointmentStatus.requested => ('En attente', StatusPillVariant.warning),
+      AppointmentStatus.cancelled => ('Annulé', StatusPillVariant.error),
+      AppointmentStatus.completed => ('Terminé', StatusPillVariant.info),
+      AppointmentStatus.noShow => ('Absent', StatusPillVariant.error),
     };
+    return StatusPill(label: label, variant: variant);
   }
 }
