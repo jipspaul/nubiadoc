@@ -22,7 +22,10 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, PatientAccountClaims, PharmaMemberClaims, ProSecretaryPlusClaims},
+    auth::{
+        AppError, PatientAccountClaims, PharmaMemberClaims, PharmaPharmacistClaims,
+        ProSecretaryPlusClaims,
+    },
     AppState, StorageSigner,
 };
 
@@ -616,4 +619,434 @@ pub(crate) async fn minimized_patient_name(
         .map(|c| format!(" {}.", c.to_uppercase()))
         .unwrap_or_default();
     Ok(format!("{first_name}{initial}"))
+}
+
+// ── Machine à états (lot B3) ──────────────────────────────────────────────────
+
+/// Applique une transition atomique côté pharmacie : `UPDATE … WHERE status =
+/// $expected` — 0 ligne mise à jour = commande invisible (404) ou statut
+/// invalide (409). Chaque transition est auditée dans le journal du cabinet
+/// d'origine et horodatée.
+struct Transition<'a> {
+    order_id: Uuid,
+    expected: &'a str,
+    update_sql: &'a str,
+    action: &'a str,
+    reason: Option<&'a str>,
+}
+
+async fn pharmacy_transition(
+    state: &AppState,
+    pharmacy_id: Uuid,
+    actor_id: Uuid,
+    t: Transition<'_>,
+) -> Result<OrderDto, AppError> {
+    let Transition {
+        order_id,
+        expected,
+        update_sql,
+        action,
+        reason,
+    } = t;
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // $3 (motif) n'existe que dans le SQL de reject — bind conditionnel.
+    let mut query = sqlx::query(update_sql).bind(order_id).bind(expected);
+    if let Some(reason) = reason {
+        query = query.bind(reason);
+    }
+    let row = query
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        // Distingue 404 (hors tenant / inexistante) de 409 (mauvais statut).
+        let exists = sqlx::query("SELECT 1 FROM pharmacy_order WHERE id = $1")
+            .bind(order_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(if exists.is_none() {
+            AppError::NotFound
+        } else {
+            AppError::InvalidStatus
+        });
+    };
+
+    let order = order_from_row(&row)?;
+
+    // Audit dans le journal du cabinet d'origine (valeur DB, jamais client).
+    let cabinet_id: Uuid = sqlx::query("SELECT cabinet_id FROM pharmacy_order WHERE id = $1")
+        .bind(order_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query(
+        "INSERT INTO audit_log (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'pharmacist', $3, 'pharmacy_order', $4)",
+    )
+    .bind(cabinet_id)
+    .bind(actor_id)
+    .bind(action)
+    .bind(order_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    Ok(order)
+}
+
+/// `POST /v1/pharmacy/orders/{id}/accept` — received → preparing.
+pub async fn accept_pharmacy_order(
+    State(state): State<AppState>,
+    claims: PharmaMemberClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<OrderDto>, AppError> {
+    let order = pharmacy_transition(
+        &state,
+        claims.pharmacy_id,
+        claims.sub,
+        Transition {
+            order_id: id,
+            expected: "received",
+            update_sql: &format!(
+                "UPDATE pharmacy_order \
+                 SET status = 'preparing', preparing_at = now(), updated_at = now() \
+                 WHERE id = $1 AND status = $2 \
+                 RETURNING {ORDER_COLUMNS}",
+            ),
+            action: "accept_pharmacy_order",
+            reason: None,
+        },
+    )
+    .await?;
+    Ok(Json(order))
+}
+
+/// `POST /v1/pharmacy/orders/{id}/ready` — preparing → ready.
+pub async fn ready_pharmacy_order(
+    State(state): State<AppState>,
+    claims: PharmaMemberClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<OrderDto>, AppError> {
+    let order = pharmacy_transition(
+        &state,
+        claims.pharmacy_id,
+        claims.sub,
+        Transition {
+            order_id: id,
+            expected: "preparing",
+            update_sql: &format!(
+                "UPDATE pharmacy_order \
+                 SET status = 'ready', ready_at = now(), updated_at = now() \
+                 WHERE id = $1 AND status = $2 \
+                 RETURNING {ORDER_COLUMNS}",
+            ),
+            action: "ready_pharmacy_order",
+            reason: None,
+        },
+    )
+    .await?;
+    Ok(Json(order))
+}
+
+/// Body de `POST /v1/pharmacy/orders/{id}/reject`.
+#[derive(Deserialize)]
+pub struct RejectOrderBody {
+    pub reason: String,
+}
+
+/// `POST /v1/pharmacy/orders/{id}/reject` — received → rejected.
+/// Réservé `pharmacist`/`admin` (le préparateur ne refuse pas une commande).
+/// Motif obligatoire → 422 si vide.
+pub async fn reject_pharmacy_order(
+    State(state): State<AppState>,
+    claims: PharmaPharmacistClaims,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RejectOrderBody>,
+) -> Result<Json<OrderDto>, AppError> {
+    let reason = body.reason.trim();
+    if reason.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    let order = pharmacy_transition(
+        &state,
+        claims.pharmacy_id,
+        claims.sub,
+        Transition {
+            order_id: id,
+            expected: "received",
+            update_sql: &format!(
+                "UPDATE pharmacy_order \
+                 SET status = 'rejected', rejection_reason = $3, updated_at = now() \
+                 WHERE id = $1 AND status = $2 \
+                 RETURNING {ORDER_COLUMNS}",
+            ),
+            action: "reject_pharmacy_order",
+            reason: Some(reason),
+        },
+    )
+    .await?;
+    Ok(Json(order))
+}
+
+/// `POST /v1/account/orders/{id}/cancel` — received|preparing → cancelled
+/// (réservé au patient titulaire ; une commande prête n'est plus annulable).
+pub async fn cancel_account_order(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<OrderDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
+        "UPDATE pharmacy_order \
+         SET status = 'cancelled', cancelled_at = now(), updated_at = now() \
+         WHERE id = $1 AND status IN ('received', 'preparing') \
+         RETURNING {ORDER_COLUMNS}",
+    ))
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        let exists = sqlx::query("SELECT 1 FROM pharmacy_order WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(if exists.is_none() {
+            AppError::NotFound
+        } else {
+            AppError::InvalidStatus
+        });
+    };
+
+    let order = order_from_row(&row)?;
+
+    let cabinet_id: Uuid = sqlx::query("SELECT cabinet_id FROM pharmacy_order WHERE id = $1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query(
+        "INSERT INTO audit_log (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'patient', 'cancel_pharmacy_order', 'pharmacy_order', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    Ok(Json(order))
+}
+
+// ── QR de retrait (lot B3) ────────────────────────────────────────────────────
+
+/// Réponse de `GET /v1/account/orders/{id}/pickup-token`.
+#[derive(Serialize)]
+pub struct PickupTokenResponse {
+    pub token: String,
+    pub expires_at: String,
+}
+
+/// `GET /v1/account/orders/{id}/pickup-token` — token opaque du QR de retrait.
+///
+/// Zéro PII, zéro id métier : le QR ne contient que ce token aléatoire
+/// (~244 bits). Seul le hash SHA-256 est stocké (pattern refresh_token).
+/// Autorisé uniquement quand la commande est prête (409 sinon) ; chaque appel
+/// régénère le token et invalide le précédent. Expiration 24 h.
+pub async fn get_pickup_token(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<PickupTokenResponse>, AppError> {
+    use sha2::{Digest, Sha256};
+
+    let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    let token_hash = hex::encode(Sha256::digest(token.as_bytes()));
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE pharmacy_order \
+         SET pickup_token_hash = $2, pickup_token_expires_at = now() + interval '24 hours' \
+         WHERE id = $1 AND status = 'ready' \
+         RETURNING pickup_token_expires_at",
+    )
+    .bind(id)
+    .bind(&token_hash)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        let exists = sqlx::query("SELECT 1 FROM pharmacy_order WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(if exists.is_none() {
+            AppError::NotFound
+        } else {
+            AppError::InvalidStatus
+        });
+    };
+
+    let expires_at: chrono::DateTime<chrono::Utc> = row
+        .try_get("pickup_token_expires_at")
+        .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    Ok(Json(PickupTokenResponse {
+        token,
+        expires_at: expires_at.to_rfc3339(),
+    }))
+}
+
+/// Body de `POST /v1/pharmacy/orders/pickup-scan`.
+#[derive(Deserialize)]
+pub struct PickupScanBody {
+    pub token: String,
+}
+
+/// `POST /v1/pharmacy/orders/pickup-scan` — ready → picked_up via le token du
+/// QR patient (scan ou saisie manuelle). Endpoint par token : le scanner ne
+/// connaît que le QR.
+///
+/// - Token inconnu ou commande d'une autre pharmacie → 404 (anti-énumération,
+///   RLS pharmacy-scoped).
+/// - Statut ≠ ready → 409 `invalid_status` (double scan compris).
+/// - Token expiré → 410.
+/// - Succès : transition atomique single-use (`WHERE … AND status = 'ready'`).
+pub async fn pickup_scan(
+    State(state): State<AppState>,
+    claims: PharmaMemberClaims,
+    Json(body): Json<PickupScanBody>,
+) -> Result<Json<OrderDto>, AppError> {
+    use sha2::{Digest, Sha256};
+
+    let token = body.token.trim();
+    if token.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    let token_hash = hex::encode(Sha256::digest(token.as_bytes()));
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(claims.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(&format!(
+        "UPDATE pharmacy_order \
+         SET status = 'picked_up', picked_up_at = now(), picked_up_by = $2, \
+             updated_at = now() \
+         WHERE pickup_token_hash = $1 AND status = 'ready' \
+           AND pickup_token_expires_at > now() \
+         RETURNING {ORDER_COLUMNS}",
+    ))
+    .bind(&token_hash)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        // Diagnostic : token connu dans CE tenant ? statut ? expiration ?
+        let probe = sqlx::query(
+            "SELECT status, pickup_token_expires_at FROM pharmacy_order \
+             WHERE pickup_token_hash = $1",
+        )
+        .bind(&token_hash)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        tx.rollback().await.ok();
+        return Err(match probe {
+            None => AppError::NotFound,
+            Some(row) => {
+                let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+                let expires: Option<chrono::DateTime<chrono::Utc>> = row
+                    .try_get("pickup_token_expires_at")
+                    .map_err(|_| AppError::Internal)?;
+                if status != "ready" {
+                    AppError::InvalidStatus
+                } else if expires.is_some_and(|e| e <= chrono::Utc::now()) {
+                    AppError::LinkExpired
+                } else {
+                    AppError::InvalidStatus
+                }
+            }
+        });
+    };
+
+    let order = order_from_row(&row)?;
+
+    let cabinet_id: Uuid = sqlx::query("SELECT cabinet_id FROM pharmacy_order WHERE id = $1")
+        .bind(order.id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    sqlx::query(
+        "INSERT INTO audit_log (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'pharmacist', 'pickup_pharmacy_order', 'pharmacy_order', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(claims.sub)
+    .bind(order.id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(order_id = %order.id, "pharmacy order picked up");
+    Ok(Json(order))
 }

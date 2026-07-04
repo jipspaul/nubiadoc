@@ -507,10 +507,16 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 | GET | `/v1/account/orders` · `/{id}` | patient | Suivi des commandes du patient. |
 | GET | `/v1/pharmacy/orders?status=` · `/{id}` | pharma | File des commandes de la pharmacie (RLS pharmacy-scoped, `404` hors tenant). |
 | GET | `/v1/pharmacy/orders/{id}/document` | pharma | URL signée du PDF d'ordonnance (policy `document_pharmacy_read` — la pharmacie ne lit jamais les tables cliniques). `410` si lien expiré. |
+| POST | `/v1/pharmacy/orders/{id}/accept` | pharma | `received → preparing`. `404` hors tenant, `409` statut. |
+| POST | `/v1/pharmacy/orders/{id}/ready` | pharma | `preparing → ready`. `404`/`409`. |
+| POST | `/v1/pharmacy/orders/{id}/reject` | pharmacist/admin | `received → rejected` (`{ reason }` obligatoire → `422` si vide). `preparator` → `403`. |
+| POST | `/v1/pharmacy/orders/pickup-scan` | pharma | `ready → picked_up` via le token du QR (`{ token }`) — endpoint **par token**, le scanner ne connaît que le QR. `404` token inconnu/autre pharmacie (anti-énumération), `409` statut (double scan compris), `410` expiré. Single-use. |
+| POST | `/v1/account/orders/{id}/cancel` | patient | `received|preparing → cancelled`. `409` si prête ou terminale. |
+| GET | `/v1/account/orders/{id}/pickup-token` | patient | Token opaque du QR de retrait (~244 bits, **zéro PII/id métier**, seul le hash SHA-256 est stocké). Uniquement si `ready` (`409` sinon), expire à 24 h, chaque appel régénère et invalide le précédent. → `{ token, expires_at }`. |
 
 **Commande** (`OrderDto`) : `{ id, pharmacy_id, pharmacy_name, patient_display_name, prescription_id, status, rejection_reason?, received_at, updated_at, ready_at?, picked_up_at? }`. `patient_display_name` est **minimisé** (« Prénom N. », `07` §2.7). Statuts : `received → preparing → ready → picked_up` + `rejected` (pharmacien, motif requis) et `cancelled` (patient) — une seule commande **active** par ordonnance. Consentement au partage tracé dans `consent_record` (purpose `partage_pharmacie`, evidence `{channel, collected_by?}`).
 
-Les transitions (`accept`/`ready`/`reject`/`cancel`), le QR de retrait (`pickup-scan`), les demandes de stock, la messagerie et les devis pharmacie arrivent avec les lots B3–B7 (issues #3308–#3312).
+Les demandes de stock, la messagerie et les devis pharmacie arrivent avec les lots B5–B7 (issues #3310–#3312) ; les notifications push + événements WebSocket des transitions avec le lot B4 (#3309).
 
 ---
 

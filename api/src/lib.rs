@@ -551,6 +551,22 @@ fn build_router(
             get(pharmacy::orders::get_pharmacy_order_document),
         )
         .route(
+            "/v1/pharmacy/orders/:id/accept",
+            post(pharmacy::orders::accept_pharmacy_order),
+        )
+        .route(
+            "/v1/pharmacy/orders/:id/ready",
+            post(pharmacy::orders::ready_pharmacy_order),
+        )
+        .route(
+            "/v1/pharmacy/orders/:id/reject",
+            post(pharmacy::orders::reject_pharmacy_order),
+        )
+        .route(
+            "/v1/pharmacy/orders/pickup-scan",
+            post(pharmacy::orders::pickup_scan),
+        )
+        .route(
             "/v1/account/prescriptions/:id/order",
             post(pharmacy::orders::create_account_order),
         )
@@ -561,6 +577,14 @@ fn build_router(
         .route(
             "/v1/account/orders/:id",
             get(pharmacy::orders::get_account_order),
+        )
+        .route(
+            "/v1/account/orders/:id/cancel",
+            post(pharmacy::orders::cancel_account_order),
+        )
+        .route(
+            "/v1/account/orders/:id/pickup-token",
+            get(pharmacy::orders::get_pickup_token),
         )
         .route(
             "/v1/account/pharmacy",
