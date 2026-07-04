@@ -7,9 +7,16 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pharma_config.dart';
 import '../../session/pharma_auth_cubit.dart';
+import '../devis/devis_bloc.dart';
+import '../devis/devis_page.dart';
 import '../orders/orders_bloc.dart';
 import '../orders/orders_event.dart';
 import '../orders/orders_page.dart';
+import '../pharma_messaging/pharma_messaging_bloc.dart';
+import '../pharma_messaging/pharma_messaging_event.dart';
+import '../pharma_messaging/pharma_messaging_page.dart';
+import '../stock/stock_bloc.dart';
+import '../stock/stock_page.dart';
 
 /// Entry point for the authenticated pharmacie home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile).
@@ -42,7 +49,27 @@ class PharmaHomePage extends StatelessWidget {
             child: const OrdersView(),
           );
         }
-        // Placeholder par défaut du shell pour les destinations à venir.
+        if (destination.route == '/stock') {
+          return BlocProvider<StockBloc>(
+            create: (_) =>
+                GetIt.instance<StockBloc>()..add(const StockLoadRequested()),
+            child: const StockView(),
+          );
+        }
+        if (destination.route == '/messages') {
+          return BlocProvider<PharmaMessagingBloc>(
+            create: (_) => GetIt.instance<PharmaMessagingBloc>()
+              ..add(const PharmaMessagingConversationsLoadRequested()),
+            child: const PharmaMessagingPage(),
+          );
+        }
+        if (destination.route == '/devis') {
+          return BlocProvider<PharmacyDevisBloc>(
+            create: (_) => GetIt.instance<PharmacyDevisBloc>()
+              ..add(const PharmacyDevisLoadRequested()),
+            child: const PharmacyDevisView(),
+          );
+        }
         return NubiaEmptyState(
           icon: destination.icon,
           title: destination.label,
