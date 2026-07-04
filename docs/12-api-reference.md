@@ -26,6 +26,7 @@
 19. Notifications & devices
 20. Temps réel (WebSocket)
 21. Webhooks entrants (prestataires)
+22. Pharmacie — tenant, annuaire & click-and-collect (`pharmacy`)
 - **Annexe A** — Back-office V2 (recherche unifiée + assistant) · post-traction
 - **Annexe B** — Codes d'erreur · matrice rôles · index des routes
 
@@ -115,7 +116,8 @@
 | POST | `/v1/auth/password/reset` | — | Reset via token. |
 | POST | `/v1/auth/mfa/enroll` | pro | Démarre l'enrôlement TOTP (renvoie secret/QR). |
 | POST | `/v1/auth/mfa/verify` | pro | Valide le code, active la MFA. |
-| GET | `/v1/me` | oui | Profil du porteur du token (compte + rôles/cabinets). |
+| GET | `/v1/me` | oui | Profil du porteur du token (compte + rôles/cabinets + pharmacies). |
+| POST | `/v1/auth/select-pharmacy-context` | pro (login) | Émet un JWT `kind:"pharma"` scopé pharmacie (cf. §22). |
 | POST | `/v1/auth/franceconnect/start` · `/callback` | — | FranceConnect patient (**post-MVP**, `07` §9.3). |
 | POST | `/v1/auth/psc/start` · `/callback` | — | Pro Santé Connect / e-CPS (**post-MVP**, `07` §9.2). |
 
@@ -125,7 +127,9 @@
 
 `POST /v1/auth/login` — body : `email`, `password`, `mfa_code?`. → `200 { access_token, refresh_token, token_type:"Bearer", expires_in }`. Si pro avec MFA : `401 mfa_required` puis renvoyer avec `mfa_code`. Rate-limited.
 
-`GET /v1/me` → `{ user_id, email, kind:"patient"|"pro", account_id?, memberships:[{ cabinet_id, role }] }`. Pour un pro multi-cabinets, le **choix du cabinet actif** se fait à la connexion (le token porte un seul `cabinet_id`).
+`GET /v1/me` → `{ user_id, email, kind:"patient"|"pro", account_id?, memberships:[{ cabinet_id, role }], pharmacy_memberships:[{ pharmacy_id, role }] }`. Pour un pro multi-cabinets, le **choix du cabinet actif** se fait à la connexion (le token porte un seul `cabinet_id`). Les memberships pharmacie (tenant dédié, §22) partagent le même login ; le contexte pharmacie s'active via `POST /v1/auth/select-pharmacy-context`.
+
+`POST /v1/auth/select-pharmacy-context` — body : `pharmacy_id`. Porteur : token pro de login. → `200 { access_token, token_type, expires_in, context:{ pharmacy_id, role } }` avec claims `{ kind:"pharma", pharmacy_id, role }`. Erreurs : `404` (pharmacie inconnue ou non listée pour un non-membre, anti-énumération), `403 no_membership`.
 
 ---
 
@@ -486,6 +490,17 @@ Cloisonnement : un fil clinique escaladé n'est lisible que par le `practitioner
 | POST | `/v1/webhooks/gocardless` | GoCardless | Mandat/prélèvement SEPA → MAJ paiement. |
 
 Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **idempotente** (clé = id d'événement prestataire), répondre `200` vite (traitement lourd → job apalis). Aucune confiance dans le payload sans vérif.
+
+---
+
+## 22. Pharmacie — tenant, annuaire & click-and-collect (`pharmacy`)
+> Épic #3323. La pharmacie est un **tenant dédié** (tables `pharmacy` + `pharmacy_membership`, GUC RLS `app.current_pharmacy_id`, JWT `kind:"pharma"`, rôles `pharmacist`/`preparator`/`admin`) — cloisonnement structurel vis-à-vis des cabinets (`07` §4) : un token pharma est rejeté (403) par tout endpoint `/v1/cabinet/*`, et réciproquement. Login commun (§3) puis `POST /v1/auth/select-pharmacy-context`.
+
+| Méthode | Chemin | Auth | Description |
+|---|---|---|---|
+| GET | `/v1/pharmacies` | — | Annuaire public des pharmacies **listées** (`is_listed`). Filtres : `q`, `lat`+`lng` (tri distance PostGIS), `radius_km`, `per_page`. → `{ data:[{ id, raison_sociale, address, phone, distance_m? }] }`. `422` si `lat`/`lng` incomplets ou `radius_km` sans point. |
+
+Les commandes click-and-collect (`pharmacy_order`, statuts `received → preparing → ready → picked_up`), demandes de stock, messagerie et devis pharmacie arrivent avec les lots B2–B7 (issues #3307–#3312).
 
 ---
 

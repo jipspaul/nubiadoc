@@ -9,6 +9,7 @@ pub mod refresh;
 pub mod register;
 pub mod reset_password;
 pub mod select_context;
+pub mod select_pharmacy_context;
 
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
@@ -343,6 +344,13 @@ pub struct CabinetMembership {
     secretariat_id: Option<Uuid>,
 }
 
+/// Appartenance à une pharmacie.
+#[derive(Serialize)]
+pub struct PharmacyMembership {
+    pharmacy_id: Uuid,
+    role: String,
+}
+
 /// Réponse de `GET /v1/me`.
 #[derive(Serialize)]
 pub struct MeResponse {
@@ -351,6 +359,7 @@ pub struct MeResponse {
     kind: String,
     account_id: Option<Uuid>,
     memberships: Vec<CabinetMembership>,
+    pharmacy_memberships: Vec<PharmacyMembership>,
 }
 
 /// `GET /v1/me` — retourne le profil du porteur du token (patient ou pro).
@@ -413,6 +422,27 @@ pub async fn me(
         vec![]
     };
 
+    // Memberships pharmacie (tenant dédié, cf. migration 0121) : mêmes tokens de
+    // login `kind == "pro"`, résolus via user_pharmacy_memberships() (SECURITY
+    // DEFINER — contourne la RLS pharmacy-scoped). Permet au front pharmacie de
+    // savoir quel contexte proposer avant POST /v1/auth/select-pharmacy-context.
+    let pharmacy_memberships = if claims.kind == "pro" {
+        let rows = sqlx::query("SELECT pharmacy_id, role FROM user_pharmacy_memberships($1)")
+            .bind(claims.sub)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        rows.into_iter()
+            .map(|r| {
+                let pharmacy_id: Uuid = r.try_get("pharmacy_id").map_err(|_| AppError::Internal)?;
+                let role: String = r.try_get("role").map_err(|_| AppError::Internal)?;
+                Ok(PharmacyMembership { pharmacy_id, role })
+            })
+            .collect::<Result<Vec<_>, AppError>>()?
+    } else {
+        vec![]
+    };
+
     // Audit log : entité plateforme → nil UUID comme sentinel cabinet_id.
     let mut atx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -447,6 +477,7 @@ pub async fn me(
         kind: claims.kind,
         account_id: claims.account_id,
         memberships,
+        pharmacy_memberships,
     }))
 }
 
@@ -1128,6 +1159,20 @@ impl FromRequestParts<AppState> for ProSecretaryPlusClaims {
 
         Ok(claims)
     }
+}
+
+/// Claims JWT émis par `POST /v1/auth/select-pharmacy-context` —
+/// porte `pharmacy_id` + `role` avec `kind = "pharma"`.
+///
+/// GUC et audience distincts du tenant cabinet : un token pharma est rejeté
+/// (403) par tous les extracteurs `Pro*Claims`, et réciproquement.
+#[derive(Serialize, Deserialize)]
+pub(crate) struct PharmaContextClaims {
+    pub(crate) sub: Uuid,
+    pub(crate) kind: String,
+    pub(crate) pharmacy_id: Uuid,
+    pub(crate) role: String,
+    pub(crate) exp: u64,
 }
 
 /// Corps de la requête `PATCH /v1/cabinet/provider`.

@@ -31,3 +31,26 @@ where
         .await?;
     f(tx).await
 }
+
+/// Exécute `f` dans une transaction PostgreSQL avec le contexte pharmacie positionné.
+///
+/// Positionne `app.current_pharmacy_id` via `SET LOCAL` (paramétré) avant d'appeler
+/// `f`. GUC distinct de `app.current_cabinet_id` : un token pharmacie ne peut jamais
+/// ouvrir une ressource cabinet, et réciproquement (cloisonnement structurel).
+/// Le `pharmacy_id` doit provenir du JWT vérifié, jamais d'un body/query client.
+pub async fn with_pharmacy_tenant<F, Fut, T>(
+    pool: &sqlx::PgPool,
+    pharmacy_id: Uuid,
+    f: F,
+) -> Result<T, TenancyError>
+where
+    F: FnOnce(sqlx::Transaction<'static, sqlx::Postgres>) -> Fut,
+    Fut: std::future::Future<Output = Result<T, TenancyError>>,
+{
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    f(tx).await
+}
