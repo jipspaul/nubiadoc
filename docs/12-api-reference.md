@@ -516,7 +516,9 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 
 **Commande** (`OrderDto`) : `{ id, pharmacy_id, pharmacy_name, patient_display_name, prescription_id, status, rejection_reason?, received_at, updated_at, ready_at?, picked_up_at? }`. `patient_display_name` est **minimisé** (« Prénom N. », `07` §2.7). Statuts : `received → preparing → ready → picked_up` + `rejected` (pharmacien, motif requis) et `cancelled` (patient) — une seule commande **active** par ordonnance. Consentement au partage tracé dans `consent_record` (purpose `partage_pharmacie`, evidence `{channel, collected_by?}`).
 
-Les demandes de stock, la messagerie et les devis pharmacie arrivent avec les lots B5–B7 (issues #3310–#3312) ; les notifications push + événements WebSocket des transitions avec le lot B4 (#3309).
+**Temps réel & notifications (lot B4)** : chaque transition insère une notification in-app (`notification`, kinds `order_received` pour le staff pharmacie, `order_status_changed` pour le patient — titre générique **sans PII**, `data {order_id, status}` en deeplink), enfile un push FCM (`JobDispatcher::enqueue_push_notification`, payload sans PII) et publie sur les canaux WS `pharmacy_orders:<pharmacy_id>` (subscribe réservé au staff `kind:"pharma"` du tenant) et `account_orders:<patient_account_id>` (patient titulaire) — enveloppe `{event:"order_status_changed", data:{order_id, status}}`.
+
+Les demandes de stock, la messagerie et les devis pharmacie arrivent avec les lots B5–B7 (issues #3310–#3312).
 
 ---
 
