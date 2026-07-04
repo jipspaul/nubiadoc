@@ -31,8 +31,7 @@ Widget _wrap(CabinetInfoCubit cubit) => BlocProvider<CabinetInfoCubit>.value(
       ),
     );
 
-FilledButton _submitButton(WidgetTester tester) =>
-    tester.widget<FilledButton>(
+FilledButton _submitButton(WidgetTester tester) => tester.widget<FilledButton>(
       find.ancestor(
         of: find.text('Enregistrer'),
         matching: find.byType(FilledButton),
@@ -192,7 +191,8 @@ void main() {
       expect(find.text('Erreur serveur.'), findsOneWidget);
     });
 
-    testWidgets('CabinetInfoSuccess → formulaire toujours affiché (listener gère la navigation)',
+    testWidgets(
+        'CabinetInfoSuccess → formulaire toujours affiché (listener gère la navigation)',
         (tester) async {
       when(() => cubit.state).thenReturn(const CabinetInfoSuccess());
       await tester.pumpWidget(_wrap(cubit));

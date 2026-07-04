@@ -287,3 +287,18 @@ Pills = texte + couleur (AA), cibles ≥ 44 px, clavier desktop, motif de refus 
 - Étant donné une commande « Reçue », quand le pharmacien tape « Commencer la préparation », alors le statut passe à « En préparation » et le patient est notifié.
 - Étant donné un refus sans motif saisi, alors l'action est bloquée.
 - Étant donné une commande d'une autre pharmacie, alors elle n'apparaît jamais (RLS, 404).
+
+---
+
+## Écran I — Praticien : envoi d'ordonnance en pharmacie (lot F9, épic #3323)
+
+### Overview
+Après la signature d'une ordonnance, le praticien peut la transmettre directement à une pharmacie : la pharmacie déclarée du patient est présélectionnée, un picker (bottom sheet, recherche annuaire) permet d'en choisir une autre. Le consentement du patient (recueilli au cabinet) est tracé côté backend.
+
+### Composants & états
+`NubiaCard` « Envoyer à la pharmacie » dans la confirmation de signature : destinataire affiché (ou invite si le patient n'a pas déclaré de pharmacie — envoi bloqué tant qu'aucune n'est choisie), bouton primaire (loading pendant l'envoi), « Choisir une autre pharmacie » (bottom sheet `NubiaSearchBar` + résultats avec distance). Succès : carte de confirmation « transmise à X — le patient suivra sa commande depuis son application ». Erreur (ex. commande déjà active, 409) : message + réessayer.
+
+### Critères d'acceptation
+- Étant donné un patient avec pharmacie déclarée, quand l'ordonnance est signée, alors la carte présélectionne cette pharmacie.
+- Étant donné aucun destinataire choisi, alors le bouton d'envoi est inactif.
+- Étant donné un envoi réussi, alors la commande apparaît « Reçue » côté pharmacie et le patient est notifié.

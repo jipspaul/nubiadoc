@@ -10,6 +10,7 @@ import '../features/dashboard/today_notes_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/ordonnances/ordonnances_bloc.dart';
+import '../features/ordonnances/send_to_pharmacy_cubit.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/register/pro_register_cubit.dart';
@@ -85,6 +86,13 @@ void registerPro(GetIt gi) {
       addAct: gi<AddActUseCase>(),
       completeSession: gi<CompleteSessionUseCase>(),
       listSessions: gi<ListClinicalSessionsUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<SendToPharmacyCubit>(
+    () => SendToPharmacyCubit(
+      getPatientPharmacy: gi<GetPatientPharmacyUseCase>(),
+      sendToPharmacy: gi<SendPrescriptionToPharmacyUseCase>(),
     ),
   );
 

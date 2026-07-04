@@ -10,7 +10,8 @@ import 'package:app_practicien/session/pro_auth_cubit.dart';
 class _MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
 
 void main() {
-  testWidgets('lien inscription praticien visible sur LoginPage', (tester) async {
+  testWidgets('lien inscription praticien visible sur LoginPage',
+      (tester) async {
     final cubit = _MockProAuthCubit();
     whenListen(cubit, Stream<AuthState>.empty(),
         initialState: const AuthUnauthenticated());
@@ -27,8 +28,7 @@ void main() {
         ),
         GoRoute(
           path: '/register-pro',
-          builder: (_, __) =>
-              const Scaffold(body: Text('register-pro page')),
+          builder: (_, __) => const Scaffold(body: Text('register-pro page')),
         ),
       ],
     );
@@ -40,7 +40,8 @@ void main() {
     expect(find.text('Créer mon compte praticien'), findsOneWidget);
   });
 
-  testWidgets('tap lien inscription navigue vers /register-pro', (tester) async {
+  testWidgets('tap lien inscription navigue vers /register-pro',
+      (tester) async {
     final cubit = _MockProAuthCubit();
     whenListen(cubit, Stream<AuthState>.empty(),
         initialState: const AuthUnauthenticated());
@@ -57,8 +58,7 @@ void main() {
         ),
         GoRoute(
           path: '/register-pro',
-          builder: (_, __) =>
-              const Scaffold(body: Text('register-pro page')),
+          builder: (_, __) => const Scaffold(body: Text('register-pro page')),
         ),
       ],
     );

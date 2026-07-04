@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'send_to_pharmacy_cubit.dart';
+import 'widgets/send_to_pharmacy_card.dart';
 import 'ordonnances_bloc.dart';
 import 'ordonnances_event.dart';
 import 'ordonnances_state.dart';
@@ -355,6 +357,12 @@ class _SignedConfirmation extends StatelessWidget {
   const _SignedConfirmation({required this.prescription});
   final Prescription prescription;
 
+  static Widget sendCard(Prescription prescription) => BlocProvider(
+        create: (_) =>
+            GetIt.instance<SendToPharmacyCubit>()..load(prescription.patientId),
+        child: SendToPharmacyCard(prescription: prescription),
+      );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -391,6 +399,8 @@ class _SignedConfirmation extends StatelessWidget {
                   ?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
+            sendCard(prescription),
+            const SizedBox(height: 16),
             NubiaButton(
               key: const Key('back_to_ordonnances_button'),
               label: 'Retour aux ordonnances',

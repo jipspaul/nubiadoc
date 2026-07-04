@@ -1,7 +1,9 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -10,6 +12,7 @@ import 'package:app_practicien/features/ordonnances/ordonnance_new_page.dart';
 import 'package:app_practicien/features/ordonnances/ordonnances_bloc.dart';
 import 'package:app_practicien/features/ordonnances/ordonnances_event.dart';
 import 'package:app_practicien/features/ordonnances/ordonnances_state.dart';
+import 'package:app_practicien/features/ordonnances/send_to_pharmacy_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks & fixtures
@@ -17,6 +20,28 @@ import 'package:app_practicien/features/ordonnances/ordonnances_state.dart';
 
 class MockOrdonnancesBloc extends MockBloc<OrdonnancesEvent, OrdonnancesState>
     implements OrdonnancesBloc {}
+
+class _StubDirectoryRepository extends Mock
+    implements PharmacyDirectoryRepository {}
+
+class _StubPrescriptionRepository extends Mock
+    implements PrescriptionRepository {}
+
+/// La confirmation de signature monte SendToPharmacyCubit via GetIt (F9) :
+/// on enregistre un cubit réel branché sur des stubs sans pharmacie déclarée.
+void registerSendToPharmacyStub() {
+  final directory = _StubDirectoryRepository();
+  when(() => directory.getPatientPharmacy(any()))
+      .thenAnswer((_) async => const Right(null));
+  if (GetIt.instance.isRegistered<SendToPharmacyCubit>()) return;
+  GetIt.instance.registerFactory<SendToPharmacyCubit>(
+    () => SendToPharmacyCubit(
+      getPatientPharmacy: GetPatientPharmacyUseCase(directory),
+      sendToPharmacy:
+          SendPrescriptionToPharmacyUseCase(_StubPrescriptionRepository()),
+    ),
+  );
+}
 
 const _item = PrescriptionItem(
   label: 'Amoxicilline 500mg',
@@ -62,6 +87,8 @@ Future<void> _fillItem(WidgetTester tester, int index) async {
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(registerSendToPharmacyStub);
+
   late MockOrdonnancesBloc bloc;
 
   setUp(() {
@@ -97,8 +124,8 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await _fillItem(tester, 0);
 
-      await tester.ensureVisible(
-          find.byKey(const Key('submit_ordonnance_button')));
+      await tester
+          .ensureVisible(find.byKey(const Key('submit_ordonnance_button')));
       await tester.tap(find.byKey(const Key('submit_ordonnance_button')));
 
       verify(

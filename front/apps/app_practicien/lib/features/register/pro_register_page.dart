@@ -56,7 +56,8 @@ class _ProRegisterPageState extends State<ProRegisterPage> {
   }
 
   bool get _confirmPasswordValid =>
-      _confirmPassword.text == _password.text && _confirmPassword.text.isNotEmpty;
+      _confirmPassword.text == _password.text &&
+      _confirmPassword.text.isNotEmpty;
 
   bool get _firstNameValid => _firstName.text.trim().isNotEmpty;
   bool get _lastNameValid => _lastName.text.trim().isNotEmpty;
