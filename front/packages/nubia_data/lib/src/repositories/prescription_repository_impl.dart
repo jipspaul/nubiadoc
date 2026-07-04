@@ -51,4 +51,28 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, Prescription>> sendToPharmacy({
+    required String prescriptionId,
+    required String pharmacyId,
+  }) async {
+    try {
+      final dto = await _api.sendToPharmacy(
+        prescriptionId: prescriptionId,
+        pharmacyId: pharmacyId,
+      );
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible d'envoyer l'ordonnance à la pharmacie.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }

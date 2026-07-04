@@ -32,4 +32,16 @@ class PrescriptionApi {
     );
     return PrescriptionDto.fromJson(response.data!);
   }
+
+  /// POST /v1/cabinet/prescriptions/{id}/send
+  Future<PrescriptionDto> sendToPharmacy({
+    required String prescriptionId,
+    required String pharmacyId,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/prescriptions/$prescriptionId/send',
+      data: {'pharmacy_id': pharmacyId},
+    );
+    return PrescriptionDto.fromJson(response.data!);
+  }
 }
