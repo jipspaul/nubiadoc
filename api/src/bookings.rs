@@ -128,18 +128,17 @@ pub async fn create_booking(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let patient_row = sqlx::query(
-        "SELECT id FROM patient \
-         WHERE patient_account_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
-    )
-    .bind(claims.account_id)
-    .bind(cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::NotFound)?;
-
-    let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
+    // Récupère-ou-crée le dossier patient de ce cabinet (réservation marketplace
+    // chez un nouveau praticien → pas encore de fiche). SECURITY DEFINER, cf.
+    // migration 0123. NULL uniquement si le compte n'existe pas → 404 légitime.
+    let patient_id: Uuid =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT ensure_patient_for_cabinet($1, $2)")
+            .bind(claims.account_id)
+            .bind(cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
 
     // INSERT appointment — 23P01 (appointment_no_overlap) → 409 slot_taken.
     let result = sqlx::query(
