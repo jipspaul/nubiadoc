@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../router/app_router.dart';
@@ -41,6 +42,11 @@ class NotificationDeepLinkHandler {
     if (route != null) _router.go(route);
   }
 
+  /// Hook de test : la résolution des routes est pure.
+  @visibleForTesting
+  static String? resolveRouteForTest(String? type, String? targetId) =>
+      _resolveRoute(type, targetId);
+
   static String? _resolveRoute(String? type, String? targetId) {
     if (type == null) return null;
     final id = (targetId != null && targetId.isNotEmpty) ? targetId : null;
@@ -59,6 +65,14 @@ class NotificationDeepLinkHandler {
         return id != null
             ? '${AppRouter.financial}?id=$id'
             : AppRouter.financial;
+      // Commandes click-and-collect (kinds order_received /
+      // order_status_changed, data {order_id}) — lot F8.
+      case 'order_received':
+      case 'order_status_changed':
+      case 'pharmacy_order_preparing':
+      case 'pharmacy_order_ready':
+      case 'pharmacy_order_picked_up':
+        return id != null ? '/pharmacy/orders/$id' : '/pharmacy/orders';
       default:
         return AppRouter.notifications;
     }

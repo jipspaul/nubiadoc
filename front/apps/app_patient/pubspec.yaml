@@ -31,6 +31,7 @@ dependencies:
   nubia_a2ui:
     path: ../../packages/nubia_a2ui
   firebase_messaging: ^15.2.0
+  qr_flutter: ^4.1.0
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
 

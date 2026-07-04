@@ -35,6 +35,8 @@ import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/pharmacy/my_pharmacy_page.dart';
 import '../features/pharmacy/pharmacy_search_page.dart';
+import '../features/pharmacy_orders/order_detail_page.dart';
+import '../features/pharmacy_orders/orders_page.dart';
 import '../features/pharmacy_orders/send_prescription_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/dependents/dependents_page.dart';
@@ -156,6 +158,15 @@ class AppRouter {
         GoRoute(
           path: '/pharmacy/send',
           builder: (_, __) => const SendPrescriptionPage(),
+        ),
+        GoRoute(
+          path: '/pharmacy/orders',
+          builder: (_, __) => const PatientOrdersPage(),
+        ),
+        GoRoute(
+          path: '/pharmacy/orders/:id',
+          builder: (_, state) =>
+              PatientOrderDetailPage(orderId: state.pathParameters['id']!),
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(

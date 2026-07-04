@@ -21,6 +21,7 @@ import '../features/notifications/notifications_bloc.dart';
 import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/pharmacy/my_pharmacy_cubit.dart';
 import '../features/pharmacy/pharmacy_search_cubit.dart';
+import '../features/pharmacy_orders/orders_bloc.dart';
 import '../features/pharmacy_orders/send_prescription_cubit.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/reviews/reviews_bloc.dart';
@@ -37,6 +38,19 @@ void registerPatient(GetIt gi) {
 
   gi.registerFactory<PharmacySearchCubit>(
     () => PharmacySearchCubit(search: gi<SearchPharmaciesUseCase>()),
+  );
+
+  gi.registerFactory<PatientOrdersBloc>(
+    () => PatientOrdersBloc(list: gi<ListPatientPharmacyOrdersUseCase>()),
+  );
+
+  gi.registerFactory<PatientOrderDetailCubit>(
+    () => PatientOrderDetailCubit(
+      get: gi<GetPatientPharmacyOrderUseCase>(),
+      watch: gi<WatchPatientPharmacyOrderUseCase>(),
+      pickupToken: gi<GetPickupTokenUseCase>(),
+      cancel: gi<CancelPharmacyOrderUseCase>(),
+    ),
   );
 
   gi.registerFactory<SendPrescriptionCubit>(

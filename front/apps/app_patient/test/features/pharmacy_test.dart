@@ -46,8 +46,7 @@ void main() {
         return buildCubit();
       },
       act: (cubit) => cubit.load(),
-      expect: () =>
-          [const MyPharmacyLoading(), const MyPharmacyLoaded(null)],
+      expect: () => [const MyPharmacyLoading(), const MyPharmacyLoaded(null)],
     );
 
     blocTest<MyPharmacyCubit, MyPharmacyState>(
