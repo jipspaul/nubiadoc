@@ -130,3 +130,25 @@ Pour chaque parcours : les étapes jouées, un screenshot par étape, le verdict
 humain (utilisabilité /5 + esthétique /5 + ressenti), les frictions/bugs avec
 sévérité et preuve, et 2-3 recos design concrètes. Termine par un **top 5 des
 trucs qui empêcheraient un humain d'adopter l'app** (priorisés).
+
+## 8. ⚠️ OBLIGATOIRE — crée une issue Forgejo par bug/friction trouvé
+
+Un rapport dans le chat se perd. **Chaque vrai problème DOIT devenir une issue
+Forgejo** (c'est ce qui permet de la tracker et de la dispatcher à un agent).
+
+Pour CHAQUE bug/friction (bloquant, gênant, cosmétique, ou reco design) :
+- **Crée une issue** via l'API Forgejo :
+  `POST http://localhost:3000/api/v1/repos/jips/nubiadoc/issues`
+  header `Authorization: token <FORGEJO_TOKEN>`, corps
+  `{"title": "...", "body": "..."}`.
+- **Titre** : `[qa][<app>][<sévérité>] <résumé court>` — ex.
+  `[qa][patient][bloquant] Réservation RDV échoue → 404 sur POST /v1/bookings`.
+  Sévérités : `bloquant` / `gênant` / `cosmétique` / `ux`.
+- **Corps** : le **parcours** joué, le **symptôme** (ce que voit l'humain), la
+  **preuve réseau** (méthode + route + code HTTP), le **verdict** (pourquoi c'est
+  un problème pour un humain), et une **reco concrète**. Cite le screenshot.
+- **Dédup** : avant de créer, liste les issues ouvertes (`GET .../issues?state=open`)
+  et ne recrée pas un doublon (mets à jour/commente si l'issue existe déjà).
+
+À la fin de ton run, **liste les numéros d'issues créées** dans ton rapport.
+Un run QA sans issue créée alors que des bugs ont été trouvés = run **raté**.
