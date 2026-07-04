@@ -5,6 +5,7 @@ import 'package:nubia_core/nubia_core.dart';
 import '../features/home/pharma_home_page.dart';
 import '../features/login/login_page.dart';
 import '../features/order_detail/order_detail_page.dart';
+import '../features/pickup_scan/pickup_scan_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -42,6 +43,11 @@ class AppRouter {
           path: '/orders/:id',
           builder: (_, state) =>
               OrderDetailPage(orderId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: '/orders/:id/pickup',
+          builder: (_, state) =>
+              PickupScanPage(orderId: state.pathParameters['id']!),
         ),
         GoRoute(path: stock, builder: (_, __) => const PharmaHomePage()),
         GoRoute(path: messages, builder: (_, __) => const PharmaHomePage()),
