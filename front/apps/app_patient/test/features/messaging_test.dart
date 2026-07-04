@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/messaging/messaging_bloc.dart';
 import 'package:app_patient/features/messaging/messaging_event.dart';
+import 'package:app_patient/features/messaging/messaging_page.dart';
 import 'package:app_patient/features/messaging/messaging_state.dart';
 
 // ---------------------------------------------------------------------------
@@ -205,6 +207,43 @@ void main() {
 
       expect(find.byKey(const Key('messaging_error')), findsOneWidget);
       expect(find.text('Erreur réseau.'), findsOneWidget);
+    });
+  });
+
+  group('MessagingPage — aperçu conversation (#3348)', () {
+    testWidgets('affiche horodatage (HH:mm) + sous-titre non-lu via ListRow',
+        (tester) async {
+      final now = DateTime.now();
+      final conv = Conversation(
+        id: 'conv-9',
+        cabinetId: 'cab-9',
+        cabinetName: 'Cabinet Lyon',
+        unreadCount: 2,
+        lastMessageAt: DateTime(now.year, now.month, now.day, 14, 5),
+      );
+      when(() => mockGetConversations()).thenAnswer((_) async => Right([conv]));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(const MessagingConversationsLoadRequested());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cabinet Lyon'), findsOneWidget);
+      expect(find.text('14:05'), findsOneWidget);
+      expect(find.text('2 nouveaux messages'), findsOneWidget);
     });
   });
 

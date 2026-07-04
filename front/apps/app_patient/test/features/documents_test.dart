@@ -286,6 +286,69 @@ void main() {
     });
   });
 
+  group('DocumentsPage — taille fichier (#3349)', () {
+    setUp(() async {
+      await GetIt.instance.reset();
+      GetIt.instance.registerFactory<DocumentsBloc>(() => DocumentsBloc(
+            getDocuments: mockGetDocuments,
+            getSignedUrl: mockGetSignedUrl,
+            upload: mockUpload,
+          ));
+    });
+
+    tearDown(() async => GetIt.instance.reset());
+
+    testWidgets('affiche la taille formatée (Ko) quand size_bytes est présent',
+        (tester) async {
+      when(() => mockGetDocuments()).thenAnswer((_) async => Right([
+            Document(
+              id: 'd1',
+              name: 'Devis.pdf',
+              category: DocumentCategory.quote,
+              createdAt: DateTime(2026, 1, 1),
+              fileSizeBytes: 102400, // 100 Ko
+              mimeType: 'application/pdf',
+            ),
+          ]));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: DocumentsPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('100 Ko'), findsOneWidget);
+    });
+
+    testWidgets('masque la taille (pas de « 0 Ko ») quand size_bytes vaut 0',
+        (tester) async {
+      when(() => mockGetDocuments()).thenAnswer((_) async => Right([
+            Document(
+              id: 'd2',
+              name: 'Ordonnance.pdf',
+              category: DocumentCategory.prescription,
+              createdAt: DateTime(2026, 1, 1),
+              fileSizeBytes: 0,
+              mimeType: 'application/pdf',
+            ),
+          ]));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: DocumentsPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('0 Ko'), findsNothing);
+      // Le libellé de catégorie reste affiché seul.
+      expect(find.text('Ordonnance'), findsOneWidget);
+    });
+  });
+
   group('DocumentsBloc', () {
     blocTest<DocumentsBloc, DocumentsState>(
       'émet [Loading, Loaded(vide)] quand la liste est vide',
