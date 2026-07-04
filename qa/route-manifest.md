@@ -34,6 +34,7 @@
 | **app_patient** | `hash` (`/#/...`) | `E-mail` |
 | **app_secretariat** | `hash` (`/#/...`) | `E-mail professionnel` |
 | **app_practicien** | `path` (`/...`, `usePathUrlStrategy`) | `E-mail professionnel` |
+| **app_pharmacie** | `path` (`/...`, `usePathUrlStrategy`) | `E-mail professionnel` |
 
 ## Comptes de test (seed démo — `db/seed/`)
 
@@ -42,6 +43,7 @@
 | patient | `marc.dubois@patient.test` | `Nubia2026!` |
 | praticien | `hugo.marin@cabinet-lyon.test` | `Nubia2026!` |
 | secrétaire | `sonia.accueil@cabinet-lyon.test` | `Nubia2026!` |
+| pharmacien | `jean.officine@pharmacie-lyon.test` | `Nubia2026!` |
 
 ---
 
@@ -56,6 +58,11 @@
 | `/reset-password` | public | formulaire mot de passe | attend `?token=` |
 | `/account-setup` | authed | formulaire | étape post-signup |
 | `/coverage-setup` | authed | formulaire couverture | réutilisé par `/profile` › Couverture |
+| `/pharmacy` | authed | carte pharmacie déclarée OU EmptyState + `Key('declare_pharmacy_button')` | entrée : profil › « Ma pharmacie » ; seed : Marc a déclaré la Pharmacie du Rhône |
+| `/pharmacy/search` | authed | `NubiaSearchBar` « Nom de la pharmacie ou ville » | annuaire public ; taper « pharmacie » → ≥ 2 résultats seed (Rhône, Part-Dieu) |
+| `/pharmacy/send` | authed | étape « 1. Choisissez l'ordonnance » | vide si aucune ordonnance signée — EmptyState = état VALIDE, pas un bug |
+| `/pharmacy/orders` | authed | liste commandes OU EmptyState « Aucune commande » | suivi click-and-collect |
+| `/pharmacy/orders/:id` | authed | timeline 4 étapes | QR (`Key('pickup_qr_image')`) SEULEMENT si statut « Prête » |
 | `/` (dashboard) | **authed** | `Key('dashboard_...')` | bandeau d'erreur si testé déconnecté = faux positif |
 | `/appointments` | authed | `Key('search_field')` + carte | recherche annuaire (résultats par défaut au chargement) |
 | `/book` | authed | recherche/booking | |
@@ -107,6 +114,29 @@
 | `/messages` | authed | messagerie cabinet | |
 | `/admin-membres` | authed | gestion membres | admin/manager |
 | `/admin-secretariats` | authed | gestion secrétariats | admin/manager |
+
+## app_pharmacie (path) — https://pharmacie.doc.nubia-link.com/ (LXC :8084)
+
+> Compte : `jean.officine@pharmacie-lyon.test` / `Nubia2026!` (pharmacien de la
+> « Pharmacie du Rhône », seed). Après login l'app sélectionne automatiquement
+> le contexte pharmacie (`POST /v1/auth/select-pharmacy-context`).
+
+| route | auth | attendu | notes |
+|---|---|---|---|
+| `/splash` | public | spinner | |
+| `/login` | public | champ `E-mail professionnel` + « Espace pharmacie » | |
+| `/` (commandes) | **authed** | chips de filtre (`Key('orders_filter_all')`) + liste OU EmptyState « Aucune commande » | EmptyState = état VALIDE si aucune ordonnance transmise |
+| `/orders/:id` | authed | `PickupInfoCard` + bouton d'action contextuel | bouton selon statut : Reçue→« Commencer la préparation », En préparation→« Marquer prête », Prête→« Scanner le retrait » ; état terminal → aucun bouton (PAS un bug) |
+| `/orders/:id/pickup` | authed | saisie manuelle `Key('manual_code_field')` TOUJOURS visible | la caméra peut être absente (headless) — la saisie manuelle suffit pour tester le retrait |
+| `/stock` | authed | liste demandes OU EmptyState « Aucune demande de stock » | actions Accepter/Refuser (si Reçue) puis Honorer (si Acceptée) |
+| `/messages` | authed | messagerie (fils patient↔pharmacie) | vide tant qu'aucun patient n'a écrit |
+| `/devis` | authed | liste devis OU EmptyState « Aucun devis » | création depuis le détail d'une commande (`Key('order_detail_create_quote')`) |
+
+### Parcours e2e pharmacie (le plus rentable)
+1. **Praticien** (`hugo.marin@…`) : `/ordonnances/new?patientId=…` → créer + signer → carte « Envoyer à la pharmacie » (la Pharmacie du Rhône de Marc est présélectionnée) → envoyer.
+2. **Pharmacie** (`jean.officine@…`) : la commande apparaît « Reçue » → « Commencer la préparation » → « Marquer prête ».
+3. **Patient** (`marc.dubois@…`) : profil › Ma pharmacie › Suivre mes commandes → timeline à « Prête » + **QR code affiché** (copier le code en clair sous le QR).
+4. **Pharmacie** : détail commande → « Scanner le retrait » → coller le code dans la saisie manuelle → « Commande retirée » des deux côtés.
 
 ---
 

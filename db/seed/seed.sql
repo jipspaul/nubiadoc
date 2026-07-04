@@ -422,6 +422,40 @@ INSERT INTO reminder (id, cabinet_id, appointment_id, patient_id, scheduled_at, 
    'rdv_rappel', 'push', 'sent', '2026-06-02 18:00:05+00')
 ON CONFLICT (id) DO NOTHING;
 
+-- =====================================================================
+-- Pharmacies (épic #3323 — click-and-collect). Données fictives.
+-- =====================================================================
+-- Compte pharmacien (login commun kind='pro' puis select-pharmacy-context).
+-- Mot de passe démo commun "Nubia2026!" (salt fixe demoSeedaPharma1).
+INSERT INTO app_user (id, email, password_hash, kind, status) VALUES
+  ('a0000000-0000-0000-0000-0000000000b1', 'jean.officine@pharmacie-lyon.test',
+   '$argon2id$v=19$m=4096,t=3,p=1$ZGVtb1NlZWRhUGhhcm1hMQ$fCY0xLKIcDQUEAFmRDhDnMzN+us/DWOgRb/KigP5x1w',
+   'pro', 'active')
+ON CONFLICT (id) DO NOTHING;
+
+-- Deux pharmacies lyonnaises listées (annuaire public + tests de proximité).
+INSERT INTO pharmacy (id, raison_sociale, address, phone, is_listed, geo) VALUES
+  ('f0000000-0000-0000-0000-0000000000f1', 'Pharmacie du Rhône',
+   '{"line1": "12 quai du Rhône", "postal_code": "69006", "city": "Lyon"}',
+   '+33 4 78 00 00 84', true,
+   ST_SetSRID(ST_MakePoint(4.8420, 45.7680), 4326)::geography),
+  ('f0000000-0000-0000-0000-0000000000f2', 'Grande Pharmacie de la Part-Dieu',
+   '{"line1": "5 place Charles Béraudier", "postal_code": "69003", "city": "Lyon"}',
+   '+33 4 78 00 00 85', true,
+   ST_SetSRID(ST_MakePoint(4.8590, 45.7610), 4326)::geography)
+ON CONFLICT (id) DO NOTHING;
+
+-- Jean = pharmacien de la Pharmacie du Rhône.
+INSERT INTO pharmacy_membership (id, pharmacy_id, user_id, role, active) VALUES
+  ('f0000000-0000-0000-0000-0000000000f9',
+   'f0000000-0000-0000-0000-0000000000f1',
+   'a0000000-0000-0000-0000-0000000000b1', 'pharmacist', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Marc Dubois a déclaré la Pharmacie du Rhône (présélections patient/praticien).
+UPDATE patient_account SET pharmacy_id = 'f0000000-0000-0000-0000-0000000000f1'
+  WHERE id = 'e0000000-0000-0000-0000-0000000000e1' AND pharmacy_id IS NULL;
+
 COMMIT;
 
 \echo '✓ seed démo chargé (Cabinet Lyon, données fictives, idempotent)'

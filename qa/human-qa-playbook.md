@@ -59,6 +59,7 @@ Pour scroller : `page.mouse.wheel(0, dy)` ou un geste de drag sur le bottom shee
 | Patient | https://patient.doc.nubia-link.com/ | `marc.dubois@patient.test` | `Nubia2026!` |
 | Praticien | https://practicien.doc.nubia-link.com/ | `hugo.marin@cabinet-lyon.test` | `Nubia2026!` |
 | Secrétariat | https://secretariat.doc.nubia-link.com/ | `sonia.accueil@cabinet-lyon.test` | `Nubia2026!` |
+| Pharmacie | https://pharmacie.doc.nubia-link.com/ | `jean.officine@pharmacie-lyon.test` | `Nubia2026!` |
 
 **Login = à la main** : tu ouvres l'app, tu vois l'écran de connexion, tu
 **cliques** le champ e-mail, tu **tapes** l'e-mail, champ mot de passe, tu tapes,
