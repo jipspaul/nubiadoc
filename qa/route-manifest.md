@@ -1,5 +1,10 @@
 # Manifeste des routes — flutter-qa-agent
 
+> ⚠️ **LIS `human-qa-playbook.md` EN PREMIER.** C'est la doctrine de test : l'agent
+> QA teste **comme un humain** (il clique, tape, scrolle, screenshote et JUGE),
+> il ne navigue PLUS par URL. Ce manifeste-ci n'est qu'une **référence technique**
+> des routes (auth, stratégie d'URL, pièges) — pas la méthode de test.
+
 > **Source de vérité des routes à explorer** par le flutter-qa-agent, avec pour
 > chaque route ce qu'il faut savoir pour la tester **sans produire de faux
 > positif**. Généré depuis les `app_router.dart` des 3 apps ; à re-synchroniser
