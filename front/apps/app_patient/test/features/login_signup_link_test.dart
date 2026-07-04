@@ -24,8 +24,7 @@ Widget _wrapWithRouter(MockAuthCubit cubit) {
       ),
       GoRoute(
         path: '/signup',
-        builder: (_, __) =>
-            const Scaffold(body: Text('Page inscription')),
+        builder: (_, __) => const Scaffold(body: Text('Page inscription')),
       ),
     ],
   );

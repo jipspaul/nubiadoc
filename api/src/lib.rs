@@ -631,6 +631,10 @@ fn build_router(
             post(pharmacy::stock::fulfill_stock_request),
         )
         .route(
+            "/v1/account/prescriptions",
+            get(prescriptions::list_account_prescriptions),
+        )
+        .route(
             "/v1/account/prescriptions/:id/order",
             post(pharmacy::orders::create_account_order),
         )

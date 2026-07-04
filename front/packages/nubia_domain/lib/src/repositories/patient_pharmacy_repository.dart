@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'package:nubia_domain/src/entities/patient_prescription.dart';
 import 'package:nubia_domain/src/entities/pharmacy.dart';
 import 'package:nubia_domain/src/entities/pharmacy_order.dart';
 import 'package:nubia_domain/src/error/failure.dart';
@@ -29,4 +30,7 @@ abstract class PatientPharmacyRepository {
   /// GET /v1/account/orders/{id}/pickup-token — token opaque du QR de retrait.
   /// Uniquement si la commande est prête (ready), régénère à chaque appel.
   Future<Either<Failure, String>> getPickupToken(String id);
+
+  /// GET /v1/account/prescriptions — ordonnances du compte (envoi pharmacie).
+  Future<Either<Failure, List<PatientPrescription>>> listPrescriptions();
 }

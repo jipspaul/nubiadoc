@@ -68,9 +68,8 @@ class _PrefsBody extends StatelessWidget {
                   (v) => cubit.save(p.copyWith(messages: v))),
               _switch('notif_payments', 'Paiements', p.payments, locked,
                   (v) => cubit.save(p.copyWith(payments: v))),
-              _switch('notif_prevention', 'Prévention & rappels',
-                  p.prevention, locked,
-                  (v) => cubit.save(p.copyWith(prevention: v))),
+              _switch('notif_prevention', 'Prévention & rappels', p.prevention,
+                  locked, (v) => cubit.save(p.copyWith(prevention: v))),
             ],
           );
         }

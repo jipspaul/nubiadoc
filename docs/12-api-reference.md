@@ -503,6 +503,7 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 | PUT | `/v1/account/pharmacy` | patient | Déclare la pharmacie (`{ pharmacy_id }`). `404` si inconnue/non listée. |
 | GET | `/v1/cabinet/patients/{id}/pharmacy` | pro | Pharmacie déclarée d'un patient (présélection à l'envoi). `204` si aucune, `404` patient hors cabinet. |
 | POST | `/v1/cabinet/prescriptions/{id}/send` | practitioner | Envoie l'ordonnance **signée** à une pharmacie (`{ pharmacy_id, consent_channel? }`) → `201` commande `received`, prescription → `sent`, consentement tracé. `409` non signée ou commande active existante, `404` pharmacie, `422` patient sans compte app. |
+| GET | `/v1/account/prescriptions` | patient | Ordonnances visibles par le compte (policy 0109) → `{ data:[{ id, status, document_id?, created_at, signed_at? }] }` — fournit les ids pour l'envoi en pharmacie. |
 | POST | `/v1/account/prescriptions/{id}/order` | patient | Le patient transmet son ordonnance (`{ pharmacy_id }`) → `201` commande `received`. Mêmes erreurs que `/send`. |
 | GET | `/v1/account/orders` · `/{id}` | patient | Suivi des commandes du patient. |
 | GET | `/v1/pharmacy/orders?status=` · `/{id}` | pharma | File des commandes de la pharmacie (RLS pharmacy-scoped, `404` hors tenant). |

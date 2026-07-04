@@ -60,10 +60,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       NubiaTextField(
                         controller: _email,
                         label: 'E-mail',
-                        errorText:
-                            _email.text.trim().isNotEmpty && !_emailValid
-                                ? 'E-mail invalide.'
-                                : null,
+                        errorText: _email.text.trim().isNotEmpty && !_emailValid
+                            ? 'E-mail invalide.'
+                            : null,
                         onChanged: (_) => setState(() {}),
                       ),
                       if (state is ForgotPasswordFailure) ...[

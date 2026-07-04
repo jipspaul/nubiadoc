@@ -73,8 +73,8 @@ class _ConsentsBody extends StatelessWidget {
               for (final consent in state.consents)
                 SwitchListTile(
                   key: Key('consent_${consent.purpose}'),
-                  title: Text(_kConsentLabels[consent.purpose] ??
-                      consent.purpose),
+                  title:
+                      Text(_kConsentLabels[consent.purpose] ?? consent.purpose),
                   value: consent.granted,
                   onChanged: state.pending == consent.purpose
                       ? null

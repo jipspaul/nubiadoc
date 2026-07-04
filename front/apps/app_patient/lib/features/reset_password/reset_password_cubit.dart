@@ -38,10 +38,12 @@ class ResetPasswordCubit extends Cubit<ResetPasswordState>
 
   final ResetPasswordUseCase _resetPassword;
 
-  Future<void> submit({required String token, required String newPassword}) async {
+  Future<void> submit(
+      {required String token, required String newPassword}) async {
     emit(const ResetPasswordLoading());
     try {
-      final result = await _resetPassword(token: token, newPassword: newPassword);
+      final result =
+          await _resetPassword(token: token, newPassword: newPassword);
       result.fold(
         (failure) => safeEmit(ResetPasswordFailure(failure.message)),
         (_) => safeEmit(const ResetPasswordSuccess()),

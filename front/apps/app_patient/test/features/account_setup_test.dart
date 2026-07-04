@@ -45,8 +45,7 @@ Widget _wrap(AccountSetupCubit cubit) => BlocProvider<AccountSetupCubit>.value(
       ),
     );
 
-FilledButton _submitButton(WidgetTester tester) =>
-    tester.widget<FilledButton>(
+FilledButton _submitButton(WidgetTester tester) => tester.widget<FilledButton>(
       find.ancestor(
         of: find.text('Continuer'),
         matching: find.byType(FilledButton),
@@ -186,8 +185,7 @@ void main() {
           'Alice');
       await tester.pump();
       await tester.enterText(
-          find.ancestor(
-              of: find.text('Nom'), matching: find.byType(TextField)),
+          find.ancestor(of: find.text('Nom'), matching: find.byType(TextField)),
           'Martin');
       await tester.pump();
       await tester.enterText(

@@ -290,6 +290,30 @@ Pills = texte + couleur (AA), cibles ≥ 44 px, clavier desktop, motif de refus 
 
 ---
 
+## Écran H — Patient : ma pharmacie & envoi d'ordonnance (lot F7, épic #3323)
+
+### Overview
+Le patient déclare sa pharmacie (annuaire public, recherche par nom avec distance) puis transmet ses ordonnances signées en un geste. Entrée : profil → « Ma pharmacie » (`/pharmacy`).
+
+### Layout
+Mobile-first. « Ma pharmacie » : carte de la pharmacie déclarée (nom, adresse, téléphone) + « Envoyer une ordonnance » (primaire) + « Changer de pharmacie » (secondaire) ; EmptyState avec CTA de déclaration sinon. Recherche : `NubiaSearchBar` (debounce 350 ms) + résultats `ListRow` (nom · adresse · distance), confirmation en dialogue. Envoi : étape 1 choix de l'ordonnance (signées uniquement, présélection si unique), étape 2 pharmacie destinataire (déclarée présélectionnée, « Choisir une autre pharmacie »), bouton « Transmettre » actif seulement si les deux choix sont faits ; écran de succès « Vous serez notifié à chaque étape ».
+
+### Composants
+`NubiaSearchBar`, `ListRow`, `NubiaCard` (PharmacyCard), `NubiaButton`, `NubiaEmptyState`, `NubiaErrorWidget`, dialogues de confirmation.
+
+### États & edge cases
+Aucune pharmacie déclarée → l'envoi propose directement le choix. Aucune ordonnance éligible → EmptyState explicatif. Doublon actif (409) → message d'erreur explicite. Recherche vide → invite. La déclaration est confirmée avant écriture.
+
+### A11y
+Cibles ≥ 44 px, sélection d'ordonnance avec coche visible + libellés datés, dialogues focusables.
+
+### Critères d'acceptation
+- Étant donné une pharmacie déclarée, quand le patient ouvre « Envoyer une ordonnance », alors elle est présélectionnée.
+- Étant donné une ordonnance non signée, alors elle n'apparaît pas dans la liste.
+- Étant donné une transmission réussie, alors la commande apparaît « Reçue » côté pharmacie et le patient est notifié aux étapes suivantes.
+
+---
+
 ## Écran I — Praticien : envoi d'ordonnance en pharmacie (lot F9, épic #3323)
 
 ### Overview

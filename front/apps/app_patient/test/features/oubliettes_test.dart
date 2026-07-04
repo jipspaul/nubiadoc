@@ -69,8 +69,7 @@ void main() {
     testWidgets('affiche NubiaErrorWidget quand OubliettesError est émis',
         (tester) async {
       final bloc = MockOubliettesBloc();
-      when(() => bloc.state)
-          .thenReturn(const OubliettesError('Erreur réseau'));
+      when(() => bloc.state).thenReturn(const OubliettesError('Erreur réseau'));
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();

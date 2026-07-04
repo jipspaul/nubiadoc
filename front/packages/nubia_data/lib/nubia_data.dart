@@ -24,6 +24,7 @@ export 'src/remote/notifications/notification_dto.dart';
 export 'src/remote/notifications/notification_preferences_dto.dart';
 export 'src/realtime/polling_pharmacy_order_events.dart';
 export 'src/remote/patient_pharmacy/patient_pharmacy_api.dart';
+export 'src/remote/patient_pharmacy/patient_prescription_dto.dart';
 export 'src/remote/pharmacy_directory/pharmacy_directory_api.dart';
 export 'src/remote/pharmacy_directory/pharmacy_dto.dart';
 export 'src/remote/pharmacy_orders/pharmacy_order_dto.dart';

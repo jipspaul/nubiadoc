@@ -33,6 +33,9 @@ import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/oubliettes/oubliettes_page.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
+import '../features/pharmacy/my_pharmacy_page.dart';
+import '../features/pharmacy/pharmacy_search_page.dart';
+import '../features/pharmacy_orders/send_prescription_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/dependents/dependents_page.dart';
 import '../features/consents/consents_page.dart';
@@ -84,7 +87,13 @@ class AppRouter {
         loginRoute: login,
         homeRoute: home,
         splashRoute: splash,
-        authRoutes: const {login, splash, signup, forgotPassword, resetPassword},
+        authRoutes: const {
+          login,
+          splash,
+          signup,
+          forgotPassword,
+          resetPassword
+        },
         // signup authentifie l'utilisateur en cours de flow (restore() après
         // le 201) puis navigue explicitement vers /account-setup : ne pas le
         // renvoyer vers home entre-temps (course avec le listener du
@@ -134,6 +143,20 @@ class AppRouter {
           ),
         ),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
+        GoRoute(
+          path: '/pharmacy',
+          builder: (_, __) => const MyPharmacyPage(),
+        ),
+        GoRoute(
+          path: '/pharmacy/search',
+          builder: (_, state) => PharmacySearchPage(
+            selectionMode: state.uri.queryParameters['selection'] == 'true',
+          ),
+        ),
+        GoRoute(
+          path: '/pharmacy/send',
+          builder: (_, __) => const SendPrescriptionPage(),
+        ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
           path: appointments,

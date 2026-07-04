@@ -23,8 +23,7 @@ class _AccountSetupPageState extends State<AccountSetupPage> {
 
   bool get _phoneValid => _phoneRe.hasMatch(_phone.text.trim());
 
-  bool get _dobValid =>
-      _dateOfBirth != null && _isOldEnough(_dateOfBirth!);
+  bool get _dobValid => _dateOfBirth != null && _isOldEnough(_dateOfBirth!);
 
   bool get _formValid =>
       _firstName.text.trim().isNotEmpty &&
@@ -45,8 +44,7 @@ class _AccountSetupPageState extends State<AccountSetupPage> {
   Future<void> _pickDate(BuildContext context) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _dateOfBirth ??
-          DateTime(DateTime.now().year - 20),
+      initialDate: _dateOfBirth ?? DateTime(DateTime.now().year - 20),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       locale: const Locale('fr'),
@@ -56,8 +54,7 @@ class _AccountSetupPageState extends State<AccountSetupPage> {
     }
   }
 
-  String _formatDate(DateTime date) =>
-      '${date.day.toString().padLeft(2, '0')}/'
+  String _formatDate(DateTime date) => '${date.day.toString().padLeft(2, '0')}/'
       '${date.month.toString().padLeft(2, '0')}/'
       '${date.year}';
 

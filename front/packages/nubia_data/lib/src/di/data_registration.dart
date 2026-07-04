@@ -219,6 +219,7 @@ void _registerPatientPharmacy(GetIt gi) {
     ..registerFactory(() => GetMyPharmacyUseCase(gi()))
     ..registerFactory(() => SetMyPharmacyUseCase(gi()))
     ..registerFactory(() => CreatePharmacyOrderUseCase(gi()))
+    ..registerFactory(() => ListMyPrescriptionsUseCase(gi()))
     ..registerFactory(() => ListPatientPharmacyOrdersUseCase(gi()))
     ..registerFactory(() => GetPatientPharmacyOrderUseCase(gi()))
     ..registerFactory(() => CancelPharmacyOrderUseCase(gi()))
