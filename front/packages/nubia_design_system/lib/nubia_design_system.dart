@@ -22,6 +22,11 @@ export 'src/widgets/nubia_search_bar.dart';
 export 'src/widgets/nubia_select.dart';
 export 'src/widgets/nubia_skeleton_loader.dart';
 export 'src/widgets/nubia_text_field.dart';
+export 'src/widgets/provider_card.dart';
+export 'src/widgets/list_row.dart';
+export 'src/widgets/slot_chip.dart';
+export 'src/widgets/metric_tile.dart';
+export 'src/widgets/segmented_control.dart';
 export 'src/widgets/nubia_toggle.dart';
 export 'src/widgets/status_pill.dart';
 
