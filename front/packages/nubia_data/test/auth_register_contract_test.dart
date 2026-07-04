@@ -67,7 +67,8 @@ void main() {
       );
 
       expect(captured['invitation_token'], 'tok-abc',
-          reason: 'le champ doit correspondre à RegisterBody.invitation_token côté API');
+          reason:
+              'le champ doit correspondre à RegisterBody.invitation_token côté API');
     });
   });
 }

@@ -130,6 +130,7 @@ export 'src/usecases/pharmacy/respond_stock_request_use_case.dart';
 export 'src/usecases/pharmacy/search_pharmacies_use_case.dart';
 export 'src/usecases/pharmacy/send_pharmacy_quote_use_case.dart';
 export 'src/usecases/pharmacy/send_prescription_to_pharmacy_use_case.dart';
+export 'src/usecases/pharmacy/set_my_pharmacy_use_case.dart';
 export 'src/usecases/pharmacy/watch_patient_pharmacy_order_use_case.dart';
 export 'src/usecases/pharmacy/watch_pharmacy_orders_use_case.dart';
 export 'src/usecases/prescription/create_prescription_use_case.dart';

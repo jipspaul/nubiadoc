@@ -35,7 +35,8 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
     String? status,
   }) async {
     try {
-      final dtos = await _api.listSessions(patientId: patientId, status: status);
+      final dtos =
+          await _api.listSessions(patientId: patientId, status: status);
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
