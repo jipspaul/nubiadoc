@@ -458,6 +458,7 @@ fn build_router(
         .route("/v1/acts", get(marketplace::list_acts))
         .route("/v1/ccam/acts", get(consultations::search_ccam_acts))
         .route("/v1/search/suggest", get(marketplace::suggest_search))
+        .route("/v1/search/parse", post(marketplace::parse_search))
         .route("/v1/search/providers", get(marketplace::search_providers))
         .route("/v1/search/slots", get(marketplace::search_slots))
         .route("/v1/providers/:id", get(marketplace::get_provider))

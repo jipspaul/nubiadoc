@@ -925,3 +925,451 @@ pub async fn hold_slot(
         }),
     ))
 }
+
+// ── Recherche en langage naturel (parse) ─────────────────────────────────────
+
+/// Corps de `POST /v1/search/parse`.
+#[derive(Deserialize)]
+pub struct ParseSearchBody {
+    pub q: String,
+}
+
+/// Filtres structurés — reprend les query params de `GET /v1/search/providers`
+/// (voir [`SearchProvidersQuery`]). Les champs absents sont sérialisés en `null`.
+#[derive(Serialize)]
+pub struct ParsedQuery {
+    pub q: Option<String>,
+    pub specialty: Option<Uuid>,
+    pub place: Option<String>,
+    pub near: Option<String>,
+    pub sector: Option<String>,
+    pub available: Option<String>,
+    pub teleconsult: Option<bool>,
+}
+
+#[derive(Serialize)]
+pub struct ParseSearchResponse {
+    pub query: ParsedQuery,
+    pub interpretation: String,
+    /// `"keywords"` (passe mots-clés gratuite) ou `"llm"` (secours Claude).
+    pub source: String,
+}
+
+/// `POST /v1/search/parse` — traduit une requête en langage naturel en filtres
+/// structurés (docs/12 §12.1). Route publique, pas de JWT.
+///
+/// Mode **hybride** : passe 1 par mots-clés (toujours, gratuite), puis passe 2
+/// via Claude en secours si la requête reste ambiguë ET que `ANTHROPIC_API_KEY`
+/// est présente. Sans clé, l'endpoint fonctionne en mode dégradé (`source:"keywords"`).
+///
+/// `q` < 2 caractères → 422 (comme `suggest_search`).
+pub async fn parse_search(
+    State(state): State<AppState>,
+    Json(body): Json<ParseSearchBody>,
+) -> Result<Json<ParseSearchResponse>, AppError> {
+    let raw = body.q.trim().to_string();
+    if raw.chars().count() < 2 {
+        return Err(AppError::ValidationError);
+    }
+
+    // ── Passe 1 : mots-clés (toujours, gratuite) ──
+    let (mut query, mut interpretation) = keyword_parse(&state.db, &raw).await;
+    let mut source = "keywords".to_string();
+
+    // Ambiguïté : aucune spécialité résolue OU phrase longue (> 6 mots).
+    let word_count = raw.split_whitespace().count();
+    let ambiguous = query.specialty.is_none() || word_count > 6;
+
+    // ── Passe 2 : LLM en secours (dégradation propre sans clé) ──
+    if ambiguous {
+        if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+            if !key.trim().is_empty() {
+                if let Some((llm_query, llm_interp)) = llm_parse(&state.db, &raw, &key).await {
+                    query = llm_query;
+                    interpretation = llm_interp;
+                    source = "llm".to_string();
+                }
+            }
+        }
+    }
+
+    Ok(Json(ParseSearchResponse {
+        query,
+        interpretation,
+        source,
+    }))
+}
+
+/// Mots vides ignorés lors de la résolution de spécialité (évite les faux positifs
+/// ILIKE sur « pas », « pour », « secteur »…).
+const PARSE_STOPWORDS: &[&str] = &[
+    "pres",
+    "près",
+    "proche",
+    "autour",
+    "alentours",
+    "dispo",
+    "disponible",
+    "cette",
+    "semaine",
+    "soir",
+    "aujourd",
+    "aujourdhui",
+    "pour",
+    "avec",
+    "dans",
+    "sur",
+    "les",
+    "des",
+    "une",
+    "chez",
+    "secteur",
+    "conventionne",
+    "conventionné",
+    "conventionnee",
+    "cher",
+    "distance",
+    "visio",
+    "teleconsultation",
+    "téléconsultation",
+    "rendez",
+    "vous",
+    "lundi",
+    "mardi",
+    "mercredi",
+    "jeudi",
+    "vendredi",
+    "samedi",
+    "dimanche",
+];
+
+/// Passe mots-clés : heuristiques FR + résolution de spécialité en base.
+async fn keyword_parse(db: &sqlx::PgPool, raw: &str) -> (ParsedQuery, String) {
+    let lower = raw.to_lowercase();
+
+    let sector = if lower.contains("pas cher")
+        || lower.contains("conventionné")
+        || lower.contains("conventionnee")
+        || lower.contains("secteur 1")
+    {
+        Some("1".to_string())
+    } else {
+        None
+    };
+
+    let available = detect_available(&lower);
+
+    let teleconsult = if lower.contains("téléconsult")
+        || lower.contains("teleconsult")
+        || lower.contains("visio")
+        || lower.contains("à distance")
+        || lower.contains("a distance")
+    {
+        Some(true)
+    } else {
+        None
+    };
+
+    let place = detect_place(raw);
+
+    let (specialty, specialty_label, clean_q) = resolve_specialty(db, raw).await;
+
+    let query = ParsedQuery {
+        q: clean_q,
+        specialty,
+        place,
+        near: None,
+        sector,
+        available,
+        teleconsult,
+    };
+
+    let interpretation = build_interpretation(&query, specialty_label.as_deref());
+    (query, interpretation)
+}
+
+/// Détecte une disponibilité (« ce soir », « cette semaine », un jour de semaine…).
+fn detect_available(lower: &str) -> Option<String> {
+    if lower.contains("ce soir") || lower.contains("aujourd'hui") || lower.contains("aujourdhui") {
+        return Some("today".to_string());
+    }
+    if lower.contains("cette semaine") {
+        return Some("this_week".to_string());
+    }
+    let days = [
+        ("lundi", "monday"),
+        ("mardi", "tuesday"),
+        ("mercredi", "wednesday"),
+        ("jeudi", "thursday"),
+        ("vendredi", "friday"),
+        ("samedi", "saturday"),
+        ("dimanche", "sunday"),
+    ];
+    for (fr, en) in days {
+        if lower.contains(fr) {
+            return Some(en.to_string());
+        }
+    }
+    None
+}
+
+/// Extrait un lieu depuis « près de X », « autour de X », « à X ».
+fn detect_place(raw: &str) -> Option<String> {
+    let words: Vec<&str> = raw.split_whitespace().collect();
+    let lower: Vec<String> = words.iter().map(|w| w.to_lowercase()).collect();
+    let n = words.len();
+
+    for i in 0..n {
+        // « près de X », « autour de X », « proche de X »
+        if matches!(
+            lower[i].as_str(),
+            "près" | "pres" | "autour" | "proche" | "alentours"
+        ) && i + 2 < n
+            && matches!(lower[i + 1].as_str(), "de" | "du" | "des" | "d'")
+        {
+            if let Some(p) = clean_place_word(words[i + 2]) {
+                return Some(p);
+            }
+        }
+
+        // « à X » : on exige un nom propre (majuscule) et on écarte « à distance ».
+        if (lower[i] == "à" || lower[i] == "a")
+            && i + 1 < n
+            && lower[i + 1] != "distance"
+            && words[i + 1].chars().next().is_some_and(char::is_uppercase)
+        {
+            if let Some(p) = clean_place_word(words[i + 1]) {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+/// Nettoie un mot-lieu (retire la ponctuation de bord). `None` si vide.
+fn clean_place_word(w: &str) -> Option<String> {
+    let cleaned = w.trim_matches(|c: char| !c.is_alphanumeric());
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned.to_string())
+    }
+}
+
+/// Résout une spécialité (uuid + label + `q` nettoyé) via ILIKE sur
+/// `specialty.label`, `medical_act.label`/`motifs`, puis `profession.label`.
+/// Retourne au premier mot significatif qui matche.
+async fn resolve_specialty(
+    db: &sqlx::PgPool,
+    raw: &str,
+) -> (Option<Uuid>, Option<String>, Option<String>) {
+    for word in raw.split_whitespace() {
+        let term = word.trim_matches(|c: char| !c.is_alphanumeric());
+        if term.chars().count() < 3 {
+            continue;
+        }
+        if PARSE_STOPWORDS.contains(&term.to_lowercase().as_str()) {
+            continue;
+        }
+
+        // 1) Spécialité par label.
+        let sql = "SELECT id, label FROM specialty \
+                   WHERE label ILIKE '%' || $1 || '%' ORDER BY label LIMIT 1";
+        if let Ok(Some(row)) = sqlx::query(sql).bind(term).fetch_optional(db).await {
+            if let Ok(id) = row.try_get::<Uuid, _>("id") {
+                let label = row.try_get::<String, _>("label").unwrap_or_default();
+                return (Some(id), Some(label), Some(term.to_lowercase()));
+            }
+        }
+
+        // 2) Acte médical (label ou motif) → sa spécialité.
+        let sql = "SELECT s.id AS id, s.label AS label \
+                   FROM medical_act m JOIN specialty s ON s.id = m.specialty_id \
+                   WHERE m.label ILIKE '%' || $1 || '%' \
+                      OR EXISTS (SELECT 1 FROM unnest(m.motifs) AS mo WHERE mo ILIKE '%' || $1 || '%') \
+                   ORDER BY s.label LIMIT 1";
+        if let Ok(Some(row)) = sqlx::query(sql).bind(term).fetch_optional(db).await {
+            if let Ok(id) = row.try_get::<Uuid, _>("id") {
+                let label = row.try_get::<String, _>("label").unwrap_or_default();
+                return (Some(id), Some(label), Some(term.to_lowercase()));
+            }
+        }
+
+        // 3) Profession (ex. « dentiste » → « Chirurgien-dentiste ») → une spécialité.
+        let sql = "SELECT s.id AS id, s.label AS label \
+                   FROM profession pr JOIN specialty s ON s.profession_id = pr.id \
+                   WHERE pr.label ILIKE '%' || $1 || '%' ORDER BY s.label LIMIT 1";
+        if let Ok(Some(row)) = sqlx::query(sql).bind(term).fetch_optional(db).await {
+            if let Ok(id) = row.try_get::<Uuid, _>("id") {
+                let label = row.try_get::<String, _>("label").unwrap_or_default();
+                return (Some(id), Some(label), Some(term.to_lowercase()));
+            }
+        }
+    }
+    (None, None, None)
+}
+
+/// Construit une interprétation lisible en français.
+fn build_interpretation(query: &ParsedQuery, specialty_label: Option<&str>) -> String {
+    let mut parts: Vec<String> = Vec::new();
+
+    if let Some(label) = specialty_label {
+        parts.push(capitalize(label));
+    } else if let Some(q) = &query.q {
+        parts.push(capitalize(q));
+    } else {
+        parts.push("Recherche".to_string());
+    }
+
+    if query.sector.as_deref() == Some("1") {
+        parts.push("secteur 1".to_string());
+    }
+    if query.teleconsult == Some(true) {
+        parts.push("en téléconsultation".to_string());
+    }
+    if let Some(place) = &query.place {
+        parts.push(format!("près de {place}"));
+    }
+
+    let mut interp = parts.join(" ");
+    if let Some(avail) = &query.available {
+        interp.push_str(&format!(", {}", available_fr(avail)));
+    }
+    interp
+}
+
+/// Rend une disponibilité lisible en français.
+fn available_fr(a: &str) -> String {
+    let day = match a {
+        "today" => "aujourd'hui",
+        "this_week" => "cette semaine",
+        "monday" => "lundi",
+        "tuesday" => "mardi",
+        "wednesday" => "mercredi",
+        "thursday" => "jeudi",
+        "friday" => "vendredi",
+        "saturday" => "samedi",
+        "sunday" => "dimanche",
+        other => other,
+    };
+    format!("disponible {day}")
+}
+
+/// Met la première lettre en majuscule.
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
+/// Passe 2 : appelle Claude (`claude-haiku-4-5-20251001`) pour extraire le JSON
+/// structuré. Client async, timeout court (~4 s). Toute erreur réseau/parse →
+/// `None` (fallback silencieux sur le résultat mots-clés — jamais de 500).
+async fn llm_parse(db: &sqlx::PgPool, raw: &str, api_key: &str) -> Option<(ParsedQuery, String)> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(4))
+        .build()
+        .ok()?;
+
+    let prompt = format!(
+        "Tu es un assistant qui traduit une requête patient d'annuaire médical en filtres de recherche.\n\
+         Requête : \"{raw}\".\n\
+         Réponds UNIQUEMENT avec un objet JSON valide (aucun texte autour), avec exactement ces clés :\n\
+         - q : chaîne (spécialité ou motif principal) ou null\n\
+         - place : quartier/ville mentionné ou null\n\
+         - near : null\n\
+         - sector : \"1\" si le patient veut du conventionné / pas cher / secteur 1, sinon null\n\
+         - available : \"today\", \"this_week\", ou un jour (\"monday\"..\"sunday\") ou null\n\
+         - teleconsult : true si téléconsultation/visio/à distance, sinon null\n\
+         - interpretation : phrase courte en français résumant la demande"
+    );
+
+    let body = serde_json::json!({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 512,
+        "messages": [{ "role": "user", "content": prompt }],
+    });
+
+    let resp = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .ok()?;
+
+    if !resp.status().is_success() {
+        return None;
+    }
+
+    let payload: serde_json::Value = resp.json().await.ok()?;
+    let text = payload.get("content")?.as_array()?.iter().find_map(|b| {
+        if b.get("type").and_then(serde_json::Value::as_str) == Some("text") {
+            b.get("text").and_then(serde_json::Value::as_str)
+        } else {
+            None
+        }
+    })?;
+
+    let json_str = extract_json_object(text)?;
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).ok()?;
+
+    let q = parsed
+        .get("q")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+
+    // La spécialité (uuid) reste résolue en base à partir du `q` extrait par le LLM.
+    let specialty = match &q {
+        Some(term) => resolve_specialty(db, term).await.0,
+        None => None,
+    };
+
+    let query = ParsedQuery {
+        q,
+        specialty,
+        place: parsed
+            .get("place")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        near: parsed
+            .get("near")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        sector: parsed
+            .get("sector")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        available: parsed
+            .get("available")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        teleconsult: parsed
+            .get("teleconsult")
+            .and_then(serde_json::Value::as_bool),
+    };
+
+    let interpretation = parsed
+        .get("interpretation")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| raw.to_string());
+
+    Some((query, interpretation))
+}
+
+/// Extrait le premier objet JSON `{ … }` d'une chaîne (le modèle peut l'entourer
+/// de texte malgré la consigne).
+fn extract_json_object(text: &str) -> Option<String> {
+    let start = text.find('{')?;
+    let end = text.rfind('}')?;
+    if end > start {
+        Some(text[start..=end].to_string())
+    } else {
+        None
+    }
+}
