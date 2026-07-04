@@ -52,6 +52,27 @@ class CabinetAppointmentDto {
     );
   }
 
+  /// Réponse de `POST /cabinet/appointments/:id/confirm`.
+  ///
+  /// Le back ne renvoie que `{ appointment_id, status }` (et non le RDV
+  /// complet). On construit un DTO minimal pour éviter une erreur de décodage :
+  /// seuls `id` et `status` sont pertinents, l'appelant se contente de
+  /// recharger l'agenda après confirmation.
+  factory CabinetAppointmentDto.fromConfirmResponse(Map<String, dynamic> json) {
+    return CabinetAppointmentDto(
+      id: (json['appointment_id'] as String?) ?? (json['id'] as String?) ?? '',
+      cabinetId: '',
+      patientId: '',
+      patientName: '',
+      practitionerId: '',
+      practitionerName: '',
+      startsAt: DateTime.now().toIso8601String(),
+      durationMinutes: 0,
+      motif: '',
+      status: (json['status'] as String?) ?? 'confirmed',
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'patient_id': patientId,
         'practitioner_id': practitionerId,

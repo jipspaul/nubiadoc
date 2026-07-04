@@ -205,6 +205,29 @@ void main() {
       expect(find.textContaining('notes'), findsNothing);
     });
 
+    testWidgets('entrée sans nom patient : affiche un repli lisible, pas « ? »',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingListLoaded([
+          WaitingListEntry(
+            id: 'w9',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: '',
+            motif: '',
+            requestedAt: DateTime(2026, 6, 1),
+            position: 1,
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // Repli « Patient <ref courte> » au lieu d'un titre vide / avatar « ? ».
+      expect(find.text('Patient P1'), findsOneWidget);
+      expect(find.text('?'), findsNothing);
+    });
+
     testWidgets('Loaded([]) affiche NubiaEmptyState', (tester) async {
       when(() => bloc.state).thenReturn(const WaitingListLoaded([]));
       await tester.pumpWidget(buildPage());

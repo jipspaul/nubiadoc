@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nubia_data/src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
+import 'package:nubia_domain/src/entities/cabinet_appointment.dart';
 import 'package:nubia_data/src/remote/scheduling/appointment_dto.dart';
 import 'package:nubia_data/src/remote/auth/auth_dto.dart';
 import 'package:nubia_data/src/remote/account/account_dto.dart';
@@ -376,6 +378,22 @@ void main() {
       expect(q.items, hasLength(1));
       expect(q.items.first.totalCents, 30000);
       expect(q.items.first.patientShareCents, 15000); // 30000-10000-5000
+    });
+  });
+
+  // --- Confirmation RDV cabinet (issue #3361) ---------------------------------
+  group('CabinetAppointmentDto.fromConfirmResponse', () {
+    test('parse la réponse 200 { appointment_id, status } sans erreur', () {
+      final dto = CabinetAppointmentDto.fromConfirmResponse({
+        'appointment_id': '488801b0-17d9-4ec7-8d52-c475f2564b34',
+        'status': 'confirmed',
+      });
+      expect(dto.id, '488801b0-17d9-4ec7-8d52-c475f2564b34');
+      expect(dto.status, 'confirmed');
+      // toDomain() ne doit pas lever (starts_at valide, statut mappé).
+      final domain = dto.toDomain();
+      expect(domain.id, '488801b0-17d9-4ec7-8d52-c475f2564b34');
+      expect(domain.status, CabinetAppointmentStatus.confirmed);
     });
   });
 }
