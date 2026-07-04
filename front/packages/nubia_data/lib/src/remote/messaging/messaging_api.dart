@@ -36,8 +36,9 @@ class MessagingApi {
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/conversations/$conversationId/messages',
+      // Le back attend le champ `body` (SendMessageBody), pas `text` → 422 sinon.
       data: {
-        'text': text,
+        'body': text,
         if (attachmentIds.isNotEmpty) 'attachment_ids': attachmentIds,
       },
     );
@@ -45,6 +46,11 @@ class MessagingApi {
   }
 
   Future<void> markRead(String conversationId) async {
-    await _dio.patch<void>('/conversations/$conversationId/read');
+    // Route back = POST (pas PATCH) → 405 sinon ; et elle attend un corps JSON
+    // (`Json<MarkReadBody>`) → 415 sans corps. On envoie un objet vide.
+    await _dio.post<void>(
+      '/conversations/$conversationId/read',
+      data: <String, dynamic>{},
+    );
   }
 }
