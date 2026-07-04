@@ -16,6 +16,9 @@ class Conversation extends Equatable {
   /// pas l'aperçu texte, d'où ce champ dédié pour afficher la date/heure.
   final DateTime? lastMessageAt;
 
+  /// Aperçu tronqué du dernier message (`last_message_preview`).
+  final String? lastMessagePreview;
+
   const Conversation({
     required this.id,
     required this.cabinetId,
@@ -23,6 +26,7 @@ class Conversation extends Equatable {
     required this.unreadCount,
     this.lastMessage,
     this.lastMessageAt,
+    this.lastMessagePreview,
   });
 
   @override

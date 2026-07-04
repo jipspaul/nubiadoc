@@ -8,8 +8,11 @@ class ConversationDto {
   final MessageDto? lastMessage;
 
   /// `last_message_at` du contrat `GET /v1/conversations` — horodatage ISO du
-  /// dernier message. Le contrat liste ne renvoie pas l'aperçu texte.
+  /// dernier message.
   final String? lastMessageAt;
+
+  /// `last_message_preview` — aperçu du dernier message, tronqué côté serveur.
+  final String? lastMessagePreview;
 
   const ConversationDto({
     required this.id,
@@ -18,6 +21,7 @@ class ConversationDto {
     required this.unreadCount,
     this.lastMessage,
     this.lastMessageAt,
+    this.lastMessagePreview,
   });
 
   factory ConversationDto.fromJson(Map<String, dynamic> json) =>
@@ -30,6 +34,7 @@ class ConversationDto {
             ? null
             : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
         lastMessageAt: json['last_message_at'] as String?,
+        lastMessagePreview: json['last_message_preview'] as String?,
       );
 
   Conversation toDomain() => Conversation(
@@ -40,6 +45,7 @@ class ConversationDto {
         lastMessage: lastMessage?.toDomain(),
         lastMessageAt:
             lastMessageAt == null ? null : DateTime.parse(lastMessageAt!),
+        lastMessagePreview: lastMessagePreview,
       );
 }
 

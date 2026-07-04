@@ -46,6 +46,7 @@ pub struct DocumentItem {
     pub category: String,
     pub filename: String,
     pub mime_type: String,
+    pub size_bytes: i64,
     pub created_at: String,
 }
 
@@ -155,7 +156,7 @@ pub async fn list_documents(
     };
 
     let sql = format!(
-        "SELECT d.id, d.category, d.filename, d.mime_type, d.created_at, d.cabinet_id \
+        "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.created_at, d.cabinet_id \
          FROM document d \
          WHERE d.deleted_at IS NULL\
          {category_clause}{cursor_clause} \
@@ -210,6 +211,7 @@ pub async fn list_documents(
         let category: String = row.try_get("category").map_err(|_| AppError::Internal)?;
         let filename: String = row.try_get("filename").map_err(|_| AppError::Internal)?;
         let mime_type: String = row.try_get("mime_type").map_err(|_| AppError::Internal)?;
+        let size_bytes: i64 = row.try_get("size_bytes").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
         let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
@@ -223,6 +225,7 @@ pub async fn list_documents(
             category,
             filename,
             mime_type,
+            size_bytes,
             created_at: created_at.to_rfc3339(),
         });
     }

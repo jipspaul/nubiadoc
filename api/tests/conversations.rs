@@ -217,7 +217,9 @@ async fn conversations_with_unread_message_returns_correct_data() {
             "INSERT INTO message \
              (id, cabinet_id, conversation_id, sender_kind, sender_id, \
               body_ciphertext, body_key_ref) \
-             VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+             VALUES ($1, $2, $3, 'practitioner', $4, \
+              convert_to('Bonjour Bob, vos résultats sont prêts.', 'UTF8'), \
+              'key-ref-test')",
         )
         .bind(msg_id)
         .bind(cabinet_id)
@@ -276,6 +278,10 @@ async fn conversations_with_unread_message_returns_correct_data() {
     assert!(
         conv["last_message_at"].is_string(),
         "last_message_at présent"
+    );
+    assert_eq!(
+        conv["last_message_preview"], "Bonjour Bob, vos résultats sont prêts.",
+        "aperçu du dernier message présent (POC UTF-8)"
     );
     assert_eq!(conv["unread_count"], 1, "unread_count = 1 (message non lu)");
 
@@ -1007,7 +1013,9 @@ async fn conversations_messages_returns_200_with_data() {
             "INSERT INTO message \
              (id, cabinet_id, conversation_id, sender_kind, sender_id, \
               body_ciphertext, body_key_ref) \
-             VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+             VALUES ($1, $2, $3, 'practitioner', $4, \
+              convert_to('Bonjour Bob, vos résultats sont prêts.', 'UTF8'), \
+              'key-ref-test')",
         )
         .bind(msg_id)
         .bind(cabinet_id)
@@ -1612,7 +1620,9 @@ async fn conversations_read_idempotent_double_call_returns_204() {
             "INSERT INTO message \
              (id, cabinet_id, conversation_id, sender_kind, sender_id, \
               body_ciphertext, body_key_ref) \
-             VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+             VALUES ($1, $2, $3, 'practitioner', $4, \
+              convert_to('Bonjour Bob, vos résultats sont prêts.', 'UTF8'), \
+              'key-ref-test')",
         )
         .bind(msg_id)
         .bind(cabinet_id)
@@ -1974,7 +1984,9 @@ async fn conversations_read_partial_with_last_message_id_marks_only_earlier_mess
                 "INSERT INTO message \
                  (id, cabinet_id, conversation_id, sender_kind, sender_id, \
                   body_ciphertext, body_key_ref) \
-                 VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+                 VALUES ($1, $2, $3, 'practitioner', $4, \
+              convert_to('Bonjour Bob, vos résultats sont prêts.', 'UTF8'), \
+              'key-ref-test')",
             )
             .bind(mid)
             .bind(cabinet_id)
@@ -2234,7 +2246,9 @@ async fn conversations_messages_cross_patient_returns_404() {
             "INSERT INTO message \
              (id, cabinet_id, conversation_id, sender_kind, sender_id, \
               body_ciphertext, body_key_ref) \
-             VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+             VALUES ($1, $2, $3, 'practitioner', $4, \
+              convert_to('Bonjour Bob, vos résultats sont prêts.', 'UTF8'), \
+              'key-ref-test')",
         )
         .bind(msg_id)
         .bind(cabinet_id)
@@ -2403,7 +2417,9 @@ async fn conversations_messages_pagination_returns_next_cursor() {
                 "INSERT INTO message \
                  (id, cabinet_id, conversation_id, sender_kind, sender_id, \
                   body_ciphertext, body_key_ref) \
-                 VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+                 VALUES ($1, $2, $3, 'practitioner', $4, \
+              convert_to('Bonjour Bob, vos résultats sont prêts.', 'UTF8'), \
+              'key-ref-test')",
             )
             .bind(mid)
             .bind(cabinet_id)
@@ -2629,7 +2645,9 @@ async fn conversations_read_marks_messages_and_returns_204() {
             "INSERT INTO message \
              (id, cabinet_id, conversation_id, sender_kind, sender_id, \
               body_ciphertext, body_key_ref) \
-             VALUES ($1, $2, $3, 'practitioner', $4, '\\xDEAD'::bytea, 'key-ref-test')",
+             VALUES ($1, $2, $3, 'practitioner', $4, \
+              convert_to('Bonjour Bob, vos résultats sont prêts.', 'UTF8'), \
+              'key-ref-test')",
         )
         .bind(msg_id)
         .bind(cabinet_id)

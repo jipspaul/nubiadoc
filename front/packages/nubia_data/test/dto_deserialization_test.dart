@@ -307,6 +307,22 @@ void main() {
       expect(c.lastMessageAt, DateTime.parse('2026-07-02T09:45:54Z'));
     });
 
+    test('ConversationDto : aperçu du dernier message (last_message_preview)',
+        () {
+      final c = ConversationDto.fromJson({
+        'id': 'c1',
+        'cabinet_id': 'cab',
+        'cabinet_name': 'Cabinet Lyon',
+        'last_message_at': '2026-07-02T09:45:54Z',
+        'last_message_preview': 'Bonjour, vos résultats sont disponibles.',
+        'unread_count': 3,
+      }).toDomain();
+      expect(
+        c.lastMessagePreview,
+        'Bonjour, vos résultats sont disponibles.',
+      );
+    });
+
     test('ConversationDto : last_message_at absent → lastMessageAt null', () {
       final c = ConversationDto.fromJson({
         'id': 'c1',

@@ -111,6 +111,26 @@ void main() {
       expect(find.text('marie@example.com'), findsAtLeastNWidgets(1));
     });
 
+    testWidgets('expose un accès visible aux devis & paiements (#3351)',
+        (tester) async {
+      when(() => mockGetAccount())
+          .thenAnswer((_) async => const Right(_account));
+
+      final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
+      bloc.add(const ProfileLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('tile_financial')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byKey(const Key('tile_financial')), findsOneWidget);
+      expect(find.text('Mes devis & paiements'), findsOneWidget);
+    });
+
     testWidgets('affiche un message d\'erreur en état error', (tester) async {
       when(() => mockGetAccount()).thenAnswer(
         (_) async => const Left(NetworkFailure('Erreur réseau.')),

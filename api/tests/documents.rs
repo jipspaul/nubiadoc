@@ -111,8 +111,10 @@ async fn documents_happy_path_returns_document() {
 
         sqlx::query(
             "INSERT INTO document \
-             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
-             VALUES ($1, $2, $3, 'ordonnance', 'key/test', 'ordonnance.pdf', 'application/pdf', $4)",
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, \
+              sha256, size_bytes) \
+             VALUES ($1, $2, $3, 'ordonnance', 'key/test', 'ordonnance.pdf', \
+              'application/pdf', $4, 102400)",
         )
         .bind(doc_id)
         .bind(cabinet_id)
@@ -161,6 +163,10 @@ async fn documents_happy_path_returns_document() {
     assert_eq!(doc["category"], "ordonnance");
     assert_eq!(doc["filename"], "ordonnance.pdf");
     assert_eq!(doc["mime_type"], "application/pdf");
+    assert_eq!(
+        doc["size_bytes"], 102400,
+        "size_bytes exposé par la liste (issue #3349)"
+    );
     assert!(
         doc["created_at"].is_string(),
         "created_at doit être présent"
