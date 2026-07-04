@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/financial/financial_bloc.dart';
@@ -56,6 +57,7 @@ FinancialBloc _makeBloc({
     );
 
 Widget _wrap(FinancialBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: BlocProvider.value(
         value: bloc,
         child: const Scaffold(body: FinancialPage()),
