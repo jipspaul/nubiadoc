@@ -192,7 +192,10 @@ async fn full_thread_patient_and_pharmacy() {
     assert_eq!(status, StatusCode::OK);
     let first = &messages["data"].as_array().unwrap()[0];
     assert_eq!(first["sender_kind"], "patient");
-    assert!(first["body"].as_str().unwrap().contains("posologie") == false || true);
+    assert!(
+        first["body"].as_str().unwrap().contains("traitement"),
+        "le corps du message est déchiffré côté pharmacie"
+    );
 
     // La pharmacie répond puis marque lu.
     let (status, _) = call(
