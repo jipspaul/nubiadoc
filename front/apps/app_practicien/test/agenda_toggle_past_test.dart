@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/agenda/agenda_bloc.dart';
@@ -61,6 +62,7 @@ final _entryPast = AgendaEntry(
 );
 
 Widget _wrapWithBloc(MockAgendaBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: BlocProvider<AgendaBloc>.value(
         value: bloc,
         child: const Scaffold(body: AgendaBody()),
@@ -68,6 +70,7 @@ Widget _wrapWithBloc(MockAgendaBloc bloc) => MaterialApp(
     );
 
 Widget _wrapFullPage(MockAgendaBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: BlocProvider<AgendaBloc>.value(
         value: bloc,
         child: Builder(

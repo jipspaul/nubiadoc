@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/agenda/agenda_bloc.dart';
@@ -85,6 +86,7 @@ AgendaBloc _makeBloc({
     );
 
 Widget _wrap(AgendaBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: BlocProvider.value(
         value: bloc,
         child: const Scaffold(body: _AgendaBodyDirect()),
@@ -362,7 +364,8 @@ void main() {
       GetIt.instance.registerFactory<PatientsBloc>(() => mockPatientsBloc);
       addTearDown(GetIt.instance.reset);
 
-      await tester.pumpWidget(const MaterialApp(home: AgendaPage()));
+      await tester.pumpWidget(
+          MaterialApp(theme: NubiaTheme.light, home: const AgendaPage()));
       await tester.pump();
 
       expect(find.byKey(const Key('agenda_fab_consultation')), findsOneWidget);
@@ -400,6 +403,7 @@ void main() {
     });
 
     Widget buildBody() => MaterialApp(
+          theme: NubiaTheme.light,
           home: BlocProvider<AgendaBloc>.value(
             value: bloc,
             child: const Scaffold(body: AgendaBody()),

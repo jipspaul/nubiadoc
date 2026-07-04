@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/patients/patient_fiche.dart';
@@ -18,7 +19,8 @@ void main() {
   group('PatientFiche — toggle notes cliniques', () {
     testWidgets('tap masque la section clinique', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(home: PatientFiche(patient: _patient)),
+        MaterialApp(
+            theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
       );
       await tester.pumpAndSettle();
 
@@ -32,7 +34,8 @@ void main() {
 
     testWidgets('re-tap réaffiche la section clinique', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(home: PatientFiche(patient: _patient)),
+        MaterialApp(
+            theme: NubiaTheme.light, home: PatientFiche(patient: _patient)),
       );
       await tester.pumpAndSettle();
 

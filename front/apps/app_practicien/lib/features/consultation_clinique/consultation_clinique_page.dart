@@ -63,16 +63,11 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
           return _LoadedView(state: state);
         }
         if (state is ConsultationCliniqueCompleted) {
-          return const Center(
+          return const NubiaEmptyState(
             key: Key('consultation_completed'),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-                SizedBox(height: 12),
-                Text('Consultation terminée'),
-              ],
-            ),
+            icon: Icons.check_circle_outline,
+            title: 'Consultation terminée',
+            subtitle: 'Les actes ont été enregistrés.',
           );
         }
         if (state is ConsultationHistoriqueLoaded) {
@@ -111,6 +106,11 @@ class _LoadedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = state.session;
+    final textTheme = Theme.of(context).textTheme;
+    final totalCents = session.acts.fold<int>(
+      0,
+      (sum, a) => sum + (a.amountCents ?? 0),
+    );
 
     return Column(
       children: [
@@ -119,25 +119,52 @@ class _LoadedView extends StatelessWidget {
               key: Key('consultation_action_progress')),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${session.acts.length} acte(s) CCAM',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              FilledButton.icon(
-                key: const Key('complete_consultation_button'),
-                onPressed: state.actionInProgress || session.isCompleted
-                    ? null
-                    : () => context.read<ConsultationCliniqueBloc>().add(
-                          const ConsultationCliniqueCompleteRequested(),
+          child: NubiaCard(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Consultation au fauteuil',
+                              style: textTheme.titleMedium),
+                          const SizedBox(width: 8),
+                          StatusPill(
+                            label:
+                                session.isCompleted ? 'Terminée' : 'En cours',
+                            variant: session.isCompleted
+                                ? StatusPillVariant.success
+                                : StatusPillVariant.info,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${session.acts.length} acte(s) CCAM · ${_euros(totalCents)}',
+                        style: textTheme.bodySmall?.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                icon: const Icon(Icons.check, size: 18),
-                label: const Text('Terminer'),
-              ),
-            ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                NubiaButton(
+                  key: const Key('complete_consultation_button'),
+                  size: NubiaButtonSize.sm,
+                  icon: Icons.check,
+                  label: 'Terminer',
+                  onPressed: state.actionInProgress || session.isCompleted
+                      ? null
+                      : () => context.read<ConsultationCliniqueBloc>().add(
+                            const ConsultationCliniqueCompleteRequested(),
+                          ),
+                ),
+              ],
+            ),
           ),
         ),
         CcamPicker(
@@ -150,19 +177,14 @@ class _LoadedView extends StatelessWidget {
                 ),
               ),
         ),
-        const Divider(height: 1),
+        const SizedBox(height: 8),
         Expanded(
           child: session.acts.isEmpty
-              ? const Center(
+              ? const NubiaEmptyState(
                   key: Key('consultation_empty'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.medical_services_outlined, size: 48),
-                      SizedBox(height: 12),
-                      Text('Aucun acte enregistré'),
-                    ],
-                  ),
+                  icon: Icons.medical_services_outlined,
+                  title: 'Aucun acte enregistré',
+                  subtitle: 'Recherchez un acte CCAM pour l\'ajouter.',
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 8),
@@ -175,6 +197,9 @@ class _LoadedView extends StatelessWidget {
   }
 }
 
+/// Formatte un montant en centimes vers un libellé euros.
+String _euros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
+
 // ---------------------------------------------------------------------------
 
 class _ActTile extends StatelessWidget {
@@ -183,14 +208,29 @@ class _ActTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final subtitle = act.tooth != null && act.tooth!.isNotEmpty
+        ? '${act.ccamCode} · Dent ${act.tooth}'
+        : act.ccamCode;
+
+    return ListRow(
       key: Key('act_${act.id}'),
-      title: Text(act.label),
-      subtitle: Text(act.ccamCode),
+      leading: CircleAvatar(
+        radius: 20,
+        backgroundColor: cs.primaryContainer,
+        child: Icon(Icons.medical_services_outlined,
+            size: 20, color: cs.onPrimaryContainer),
+      ),
+      title: act.label,
+      subtitle: subtitle,
       trailing: act.amountCents != null
           ? Text(
-              '${(act.amountCents! / 100).toStringAsFixed(2)} €',
-              style: Theme.of(context).textTheme.bodyMedium,
+              _euros(act.amountCents!),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             )
           : null,
     );
@@ -284,13 +324,32 @@ class _HistoriqueTile extends StatelessWidget {
     }
   }
 
+  StatusPillVariant get _statusVariant {
+    switch (session.status) {
+      case 'completed':
+        return StatusPillVariant.success;
+      case 'in_progress':
+        return StatusPillVariant.info;
+      case 'interrupted':
+        return StatusPillVariant.warning;
+      default:
+        return StatusPillVariant.info;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final cs = Theme.of(context).colorScheme;
+    return ListRow(
       key: Key('historique_${session.id}'),
-      leading: const Icon(Icons.medical_services_outlined),
-      title: Text('Consultation ${session.id}'),
-      trailing: Chip(label: Text(_statusLabel)),
+      leading: CircleAvatar(
+        radius: 20,
+        backgroundColor: cs.primaryContainer,
+        child: Icon(Icons.medical_services_outlined,
+            size: 20, color: cs.onPrimaryContainer),
+      ),
+      title: 'Consultation ${session.id}',
+      trailing: StatusPill(label: _statusLabel, variant: _statusVariant),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -104,45 +105,51 @@ class ClinicalSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final cs = Theme.of(context).colorScheme;
+    return NubiaCard(
       key: const Key('clinical_section'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Notes cliniques',
-              style: Theme.of(context).textTheme.titleMedium,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.medical_information_outlined,
+                  size: 20, color: cs.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Notes cliniques',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ],
+          ),
+          if (patient.birthDate != null) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(Icons.cake_outlined, size: 18, color: cs.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Text(
+                  _formatDate(patient.birthDate!),
+                  key: const Key('clinical_birth_date'),
+                ),
+              ],
             ),
-            if (patient.birthDate != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.cake_outlined, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatDate(patient.birthDate!),
-                    key: const Key('clinical_birth_date'),
-                  ),
-                ],
-              ),
-            ],
-            if (patient.lastVisitAt != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.history_outlined, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Dernière visite : ${_formatDate(patient.lastVisitAt!)}',
-                    key: const Key('clinical_last_visit'),
-                  ),
-                ],
-              ),
-            ],
           ],
-        ),
+          if (patient.lastVisitAt != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.history_outlined,
+                    size: 18, color: cs.onSurfaceVariant),
+                const SizedBox(width: 10),
+                Text(
+                  'Dernière visite : ${_formatDate(patient.lastVisitAt!)}',
+                  key: const Key('clinical_last_visit'),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
