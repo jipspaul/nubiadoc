@@ -499,8 +499,18 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 | Méthode | Chemin | Auth | Description |
 |---|---|---|---|
 | GET | `/v1/pharmacies` | — | Annuaire public des pharmacies **listées** (`is_listed`). Filtres : `q`, `lat`+`lng` (tri distance PostGIS), `radius_km`, `per_page`. → `{ data:[{ id, raison_sociale, address, phone, distance_m? }] }`. `422` si `lat`/`lng` incomplets ou `radius_km` sans point. |
+| GET | `/v1/account/pharmacy` | patient | Pharmacie déclarée du patient. `204` si aucune. |
+| PUT | `/v1/account/pharmacy` | patient | Déclare la pharmacie (`{ pharmacy_id }`). `404` si inconnue/non listée. |
+| GET | `/v1/cabinet/patients/{id}/pharmacy` | pro | Pharmacie déclarée d'un patient (présélection à l'envoi). `204` si aucune, `404` patient hors cabinet. |
+| POST | `/v1/cabinet/prescriptions/{id}/send` | practitioner | Envoie l'ordonnance **signée** à une pharmacie (`{ pharmacy_id, consent_channel? }`) → `201` commande `received`, prescription → `sent`, consentement tracé. `409` non signée ou commande active existante, `404` pharmacie, `422` patient sans compte app. |
+| POST | `/v1/account/prescriptions/{id}/order` | patient | Le patient transmet son ordonnance (`{ pharmacy_id }`) → `201` commande `received`. Mêmes erreurs que `/send`. |
+| GET | `/v1/account/orders` · `/{id}` | patient | Suivi des commandes du patient. |
+| GET | `/v1/pharmacy/orders?status=` · `/{id}` | pharma | File des commandes de la pharmacie (RLS pharmacy-scoped, `404` hors tenant). |
+| GET | `/v1/pharmacy/orders/{id}/document` | pharma | URL signée du PDF d'ordonnance (policy `document_pharmacy_read` — la pharmacie ne lit jamais les tables cliniques). `410` si lien expiré. |
 
-Les commandes click-and-collect (`pharmacy_order`, statuts `received → preparing → ready → picked_up`), demandes de stock, messagerie et devis pharmacie arrivent avec les lots B2–B7 (issues #3307–#3312).
+**Commande** (`OrderDto`) : `{ id, pharmacy_id, pharmacy_name, patient_display_name, prescription_id, status, rejection_reason?, received_at, updated_at, ready_at?, picked_up_at? }`. `patient_display_name` est **minimisé** (« Prénom N. », `07` §2.7). Statuts : `received → preparing → ready → picked_up` + `rejected` (pharmacien, motif requis) et `cancelled` (patient) — une seule commande **active** par ordonnance. Consentement au partage tracé dans `consent_record` (purpose `partage_pharmacie`, evidence `{channel, collected_by?}`).
+
+Les transitions (`accept`/`ready`/`reject`/`cancel`), le QR de retrait (`pickup-scan`), les demandes de stock, la messagerie et les devis pharmacie arrivent avec les lots B3–B7 (issues #3308–#3312).
 
 ---
 

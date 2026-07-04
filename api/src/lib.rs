@@ -531,6 +531,42 @@ fn build_router(
             post(prescriptions::sign_prescription),
         )
         .route(
+            "/v1/cabinet/prescriptions/:id/send",
+            post(prescriptions::send_prescription),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/pharmacy",
+            get(pharmacy::orders::get_cabinet_patient_pharmacy),
+        )
+        .route(
+            "/v1/pharmacy/orders",
+            get(pharmacy::orders::list_pharmacy_orders),
+        )
+        .route(
+            "/v1/pharmacy/orders/:id",
+            get(pharmacy::orders::get_pharmacy_order),
+        )
+        .route(
+            "/v1/pharmacy/orders/:id/document",
+            get(pharmacy::orders::get_pharmacy_order_document),
+        )
+        .route(
+            "/v1/account/prescriptions/:id/order",
+            post(pharmacy::orders::create_account_order),
+        )
+        .route(
+            "/v1/account/orders",
+            get(pharmacy::orders::list_account_orders),
+        )
+        .route(
+            "/v1/account/orders/:id",
+            get(pharmacy::orders::get_account_order),
+        )
+        .route(
+            "/v1/account/pharmacy",
+            get(pharmacy::orders::get_account_pharmacy).put(pharmacy::orders::put_account_pharmacy),
+        )
+        .route(
             "/v1/cabinet/providers/:id/secretariats",
             get(provider_secretariat::get_provider_secretariats)
                 .put(provider_secretariat::put_provider_secretariats),
