@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/documents/documents_bloc.dart';
@@ -260,7 +261,10 @@ void main() {
         'tap chip Ordonnances — 1 doc visible sur 3 de catégories différentes',
         (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: DocumentsPage())),
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: DocumentsPage()),
+        ),
       );
       await tester.pumpAndSettle();
 

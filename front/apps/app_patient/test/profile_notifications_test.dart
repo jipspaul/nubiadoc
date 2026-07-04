@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/profile/profile_bloc.dart';
@@ -41,6 +42,7 @@ const _prefs = NotificationPreferences(
 );
 
 Widget _wrap(ProfileBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: MultiBlocProvider(
         providers: [
           BlocProvider.value(value: bloc),

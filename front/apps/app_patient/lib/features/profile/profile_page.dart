@@ -88,102 +88,113 @@ class _ProfileContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       key: const Key('profile_content'),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
-        _ProfileHeader(account: account),
-        const Divider(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            'Informations personnelles',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+        _ProfileHeaderCard(account: account),
+        const SizedBox(height: 24),
+        const _SectionLabel(label: 'Informations personnelles'),
+        const SizedBox(height: 12),
+        NubiaCard(
+          child: Column(
+            children: [
+              _ReadOnlyField(label: 'Email', value: account.email),
+              if (account.phone != null && account.phone!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _ReadOnlyField(label: 'Téléphone', value: account.phone!),
+              ],
+            ],
           ),
         ),
-        _InfoRow(label: 'Email', value: account.email),
-        if (account.phone != null && account.phone!.isNotEmpty)
-          _InfoRow(label: 'Téléphone', value: account.phone!),
-        const Divider(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            'Mon compte',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+        const SizedBox(height: 24),
+        const _SectionLabel(label: 'Notifications RDV'),
+        const SizedBox(height: 12),
+        NubiaCard(
+          child: Column(
+            children: [
+              _ToggleRow(
+                toggleKey: const Key('email_rdv_toggle'),
+                icon: Icons.email_outlined,
+                title: 'Rappels e-mail',
+                value: emailRdv,
+                onChanged: (v) =>
+                    context.read<ProfileBloc>().add(ToggleEmailRdv(enabled: v)),
+              ),
+              const SizedBox(height: 4),
+              _ToggleRow(
+                toggleKey: const Key('push_rdv_toggle'),
+                icon: Icons.notifications_active_outlined,
+                title: 'Notifications push',
+                value: pushRdv,
+                onChanged: (v) =>
+                    context.read<ProfileBloc>().add(TogglePushRdv(enabled: v)),
+              ),
+            ],
           ),
         ),
-        _SectionTile(
-          key: const Key('tile_coverage'),
-          icon: Icons.health_and_safety_outlined,
-          title: 'Couverture santé',
-          onTap: () => context.push(AppRouter.coverageSetup),
-        ),
-        _SectionTile(
-          key: const Key('tile_dependents'),
-          icon: Icons.people_outline,
-          title: 'Mes proches',
-          onTap: () => context.push(AppRouter.profileDependents),
-        ),
-        _SectionTile(
-          key: const Key('tile_consents'),
-          icon: Icons.verified_user_outlined,
-          title: 'Consentements',
-          onTap: () => context.push(AppRouter.profileConsents),
-        ),
-        _SectionTile(
-          key: const Key('tile_notifications'),
-          icon: Icons.notifications_outlined,
-          title: 'Préférences notifications',
-          onTap: () => context.push(AppRouter.profileNotifications),
-        ),
-        const Divider(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            'Notifications RDV',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+        const SizedBox(height: 24),
+        const _SectionLabel(label: 'Sécurité'),
+        const SizedBox(height: 12),
+        NubiaCard(
+          child: _ToggleRow(
+            toggleKey: const Key('biometric_toggle'),
+            icon: Icons.fingerprint,
+            title: 'Authentification biométrique',
+            value: biometricEnabled,
+            onChanged: (v) => context
+                .read<ProfileBloc>()
+                .add(BiometricToggleRequested(enabled: v)),
           ),
         ),
-        SwitchListTile(
-          key: const Key('email_rdv_toggle'),
-          secondary: const Icon(Icons.email_outlined),
-          title: const Text('Rappels e-mail'),
-          value: emailRdv,
-          onChanged: (v) =>
-              context.read<ProfileBloc>().add(ToggleEmailRdv(enabled: v)),
-        ),
-        SwitchListTile(
-          key: const Key('push_rdv_toggle'),
-          secondary: const Icon(Icons.notifications_outlined),
-          title: const Text('Notifications push'),
-          value: pushRdv,
-          onChanged: (v) =>
-              context.read<ProfileBloc>().add(TogglePushRdv(enabled: v)),
-        ),
-        const Divider(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            'Sécurité',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+        const SizedBox(height: 24),
+        const _SectionLabel(label: 'Mon compte'),
+        const SizedBox(height: 12),
+        NubiaCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              ListRow(
+                key: const Key('tile_coverage'),
+                leading: const Icon(Icons.health_and_safety_outlined),
+                title: 'Couverture santé',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRouter.coverageSetup),
+              ),
+              ListRow(
+                key: const Key('tile_dependents'),
+                leading: const Icon(Icons.people_outline),
+                title: 'Mes proches',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRouter.profileDependents),
+              ),
+              ListRow(
+                key: const Key('tile_consents'),
+                leading: const Icon(Icons.verified_user_outlined),
+                title: 'Consentements',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRouter.profileConsents),
+              ),
+              ListRow(
+                key: const Key('tile_notifications'),
+                leading: const Icon(Icons.notifications_outlined),
+                title: 'Préférences notifications',
+                trailing: const Icon(Icons.chevron_right),
+                showDivider: false,
+                onTap: () => context.push(AppRouter.profileNotifications),
+              ),
+            ],
           ),
         ),
-        SwitchListTile(
-          key: const Key('biometric_toggle'),
-          secondary: const Icon(Icons.fingerprint),
-          title: const Text('Authentification biométrique'),
-          value: biometricEnabled,
-          onChanged: (v) => context
-              .read<ProfileBloc>()
-              .add(BiometricToggleRequested(enabled: v)),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: NubiaButton(
+            key: const Key('logout_tile'),
+            label: 'Se déconnecter',
+            icon: Icons.logout,
+            variant: NubiaButtonVariant.destructive,
+            onPressed: () => context.read<AuthCubit>().signOut(),
+          ),
         ),
-        const Divider(),
-        const _LogoutTile(),
       ],
     );
   }
@@ -191,15 +202,37 @@ class _ProfileContent extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({required this.account});
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: cs.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _ProfileHeaderCard extends StatelessWidget {
+  const _ProfileHeaderCard({required this.account});
 
   final PatientAccount account;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return NubiaCard(
+      padding: const EdgeInsets.all(20),
       child: Row(
         children: [
           _AvatarPicker(initials: _initials(account)),
@@ -208,16 +241,12 @@ class _ProfileHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  account.displayName,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text(account.displayName, style: textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
                   account.email,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                  style:
+                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -238,77 +267,77 @@ class _ProfileHeader extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+/// Champ en lecture seule (NubiaTextField désactivé) pour afficher une donnée
+/// du compte. Gère son propre contrôleur.
+class _ReadOnlyField extends StatefulWidget {
+  const _ReadOnlyField({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
+  State<_ReadOnlyField> createState() => _ReadOnlyFieldState();
+}
+
+class _ReadOnlyFieldState extends State<_ReadOnlyField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.value);
+
+  @override
+  void didUpdateWidget(covariant _ReadOnlyField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ),
-          Expanded(
-            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
+    return NubiaTextField(
+      controller: _controller,
+      label: widget.label,
+      enabled: false,
     );
   }
 }
 
 // ---------------------------------------------------------------------------
 
-class _SectionTile extends StatelessWidget {
-  const _SectionTile({
-    super.key,
+/// Ligne de réglage : pastille icône + libellé + [NubiaToggle].
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({
+    required this.toggleKey,
     required this.icon,
     required this.title,
-    required this.onTap,
+    required this.value,
+    required this.onChanged,
   });
 
+  final Key toggleKey;
   final IconData icon;
   final String title;
-  final VoidCallback onTap;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _LogoutTile extends StatelessWidget {
-  const _LogoutTile();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      key: const Key('logout_tile'),
-      leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
-      title: Text(
-        'Se déconnecter',
-        style: TextStyle(color: Theme.of(context).colorScheme.error),
-      ),
-      onTap: () => context.read<AuthCubit>().signOut(),
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: cs.onSurfaceVariant),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(title, style: textTheme.bodyLarge),
+        ),
+        NubiaToggle(key: toggleKey, value: value, onChanged: onChanged),
+      ],
     );
   }
 }
@@ -344,8 +373,8 @@ class _AvatarPickerState extends State<_AvatarPicker> {
     if (!mounted) return;
     result.fold(
       (_) {},
-      (avatar) => setState(() => _bytes =
-          avatar == null ? null : Uint8List.fromList(avatar.bytes)),
+      (avatar) => setState(() =>
+          _bytes = avatar == null ? null : Uint8List.fromList(avatar.bytes)),
     );
   }
 
@@ -366,7 +395,8 @@ class _AvatarPickerState extends State<_AvatarPicker> {
     final mime = _detectImageMime(picked.bytes);
     if (mime == null) {
       messenger.showSnackBar(const SnackBar(
-        content: Text('Format non supporté. Choisissez une image JPEG, PNG ou WebP.'),
+        content: Text(
+            'Format non supporté. Choisissez une image JPEG, PNG ou WebP.'),
       ));
       return;
     }
@@ -395,15 +425,24 @@ class _AvatarPickerState extends State<_AvatarPicker> {
   /// pas une image supportée.
   static String? _detectImageMime(Uint8List b) {
     if (b.length >= 8 &&
-        b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) {
+        b[0] == 0x89 &&
+        b[1] == 0x50 &&
+        b[2] == 0x4E &&
+        b[3] == 0x47) {
       return 'image/png';
     }
     if (b.length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) {
       return 'image/jpeg';
     }
     if (b.length >= 12 &&
-        b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46 && // RIFF
-        b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50) {
+        b[0] == 0x52 &&
+        b[1] == 0x49 &&
+        b[2] == 0x46 &&
+        b[3] == 0x46 && // RIFF
+        b[8] == 0x57 &&
+        b[9] == 0x45 &&
+        b[10] == 0x42 &&
+        b[11] == 0x50) {
       return 'image/webp';
     }
     return null;
@@ -425,8 +464,7 @@ class _AvatarPickerState extends State<_AvatarPicker> {
             CircleAvatar(
               radius: 32,
               backgroundColor: colorScheme.primaryContainer,
-              backgroundImage:
-                  _bytes != null ? MemoryImage(_bytes!) : null,
+              backgroundImage: _bytes != null ? MemoryImage(_bytes!) : null,
               child: _bytes != null
                   ? null
                   : Text(

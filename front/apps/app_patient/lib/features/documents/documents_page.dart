@@ -73,10 +73,7 @@ class _DocumentsBody extends StatelessWidget {
       child: BlocBuilder<DocumentsBloc, DocumentsState>(
         builder: (context, state) {
           if (state is DocumentsLoading || state is DocumentsInitial) {
-            return const Center(
-              key: Key('documents_loading'),
-              child: CircularProgressIndicator(),
-            );
+            return const _DocumentsSkeleton();
           }
           if (state is DocumentsError) {
             return NubiaErrorWidget(
@@ -90,8 +87,65 @@ class _DocumentsBody extends StatelessWidget {
           if (state is DocumentsLoaded) {
             return _DocumentsLoaded(state: state);
           }
-          return const Center(child: CircularProgressIndicator());
+          return const _DocumentsSkeleton();
         },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _DocumentsSkeleton extends StatelessWidget {
+  const _DocumentsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const Key('documents_loading'),
+      padding: const EdgeInsets.all(16),
+      children: const [
+        Row(
+          children: [
+            NubiaSkeletonLoader(height: 32, width: 64, borderRadius: 999),
+            SizedBox(width: 8),
+            NubiaSkeletonLoader(height: 32, width: 96, borderRadius: 999),
+            SizedBox(width: 8),
+            NubiaSkeletonLoader(height: 32, width: 80, borderRadius: 999),
+          ],
+        ),
+        SizedBox(height: 20),
+        _DocumentSkeletonCard(),
+        SizedBox(height: 12),
+        _DocumentSkeletonCard(),
+        SizedBox(height: 12),
+        _DocumentSkeletonCard(),
+      ],
+    );
+  }
+}
+
+class _DocumentSkeletonCard extends StatelessWidget {
+  const _DocumentSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Row(
+        children: [
+          NubiaSkeletonLoader(height: 40, width: 40, borderRadius: 10),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NubiaSkeletonLoader(height: 14, width: 180),
+                SizedBox(height: 8),
+                NubiaSkeletonLoader(height: 12, width: 120),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -120,12 +174,12 @@ class _DocumentsLoaded extends StatelessWidget {
       children: [
         Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Wrap(
-                spacing: 8,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
                 children: [
-                  for (final (label, cat) in _chips)
+                  for (final (label, cat) in _chips) ...[
                     ChoiceChip(
                       key: cat == null
                           ? const Key('filter_all')
@@ -136,15 +190,25 @@ class _DocumentsLoaded extends StatelessWidget {
                           .read<DocumentsBloc>()
                           .add(DocumentsFilterChanged(cat)),
                     ),
+                    const SizedBox(width: 8),
+                  ],
                 ],
               ),
             ),
             Expanded(
               child: docs.isEmpty
-                  ? const NubiaEmptyState(
-                      key: Key('documents_empty'),
+                  ? NubiaEmptyState(
+                      key: const Key('documents_empty'),
                       icon: Icons.folder_open_outlined,
                       title: 'Aucun document pour l\'instant',
+                      subtitle: 'Vos ordonnances, cartes et comptes-rendus '
+                          'apparaîtront ici.',
+                      action: NubiaButton(
+                        label: 'Ajouter un document',
+                        icon: Icons.upload_file_outlined,
+                        variant: NubiaButtonVariant.secondary,
+                        onPressed: () => _pickAndUpload(context),
+                      ),
                     )
                   : RefreshIndicator(
                       key: const ValueKey('documents_refresh'),
@@ -158,25 +222,17 @@ class _DocumentsLoaded extends StatelessWidget {
                       },
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                         itemCount: docs.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final doc = docs[index];
-                          return ListTile(
+                          return _DocumentCard(
                             key: Key('document_${doc.id}'),
-                            leading: const Icon(Icons.description_outlined),
-                            title: Text(doc.name),
-                            subtitle: Text(
-                              '${doc.category.name} · '
-                              '${(doc.fileSizeBytes / 1024).round()} Ko',
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.download_outlined),
-                              tooltip: 'Télécharger',
-                              onPressed: () => context
-                                  .read<DocumentsBloc>()
-                                  .add(DocumentsDownloadRequested(doc.id)),
-                            ),
+                            doc: doc,
+                            onDownload: () => context
+                                .read<DocumentsBloc>()
+                                .add(DocumentsDownloadRequested(doc.id)),
                           );
                         },
                       ),
@@ -228,6 +284,7 @@ class _DocumentsLoaded extends StatelessWidget {
             for (final (label, cat) in _uploadCategories)
               ListTile(
                 key: Key('upload_cat_${cat.name}'),
+                leading: Icon(_categoryMeta(cat).$1),
                 title: Text(label),
                 onTap: () => Navigator.pop(ctx, cat),
               ),
@@ -243,5 +300,103 @@ class _DocumentsLoaded extends StatelessWidget {
       mimeType: file.mimeType,
       category: category,
     ));
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Ligne document en carte : pastille icône de type + nom + méta + action de
+/// téléchargement.
+class _DocumentCard extends StatelessWidget {
+  const _DocumentCard({
+    super.key,
+    required this.doc,
+    required this.onDownload,
+  });
+
+  final Document doc;
+  final VoidCallback onDownload;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final (icon, label) = _categoryMeta(doc.category);
+
+    return NubiaCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: tokens.primarySubtleBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 20, color: cs.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  doc.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleSmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$label · ${(doc.fileSizeBytes / 1024).round()} Ko',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.download_outlined),
+            tooltip: 'Télécharger',
+            color: cs.primary,
+            onPressed: onDownload,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Icône + libellé français pour une catégorie de document.
+(IconData, String) _categoryMeta(DocumentCategory category) {
+  switch (category) {
+    case DocumentCategory.quote:
+      return (Icons.request_quote_outlined, 'Devis');
+    case DocumentCategory.invoice:
+      return (Icons.receipt_long_outlined, 'Facture');
+    case DocumentCategory.prescription:
+      return (Icons.medication_outlined, 'Ordonnance');
+    case DocumentCategory.xray:
+      return (Icons.image_outlined, 'Radio');
+    case DocumentCategory.cbct:
+      return (Icons.view_in_ar_outlined, 'CBCT');
+    case DocumentCategory.photo:
+      return (Icons.photo_camera_outlined, 'Photo');
+    case DocumentCategory.report:
+      return (Icons.description_outlined, 'Compte-rendu');
+    case DocumentCategory.consent:
+      return (Icons.verified_user_outlined, 'Consentement');
+    case DocumentCategory.instructions:
+      return (Icons.assignment_outlined, 'Consigne');
+    case DocumentCategory.mutualCard:
+      return (Icons.badge_outlined, 'Carte mutuelle');
+    case DocumentCategory.vitalCard:
+      return (Icons.credit_card_outlined, 'Carte vitale');
+    case DocumentCategory.other:
+      return (Icons.insert_drive_file_outlined, 'Autre');
   }
 }
