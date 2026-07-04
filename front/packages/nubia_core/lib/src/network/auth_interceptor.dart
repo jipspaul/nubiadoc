@@ -16,6 +16,19 @@ class AuthInterceptor extends Interceptor {
   // Shared adapter injected by ApiClient so tests can swap it.
   HttpClientAdapter? _httpClientAdapter;
 
+  /// Hook post-refresh optionnel. Le refresh renvoie toujours un token de
+  /// login « de base » : une app dont la session vit dans un contexte dérivé
+  /// (ex. app pharmacie, JWT `kind:"pharma"` obtenu via
+  /// `POST /v1/auth/select-pharmacy-context`) enregistre ici la re-sélection
+  /// du contexte, qui doit relire/écrire le [TokenStorage].
+  ///
+  /// Le hook reçoit un [Dio] **sans interceptors** (même adapter que le
+  /// refresh) : il ne repasse pas par cet interceptor, donc aucun risque de
+  /// réentrance sur le refresh en cours. Best-effort : une erreur du hook
+  /// n'annule pas le refresh, et la requête est rejouée avec le token présent
+  /// en storage après le hook.
+  Future<void> Function(Dio plainDio)? onTokensRefreshed;
+
   AuthInterceptor(this._tokenStorage);
 
   /// Called by [ApiClient] after constructing [Dio], so tests can inject
@@ -125,12 +138,25 @@ class AuthInterceptor extends Interceptor {
         access: newAccess,
         refresh: newRefresh,
       );
+      // Re-scope éventuel du token (contexte dérivé) avant de rejouer quoi
+      // que ce soit — les 401 concurrents relisent le storage après coup.
+      final hook = onTokensRefreshed;
+      if (hook != null) {
+        try {
+          await hook(_buildPlainDio(err.requestOptions.baseUrl));
+        } catch (_) {
+          // Best-effort : un échec de re-scope ne doit pas invalider le
+          // refresh (le token de base reste utilisable pour /auth/* et /me).
+        }
+      }
       // Signal all waiting 401s that new tokens are ready.
       _refreshCompleter!.complete();
 
-      // Retry original request with new access token.
+      // Retry original request with the token now in storage (possibly
+      // re-scoped by the hook above).
+      final retryAccess = await _tokenStorage.getAccessToken() ?? newAccess;
       final retryOptions = err.requestOptions
-        ..headers['Authorization'] = 'Bearer $newAccess';
+        ..headers['Authorization'] = 'Bearer $retryAccess';
 
       final retryDio = _buildPlainDio(retryOptions.baseUrl);
       final retryResponse = await retryDio.fetch<dynamic>(retryOptions);

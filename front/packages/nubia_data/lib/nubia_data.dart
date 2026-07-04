@@ -31,6 +31,8 @@ export 'src/remote/pharmacy_orders/pharmacy_order_dto.dart';
 export 'src/remote/pharmacy_orders/pharmacy_orders_api.dart';
 export 'src/remote/pharmacy_quotes/pharmacy_quote_dto.dart';
 export 'src/remote/pharmacy_quotes/pharmacy_quotes_api.dart';
+export 'src/remote/pharmacy_session/pharmacy_session_api.dart';
+export 'src/remote/pharmacy_session/pharmacy_session_dto.dart';
 export 'src/remote/pharmacy_stock/pharmacy_stock_api.dart';
 export 'src/remote/pharmacy_stock/stock_request_dto.dart';
 export 'src/remote/prescriptions/prescription_api.dart';

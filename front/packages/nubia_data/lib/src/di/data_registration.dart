@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../cache/appointments_cache.dart';
@@ -25,6 +26,7 @@ import '../remote/patient_pharmacy/patient_pharmacy_api.dart';
 import '../remote/pharmacy_directory/pharmacy_directory_api.dart';
 import '../remote/pharmacy_orders/pharmacy_orders_api.dart';
 import '../remote/pharmacy_quotes/pharmacy_quotes_api.dart';
+import '../remote/pharmacy_session/pharmacy_session_api.dart';
 import '../remote/pharmacy_stock/pharmacy_stock_api.dart';
 import '../remote/prescriptions/prescription_api.dart';
 import '../remote/reviews/review_api.dart';
@@ -58,6 +60,7 @@ import '../repositories/patient_pharmacy_repository_impl.dart';
 import '../repositories/pharmacy_directory_repository_impl.dart';
 import '../repositories/pharmacy_orders_repository_impl.dart';
 import '../repositories/pharmacy_quotes_repository_impl.dart';
+import '../repositories/pharmacy_session_repository_impl.dart';
 import '../repositories/prescription_repository_impl.dart';
 import '../repositories/review_repository_impl.dart';
 import '../repositories/secretariat_repository_impl.dart';
@@ -233,6 +236,17 @@ void _registerPatientPharmacy(GetIt gi) {
 /// devis, messagerie (mêmes formes JSON que /v1/cabinet/* via basePath).
 void _registerPharmacy(GetIt gi) {
   gi
+    ..registerLazySingleton<PharmacySessionApi>(
+      () => PharmacySessionApi(gi()),
+    )
+    ..registerLazySingleton<PharmacySessionRepositoryImpl>(
+      () => PharmacySessionRepositoryImpl(gi(), gi()),
+    )
+    ..registerLazySingleton<PharmacySessionRepository>(
+      () => gi<PharmacySessionRepositoryImpl>(),
+    )
+    ..registerFactory(() => GetPharmacyMembershipsUseCase(gi()))
+    ..registerFactory(() => SelectPharmacyContextUseCase(gi()))
     ..registerLazySingleton<PharmacyOrdersApi>(
       () => PharmacyOrdersApi(gi()),
     )
@@ -279,6 +293,12 @@ void _registerPharmacy(GetIt gi) {
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
     ..registerFactory(() => SendMessageCabinetUseCase(gi()));
+
+  // Le refresh réécrit un token de login kind:"pro" : on re-scope
+  // immédiatement le contexte pharmacie sinon /v1/pharmacy/* casse en 403
+  // au bout des 900 s de vie du JWT pharma.
+  gi<AuthInterceptor>().onTokensRefreshed = (plainDio) =>
+      gi<PharmacySessionRepositoryImpl>().reselectContext(plainDio);
 }
 
 void _registerUseCases(GetIt gi) {

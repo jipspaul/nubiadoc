@@ -27,6 +27,9 @@ void main() {
 
     expect(gi.isRegistered<PharmacyOrdersRepository>(), isFalse);
     expect(gi.isRegistered<StockRequestsRepository>(), isFalse);
+    expect(gi.isRegistered<PharmacySessionRepository>(), isFalse);
+    expect(gi<AuthInterceptor>().onTokensRefreshed, isNull,
+        reason: 'seule l\'app pharmacie re-scope son token après refresh');
   });
 
   test(
@@ -39,6 +42,10 @@ void main() {
     expect(gi.isRegistered<PharmacyQuotesRepository>(), isTrue);
     expect(gi.isRegistered<CabinetMessageRepository>(), isTrue);
     expect(gi.isRegistered<PharmacyOrderEventsPort>(), isTrue);
+
+    expect(gi.isRegistered<PharmacySessionRepository>(), isTrue);
+    expect(gi<AuthInterceptor>().onTokensRefreshed, isNotNull,
+        reason: 're-scope kind:"pharma" requis après chaque refresh');
 
     // Cloisonnement : pas d'accès clinique ni patient depuis l'app pharmacie.
     expect(gi.isRegistered<PrescriptionRepository>(), isFalse);

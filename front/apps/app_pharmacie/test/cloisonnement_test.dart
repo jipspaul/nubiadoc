@@ -44,6 +44,16 @@ void main() {
     expect(gi.isRegistered<PharmacyQuotesRepository>(), isTrue);
     expect(gi.isRegistered<CabinetMessageRepository>(), isTrue);
     expect(gi.isRegistered<PharmacyOrderEventsPort>(), isTrue);
+    expect(gi.isRegistered<PharmacySessionRepository>(), isTrue);
+  });
+
+  test('le hook post-refresh re-scope le contexte pharmacie', () {
+    expect(
+      gi<AuthInterceptor>().onTokensRefreshed,
+      isNotNull,
+      reason: 'sans re-scope, /v1/pharmacy/* casse en 403 après un refresh '
+          '(le JWT pharma expire en 900 s)',
+    );
   });
 
   test('les 4 destinations de nav sont déclarées, aucune clinique', () {
