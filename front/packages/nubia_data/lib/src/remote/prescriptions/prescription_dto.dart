@@ -80,9 +80,11 @@ class PrescriptionDto {
         id: id,
         patientId: patientId,
         items: items.map((i) => i.toDomain()).toList(),
-        status: status == 'signed'
-            ? PrescriptionStatus.signed
-            : PrescriptionStatus.draft,
+        status: switch (status) {
+          'signed' => PrescriptionStatus.signed,
+          'sent' => PrescriptionStatus.sent,
+          _ => PrescriptionStatus.draft,
+        },
         createdAt: DateTime.parse(createdAt),
       );
 }

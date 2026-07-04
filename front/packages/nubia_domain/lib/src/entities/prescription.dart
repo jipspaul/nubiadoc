@@ -20,7 +20,7 @@ class PrescriptionItem extends Equatable {
   List<Object?> get props => [label, form, posology, duration, quantity];
 }
 
-enum PrescriptionStatus { draft, signed }
+enum PrescriptionStatus { draft, signed, sent }
 
 /// An ordonnance created by a practitioner.
 class Prescription extends Equatable {
