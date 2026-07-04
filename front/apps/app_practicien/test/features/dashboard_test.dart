@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/dashboard/dashboard_bloc.dart';
 import 'package:app_practicien/features/dashboard/dashboard_event.dart';
 import 'package:app_practicien/features/dashboard/dashboard_state.dart';
+import 'package:app_practicien/features/dashboard/today_notes_bloc.dart';
+import 'package:app_practicien/features/dashboard/today_notes_card.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -16,6 +19,9 @@ import 'package:app_practicien/features/dashboard/dashboard_state.dart';
 
 class MockGetProDashboardSummaryUseCase extends Mock
     implements GetProDashboardSummaryUseCase {}
+
+class MockTodayNotesBloc extends MockBloc<TodayNotesEvent, TodayNotesState>
+    implements TodayNotesBloc {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -156,6 +162,63 @@ void main() {
       await tester.pump();
       expect(find.byKey(const Key('dashboard_error')), findsOneWidget);
       expect(find.text('Erreur'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // TodayNotesCard widget (composants DS)
+  // ---------------------------------------------------------------------------
+
+  group('TodayNotesCard widget', () {
+    late MockTodayNotesBloc mockBloc;
+
+    setUp(() {
+      mockBloc = MockTodayNotesBloc();
+    });
+
+    Widget wrapNotes() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: BlocProvider<TodayNotesBloc>.value(
+              value: mockBloc,
+              child: const TodayNotesCard(),
+            ),
+          ),
+        );
+
+    testWidgets('affiche un état vide DS quand aucune note', (tester) async {
+      when(() => mockBloc.state).thenReturn(const TodayNotesLoaded([]));
+      await tester.pumpWidget(wrapNotes());
+
+      expect(find.byKey(const Key('today_notes_card')), findsOneWidget);
+      expect(find.byKey(const Key('today_notes_empty')), findsOneWidget);
+      expect(find.byType(NubiaEmptyState), findsOneWidget);
+    });
+
+    testWidgets('affiche les notes via ListRow + StatusPill', (tester) async {
+      final entries = [
+        ClinicalNoteSummary(
+          id: 'n1',
+          timestamp: DateTime(2026, 6, 3, 9, 5),
+          patientInitials: 'MD',
+          status: 'Signé',
+        ),
+        ClinicalNoteSummary(
+          id: 'n2',
+          timestamp: DateTime(2026, 6, 3, 10, 30),
+          patientInitials: 'CR',
+          status: 'En attente',
+        ),
+      ];
+      when(() => mockBloc.state).thenReturn(TodayNotesLoaded(entries));
+      await tester.pumpWidget(wrapNotes());
+
+      expect(find.byKey(const Key('today_note_n1')), findsOneWidget);
+      expect(find.byKey(const Key('today_note_n2')), findsOneWidget);
+      expect(find.byType(ListRow), findsNWidgets(2));
+      expect(find.byType(StatusPill), findsNWidgets(2));
+      expect(find.byType(NubiaAvatar), findsNWidgets(2));
+      expect(find.text('09:05'), findsOneWidget);
     });
   });
 }
