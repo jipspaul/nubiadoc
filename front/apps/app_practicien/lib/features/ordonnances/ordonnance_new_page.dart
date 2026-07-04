@@ -163,21 +163,21 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
                 ),
                 const SizedBox(height: 12),
               ],
-              OutlinedButton.icon(
+              NubiaButton(
                 key: const Key('add_item_button'),
+                label: 'Ajouter un médicament',
+                variant: NubiaButtonVariant.secondary,
+                icon: Icons.add,
                 onPressed: widget.loading
                     ? null
                     : () => setState(() => _items.add(_ItemDraft())),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Ajouter un médicament'),
               ),
               const SizedBox(height: 24),
               NubiaButton(
                 key: const Key('submit_ordonnance_button'),
                 label: 'Créer l\'ordonnance',
                 isLoading: widget.loading,
-                onPressed:
-                    (!_formValid || widget.loading) ? null : _submit,
+                onPressed: (!_formValid || widget.loading) ? null : _submit,
               ),
             ],
           ),
@@ -204,69 +204,66 @@ class _ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return NubiaCard(
       key: Key('item_card_$index'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('Médicament ${index + 1}',
-                      style: Theme.of(context).textTheme.labelLarge),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Médicament ${index + 1}',
+                    style: Theme.of(context).textTheme.labelLarge),
+              ),
+              if (onRemove != null)
+                IconButton(
+                  key: Key('remove_item_$index'),
+                  tooltip: 'Retirer',
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline, size: 20),
                 ),
-                if (onRemove != null)
-                  IconButton(
-                    key: Key('remove_item_$index'),
-                    tooltip: 'Retirer',
-                    onPressed: onRemove,
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            NubiaTextField(
-              key: Key('item_${index}_label'),
-              controller: draft.label,
-              label: 'Médicament (DCI)',
-              onChanged: (_) => onChanged(),
-            ),
-            const SizedBox(height: 12),
-            NubiaTextField(
-              key: Key('item_${index}_posology'),
-              controller: draft.posology,
-              label: 'Posologie',
-              hint: 'ex. 1 comprimé matin et soir',
-              onChanged: (_) => onChanged(),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: NubiaTextField(
-                    key: Key('item_${index}_duration'),
-                    controller: draft.duration,
-                    label: 'Durée',
-                    hint: 'ex. 7 jours',
-                    onChanged: (_) => onChanged(),
-                  ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          NubiaTextField(
+            key: Key('item_${index}_label'),
+            controller: draft.label,
+            label: 'Médicament (DCI)',
+            onChanged: (_) => onChanged(),
+          ),
+          const SizedBox(height: 12),
+          NubiaTextField(
+            key: Key('item_${index}_posology'),
+            controller: draft.posology,
+            label: 'Posologie',
+            hint: 'ex. 1 comprimé matin et soir',
+            onChanged: (_) => onChanged(),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: NubiaTextField(
+                  key: Key('item_${index}_duration'),
+                  controller: draft.duration,
+                  label: 'Durée',
+                  hint: 'ex. 7 jours',
+                  onChanged: (_) => onChanged(),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: NubiaTextField(
-                    key: Key('item_${index}_quantity'),
-                    controller: draft.quantity,
-                    label: 'Quantité',
-                    hint: 'ex. 1 boîte',
-                    onChanged: (_) => onChanged(),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: NubiaTextField(
+                  key: Key('item_${index}_quantity'),
+                  controller: draft.quantity,
+                  label: 'Quantité',
+                  hint: 'ex. 1 boîte',
+                  onChanged: (_) => onChanged(),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -282,44 +279,67 @@ class _DraftReview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
     return Column(
       key: const Key('ordonnance_draft_review'),
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Brouillon — ${prescription.items.length} médicament(s)',
-                  style: Theme.of(context).textTheme.titleMedium,
+          child: NubiaCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${prescription.items.length} médicament(s)',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: cs.onSurface),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const StatusPill(
+                      label: 'Brouillon',
+                      variant: StatusPillVariant.info,
+                    ),
+                  ],
                 ),
-              ),
-              FilledButton.icon(
-                key: const Key('sign_ordonnance_button'),
-                onPressed: signing
-                    ? null
-                    : () => context
-                        .read<OrdonnancesBloc>()
-                        .add(OrdonnancesSignRequested(prescription.id)),
-                icon: const Icon(Icons.draw_outlined, size: 18),
-                label: const Text('Signer'),
-              ),
-            ],
+                const SizedBox(height: 12),
+                NubiaButton(
+                  key: const Key('sign_ordonnance_button'),
+                  label: 'Signer l\'ordonnance',
+                  icon: Icons.draw_outlined,
+                  isLoading: signing,
+                  onPressed: signing
+                      ? null
+                      : () => context
+                          .read<OrdonnancesBloc>()
+                          .add(OrdonnancesSignRequested(prescription.id)),
+                ),
+              ],
+            ),
           ),
         ),
-        const Divider(height: 1),
         Expanded(
           child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: prescription.items.length,
             itemBuilder: (context, i) {
               final item = prescription.items[i];
-              return ListTile(
+              return ListRow(
                 key: Key('draft_item_$i'),
-                title: Text(item.label),
-                subtitle: Text('${item.posology} — ${item.duration}'),
-                trailing: Text(item.quantity,
-                    style: Theme.of(context).textTheme.bodySmall),
+                title: item.label,
+                subtitle: '${item.posology} — ${item.duration}',
+                leading: const Icon(Icons.medication_outlined, size: 22),
+                trailing: Text(
+                  item.quantity,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
               );
             },
           ),
@@ -337,27 +357,49 @@ class _SignedConfirmation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+
     return Center(
       key: const Key('ordonnance_signed_confirmation'),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-          const SizedBox(height: 16),
-          const Text('Ordonnance signée'),
-          const SizedBox(height: 8),
-          Text(
-            '${prescription.items.length} médicament(s) prescrits',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 24),
-          OutlinedButton(
-            key: const Key('back_to_ordonnances_button'),
-            onPressed: () => context
-                .go('/ordonnances?patientId=${prescription.patientId}'),
-            child: const Text('Retour aux ordonnances'),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: tokens.successBg,
+                shape: BoxShape.circle,
+              ),
+              child:
+                  Icon(Icons.check_rounded, size: 48, color: tokens.successFg),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Ordonnance signée',
+              style: theme.textTheme.titleLarge?.copyWith(color: cs.onSurface),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${prescription.items.length} médicament(s) prescrits',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
+            NubiaButton(
+              key: const Key('back_to_ordonnances_button'),
+              label: 'Retour aux ordonnances',
+              variant: NubiaButtonVariant.secondary,
+              onPressed: () => context
+                  .go('/ordonnances?patientId=${prescription.patientId}'),
+            ),
+          ],
+        ),
       ),
     );
   }

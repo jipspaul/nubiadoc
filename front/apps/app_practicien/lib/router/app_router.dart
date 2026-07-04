@@ -9,6 +9,7 @@ import '../features/agenda/agenda_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/consultation_clinique/consultation_clinique_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/devis/devis_page.dart';
 import '../features/ordonnances/ordonnance_new_page.dart';
 import '../features/ordonnances/ordonnances_page.dart';
 import '../features/login/login_page.dart';
@@ -34,6 +35,7 @@ class AppRouter {
   static const messages = '/messages';
   static const consultation = '/consultation';
   static const ordonnances = '/ordonnances';
+  static const devis = '/devis';
   static const a2uiDemo = '/a2ui-demo';
   static const registerPro = '/register-pro';
   static const cabinetSetup = '/cabinet-setup';
@@ -126,6 +128,12 @@ class AppRouter {
               ),
             ),
           ],
+        ),
+        GoRoute(
+          path: devis,
+          builder: (_, __) => const Scaffold(
+            body: DevisPage(),
+          ),
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(

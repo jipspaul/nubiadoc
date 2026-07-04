@@ -38,20 +38,19 @@ class OrdonnancesBody extends StatelessWidget {
     return BlocBuilder<OrdonnancesBloc, OrdonnancesState>(
       builder: (context, state) {
         if (state is OrdonnancesLoading) {
-          return const Center(
-            key: Key('ordonnances_loading'),
-            child: CircularProgressIndicator(),
-          );
+          return const _LoadingView(key: Key('ordonnances_loading'));
         }
         if (state is OrdonnancesLoaded && state.ordonnances.isEmpty) {
           return NubiaEmptyState(
             key: const Key('ordonnances_empty'),
-            icon: Icons.description,
+            icon: Icons.description_outlined,
             title: 'Aucune ordonnance',
             subtitle: 'Crée la première',
-            action: ElevatedButton(
+            action: NubiaButton(
+              key: const Key('create_ordonnance_button'),
+              label: 'Créer une ordonnance',
+              icon: Icons.add,
               onPressed: () => context.push('/ordonnances/new'),
-              child: const Text('Créer une ordonnance'),
             ),
           );
         }
@@ -65,7 +64,7 @@ class OrdonnancesBody extends StatelessWidget {
           return _CreatedView(prescription: state.prescription);
         }
         if (state is OrdonnancesSigningInProgress) {
-          return _CreatedView(prescription: state.prescription);
+          return _CreatedView(prescription: state.prescription, signing: true);
         }
         if (state is OrdonnancesSigned) {
           return _SignedView(prescription: state.prescription);
@@ -73,6 +72,33 @@ class OrdonnancesBody extends StatelessWidget {
         // OrdonnancesInitial
         return _InitialView(patientId: patientId);
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      children: const [
+        NubiaCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              NubiaSkeletonLoader(height: 16, width: 160),
+              SizedBox(height: 12),
+              NubiaSkeletonLoader(height: 12, width: 220),
+              SizedBox(height: 8),
+              NubiaSkeletonLoader(height: 12, width: 180),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -94,12 +120,12 @@ class _InitialView extends StatelessWidget {
           : null,
       action: patientId == null
           ? null
-          : FilledButton.icon(
+          : NubiaButton(
               key: const Key('create_ordonnance_button'),
+              label: 'Nouvelle ordonnance',
+              icon: Icons.add,
               onPressed: () =>
                   context.push('/ordonnances/new?patientId=$patientId'),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Nouvelle ordonnance'),
             ),
     );
   }
@@ -108,8 +134,9 @@ class _InitialView extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _CreatedView extends StatefulWidget {
-  const _CreatedView({required this.prescription});
+  const _CreatedView({required this.prescription, this.signing = false});
   final Prescription prescription;
+  final bool signing;
 
   @override
   State<_CreatedView> createState() => _CreatedViewState();
@@ -120,6 +147,8 @@ class _CreatedViewState extends State<_CreatedView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final filtered = _query.isEmpty
         ? widget.prescription.items
         : widget.prescription.items
@@ -131,44 +160,54 @@ class _CreatedViewState extends State<_CreatedView> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${widget.prescription.items.length} médicament(s)',
-                  style: Theme.of(context).textTheme.titleMedium,
+          child: NubiaCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${widget.prescription.items.length} médicament(s)',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: cs.onSurface),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const StatusPill(
+                      label: 'Brouillon',
+                      variant: StatusPillVariant.info,
+                    ),
+                  ],
                 ),
-              ),
-              BlocBuilder<OrdonnancesBloc, OrdonnancesState>(
-                builder: (context, state) => FilledButton.icon(
+                const SizedBox(height: 12),
+                NubiaButton(
                   key: const Key('sign_ordonnance_button'),
-                  onPressed: state is OrdonnancesSigningInProgress
+                  label: 'Signer l\'ordonnance',
+                  icon: Icons.draw_outlined,
+                  isLoading: widget.signing,
+                  onPressed: widget.signing
                       ? null
                       : () => context.read<OrdonnancesBloc>().add(
                           OrdonnancesSignRequested(widget.prescription.id)),
-                  icon: const Icon(Icons.draw_outlined, size: 18),
-                  label: const Text('Signer'),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: TextField(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: NubiaSearchBar(
             key: const Key('medication_search'),
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Filtrer par médicament',
-            ),
+            hint: 'Filtrer par médicament',
             onChanged: (value) => setState(() => _query = value),
           ),
         ),
-        const Divider(height: 1),
         Expanded(
           child: ListView.builder(
             key: const Key('ordonnances_items_list'),
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             itemCount: filtered.length,
             itemBuilder: (context, i) => _ItemTile(item: filtered[i], index: i),
           ),
@@ -187,13 +226,16 @@ class _ItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final theme = Theme.of(context);
+    return ListRow(
       key: Key('item_$index'),
-      title: Text(item.label),
-      subtitle: Text('${item.posology} — ${item.duration}'),
+      title: item.label,
+      subtitle: '${item.posology} — ${item.duration}',
+      leading: const Icon(Icons.medication_outlined, size: 22),
       trailing: Text(
         item.quantity,
-        style: Theme.of(context).textTheme.bodySmall,
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
       ),
     );
   }
@@ -207,18 +249,34 @@ class _SignedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+
     return Center(
       key: const Key('ordonnances_signed'),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-          const SizedBox(height: 16),
-          const Text('Ordonnance signée'),
+          Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: tokens.successBg,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.check_rounded, size: 48, color: tokens.successFg),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Ordonnance signée',
+            style: theme.textTheme.titleLarge?.copyWith(color: cs.onSurface),
+          ),
           const SizedBox(height: 8),
           Text(
             '${prescription.items.length} médicament(s)',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: cs.onSurfaceVariant),
           ),
         ],
       ),
