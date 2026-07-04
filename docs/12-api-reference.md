@@ -518,7 +518,9 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 
 **Temps réel & notifications (lot B4)** : chaque transition insère une notification in-app (`notification`, kinds `order_received` pour le staff pharmacie, `order_status_changed` pour le patient — titre générique **sans PII**, `data {order_id, status}` en deeplink), enfile un push FCM (`JobDispatcher::enqueue_push_notification`, payload sans PII) et publie sur les canaux WS `pharmacy_orders:<pharmacy_id>` (subscribe réservé au staff `kind:"pharma"` du tenant) et `account_orders:<patient_account_id>` (patient titulaire) — enveloppe `{event:"order_status_changed", data:{order_id, status}}`.
 
-Les demandes de stock, la messagerie et les devis pharmacie arrivent avec les lots B5–B7 (issues #3310–#3312).
+**Demandes de stock (lot B5)** : `stock_request` cabinet → pharmacie, items jsonb `[{label, qty, note?}]` — **jamais de donnée patient**. Cycle `sent → accepted|rejected → fulfilled` (+ `cancelled` cabinet tant que `sent`). Routes : `GET|POST /v1/cabinet/stock-requests`, `POST …/{id}/cancel` (secretary+) ; `GET /v1/pharmacy/stock-requests`, `POST …/{id}/accept|reject|fulfill` (staff pharmacie ; `reject` accepte `{note?}`). Transitions illégales → 409. Le staff est notifié (`stock_request_received`).
+
+La messagerie et les devis pharmacie arrivent avec les lots B6–B7 (issues #3311–#3312).
 
 ---
 

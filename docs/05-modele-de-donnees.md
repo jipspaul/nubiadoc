@@ -695,3 +695,6 @@ pharmacy_order(id, pharmacy_id FK, cabinet_id FK, patient_account_id FK,
 - **`document_pharmacy_read`** : la pharmacie ne lit que le PDF signé (`document`) de ses commandes — jamais `prescription`/`prescription_item` (cloisonnement `07` §4, testé).
 - `patient_account.pharmacy_id` : pharmacie déclarée du patient ; fonction SECURITY DEFINER `patient_declared_pharmacy(patient_id)` pour la présélection praticien (le handler vérifie d'abord l'appartenance du patient au cabinet).
 - Consentement au partage : `consent_record` (purpose `partage_pharmacie`, upsert par (patient_account_id, purpose)).
+
+### 11.3 Demandes de stock (lot B5, migration 0125)
+`stock_request(cabinet_id, pharmacy_id, created_by, cabinet_name, items jsonb, status CHECK ('sent','accepted','rejected','fulfilled','cancelled'), response_note, timestamps)` — deux ancres RLS (cabinet émetteur : SELECT/INSERT/annulation ; pharmacie destinataire : SELECT/réponse). WITH CHECK croisés (le cabinet ne forge pas une réponse, la pharmacie ne forge pas une annulation). Pas de DELETE. Items sans donnée patient (`07` §2.7).

@@ -6,3 +6,4 @@
 
 pub mod directory;
 pub mod orders;
+pub mod stock;
