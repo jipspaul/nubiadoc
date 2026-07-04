@@ -5,5 +5,6 @@
 //! réciproquement aucun endpoint `/v1/cabinet/*` n'accepte un token pharmacie.
 
 pub mod directory;
+pub mod messaging;
 pub mod orders;
 pub mod stock;

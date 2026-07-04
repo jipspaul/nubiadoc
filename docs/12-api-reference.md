@@ -520,7 +520,9 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 
 **Demandes de stock (lot B5)** : `stock_request` cabinet → pharmacie, items jsonb `[{label, qty, note?}]` — **jamais de donnée patient**. Cycle `sent → accepted|rejected → fulfilled` (+ `cancelled` cabinet tant que `sent`). Routes : `GET|POST /v1/cabinet/stock-requests`, `POST …/{id}/cancel` (secretary+) ; `GET /v1/pharmacy/stock-requests`, `POST …/{id}/accept|reject|fulfill` (staff pharmacie ; `reject` accepte `{note?}`). Transitions illégales → 409. Le staff est notifié (`stock_request_received`).
 
-La messagerie et les devis pharmacie arrivent avec les lots B6–B7 (issues #3311–#3312).
+**Messagerie patient ↔ pharmacie (lot B6)** : `conversation`/`message` généralisés (scope `patient_pharmacy`, ancre `pharmacy_id`, `sender_kind='pharmacist'`, nom patient minimisé dénormalisé). Cloisonnement triadique préservé : un cabinet ne voit jamais un fil pharmacie et réciproquement (pgTAP). Patient : `POST /v1/conversations {pharmacy_id, subject?}` (XOR `cabinet_id`, 422 sinon), puis fils/messages/read habituels (`cabinet_id` null → sentinel nil, nom du destinataire = pharmacie). Pharmacie : `GET /v1/pharmacy/conversations`, `GET|POST …/{id}/messages`, `POST …/{id}/read` — mêmes formes JSON que `/v1/cabinet/*`, `triage_flag` forcé `normal` (la priorisation d'urgence reste un outil cabinet). Canal WS `conversation:<id>` étendu au `kind:"pharma"`.
+
+Les devis pharmacie arrivent avec le lot B7 (issue #3312).
 
 ---
 

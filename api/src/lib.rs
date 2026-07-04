@@ -585,6 +585,19 @@ fn build_router(
             get(pharmacy::stock::list_pharmacy_stock_requests),
         )
         .route(
+            "/v1/pharmacy/conversations",
+            get(pharmacy::messaging::list_pharmacy_conversations),
+        )
+        .route(
+            "/v1/pharmacy/conversations/:id/messages",
+            get(pharmacy::messaging::get_pharmacy_conversation_messages)
+                .post(pharmacy::messaging::send_pharmacy_message),
+        )
+        .route(
+            "/v1/pharmacy/conversations/:id/read",
+            post(pharmacy::messaging::mark_pharmacy_conversation_read),
+        )
+        .route(
             "/v1/pharmacy/stock-requests/:id/accept",
             post(pharmacy::stock::accept_stock_request),
         )

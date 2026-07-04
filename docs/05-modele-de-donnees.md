@@ -698,3 +698,6 @@ pharmacy_order(id, pharmacy_id FK, cabinet_id FK, patient_account_id FK,
 
 ### 11.3 Demandes de stock (lot B5, migration 0125)
 `stock_request(cabinet_id, pharmacy_id, created_by, cabinet_name, items jsonb, status CHECK ('sent','accepted','rejected','fulfilled','cancelled'), response_note, timestamps)` — deux ancres RLS (cabinet émetteur : SELECT/INSERT/annulation ; pharmacie destinataire : SELECT/réponse). WITH CHECK croisés (le cabinet ne forge pas une réponse, la pharmacie ne forge pas une annulation). Pas de DELETE. Items sans donnée patient (`07` §2.7).
+
+### 11.4 Messagerie pharmacie (lot B6, migration 0126)
+`conversation.pharmacy_id` + `patient_display_name` (nom minimisé) ; `cabinet_id` rendu nullable avec CHECK d'ancre (`cabinet_id OU pharmacy_id`) et CHECK de scope (`pharmacy_id ⇔ scope='patient_pharmacy'`) ; unique partiel (compte, pharmacie). `message.pharmacy_id` (même CHECK d'ancre), `sender_kind` étendu à `'pharmacist'`. Policies `conversation_pharmacy_all`/`message_pharmacy_all` (GUC `app.current_pharmacy_id`). Cloisonnement triadique testé (45_conversation_pharmacy_rls).
