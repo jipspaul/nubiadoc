@@ -15,6 +15,8 @@ void registerPharma(GetIt gi) {
       logout: gi<LogoutUseCase>(),
       tokenStorage: gi<TokenStorage>(),
       deviceRegistration: gi<DeviceRegistrationService>(),
+      memberships: gi<GetPharmacyMembershipsUseCase>(),
+      selectContext: gi<SelectPharmacyContextUseCase>(),
       app: 'pharmacie',
     ),
   );
