@@ -6,6 +6,7 @@ import 'package:nubia_core/nubia_core.dart' as core;
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../devis/widgets/quote_composer_sheet.dart';
 import 'order_detail_bloc.dart';
 import 'order_detail_event.dart';
 import 'order_detail_state.dart';
@@ -84,6 +85,13 @@ class OrderDetailBody extends StatelessWidget {
             onPressed: () => context
                 .read<OrderDetailBloc>()
                 .add(const OrderDetailDocumentRequested()),
+          ),
+          const SizedBox(height: 8),
+          NubiaButton(
+            key: const Key('order_detail_create_quote'),
+            label: 'Créer un devis',
+            variant: NubiaButtonVariant.secondary,
+            onPressed: () => showQuoteComposerSheet(context, orderId: order.id),
           ),
           const SizedBox(height: 24),
           _ContextualAction(order: order, inProgress: actionInProgress),
