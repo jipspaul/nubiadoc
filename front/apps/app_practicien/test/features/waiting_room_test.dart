@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/waiting_room/waiting_room_bloc.dart';
@@ -325,6 +326,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: NubiaTheme.light,
           home: BlocProvider<WaitingRoomBloc>.value(
             value: mockBloc,
             child: const Scaffold(body: WaitingRoomBody()),
