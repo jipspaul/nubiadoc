@@ -47,6 +47,8 @@ class _HomeContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final authState = context.watch<AuthCubit>().state;
     final name = authState is AuthAuthenticated
         ? (authState.session.displayName ?? 'Patient')
@@ -54,102 +56,195 @@ class _HomeContent extends StatelessWidget {
 
     final s = state.summary;
 
+    final bool hasShortcuts =
+        s.unreadMessages > 0 || s.pendingQuestionnaires > 0;
+    final bool allClear = s.upcomingAppointments == 0 &&
+        s.documentsToSign == 0 &&
+        s.unreadMessages == 0 &&
+        s.pendingQuestionnaires == 0 &&
+        s.pendingPaymentsCents == 0;
+
     return ListView(
       key: const Key('home_content'),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
       children: [
         Text(
           'Bonjour $name 👋',
-          style: Theme.of(context).textTheme.headlineSmall,
+          style: textTheme.headlineSmall,
         ),
-        const SizedBox(height: 16),
-        if (s.upcomingAppointments > 0)
-          _SummaryCard(
-            key: const Key('card_appointments'),
-            icon: Icons.event_outlined,
-            label: 'Prochain rendez-vous',
-            value: '${s.upcomingAppointments} à venir',
-            onTap: () => context.push('/appointments'),
+        const SizedBox(height: 4),
+        Text(
+          'Voici votre espace santé',
+          style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+        ),
+        const SizedBox(height: 20),
+        // Trois tuiles de métriques : à signer / à régler / prochain RDV.
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: MetricTile(
+                  key: const Key('card_documents'),
+                  icon: Icons.edit_document,
+                  value: '${s.documentsToSign}',
+                  label: 'À signer',
+                  variant: s.documentsToSign > 0
+                      ? MetricTileVariant.warning
+                      : MetricTileVariant.neutral,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: MetricTile(
+                  key: const Key('card_financial'),
+                  icon: Icons.receipt_long_outlined,
+                  value: _formatEuros(s.pendingPaymentsCents),
+                  label: 'À régler',
+                  variant: s.pendingPaymentsCents > 0
+                      ? MetricTileVariant.danger
+                      : MetricTileVariant.neutral,
+                  onTap: s.pendingPaymentsCents > 0
+                      ? () => context.push('/financial')
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: MetricTile(
+                  key: const Key('card_appointments'),
+                  icon: Icons.event_outlined,
+                  value: '${s.upcomingAppointments}',
+                  label: 'Prochain RDV',
+                  onTap: () => context.push('/appointments'),
+                ),
+              ),
+            ],
           ),
-        if (s.documentsToSign > 0)
-          _SummaryCard(
-            key: const Key('card_documents'),
-            icon: Icons.edit_document,
-            label: 'Documents à signer',
-            value: '${s.documentsToSign}',
-          ),
-        if (s.unreadMessages > 0)
-          _SummaryCard(
-            key: const Key('card_messages'),
-            icon: Icons.chat_bubble_outline,
-            label: 'Messages non lus',
-            value: '${s.unreadMessages}',
-          ),
-        if (s.pendingQuestionnaires > 0)
-          _SummaryCard(
-            key: const Key('card_questionnaires'),
-            icon: Icons.assignment_outlined,
-            label: 'Questionnaires en attente',
-            value: '${s.pendingQuestionnaires}',
-          ),
-        if (s.pendingPaymentsCents > 0)
-          _SummaryCard(
-            key: const Key('card_financial'),
-            icon: Icons.receipt_long_outlined,
-            label: 'Devis en attente',
-            value:
-                '${(s.pendingPaymentsCents / 100).toStringAsFixed(2).replaceAll('.', ',')} €',
-            onTap: () => context.push('/financial'),
-          ),
-        if (s.upcomingAppointments == 0 &&
-            s.documentsToSign == 0 &&
-            s.unreadMessages == 0 &&
-            s.pendingQuestionnaires == 0 &&
-            s.pendingPaymentsCents == 0)
-          const NubiaEmptyState(
-            key: Key('home_empty'),
-            icon: Icons.check_circle_outline,
-            title: 'Tout est à jour',
-            subtitle: 'Aucune action en attente.',
+        ),
+        const SizedBox(height: 28),
+        if (hasShortcuts) ...[
+          const _SectionLabel(label: 'À faire'),
+          const SizedBox(height: 12),
+          if (s.unreadMessages > 0) ...[
+            _ShortcutCard(
+              key: const Key('card_messages'),
+              icon: Icons.chat_bubble_outline,
+              title: 'Messages non lus',
+              subtitle: 'Vous avez du courrier de vos praticiens.',
+              count: s.unreadMessages,
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (s.pendingQuestionnaires > 0)
+            _ShortcutCard(
+              key: const Key('card_questionnaires'),
+              icon: Icons.assignment_outlined,
+              title: 'Questionnaires en attente',
+              subtitle: 'À compléter avant votre rendez-vous.',
+              count: s.pendingQuestionnaires,
+            ),
+        ],
+        if (allClear)
+          const Padding(
+            padding: EdgeInsets.only(top: 24),
+            child: NubiaEmptyState(
+              key: Key('home_empty'),
+              icon: Icons.check_circle_outline,
+              title: 'Tout est à jour',
+              subtitle: 'Aucune action en attente.',
+            ),
           ),
       ],
+    );
+  }
+
+  static String _formatEuros(int cents) {
+    final value = cents / 100;
+    final text = value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(2);
+    return '${text.replaceAll('.', ',')} €';
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: cs.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
+/// Carte de raccourci « À faire » : pastille icône + titre/sous-titre + badge
+/// compteur. Informative — les tuiles au-dessus portent les actions
+/// principales de navigation.
+class _ShortcutCard extends StatelessWidget {
+  const _ShortcutCard({
     super.key,
     required this.icon,
-    required this.label,
-    required this.value,
-    this.onTap,
+    required this.title,
+    required this.subtitle,
+    required this.count,
   });
 
   final IconData icon;
-  final String label;
-  final String value;
-  final VoidCallback? onTap;
+  final String title;
+  final String subtitle;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: NubiaCard(
-        child: ListTile(
-          leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-          title: Text(label),
-          trailing: Text(
-            value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return NubiaCard(
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: tokens.primarySubtleBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 20, color: cs.primary),
           ),
-          onTap: onTap,
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: textTheme.titleSmall),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          NubiaBadge.count(count: count),
+        ],
       ),
     );
   }

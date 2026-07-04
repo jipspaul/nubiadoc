@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/profile/profile_bloc.dart';
@@ -39,6 +40,7 @@ const _account = PatientAccount(
 );
 
 Widget _wrap(ProfileBloc bloc) => MaterialApp(
+      theme: NubiaTheme.light,
       home: MultiBlocProvider(
         providers: [
           BlocProvider.value(value: bloc),
@@ -128,8 +130,8 @@ void main() {
         'affiche le contenu précédent et un snackbar en état ProfileToggleFailed',
         (tester) async {
       final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
-      const loaded = ProfileLoaded(_account,
-          biometricEnabled: false, notifPrefs: _prefs);
+      const loaded =
+          ProfileLoaded(_account, biometricEnabled: false, notifPrefs: _prefs);
       final failed = ProfileToggleFailed(loaded, 'Erreur biométrie');
 
       await tester.pumpWidget(_wrap(bloc));
