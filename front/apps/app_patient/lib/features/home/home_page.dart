@@ -56,8 +56,12 @@ class _HomeContent extends StatelessWidget {
 
     final s = state.summary;
 
+    // Devis à signer/régler : point d'entrée visible vers le wedge financier
+    // (l'écran devis n'a pas d'onglet dédié dans la barre du bas).
+    final bool hasFinancial =
+        s.documentsToSign > 0 || s.pendingPaymentsCents > 0;
     final bool hasShortcuts =
-        s.unreadMessages > 0 || s.pendingQuestionnaires > 0;
+        s.unreadMessages > 0 || s.pendingQuestionnaires > 0 || hasFinancial;
     final bool allClear = s.upcomingAppointments == 0 &&
         s.documentsToSign == 0 &&
         s.unreadMessages == 0 &&
@@ -92,6 +96,10 @@ class _HomeContent extends StatelessWidget {
                   variant: s.documentsToSign > 0
                       ? MetricTileVariant.warning
                       : MetricTileVariant.neutral,
+                  // Les devis à signer vivent dans le wedge financier.
+                  onTap: s.documentsToSign > 0
+                      ? () => context.push('/financial')
+                      : null,
                 ),
               ),
               const SizedBox(width: 12),
@@ -126,6 +134,17 @@ class _HomeContent extends StatelessWidget {
         if (hasShortcuts) ...[
           const _SectionLabel(label: 'À faire'),
           const SizedBox(height: 12),
+          if (hasFinancial) ...[
+            _ShortcutCard(
+              key: const Key('card_devis'),
+              icon: Icons.description_outlined,
+              title: 'Devis à signer / à régler',
+              subtitle: 'Consultez, signez et réglez vos devis.',
+              count: s.documentsToSign > 0 ? s.documentsToSign : null,
+              onTap: () => context.push('/financial'),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (s.unreadMessages > 0) ...[
             _ShortcutCard(
               key: const Key('card_messages'),
@@ -199,13 +218,15 @@ class _ShortcutCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.count,
+    this.count,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
-  final int count;
+  final int? count;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -214,6 +235,9 @@ class _ShortcutCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return NubiaCard(
+      state:
+          onTap != null ? NubiaCardState.interactive : NubiaCardState.static_,
+      onTap: onTap,
       child: Row(
         children: [
           Container(
@@ -243,7 +267,10 @@ class _ShortcutCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          NubiaBadge.count(count: count),
+          if (count != null)
+            NubiaBadge.count(count: count!)
+          else if (onTap != null)
+            Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
         ],
       ),
     );
