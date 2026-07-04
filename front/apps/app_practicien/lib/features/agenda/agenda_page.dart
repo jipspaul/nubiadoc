@@ -148,10 +148,12 @@ class _PatientPickerBody extends StatelessWidget {
             itemCount: state.patients.length,
             itemBuilder: (_, i) {
               final p = state.patients[i];
-              return ListTile(
+              return ListRow(
                 key: Key('patient_pick_${p.id}'),
-                title: Text(p.fullName),
-                leading: const Icon(Icons.person_outline),
+                leading: NubiaAvatar(initials: _initials(p.fullName)),
+                title: p.fullName,
+                subtitle: p.email ?? p.phone,
+                trailing: const Icon(Icons.chevron_right, size: 20),
                 onTap: () => onPatientSelected(p.id),
               );
             },
@@ -183,10 +185,7 @@ class AgendaBody extends StatelessWidget {
       child: BlocBuilder<AgendaBloc, AgendaState>(
         builder: (context, state) {
           if (state is AgendaInitial || state is AgendaLoading) {
-            return const Center(
-              key: Key('agenda_loading'),
-              child: CircularProgressIndicator(),
-            );
+            return const _AgendaSkeleton(key: Key('agenda_loading'));
           }
           if (state is AgendaError) {
             return NubiaErrorWidget(
@@ -334,13 +333,15 @@ class _DateFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
       child: Row(
         children: [
-          TextButton.icon(
+          NubiaButton(
             key: const Key('agenda_date_filter_button'),
-            icon: const Icon(Icons.date_range, size: 16),
-            label: Text(range == null ? 'Filtrer par date' : _rangeLabel()),
+            variant: NubiaButtonVariant.tertiary,
+            size: NubiaButtonSize.sm,
+            icon: Icons.date_range,
+            label: range == null ? 'Filtrer par date' : _rangeLabel(),
             onPressed: onPick,
           ),
           if (range != null)
@@ -518,50 +519,86 @@ class _EntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
     final startH = entry.startsAt.hour.toString().padLeft(2, '0');
     final startM = entry.startsAt.minute.toString().padLeft(2, '0');
     final endH = entry.endsAt.hour.toString().padLeft(2, '0');
     final endM = entry.endsAt.minute.toString().padLeft(2, '0');
     final timeLabel = '$startH:$startM – $endH:$endM';
 
-    return Card(
-      key: Key('entry_${entry.id}'),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: NubiaCard(
+        key: Key('entry_${entry.id}'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.access_time, size: 14),
-                const SizedBox(width: 4),
-                Text(timeLabel, style: Theme.of(context).textTheme.bodySmall),
-                if (!entry.isFree) ...[
-                  const SizedBox(width: 8),
-                  Chip(
-                    label: Text(
-                      entry.patientName ?? '',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    visualDensity: VisualDensity.compact,
+                Icon(Icons.schedule_outlined,
+                    size: 16, color: cs.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Text(
+                  timeLabel,
+                  style: textTheme.labelLarge?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
-                ],
+                ),
+                const Spacer(),
+                if (entry.isFree)
+                  const StatusPill(
+                    label: 'Libre',
+                    variant: StatusPillVariant.success,
+                  )
+                else
+                  const StatusPill(
+                    label: 'Réservé',
+                    variant: StatusPillVariant.info,
+                  ),
               ],
             ),
-            if (entry.motif != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                entry.motif!,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-            if (!entry.isFree) ...[
-              const SizedBox(height: 8),
+            if (!entry.isFree && entry.patientName != null) ...[
+              const SizedBox(height: 12),
               Row(
                 children: [
-                  OutlinedButton.icon(
+                  NubiaAvatar(
+                      initials: _initials(entry.patientName!), radius: 16),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.patientName!,
+                          style: textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w500),
+                        ),
+                        if (entry.motif != null)
+                          Text(
+                            entry.motif!,
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (entry.motif != null) ...[
+              const SizedBox(height: 8),
+              Text(entry.motif!, style: textTheme.bodyMedium),
+            ],
+            if (!entry.isFree) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  NubiaButton(
                     key: Key('confirm_${entry.id}'),
+                    variant: NubiaButtonVariant.secondary,
+                    size: NubiaButtonSize.sm,
+                    icon: Icons.check,
+                    label: 'Confirmer',
                     onPressed: actionInProgress
                         ? null
                         : () => context.read<AgendaBloc>().add(
@@ -569,12 +606,13 @@ class _EntryCard extends StatelessWidget {
                                 appointmentId: entry.id,
                               ),
                             ),
-                    icon: const Icon(Icons.check, size: 16),
-                    label: const Text('Confirmer'),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton.icon(
+                  NubiaButton(
                     key: Key('start_${entry.id}'),
+                    size: NubiaButtonSize.sm,
+                    icon: Icons.play_arrow,
+                    label: 'Démarrer',
                     onPressed: actionInProgress
                         ? null
                         : () => context.read<AgendaBloc>().add(
@@ -582,8 +620,6 @@ class _EntryCard extends StatelessWidget {
                                 appointmentId: entry.id,
                               ),
                             ),
-                    icon: const Icon(Icons.play_arrow, size: 16),
-                    label: const Text('Démarrer'),
                   ),
                 ],
               ),
@@ -593,4 +629,35 @@ class _EntryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Squelette de chargement de l'agenda (liste de cartes shimmer).
+class _AgendaSkeleton extends StatelessWidget {
+  const _AgendaSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        for (var i = 0; i < 5; i++)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: NubiaSkeletonLoader(height: 88, borderRadius: 12),
+          ),
+      ],
+    );
+  }
+}
+
+/// Initiales (max 2 lettres) à partir d'un nom complet.
+String _initials(String fullName) {
+  final parts =
+      fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+      .toUpperCase();
 }

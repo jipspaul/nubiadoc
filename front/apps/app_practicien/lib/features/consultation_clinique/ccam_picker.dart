@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 class CcamAct {
   final String code;
@@ -67,27 +68,24 @@ class _CcamPickerState extends State<CcamPicker> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: TextField(
+          child: NubiaTextField(
             key: const Key('ccam_search_field'),
+            variant: NubiaTextFieldVariant.search,
             controller: _controller,
             onChanged: _onChanged,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Rechercher un acte CCAM',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
+            hint: 'Rechercher un acte CCAM',
           ),
         ),
         if (suggestions != null)
           suggestions.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Text(
-                      'Aucun acte trouvé',
-                      key: const Key('ccam_no_results'),
-                    ),
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Aucun acte trouvé',
+                    key: const Key('ccam_no_results'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
                 )
               : ListView.builder(
@@ -95,10 +93,11 @@ class _CcamPickerState extends State<CcamPicker> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: suggestions.length,
-                  itemBuilder: (context, i) => ListTile(
+                  itemBuilder: (context, i) => ListRow(
                     key: Key('ccam_act_${suggestions[i].code}'),
-                    title: Text(suggestions[i].label),
-                    subtitle: Text(suggestions[i].code),
+                    leading: const Icon(Icons.add_circle_outline, size: 22),
+                    title: suggestions[i].label,
+                    subtitle: suggestions[i].code,
                     onTap: () => _select(suggestions[i]),
                   ),
                 ),

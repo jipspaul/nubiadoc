@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'package:app_practicien/features/consultation_clinique/ccam_picker.dart';
 
@@ -18,6 +19,7 @@ const _actDetartrage = CcamAct(code: 'HBLD001', label: 'Détartrage');
 
 Widget _wrap(GetActsUseCase useCase, void Function(CcamAct) onSelected) =>
     MaterialApp(
+      theme: NubiaTheme.light,
       home: Scaffold(
         body: CcamPicker(useCase: useCase, onActSelected: onSelected),
       ),
