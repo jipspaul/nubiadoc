@@ -8,6 +8,7 @@ import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/dashboard/dashboard_bloc.dart';
 import '../features/dashboard/today_notes_bloc.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
+import '../features/devis/devis_bloc.dart';
 import '../features/ordonnances/ordonnances_bloc.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/cabinet/cabinet_info_cubit.dart';
@@ -91,6 +92,13 @@ void registerPro(GetIt gi) {
     () => OrdonnancesBloc(
       create: gi<CreatePrescriptionUseCase>(),
       sign: gi<SignPrescriptionUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<DevisBloc>(
+    () => DevisBloc(
+      list: gi<ListCabinetQuotesUseCase>(),
+      getById: gi<GetCabinetQuoteUseCase>(),
     ),
   );
 

@@ -55,6 +55,11 @@ class ProConfig {
         requiresClinical: true,
       ),
       shell.ProNavDestination(
+        label: 'Devis',
+        icon: Icons.receipt_long_outlined,
+        route: '/devis',
+      ),
+      shell.ProNavDestination(
         label: 'Messages',
         icon: Icons.chat_bubble_outline,
         route: '/messages',
