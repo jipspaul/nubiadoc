@@ -982,28 +982,61 @@ class _SlotsByDay extends StatelessWidget {
                   ?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final slot in entry.value)
-                SlotChip(
-                  label: _hhmm(slot.startsAt),
-                  state: !slot.isAvailable
-                      ? SlotChipState.unavailable
-                      : state.selectedSlot?.id == slot.id
-                          ? SlotChipState.selected
-                          : SlotChipState.available,
-                  onTap: slot.isAvailable
-                      ? () => context
-                          .read<AppointmentsBloc>()
-                          .add(AppointmentsSlotSelected(slot))
-                      : null,
-                ),
-            ],
-          ),
-          const SizedBox(height: 20),
+          // Sous-groupes matin / après-midi (affichés seulement si non vides)
+          // pour scanner encore plus vite, façon Doctolib.
+          ..._buildPeriods(context, entry.value),
+          const SizedBox(height: 12),
         ],
+      ],
+    );
+  }
+
+  /// Découpe une journée en « Matin » (< 12 h) et « Après-midi » (>= 12 h) ;
+  /// chaque période non vide = petit sous-titre + grille de [SlotChip].
+  List<Widget> _buildPeriods(BuildContext context, List<Slot> slots) {
+    final periods = <(String, List<Slot>)>[
+      ('Matin', slots.where((s) => s.startsAt.hour < 12).toList()),
+      ('Après-midi', slots.where((s) => s.startsAt.hour >= 12).toList()),
+    ];
+    return [
+      for (final (label, periodSlots) in periods)
+        if (periodSlots.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ),
+          _slotWrap(context, periodSlots),
+          const SizedBox(height: 12),
+        ],
+    ];
+  }
+
+  /// Grille (Wrap) de [SlotChip] conservant l'état de sélection courant.
+  Widget _slotWrap(BuildContext context, List<Slot> slots) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final slot in slots)
+          SlotChip(
+            label: _hhmm(slot.startsAt),
+            state: !slot.isAvailable
+                ? SlotChipState.unavailable
+                : state.selectedSlot?.id == slot.id
+                    ? SlotChipState.selected
+                    : SlotChipState.available,
+            onTap: slot.isAvailable
+                ? () => context
+                    .read<AppointmentsBloc>()
+                    .add(AppointmentsSlotSelected(slot))
+                : null,
+          ),
       ],
     );
   }

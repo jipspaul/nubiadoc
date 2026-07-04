@@ -214,13 +214,15 @@ class _AppointmentCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Praticien en titre : un humain cherche d'abord chez QUI
+                      // il a rendez-vous (le motif passe en secondaire).
                       Text(
-                        appointment.motif,
+                        appointment.practitionerName,
                         style: textTheme.titleSmall,
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${appointment.practitionerName} · ${appointment.practitionerSpecialty}',
+                        '${appointment.motif} · ${appointment.practitionerSpecialty}',
                         style: textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
