@@ -86,12 +86,22 @@ class WaitingRoomPage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// Squelette de chargement de la file d'attente.
 class _LoadingView extends StatelessWidget {
   const _LoadingView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        for (var i = 0; i < 6; i++)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: NubiaSkeletonLoader(height: 72, borderRadius: 12),
+          ),
+      ],
+    );
   }
 }
 
@@ -110,6 +120,7 @@ class _LoadedViewState extends State<_LoadedView> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return BlocListener<WaitingRoomBloc, WaitingRoomState>(
       listenWhen: (_, s) => s is WaitingRoomLoaded || s is WaitingRoomError,
       listener: (_, __) {
@@ -122,30 +133,32 @@ class _LoadedViewState extends State<_LoadedView> {
             const LinearProgressIndicator(
                 key: Key('waiting_room_action_progress')),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     '${widget.state.entries.length} patient(s) en attente',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
-                FilledButton.icon(
+                NubiaButton(
                   key: const Key('call_next_button'),
+                  label: NubiaL10n.callNext,
+                  icon: Icons.arrow_forward,
+                  size: NubiaButtonSize.sm,
+                  isLoading: widget.state.actionInProgress,
                   onPressed: widget.state.actionInProgress ||
                           widget.state.entries.isEmpty
                       ? null
                       : () => context
                           .read<WaitingRoomBloc>()
                           .add(const WaitingRoomCallNextRequested()),
-                  icon: const Icon(Icons.arrow_forward, size: 18),
-                  label: Text(NubiaL10n.callNext),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
           Expanded(
             child: widget.state.entries.isEmpty
                 ? const NubiaEmptyState(
@@ -165,7 +178,7 @@ class _LoadedViewState extends State<_LoadedView> {
                     },
                     child: ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.only(bottom: 8),
                       itemCount: widget.state.entries.length,
                       itemBuilder: (context, i) => _EntryCard(
                           entry: widget.state.entries[i], position: i + 1),
@@ -187,27 +200,99 @@ class _EntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final wait = entry.waitSoFar;
-    final waitLabel = wait.inMinutes < 1
-        ? 'À l\'instant'
-        : '${wait.inMinutes} min d\'attente';
+    final textTheme = Theme.of(context).textTheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
 
-    return Card(
-      key: Key('entry_${entry.id}'),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Text('$position'),
+    final wait = entry.waitSoFar;
+    final waitMinutes = wait.inMinutes;
+    final waitLabel =
+        waitMinutes < 1 ? 'À l\'instant' : '$waitMinutes min d\'attente';
+
+    // Statut dérivé du temps d'attente : jamais la couleur seule (label + pill).
+    final (String statusLabel, StatusPillVariant statusVariant) =
+        switch (waitMinutes) {
+      < 15 => ('En attente', StatusPillVariant.info),
+      < 30 => ('Patiente', StatusPillVariant.warning),
+      _ => ('Attente longue', StatusPillVariant.error),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: NubiaCard(
+        key: Key('entry_${entry.id}'),
+        child: Row(
+          children: [
+            _PositionBadge(position: position),
+            const SizedBox(width: 12),
+            NubiaAvatar(initials: _initials(entry.patientName), radius: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.patientName,
+                    style: textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    entry.estimatedWaitMinutes != null
+                        ? '$waitLabel · ~${entry.estimatedWaitMinutes} min estimé'
+                        : waitLabel,
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: tokens.textTertiary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            StatusPill(label: statusLabel, variant: statusVariant),
+          ],
         ),
-        title: Text(entry.patientName),
-        subtitle: Text(waitLabel),
-        trailing: entry.estimatedWaitMinutes != null
-            ? Chip(
-                label: Text('~${entry.estimatedWaitMinutes} min'),
-                visualDensity: VisualDensity.compact,
-              )
-            : null,
       ),
     );
   }
+}
+
+/// Pastille de position dans la file (n° d'ordre).
+class _PositionBadge extends StatelessWidget {
+  const _PositionBadge({required this.position});
+  final int position;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      width: 32,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: tokens.primarySubtleBg,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        '$position',
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: tokens.primarySubtleFg,
+          fontWeight: FontWeight.w600,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+/// Initiales (max 2 lettres) à partir d'un nom complet.
+String _initials(String fullName) {
+  final parts =
+      fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+      .toUpperCase();
 }
