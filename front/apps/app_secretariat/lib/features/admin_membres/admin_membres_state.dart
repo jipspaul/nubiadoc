@@ -38,3 +38,7 @@ final class AdminMembresError extends AdminMembresState {
   @override
   List<Object?> get props => [message];
 }
+
+final class AdminMembresInviteSuccess extends AdminMembresState {
+  const AdminMembresInviteSuccess();
+}

@@ -22,10 +22,8 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
   }
 
   void _onInviter() {
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Invitation envoyée (stub)')),
+    Navigator.of(context).pop(
+      (email: _emailController.text.trim(), role: _role),
     );
   }
 
