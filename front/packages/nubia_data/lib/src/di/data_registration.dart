@@ -34,7 +34,6 @@ import '../remote/scheduling/scheduling_api.dart';
 import '../remote/search/search_api.dart';
 import '../remote/secretariat/secretariat_api.dart';
 import '../remote/slots/slots_api.dart';
-import '../remote/today_notes/today_notes_api.dart';
 import '../remote/waiting_room/waiting_room_api.dart';
 import '../repositories/account_repository_impl.dart';
 import '../repositories/search_repository_impl.dart';
@@ -454,9 +453,6 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetQuotesApi>(
       () => CabinetQuotesApi(gi()),
     )
-    ..registerLazySingleton<TodayNotesApi>(
-      () => TodayNotesApi(gi()),
-    )
     // Repositories
     ..registerLazySingleton<CabinetRepository>(
       () => CabinetRepositoryImpl(gi()),
@@ -495,7 +491,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       () => CabinetMessageRepositoryImpl(gi()),
     )
     ..registerLazySingleton<TodayNotesRepository>(
-      () => TodayNotesRepositoryImpl(gi()),
+      () => const TodayNotesRepositoryImpl(),
     );
 
   // Pro use cases (non-clinical — available to both praticien and secrétariat)
