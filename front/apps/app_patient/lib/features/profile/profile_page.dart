@@ -153,6 +153,13 @@ class _ProfileContent extends StatelessWidget {
           child: Column(
             children: [
               ListRow(
+                key: const Key('tile_financial'),
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: 'Mes devis & paiements',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRouter.financial),
+              ),
+              ListRow(
                 key: const Key('tile_coverage'),
                 leading: const Icon(Icons.health_and_safety_outlined),
                 title: 'Couverture santé',

@@ -32,6 +32,10 @@ pub struct ConversationItem {
     pub cabinet_name: String,
     /// ISO 8601 UTC du dernier message, ou `null` si aucun message encore.
     pub last_message_at: Option<String>,
+    /// Aperçu (tronqué) du dernier message, ou `null` si aucun message.
+    /// Déchiffrable côté serveur tant que le chiffrement est le POC UTF-8
+    /// (voir `send_message`) — à revoir si un vrai chiffrement arrive.
+    pub last_message_preview: Option<String>,
     /// Messages reçus (practitioner/secretary) non lus (`read_at IS NULL`).
     pub unread_count: i64,
 }
@@ -90,6 +94,9 @@ pub async fn list_conversations(
                  COALESCE(cab.raison_sociale, ph.raison_sociale) AS cabinet_name, \
                  (SELECT MAX(m.created_at) FROM message m WHERE m.conversation_id = c.id) \
                      AS last_message_at, \
+                 (SELECT m.body_ciphertext FROM message m \
+                  WHERE m.conversation_id = c.id \
+                  ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_body, \
                  (SELECT COUNT(*) FROM message m \
                   WHERE m.conversation_id = c.id \
                     AND m.sender_kind IN ('practitioner','secretary','pharmacist') \
@@ -98,7 +105,7 @@ pub async fn list_conversations(
              LEFT JOIN cabinet cab ON cab.id = c.cabinet_id \
              LEFT JOIN pharmacy ph ON ph.id = c.pharmacy_id \
          ) \
-         SELECT id, cabinet_id, cabinet_name, last_message_at, unread_count \
+         SELECT id, cabinet_id, cabinet_name, last_message_at, last_body, unread_count \
          FROM conv \
          {cursor_clause} \
          ORDER BY last_message_at DESC NULLS LAST, id DESC \
@@ -161,6 +168,13 @@ pub async fn list_conversations(
         let unread_count: i64 = row
             .try_get("unread_count")
             .map_err(|_| AppError::Internal)?;
+        // POC : body_ciphertext = UTF-8 brut. Aperçu tronqué à 120 caractères,
+        // vide si le contenu n'est pas de l'UTF-8 valide (futur vrai chiffré).
+        let last_body: Option<Vec<u8>> =
+            row.try_get("last_body").map_err(|_| AppError::Internal)?;
+        let last_message_preview = last_body
+            .and_then(|b| String::from_utf8(b).ok())
+            .map(|t| t.chars().take(120).collect::<String>());
 
         last_lma = lma;
         last_id = Some(id);
@@ -170,6 +184,7 @@ pub async fn list_conversations(
             cabinet_id,
             cabinet_name,
             last_message_at: lma.map(|dt| dt.to_rfc3339()),
+            last_message_preview,
             unread_count,
         });
     }

@@ -94,15 +94,18 @@ class _ConversationsList extends StatelessWidget {
       itemBuilder: (context, index) {
         final conv = conversations[index];
         final last = conv.lastMessage;
-        // Le contrat liste (`GET /v1/conversations`) ne renvoie que
-        // `last_message_at` (pas l'aperçu texte) : on affiche la date du
-        // dernier message et un sous-titre au mieux.
+        // Le contrat liste (`GET /v1/conversations`) renvoie
+        // `last_message_at` + `last_message_preview` (aperçu tronqué côté
+        // serveur) ; fallback sur l'état non-lu pour les anciens payloads.
         final lastAt = conv.lastMessageAt ?? last?.sentAt;
         return ListRow(
           key: Key('conv_${conv.id}'),
           leading: NubiaAvatar(initials: _initials(conv.cabinetName)),
           title: conv.cabinetName,
-          subtitle: _subtitle(last?.text, conv.unreadCount),
+          subtitle: _subtitle(
+            conv.lastMessagePreview ?? last?.text,
+            conv.unreadCount,
+          ),
           unread: conv.unreadCount > 0,
           trailing: _Trailing(
             timestamp: lastAt != null ? _formatTimestamp(lastAt) : null,
@@ -120,8 +123,8 @@ class _ConversationsList extends StatelessWidget {
     return trimmed.isNotEmpty ? trimmed.characters.first.toUpperCase() : '?';
   }
 
-  /// Sous-titre affiché sous le nom du cabinet. L'API liste ne fournit pas
-  /// l'aperçu du dernier message ; à défaut on résume l'état non-lu.
+  /// Sous-titre affiché sous le nom du cabinet : aperçu du dernier message
+  /// (`last_message_preview`) ; à défaut on résume l'état non-lu.
   String _subtitle(String? preview, int unreadCount) {
     if (preview != null && preview.trim().isNotEmpty) return preview.trim();
     if (unreadCount > 0) {
