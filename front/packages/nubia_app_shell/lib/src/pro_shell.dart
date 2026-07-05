@@ -102,9 +102,22 @@ class _ProShellState extends State<ProShell> {
             selectedIndex: index,
             onDestinationSelected: (i) => setState(() => _index = i),
             labelType: NavigationRailLabelType.all,
-            leading: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: FlutterLogo(),
+            // Monogramme Nubia — le FlutterLogo par défaut faisait
+            // « démo non finie » (#3363/#3375).
+            leading: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                child: Text(
+                  'N',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
             ),
             trailing: Expanded(
               child: Align(
