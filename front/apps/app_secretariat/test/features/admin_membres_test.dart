@@ -78,6 +78,10 @@ void main() {
 
   // --- AdminMembresBloc --------------------------------------------------------
   group('AdminMembresBloc', () {
+    setUpAll(() {
+      registerFallbackValue(MemberRole.secretary);
+    });
+
     late _MockMembersRepository membersRepo;
     late _MockSecretariatRepository secretariatRepo;
     late ListMembersUseCase listMembers;
@@ -153,6 +157,65 @@ void main() {
       expect: () => [
         const AdminMembresLoading(),
         const AdminMembresError('Erreur réseau'),
+      ],
+    );
+
+    blocTest<AdminMembresBloc, AdminMembresState>(
+      'émet Loading puis Error si l\'invitation échoue',
+      build: () {
+        when(() => membersRepo.invite(any(), any())).thenAnswer(
+          (_) async => const Left(
+            ServerFailure(message: 'Impossible d\'inviter le membre.'),
+          ),
+        );
+        return AdminMembresBloc(
+          listMembers: listMembers,
+          listSecretariats: listSecretariats,
+          inviteMember: inviteMember,
+        );
+      },
+      act: (bloc) => bloc.add(
+        const AdminMembresInviteRequested(
+          email: 'nouveau@cabinet.fr',
+          role: MemberRole.secretary,
+        ),
+      ),
+      expect: () => [
+        const AdminMembresLoading(),
+        const AdminMembresError('Impossible d\'inviter le membre.'),
+      ],
+      verify: (_) {
+        verify(() => membersRepo.invite('nouveau@cabinet.fr', MemberRole.secretary))
+            .called(1);
+      },
+    );
+
+    blocTest<AdminMembresBloc, AdminMembresState>(
+      'émet Loading puis InviteSuccess et recharge la liste si l\'invitation réussit',
+      build: () {
+        when(() => membersRepo.invite(any(), any())).thenAnswer(
+          (_) async => Right(members.first),
+        );
+        when(() => membersRepo.list()).thenAnswer((_) async => Right(members));
+        when(() => secretariatRepo.list())
+            .thenAnswer((_) async => Right(secretariats));
+        return AdminMembresBloc(
+          listMembers: listMembers,
+          listSecretariats: listSecretariats,
+          inviteMember: inviteMember,
+        );
+      },
+      act: (bloc) => bloc.add(
+        const AdminMembresInviteRequested(
+          email: 'nouveau@cabinet.fr',
+          role: MemberRole.secretary,
+        ),
+      ),
+      expect: () => [
+        const AdminMembresLoading(),
+        const AdminMembresInviteSuccess(),
+        const AdminMembresLoading(),
+        AdminMembresLoaded(members: members, secretariats: secretariats),
       ],
     );
 
