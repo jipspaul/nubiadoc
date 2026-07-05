@@ -1,8 +1,10 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'package:app_secretariat/features/dashboard/dashboard_bloc.dart';
@@ -48,16 +50,83 @@ Widget _wrap(DashboardBloc bloc) => MaterialApp(
       ),
     );
 
+class _MockGetAgenda extends Mock implements GetCabinetAgendaUseCase {}
+
+class _MockListWaitingList extends Mock implements ListWaitingListUseCase {}
+
+AgendaEntry _entry(String id, DateTime startsAt, {bool isFree = false}) =>
+    AgendaEntry(
+      id: id,
+      cabinetId: 'cab',
+      practitionerId: 'prac',
+      practitionerName: 'Dr T',
+      startsAt: startsAt,
+      endsAt: startsAt.add(const Duration(minutes: 30)),
+      isFree: isFree,
+    );
+
 void main() {
   group('DashboardBloc', () {
+    late _MockGetAgenda getAgenda;
+    late _MockListWaitingList listWaitingList;
+
+    setUpAll(() {
+      registerFallbackValue(DateTime(2026, 1, 1));
+    });
+
+    setUp(() {
+      getAgenda = _MockGetAgenda();
+      listWaitingList = _MockListWaitingList();
+    });
+
     blocTest<DashboardBloc, DashboardState>(
-      'émet Loading puis Loaded avec les counts à 0',
-      build: DashboardBloc.new,
+      '#3362 : compteurs réels — RDV du jour, à confirmer, liste d\'attente',
+      build: () {
+        final now = DateTime.now();
+        when(() => getAgenda(any(), includePast: any(named: 'includePast')))
+            .thenAnswer((_) async => Right([
+                  _entry('a1', now.add(const Duration(hours: 1))),
+                  _entry('a2', now.add(const Duration(days: 1))),
+                  _entry('libre', now, isFree: true),
+                ]));
+        when(() => listWaitingList()).thenAnswer(
+          (_) async => Right([
+            WaitingListEntry(
+              id: 'w1',
+              cabinetId: 'cab',
+              patientId: 'p1',
+              patientName: 'Marc Dubois',
+              motif: '',
+              requestedAt: DateTime(2026, 6, 21),
+              position: 1,
+            ),
+          ]),
+        );
+        return DashboardBloc(
+          getAgenda: getAgenda,
+          listWaitingList: listWaitingList,
+        );
+      },
       act: (bloc) => bloc.add(const DashboardLoadRequested()),
       expect: () => [
         const DashboardLoading(),
-        const DashboardLoaded(todayCount: 0, pendingCount: 0, waitingCount: 0),
+        const DashboardLoaded(todayCount: 1, pendingCount: 2, waitingCount: 1),
       ],
+    );
+
+    blocTest<DashboardBloc, DashboardState>(
+      'agenda en échec → DashboardError (pas un faux 0)',
+      build: () {
+        when(() => getAgenda(any(), includePast: any(named: 'includePast')))
+            .thenAnswer((_) async => const Left(NetworkFailure()));
+        when(() => listWaitingList()).thenAnswer((_) async => const Right([]));
+        return DashboardBloc(
+          getAgenda: getAgenda,
+          listWaitingList: listWaitingList,
+        );
+      },
+      act: (bloc) => bloc.add(const DashboardLoadRequested()),
+      expect: () => [const DashboardLoading(), isA<DashboardError>()],
     );
   });
 
@@ -68,13 +137,15 @@ void main() {
       bloc = _MockDashboardBloc();
     });
 
-    testWidgets('affiche le chargement en état DashboardInitial', (tester) async {
+    testWidgets('affiche le chargement en état DashboardInitial',
+        (tester) async {
       when(() => bloc.state).thenReturn(const DashboardInitial());
       await tester.pumpWidget(_wrap(bloc));
       expect(find.byKey(const Key('dashboard_loading')), findsOneWidget);
     });
 
-    testWidgets('affiche le chargement en état DashboardLoading', (tester) async {
+    testWidgets('affiche le chargement en état DashboardLoading',
+        (tester) async {
       when(() => bloc.state).thenReturn(const DashboardLoading());
       await tester.pumpWidget(_wrap(bloc));
       expect(find.byKey(const Key('dashboard_loading')), findsOneWidget);

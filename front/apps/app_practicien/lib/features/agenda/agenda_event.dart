@@ -31,6 +31,12 @@ class AgendaAppointmentConfirmRequested extends AgendaEvent {
   List<Object?> get props => [appointmentId];
 }
 
+/// La page a consommé startedConsultationId (navigation faite) — remet le
+/// champ à null pour ne pas re-naviguer au prochain rebuild.
+class AgendaStartedConsultationConsumed extends AgendaEvent {
+  const AgendaStartedConsultationConsumed();
+}
+
 class AgendaConsultationStartRequested extends AgendaEvent {
   const AgendaConsultationStartRequested({required this.appointmentId});
   final String appointmentId;

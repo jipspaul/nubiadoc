@@ -23,12 +23,17 @@ class AgendaLoaded extends AgendaState {
   final String? actionError;
   final bool includePast;
 
+  /// Id de la séance qui vient d'être démarrée — consommé par la page pour
+  /// naviguer vers /consultation (#3367), puis remis à null.
+  final String? startedConsultationId;
+
   const AgendaLoaded({
     required this.entries,
     required this.weekStart,
     this.actionInProgress = false,
     this.actionError,
     this.includePast = false,
+    this.startedConsultationId,
   });
 
   AgendaLoaded copyWith({
@@ -38,6 +43,8 @@ class AgendaLoaded extends AgendaState {
     String? actionError,
     bool clearActionError = false,
     bool? includePast,
+    String? startedConsultationId,
+    bool clearStartedConsultation = false,
   }) =>
       AgendaLoaded(
         entries: entries ?? this.entries,
@@ -46,11 +53,20 @@ class AgendaLoaded extends AgendaState {
         actionError:
             clearActionError ? null : (actionError ?? this.actionError),
         includePast: includePast ?? this.includePast,
+        startedConsultationId: clearStartedConsultation
+            ? null
+            : (startedConsultationId ?? this.startedConsultationId),
       );
 
   @override
-  List<Object?> get props =>
-      [entries, weekStart, actionInProgress, actionError, includePast];
+  List<Object?> get props => [
+        entries,
+        weekStart,
+        actionInProgress,
+        actionError,
+        includePast,
+        startedConsultationId,
+      ];
 }
 
 class AgendaError extends AgendaState {

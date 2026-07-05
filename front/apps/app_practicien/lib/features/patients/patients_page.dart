@@ -1,11 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'patients_bloc.dart';
@@ -147,12 +144,16 @@ class _PatientDetailBody extends StatelessWidget {
         }
         if (state is PatientPdfReady) {
           try {
-            final dir = await getTemporaryDirectory();
-            final file = File('${dir.path}/${state.filename}');
-            await file.writeAsBytes(state.bytes);
-            if (!context.mounted) return;
+            // XFile.fromData : aucun accès filesystem — getTemporaryDirectory
+            // et dart:io lèvent sur Flutter web (#3369).
             await Share.shareXFiles(
-              [XFile(file.path, mimeType: 'application/pdf')],
+              [
+                XFile.fromData(
+                  state.bytes,
+                  name: state.filename,
+                  mimeType: 'application/pdf',
+                ),
+              ],
               subject: 'Fiche patient',
             );
           } catch (_) {

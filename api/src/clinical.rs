@@ -1285,3 +1285,83 @@ pub async fn upload_patient_document(
         Json(UploadPatientDocumentResponse { document_id }),
     ))
 }
+
+// ── GET /v1/cabinet/today-notes ──────────────────────────────────────────────
+
+/// Résumé d'une séance du jour pour la carte « Notes du jour » du dashboard
+/// praticien. Zéro PII au-delà des initiales (l'écran est un survol).
+#[derive(Serialize)]
+pub struct TodayNoteItem {
+    pub id: Uuid,
+    /// Début de séance, RFC 3339 (clé lue `timestamp`/`started_at` côté front).
+    pub started_at: String,
+    pub patient_initials: String,
+    /// `in_progress` | `completed` | `cancelled`.
+    pub status: String,
+}
+
+/// Réponse de `GET /v1/cabinet/today-notes`.
+#[derive(Serialize)]
+pub struct TodayNotesResponse {
+    pub data: Vec<TodayNoteItem>,
+}
+
+/// `GET /v1/cabinet/today-notes` — séances de consultation démarrées
+/// aujourd'hui dans le cabinet (#3368 : la route n'existait pas, le dashboard
+/// affichait un faux état vide sur un 404).
+///
+/// Praticien uniquement (même périmètre que le journal clinique).
+pub async fn list_today_notes(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+) -> Result<Json<TodayNotesResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT cs.id, cs.started_at, cs.status, p.first_name, p.last_name \
+         FROM consultation_session cs \
+         JOIN appointment a ON a.id = cs.appointment_id \
+         JOIN patient p ON p.id = a.patient_id \
+         WHERE cs.cabinet_id = $1 \
+           AND cs.started_at >= date_trunc('day', now()) \
+           AND cs.started_at < date_trunc('day', now()) + interval '1 day' \
+         ORDER BY cs.started_at DESC \
+         LIMIT 50",
+    )
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .iter()
+        .map(|row| {
+            let first: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let last: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+            let initials = [first.chars().next(), last.chars().next()]
+                .into_iter()
+                .flatten()
+                .map(|c| format!("{}.", c.to_uppercase()))
+                .collect::<String>();
+            Ok(TodayNoteItem {
+                id: row.try_get("id").map_err(|_| AppError::Internal)?,
+                started_at: row
+                    .try_get::<chrono::DateTime<chrono::Utc>, _>("started_at")
+                    .map_err(|_| AppError::Internal)?
+                    .to_rfc3339(),
+                patient_initials: initials,
+                status: row.try_get("status").map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(TodayNotesResponse { data }))
+}

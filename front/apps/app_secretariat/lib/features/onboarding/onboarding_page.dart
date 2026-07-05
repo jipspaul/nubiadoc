@@ -133,12 +133,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   label: 'Finaliser mon compte',
                   isLoading: loading,
                   onPressed: (!loading && _canSubmit)
-                      ? () => context.read<ProAuthCubit>().registerWithInvitation(
-                            email: _email.text.trim(),
-                            password: _password.text,
-                            inviteToken: widget.invitationToken!,
-                            acceptCgu: _cguAccepted,
-                          )
+                      ? () =>
+                          context.read<ProAuthCubit>().registerWithInvitation(
+                                email: _email.text.trim(),
+                                password: _password.text,
+                                inviteToken: widget.invitationToken!,
+                                acceptCgu: _cguAccepted,
+                              )
                       : null,
                 ),
               ],

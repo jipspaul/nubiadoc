@@ -279,3 +279,102 @@ async fn waiting_list_duplicate_returns_409() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+// ── GET /v1/cabinet/waiting-list : nom du patient (#3364) ────────────────────
+
+fn make_pro_token(cabinet_id: Uuid, role: &str) -> String {
+    #[derive(serde::Serialize)]
+    struct Claims {
+        sub: Uuid,
+        kind: String,
+        cabinet_id: Uuid,
+        role: String,
+        exp: u64,
+    }
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &Claims {
+            sub: Uuid::new_v4(),
+            kind: "pro".into(),
+            cabinet_id,
+            role: role.into(),
+            exp,
+        },
+        &jsonwebtoken::EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
+/// #3364 : la liste d'attente était inexploitable sans le nom du patient
+/// (avatar « ? »). Le GET cabinet doit renvoyer `patient_name`.
+#[tokio::test]
+async fn cabinet_waiting_list_exposes_patient_name() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db).await;
+
+    // Une entrée active en liste d'attente pour Alice Attente.
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO waiting_list_entry \
+             (cabinet_id, patient_id, desired_window, score, status) \
+             VALUES ($1, $2, '{\"from\":\"2026-06-21\"}'::jsonb, 1.0, 'active')",
+        )
+        .bind(f.cabinet_id)
+        .bind(f.patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: {
+            let url = std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+            PgPool::connect(&url).await.unwrap()
+        },
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: std::sync::Arc::new(StubMailer),
+    };
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/waiting-list")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_token(f.cabinet_id, "secretary")),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().expect("data[]");
+    assert_eq!(data.len(), 1);
+    assert_eq!(
+        data[0]["patient_name"], "Alice Attente",
+        "le nom du patient doit être joint (#3364)"
+    );
+
+    cleanup_fixture(&db, &f).await;
+}

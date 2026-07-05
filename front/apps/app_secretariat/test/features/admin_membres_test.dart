@@ -185,7 +185,8 @@ void main() {
         const AdminMembresError('Impossible d\'inviter le membre.'),
       ],
       verify: (_) {
-        verify(() => membersRepo.invite('nouveau@cabinet.fr', MemberRole.secretary))
+        verify(() =>
+                membersRepo.invite('nouveau@cabinet.fr', MemberRole.secretary))
             .called(1);
       },
     );
@@ -329,8 +330,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('admin_membres_empty')), findsOneWidget);
-      expect(find.text('Aucun membre ni secrétariat enregistré.'),
-          findsOneWidget);
+      expect(
+          find.text('Aucun membre ni secrétariat enregistré.'), findsOneWidget);
     });
   });
 }

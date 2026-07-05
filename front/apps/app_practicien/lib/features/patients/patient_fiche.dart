@@ -27,15 +27,21 @@ class _PatientFicheScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<PatientFicheBloc, PatientFicheState>(
       listenWhen: (prev, curr) =>
-          (prev.pdfFilePath == null && curr.pdfFilePath != null) ||
+          (prev.pdfBytes == null && curr.pdfBytes != null) ||
           (prev.exportPdfError == null && curr.exportPdfError != null),
       listener: (context, state) async {
-        if (state.pdfFilePath != null) {
+        if (state.pdfBytes != null) {
           final box = context.findRenderObject() as RenderBox?;
           final origin =
               box == null ? null : box.localToGlobal(Offset.zero) & box.size;
           await Share.shareXFiles(
-            [XFile(state.pdfFilePath!, mimeType: 'application/pdf')],
+            [
+              XFile.fromData(
+                state.pdfBytes!,
+                name: state.pdfFilename ?? 'fiche_patient.pdf',
+                mimeType: 'application/pdf',
+              ),
+            ],
             subject: 'Fiche ${patient.fullName}',
             sharePositionOrigin: origin,
           );

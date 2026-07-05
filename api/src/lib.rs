@@ -344,6 +344,7 @@ fn build_router(
             "/v1/cabinet/patients/:id/notes",
             get(clinical::list_patient_notes).post(clinical::add_patient_note),
         )
+        .route("/v1/cabinet/today-notes", get(clinical::list_today_notes))
         .route(
             "/v1/cabinet/patients/:id/medical-record",
             get(medical_record::get_medical_record).patch(medical_record::patch_medical_record),
@@ -383,7 +384,8 @@ fn build_router(
         )
         .route(
             "/v1/cabinet/conversations/:id/messages",
-            post(cabinet_messaging::send_cabinet_message),
+            get(cabinet_messaging::get_cabinet_conversation_messages)
+                .post(cabinet_messaging::send_cabinet_message),
         )
         .route(
             "/v1/cabinet/conversations/:id/read",

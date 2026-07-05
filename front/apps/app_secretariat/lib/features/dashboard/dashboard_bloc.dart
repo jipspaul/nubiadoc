@@ -1,12 +1,26 @@
 import 'package:bloc/bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
+/// Tableau de bord secrétariat : compteurs réels dérivés de l'agenda du
+/// cabinet et de la liste d'attente (#3362 — les valeurs étaient codées à 0
+/// en dur, le dashboard contredisait l'agenda).
+///
+/// Pas d'endpoint agrégé côté API : on compose les endpoints existants.
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
     with SafeEmitMixin<DashboardState> {
-  DashboardBloc() : super(const DashboardInitial()) {
+  final GetCabinetAgendaUseCase _getAgenda;
+  final ListWaitingListUseCase _listWaitingList;
+
+  DashboardBloc({
+    required GetCabinetAgendaUseCase getAgenda,
+    required ListWaitingListUseCase listWaitingList,
+  })  : _getAgenda = getAgenda,
+        _listWaitingList = listWaitingList,
+        super(const DashboardInitial()) {
     on<DashboardLoadRequested>(_onLoad);
   }
 
@@ -16,15 +30,44 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
   ) async {
     emit(const DashboardLoading());
     try {
-      emit(
-        const DashboardLoaded(
-          todayCount: 0,
-          pendingCount: 0,
-          waitingCount: 0,
-        ),
+      final now = DateTime.now();
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+
+      final agendaResult = await _getAgenda(
+        DateTime(weekStart.year, weekStart.month, weekStart.day),
+      );
+      final waitingResult = await _listWaitingList();
+
+      // L'agenda est la source des deux premiers compteurs ; la liste
+      // d'attente est best-effort (0 si l'appel échoue, pas d'écran d'erreur
+      // pour un compteur secondaire).
+      agendaResult.fold(
+        (failure) => safeEmit(DashboardError(message: failure.message)),
+        (entries) {
+          final booked = entries.where((e) => !e.isFree);
+          final todayCount = booked
+              .where((e) =>
+                  e.startsAt.year == now.year &&
+                  e.startsAt.month == now.month &&
+                  e.startsAt.day == now.day)
+              .length;
+          // Même définition que l'écran Agenda : tout RDV réservé est
+          // « À confirmer » (aucun statut plus fin dans AgendaEntry).
+          final pendingCount = booked.length;
+          final waitingCount =
+              waitingResult.fold((_) => 0, (list) => list.length);
+
+          safeEmit(
+            DashboardLoaded(
+              todayCount: todayCount,
+              pendingCount: pendingCount,
+              waitingCount: waitingCount,
+            ),
+          );
+        },
       );
     } catch (_) {
-      emit(
+      safeEmit(
         const DashboardError(
           message: 'Impossible de charger le tableau de bord.',
         ),

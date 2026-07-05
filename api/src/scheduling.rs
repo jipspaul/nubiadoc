@@ -559,6 +559,9 @@ pub async fn get_waiting_room(
 pub struct WaitingListItem {
     pub id: Uuid,
     pub patient_id: Uuid,
+    /// Nom du patient (non-clinique) — sans lui la liste est inexploitable
+    /// par la secrétaire (#3364). Vide si le patient a été supprimé.
+    pub patient_name: String,
     /// Fenêtre souhaitée (JSON libre — desired_window).
     pub desired_window: serde_json::Value,
     pub score: f64,
@@ -591,10 +594,13 @@ pub async fn get_waiting_list(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
-        "SELECT id, patient_id, desired_window, score::float8 AS score, status, created_at \
-         FROM waiting_list_entry \
-         WHERE status = 'active' \
-         ORDER BY score DESC, created_at ASC",
+        "SELECT w.id, w.patient_id, w.desired_window, w.score::float8 AS score, \
+                w.status, w.created_at, \
+                COALESCE(TRIM(p.first_name || ' ' || p.last_name), '') AS patient_name \
+         FROM waiting_list_entry w \
+         LEFT JOIN patient p ON p.id = w.patient_id AND p.deleted_at IS NULL \
+         WHERE w.status = 'active' \
+         ORDER BY w.score DESC, w.created_at ASC",
     )
     .fetch_all(&mut *tx)
     .await
@@ -614,9 +620,13 @@ pub async fn get_waiting_list(
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let created_at: chrono::DateTime<chrono::Utc> =
                 row.try_get("created_at").map_err(|_| AppError::Internal)?;
+            let patient_name: String = row
+                .try_get("patient_name")
+                .map_err(|_| AppError::Internal)?;
             Ok(WaitingListItem {
                 id,
                 patient_id,
+                patient_name,
                 desired_window,
                 score,
                 status,
