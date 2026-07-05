@@ -204,12 +204,12 @@ void main() {
     });
 
     Widget buildPage() => MaterialApp(
-      theme: NubiaTheme.light,
-      home: BlocProvider<CabinetMessagingBloc>.value(
-        value: bloc,
-        child: const CabinetMessagingPage(),
-      ),
-    );
+          theme: NubiaTheme.light,
+          home: BlocProvider<CabinetMessagingBloc>.value(
+            value: bloc,
+            child: const CabinetMessagingPage(),
+          ),
+        );
 
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const CabinetMessagingInitial());

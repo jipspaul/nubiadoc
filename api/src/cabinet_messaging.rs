@@ -325,9 +325,103 @@ pub struct SendCabinetMessageBody {
 }
 
 /// Réponse de `POST /v1/cabinet/conversations/:id/messages`.
+/// `message_id` (historique) + le message complet : le front parse la réponse
+/// comme un MessageDto (`id`/`body`/`sender`/`created_at`) — sans ces champs,
+/// l'envoi réussissait côté serveur mais crashait au parse côté cabinet.
 #[derive(Serialize)]
 pub struct SendCabinetMessageResponse {
     pub message_id: Uuid,
+    pub id: Uuid,
+    pub body: String,
+    pub sender: String,
+    pub sender_kind: String,
+    pub created_at: String,
+    pub read_at: Option<String>,
+}
+
+// ── GET /v1/cabinet/conversations/:id/messages ───────────────────────────────
+
+/// Un message du fil côté cabinet. `sender` reprend `sender_kind`
+/// (`patient` | `practitioner` | `secretary`) — le front ne distingue que
+/// patient / cabinet.
+#[derive(Serialize)]
+pub struct CabinetMessageItem {
+    pub id: Uuid,
+    pub body: String,
+    pub sender: String,
+    pub sender_kind: String,
+    pub created_at: String,
+    pub read_at: Option<String>,
+}
+
+/// Réponse de `GET /v1/cabinet/conversations/:id/messages`.
+#[derive(Serialize)]
+pub struct CabinetMessagesResponse {
+    pub data: Vec<CabinetMessageItem>,
+}
+
+/// `GET /v1/cabinet/conversations/:id/messages` — fil chronologique côté
+/// cabinet (#3366 : la route n'existait qu'en POST, ouvrir un fil → 405).
+/// Secrétaire et praticien. Conversation hors tenant → 404 (RLS + garde).
+/// Chiffrement POC : UTF-8 brut (NUB-T3 pour le réel).
+pub async fn get_cabinet_conversation_messages(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(conversation_id): Path<Uuid>,
+) -> Result<Json<CabinetMessagesResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2")
+        .bind(conversation_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+
+    let rows = sqlx::query(
+        "SELECT id, body_ciphertext, sender_kind, created_at, read_at \
+         FROM message WHERE conversation_id = $1 \
+         ORDER BY created_at ASC LIMIT 500",
+    )
+    .bind(conversation_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .iter()
+        .map(|row| {
+            let ciphertext: Vec<u8> = row
+                .try_get("body_ciphertext")
+                .map_err(|_| AppError::Internal)?;
+            let sender_kind: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
+            Ok(CabinetMessageItem {
+                id: row.try_get("id").map_err(|_| AppError::Internal)?,
+                body: String::from_utf8_lossy(&ciphertext).into_owned(),
+                sender: sender_kind.clone(),
+                sender_kind,
+                created_at: row
+                    .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .map_err(|_| AppError::Internal)?
+                    .to_rfc3339(),
+                read_at: row
+                    .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("read_at")
+                    .map_err(|_| AppError::Internal)?
+                    .map(|dt| dt.to_rfc3339()),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(CabinetMessagesResponse { data }))
 }
 
 /// `POST /v1/cabinet/conversations/:id/messages` — réponse du cabinet dans un
@@ -375,7 +469,7 @@ pub async fn send_cabinet_message(
          (cabinet_id, conversation_id, sender_kind, sender_id, \
           body_ciphertext, body_key_ref, triage_flag) \
          VALUES ($1, $2, $3, $4, $5, 'poc-stub', 'normal') \
-         RETURNING id",
+         RETURNING id, created_at",
     )
     .bind(claims.cabinet_id)
     .bind(conversation_id)
@@ -387,6 +481,8 @@ pub async fn send_cabinet_message(
     .map_err(|_| AppError::Internal)?;
 
     let message_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -404,7 +500,15 @@ pub async fn send_cabinet_message(
 
     Ok((
         StatusCode::CREATED,
-        Json(SendCabinetMessageResponse { message_id }),
+        Json(SendCabinetMessageResponse {
+            message_id,
+            id: message_id,
+            body: body.body,
+            sender: sender_kind.to_string(),
+            sender_kind: sender_kind.to_string(),
+            created_at: created_at.to_rfc3339(),
+            read_at: None,
+        }),
     ))
 }
 

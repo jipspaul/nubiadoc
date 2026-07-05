@@ -74,8 +74,7 @@ class AppRouter {
         GoRoute(
           path: onboard,
           builder: (_, state) => OnboardingPage(
-            invitationToken:
-                state.uri.queryParameters['invitation_token'],
+            invitationToken: state.uri.queryParameters['invitation_token'],
           ),
         ),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),

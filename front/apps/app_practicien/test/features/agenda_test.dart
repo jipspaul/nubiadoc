@@ -271,7 +271,7 @@ void main() {
     );
 
     blocTest<AgendaBloc, AgendaState>(
-      'StartConsultation recharge l\'agenda après succès',
+      'StartConsultation recharge l\'agenda et expose l\'id de séance (#3367)',
       build: () {
         when(() => mockGetAgenda(any()))
             .thenAnswer((_) async => Right([_entry]));
@@ -287,6 +287,25 @@ void main() {
         AgendaLoaded(
             entries: [_entry], weekStart: _weekStart, actionInProgress: true),
         const AgendaLoading(),
+        AgendaLoaded(
+          entries: [_entry],
+          weekStart: _weekStart,
+          startedConsultationId: _session.id,
+        ),
+      ],
+    );
+
+    blocTest<AgendaBloc, AgendaState>(
+      'StartedConsultationConsumed remet startedConsultationId à null',
+      build: () => _makeBloc(
+          getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart),
+      seed: () => AgendaLoaded(
+        entries: [_entry],
+        weekStart: _weekStart,
+        startedConsultationId: 'sess-1',
+      ),
+      act: (bloc) => bloc.add(const AgendaStartedConsultationConsumed()),
+      expect: () => [
         AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       ],
     );

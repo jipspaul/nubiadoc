@@ -66,8 +66,7 @@ void main() {
       expect(
           find.byKey(const Key('onboarding_password_field')), findsOneWidget);
       expect(find.byKey(const Key('onboarding_cgu_checkbox')), findsOneWidget);
-      expect(
-          find.byKey(const Key('onboarding_submit_button')), findsOneWidget);
+      expect(find.byKey(const Key('onboarding_submit_button')), findsOneWidget);
     });
 
     testWidgets('bouton désactivé si formulaire vide', (tester) async {

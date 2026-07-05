@@ -308,3 +308,89 @@ async fn mark_read_204_sets_read_at() {
 
     cleanup_fixture(&owner, cabinet_id, patient_id, conversation_id).await;
 }
+
+// ── GET /v1/cabinet/conversations/:id/messages (#3366) ──────────────────────
+
+async fn get(token: &str, uri: String) -> (StatusCode, serde_json::Value) {
+    let response = app(state().await)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(uri)
+                .header("authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    (status, json)
+}
+
+/// #3366 : ouvrir un fil côté cabinet renvoyait 405 (route GET absente).
+/// Le fil doit lister les messages en clair (POC UTF-8) avec `sender`.
+#[tokio::test]
+async fn cabinet_reads_conversation_messages_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&db).await;
+
+    let token = make_pro_token(cabinet_id, "secretary");
+
+    // Un message envoyé par le cabinet, pour peupler le fil.
+    let (status, sent) = post(
+        &token,
+        format!("/v1/cabinet/conversations/{conversation_id}/messages"),
+        Some(r#"{"body":"Bonjour, votre devis est prêt."}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    // La réponse du POST est un message complet (le front la parse en
+    // MessageDto : id/body/sender/created_at).
+    assert!(sent["id"].is_string(), "id présent dans la réponse du POST");
+    assert_eq!(sent["body"], "Bonjour, votre devis est prêt.");
+    assert_eq!(sent["sender"], "secretary");
+    assert!(sent["created_at"].is_string());
+
+    let (status, json) = get(
+        &token,
+        format!("/v1/cabinet/conversations/{conversation_id}/messages"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "GET fil cabinet doit répondre 200");
+    let data = json["data"].as_array().expect("data[]");
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["body"], "Bonjour, votre devis est prêt.");
+    assert_eq!(data[0]["sender"], "secretary");
+    assert_eq!(data[0]["sender_kind"], "secretary");
+    assert!(data[0]["created_at"].is_string());
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}
+
+/// Cross-tenant : le fil d'un autre cabinet est indistinguable d'un fil
+/// inexistant (404).
+#[tokio::test]
+async fn cabinet_reads_messages_cross_tenant_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&db).await;
+
+    let other_token = make_pro_token(Uuid::new_v4(), "practitioner");
+    let (status, _) = get(
+        &other_token,
+        format!("/v1/cabinet/conversations/{conversation_id}/messages"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}

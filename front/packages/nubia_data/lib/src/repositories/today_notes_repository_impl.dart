@@ -1,15 +1,40 @@
 import 'package:dartz/dartz.dart';
+import 'package:dio/dio.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-class TodayNotesRepositoryImpl implements TodayNotesRepository {
-  const TodayNotesRepositoryImpl();
+import '../remote/today_notes/today_notes_api.dart';
 
-  /// GET /v1/cabinet/today-notes n'est pas encore déployé côté API (404 sur
-  /// chaque appel, cf. #3383). En attendant, on ne tente plus l'appel — la
-  /// carte "Notes du jour" retombe directement sur son état vide plutôt que
-  /// de générer un console.error réseau à chaque chargement du dashboard.
+class TodayNotesRepositoryImpl implements TodayNotesRepository {
+  final TodayNotesApi _api;
+
+  const TodayNotesRepositoryImpl(this._api);
+
+  /// GET /v1/cabinet/today-notes (#3368). Un 404 (API déployée en retard)
+  /// retombe silencieusement sur l'état vide — pas de bannière d'erreur pour
+  /// une carte de survol.
   @override
   Future<Either<Failure, List<ClinicalNoteSummary>>> getTodayNotes() async {
-    return const Right([]);
+    try {
+      final raw = await _api.getTodayNotes();
+      final notes = raw.map((e) {
+        return ClinicalNoteSummary(
+          id: (e['id'] as String?) ?? '',
+          timestamp: DateTime.tryParse(
+                (e['timestamp'] ?? e['started_at'] ?? '') as String,
+              ) ??
+              DateTime.now(),
+          patientInitials: (e['patient_initials'] as String?) ?? '',
+          status: (e['status'] as String?) ?? '',
+        );
+      }).toList();
+      return Right(notes);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return const Right([]);
+    } catch (_) {
+      return const Right([]);
+    }
   }
 }

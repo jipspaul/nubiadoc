@@ -13,8 +13,7 @@ Widget _buildTestScaffold({
         builder: (context) => ElevatedButton(
           key: const Key('open_dialog'),
           onPressed: () async {
-            final result =
-                await showDialog<({String email, MemberRole role})>(
+            final result = await showDialog<({String email, MemberRole role})>(
               context: context,
               builder: (_) => const InviteMemberDialog(),
             );

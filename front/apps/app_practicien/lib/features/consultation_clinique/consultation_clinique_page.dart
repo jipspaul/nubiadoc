@@ -1,10 +1,12 @@
 import 'package:get_it/get_it.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'ccam_picker.dart';
+import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
@@ -348,8 +350,14 @@ class _HistoriqueTile extends StatelessWidget {
         child: Icon(Icons.medical_services_outlined,
             size: 20, color: cs.onPrimaryContainer),
       ),
-      title: 'Consultation ${session.id}',
+      // Libellé lisible plutôt que l'UUID brut (#3371) : nombre d'actes +
+      // statut ; l'UUID reste dans la Key pour les tests/QA.
+      title: 'Consultation · ${session.acts.length} acte(s)',
+      subtitle: _statusLabel,
       trailing: StatusPill(label: _statusLabel, variant: _statusVariant),
+      // #3367 : la carte doit ouvrir la séance (aucune autre voie d'accès).
+      onTap: () =>
+          GoRouter.of(context).go('${AppRouter.consultation}?id=${session.id}'),
     );
   }
 }

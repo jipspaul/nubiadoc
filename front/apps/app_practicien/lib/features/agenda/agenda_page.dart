@@ -8,6 +8,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import '../patients/patients_bloc.dart';
 import '../patients/patients_event.dart';
 import '../patients/patients_state.dart';
+import '../../router/app_router.dart';
 import 'agenda_bloc.dart';
 import 'agenda_event.dart';
 import 'agenda_state.dart';
@@ -174,12 +175,22 @@ class AgendaBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocListener<AgendaBloc, AgendaState>(
       listenWhen: (_, current) =>
-          current is AgendaLoaded && current.actionError != null,
+          current is AgendaLoaded &&
+          (current.actionError != null ||
+              current.startedConsultationId != null),
       listener: (context, state) {
         if (state is AgendaLoaded && state.actionError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.actionError!)),
           );
+        }
+        if (state is AgendaLoaded && state.startedConsultationId != null) {
+          // #3367 : ouvrir directement la séance au fauteuil.
+          final id = state.startedConsultationId!;
+          context
+              .read<AgendaBloc>()
+              .add(const AgendaStartedConsultationConsumed());
+          GoRouter.of(context).go('${AppRouter.consultation}?id=$id');
         }
       },
       child: BlocBuilder<AgendaBloc, AgendaState>(

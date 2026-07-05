@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
@@ -56,7 +57,10 @@ class DashboardPage extends StatelessWidget {
         final Widget body;
         if (destination.route == ProConfig.dashboardRoute) {
           body = BlocProvider(
-            create: (_) => DashboardBloc()..add(const DashboardLoadRequested()),
+            create: (_) => DashboardBloc(
+              getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
+              listWaitingList: GetIt.instance<ListWaitingListUseCase>(),
+            )..add(const DashboardLoadRequested()),
             child: const _DashboardContent(),
           );
         } else if (destination.route == '/salle-attente') {

@@ -57,8 +57,7 @@ void main() {
       expect(find.byType(NubiaErrorWidget), findsOneWidget);
     });
 
-    testWidgets(
-        'affiche NubiaEmptyState quand le flux se termine sans surface',
+    testWidgets('affiche NubiaEmptyState quand le flux se termine sans surface',
         (tester) async {
       await tester.pumpApp(
         A2uiRenderer(

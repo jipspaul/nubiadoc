@@ -23,6 +23,12 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     on<AgendaWeekChanged>(_onWeekChanged);
     on<AgendaAppointmentConfirmRequested>(_onConfirm);
     on<AgendaConsultationStartRequested>(_onStartConsultation);
+    on<AgendaStartedConsultationConsumed>((event, emit) {
+      final current = state;
+      if (current is AgendaLoaded) {
+        emit(current.copyWith(clearStartedConsultation: true));
+      }
+    });
     on<TogglePastIncluded>(_onTogglePast);
   }
 
@@ -30,6 +36,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     DateTime weekStart,
     Emitter<AgendaState> emit, {
     required bool includePast,
+    String? startedConsultationId,
   }) async {
     emit(const AgendaLoading());
     try {
@@ -40,6 +47,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
           entries: entries,
           weekStart: weekStart,
           includePast: includePast,
+          startedConsultationId: startedConsultationId,
         )),
       );
     } catch (_) {
@@ -116,10 +124,14 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
           actionInProgress: false,
           actionError: failure.message,
         )),
-        (_) async => _fetchAndEmit(
+        // La session démarrée est propagée au state : la page navigue vers
+        // /consultation?id=… (#3367 — le clic « Démarrer » ne faisait rien
+        // de visible).
+        (session) async => _fetchAndEmit(
           current.weekStart,
           emit,
           includePast: current.includePast,
+          startedConsultationId: session.id,
         ),
       );
     } catch (_) {

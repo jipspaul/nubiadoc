@@ -1,9 +1,8 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:nubia_domain/nubia_domain.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -34,25 +33,31 @@ class PatientFicheState extends Equatable {
   final bool showClinical;
   final bool isExportingPdf;
   final String? exportPdfError;
-  final String? pdfFilePath;
+
+  /// PDF généré, prêt à partager (bytes en mémoire — pas de filesystem,
+  /// dart:io/path_provider lèvent sur Flutter web, #3369).
+  final Uint8List? pdfBytes;
+  final String? pdfFilename;
 
   const PatientFicheState({
     this.showClinical = true,
     this.isExportingPdf = false,
     this.exportPdfError,
-    this.pdfFilePath,
+    this.pdfBytes,
+    this.pdfFilename,
   });
 
   PatientFicheState copyWith({bool? showClinical}) => PatientFicheState(
         showClinical: showClinical ?? this.showClinical,
         isExportingPdf: isExportingPdf,
         exportPdfError: exportPdfError,
-        pdfFilePath: pdfFilePath,
+        pdfBytes: pdfBytes,
+        pdfFilename: pdfFilename,
       );
 
   @override
   List<Object?> get props =>
-      [showClinical, isExportingPdf, exportPdfError, pdfFilePath];
+      [showClinical, isExportingPdf, exportPdfError, pdfBytes, pdfFilename];
 }
 
 // --------------- Bloc ---------------
@@ -80,12 +85,10 @@ class PatientFicheBloc extends Bloc<PatientFicheEvent, PatientFicheState> {
     ));
     try {
       final bytes = await _buildPatientPdf(event.patient);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/patient_${event.patient.id}.pdf');
-      await file.writeAsBytes(bytes);
       emit(PatientFicheState(
         showClinical: state.showClinical,
-        pdfFilePath: file.path,
+        pdfBytes: Uint8List.fromList(bytes),
+        pdfFilename: 'patient_${event.patient.id}.pdf',
       ));
     } catch (_) {
       emit(PatientFicheState(
