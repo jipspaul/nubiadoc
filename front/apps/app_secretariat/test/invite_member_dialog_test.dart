@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/admin_membres/invite_member_dialog.dart';
 
-Widget _buildTestScaffold() {
+Widget _buildTestScaffold({
+  ValueChanged<({String email, MemberRole role})?>? onResult,
+}) {
   return MaterialApp(
     home: Scaffold(
       body: Builder(
         builder: (context) => ElevatedButton(
           key: const Key('open_dialog'),
-          onPressed: () => showDialog<void>(
-            context: context,
-            builder: (_) => const InviteMemberDialog(),
-          ),
+          onPressed: () async {
+            final result =
+                await showDialog<({String email, MemberRole role})>(
+              context: context,
+              builder: (_) => const InviteMemberDialog(),
+            );
+            onResult?.call(result);
+          },
           child: const Text('Ouvrir'),
         ),
       ),
@@ -59,9 +66,13 @@ void main() {
     expect(submitButtonEnabled.onPressed, isNotNull);
   });
 
-  testWidgets('tap Inviter ferme le dialog et affiche snackbar',
+  testWidgets(
+      'tap Inviter ferme le dialog et retourne l\'email et le rôle saisis',
       (tester) async {
-    await tester.pumpWidget(_buildTestScaffold());
+    ({String email, MemberRole role})? result;
+    await tester.pumpWidget(
+      _buildTestScaffold(onResult: (r) => result = r),
+    );
 
     await tester.tap(find.byKey(const Key('open_dialog')));
     await tester.pumpAndSettle();
@@ -76,6 +87,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('invite_email_field')), findsNothing);
-    expect(find.text('Invitation envoyée (stub)'), findsOneWidget);
+    expect(result?.email, 'invite@cabinet.fr');
+    expect(result?.role, MemberRole.secretary);
   });
 }

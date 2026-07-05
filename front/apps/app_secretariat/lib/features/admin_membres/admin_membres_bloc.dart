@@ -9,14 +9,18 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
     with SafeEmitMixin<AdminMembresState> {
   final ListMembersUseCase _listMembers;
   final ListSecretiariatsUseCase _listSecretariats;
+  final InviteMemberUseCase _inviteMember;
 
   AdminMembresBloc({
     required ListMembersUseCase listMembers,
     required ListSecretiariatsUseCase listSecretariats,
+    required InviteMemberUseCase inviteMember,
   })  : _listMembers = listMembers,
         _listSecretariats = listSecretariats,
+        _inviteMember = inviteMember,
         super(const AdminMembresInitial()) {
     on<AdminMembresLoadRequested>(_onLoad);
+    on<AdminMembresInviteRequested>(_onInvite);
   }
 
   Future<void> _onLoad(
@@ -47,6 +51,25 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
       }
     } catch (_) {
       safeEmit(const AdminMembresError('Erreur de chargement.'));
+    }
+  }
+
+  Future<void> _onInvite(
+    AdminMembresInviteRequested event,
+    Emitter<AdminMembresState> emit,
+  ) async {
+    emit(const AdminMembresLoading());
+    try {
+      final result = await _inviteMember(event.email, event.role);
+      result.fold(
+        (failure) => safeEmit(AdminMembresError(failure.message)),
+        (_) {
+          safeEmit(const AdminMembresInviteSuccess());
+          add(const AdminMembresLoadRequested());
+        },
+      );
+    } catch (_) {
+      safeEmit(const AdminMembresError("Erreur lors de l'invitation."));
     }
   }
 }

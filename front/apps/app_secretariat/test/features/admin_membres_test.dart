@@ -82,6 +82,7 @@ void main() {
     late _MockSecretariatRepository secretariatRepo;
     late ListMembersUseCase listMembers;
     late ListSecretiariatsUseCase listSecretariats;
+    late InviteMemberUseCase inviteMember;
 
     final members = [
       Member(
@@ -112,6 +113,7 @@ void main() {
       secretariatRepo = _MockSecretariatRepository();
       listMembers = ListMembersUseCase(membersRepo);
       listSecretariats = ListSecretiariatsUseCase(secretariatRepo);
+      inviteMember = InviteMemberUseCase(membersRepo);
     });
 
     blocTest<AdminMembresBloc, AdminMembresState>(
@@ -123,6 +125,7 @@ void main() {
         return AdminMembresBloc(
           listMembers: listMembers,
           listSecretariats: listSecretariats,
+          inviteMember: inviteMember,
         );
       },
       act: (bloc) => bloc.add(const AdminMembresLoadRequested()),
@@ -143,6 +146,7 @@ void main() {
         return AdminMembresBloc(
           listMembers: listMembers,
           listSecretariats: listSecretariats,
+          inviteMember: inviteMember,
         );
       },
       act: (bloc) => bloc.add(const AdminMembresLoadRequested()),
@@ -161,6 +165,7 @@ void main() {
         return AdminMembresBloc(
           listMembers: listMembers,
           listSecretariats: listSecretariats,
+          inviteMember: inviteMember,
         );
       },
       act: (bloc) => bloc.add(const AdminMembresLoadRequested()),

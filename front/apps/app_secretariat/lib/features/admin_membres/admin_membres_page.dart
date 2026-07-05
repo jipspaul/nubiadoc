@@ -57,37 +57,59 @@ class _AdminMembresPageState extends State<AdminMembresPage>
       ),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('add_member_fab'),
-        onPressed: () => showDialog<void>(
-          context: context,
-          builder: (_) => const InviteMemberDialog(),
-        ),
+        onPressed: () async {
+          final bloc = context.read<AdminMembresBloc>();
+          final result = await showDialog<({String email, MemberRole role})>(
+            context: context,
+            builder: (_) => const InviteMemberDialog(),
+          );
+          if (result != null) {
+            bloc.add(
+              AdminMembresInviteRequested(
+                email: result.email,
+                role: result.role,
+              ),
+            );
+          }
+        },
         icon: const Icon(Icons.person_add),
         label: const Text('Ajouter membre'),
       ),
-      body: BlocBuilder<AdminMembresBloc, AdminMembresState>(
-        builder: (context, state) => switch (state) {
-          AdminMembresInitial() || AdminMembresLoading() => const Center(
-              child: CircularProgressIndicator(),
-            ),
-          AdminMembresEmpty() => const NubiaEmptyState(
-              key: Key('admin_membres_empty'),
-              icon: Icons.group_outlined,
-              title: 'Aucun membre ni secrétariat enregistré.',
-            ),
-          AdminMembresLoaded(:final members, :final secretariats) => TabBarView(
-              controller: _tabController,
-              children: [
-                _MembersList(members: members),
-                _SecretariatsList(secretariats: secretariats),
-              ],
-            ),
-          AdminMembresError(:final message) => NubiaErrorWidget(
-              message: message,
-              onRetry: () => context
-                  .read<AdminMembresBloc>()
-                  .add(const AdminMembresLoadRequested()),
-            ),
-        },
+      body: BlocListener<AdminMembresBloc, AdminMembresState>(
+        listenWhen: (_, state) => state is AdminMembresInviteSuccess,
+        listener: (context, _) => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invitation envoyée.')),
+        ),
+        child: BlocBuilder<AdminMembresBloc, AdminMembresState>(
+          buildWhen: (_, state) => state is! AdminMembresInviteSuccess,
+          builder: (context, state) => switch (state) {
+            AdminMembresInitial() ||
+            AdminMembresLoading() ||
+            AdminMembresInviteSuccess() =>
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+            AdminMembresEmpty() => const NubiaEmptyState(
+                key: Key('admin_membres_empty'),
+                icon: Icons.group_outlined,
+                title: 'Aucun membre ni secrétariat enregistré.',
+              ),
+            AdminMembresLoaded(:final members, :final secretariats) =>
+              TabBarView(
+                controller: _tabController,
+                children: [
+                  _MembersList(members: members),
+                  _SecretariatsList(secretariats: secretariats),
+                ],
+              ),
+            AdminMembresError(:final message) => NubiaErrorWidget(
+                message: message,
+                onRetry: () => context
+                    .read<AdminMembresBloc>()
+                    .add(const AdminMembresLoadRequested()),
+              ),
+          },
+        ),
       ),
     );
   }

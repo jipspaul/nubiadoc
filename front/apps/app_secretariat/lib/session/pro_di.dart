@@ -66,6 +66,7 @@ void registerPro(GetIt gi) {
       () => AdminMembresBloc(
         listMembers: gi<ListMembersUseCase>(),
         listSecretariats: gi<ListSecretiariatsUseCase>(),
+        inviteMember: gi<InviteMemberUseCase>(),
       ),
     )
     ..registerFactory<AdminSecretiariatsBloc>(
