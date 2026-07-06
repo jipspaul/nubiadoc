@@ -7,6 +7,11 @@ export type Role = 'patient' | 'practitioner' | 'secretary' | 'admin';
 interface NavItem {
   href: string;
   label: string;
+  /**
+   * Action réservée aux administrateurs du cabinet (rôle `admin`/`manager`).
+   * Masquée pour un secrétaire : l'API renverrait 403 (garde-fou front #3410).
+   */
+  adminOnly?: boolean;
 }
 
 interface Props {
@@ -15,6 +20,11 @@ interface Props {
 }
 
 const { title = 'Nubia', role } = Astro.props;
+
+// Rôle RÉEL de l'utilisateur (le prop `role` désigne l'ESPACE affiché, pas le rôle :
+// un admin naviguant dans l'espace secrétaire a `role="secretary"` mais cookie `admin`).
+const currentRole = Astro.cookies.get('nubia_role')?.value ?? '';
+const isCabinetAdmin = currentRole === 'admin' || currentRole === 'manager';
 
 const NAV: Record<Role, NavItem[]> = {
   patient: [
@@ -38,7 +48,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: '/secretary/agenda',             label: 'Agenda' },
     { href: '/secretary/liste-attente',      label: "Liste d'attente" },
     { href: '/secretary/patients',           label: 'Patients' },
-    { href: '/secretary/equipe',             label: 'Équipe' },
+    { href: '/secretary/equipe',             label: 'Équipe',            adminOnly: true },
     { href: '/secretary/facturation',        label: 'Facturation' },
     { href: '/secretary/messagerie',         label: 'Messagerie' },
     { href: '/secretary/cabinet',            label: 'Réglages cabinet' },
@@ -49,7 +59,8 @@ const NAV: Record<Role, NavItem[]> = {
   ],
 };
 
-const navItems = NAV[role];
+// Masque les entrées `adminOnly` si l'utilisateur n'est pas admin/manager du cabinet.
+const navItems = NAV[role].filter((item) => !item.adminOnly || isCabinetAdmin);
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 const isActive = (href: string) => {
   const h = href.replace(/\/$/, '') || '/';
