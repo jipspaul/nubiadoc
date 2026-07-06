@@ -565,10 +565,12 @@ pub async fn search_providers(
              COUNT(*) OVER() AS total_count \
          FROM provider p \
          LEFT JOIN specialty s ON s.id = p.specialty_id \
+         LEFT JOIN profession pr ON pr.id = s.profession_id \
          WHERE p.is_listed = true \
              AND ($4::text IS NULL \
                   OR p.display_name ILIKE '%' || $4 || '%' \
-                  OR s.label ILIKE '%' || $4 || '%') \
+                  OR s.label ILIKE '%' || $4 || '%' \
+                  OR pr.label ILIKE '%' || $4 || '%') \
              AND ($5::uuid IS NULL OR p.specialty_id = $5) \
              AND ($6::text IS NULL OR p.sector = $6) \
              AND ($7::boolean IS NULL OR p.teleconsult = $7) \

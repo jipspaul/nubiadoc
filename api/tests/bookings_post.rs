@@ -201,6 +201,7 @@ async fn post_booking_happy_path_returns_201_and_removes_hold() {
                     serde_json::to_string(&json!({
                         "slot_id": slot_id,
                         "hold_token": hold_token,
+                        "motif": "Douleur dentaire",
                     }))
                     .unwrap(),
                 ))
@@ -233,7 +234,7 @@ async fn post_booking_happy_path_returns_201_and_removes_hold() {
             .await
             .unwrap();
         let row = sqlx::query(
-            "SELECT patient_id, status FROM appointment WHERE id = $1 AND cabinet_id = $2",
+            "SELECT patient_id, status, motif FROM appointment WHERE id = $1 AND cabinet_id = $2",
         )
         .bind(appt_id)
         .bind(cabinet_id)
@@ -244,8 +245,14 @@ async fn post_booking_happy_path_returns_201_and_removes_hold() {
 
         let db_patient_id: Uuid = row.try_get("patient_id").unwrap();
         let db_status: String = row.try_get("status").unwrap();
+        let db_motif: Option<String> = row.try_get("motif").unwrap();
         assert_eq!(db_patient_id, patient_id, "patient_id doit correspondre");
         assert_eq!(db_status, "requested", "status DB doit être requested");
+        assert_eq!(
+            db_motif.as_deref(),
+            Some("Douleur dentaire"),
+            "le motif envoyé doit être stocké sur l'appointment (#3415)"
+        );
     }
 
     // Vérification DB : hold supprimé.

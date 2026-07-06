@@ -105,6 +105,99 @@ async fn insert_unlisted_provider(db: &PgPool, suffix: &str) -> Uuid {
     provider_id
 }
 
+/// Insère un provider listé rattaché à une spécialité donnée (via specialty_id).
+/// Retourne le provider_id. Sert à tester le matching `q` = nom de profession (#3417).
+async fn insert_provider_with_specialty(db: &PgPool, suffix: &str, specialty_id: Uuid) -> Uuid {
+    let cabinet_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Spec Test {}", suffix))
+        .execute(db)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("spec-pro-{}@nubia.test", suffix))
+    .execute(db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider (id, cabinet_id, user_id, display_name, specialty_id, rpps_verified, is_listed) \
+         VALUES ($1, $2, $3, $4, $5, true, true)",
+    )
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .bind(user_id)
+    .bind(format!("Dr Spec {}", suffix))
+    .bind(specialty_id)
+    .execute(db)
+    .await
+    .unwrap();
+
+    provider_id
+}
+
+// ── Test : `q` = nom de profession → retourne les praticiens de cette profession (#3417) ──
+
+#[tokio::test]
+async fn search_providers_q_profession_name_returns_practitioners() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    // Spécialité seedée « Omnipratique » rattachée à la profession « Chirurgien-dentiste ».
+    let omnipratique_id: Uuid = "d2000000-0000-0000-0000-000000000001".parse().unwrap();
+    let provider_id =
+        insert_provider_with_specialty(&db, &Uuid::new_v4().to_string(), omnipratique_id).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // « dentiste » ne matche aucun label de spécialité (Omnipratique/Implantologie/…)
+    // mais matche la profession « Chirurgien-dentiste » → le provider doit apparaître.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?q=dentiste")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    let found = data
+        .iter()
+        .any(|e| e["provider_id"].as_str() == Some(&provider_id.to_string()));
+    assert!(
+        found,
+        "q=dentiste (profession) doit retourner un praticien Omnipratique (#3417)"
+    );
+
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 1 : happy path — provider listé → apparaît dans data avec structure correcte ──
 
 #[tokio::test]

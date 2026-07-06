@@ -20,6 +20,9 @@ pub struct CreateBookingBody {
     pub slot_id: Uuid,
     pub hold_token: String,
     pub idempotency_key: Option<String>,
+    /// Motif de consultation saisi par le patient (facultatif). Stocké sur
+    /// l'appointment pour informer le praticien du motif de la venue (#3415).
+    pub motif: Option<String>,
 }
 
 /// Réponse de `POST /v1/bookings`.
@@ -144,8 +147,8 @@ pub async fn create_booking(
     // INSERT appointment — 23P01 (appointment_no_overlap) → 409 slot_taken.
     let result = sqlx::query(
         "INSERT INTO appointment \
-         (cabinet_id, patient_id, practitioner_id, slot_id, starts_at, ends_at, status, idempotency_key) \
-         VALUES ($1, $2, $3, $4, $5, $6, 'requested', $7) \
+         (cabinet_id, patient_id, practitioner_id, slot_id, starts_at, ends_at, status, idempotency_key, motif) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'requested', $7, $8) \
          RETURNING id, status",
     )
     .bind(cabinet_id)
@@ -155,6 +158,7 @@ pub async fn create_booking(
     .bind(starts_at)
     .bind(ends_at)
     .bind(&body.idempotency_key)
+    .bind(&body.motif)
     .fetch_one(&mut *tx)
     .await;
 
