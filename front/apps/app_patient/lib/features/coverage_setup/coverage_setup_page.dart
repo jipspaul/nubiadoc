@@ -40,11 +40,10 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
           constraints: const BoxConstraints(maxWidth: 420),
           child: BlocConsumer<CoverageSetupCubit, CoverageSetupState>(
             listener: (context, state) {
-              if (state is CoverageSetupFailure) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(state.message)),
-                );
-              } else if (state is CoverageSetupSuccess) {
+              // Bannière persistante (voir builder ci-dessous) plutôt qu'un
+              // SnackBar transitoire : un 422 ne doit pas passer pour un
+              // no-op silencieux (cf. issue #3434).
+              if (state is CoverageSetupSuccess) {
                 context.go(AppRouter.home);
               }
             },
@@ -65,6 +64,26 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
                       'Renseignez votre régime et votre mutuelle',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
+                    if (state is CoverageSetupFailure) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        key: const Key('coverage_setup_error_banner'),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .errorContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          state.message,
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     Text(
                       'Régime',
