@@ -55,7 +55,9 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState>
   ) async {
     emit(const BookableSlotsLoading());
     try {
-      final result = await _listSlots();
+      // #3365 : ne pas charger les créneaux passés — l'API filtre via `from`
+      // (sanitizeBookableSlots reste en défense côté client).
+      final result = await _listSlots(from: _now());
       result.fold(
         (failure) => safeEmit(BookableSlotsError(failure.message)),
         (slots) =>

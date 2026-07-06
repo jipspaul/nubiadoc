@@ -394,3 +394,40 @@ async fn cabinet_reads_messages_cross_tenant_404() {
 
     cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
 }
+
+/// #3373 : la liste cabinet doit exposer l'aperçu du dernier message —
+/// sans lui, l'UI affichait « Aucun message » sous chaque fil actif.
+#[tokio::test]
+async fn cabinet_list_exposes_last_message_preview() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, patient_id, conversation_id) = insert_fixture(&db).await;
+
+    let token = make_pro_token(cabinet_id, "practitioner");
+    let (status, _) = post(
+        &token,
+        format!("/v1/cabinet/conversations/{conversation_id}/messages"),
+        Some(r#"{"body":"Aperçu attendu dans la liste."}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, json) = get(&token, "/v1/cabinet/conversations".to_string()).await;
+    assert_eq!(status, StatusCode::OK);
+    let conv = json["data"]
+        .as_array()
+        .expect("data[]")
+        .iter()
+        .find(|c| c["id"] == conversation_id.to_string())
+        .expect("la conversation de la fixture doit être listée")
+        .clone();
+    assert_eq!(
+        conv["last_message_preview"], "Aperçu attendu dans la liste.",
+        "aperçu du dernier message présent (#3373)"
+    );
+    assert!(conv["last_message_at"].is_string());
+
+    cleanup_fixture(&db, cabinet_id, patient_id, conversation_id).await;
+}

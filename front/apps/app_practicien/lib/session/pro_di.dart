@@ -115,6 +115,7 @@ void registerPro(GetIt gi) {
       listPatients: gi<ListCabinetPatientsUseCase>(),
       getPatient: gi<GetCabinetPatientUseCase>(),
       updateNotes: gi<UpdatePatientNotesUseCase>(),
+      listAppointments: gi<ListCabinetAppointmentsUseCase>(),
     ),
   );
 }

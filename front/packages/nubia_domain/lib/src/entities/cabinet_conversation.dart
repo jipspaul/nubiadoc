@@ -9,6 +9,9 @@ class CabinetConversation extends Equatable {
   final DateTime? lastMessageAt;
   final Message? lastMessage;
 
+  /// Aperçu tronqué du dernier message (`last_message_preview`, #3373).
+  final String? lastMessagePreview;
+
   const CabinetConversation({
     required this.id,
     required this.patientId,
@@ -16,6 +19,7 @@ class CabinetConversation extends Equatable {
     required this.unreadCount,
     this.lastMessageAt,
     this.lastMessage,
+    this.lastMessagePreview,
   });
 
   @override

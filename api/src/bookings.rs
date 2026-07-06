@@ -44,16 +44,17 @@ pub async fn create_booking(
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Résout le créneau pour obtenir cabinet_id + practitioner_id + starts_at/ends_at.
-    let slot_row = sqlx::query(
-        "SELECT id, cabinet_id, practitioner_id, starts_at, ends_at \
-         FROM availability_slot \
-         WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(body.slot_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::NotFound)?;
+    // Via resolve_slot_for_booking (SECURITY DEFINER, migration 0128) : les
+    // policies SELECT d'availability_slot ne montrent que status='open', or le
+    // hold vient de passer le créneau en 'held' → un SELECT direct renvoyait
+    // 0 ligne et le booking répondait 404 après chaque hold (#3347). Le hold
+    // (token + user + expiration) est validé juste après.
+    let slot_row = sqlx::query("SELECT * FROM resolve_slot_for_booking($1)")
+        .bind(body.slot_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
 
     let cabinet_id: Uuid = slot_row
         .try_get("cabinet_id")

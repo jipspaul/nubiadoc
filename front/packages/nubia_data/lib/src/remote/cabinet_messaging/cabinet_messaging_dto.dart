@@ -8,6 +8,7 @@ class CabinetConversationDto {
   final int unreadCount;
   final String? lastMessageAt;
   final MessageDto? lastMessage;
+  final String? lastMessagePreview;
 
   const CabinetConversationDto({
     required this.id,
@@ -16,6 +17,7 @@ class CabinetConversationDto {
     required this.unreadCount,
     this.lastMessageAt,
     this.lastMessage,
+    this.lastMessagePreview,
   });
 
   factory CabinetConversationDto.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class CabinetConversationDto {
       lastMessage: json['last_message'] == null
           ? null
           : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
+      lastMessagePreview: json['last_message_preview'] as String?,
     );
   }
 
@@ -43,5 +46,6 @@ class CabinetConversationDto {
         lastMessageAt:
             lastMessageAt == null ? null : DateTime.parse(lastMessageAt!),
         lastMessage: lastMessage?.toDomain(),
+        lastMessagePreview: lastMessagePreview,
       );
 }

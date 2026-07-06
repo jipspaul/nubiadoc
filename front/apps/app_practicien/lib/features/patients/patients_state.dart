@@ -39,10 +39,15 @@ class PatientDetailLoaded extends PatientsState {
   final bool notesUpdating;
   final String? notesError;
 
+  /// Historique des RDV du patient dans le cabinet (#3372) — best-effort,
+  /// vide si l'appel agenda échoue (la fiche reste utilisable).
+  final List<CabinetAppointment> appointments;
+
   const PatientDetailLoaded(
     this.patient, {
     this.notesUpdating = false,
     this.notesError,
+    this.appointments = const [],
   });
 
   PatientDetailLoaded copyWith({
@@ -50,15 +55,17 @@ class PatientDetailLoaded extends PatientsState {
     bool? notesUpdating,
     String? notesError,
     bool clearNotesError = false,
+    List<CabinetAppointment>? appointments,
   }) =>
       PatientDetailLoaded(
         patient ?? this.patient,
         notesUpdating: notesUpdating ?? this.notesUpdating,
         notesError: clearNotesError ? null : (notesError ?? this.notesError),
+        appointments: appointments ?? this.appointments,
       );
 
   @override
-  List<Object?> get props => [patient, notesUpdating, notesError];
+  List<Object?> get props => [patient, notesUpdating, notesError, appointments];
 }
 
 class PatientDetailError extends PatientsState {
