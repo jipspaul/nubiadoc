@@ -21,7 +21,12 @@ class _AccountSetupPageState extends State<AccountSetupPage> {
 
   static final _phoneRe = RegExp(r'^(\+33|0033|0)[1-9]\d{8}$');
 
-  bool get _phoneValid => _phoneRe.hasMatch(_phone.text.trim());
+  // Le hint affiché ("+33 6 12 34 56 78") contient des espaces : on les
+  // retire avant validation, sinon un utilisateur qui suit le format suggéré
+  // se retrouve avec un formulaire bloqué (bouton "Continuer" jamais activé).
+  String get _normalizedPhone => _phone.text.replaceAll(RegExp(r'\s+'), '');
+
+  bool get _phoneValid => _phoneRe.hasMatch(_normalizedPhone);
 
   bool get _dobValid => _dateOfBirth != null && _isOldEnough(_dateOfBirth!);
 
@@ -144,7 +149,7 @@ class _AccountSetupPageState extends State<AccountSetupPage> {
                           : () => context.read<AccountSetupCubit>().submit(
                                 firstName: _firstName.text.trim(),
                                 lastName: _lastName.text.trim(),
-                                phone: _phone.text.trim(),
+                                phone: _normalizedPhone,
                                 dateOfBirth: _dateOfBirth!,
                               ),
                     ),
