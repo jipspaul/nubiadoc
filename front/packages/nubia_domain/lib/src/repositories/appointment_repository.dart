@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/appointment.dart';
+import 'package:nubia_domain/src/entities/appointment_preparation.dart';
 import 'package:nubia_domain/src/entities/directions_result.dart';
 
 abstract class AppointmentRepository {
@@ -21,4 +22,5 @@ abstract class AppointmentRepository {
     String id, {
     String mode = 'car',
   });
+  Future<Either<Failure, AppointmentPreparation>> getPreparation(String id);
 }

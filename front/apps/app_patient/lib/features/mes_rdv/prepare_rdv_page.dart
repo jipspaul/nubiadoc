@@ -1,18 +1,6 @@
 import 'package:flutter/material.dart';
-
-// ── Data models ──────────────────────────────────────────────────────────────
-
-class BringItem {
-  const BringItem({required this.id, required this.label});
-  final String id;
-  final String label;
-}
-
-class AppointmentPreparation {
-  const AppointmentPreparation({required this.address, required this.items});
-  final String address;
-  final List<BringItem> items;
-}
+import 'package:get_it/get_it.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 // ── Prefs service (mock-able) ────────────────────────────────────────────────
 
@@ -33,19 +21,12 @@ class InMemoryPrepareRdvPrefsService implements PrepareRdvPrefsService {
       _store[rdvId] = Set<String>.from(ids);
 }
 
-// ── Stub (simulates GET /v1/appointments/:id/preparation) ────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-const _kDefaultItems = [
-  BringItem(id: 'carte_vitale', label: 'Carte Vitale'),
-  BringItem(id: 'carte_mutuelle', label: 'Carte mutuelle'),
-  BringItem(id: 'ordonnance', label: 'Ordonnance'),
-];
-
-AppointmentPreparation _stubPreparation(String id) =>
-    const AppointmentPreparation(
-      address: '12 rue de la Paix, 75001 Paris',
-      items: _kDefaultItems,
-    );
+String itemIdFromLabel(String label) => label
+    .toLowerCase()
+    .replaceAll(RegExp('[^a-z0-9]+'), '_')
+    .replaceAll(RegExp(r'^_+|_+$'), '');
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -54,10 +35,12 @@ class PrepareRdvPage extends StatefulWidget {
     super.key,
     required this.appointmentId,
     this.prefsService,
+    this.useCase,
   });
 
   final String appointmentId;
   final PrepareRdvPrefsService? prefsService;
+  final GetAppointmentPreparationUseCase? useCase;
 
   @override
   State<PrepareRdvPage> createState() => _PrepareRdvPageState();
@@ -65,7 +48,9 @@ class PrepareRdvPage extends StatefulWidget {
 
 class _PrepareRdvPageState extends State<PrepareRdvPage> {
   late final PrepareRdvPrefsService _prefs;
+  late final GetAppointmentPreparationUseCase _useCase;
   bool _loading = true;
+  String? _error;
   AppointmentPreparation? _prep;
   Set<String> _checked = const {};
 
@@ -73,19 +58,27 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
   void initState() {
     super.initState();
     _prefs = widget.prefsService ?? InMemoryPrepareRdvPrefsService();
+    _useCase =
+        widget.useCase ?? GetIt.instance<GetAppointmentPreparationUseCase>();
     _load();
   }
 
   Future<void> _load() async {
-    final prep = _stubPreparation(widget.appointmentId);
+    final result = await _useCase(widget.appointmentId);
     final checked = await _prefs.loadChecked(widget.appointmentId);
-    if (mounted) {
-      setState(() {
+    if (!mounted) return;
+    result.fold(
+      (failure) => setState(() {
         _loading = false;
+        _error = failure.message;
+      }),
+      (prep) => setState(() {
+        _loading = false;
+        _error = null;
         _prep = prep;
         _checked = checked;
-      });
-    }
+      }),
+    );
   }
 
   Future<void> _toggle(String itemId) async {
@@ -110,11 +103,20 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
         ),
       );
     }
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Préparer mon RDV')),
+        body: Center(
+          key: const Key('prepare_rdv_error'),
+          child: Text(_error!),
+        ),
+      );
+    }
     final prep = _prep!;
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          prep.address,
+          prep.address ?? 'Préparer mon RDV',
           key: const Key('prepare_rdv_address'),
         ),
       ),
@@ -122,15 +124,16 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
         key: const Key('prepare_rdv_list'),
         padding: const EdgeInsets.all(16),
         children: prep.items.map((item) {
-          final isChecked = _checked.contains(item.id);
+          final itemId = itemIdFromLabel(item.label);
+          final isChecked = _checked.contains(itemId);
           return Card(
-            key: Key('item_${item.id}'),
+            key: Key('item_$itemId'),
             child: ListTile(
               leading: Icon(
                 isChecked ? Icons.check_box : Icons.check_box_outline_blank,
               ),
               title: Text(item.label),
-              onTap: () => _toggle(item.id),
+              onTap: () => _toggle(itemId),
             ),
           );
         }).toList(),

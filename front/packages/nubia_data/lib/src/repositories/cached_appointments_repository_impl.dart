@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/entities/appointment.dart';
+import 'package:nubia_domain/src/entities/appointment_preparation.dart';
 import 'package:nubia_domain/src/entities/directions_result.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/repositories/appointment_repository.dart';
@@ -103,4 +104,8 @@ class CachedAppointmentsRepositoryImpl extends CachedXRepository<Appointment>
     String mode = 'car',
   }) =>
       _remote.getDirections(id, mode: mode);
+
+  @override
+  Future<Either<Failure, AppointmentPreparation>> getPreparation(String id) =>
+      _remote.getPreparation(id);
 }
