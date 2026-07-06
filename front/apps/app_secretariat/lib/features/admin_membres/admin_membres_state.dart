@@ -39,6 +39,18 @@ final class AdminMembresError extends AdminMembresState {
   List<Object?> get props => [message];
 }
 
+/// Accès refusé (403) : l'utilisateur n'est pas administrateur du cabinet.
+/// État informatif distinct de l'erreur générique — il masque toute action
+/// d'écriture (invitation), qui échouerait de toute façon en 403.
+final class AdminMembresForbidden extends AdminMembresState {
+  const AdminMembresForbidden(this.message);
+
+  final String message;
+
+  @override
+  List<Object?> get props => [message];
+}
+
 final class AdminMembresInviteSuccess extends AdminMembresState {
   const AdminMembresInviteSuccess();
 }

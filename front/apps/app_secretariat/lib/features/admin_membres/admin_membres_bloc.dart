@@ -36,7 +36,13 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
           secretariatsResult.fold((f) => f, (_) => null);
 
       if (failure != null) {
-        safeEmit(AdminMembresError(failure.message));
+        // 403 = route admin-only : un secrétaire simple n'a pas accès.
+        // On distingue ce cas pour masquer l'action d'invitation (cul-de-sac).
+        if (failure is ServerFailure && failure.statusCode == 403) {
+          safeEmit(AdminMembresForbidden(failure.message));
+        } else {
+          safeEmit(AdminMembresError(failure.message));
+        }
         return;
       }
 
