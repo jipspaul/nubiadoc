@@ -89,9 +89,12 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
   }
 
   @override
-  Future<Either<Failure, Secretariat>> invite(String email) async {
+  Future<Either<Failure, Secretariat>> invite({
+    required String name,
+    required String email,
+  }) async {
     try {
-      final dto = await _api.invite(email);
+      final dto = await _api.invite(name: name, email: email);
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {

@@ -41,10 +41,25 @@ class _AdminSecretiariatsBodyState extends State<AdminSecretiariatsBody> {
           _refreshCompleter?.complete();
           _refreshCompleter = null;
         }
+        if (state is AdminSecretiariatsInviteSent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Invitation envoyée à ${state.email}.')),
+          );
+        }
+        if (state is AdminSecretiariatsInviteFailed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.message)),
+          );
+          context
+              .read<AdminSecretiariatsBloc>()
+              .add(const AdminSecretiariatsLoadRequested());
+        }
       },
       builder: (context, state) => switch (state) {
         AdminSecretiariatsInitial() ||
-        AdminSecretiariatsLoading() =>
+        AdminSecretiariatsLoading() ||
+        AdminSecretiariatsInviteSent() ||
+        AdminSecretiariatsInviteFailed() =>
           const _SecretariatsSkeleton(),
         AdminSecretiariatsEmpty() => NubiaEmptyState(
             key: const Key('admin_secretariats_empty'),
@@ -80,12 +95,19 @@ class _AdminSecretiariatsBodyState extends State<AdminSecretiariatsBody> {
   }
 }
 
-/// Ouvre la modale d'invitation d'un secrétariat (stub UI, sans effet backend).
-void _openInviteDialog(BuildContext context) {
-  showDialog<void>(
+/// Ouvre la modale d'invitation puis dispatche l'invitation réelle.
+Future<void> _openInviteDialog(BuildContext context) async {
+  final bloc = context.read<AdminSecretiariatsBloc>();
+  final result = await showDialog<({String name, String email})>(
     context: context,
     builder: (_) => const InviteSecretariatDialog(),
   );
+  if (result != null) {
+    bloc.add(AdminSecretiariatsInviteRequested(
+      name: result.name,
+      email: result.email,
+    ));
+  }
 }
 
 class AdminSecretiariatsPage extends StatelessWidget {

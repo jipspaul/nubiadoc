@@ -8,6 +8,20 @@ class AddSecretariatUseCase {
 
   const AddSecretariatUseCase(this._repository);
 
-  Future<Either<Failure, Secretariat>> call(String email) =>
-      _repository.invite(email);
+  Future<Either<Failure, Secretariat>> call({
+    required String name,
+    required String email,
+  }) {
+    if (name.trim().isEmpty) {
+      return Future.value(
+        const Left(ValidationFailure(message: 'Le nom est requis.')),
+      );
+    }
+    if (email.isEmpty || !email.contains('@')) {
+      return Future.value(
+        const Left(ValidationFailure(message: 'Adresse e-mail invalide.')),
+      );
+    }
+    return _repository.invite(name: name.trim(), email: email.trim());
+  }
 }
