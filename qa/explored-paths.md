@@ -14,7 +14,7 @@
 > playbook — à clarifier avec un humain si les deux doctrines doivent
 > converger.
 
-Last run: 2026-07-06T21:05:13.000Z
+Last run: 2026-07-06T22:41:14.000Z
 
 ## Faux positifs connus (méthode C)
 
@@ -75,38 +75,41 @@ Last run: 2026-07-06T21:05:13.000Z
 - **Run 2026-07-06T21:05 — piège harness : `page.getByLabel()` ne matche PAS un bouton Flutter dont le nom accessible vient de son texte (pas d'un `<label>`/`aria-label`).** Le champ "Date de naissance" (`/account-setup` patient) est un `FLT-SEMANTICS[role="button"]` sans `aria-label`, seulement du texte — `getByLabel(/date de naissance/i)` échoue silencieusement (isVisible=false), et le harness sautait alors tout le bloc de remplissage de la date sans erreur visible, laissant "Continuer" désactivé indéfiniment (faux `onboarding-flow-broken`, pas un bug produit). Fix : `getByRole('button', {name: ...})` pour ces éléments. Séquence complète confirmée : cliquer le bouton → cliquer "Passer à la saisie" → remplir l'`<input aria-label="Saisir une date">` qui apparaît (préremplie, à écraser) → "OK".
 - **Run 2026-07-06T21:05 — #3436 (feature-gap praticien/devis, tracké plus tôt ce même run par Méthode A) a été repris et fermé par flutter-agent pendant que ce run était en cours** (PR #3440, `d0fb8913`, mergée 21:00:47Z, déployée 21:03:25Z) : `POST /v1/cabinet/quotes/:id/send` est désormais un vrai appel réseau. Non re-testé fonctionnellement faute de devis seed disponible sur le compte de test — à confirmer au prochain run.
 - **Run 2026-07-06T21:05 — piège harness Méthode C (DOM feature-gap scan) : un `.replace(regex, '')` sans flag `/g` ne supprime qu'UNE occurrence du bruit CSS, laissant les occurrences suivantes de `::placeholder` déclencher un faux marker `placeholder` sur TOUTES les routes.** Le texte concaténé de `div` ancêtres contient souvent plusieurs blocs `<style>` injectés (un par route/composant Flutter re-rendu) — un seul `.replace()` non-global laisse les blocs suivants intacts. Fix : regex `/.../gi` + exclusion des éléments dont un descendant est `style`/`script` (`!e.querySelector('style, script')`) avant même de lire `.textContent`. Sans ce fix, le scan Méthode C aurait produit un faux feature-gap sur les 40 routes testées ce run.
+- **Run 2026-07-06T22:41 — run complet, 40 routes (patient 16, praticien 11, secretariat 13) + 3 onboarding flows re-testés, 1 heure environ après le run précédent (21:05).** Résultat majoritaire : reconfirmation, aucune régression. Les 6 `blank-canvas` mécaniques (`whiteRatio>0.995`) et 2 `console-errors` mécaniques levés par le sweep (`/notifications`, `/reviews` patient ; `/patients/test-patient-id`, `/ordonnances`, `/ordonnances/new` praticien ; `/liste-attente`, `/devis/test-devis-id`, `/admin-membres` secretariat) ont tous été vérifiés à l'écran (screenshot) : mêmes valeurs de whiteRatio que les runs précédents, mêmes empty-states légitimes / bannières d'ID factice ou 403 attendues déjà documentées ci-dessus — 0 nouvelle issue filée sur ces critères mécaniques. Méthode C (DOM scan) : 0 hit sur les 3 apps. Onboarding flows A/B/C : les 3 OK (flow B avec le 400 `invitation_invalid` attendu sur token invalide, non compté comme finding).
+- **Run 2026-07-06T22:41 — nouveau feature-gap réel confirmé sur patient `/rdv/test-appt-id/prepare` (Méthode A, grep source, distinct de l'ancien #3170 fermé comme faux positif CSS).** `PrepareRdvPage._load()` (`front/apps/app_patient/lib/features/mes_rdv/prepare_rdv_page.dart:80`) appelle inconditionnellement `_stubPreparation(widget.appointmentId)` — adresse et checklist ("Carte Vitale", "Carte mutuelle", "Ordonnance") codées en dur, identiques pour tout `appointmentId`, aucun appel réseau. Le backend `GET /v1/appointments/:id/preparation` existe et est implémenté (`api/src/lib.rs:307-308`, `api/src/appointments.rs:824`, issue #2469 fermée) mais `front/packages/nubia_data/lib/` ne contient aucune référence à `preparation` — repository/DTO jamais câblé côté frontend. Tracké #3441 (P3).
+- **Tentative de nettoyage des comptes QA jetables créés pendant les flows A/C (Étape 4.5) : `DELETE /v1/account` répond 405 (méthode non supportée)** — pas de mécanisme de suppression de compte côté API actuellement. Les comptes `qa-patient-*@nubia.test` / `qa-praticien-*@nubia.test` s'accumulent donc à chaque run ; à surveiller si cela pose un problème de volumétrie plus tard (hors scope de ce run pour créer une issue backend, noté ici pour traçabilité).
 
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, contenu réel affiché |
+| / | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé, contenu réel affiché |
 | /a2ui-demo | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (non re-testé ce run, hors cap) |
-| /account-setup | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | Onboarding flow A : atteint, formulaire soumis avec succès (date de naissance via `getByRole('button')`, cf. note méthodologique) |
-| /appointments | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé — carte + liste praticiens réelle |
-| /book | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
-| /coverage-setup | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | Onboarding flow A : fix #3434/#3435 reconfirmé — 0 console.error, 0 failed-request, atteint home après soumission |
-| /documents | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, liste réelle |
-| /financial | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, liste réelle |
+| /account-setup | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | Onboarding flow A : reconfirmé, formulaire soumis avec succès |
+| /appointments | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé — carte + liste praticiens réelle |
+| /book | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé |
+| /coverage-setup | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | Onboarding flow A : fix #3434/#3435 reconfirmé (2e run indépendant) — 0 console.error, 0 failed-request, atteint home après soumission |
+| /documents | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé, liste réelle |
+| /financial | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé, liste réelle |
 | /forgot-password | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié, non re-testé ce run, hors cap) |
-| /login | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (contexte non-authentifié, via Onboarding flow A step 1 + login sweep) |
-| /mes-rdv | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
-| /messaging | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, liste réelle |
-| /notifications | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (whiteRatio mécanique 0.9965 faux positif — 1 notification réelle affichée, décodage PNG réel via pngjs) |
-| /oubliettes | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, feature-gap #3224 toujours corrigé |
-| /pharmacy | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /login | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé (contexte non-authentifié, via Onboarding flow A step 1 + login sweep) |
+| /mes-rdv | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé |
+| /messaging | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé, liste réelle |
+| /notifications | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé (whiteRatio mécanique 0.9965 faux positif, valeur identique aux runs précédents — 1 notification réelle affichée, vérifié à l'écran) |
+| /oubliettes | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé, feature-gap #3224 toujours corrigé |
+| /pharmacy | 2026-07-04 | 2026-07-06T22:41:14.000Z | OK | reconfirmé |
 | /pharmacy/search | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
 | /pharmacy/send | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
 | /pharmacy/orders | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
 | /pharmacy/orders/:id | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
-| /profile | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
-| /profile/dependents | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | corrigé depuis #3386, reconfirmé 0 console.error |
-| /profile/consents | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
-| /profile/notifications | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
-| /rdv/test-appt-id/prepare | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /profile | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé |
+| /profile/dependents | 2026-07-04 | 2026-07-06T22:41:14.000Z | OK | corrigé depuis #3386, reconfirmé 0 console.error |
+| /profile/consents | 2026-07-04 | 2026-07-06T22:41:14.000Z | OK | reconfirmé |
+| /profile/notifications | 2026-07-04 | 2026-07-06T22:41:14.000Z | OK | reconfirmé |
+| /rdv/test-appt-id/prepare | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | runtime OK (0 console.error) ; nouveau feature-gap réel confirmé — `_stubPreparation` jamais remplacé par un appel réseau, tracké #3441 (P3) |
 | /reset-password | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié, non re-testé ce run, hors cap) |
-| /reviews | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (whiteRatio mécanique 0.997 faux positif — empty-state légitime "Aucun avis pour ce prestataire") |
-| /signup | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (contexte non-authentifié + via Onboarding flow A) |
+| /reviews | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé (whiteRatio mécanique 0.997 faux positif, valeur identique aux runs précédents — empty-state légitime "Aucun avis pour ce prestataire") |
+| /signup | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé (contexte non-authentifié + via Onboarding flow A) |
 | /splash | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (contexte non-authentifié) |
 
 ## praticien
