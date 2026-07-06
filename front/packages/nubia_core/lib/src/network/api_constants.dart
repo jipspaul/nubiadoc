@@ -15,8 +15,8 @@ class ApiConstants {
 
   // Carte : clé MapTiler (tuiles raster). Surchargeable via
   // --dart-define=MAPTILER_KEY=...
-  static const String mapTilerKey =
-      String.fromEnvironment('MAPTILER_KEY', defaultValue: 'cnArmFSMqoCPGYrRKgeQ');
+  static const String mapTilerKey = String.fromEnvironment('MAPTILER_KEY',
+      defaultValue: 'cnArmFSMqoCPGYrRKgeQ');
 
   /// URL template des tuiles raster MapTiler (streets), prête pour flutter_map.
   static String mapTilerTilesUrl() =>

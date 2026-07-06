@@ -326,6 +326,15 @@ class _HistoriqueTile extends StatelessWidget {
     }
   }
 
+  String _formatStart(DateTime dt) {
+    final d = dt.toLocal();
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final hh = d.hour.toString().padLeft(2, '0');
+    final min = d.minute.toString().padLeft(2, '0');
+    return '$dd/$mm $hh:$min';
+  }
+
   StatusPillVariant get _statusVariant {
     switch (session.status) {
       case 'completed':
@@ -350,10 +359,13 @@ class _HistoriqueTile extends StatelessWidget {
         child: Icon(Icons.medical_services_outlined,
             size: 20, color: cs.onPrimaryContainer),
       ),
-      // Libellé lisible plutôt que l'UUID brut (#3371) : nombre d'actes +
-      // statut ; l'UUID reste dans la Key pour les tests/QA.
-      title: 'Consultation · ${session.acts.length} acte(s)',
-      subtitle: _statusLabel,
+      // Nom du patient en titre (#3371) — l'UUID reste dans la Key.
+      title: session.patientName?.trim().isNotEmpty == true
+          ? session.patientName!
+          : 'Consultation · ${session.acts.length} acte(s)',
+      subtitle: session.startedAt != null
+          ? '${_formatStart(session.startedAt!)} · $_statusLabel'
+          : _statusLabel,
       trailing: StatusPill(label: _statusLabel, variant: _statusVariant),
       // #3367 : la carte doit ouvrir la séance (aucune autre voie d'accès).
       onTap: () =>

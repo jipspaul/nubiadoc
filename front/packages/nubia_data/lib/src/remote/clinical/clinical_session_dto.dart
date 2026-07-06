@@ -41,12 +41,16 @@ class ClinicalSessionDto {
   final String appointmentId;
   final String status;
   final List<ClinicalActDto> acts;
+  final String? patientName;
+  final String? startedAt;
 
   const ClinicalSessionDto({
     required this.id,
     required this.appointmentId,
     required this.status,
     required this.acts,
+    this.patientName,
+    this.startedAt,
   });
 
   factory ClinicalSessionDto.fromJson(Map<String, dynamic> json) =>
@@ -59,6 +63,8 @@ class ClinicalSessionDto {
         acts: (json['acts'] as List<dynamic>? ?? [])
             .map((e) => ClinicalActDto.fromJson(e as Map<String, dynamic>))
             .toList(),
+        patientName: json['patient_name'] as String?,
+        startedAt: json['started_at'] as String?,
       );
 
   ClinicalSession toDomain() => ClinicalSession(
@@ -66,5 +72,7 @@ class ClinicalSessionDto {
         appointmentId: appointmentId,
         status: status,
         acts: acts.map((a) => a.toDomain()).toList(),
+        patientName: patientName,
+        startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
       );
 }

@@ -43,6 +43,9 @@ pub struct AgendaSlot {
     pub status: String,
     /// Motif administratif (R.4127-72 : visible secrétariat+).
     pub motif_admin: Option<String>,
+    /// Nom du patient (donnée administrative, visible secrétariat+) —
+    /// sans lui l'agenda titrait par le motif technique (#3371).
+    pub patient_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -151,8 +154,10 @@ pub async fn get_cabinet_agenda(
         if claims.role == "secretary" {
             if let Some(sid) = claims.secretariat_id {
                 sqlx::query(
-                    "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif \
+                    "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
+                            NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
                      FROM appointment a \
+                     LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
                      WHERE a.deleted_at IS NULL \
                        AND a.starts_at >= $1 AND a.starts_at < $2 \
                        AND a.practitioner_id = $3 \
@@ -177,12 +182,14 @@ pub async fn get_cabinet_agenda(
             }
         } else {
             sqlx::query(
-                "SELECT id, practitioner_id, starts_at, ends_at, status, motif \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND starts_at >= $1 AND starts_at < $2 \
-                   AND practitioner_id = $3 \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.starts_at >= $1 AND a.starts_at < $2 \
+                   AND a.practitioner_id = $3 \
+                 ORDER BY a.starts_at",
             )
             .bind(range_start)
             .bind(range_end)
@@ -194,8 +201,10 @@ pub async fn get_cabinet_agenda(
     } else if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif \
+                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
                  FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
                  WHERE a.deleted_at IS NULL \
                    AND a.starts_at >= $1 AND a.starts_at < $2 \
                    AND EXISTS ( \
@@ -218,11 +227,13 @@ pub async fn get_cabinet_agenda(
         }
     } else {
         sqlx::query(
-            "SELECT id, practitioner_id, starts_at, ends_at, status, motif \
-             FROM appointment \
-             WHERE deleted_at IS NULL \
-               AND starts_at >= $1 AND starts_at < $2 \
-             ORDER BY starts_at",
+            "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
+                    NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+             FROM appointment a \
+             LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+             WHERE a.deleted_at IS NULL \
+               AND a.starts_at >= $1 AND a.starts_at < $2 \
+             ORDER BY a.starts_at",
         )
         .bind(range_start)
         .bind(range_end)
@@ -251,6 +262,9 @@ pub async fn get_cabinet_agenda(
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let motif_admin: Option<String> =
                 row.try_get("motif").map_err(|_| AppError::Internal)?;
+            let patient_name: Option<String> = row
+                .try_get("patient_name")
+                .map_err(|_| AppError::Internal)?;
             Ok(AgendaSlot {
                 id,
                 practitioner_id,
@@ -258,6 +272,7 @@ pub async fn get_cabinet_agenda(
                 ends_at: ends_at.to_rfc3339(),
                 status,
                 motif_admin,
+                patient_name,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
