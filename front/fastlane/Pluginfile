@@ -1,0 +1,2 @@
+# Plugins fastlane pour la distribution mobile nubiadoc.
+gem "fastlane-plugin-firebase_app_distribution"

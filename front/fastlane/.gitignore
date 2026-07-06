@@ -1,0 +1,10 @@
+# Secrets et artefacts fastlane — jamais committés.
+.env
+.env.*
+!.env.default
+.secrets/
+report.xml
+Preview.html
+*.p8
+*.p12
+*.mobileprovision

@@ -1,0 +1,57 @@
+# mobile-distribute — distribue les APK Android des 4 apps sur Firebase App
+# Distribution via fastlane.
+#
+# Déclenchement MANUEL (workflow_dispatch) pour l'instant : le build Android
+# nécessite le SDK Android + Ruby/bundler dans l'image du runner, qui ne sont
+# pas garantis dans `flutter-ci:stable`. Une fois validé, ajouter un trigger
+# `push: branches: [main]` si tu veux distribuer à chaque merge.
+#
+# Secrets Forgejo requis (Settings > Secrets du repo) :
+#   FIREBASE_SERVICE_ACCOUNT_JSON : contenu base64 de la clé JSON d'un service
+#     account Firebase ayant le rôle "Firebase App Distribution Admin".
+#     Génère la clé puis :  base64 -i nubiadoc-fastlane.json | pbcopy
+#   FAD_TESTERS (optionnel) : emails testeurs séparés par des virgules
+#     (défaut : xav.b00@gmail.com, défini plus bas).
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "App à distribuer (app_patient | app_practicien | app_secretariat | app_pharmacie | all)"
+        required: true
+        default: "all"
+
+jobs:
+  distribute:
+    runs-on: docker
+    container:
+      image: flutter-ci:stable
+    env:
+      FAD_TESTERS: ${{ secrets.FAD_TESTERS || 'xav.b00@gmail.com' }}
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/front/fastlane/.secrets/nubiadoc-fastlane.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Matérialiser la clé service account
+        run: |
+          mkdir -p front/fastlane/.secrets
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
+          test -s "$GOOGLE_APPLICATION_CREDENTIALS" || { echo "Secret FIREBASE_SERVICE_ACCOUNT_JSON manquant ou vide"; exit 1; }
+
+      - name: Installer les dépendances fastlane
+        working-directory: front
+        run: |
+          bundle config set --local path vendor/bundle
+          bundle install --jobs 4
+
+      - name: flutter pub get
+        working-directory: front
+        run: flutter pub get
+
+      - name: Distribuer
+        working-directory: front
+        run: |
+          if [ "${{ inputs.app }}" = "all" ]; then
+            bundle exec fastlane android distribute_all
+          else
+            bundle exec fastlane android distribute app:${{ inputs.app }}
+          fi

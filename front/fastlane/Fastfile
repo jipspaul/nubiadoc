@@ -1,0 +1,68 @@
+# Distribution mobile nubiadoc via Firebase App Distribution.
+#
+# Projet Firebase : nubiadoc
+# Usage local (firebase CLI déjà connecté) :
+#   bundle exec fastlane android distribute app:app_patient
+#   bundle exec fastlane android distribute_all
+#
+# En CI (Forgejo) : définir GOOGLE_APPLICATION_CREDENTIALS (chemin vers la clé
+# JSON du service account) + FAD_TESTERS. En local, sans service account, le
+# plugin réutilise les identifiants du firebase CLI (`firebase login`).
+
+# Mapping app -> App ID Firebase (Android). Surchargeable par variable d'env.
+ANDROID_APPS = {
+  "app_patient"     => ENV["FAD_APP_ID_PATIENT"]     || "1:117935898059:android:07899c13b5bfd928e38a4e",
+  "app_practicien"  => ENV["FAD_APP_ID_PRATICIEN"]   || "1:117935898059:android:cb0c710257fce92ce38a4e",
+  "app_secretariat" => ENV["FAD_APP_ID_SECRETARIAT"] || "1:117935898059:android:13ec7bc7e17e0f7ce38a4e",
+  "app_pharmacie"   => ENV["FAD_APP_ID_PHARMACIE"]   || "1:117935898059:android:4e60d5a536628076e38a4e",
+}.freeze
+
+def distribute_android(app:, notes: nil)
+  app_id = ANDROID_APPS[app] || UI.user_error!("App inconnue: #{app} (attendu: #{ANDROID_APPS.keys.join(', ')})")
+  app_dir = File.expand_path("../apps/#{app}", __dir__) # front/apps/<app>
+  UI.user_error!("Dossier introuvable: #{app_dir}") unless File.directory?(app_dir)
+
+  UI.header("Build release APK — #{app}")
+  sh("cd #{app_dir.shellescape} && flutter build apk --release")
+
+  apk = File.join(app_dir, "build/app/outputs/flutter-apk/app-release.apk")
+  UI.user_error!("APK introuvable: #{apk}") unless File.exist?(apk)
+
+  params = {
+    app: app_id,
+    android_artifact_type: "APK",
+    android_artifact_path: apk,
+    release_notes: notes || "Build #{app} — #{Time.now.strftime('%Y-%m-%d %H:%M')}",
+  }
+  testers = ENV["FAD_TESTERS"].to_s
+  params[:testers] = testers unless testers.empty?
+  creds = ENV["GOOGLE_APPLICATION_CREDENTIALS"].to_s
+  params[:service_credentials_file] = creds unless creds.empty?
+
+  firebase_app_distribution(params)
+  UI.success("#{app} distribué sur Firebase App Distribution ✔")
+end
+
+platform :android do
+  desc "Build + distribue une app. Usage: fastlane android distribute app:app_patient"
+  lane :distribute do |options|
+    app = options[:app] || UI.user_error!("Précise app:<nom> (ex: app:app_patient)")
+    distribute_android(app: app, notes: options[:notes])
+  end
+
+  desc "Build + distribue les 4 apps"
+  lane :distribute_all do |options|
+    results = []
+    ANDROID_APPS.keys.each do |app|
+      begin
+        distribute_android(app: app, notes: options[:notes])
+        results << "#{app}: OK"
+      rescue => e
+        results << "#{app}: ECHEC — #{e.message}"
+      end
+    end
+    UI.header("Résumé distribution Android")
+    results.each { |r| UI.message(r) }
+    UI.user_error!("Au moins une app a échoué") if results.any? { |r| r.include?("ECHEC") }
+  end
+end

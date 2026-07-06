@@ -1,0 +1,5 @@
+# nubiadoc — distribution mobile via Firebase App Distribution.
+# Le projet Firebase est `nubiadoc` ; les App IDs par app sont dans le Fastfile.
+for_platform :android do
+  # package_name est propre à chaque app, géré dans le Fastfile.
+end
