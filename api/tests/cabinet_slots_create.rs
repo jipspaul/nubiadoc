@@ -282,6 +282,67 @@ async fn practitioner_creates_slot_returns_403() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
+// ── Régression #3413 : corps invalide → 422 JSON `AppError`, jamais du texte brut ──
+//
+// Avant le correctif, l'extracteur `Json<CreateSlotBody>` rejetait un corps invalide
+// avec un 422 `text/plain` (« Failed to deserialize the JSON body… ») qui cassait le
+// front. Le handler doit désormais renvoyer le corps JSON standard.
+// Ne nécessite pas de DB : le rejet du corps survient avant tout accès Postgres.
+#[tokio::test]
+async fn create_slot_invalid_body_returns_json_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Token pro valide (admin) mais corps auquel il manque `starts_at`/`ends_at`.
+    let token = make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "admin");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/slots")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "practitioner_id": Uuid::new_v4(),
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(
+        content_type.starts_with("application/json"),
+        "le corps d'erreur doit être JSON, pas du texte brut (content-type = {content_type})"
+    );
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value =
+        serde_json::from_slice(&bytes).expect("le corps 422 doit être du JSON valide");
+    assert_eq!(v["code"], "validation_error");
+}
+
 // ── Test 4 : overlap EXCLUDE → 409 slot_taken ────────────────────────────────
 
 #[tokio::test]

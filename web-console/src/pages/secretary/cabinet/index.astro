@@ -10,11 +10,16 @@ if (!jwt) {
 if (role !== 'secretary' && role !== 'admin') {
   return new Response('Accès interdit', { status: 403 });
 }
+// La MODIFICATION des réglages (PATCH /v1/cabinet) est réservée aux administrateurs
+// (backend `ProAdminClaims`) : un secrétaire recevrait un 403 (#3411). Il conserve la
+// LECTURE (GET /v1/cabinet est ouvert à tous les membres) mais le formulaire d'édition
+// est verrouillé côté console.
+const canEdit = role === 'admin';
 ---
 <AppShell title="Réglages cabinet — Espace secrétaire" role="secretary">
   <header>
     <h1>Réglages du cabinet</h1>
-    <p>Informations du cabinet et vue publique. Réservé aux rôles <code>secretary</code> / <code>admin</code>.</p>
+    <p>Informations du cabinet et vue publique. Modification réservée au rôle <code>admin</code>.</p>
   </header>
 
   <section aria-labelledby="settings-heading">
@@ -22,8 +27,8 @@ if (role !== 'secretary' && role !== 'admin') {
     <div id="get-status" role="status" aria-live="polite"></div>
 
     <form id="settings-form" novalidate>
-      <fieldset>
-        <legend>Modifier les informations</legend>
+      <fieldset disabled={!canEdit}>
+        <legend>{canEdit ? 'Modifier les informations' : 'Informations (lecture seule)'}</legend>
 
         <div class="field">
           <label for="field-name">Raison sociale</label>
@@ -46,9 +51,13 @@ if (role !== 'secretary' && role !== 'admin') {
         </div>
       </fieldset>
 
-      <div class="form-actions">
-        <button id="btn-save" type="submit" class="btn-primary">Enregistrer</button>
-      </div>
+      {canEdit ? (
+        <div class="form-actions">
+          <button id="btn-save" type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      ) : (
+        <p class="section-hint">La modification des réglages du cabinet est réservée aux administrateurs.</p>
+      )}
     </form>
 
     <div id="patch-status" role="status" aria-live="polite"></div>
@@ -176,7 +185,8 @@ if (role !== 'secretary' && role !== 'admin') {
   const patchStatus = document.getElementById('patch-status') as HTMLElement;
   const publicStatus = document.getElementById('public-status') as HTMLElement;
   const form        = document.getElementById('settings-form') as HTMLFormElement;
-  const saveBtn     = document.getElementById('btn-save')      as HTMLButtonElement;
+  // `btn-save` n'existe pas pour un secrétaire (formulaire en lecture seule, #3411).
+  const saveBtn     = document.getElementById('btn-save')      as HTMLButtonElement | null;
   const publicDl    = document.getElementById('public-info')   as HTMLDListElement;
 
   const fieldName    = document.getElementById('field-name')    as HTMLInputElement;
@@ -266,7 +276,9 @@ if (role !== 'secretary' && role !== 'admin') {
   }
 
   // ── Save cabinet settings ────────────────────────────────────────────────
-  form.addEventListener('submit', async (e) => {
+  // Pas de bouton d'enregistrement pour un rôle en lecture seule : on n'attache
+  // pas le handler de soumission (l'action n'est pas proposée, garde-fou #3411).
+  if (saveBtn) form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     patchStatus.textContent = 'Enregistrement…';

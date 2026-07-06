@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Extension, Path, Query, State},
+    extract::{rejection::JsonRejection, Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -977,7 +977,16 @@ pub async fn get_cabinet_appointments(
         tx.commit().await.map_err(|_| AppError::Internal)?;
         return Ok(Json(CabinetAppointmentsResponse { data: vec![] }));
     }
-    let sid = claims.secretariat_id;
+    // Le bind du secrétariat ne doit exister QUE pour un secrétaire : `mk_sec_filter`
+    // ne pose son placeholder (`$n`) que dans ce cas. Un admin/manager/praticien dont
+    // le JWT porte un `secretariat_id` (cf. contexte multi-rôle) ajouterait sinon un
+    // paramètre lié sans placeholder correspondant → « bind message supplies N
+    // parameters » côté Postgres → 500 (#3405). On neutralise donc `sid` hors secrétaire.
+    let sid = if claims.role == "secretary" {
+        claims.secretariat_id
+    } else {
+        None
+    };
 
     // Construit la requête dynamiquement selon les filtres optionnels.
     let rows = match (&params.status, &date_filter) {
@@ -1456,8 +1465,12 @@ pub struct CreateSlotBody {
 pub async fn create_cabinet_slot(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
-    Json(body): Json<CreateSlotBody>,
+    // On accepte le rejet de l'extracteur JSON pour le convertir en `AppError`
+    // (corps JSON standard `{"code":"validation_error"}`) : sinon Axum renvoie
+    // un 400/422 en texte brut (« Failed to deserialize… ») qui casse le front (#3413).
+    body: Result<Json<CreateSlotBody>, JsonRejection>,
 ) -> Result<(StatusCode, Json<CabinetSlotResponse>), AppError> {
+    let Json(body) = body.map_err(|_| AppError::ValidationError)?;
     if claims.role == "practitioner" {
         return Err(AppError::Forbidden);
     }

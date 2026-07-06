@@ -892,9 +892,14 @@ pub struct ProVerificationStatusResponse {
 ///
 /// Renvoie `200` avec le dernier enregistrement `provider_verification` (ORDER BY created_at DESC).
 /// Aucun enregistrement → `404`.
+///
+/// RBAC : le profil provider interrogé est CELUI DE L'APPELANT (`user_id = sub`).
+/// Seul un praticien possède un profil provider ; l'endpoint est donc réservé aux
+/// rôles `practitioner`/`admin` (`ProPractitionerClaims`) et non à `admin` seul —
+/// sinon un praticien ne peut pas consulter son propre statut de vérif (#3412).
 pub async fn get_pro_verification(
     State(state): State<AppState>,
-    claims: ProAdminClaims,
+    claims: ProPractitionerClaims,
 ) -> Result<Json<ProVerificationStatusResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -904,6 +909,8 @@ pub async fn get_pro_verification(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Pas de profil provider pour l'appelant (ex. admin non-praticien) → 404 propre,
+    // jamais un 500 (#3412).
     let provider_row =
         sqlx::query("SELECT id FROM provider WHERE cabinet_id = $1 AND user_id = $2")
             .bind(claims.cabinet_id)
@@ -911,7 +918,7 @@ pub async fn get_pro_verification(
             .fetch_optional(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?
-            .ok_or(AppError::Internal)?;
+            .ok_or(AppError::NotFound)?;
     let provider_id: Uuid = provider_row.try_get(0).map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
@@ -3628,10 +3635,13 @@ pub async fn delete_account_dependent(
 /// Crée `provider_verification(status=pending)` et enfile `VerifyProviderJob`.
 /// Un seul enregistrement `pending` autorisé par provider (`07` §4.7) : renvoie
 /// `409 verification_pending` si un enregistrement pending existe déjà.
+///
+/// RBAC : soumission sur le profil provider de l'APPELANT (`user_id = sub`) ; réservé
+/// aux rôles `practitioner`/`admin` (cohérent avec le GET, cf. #3412).
 pub async fn pro_verification(
     State(state): State<AppState>,
     Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
-    claims: ProAdminClaims,
+    claims: ProPractitionerClaims,
     Json(body): Json<ProVerificationBody>,
 ) -> Result<(StatusCode, Json<ProVerificationResponse>), AppError> {
     if body.id_type != "rpps" && body.id_type != "adeli" {

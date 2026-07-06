@@ -1,10 +1,17 @@
 ---
 import AppShell from '../../../layouts/AppShell.astro';
 
-const jwt = Astro.cookies.get('nubia_jwt')?.value;
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
 
 if (!jwt) {
   return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+// La gestion des membres (GET/POST/PATCH/DELETE /v1/cabinet/members) est réservée aux
+// administrateurs du cabinet. Un secrétaire recevrait un 403 de l'API (#3410) : on masque
+// la page côté console (garde-fou front) plutôt que de laisser l'appel échouer.
+if (role !== 'admin' && role !== 'manager') {
+  return new Response('Accès réservé aux administrateurs du cabinet.', { status: 403 });
 }
 ---
 <AppShell title="Équipe — Espace secrétaire" role="secretary">
