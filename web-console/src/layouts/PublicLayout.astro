@@ -35,7 +35,7 @@ const { title = 'Nubia' } = Astro.props;
     if (isAuthenticated()) {
       nav.innerHTML = '<a href="/app">Mon espace</a>';
     } else {
-      nav.innerHTML = '<a href="/login">Se connecter</a> <a href="/register">Créer un compte</a>';
+      nav.innerHTML = '<a href="/auth/login">Se connecter</a> <a href="/auth/register">Créer un compte</a>';
     }
   }
 </script>

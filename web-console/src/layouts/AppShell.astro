@@ -29,13 +29,14 @@ const NAV: Record<Role, NavItem[]> = {
   practitioner: [
     { href: '/praticien/dashboard',          label: 'Tableau de bord' },
     { href: '/praticien/agenda',             label: 'Agenda' },
+    { href: '/praticien/file',               label: "File d'attente" },
     { href: '/praticien/patients',           label: 'Patients' },
     { href: '/praticien/secretariats',       label: 'Mes secrétariats' },
-    { href: '/praticien/messages',           label: 'Messagerie' },
   ],
   secretary: [
     { href: '/secretary/dashboard',          label: 'Tableau de bord' },
     { href: '/secretary/agenda',             label: 'Agenda' },
+    { href: '/secretary/liste-attente',      label: "Liste d'attente" },
     { href: '/secretary/patients',           label: 'Patients' },
     { href: '/secretary/equipe',             label: 'Équipe' },
     { href: '/secretary/facturation',        label: 'Facturation' },
@@ -43,7 +44,6 @@ const NAV: Record<Role, NavItem[]> = {
     { href: '/secretary/cabinet',            label: 'Réglages cabinet' },
   ],
   admin: [
-    { href: '/patient/accueil',              label: 'Espace patient' },
     { href: '/praticien/dashboard',          label: 'Espace praticien' },
     { href: '/secretary/dashboard',          label: 'Espace secrétaire' },
   ],
@@ -76,7 +76,6 @@ const isActive = (href: string) => {
 
       {role === 'admin' && (
         <nav class="space-switcher" aria-label="Sélecteur d'espace">
-          <a href="/patient/accueil">Patient</a>
           <a href="/praticien/dashboard">Praticien</a>
           <a href="/secretary/dashboard">Secrétaire</a>
         </nav>
@@ -121,7 +120,7 @@ const isActive = (href: string) => {
   import { isAuthenticated, getCurrentUser, logout, getContext } from '../lib/session.ts';
 
   if (!isAuthenticated()) {
-    window.location.href = '/login';
+    window.location.href = '/auth/login';
   } else {
     const el = document.getElementById('app-user-email');
     if (el) el.textContent = getCurrentUser() ?? '';

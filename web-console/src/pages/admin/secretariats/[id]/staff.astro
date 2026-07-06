@@ -1,13 +1,21 @@
 ---
-import Default from '../../../../layouts/Default.astro';
+import AppShell from '../../../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'admin' && role !== 'manager') {
+  return new Response('Accès interdit', { status: 403 });
+}
 ---
-<Default title="Gestion du personnel — Admin Nubia Console">
-  <h1 style="margin-bottom:0.5rem;">Gestion du personnel — W58</h1>
+<AppShell title="Gestion du personnel — Admin" role="admin">
+  <h1 style="margin-bottom:0.5rem;">Gestion du personnel</h1>
   <p style="color:var(--muted);margin-bottom:1.5rem;">
-    Rôle requis : <code>admin</code> ou <code>manager</code> ·
-    Endpoint : <code>GET /v1/cabinet/secretariats/:id</code> /
-    <code>POST /v1/cabinet/secretariats/:id/staff</code> /
-    <code>DELETE /v1/cabinet/secretariats/:id/members/:user_id</code>
+    Membres d'un secrétariat. Les requêtes utilisent votre session courante ;
+    aucun jeton n'est saisi manuellement.
   </p>
 
   <!-- ── LISTE DES MEMBRES ─────────────────────────────── -->
@@ -17,18 +25,13 @@ import Default from '../../../../layouts/Default.astro';
     </h2>
     <form id="list-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
       <label>
-        Access token (Bearer, rôle admin ou manager)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
-      <label>
         ID du secrétariat
         <input type="text" name="secretariat_id" required placeholder="uuid"
           style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
       </label>
       <button type="submit"
         style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        GET
+        Afficher les membres
       </button>
     </form>
     <p id="list-badge" style="margin-top:1rem;display:none;"></p>
@@ -42,11 +45,6 @@ import Default from '../../../../layouts/Default.astro';
       Inviter / Créer secrétaire — POST /v1/cabinet/secretariats/:id/staff
     </h2>
     <form id="invite-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
-      <label>
-        Access token (Bearer, rôle admin ou manager)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
       <label>
         ID du secrétariat
         <input type="text" name="secretariat_id" required placeholder="uuid"
@@ -69,7 +67,7 @@ import Default from '../../../../layouts/Default.astro';
       </label>
       <button type="submit"
         style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        POST staff
+        Inviter le secrétaire
       </button>
     </form>
     <p id="invite-badge" style="margin-top:1rem;display:none;"></p>
@@ -83,11 +81,6 @@ import Default from '../../../../layouts/Default.astro';
     </h2>
     <form id="remove-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
       <label>
-        Access token (Bearer, rôle admin ou manager)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
-      <label>
         ID du secrétariat
         <input type="text" name="secretariat_id" required placeholder="uuid"
           style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
@@ -99,7 +92,7 @@ import Default from '../../../../layouts/Default.astro';
       </label>
       <button type="submit"
         style="padding:0.5rem 1rem;background:#7f1d1d;color:#fecaca;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        DELETE membre
+        Retirer le secrétaire
       </button>
     </form>
     <p id="remove-badge" style="margin-top:1rem;display:none;"></p>
@@ -109,7 +102,7 @@ import Default from '../../../../layouts/Default.astro';
   <nav aria-label="Navigation admin secrétariats" style="margin-top:2.5rem;">
     <a href="/admin/secretariats">← Retour à la liste des secrétariats</a>
   </nav>
-</Default>
+</AppShell>
 
 <style>
   pre.success { border-left: 4px solid green; }
@@ -134,7 +127,10 @@ import Default from '../../../../layouts/Default.astro';
     data: unknown,
   ): void {
     resultEl.className = httpStatus < 300 ? 'success' : 'error';
-    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    const body = data === null
+      ? '(aucun contenu)'
+      : (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+    resultEl.textContent = `HTTP ${httpStatus}\n${body}`;
     badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
     badgeEl.style.display = 'block';
   }
@@ -180,10 +176,8 @@ import Default from '../../../../layouts/Default.astro';
       removeBtn.addEventListener('click', () => {
         const fd = new FormData(listForm);
         const secretariatId = fd.get('secretariat_id') as string;
-        const token = fd.get('access_token') as string;
-        if (secretariatId && token) {
+        if (secretariatId) {
           (document.querySelector('#remove-form [name="secretariat_id"]') as HTMLInputElement).value = secretariatId;
-          (document.querySelector('#remove-form [name="access_token"]') as HTMLInputElement).value = token;
           (document.querySelector('#remove-form [name="user_id"]') as HTMLInputElement).value = m.user_id;
           li.remove();
           if (membersList.querySelectorAll('li').length === 0) {
@@ -200,15 +194,12 @@ import Default from '../../../../layouts/Default.astro';
   listForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(listForm);
-    const token = fd.get('access_token') as string;
     const secretariatId = fd.get('secretariat_id') as string;
     listResult.textContent = 'Chargement…';
     listBadge.style.display = 'none';
     membersList.style.display = 'none';
     try {
-      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}`);
       showResult(listResult, listBadge, status, data);
       if (status === 200 && data && typeof data === 'object') {
         const detail = data as SecretariatDetail;
@@ -230,7 +221,6 @@ import Default from '../../../../layouts/Default.astro';
   inviteForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(inviteForm);
-    const token = fd.get('access_token') as string;
     const secretariatId = fd.get('secretariat_id') as string;
     const email = fd.get('email') as string;
     const firstName = fd.get('first_name') as string;
@@ -245,7 +235,7 @@ import Default from '../../../../layouts/Default.astro';
     try {
       const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}/staff`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       showResult(inviteResult, inviteBadge, status, data);
@@ -263,7 +253,6 @@ import Default from '../../../../layouts/Default.astro';
   removeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(removeForm);
-    const token = fd.get('access_token') as string;
     const secretariatId = fd.get('secretariat_id') as string;
     const userId = fd.get('user_id') as string;
     removeResult.textContent = 'Chargement…';
@@ -271,7 +260,6 @@ import Default from '../../../../layouts/Default.astro';
     try {
       const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}/members/${userId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
       showResult(removeResult, removeBadge, status, data);
       if (status < 300) {

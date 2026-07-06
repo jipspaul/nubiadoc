@@ -1,10 +1,21 @@
 ---
-import Default from '../../../layouts/Default.astro';
+import AppShell from '../../../layouts/AppShell.astro';
+
+const jwt  = Astro.cookies.get('nubia_jwt')?.value;
+const role = Astro.cookies.get('nubia_role')?.value;
+
+if (!jwt) {
+  return Astro.redirect(`/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+if (role !== 'admin') {
+  return new Response('Accès interdit', { status: 403 });
+}
 ---
-<Default title="Secrétariats — Admin Nubia Console">
-  <h1 style="margin-bottom:0.5rem;">Secrétariats — CRUD R12</h1>
+<AppShell title="Secrétariats — Admin" role="admin">
+  <h1 style="margin-bottom:0.5rem;">Secrétariats — CRUD</h1>
   <p style="color:var(--muted);margin-bottom:1.5rem;">
-    Rôle requis : <code>admin</code> · Cookie <code>nubia_ctx</code> portant <code>cabinet_id</code>
+    Gestion des secrétariats du cabinet. Les requêtes utilisent votre session
+    admin courante ; aucun jeton n'est saisi manuellement.
   </p>
 
   <!-- ── LISTE ─────────────────────────────────────────── -->
@@ -13,14 +24,9 @@ import Default from '../../../layouts/Default.astro';
       Lister les secrétariats — GET /v1/cabinet/secretariats
     </h2>
     <form id="list-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
-      <label>
-        Access token (Bearer, rôle admin)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
       <button type="submit"
         style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        GET
+        Rafraîchir la liste
       </button>
     </form>
     <p id="list-badge" style="margin-top:1rem;display:none;"></p>
@@ -34,18 +40,13 @@ import Default from '../../../layouts/Default.astro';
     </h2>
     <form id="create-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
       <label>
-        Access token (Bearer, rôle admin)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
-      <label>
         Nom du secrétariat
         <input type="text" name="name" required placeholder="Secrétariat principal"
           style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
       </label>
       <button type="submit"
         style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        POST
+        Créer
       </button>
     </form>
     <p id="create-badge" style="margin-top:1rem;display:none;"></p>
@@ -59,11 +60,6 @@ import Default from '../../../layouts/Default.astro';
     </h2>
     <form id="edit-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
       <label>
-        Access token (Bearer, rôle admin)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
-      <label>
         ID du secrétariat
         <input type="text" name="id" required placeholder="uuid"
           style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
@@ -75,7 +71,7 @@ import Default from '../../../layouts/Default.astro';
       </label>
       <button type="submit"
         style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        PATCH
+        Modifier
       </button>
     </form>
     <p id="edit-badge" style="margin-top:1rem;display:none;"></p>
@@ -89,11 +85,6 @@ import Default from '../../../layouts/Default.astro';
     </h2>
     <form id="delete-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
       <label>
-        Access token (Bearer, rôle admin)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
-      <label>
         ID du secrétariat à supprimer
         <input type="text" name="id" required placeholder="uuid"
           style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
@@ -103,7 +94,7 @@ import Default from '../../../layouts/Default.astro';
       </p>
       <button type="submit"
         style="padding:0.5rem 1rem;background:#7f1d1d;color:#fecaca;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        DELETE
+        Supprimer
       </button>
     </form>
     <p id="delete-badge" style="margin-top:1rem;display:none;"></p>
@@ -117,11 +108,6 @@ import Default from '../../../layouts/Default.astro';
     </h2>
     <form id="add-member-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
       <label>
-        Access token (Bearer, rôle admin)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
-      <label>
         ID du secrétariat
         <input type="text" name="secretariat_id" required placeholder="uuid"
           style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
@@ -133,7 +119,7 @@ import Default from '../../../layouts/Default.astro';
       </label>
       <button type="submit"
         style="padding:0.5rem 1rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        POST membre
+        Ajouter le membre
       </button>
     </form>
     <p id="add-member-badge" style="margin-top:1rem;display:none;"></p>
@@ -147,11 +133,6 @@ import Default from '../../../layouts/Default.astro';
     </h2>
     <form id="remove-member-form" style="display:flex;flex-direction:column;gap:0.75rem;max-width:480px;">
       <label>
-        Access token (Bearer, rôle admin)
-        <input type="text" name="access_token" required
-          style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
-      </label>
-      <label>
         ID du secrétariat
         <input type="text" name="secretariat_id" required placeholder="uuid"
           style="display:block;width:100%;padding:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-top:0.25rem;" />
@@ -163,7 +144,7 @@ import Default from '../../../layouts/Default.astro';
       </label>
       <button type="submit"
         style="padding:0.5rem 1rem;background:#7f1d1d;color:#fecaca;border:none;border-radius:4px;cursor:pointer;align-self:flex-start;">
-        DELETE membre
+        Retirer le membre
       </button>
     </form>
     <p id="remove-member-badge" style="margin-top:1rem;display:none;"></p>
@@ -186,7 +167,7 @@ import Default from '../../../layouts/Default.astro';
       </button>
     </div>
   </dialog>
-</Default>
+</AppShell>
 
 <style>
   pre.success { border-left: 4px solid green; }
@@ -206,7 +187,10 @@ import Default from '../../../layouts/Default.astro';
     data: unknown,
   ): void {
     resultEl.className = httpStatus < 300 ? 'success' : 'error';
-    resultEl.textContent = `HTTP ${httpStatus}\n${data !== null ? JSON.stringify(data, null, 2) : '(aucun contenu)'}`;
+    const body = data === null
+      ? '(aucun contenu)'
+      : (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+    resultEl.textContent = `HTTP ${httpStatus}\n${body}`;
     badgeEl.innerHTML = `<span class="badge ${httpStatus < 300 ? 'badge-ok' : 'badge-err'}">HTTP ${httpStatus}</span>`;
     badgeEl.style.display = 'block';
   }
@@ -218,14 +202,10 @@ import Default from '../../../layouts/Default.astro';
 
   listForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const fd = new FormData(listForm);
-    const token = fd.get('access_token') as string;
     listResult.textContent = 'Chargement…';
     listBadge.style.display = 'none';
     try {
-      const { status, data } = await apiFetch('/v1/cabinet/secretariats', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { status, data } = await apiFetch('/v1/cabinet/secretariats');
       showResult(listResult, listBadge, status, data);
     } catch (err) {
       listResult.className = 'error';
@@ -241,14 +221,13 @@ import Default from '../../../layouts/Default.astro';
   createForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(createForm);
-    const token = fd.get('access_token') as string;
     const name = fd.get('name') as string;
     createResult.textContent = 'Chargement…';
     createBadge.style.display = 'none';
     try {
       const { status, data } = await apiFetch('/v1/cabinet/secretariats', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
       showResult(createResult, createBadge, status, data);
@@ -266,7 +245,6 @@ import Default from '../../../layouts/Default.astro';
   editForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(editForm);
-    const token = fd.get('access_token') as string;
     const id = fd.get('id') as string;
     const name = fd.get('name') as string;
     editResult.textContent = 'Chargement…';
@@ -274,7 +252,7 @@ import Default from '../../../layouts/Default.astro';
     try {
       const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
       showResult(editResult, editBadge, status, data);
@@ -292,13 +270,11 @@ import Default from '../../../layouts/Default.astro';
   const confirmOk = document.getElementById('confirm-ok') as HTMLButtonElement;
   const confirmCancel = document.getElementById('confirm-cancel') as HTMLButtonElement;
 
-  let pendingDeleteToken = '';
   let pendingDeleteId = '';
 
   deleteForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const fd = new FormData(deleteForm);
-    pendingDeleteToken = fd.get('access_token') as string;
     pendingDeleteId = fd.get('id') as string;
     dialog.showModal();
   });
@@ -312,7 +288,6 @@ import Default from '../../../layouts/Default.astro';
     try {
       const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${pendingDeleteId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${pendingDeleteToken}` },
       });
       showResult(deleteResult, deleteBadge, status, data);
     } catch (err) {
@@ -329,7 +304,6 @@ import Default from '../../../layouts/Default.astro';
   addMemberForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(addMemberForm);
-    const token = fd.get('access_token') as string;
     const secretariatId = fd.get('secretariat_id') as string;
     const userId = fd.get('user_id') as string;
     addMemberResult.textContent = 'Chargement…';
@@ -337,7 +311,7 @@ import Default from '../../../layouts/Default.astro';
     try {
       const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}/members`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId }),
       });
       showResult(addMemberResult, addMemberBadge, status, data);
@@ -355,7 +329,6 @@ import Default from '../../../layouts/Default.astro';
   removeMemberForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(removeMemberForm);
-    const token = fd.get('access_token') as string;
     const secretariatId = fd.get('secretariat_id') as string;
     const userId = fd.get('user_id') as string;
     removeMemberResult.textContent = 'Chargement…';
@@ -363,7 +336,6 @@ import Default from '../../../layouts/Default.astro';
     try {
       const { status, data } = await apiFetch(`/v1/cabinet/secretariats/${secretariatId}/members/${userId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
       showResult(removeMemberResult, removeMemberBadge, status, data);
     } catch (err) {

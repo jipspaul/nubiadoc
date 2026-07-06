@@ -23,6 +23,24 @@ function purgeSession(): void {
   document.cookie = `nubia_ctx=; path=/; max-age=0`;
 }
 
+/**
+ * Parse le corps d'une réponse HTTP de façon robuste.
+ *
+ * L'API renvoie normalement du JSON, mais certaines erreurs (ex. 422) peuvent
+ * renvoyer un corps texte brut. On ne doit JAMAIS planter sur `JSON.parse` :
+ * - corps vide → `null`
+ * - JSON valide → objet parsé
+ * - sinon → la chaîne brute (affichable comme message d'erreur)
+ */
+function parseBody(text: string): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 async function refreshTokens(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
@@ -66,7 +84,7 @@ export async function authFetch(
 ): Promise<{ status: number; data: unknown }> {
   const res = await fetch(`${API_BASE}${path}`, options);
   const text = await res.text();
-  const data: unknown = text ? JSON.parse(text) : null;
+  const data: unknown = parseBody(text);
   return { status: res.status, data };
 }
 
@@ -84,7 +102,7 @@ export async function apiFetch(
 
   if (res.status !== 401) {
     const text = await res.text();
-    const data: unknown = text ? JSON.parse(text) : null;
+    const data: unknown = parseBody(text);
     return { status: res.status, data };
   }
 
@@ -106,7 +124,7 @@ export async function apiFetch(
 
   const retryRes = await fetch(`${API_BASE}${path}`, { ...options, headers: retryHeaders });
   const retryText = await retryRes.text();
-  const retryData: unknown = retryText ? JSON.parse(retryText) : null;
+  const retryData: unknown = parseBody(retryText);
 
   if (retryRes.status === 401) {
     purgeSession();
