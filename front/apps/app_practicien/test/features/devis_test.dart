@@ -22,6 +22,9 @@ class MockListCabinetQuotesUseCase extends Mock
 class MockGetCabinetQuoteUseCase extends Mock
     implements GetCabinetQuoteUseCase {}
 
+class MockSendCabinetQuoteUseCase extends Mock
+    implements SendCabinetQuoteUseCase {}
+
 class MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
 
@@ -66,8 +69,13 @@ final _sentQuote = CabinetQuote(
 DevisBloc _makeBloc({
   required MockListCabinetQuotesUseCase list,
   required MockGetCabinetQuoteUseCase getById,
+  MockSendCabinetQuoteUseCase? send,
 }) =>
-    DevisBloc(list: list, getById: getById);
+    DevisBloc(
+      list: list,
+      getById: getById,
+      send: send ?? MockSendCabinetQuoteUseCase(),
+    );
 
 Widget _wrap(DevisBloc bloc) => MaterialApp(
       theme: NubiaTheme.light,
@@ -133,13 +141,40 @@ void main() {
     );
 
     blocTest<DevisBloc, DevisState>(
-      'émet SendInProgress puis Sent à l\'envoi d\'un brouillon',
-      build: () => _makeBloc(list: mockList, getById: mockGet),
+      'appelle l\'endpoint puis émet SendInProgress → Sent (statut serveur)',
+      build: () {
+        final mockSend = MockSendCabinetQuoteUseCase();
+        when(() => mockSend(any()))
+            .thenAnswer((_) async => const Right(CabinetQuoteStatus.sent));
+        return _makeBloc(list: mockList, getById: mockGet, send: mockSend);
+      },
       seed: () => DevisDetailLoaded(_draftQuote),
       act: (bloc) => bloc.add(const DevisSendRequested('q1')),
       expect: () => [
         DevisSendInProgress(_draftQuote),
-        isA<DevisSent>(),
+        isA<DevisSent>().having(
+          (s) => s.quote.status,
+          'status',
+          CabinetQuoteStatus.sent,
+        ),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'émet SendInProgress puis SendFailure si l\'envoi échoue',
+      build: () {
+        final mockSend = MockSendCabinetQuoteUseCase();
+        when(() => mockSend(any()))
+            .thenAnswer((_) async => Left(ServerFailure(
+                  message: 'Envoi impossible.',
+                )));
+        return _makeBloc(list: mockList, getById: mockGet, send: mockSend);
+      },
+      seed: () => DevisDetailLoaded(_draftQuote),
+      act: (bloc) => bloc.add(const DevisSendRequested('q1')),
+      expect: () => [
+        DevisSendInProgress(_draftQuote),
+        isA<DevisSendFailure>(),
       ],
     );
   });

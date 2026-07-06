@@ -30,8 +30,8 @@ class DevisBackToList extends DevisEvent {
 
 /// Envoie le devis (brouillon) au patient pour signature.
 ///
-/// L'endpoint d'envoi n'étant pas encore branché côté data, la transition est
-/// gérée comme un placeholder optimiste (cf. signature eIDAS du WEDGE patient).
+/// Déclenche `POST /v1/cabinet/quotes/:id/send` : le devis passe à `sent`
+/// côté serveur et devient visible pour le patient (WEDGE, signature eIDAS).
 class DevisSendRequested extends DevisEvent {
   final String id;
 

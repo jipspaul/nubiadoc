@@ -57,6 +57,17 @@ class DevisSent extends DevisState {
   List<Object?> get props => [quote];
 }
 
+/// Échec de l'envoi : on reste sur le détail et on signale l'erreur.
+class DevisSendFailure extends DevisState {
+  final CabinetQuote quote;
+  final String message;
+
+  const DevisSendFailure({required this.quote, required this.message});
+
+  @override
+  List<Object?> get props => [quote, message];
+}
+
 class DevisError extends DevisState {
   final String message;
 

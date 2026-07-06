@@ -1035,6 +1035,95 @@ pub async fn get_cabinet_quote(
     }))
 }
 
+// ── POST /v1/cabinet/quotes/:id/send ─────────────────────────────────────────
+
+/// Réponse de `POST /v1/cabinet/quotes/:id/send`.
+#[derive(Serialize)]
+pub struct SendCabinetQuoteResponse {
+    pub id: Uuid,
+    pub status: String,
+    pub sent: bool,
+}
+
+/// `POST /v1/cabinet/quotes/:id/send` — envoie un devis (brouillon) au patient.
+///
+/// Token pro requis (secretary, practitioner, admin, manager) — patient → 403.
+/// `cabinet_id` extrait du JWT, RLS scopée via `app.current_cabinet_id`.
+/// - Devis inexistant ou hors tenant → 404 (`not_found`).
+/// - Transition `draft → sent` : rend le devis visible côté patient (WEDGE).
+/// - Idempotence : un devis déjà `sent` renvoie `200` sans nouvelle écriture.
+/// - Devis `signed`/`refused`/`expired` → 409 (`invalid_status`).
+pub async fn send_cabinet_quote(
+    State(state): State<AppState>,
+    claims: crate::auth::ProSecretaryPlusClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<SendCabinetQuoteResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope RLS tenant (fail-closed : hors cabinet → devis invisible → 404).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT status FROM quote \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    // Idempotence : déjà envoyé → 200 sans nouvelle écriture.
+    if status == "sent" {
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Ok(Json(SendCabinetQuoteResponse {
+            id,
+            status,
+            sent: true,
+        }));
+    }
+
+    // Seul un brouillon peut être envoyé (signed/refused/expired → 409).
+    if status != "draft" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let updated = sqlx::query(
+        "UPDATE quote SET status = 'sent', updated_at = now() \
+         WHERE id = $1 AND cabinet_id = $2 \
+         RETURNING status",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let status: String = updated.try_get("status").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        user_id = %claims.sub,
+        cabinet_id = %claims.cabinet_id,
+        quote_id = %id,
+        "cabinet quote sent to patient"
+    );
+
+    Ok(Json(SendCabinetQuoteResponse {
+        id,
+        status,
+        sent: true,
+    }))
+}
+
 // ── GET /v1/payments ─────────────────────────────────────────────────────────
 
 /// Un paiement du patient connecté.
