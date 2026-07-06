@@ -83,7 +83,10 @@ class _A2uiRendererState extends State<A2uiRenderer> {
               s.root ??= def.id;
             }
           case UpdateDataModel(:final surfaceId, :final patch):
-            _surfaces.putIfAbsent(surfaceId, _Surface.new).dataModel.merge(patch);
+            _surfaces
+                .putIfAbsent(surfaceId, _Surface.new)
+                .dataModel
+                .merge(patch);
           case DeleteSurface(:final surfaceId):
             _surfaces.remove(surfaceId);
             if (_activeSurfaceId == surfaceId) {

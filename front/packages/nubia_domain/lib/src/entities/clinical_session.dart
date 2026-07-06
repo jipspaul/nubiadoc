@@ -30,17 +30,27 @@ class ClinicalSession extends Equatable {
   final String status; // 'in_progress' | 'completed'
   final List<ClinicalAct> acts;
 
+  /// Nom du patient (renvoyé par la liste GET /v1/cabinet/consultations —
+  /// #3371 : la carte titrait par l'UUID de séance).
+  final String? patientName;
+
+  /// Début de séance (liste uniquement).
+  final DateTime? startedAt;
+
   const ClinicalSession({
     required this.id,
     required this.appointmentId,
     required this.status,
     required this.acts,
+    this.patientName,
+    this.startedAt,
   });
 
   bool get isCompleted => status == 'completed';
 
   @override
-  List<Object?> get props => [id, appointmentId, status, acts];
+  List<Object?> get props =>
+      [id, appointmentId, status, acts, patientName, startedAt];
 }
 
 /// Result of POST .../complete

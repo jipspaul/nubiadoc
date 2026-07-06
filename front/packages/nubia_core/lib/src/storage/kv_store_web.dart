@@ -10,14 +10,12 @@ KvStore createKvStore() => _WebKvStore();
 /// toute façon pas être cachés du JS — c'est le modèle standard.
 class _WebKvStore implements KvStore {
   @override
-  Future<String?> read(String key) async =>
-      html.window.localStorage[key];
+  Future<String?> read(String key) async => html.window.localStorage[key];
 
   @override
   Future<void> write(String key, String value) async =>
       html.window.localStorage[key] = value;
 
   @override
-  Future<void> delete(String key) async =>
-      html.window.localStorage.remove(key);
+  Future<void> delete(String key) async => html.window.localStorage.remove(key);
 }

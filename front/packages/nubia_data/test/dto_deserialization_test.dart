@@ -449,5 +449,18 @@ void main() {
       });
       expect(dto.id, 'cs-2');
     });
+
+    test('fromJson remonte patient_name et started_at de la liste (#3371)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'id': 'cs-3',
+        'appointment_id': 'aa-3',
+        'patient_name': 'Marc Dubois',
+        'status': 'in_progress',
+        'started_at': '2026-07-06T09:30:00Z',
+        'acts': [],
+      }).toDomain();
+      expect(session.patientName, 'Marc Dubois');
+      expect(session.startedAt, DateTime.utc(2026, 7, 6, 9, 30));
+    });
   });
 }
