@@ -123,6 +123,14 @@ class WaitingRoomApi {
   }
 
   Future<void> offerSlot(String id) async {
-    await _dio.post<void>('/cabinet/waiting-list/$id/offer');
+    // Le back exige un corps JSON `{ proposed_at }` (ISO 8601 UTC) — cf.
+    // `OfferSlotBody` côté Rust. Sans corps → 415/400. L'écran « Combler » ne
+    // sélectionne pas de créneau précis : on propose le prochain créneau
+    // disponible (maintenant), le back se contente de marquer l'entrée
+    // `fulfilled` et de notifier le patient.
+    await _dio.post<void>(
+      '/cabinet/waiting-list/$id/offer',
+      data: {'proposed_at': DateTime.now().toUtc().toIso8601String()},
+    );
   }
 }
