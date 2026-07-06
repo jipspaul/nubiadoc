@@ -14,7 +14,7 @@
 > playbook — à clarifier avec un humain si les deux doctrines doivent
 > converger.
 
-Last run: 2026-07-06T18:24:08.000Z
+Last run: 2026-07-06T21:05:13.000Z
 
 ## Faux positifs connus (méthode C)
 
@@ -42,6 +42,7 @@ Last run: 2026-07-06T18:24:08.000Z
 | /pharmacy/orders/:id, /patients/:id (praticien) | patient, praticien | 2026-07-04 | un ID de test factice/non-UUID produit une bannière "Impossible de charger..." attendue (400 côté API, erreur de parsing d'UUID) — comportement correct pour un ID inexistant, pas un bug | non applicable — comportement attendu, pas d'issue filée |
 | /admin-membres | secretariat | 2026-07-04 | test avec le compte seed `sonia.accueil` (role=secretary) produit un 403 + bannière "Accès réservé aux administrateurs du cabinet." — gate de permission correctement implémentée, pas un bug | non applicable — comportement attendu, pas d'issue filée |
 | /agenda, /liste-attente (secretariat) ; /patients/test-patient-id, /ordonnances, /ordonnances/new (praticien) ; /reset-password, /notifications (patient) | secretariat, praticien, patient | 2026-07-06 | seuil mécanique `whiteRatio > 0.995` déclenché sur des pages avec du **contenu réel** (agenda chargé après un délai réseau plus long que le sleep fixe du sweep, empty-states légitimes, bannière d'ID factice attendue, page à faible densité de texte) — voir note méthodologique whiteRatio ci-dessous | faux positifs — vérifiés à l'écran, aucune issue filée |
+| /liste-attente (secretariat) ; /notifications, /reviews (patient) ; /patients/test-patient-id, /ordonnances, /ordonnances/new (praticien) ; /devis/test-devis-id, /admin-membres (secretariat) | secretariat, patient, praticien | 2026-07-06T21:05 | reconfirmation indépendante du run 18:24 le même jour, avec cette fois un décodage PNG correct (`pngjs`, canaux RGB réels) : whiteRatio mécanique `>0.995` sur pages à contenu réel (notification unique, empty-state légitime) + bannières d'erreur attendues sur ID factice / 403 rôle — tous vérifiés à l'écran, 0 issue filée | faux positifs — vérifiés à l'écran, aucune issue filée |
 
 ## Notes méthodologiques harness
 
@@ -69,85 +70,89 @@ Last run: 2026-07-06T18:24:08.000Z
 - **Run 2026-07-06 — nouveau bug bloquant sur Onboarding Flow A, distinct de #3384/#3397 (tous deux déjà fermés, tous deux à l'étape account-setup) : `PATCH /v1/account/coverage` rejette 422 dès que `mutuelle.amc` est renseigné sans `mutuelle.numero_adherent`**, alors que l'UI labelle explicitement ce champ "Numéro adhérent (**optionnel**)". Root cause : `PatchCoverageMutuelle` (`api/src/auth/mod.rs:2345-2349`) déclare `numero_adherent: String` (requis, pas `Option`), donc Serde rejette le body dès que `mutuelle` est présent sans les deux clés. Bloque l'étape finale du flow pour tout patient qui suit l'invite de l'UI. Tracké #3434 (P0) — **repris et fermé par flutter-agent en cours de ce même run** (PR #3435, fix frontend : envoie toujours `amc`+`numero_adherent` avec `?? ''` au lieu d'omettre la clé, + bannière d'erreur persistante au lieu d'un SnackBar transitoire). Root cause backend (champ non-optionnel malgré le contrat UI) non touchée par le fix — workaround frontend, à surveiller si une régression future réintroduit l'omission de la clé.
 - **Run 2026-07-06 — Onboarding Flow C (register praticien) reconfirmé OK pour la 2e fois consécutive** (2 runs indépendants ce run, tous deux POST 201 → `/cabinet-setup` sans rebond sur `/login`). La course auth-guard documentée depuis #3192 et une longue lignée de faux "fix" semble bien résolue — recommandé de considérer cette classe de bug close sauf régression future.
 - **Run 2026-07-06 — nouveau feature-gap praticien `/devis` (Méthode A, grep) : l'action "envoyer le devis au patient" est un mock local, aucun appel réseau.** `DevisBloc._onSendRequested` (`devis_bloc.dart:67-79`) émet `DevisSent` immédiatement après une mutation locale, sans jamais appeler `POST /v1/cabinet/quotes/:id/send` (qui n'existe d'ailleurs pas côté backend). Silencieux côté UI (rendu normal, aucun marker visible) — trouvé uniquement par grep source, pas par le scan DOM (Méthode C). Distinct de l'ancien #3370 (fermé, décrivait l'ancien écran 100 % stub list/detail, déjà remplacé par un vrai rendu depuis le 2026-07-04). Tracké #3436 (P3).
+- **Run 2026-07-06T21:05 — le fix #3434/PR #3435 (coverage-setup 422 sur `numero_adherent` vide) tient à un run indépendant supplémentaire.** Flow A complet (signup → account-setup → coverage-setup → home) rejoué de bout en bout avec un compte jetable frais, aucun rebond, 0 console.error, 0 failed-request sur les 3 dernières étapes. Déploiement vérifié frais (`main.dart.js` Last-Modified 18:58-18:59Z, postérieur au merge 18:11Z de PR #3435).
+- **Run 2026-07-06T21:05 — Onboarding Flow C (register praticien) reconfirmé OK pour la 3e fois consécutive** (indices de champ corrigés : Prénom(0) Nom(1) Email(2) MotDePasse(3) ConfirmMotDePasse(4) RPPS(5) ADELI(6) RaisonSociale(7) SIRET(8) — l'ordre réel du formulaire diffère de l'ordre supposé initialement ; un mauvais index remplit silencieusement le mauvais champ sans erreur de locator, produisant de faux échecs de validation qui ressemblent à un bug applicatif).
+- **Run 2026-07-06T21:05 — piège harness : `page.getByLabel()` ne matche PAS un bouton Flutter dont le nom accessible vient de son texte (pas d'un `<label>`/`aria-label`).** Le champ "Date de naissance" (`/account-setup` patient) est un `FLT-SEMANTICS[role="button"]` sans `aria-label`, seulement du texte — `getByLabel(/date de naissance/i)` échoue silencieusement (isVisible=false), et le harness sautait alors tout le bloc de remplissage de la date sans erreur visible, laissant "Continuer" désactivé indéfiniment (faux `onboarding-flow-broken`, pas un bug produit). Fix : `getByRole('button', {name: ...})` pour ces éléments. Séquence complète confirmée : cliquer le bouton → cliquer "Passer à la saisie" → remplir l'`<input aria-label="Saisir une date">` qui apparaît (préremplie, à écraser) → "OK".
+- **Run 2026-07-06T21:05 — piège harness Méthode C (DOM feature-gap scan) : un `.replace(regex, '')` sans flag `/g` ne supprime qu'UNE occurrence du bruit CSS, laissant les occurrences suivantes de `::placeholder` déclencher un faux marker `placeholder` sur TOUTES les routes.** Le texte concaténé de `div` ancêtres contient souvent plusieurs blocs `<style>` injectés (un par route/composant Flutter re-rendu) — un seul `.replace()` non-global laisse les blocs suivants intacts. Fix : regex `/.../gi` + exclusion des éléments dont un descendant est `style`/`script` (`!e.querySelector('style, script')`) avant même de lire `.textContent`. Sans ce fix, le scan Méthode C aurait produit un faux feature-gap sur les 40 routes testées ce run.
 
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, contenu réel affiché |
-| /a2ui-demo | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /account-setup | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | testé via Onboarding flow A (atteint, formulaire soumis avec succès) |
-| /appointments | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé — carte + liste praticiens réelle |
-| /book | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /coverage-setup | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK (rendu) | rendu formulaire OK ; soumission avec mutuelle+numéro vide → 422 (#3434, fixé en cours de run par #3435 — à reconfirmer au prochain run) |
-| /documents | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, liste réelle |
-| /financial | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, liste réelle |
-| /forgot-password | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié) |
-| /login | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié) |
-| /mes-rdv | 2026-07-01 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
-| /messaging | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, liste réelle |
-| /notifications | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (whiteRatio mécanique 0.997 faux positif — 1 notification réelle affichée) |
-| /oubliettes | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, feature-gap #3224 toujours corrigé |
-| /pharmacy | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
+| / | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, contenu réel affiché |
+| /a2ui-demo | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (non re-testé ce run, hors cap) |
+| /account-setup | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | Onboarding flow A : atteint, formulaire soumis avec succès (date de naissance via `getByRole('button')`, cf. note méthodologique) |
+| /appointments | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé — carte + liste praticiens réelle |
+| /book | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /coverage-setup | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | Onboarding flow A : fix #3434/#3435 reconfirmé — 0 console.error, 0 failed-request, atteint home après soumission |
+| /documents | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, liste réelle |
+| /financial | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, liste réelle |
+| /forgot-password | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié, non re-testé ce run, hors cap) |
+| /login | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (contexte non-authentifié, via Onboarding flow A step 1 + login sweep) |
+| /mes-rdv | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /messaging | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, liste réelle |
+| /notifications | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (whiteRatio mécanique 0.9965 faux positif — 1 notification réelle affichée, décodage PNG réel via pngjs) |
+| /oubliettes | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, feature-gap #3224 toujours corrigé |
+| /pharmacy | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
 | /pharmacy/search | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
 | /pharmacy/send | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
 | /pharmacy/orders | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
 | /pharmacy/orders/:id | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
-| /profile | 2026-07-01 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
-| /profile/dependents | 2026-07-04 | 2026-07-06T18:24:08.000Z | OK | corrigé depuis #3386, reconfirmé 0 console.error |
-| /profile/consents | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
-| /profile/notifications | 2026-07-04 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
-| /rdv/test-appt-id/prepare | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /reset-password | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié) — "Ce lien de réinitialisation est invalide." sans token, attendu |
-| /reviews | 2026-07-01 | 2026-07-04T23:51:28.000Z | OK | — (non re-testé ce run, hors cap) |
-| /signup | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié + via Onboarding flow A) |
-| /splash | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié) |
+| /profile | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /profile/dependents | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | corrigé depuis #3386, reconfirmé 0 console.error |
+| /profile/consents | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /profile/notifications | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /rdv/test-appt-id/prepare | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /reset-password | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié, non re-testé ce run, hors cap) |
+| /reviews | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (whiteRatio mécanique 0.997 faux positif — empty-state légitime "Aucun avis pour ce prestataire") |
+| /signup | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (contexte non-authentifié + via Onboarding flow A) |
+| /splash | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (contexte non-authentifié) |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | corrigé depuis #3383 — 0 console.error, 0 failed-request (today-notes 404 disparu) |
-| /a2ui-demo | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /agenda | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /cabinet-setup | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, atteint via Onboarding flow C ×2 |
-| /consultation | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | runtime OK ; feature-gap déjà tracké — #3226 |
-| /devis | 2026-07-04 | 2026-07-06T18:24:08.000Z | OK (rendu) | rendu OK ; nouveau feature-gap sur l'action d'envoi (Méthode A grep) — #3436 |
-| /login | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé via login flow |
-| /messages | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, liste de conversations réelle |
-| /ordonnances | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé — état vide légitime "Aucune ordonnance en cours" |
-| /ordonnances/new | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé — état vide légitime "Nouvelle ordonnance" |
-| /patients | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /patients/test-patient-id | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | bannière "Impossible de charger le patient." avec un ID factice = comportement attendu (reconfirmé) |
-| /register-pro | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | rendu + flow de soumission complet OK, **2e confirmation indépendante ce run** (voir Onboarding flow C) |
-| /splash | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé via login flow |
-| /waiting-room | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
+| / | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé — 0 console.error, 0 failed-request |
+| /a2ui-demo | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /agenda | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /cabinet-setup | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, atteint via Onboarding flow C (3e confirmation indépendante) |
+| /consultation | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | runtime OK ; feature-gap déjà tracké — #3226 |
+| /devis | 2026-07-04 | 2026-07-06T21:05:13.000Z | OK | rendu OK ; feature-gap envoi devis toujours ouvert — #3436 (P3, non re-testé pour régression, pas de re-post) |
+| /login | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé via login flow |
+| /messages | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, liste de conversations réelle |
+| /ordonnances | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé — état vide légitime "Aucune ordonnance en cours" (whiteRatio mécanique 0.9954 faux positif) |
+| /ordonnances/new | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé — état vide légitime "Nouvelle ordonnance" (whiteRatio mécanique 0.9955 faux positif) |
+| /patients | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /patients/test-patient-id | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | bannière "Impossible de charger le patient." avec un ID factice = comportement attendu (reconfirmé) |
+| /register-pro | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | rendu + flow de soumission complet OK, **3e confirmation indépendante consécutive** (voir Onboarding flow C) |
+| /splash | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé via login flow |
+| /waiting-room | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, KPI + états vides corrects |
-| /a2ui-demo | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /admin-membres | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | runtime OK (403 attendu, rôle secretary) ; feature-gap #3381 corrigé (InviteMemberUseCase désormais réellement câblé, vérifié par lecture source — non testable en direct avec ce rôle) |
-| /admin-secretariats | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | feature-gap #3382 corrigé (idem) |
-| /agenda | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (whiteRatio mécanique 1.000 faux positif dû à un délai réseau > sleep fixe du sweep — contenu réel confirmé à l'écran après re-test avec délai plus long) |
-| /appointments | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /bookable-slots | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, grille de créneaux réelle |
-| /devis | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /devis/test-devis-id | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | bannière "404" avec un ID factice = comportement attendu (reconfirmé) |
-| /liste-attente | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé — état vide légitime "Pas d'attente" |
-| /login | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé via login flow |
-| /messages | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /onboard | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | invitation_token invalide → "Invitation invalide" (reconfirmé, voir Onboarding flow B) |
-| /patients | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé, cloisonnement clinique respecté |
-| /salle-attente | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé |
-| /splash | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé via login flow |
+| / | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, KPI + états vides corrects |
+| /a2ui-demo | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /admin-membres | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | runtime OK (403 attendu, rôle secretary) ; feature-gap #3381 toujours corrigé |
+| /admin-secretariats | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | feature-gap #3382 toujours corrigé |
+| /agenda | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /appointments | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /bookable-slots | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, grille de créneaux réelle |
+| /devis | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /devis/test-devis-id | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | bannière 400 UUID invalide avec un ID factice = comportement attendu (reconfirmé) |
+| /liste-attente | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé — état vide légitime "Pas d'attente" (whiteRatio mécanique 0.996 faux positif) |
+| /login | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé via login flow |
+| /messages | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /onboard | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | invitation_token invalide → "Invitation invalide" (reconfirmé, voir Onboarding flow B) |
+| /patients | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé, cloisonnement clinique respecté |
+| /salle-attente | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé |
+| /splash | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé via login flow |
 
 ## Onboarding flows (Étape 4.5)
 
 | flow | app | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| A (signup patient) | patient | 2026-07-06T18:24:08.000Z | broken puis fixé | signup + account-setup (birth_date, #3384) désormais OK de bout en bout ; **nouveau bug** trouvé une étape plus loin, coverage-setup : PATCH /v1/account/coverage 422 si mutuelle renseignée sans numéro adhérent (pourtant labellé optionnel) — #3434 (P0), **fixé en cours de ce run** par PR #3435 (workaround frontend : envoie toujours les 2 clés) — à reconfirmer au prochain run |
-| B (invitation secretariat) | secretariat | 2026-07-06T18:24:08.000Z | OK | reconfirmé — fix PR #3209 tient toujours (400 invitation_invalid, checkbox CGU cochée via pointer-events réels, "Invitation invalide" affiché de bout en bout) |
-| C (register praticien) | praticien | 2026-07-06T18:24:08.000Z | OK | **2e confirmation indépendante consécutive** ce run (2/2) : POST 201 → /cabinet-setup atteint sans rebond sur /login, dropdown Spécialité navigué au clavier. La course auth-guard (#3192 et sa longue lignée) est considérée résolue sauf régression future |
+| A (signup patient) | patient | 2026-07-06T21:05:13.000Z | OK | **reconfirmé de bout en bout** (signup → account-setup → coverage-setup → home) avec un compte jetable frais et un déploiement vérifié frais (main.dart.js postérieur au merge de PR #3435) : 0 console.error, 0 failed-request sur les 3 dernières étapes. Le fix #3434/#3435 tient. |
+| B (invitation secretariat) | secretariat | 2026-07-06T21:05:13.000Z | OK | reconfirmé — fix PR #3209 tient toujours (400 invitation_invalid attendu, checkbox CGU cochée via `.click()` natif, "Finaliser mon compte" soumis, "Invitation invalide" affiché de bout en bout) |
+| C (register praticien) | praticien | 2026-07-06T21:05:13.000Z | OK | **3e confirmation indépendante consécutive** : POST 201 → /cabinet-setup atteint sans rebond sur /login, dropdown Spécialité navigué au clavier, indices de champ corrigés (cf. note méthodologique). La course auth-guard (#3192 et sa longue lignée) est considérée résolue sauf régression future |
