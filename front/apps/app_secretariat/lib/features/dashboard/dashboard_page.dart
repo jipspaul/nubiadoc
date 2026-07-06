@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -123,11 +124,13 @@ class DashboardPage extends StatelessWidget {
         );
       },
       trailingActions: [
-        IconButton(
-          tooltip: 'Démo A2UI',
-          icon: const Icon(Icons.auto_awesome_outlined),
-          onPressed: () => context.push('/a2ui-demo'),
-        ),
+        // Playground A2UI : artefact de dev, jamais visible en production.
+        if (kDebugMode)
+          IconButton(
+            tooltip: 'Démo A2UI',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => context.push('/a2ui-demo'),
+          ),
       ],
       onSignOut: () => context.read<ProAuthCubit>().signOut(),
     );

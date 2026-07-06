@@ -161,6 +161,31 @@ void main() {
     );
 
     blocTest<AdminMembresBloc, AdminMembresState>(
+      'émet Loading puis Forbidden sur 403 (route admin-only)',
+      build: () {
+        when(() => membersRepo.list()).thenAnswer(
+          (_) async => Left(const ServerFailure(
+            message: 'Accès réservé aux administrateurs du cabinet.',
+            statusCode: 403,
+          )),
+        );
+        when(() => secretariatRepo.list())
+            .thenAnswer((_) async => Right(secretariats));
+        return AdminMembresBloc(
+          listMembers: listMembers,
+          listSecretariats: listSecretariats,
+          inviteMember: inviteMember,
+        );
+      },
+      act: (bloc) => bloc.add(const AdminMembresLoadRequested()),
+      expect: () => [
+        const AdminMembresLoading(),
+        const AdminMembresForbidden(
+            'Accès réservé aux administrateurs du cabinet.'),
+      ],
+    );
+
+    blocTest<AdminMembresBloc, AdminMembresState>(
       'émet Loading puis Error si l\'invitation échoue',
       build: () {
         when(() => membersRepo.invite(any(), any())).thenAnswer(
@@ -332,6 +357,33 @@ void main() {
       expect(find.byKey(const Key('admin_membres_empty')), findsOneWidget);
       expect(
           find.text('Aucun membre ni secrétariat enregistré.'), findsOneWidget);
+    });
+
+    testWidgets(
+        'état Forbidden (403) : masque le FAB et affiche l\'accès réservé',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const AdminMembresForbidden(
+            'Accès réservé aux administrateurs du cabinet.'),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // Cul-de-sac 403 évité : plus aucune action d'invitation proposée.
+      expect(find.byKey(const Key('add_member_fab')), findsNothing);
+      expect(find.byKey(const Key('admin_membres_forbidden')), findsOneWidget);
+      expect(find.text('Accès réservé aux administrateurs'), findsOneWidget);
+    });
+
+    testWidgets('état Loaded : le FAB d\'invitation reste disponible',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        const AdminMembresLoaded(members: [], secretariats: []),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('add_member_fab')), findsOneWidget);
     });
   });
 }

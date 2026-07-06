@@ -34,6 +34,10 @@ class _AdminMembresPageState extends State<AdminMembresPage>
 
   @override
   Widget build(BuildContext context) {
+    // L'invitation (POST /members) est réservée aux admins. En cas de 403,
+    // on masque le FAB pour ne pas proposer une action interdite (cul-de-sac).
+    final canInvite =
+        context.watch<AdminMembresBloc>().state is! AdminMembresForbidden;
     return Scaffold(
       key: const Key('admin_membres_scaffold'),
       appBar: AppBar(
@@ -55,26 +59,29 @@ class _AdminMembresPageState extends State<AdminMembresPage>
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('add_member_fab'),
-        onPressed: () async {
-          final bloc = context.read<AdminMembresBloc>();
-          final result = await showDialog<({String email, MemberRole role})>(
-            context: context,
-            builder: (_) => const InviteMemberDialog(),
-          );
-          if (result != null) {
-            bloc.add(
-              AdminMembresInviteRequested(
-                email: result.email,
-                role: result.role,
-              ),
-            );
-          }
-        },
-        icon: const Icon(Icons.person_add),
-        label: const Text('Ajouter membre'),
-      ),
+      floatingActionButton: canInvite
+          ? FloatingActionButton.extended(
+              key: const Key('add_member_fab'),
+              onPressed: () async {
+                final bloc = context.read<AdminMembresBloc>();
+                final result =
+                    await showDialog<({String email, MemberRole role})>(
+                  context: context,
+                  builder: (_) => const InviteMemberDialog(),
+                );
+                if (result != null) {
+                  bloc.add(
+                    AdminMembresInviteRequested(
+                      email: result.email,
+                      role: result.role,
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.person_add),
+              label: const Text('Ajouter membre'),
+            )
+          : null,
       body: BlocListener<AdminMembresBloc, AdminMembresState>(
         listenWhen: (_, state) => state is AdminMembresInviteSuccess,
         listener: (context, _) => ScaffoldMessenger.of(context).showSnackBar(
@@ -101,6 +108,12 @@ class _AdminMembresPageState extends State<AdminMembresPage>
                   _MembersList(members: members),
                   _SecretariatsList(secretariats: secretariats),
                 ],
+              ),
+            AdminMembresForbidden(:final message) => NubiaEmptyState(
+                key: const Key('admin_membres_forbidden'),
+                icon: Icons.lock_outline,
+                title: 'Accès réservé aux administrateurs',
+                subtitle: message,
               ),
             AdminMembresError(:final message) => NubiaErrorWidget(
                 message: message,
