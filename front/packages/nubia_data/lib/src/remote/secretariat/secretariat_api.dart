@@ -55,11 +55,22 @@ class SecretariatApi {
     return SecretariatDto.fromJson(response.data!);
   }
 
-  Future<SecretariatDto> invite(String email) async {
-    final response = await _dio.post<Map<String, dynamic>>(
+  /// Crée le secrétariat (POST /cabinet/secretariats {name}) puis
+  /// provisionne le premier membre (POST .../:id/staff {email, role}) —
+  /// le back envoie le mail d'invitation.
+  Future<SecretariatDto> invite({
+    required String name,
+    required String email,
+  }) async {
+    final created = await _dio.post<Map<String, dynamic>>(
       '/cabinet/secretariats',
-      data: {'email': email},
+      data: {'name': name},
     );
-    return SecretariatDto.fromJson(response.data!);
+    final dto = SecretariatDto.fromJson(created.data!);
+    await _dio.post<Map<String, dynamic>>(
+      '/cabinet/secretariats/${dto.id}/staff',
+      data: {'email': email, 'role': 'secretary'},
+    );
+    return dto;
   }
 }

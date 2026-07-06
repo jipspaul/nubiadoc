@@ -29,6 +29,27 @@ final class AdminSecretiariatsLoaded extends AdminSecretiariatsState {
   List<Object?> get props => [secretariats];
 }
 
+/// Invitation envoyée — état transitoire consommé par la page (snackbar)
+/// avant le rechargement de la liste.
+final class AdminSecretiariatsInviteSent extends AdminSecretiariatsState {
+  const AdminSecretiariatsInviteSent(this.email);
+
+  final String email;
+
+  @override
+  List<Object?> get props => [email];
+}
+
+/// Échec d'invitation — la liste courante reste affichée derrière.
+final class AdminSecretiariatsInviteFailed extends AdminSecretiariatsState {
+  const AdminSecretiariatsInviteFailed(this.message);
+
+  final String message;
+
+  @override
+  List<Object?> get props => [message];
+}
+
 final class AdminSecretiariatsError extends AdminSecretiariatsState {
   const AdminSecretiariatsError(this.message);
 

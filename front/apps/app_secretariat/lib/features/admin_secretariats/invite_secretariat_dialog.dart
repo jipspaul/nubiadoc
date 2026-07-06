@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
-/// Modale d'invitation d'un secrétariat (stub UI).
+/// Modale d'invitation d'un secrétariat.
 ///
-/// Action admin : collecte nom + email et affiche une confirmation. Aucun
-/// appel backend n'est câblé (pas de contrat modifié) — l'invitation réelle
-/// sera branchée ultérieurement. Cloisonnement : aucune donnée clinique.
+/// Collecte nom + email et rend la main à la page, qui dispatche
+/// l'invitation réelle (création du secrétariat + provisionnement du premier
+/// membre). Cloisonnement : aucune donnée clinique.
 class InviteSecretariatDialog extends StatefulWidget {
   const InviteSecretariatDialog({super.key});
 
@@ -32,11 +32,10 @@ class _InviteSecretariatDialogState extends State<InviteSecretariatDialog> {
   }
 
   void _onInvite() {
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Invitation envoyée (stub)')),
-    );
+    Navigator.of(context).pop((
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+    ));
   }
 
   @override

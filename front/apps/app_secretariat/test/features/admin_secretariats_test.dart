@@ -91,7 +91,10 @@ void main() {
       build: () {
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => Right(secretariats));
-        return AdminSecretiariatsBloc(listSecretariats: listSecretariats);
+        return AdminSecretiariatsBloc(
+          listSecretariats: listSecretariats,
+          addSecretariat: AddSecretariatUseCase(secretariatRepo),
+        );
       },
       act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
       expect: () => [
@@ -105,7 +108,10 @@ void main() {
       build: () {
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => const Right([]));
-        return AdminSecretiariatsBloc(listSecretariats: listSecretariats);
+        return AdminSecretiariatsBloc(
+          listSecretariats: listSecretariats,
+          addSecretariat: AddSecretariatUseCase(secretariatRepo),
+        );
       },
       act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
       expect: () => [
@@ -115,12 +121,73 @@ void main() {
     );
 
     blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+      'invitation → InviteSent puis rechargement de la liste',
+      build: () {
+        when(() => secretariatRepo.invite(
+              name: any(named: 'name'),
+              email: any(named: 'email'),
+            )).thenAnswer((_) async => Right(secretariats.first));
+        when(() => secretariatRepo.list())
+            .thenAnswer((_) async => Right(secretariats));
+        return AdminSecretiariatsBloc(
+          listSecretariats: listSecretariats,
+          addSecretariat: AddSecretariatUseCase(secretariatRepo),
+        );
+      },
+      act: (bloc) => bloc.add(const AdminSecretiariatsInviteRequested(
+        name: 'Secrétariat Rhône',
+        email: 'contact@rhone.test',
+      )),
+      expect: () => [
+        const AdminSecretiariatsInviteSent('contact@rhone.test'),
+        const AdminSecretiariatsLoading(),
+        AdminSecretiariatsLoaded(secretariats: secretariats),
+      ],
+      verify: (_) {
+        verify(() => secretariatRepo.invite(
+              name: 'Secrétariat Rhône',
+              email: 'contact@rhone.test',
+            )).called(1);
+      },
+    );
+
+    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
+      'échec d\'invitation → InviteFailed, pas de rechargement',
+      build: () {
+        when(() => secretariatRepo.invite(
+              name: any(named: 'name'),
+              email: any(named: 'email'),
+            )).thenAnswer(
+          (_) async => const Left(
+            ServerFailure(message: 'Impossible d\'inviter le secrétariat.'),
+          ),
+        );
+        return AdminSecretiariatsBloc(
+          listSecretariats: listSecretariats,
+          addSecretariat: AddSecretariatUseCase(secretariatRepo),
+        );
+      },
+      act: (bloc) => bloc.add(const AdminSecretiariatsInviteRequested(
+        name: 'Secrétariat Rhône',
+        email: 'contact@rhone.test',
+      )),
+      expect: () => [
+        const AdminSecretiariatsInviteFailed(
+          'Impossible d\'inviter le secrétariat.',
+        ),
+      ],
+    );
+
+    blocTest<AdminSecretiariatsBloc, AdminSecretiariatsState>(
       'émet Loading puis Error sur échec',
       build: () {
         when(() => secretariatRepo.list()).thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
-        return AdminSecretiariatsBloc(listSecretariats: listSecretariats);
+        return AdminSecretiariatsBloc(
+          listSecretariats: listSecretariats,
+          addSecretariat: AddSecretariatUseCase(secretariatRepo),
+        );
       },
       act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
       expect: () => [
@@ -134,7 +201,10 @@ void main() {
       build: () {
         when(() => secretariatRepo.list())
             .thenAnswer((_) async => Right(secretariats));
-        return AdminSecretiariatsBloc(listSecretariats: listSecretariats);
+        return AdminSecretiariatsBloc(
+          listSecretariats: listSecretariats,
+          addSecretariat: AddSecretariatUseCase(secretariatRepo),
+        );
       },
       act: (bloc) => bloc.add(const AdminSecretiariatsLoadRequested()),
       verify: (bloc) {
