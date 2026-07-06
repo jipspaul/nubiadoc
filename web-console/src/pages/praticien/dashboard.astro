@@ -152,7 +152,7 @@ if (role !== 'practitioner' && role !== 'admin') {
       if (status !== 200) { agendaStatus.textContent = `Erreur serveur (HTTP ${status}).`; agendaStatus.className = 'error'; return; }
 
       agendaStatus.textContent = '';
-      const entries = (data as AgendaEntry[]) ?? [];
+      const entries: AgendaEntry[] = Array.isArray(data) ? (data as AgendaEntry[]) : [];
       agendaTbody.innerHTML = '';
 
       entries.forEach((entry) => {
@@ -199,7 +199,7 @@ if (role !== 'practitioner' && role !== 'admin') {
       if (status !== 200) { appointmentsStatus.textContent = `Erreur serveur (HTTP ${status}).`; appointmentsStatus.className = 'error'; return; }
 
       appointmentsStatus.textContent = '';
-      const appts = (data as Appointment[]) ?? [];
+      const appts: Appointment[] = Array.isArray(data) ? (data as Appointment[]) : [];
       appointmentsTbody.innerHTML = '';
 
       const todayAppts = appts.filter((a) => a.scheduled_at?.startsWith(todayIso));
@@ -238,7 +238,7 @@ if (role !== 'practitioner' && role !== 'admin') {
       if (status !== 200) { waitingStatus.textContent = `Erreur serveur (HTTP ${status}).`; waitingStatus.className = 'error'; return; }
 
       waitingStatus.textContent = '';
-      const entries = (data as WaitingRoomEntry[]) ?? [];
+      const entries: WaitingRoomEntry[] = Array.isArray(data) ? (data as WaitingRoomEntry[]) : [];
 
       if (entries.length === 0) {
         waitingEmpty.hidden = false;

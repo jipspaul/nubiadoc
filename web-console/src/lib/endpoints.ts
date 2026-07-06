@@ -728,9 +728,14 @@ export const proCabinet = {
 // ---------------------------------------------------------------------------
 
 export const proAgenda = {
-  get: (params?: { from?: string; to?: string }) => {
+  get: async (params?: { from?: string; to?: string }): Promise<ApiResponse<AgendaEntry[]>> => {
     const qs = params ? new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])).toString() : '';
-    return apiFetch(`/v1/cabinet/agenda${qs ? `?${qs}` : ''}`) as Promise<ApiResponse<AgendaEntry[]>>;
+    // L'API peut renvoyer `[...]` ou `{ data: [...] }` — on déballe pour garantir un tableau.
+    const res = (await apiFetch(`/v1/cabinet/agenda${qs ? `?${qs}` : ''}`)) as ApiResponse<
+      AgendaEntry[] | { data?: AgendaEntry[] }
+    >;
+    const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+    return { ...res, data };
   },
 
   getAppointments: async (params?: { status?: string }): Promise<ApiResponse<Appointment[]>> => {

@@ -94,7 +94,7 @@ const isActive = (href: string) => {
   import { isAuthenticated, logout } from '../lib/session.ts';
 
   if (!isAuthenticated()) {
-    window.location.href = '/login';
+    window.location.href = '/auth/login';
   }
 
   const btn = document.getElementById('m-logout-btn');

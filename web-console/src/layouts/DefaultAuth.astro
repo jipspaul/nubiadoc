@@ -36,7 +36,7 @@ const { title = 'Nubia' } = Astro.props;
   import { isAuthenticated, getCurrentUser, logout } from '../lib/session.ts';
 
   if (!isAuthenticated()) {
-    window.location.href = '/login';
+    window.location.href = '/auth/login';
   } else {
     const el = document.getElementById('user-email');
     if (el) el.textContent = getCurrentUser() ?? '';
