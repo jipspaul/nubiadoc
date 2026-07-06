@@ -30,6 +30,8 @@ pub struct CabinetConversationItem {
     pub patient_last_name: String,
     /// ISO 8601 UTC du dernier message, ou `null` si aucun message encore.
     pub last_message_at: Option<String>,
+    /// Aperçu (tronqué) du dernier message — POC chiffrement UTF-8 (#3373).
+    pub last_message_preview: Option<String>,
     /// `urgent` ou `normal` — issu du dernier message du fil.
     pub triage_flag: String,
     /// Messages patient non lus (`sender_kind='patient'`, `read_at IS NULL`).
@@ -173,6 +175,9 @@ pub async fn list_cabinet_conversations(
                  c.status, \
                  (SELECT MAX(m.created_at) \
                   FROM message m WHERE m.conversation_id = c.id) AS last_message_at, \
+                 (SELECT m.body_ciphertext FROM message m \
+                  WHERE m.conversation_id = c.id \
+                  ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_body, \
                  COALESCE( \
                      (SELECT m.triage_flag FROM message m \
                       WHERE m.conversation_id = c.id \
@@ -195,7 +200,7 @@ pub async fn list_cabinet_conversations(
              WHERE true{scope_filter}{sec_filter} \
          ) \
          SELECT id, patient_first_name, patient_last_name, last_message_at, \
-                triage_flag, urgency_int, unread_count, scope, status \
+                last_body, triage_flag, urgency_int, unread_count, scope, status \
          FROM conv \
          WHERE true{cursor_clause} \
          ORDER BY urgency_int ASC, last_message_at DESC NULLS LAST, id DESC \
@@ -276,6 +281,12 @@ pub async fn list_cabinet_conversations(
             .map_err(|_| AppError::Internal)?;
         let scope: String = row.try_get("scope").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        // POC chiffrement : UTF-8 brut, aperçu tronqué à 120 caractères.
+        let last_body: Option<Vec<u8>> =
+            row.try_get("last_body").map_err(|_| AppError::Internal)?;
+        let last_message_preview = last_body
+            .and_then(|b| String::from_utf8(b).ok())
+            .map(|t| t.chars().take(120).collect::<String>());
 
         last_urgency = Some(urgency_int);
         last_lma = lma;
@@ -286,6 +297,7 @@ pub async fn list_cabinet_conversations(
             patient_first_name,
             patient_last_name,
             last_message_at: lma.map(|dt| dt.to_rfc3339()),
+            last_message_preview,
             triage_flag,
             unread_count,
             scope,

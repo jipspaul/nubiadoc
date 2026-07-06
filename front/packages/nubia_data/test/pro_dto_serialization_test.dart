@@ -317,6 +317,24 @@ void main() {
       expect(domain.lastMessageAt, isNotNull);
     });
 
+    test('fromJson lit last_message_preview (#3373)', () {
+      final dto = CabinetConversationDto.fromJson({
+        'id': 'c1',
+        'patient_first_name': 'Marc',
+        'patient_last_name': 'Dubois',
+        'last_message_at': '2026-06-03T08:00:00+00:00',
+        'last_message_preview': 'Bonjour docteur, j\'ai une question.',
+        'triage_flag': 'normal',
+        'unread_count': 2,
+        'scope': 'patient_cabinet',
+        'status': 'open',
+      });
+      expect(
+        dto.toDomain().lastMessagePreview,
+        'Bonjour docteur, j\'ai une question.',
+      );
+    });
+
     test(
         'fromJson accepte patient_name direct (champ absent dans l\'API réelle)',
         () {

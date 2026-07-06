@@ -86,11 +86,21 @@ class _ConversationsList extends StatelessWidget {
         final isUrgent = conv.lastMessage?.urgency == MessageUrgency.urgent;
         final timestamp = conv.lastMessageAt ?? conv.lastMessage?.sentAt;
 
+        // #3373 : aperçu réel du dernier message (serveur), nom de repli
+        // lisible plutôt qu'un avatar « ? » muet, et cohérence avec le badge
+        // non-lu (jamais « Aucun message » quand il y a des non-lus).
+        final name =
+            conv.patientName.trim().isEmpty ? 'Patient' : conv.patientName;
+        final subtitle = conv.lastMessagePreview ??
+            conv.lastMessage?.text ??
+            (isUnread
+                ? '${conv.unreadCount} message(s) non lu(s)'
+                : 'Aucun message');
         return ListRow(
           key: Key('conv_${conv.id}'),
-          leading: NubiaAvatar(initials: _initials(conv.patientName)),
-          title: conv.patientName,
-          subtitle: conv.lastMessage?.text ?? 'Aucun message',
+          leading: NubiaAvatar(initials: _initials(name)),
+          title: name,
+          subtitle: subtitle,
           unread: isUnread,
           showDivider: index != conversations.length - 1,
           trailing: _ConversationTrailing(

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'patients_bloc.dart';
@@ -238,8 +239,28 @@ class _DetailViewState extends State<_DetailView> {
                     ),
                   ],
                 ),
-                if (p.email != null) ...[
+                if (p.birthDate != null) ...[
                   const SizedBox(height: 16),
+                  _InfoRow(
+                    icon: Icons.cake_outlined,
+                    child: Text(
+                      'Né(e) le ${_formatDate(p.birthDate!)}',
+                      key: const Key('patient_birth_date'),
+                    ),
+                  ),
+                ],
+                if (p.socialSecurityNumber != null) ...[
+                  const SizedBox(height: 12),
+                  _InfoRow(
+                    icon: Icons.badge_outlined,
+                    child: Text(
+                      'N° sécu : ${p.socialSecurityNumber!}',
+                      key: const Key('patient_ssn'),
+                    ),
+                  ),
+                ],
+                if (p.email != null) ...[
+                  const SizedBox(height: 12),
                   _InfoRow(
                     icon: Icons.email_outlined,
                     child: Text(p.email!, key: const Key('patient_email')),
@@ -265,6 +286,8 @@ class _DetailViewState extends State<_DetailView> {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          _AppointmentsHistory(appointments: widget.state.appointments),
           const SizedBox(height: 24),
           Text('Notes', style: textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -361,4 +384,57 @@ String _initials(String fullName) {
   if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
       .toUpperCase();
+}
+
+/// Historique des RDV du patient dans le cabinet (#3372).
+class _AppointmentsHistory extends StatelessWidget {
+  const _AppointmentsHistory({required this.appointments});
+
+  final List<CabinetAppointment> appointments;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Historique des rendez-vous', style: textTheme.titleMedium),
+        const SizedBox(height: 8),
+        if (appointments.isEmpty)
+          Text(
+            'Aucun rendez-vous enregistré.',
+            key: const Key('patient_appointments_empty'),
+            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          )
+        else
+          NubiaCard(
+            key: const Key('patient_appointments_history'),
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (final (i, a) in appointments.take(10).indexed)
+                  ListRow(
+                    key: Key('patient_appt_${a.id}'),
+                    leading: const Icon(Icons.event_outlined),
+                    title:
+                        '${_formatDateTime(a.startsAt)} · ${a.practitionerName}',
+                    subtitle: a.motif,
+                    showDivider: i != appointments.take(10).length - 1,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final d = dt.toLocal();
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final hh = d.hour.toString().padLeft(2, '0');
+    final min = d.minute.toString().padLeft(2, '0');
+    return '$dd/$mm/${d.year} $hh:$min';
+  }
 }

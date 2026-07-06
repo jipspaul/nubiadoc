@@ -14,14 +14,17 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
   final ListCabinetPatientsUseCase _list;
   final GetCabinetPatientUseCase _getById;
   final UpdatePatientNotesUseCase _updateNotes;
+  final ListCabinetAppointmentsUseCase? _listAppointments;
 
   PatientsBloc({
     required ListCabinetPatientsUseCase listPatients,
     required GetCabinetPatientUseCase getPatient,
     required UpdatePatientNotesUseCase updateNotes,
+    ListCabinetAppointmentsUseCase? listAppointments,
   })  : _list = listPatients,
         _getById = getPatient,
         _updateNotes = updateNotes,
+        _listAppointments = listAppointments,
         super(const PatientsInitial()) {
     on<PatientsLoadRequested>(_onLoad);
     on<PatientsDetailLoadRequested>(_onDetailLoad);
@@ -52,9 +55,31 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
     emit(const PatientsLoading());
     try {
       final result = await _getById(event.id);
+      // Historique RDV (#3372) : l'endpoint agenda cabinet n'accepte pas de
+      // filtre patient — on filtre côté client. Best-effort : un échec laisse
+      // l'historique vide sans casser la fiche.
+      var appointments = const <CabinetAppointment>[];
+      final listAppointments = _listAppointments;
+      if (listAppointments != null) {
+        try {
+          final apptsResult = await listAppointments();
+          appointments = apptsResult.fold(
+            (_) => const [],
+            (all) {
+              final own = all.where((a) => a.patientId == event.id).toList()
+                ..sort((a, b) => b.startsAt.compareTo(a.startsAt));
+              return own;
+            },
+          );
+        } catch (_) {
+          appointments = const [];
+        }
+      }
       result.fold(
         (failure) => safeEmit(PatientDetailError(failure.message)),
-        (patient) => safeEmit(PatientDetailLoaded(patient)),
+        (patient) => safeEmit(
+          PatientDetailLoaded(patient, appointments: appointments),
+        ),
       );
     } catch (_) {
       safeEmit(const PatientDetailError('Erreur de chargement.'));

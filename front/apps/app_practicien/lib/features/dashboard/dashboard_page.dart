@@ -11,6 +11,7 @@ import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
 import '../agenda/agenda_bloc.dart';
 import '../agenda/agenda_event.dart';
+import '../../router/app_router.dart';
 import '../agenda/agenda_page.dart';
 import '../cabinet_messaging/cabinet_messaging_page.dart';
 import '../consultation_clinique/consultation_clinique_bloc.dart';
@@ -239,12 +240,16 @@ class _SummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // #3374 : chaque carte est un raccourci vers l'écran correspondant.
+    // « Confirmations en attente » n'a pas d'écran dédié → l'agenda (où se
+    // font les confirmations).
     final metrics = <({
       Key key,
       String label,
       String value,
       IconData icon,
       MetricTileVariant variant,
+      String route,
     })>[
       (
         key: const Key('metric_appointments'),
@@ -252,6 +257,7 @@ class _SummaryGrid extends StatelessWidget {
         value: '${summary.todayAppointments}',
         icon: Icons.calendar_today_outlined,
         variant: MetricTileVariant.neutral,
+        route: AppRouter.agenda,
       ),
       (
         key: const Key('metric_waiting_room'),
@@ -259,6 +265,7 @@ class _SummaryGrid extends StatelessWidget {
         value: '${summary.waitingRoomCount}',
         icon: Icons.event_seat_outlined,
         variant: MetricTileVariant.neutral,
+        route: AppRouter.waitingRoom,
       ),
       (
         key: const Key('metric_messages'),
@@ -268,6 +275,7 @@ class _SummaryGrid extends StatelessWidget {
         variant: summary.unreadMessages > 0
             ? MetricTileVariant.warning
             : MetricTileVariant.neutral,
+        route: AppRouter.messages,
       ),
       (
         key: const Key('metric_confirmations'),
@@ -277,6 +285,7 @@ class _SummaryGrid extends StatelessWidget {
         variant: summary.pendingConfirmations > 0
             ? MetricTileVariant.warning
             : MetricTileVariant.neutral,
+        route: AppRouter.agenda,
       ),
     ];
 
@@ -302,6 +311,7 @@ class _SummaryGrid extends StatelessWidget {
                   value: m.value,
                   label: m.label,
                   variant: m.variant,
+                  onTap: () => context.go(m.route),
                 ),
               ),
           ],
