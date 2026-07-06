@@ -15,6 +15,7 @@ import '../agenda/agenda_page.dart';
 import '../cabinet_messaging/cabinet_messaging_page.dart';
 import '../consultation_clinique/consultation_clinique_bloc.dart';
 import '../consultation_clinique/consultation_clinique_page.dart';
+import '../devis/devis_page.dart';
 import '../ordonnances/ordonnances_bloc.dart';
 import '../ordonnances/ordonnances_page.dart';
 import '../patients/patients_page.dart';
@@ -89,6 +90,10 @@ class DashboardPage extends StatelessWidget {
             create: (_) => GetIt.instance<OrdonnancesBloc>(),
             child: const OrdonnancesBody(),
           );
+        }
+        if (destination.route == '/devis') {
+          // DevisPage fournit son propre BlocProvider<DevisBloc>.
+          return const DevisPage();
         }
         if (destination.route == '/messages') {
           return const CabinetMessagingPage();

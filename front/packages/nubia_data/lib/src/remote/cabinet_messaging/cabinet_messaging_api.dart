@@ -38,8 +38,10 @@ class CabinetMessagingApi {
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '$basePath/conversations/$conversationId/messages',
+      // Le back attend le champ `body` (SendCabinetMessageBody), pas `text` →
+      // 422 sinon (identique au fil patient).
       data: {
-        'text': text,
+        'body': text,
         if (attachmentIds.isNotEmpty) 'attachment_ids': attachmentIds,
       },
     );
