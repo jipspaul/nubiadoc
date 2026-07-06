@@ -44,6 +44,11 @@ class ClinicalSessionDto {
   final String? patientName;
   final String? startedAt;
 
+  /// Nom affichable du praticien propriétaire de la séance (#3403 — distinguer
+  /// visuellement la consultation d'un confrère). Renvoyé par le sous-objet
+  /// `practitioner.display_name` de la liste et du détail.
+  final String? practitionerName;
+
   const ClinicalSessionDto({
     required this.id,
     required this.appointmentId,
@@ -51,6 +56,7 @@ class ClinicalSessionDto {
     required this.acts,
     this.patientName,
     this.startedAt,
+    this.practitionerName,
   });
 
   factory ClinicalSessionDto.fromJson(Map<String, dynamic> json) =>
@@ -65,6 +71,8 @@ class ClinicalSessionDto {
             .toList(),
         patientName: json['patient_name'] as String?,
         startedAt: json['started_at'] as String?,
+        practitionerName: (json['practitioner']
+            as Map<String, dynamic>?)?['display_name'] as String?,
       );
 
   ClinicalSession toDomain() => ClinicalSession(
@@ -74,5 +82,6 @@ class ClinicalSessionDto {
         acts: acts.map((a) => a.toDomain()).toList(),
         patientName: patientName,
         startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
+        practitionerName: practitionerName,
       );
 }

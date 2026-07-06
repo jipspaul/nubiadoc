@@ -41,3 +41,9 @@ class ConsultationCliniqueCompleteRequested extends ConsultationCliniqueEvent {
 class ConsultationHistoriqueRequested extends ConsultationCliniqueEvent {
   const ConsultationHistoriqueRequested();
 }
+
+/// Consomme l'erreur d'action transitoire après affichage (snackbar) — #3403.
+class ConsultationCliniqueActionErrorConsumed
+    extends ConsultationCliniqueEvent {
+  const ConsultationCliniqueActionErrorConsumed();
+}

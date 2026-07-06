@@ -16,12 +16,34 @@ class MockGetActsUseCase extends Mock implements GetActsUseCase {}
 // ---------------------------------------------------------------------------
 
 const _actDetartrage = CcamAct(code: 'HBLD001', label: 'Détartrage');
+const _actAvecTarif =
+    CcamAct(code: 'HBGD036', label: 'Détartrage 2 arcades', tarifCents: 2864);
 
-Widget _wrap(GetActsUseCase useCase, void Function(CcamAct) onSelected) =>
+/// Acte soumis via l'éditeur (#3402).
+class _Submitted {
+  final String code;
+  final String? tooth;
+  final int amountCents;
+  const _Submitted(this.code, this.tooth, this.amountCents);
+}
+
+Widget _wrap(
+  GetActsUseCase useCase,
+  void Function(_Submitted) onSubmitted,
+) =>
     MaterialApp(
       theme: NubiaTheme.light,
       home: Scaffold(
-        body: CcamPicker(useCase: useCase, onActSelected: onSelected),
+        body: CcamPicker(
+          useCase: useCase,
+          onActSubmitted: ({
+            required String code,
+            required String label,
+            String? tooth,
+            required int amountCents,
+          }) =>
+              onSubmitted(_Submitted(code, tooth, amountCents)),
+        ),
       ),
     );
 
@@ -32,45 +54,113 @@ Widget _wrap(GetActsUseCase useCase, void Function(CcamAct) onSelected) =>
 void main() {
   group('CcamPicker', () {
     late MockGetActsUseCase useCase;
-    late List<CcamAct> selected;
+    late List<_Submitted> submitted;
 
     setUp(() {
       useCase = MockGetActsUseCase();
-      selected = [];
+      submitted = [];
     });
 
-    testWidgets('≤2 lettres → search non appelée', (tester) async {
-      await tester.pumpWidget(_wrap(useCase, selected.add));
+    testWidgets('≤3 lettres → search non appelée', (tester) async {
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
 
-      await tester.enterText(find.byKey(const Key('ccam_search_field')), 'ab');
+      await tester.enterText(find.byKey(const Key('ccam_search_field')), 'abc');
       await tester.pumpAndSettle();
 
       verifyNever(() => useCase.search(any()));
       expect(find.byKey(const Key('ccam_suggestions')), findsNothing);
     });
 
-    testWidgets('sélection suggestion → callback appelée', (tester) async {
+    testWidgets('sélection suggestion → ouvre l\'éditeur d\'acte (#3402)',
+        (tester) async {
       when(() => useCase.search(any()))
           .thenAnswer((_) async => [_actDetartrage]);
 
-      await tester.pumpWidget(_wrap(useCase, selected.add));
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
 
       await tester.enterText(
           find.byKey(const Key('ccam_search_field')), 'déta');
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('ccam_act_HBLD001')), findsOneWidget);
-
       await tester.tap(find.byKey(const Key('ccam_act_HBLD001')));
       await tester.pumpAndSettle();
 
-      expect(selected, [_actDetartrage]);
+      // L'éditeur (dent + montant) s'ouvre — aucun acte envoyé sans saisie.
+      expect(find.byKey(const Key('act_editor')), findsOneWidget);
+      expect(find.byKey(const Key('act_editor_tooth_field')), findsOneWidget);
+      expect(find.byKey(const Key('act_editor_amount_field')), findsOneWidget);
+      expect(submitted, isEmpty);
+    });
+
+    testWidgets('éditeur : saisie dent + montant → callback (#3402)',
+        (tester) async {
+      when(() => useCase.search(any()))
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'déta');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ccam_act_HBLD001')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const Key('act_editor_tooth_field')), '26');
+      await tester.enterText(
+          find.byKey(const Key('act_editor_amount_field')), '45,00');
+      await tester.tap(find.byKey(const Key('act_editor_submit')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, hasLength(1));
+      expect(submitted.first.code, 'HBLD001');
+      expect(submitted.first.tooth, '26');
+      expect(submitted.first.amountCents, 4500);
+    });
+
+    testWidgets('éditeur : montant pré-rempli avec le tarif de référence',
+        (tester) async {
+      when(() => useCase.search(any()))
+          .thenAnswer((_) async => [_actAvecTarif]);
+
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'déta');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ccam_act_HBGD036')));
+      await tester.pumpAndSettle();
+
+      // Le tarif 2864 cents est pré-rempli en « 28,64 » — soumission directe.
+      expect(find.text('28,64'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('act_editor_submit')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, hasLength(1));
+      expect(submitted.first.amountCents, 2864);
+      expect(submitted.first.tooth, isNull);
+    });
+
+    testWidgets('éditeur : annulation → aucun acte envoyé', (tester) async {
+      when(() => useCase.search(any()))
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'déta');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ccam_act_HBLD001')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('act_editor_cancel')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('act_editor')), findsNothing);
+      expect(submitted, isEmpty);
     });
 
     testWidgets('aucun résultat → empty state affiché', (tester) async {
       when(() => useCase.search(any())).thenAnswer((_) async => []);
 
-      await tester.pumpWidget(_wrap(useCase, selected.add));
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
 
       await tester.enterText(
           find.byKey(const Key('ccam_search_field')), 'zzzz');

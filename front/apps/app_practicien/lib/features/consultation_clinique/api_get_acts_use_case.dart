@@ -11,6 +11,9 @@ class ApiGetActsUseCase implements GetActsUseCase {
   @override
   Future<List<CcamAct>> search(String prefix) async {
     final acts = await _api.searchCcamActs(prefix);
-    return acts.map((a) => CcamAct(code: a.code, label: a.label)).toList();
+    return acts
+        .map((a) =>
+            CcamAct(code: a.code, label: a.label, tarifCents: a.tarifCents))
+        .toList();
   }
 }
