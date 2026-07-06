@@ -173,6 +173,17 @@ signal qui correspond à l'un d'eux **n'est pas un bug**.
    `features/cabinet_messaging/` (pas `features/messages/`). Un chemin
    inexistant dans le diagnostic = détection non vérifiée.
 
+6. **`Checkbox` Flutter web + `.click()` DOM brut → case jamais cochée.**
+   Un `.click()` DOM direct sur `flt-semantics[role="checkbox"]` ne synthétise
+   pas de vrai événement pointeur : la case reste visuellement/logiquement
+   décochée, le bouton submit qui en dépend reste désactivé, donc **aucune
+   requête n'est envoyée** — un flow qui échoue « en silence » à l'étape
+   submit est souvent ce piège, pas un bug produit (ex. `onboarding_cgu_checkbox`
+   sur `/onboard` secretariat, `#3398` ; même famille que le CGU patient sur
+   `/signup`). Utiliser le `.click()` natif Playwright sur le locator
+   sémantique, et vérifier qu'une requête réseau part bien avant de conclure
+   à un message d'erreur manquant.
+
 ## Comment trouver de VRAIS bugs (monter en gamme)
 
 Au-delà du smoke (rendu + console), viser des invariants vérifiables :
