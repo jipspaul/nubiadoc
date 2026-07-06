@@ -448,6 +448,7 @@ fn build_router(
         .route("/v1/payments", get(billing::list_payments))
         .route("/v1/quotes", get(billing::list_quotes))
         .route("/v1/cabinet/quotes", get(billing::list_cabinet_quotes))
+        .route("/v1/cabinet/quotes/:id", get(billing::get_cabinet_quote))
         .route("/v1/quotes/:id", get(billing::get_quote))
         .route("/v1/quotes/:id/sign", post(billing::sign_quote))
         // Alias contractuel (docs/12 §10) : la console et l'app appellent

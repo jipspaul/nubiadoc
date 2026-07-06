@@ -261,12 +261,38 @@ class _NewAppointmentDialog extends StatefulWidget {
 
 class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   Slot? _selectedSlot;
-  final _patientNameCtrl = TextEditingController();
+  CabinetPatient? _selectedPatient;
   final _motifCtrl = TextEditingController();
+
+  // Le back attend un `patient_id` (UUID d'une fiche patient du cabinet), pas
+  // un nom libre. On charge la liste des patients du cabinet pour la sélection.
+  List<CabinetPatient> _patients = const [];
+  bool _loadingPatients = true;
+  String? _patientsError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPatients();
+  }
+
+  Future<void> _loadPatients() async {
+    final result = await GetIt.instance<ListCabinetPatientsUseCase>()();
+    if (!mounted) return;
+    result.fold(
+      (failure) => setState(() {
+        _loadingPatients = false;
+        _patientsError = failure.message;
+      }),
+      (patients) => setState(() {
+        _loadingPatients = false;
+        _patients = patients;
+      }),
+    );
+  }
 
   @override
   void dispose() {
-    _patientNameCtrl.dispose();
     _motifCtrl.dispose();
     super.dispose();
   }
@@ -296,9 +322,8 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
   @override
   Widget build(BuildContext context) {
     final hasSlots = widget.availableSlots.isNotEmpty;
-    final canCreate = hasSlots &&
-        _selectedSlot != null &&
-        _patientNameCtrl.text.trim().isNotEmpty;
+    final canCreate =
+        hasSlots && _selectedSlot != null && _selectedPatient != null;
 
     return AlertDialog(
       title: const Text('Nouveau rendez-vous'),
@@ -328,14 +353,37 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                key: const Key('patient_name_field'),
-                controller: _patientNameCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Nom du patient *'),
-                textCapitalization: TextCapitalization.words,
-                onChanged: (_) => setState(() {}),
-              ),
+              if (_loadingPatients)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(
+                    key: Key('patient_picker_loading'),
+                  ),
+                )
+              else if (_patientsError != null)
+                Text(
+                  _patientsError!,
+                  key: const Key('patient_picker_error'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                )
+              else
+                InputDecorator(
+                  decoration: const InputDecoration(labelText: 'Patient *'),
+                  child: DropdownButton<CabinetPatient>(
+                    key: const Key('patient_picker_dropdown'),
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    value: _selectedPatient,
+                    hint: const Text('Sélectionner un patient'),
+                    items: _patients
+                        .map((p) => DropdownMenuItem(
+                              value: p,
+                              child: Text(p.fullName),
+                            ))
+                        .toList(),
+                    onChanged: (p) => setState(() => _selectedPatient = p),
+                  ),
+                ),
               const SizedBox(height: 12),
               TextField(
                 key: const Key('motif_field'),
@@ -359,15 +407,14 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
             onPressed: canCreate
                 ? () {
                     final slot = _selectedSlot!;
-                    final patientName = _patientNameCtrl.text.trim();
+                    final patient = _selectedPatient!;
                     final motif = _motifCtrl.text.trim();
                     widget.onConfirm(
                       CabinetAppointment(
                         id: '',
                         cabinetId: slot.cabinetId,
-                        patientId:
-                            patientName.toLowerCase().replaceAll(' ', '-'),
-                        patientName: patientName,
+                        patientId: patient.id,
+                        patientName: patient.fullName,
                         practitionerId: slot.practitionerId,
                         practitionerName:
                             widget.practitioners[slot.practitionerId] ?? '',
@@ -375,6 +422,8 @@ class _NewAppointmentDialogState extends State<_NewAppointmentDialog> {
                         duration: slot.duration,
                         motif: motif.isEmpty ? 'Consultation' : motif,
                         status: CabinetAppointmentStatus.requested,
+                        // slot_id : champ obligatoire du contrat back.
+                        slotId: slot.id,
                       ),
                     );
                     Navigator.of(context).pop();
@@ -492,6 +541,12 @@ class _EntryCard extends StatelessWidget {
             const SizedBox(width: 12),
             if (entry.isFree)
               const StatusPill(label: 'Libre', variant: StatusPillVariant.info)
+            else if (entry.isConfirmed)
+              // RDV confirmé : plus d'action (un re-clic donnerait 409).
+              const StatusPill(
+                label: 'Confirmé',
+                variant: StatusPillVariant.success,
+              )
             else ...[
               const StatusPill(
                 label: 'À confirmer',

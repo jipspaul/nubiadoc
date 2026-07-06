@@ -26,23 +26,21 @@ class CabinetAppointmentsApi {
   }
 
   Future<CabinetAppointmentDto> create(CabinetAppointment appointment) async {
-    final dto = CabinetAppointmentDto(
-      id: '',
-      cabinetId: appointment.cabinetId,
-      patientId: appointment.patientId,
-      patientName: appointment.patientName,
-      practitionerId: appointment.practitionerId,
-      practitionerName: appointment.practitionerName,
-      startsAt: appointment.startsAt.toIso8601String(),
-      durationMinutes: appointment.duration.inMinutes,
-      motif: appointment.motif,
-      status: appointment.status.name,
-    );
+    // Contrat back (`CreateCabinetAppointmentBody`) : { patient_id (UUID),
+    // slot_id (UUID), notes? }. Le praticien / l'horaire / la durée sont résolus
+    // côté serveur depuis le créneau — on ne les envoie pas (sinon 422).
+    final data = <String, dynamic>{
+      'patient_id': appointment.patientId,
+      'slot_id': appointment.slotId,
+      if (appointment.motif.trim().isNotEmpty) 'notes': appointment.motif,
+    };
     final response = await _dio.post<Map<String, dynamic>>(
       '/cabinet/appointments',
-      data: dto.toJson(),
+      data: data,
     );
-    return CabinetAppointmentDto.fromJson(response.data!);
+    // La réponse 201 ne contient que { appointment_id, status } — même shape
+    // que /confirm. On parse via le factory dédié pour éviter une ParseFailure.
+    return CabinetAppointmentDto.fromConfirmResponse(response.data!);
   }
 
   Future<CabinetAppointmentDto> update(CabinetAppointment appointment) async {

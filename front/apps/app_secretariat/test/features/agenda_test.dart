@@ -252,9 +252,12 @@ void main() {
       expect(_entry.patientName, isNotNull);
       expect(_entry.motif, isNotNull); // motif RDV = champ administratif
       expect(_entry.practitionerName, isNotNull);
-      // AgendaEntry.props ne contient que [id] — aucune donnée clinique exposée.
-      expect(_entry.props, hasLength(1));
+      // AgendaEntry.props n'expose que [id, status] — deux champs purement
+      // administratifs (le statut sert à l'affichage « À confirmer/Confirmé »),
+      // aucune donnée clinique.
+      expect(_entry.props, hasLength(2));
       expect(_entry.props.first, equals('e-1'));
+      expect(_entry.props, equals(['e-1', _entry.status]));
     });
 
     blocTest<AgendaBloc, AgendaState>(
@@ -274,9 +277,9 @@ void main() {
             // motif est ici la raison administrative du RDV, pas des notes médicales.
             // Si un champ `clinicalNotes` était ajouté à AgendaEntry,
             // ce test devrait être mis à jour explicitement.
-            expect(entry.props, hasLength(1),
+            expect(entry.props, hasLength(2),
                 reason:
-                    'AgendaEntry.props ne doit exposer que [id] — aucune donnée clinique');
+                    'AgendaEntry.props ne doit exposer que [id, status] — aucune donnée clinique');
           }
         });
   });

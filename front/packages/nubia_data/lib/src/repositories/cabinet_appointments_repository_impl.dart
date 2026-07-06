@@ -97,6 +97,23 @@ class CabinetAppointmentsRepositoryImpl
       final dto = await _api.confirm(id);
       return Right(dto.toDomain());
     } on DioException catch (e) {
+      // 409 « déjà confirmé » (invalid_status) → succès idempotent. Le RDV est
+      // déjà dans l'état voulu : on ne remonte pas d'erreur rouge, l'appelant
+      // recharge l'agenda et voit le statut « confirmé ».
+      if (e.response?.statusCode == 409) {
+        return Right(CabinetAppointment(
+          id: id,
+          cabinetId: '',
+          patientId: '',
+          patientName: '',
+          practitionerId: '',
+          practitionerName: '',
+          startsAt: DateTime.now(),
+          duration: Duration.zero,
+          motif: '',
+          status: CabinetAppointmentStatus.confirmed,
+        ));
+      }
       if (e.response?.statusCode == 404) {
         return const Left(NotFoundFailure('Rendez-vous introuvable.'));
       }

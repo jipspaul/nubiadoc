@@ -23,6 +23,11 @@ class CabinetAppointment extends Equatable {
   final String motif;
   final CabinetAppointmentStatus status;
 
+  /// Créneau à réserver (`availability_slot.id`). Renseigné uniquement lors de
+  /// la création côté secrétariat (`POST /v1/cabinet/appointments` attend
+  /// `slot_id`). `null` pour les RDV déjà persistés lus depuis l'API.
+  final String? slotId;
+
   const CabinetAppointment({
     required this.id,
     required this.cabinetId,
@@ -34,6 +39,7 @@ class CabinetAppointment extends Equatable {
     required this.duration,
     required this.motif,
     required this.status,
+    this.slotId,
   });
 
   bool get isConfirmed => status == CabinetAppointmentStatus.confirmed;

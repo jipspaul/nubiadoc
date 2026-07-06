@@ -893,6 +893,148 @@ pub async fn list_cabinet_quotes(
     Ok(Json(items))
 }
 
+// ---------------------------------------------------------------------------
+// GET /v1/cabinet/quotes/:id — détail d'un devis côté cabinet (secrétariat+)
+// ---------------------------------------------------------------------------
+
+/// Une ligne de devis vue du cabinet. Montants en **centimes**.
+///
+/// Cloisonnement (R.4127-72) : on n'expose que le libellé administratif de
+/// l'acte et les montants (aucun code CCAM ni numéro de dent, qui relèvent du
+/// clinique et ne sont pas nécessaires au suivi financier du secrétariat).
+#[derive(Serialize)]
+pub struct CabinetQuoteLineItem {
+    pub id: Uuid,
+    pub label: String,
+    pub total_amount: i64,
+    pub patient_share_cents: i64,
+}
+
+/// Réponse de `GET /v1/cabinet/quotes/:id`. Montants en **centimes**.
+#[derive(Serialize)]
+pub struct CabinetQuoteDetail {
+    pub id: Uuid,
+    pub patient_id: Option<Uuid>,
+    pub patient_name: Option<String>,
+    pub status: String,
+    pub total_amount: i64,
+    pub patient_share_cents: i64,
+    pub created_at: String,
+    pub signed_at: Option<String>,
+    pub items: Vec<CabinetQuoteLineItem>,
+}
+
+/// `GET /v1/cabinet/quotes/:id` — détail d'un devis du cabinet courant.
+///
+/// Token pro requis (secretary, practitioner, admin, manager). `cabinet_id`
+/// extrait du JWT, RLS scopée via `app.current_cabinet_id` (fail-closed).
+/// `404` si le devis n'existe pas ou n'appartient pas au cabinet.
+///
+/// Pendant clairement identifié de `GET /v1/cabinet/quotes` : le détail patient
+/// (`GET /v1/quotes/:id`) est réservé au token patient (403 pour un pro), d'où
+/// la nécessité d'une route cabinet dédiée pour le secrétariat.
+pub async fn get_cabinet_quote(
+    State(state): State<AppState>,
+    claims: crate::auth::ProSecretaryPlusClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<CabinetQuoteDetail>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let quote_row = sqlx::query(
+        "SELECT q.id, q.patient_id, \
+                trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
+                q.status, (q.total_amount * 100)::bigint AS amount_cents, \
+                q.signed_at, q.created_at \
+         FROM quote q \
+         LEFT JOIN patient p ON p.id = q.patient_id \
+         WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let item_rows = sqlx::query(
+        "SELECT qi.id, qi.label, \
+                (qi.qty * qi.unit_amount * 100)::bigint AS total_cents, \
+                ((qi.qty * qi.unit_amount \
+                  - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100)::bigint \
+                  AS patient_share_cents \
+         FROM quote_item qi \
+         WHERE qi.quote_id = $1 \
+         ORDER BY qi.id",
+    )
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let patient_id: Option<Uuid> = quote_row
+        .try_get("patient_id")
+        .map_err(|_| AppError::Internal)?;
+    let patient_name: Option<String> = quote_row
+        .try_get("patient_name")
+        .map_err(|_| AppError::Internal)?;
+    let status: String = quote_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    let amount_cents: i64 = quote_row
+        .try_get("amount_cents")
+        .map_err(|_| AppError::Internal)?;
+    let signed_at: Option<chrono::DateTime<chrono::Utc>> = quote_row
+        .try_get("signed_at")
+        .map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> = quote_row
+        .try_get("created_at")
+        .map_err(|_| AppError::Internal)?;
+
+    let mut items = Vec::with_capacity(item_rows.len());
+    let mut patient_share_total: i64 = 0;
+    for row in &item_rows {
+        let item_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
+        let total_amount: i64 = row.try_get("total_cents").map_err(|_| AppError::Internal)?;
+        let patient_share_cents: i64 = row
+            .try_get("patient_share_cents")
+            .map_err(|_| AppError::Internal)?;
+        patient_share_total += patient_share_cents;
+        items.push(CabinetQuoteLineItem {
+            id: item_id,
+            label,
+            total_amount,
+            patient_share_cents,
+        });
+    }
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        quote_id = %id,
+        "cabinet quote detail fetched"
+    );
+
+    Ok(Json(CabinetQuoteDetail {
+        id,
+        patient_id,
+        patient_name: patient_name.filter(|n| !n.is_empty()),
+        status,
+        total_amount: amount_cents,
+        patient_share_cents: patient_share_total,
+        created_at: created_at.to_rfc3339(),
+        signed_at: signed_at.map(|d| d.to_rfc3339()),
+        items,
+    }))
+}
+
 // ── GET /v1/payments ─────────────────────────────────────────────────────────
 
 /// Un paiement du patient connecté.

@@ -14,6 +14,13 @@ class AgendaEntry extends Equatable {
   final String? motif;
   final bool isFree;
 
+  /// Statut administratif du RDV renvoyé par le back (`requested`, `confirmed`,
+  /// `in_progress`, `completed`, `cancelled`, `no_show`…). Champ NON clinique,
+  /// nécessaire pour afficher le bon libellé (« À confirmer » / « Confirmé »)
+  /// et masquer le bouton « Confirmer » une fois le RDV confirmé. Vide pour un
+  /// créneau libre.
+  final String status;
+
   const AgendaEntry({
     required this.id,
     required this.cabinetId,
@@ -25,10 +32,17 @@ class AgendaEntry extends Equatable {
     this.patientName,
     this.motif,
     required this.isFree,
+    this.status = '',
   });
 
   Duration get duration => endsAt.difference(startsAt);
 
+  /// Le RDV est confirmé (le secrétaire n'a plus à agir).
+  bool get isConfirmed => status == 'confirmed';
+
+  /// Le RDV attend une confirmation du secrétariat.
+  bool get isPending => status == 'requested';
+
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [id, status];
 }
