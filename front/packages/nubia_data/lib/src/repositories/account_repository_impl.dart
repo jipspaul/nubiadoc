@@ -71,9 +71,13 @@ class AccountRepositoryImpl implements AccountRepository {
         'tiers_payant': thirdPartyPayment,
       };
       if (amc != null || numeroAdherent != null) {
+        // L'API exige actuellement amc + numero_adherent comme champs requis
+        // (non optionnels) : on envoie toujours les deux clés dès que l'une
+        // est renseignée, sinon un 422 "missing field" bloque la sauvegarde
+        // silencieusement (cf. issue #3434).
         body['mutuelle'] = {
-          if (amc != null) 'amc': amc,
-          if (numeroAdherent != null) 'numero_adherent': numeroAdherent,
+          'amc': amc ?? '',
+          'numero_adherent': numeroAdherent ?? '',
         };
       }
       final dto = await _api.updateCoverage(body);
