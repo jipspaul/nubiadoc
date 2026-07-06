@@ -192,10 +192,7 @@ async fn cabinet_quote_detail_unknown_returns_404() {
                 .uri(format!("/v1/cabinet/quotes/{}", Uuid::new_v4()))
                 .header(
                     "Authorization",
-                    format!(
-                        "Bearer {}",
-                        make_pro_jwt(user_id, cabinet_id, "secretary")
-                    ),
+                    format!("Bearer {}", make_pro_jwt(user_id, cabinet_id, "secretary")),
                 )
                 .body(Body::empty())
                 .unwrap(),
@@ -316,10 +313,7 @@ async fn cabinet_quote_detail_returns_200_with_items() {
                 .uri(format!("/v1/cabinet/quotes/{}", quote_id))
                 .header(
                     "Authorization",
-                    format!(
-                        "Bearer {}",
-                        make_pro_jwt(user_id, cabinet_id, "secretary")
-                    ),
+                    format!("Bearer {}", make_pro_jwt(user_id, cabinet_id, "secretary")),
                 )
                 .body(Body::empty())
                 .unwrap(),
