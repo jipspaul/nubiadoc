@@ -107,6 +107,7 @@ void registerPro(GetIt gi) {
     () => DevisBloc(
       list: gi<ListCabinetQuotesUseCase>(),
       getById: gi<GetCabinetQuoteUseCase>(),
+      send: gi<SendCabinetQuoteUseCase>(),
     ),
   );
 

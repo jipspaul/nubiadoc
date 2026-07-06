@@ -37,7 +37,22 @@ class DevisBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<DevisBloc, DevisState>(
+    return BlocConsumer<DevisBloc, DevisState>(
+      listenWhen: (previous, current) => current is DevisSendFailure,
+      listener: (context, state) {
+        if (state is DevisSendFailure) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                key: const Key('devis_send_error_snackbar'),
+                content: Text(state.message.isEmpty
+                    ? 'Envoi impossible.'
+                    : state.message),
+              ),
+            );
+        }
+      },
       builder: (context, state) {
         if (state is DevisInitial || state is DevisLoading) {
           return const _LoadingView(key: Key('devis_loading'));
@@ -58,6 +73,10 @@ class DevisBody extends StatelessWidget {
         }
         if (state is DevisSendInProgress) {
           return _DetailView(quote: state.quote, sending: true);
+        }
+        // Échec d'envoi : on reste sur le détail pour permettre un nouvel essai.
+        if (state is DevisSendFailure) {
+          return _DetailView(quote: state.quote);
         }
         if (state is DevisSent) {
           return _SentView(quote: state.quote);

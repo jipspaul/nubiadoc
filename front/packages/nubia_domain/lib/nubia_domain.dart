@@ -188,6 +188,7 @@ export 'src/usecases/cabinet_quotes/list_cabinet_quotes_use_case.dart';
 export 'src/usecases/cabinet_quotes/get_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/create_cabinet_quote_use_case.dart';
 export 'src/usecases/cabinet_quotes/update_cabinet_quote_use_case.dart';
+export 'src/usecases/cabinet_quotes/send_cabinet_quote_use_case.dart';
 // cabinet appointments pro — use cases are in agenda/ (create + reschedule)
 // cabinet messaging pro
 export 'src/entities/cabinet_conversation.dart';

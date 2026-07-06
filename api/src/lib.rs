@@ -527,6 +527,10 @@ fn build_router(
         .route("/v1/reminders", get(reminders::list_reminders))
         .route("/v1/cabinet/quotes", post(billing::create_cabinet_quote))
         .route(
+            "/v1/cabinet/quotes/:id/send",
+            post(billing::send_cabinet_quote),
+        )
+        .route(
             "/v1/cabinet/prescriptions",
             post(prescriptions::create_prescription),
         )

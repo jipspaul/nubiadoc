@@ -77,14 +77,14 @@ class CabinetQuoteDto {
         patientName: patientName,
         totalCents: totalCents,
         patientShareCents: patientShareCents,
-        status: _parseStatus(status),
+        status: parseStatus(status),
         createdAt: DateTime.parse(createdAt),
         signedAt: signedAt != null ? DateTime.parse(signedAt!) : null,
         expiresAt: expiresAt != null ? DateTime.parse(expiresAt!) : null,
         items: items,
       );
 
-  static CabinetQuoteStatus _parseStatus(String value) {
+  static CabinetQuoteStatus parseStatus(String value) {
     switch (value) {
       case 'draft':
         return CabinetQuoteStatus.draft;

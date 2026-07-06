@@ -51,6 +51,15 @@ class CabinetQuotesApi {
     return CabinetQuoteDto.fromJson(response.data!);
   }
 
+  /// POST /cabinet/quotes/:id/send — envoie le devis (brouillon) au patient.
+  /// Le back renvoie `{ id, status, sent }` ; on retourne le statut confirmé.
+  Future<CabinetQuoteStatus> send(String id) async {
+    final response =
+        await _dio.post<Map<String, dynamic>>('/cabinet/quotes/$id/send');
+    final status = response.data?['status'] as String? ?? 'sent';
+    return CabinetQuoteDto.parseStatus(status);
+  }
+
   Future<CabinetQuoteDto> update(CabinetQuote quote) async {
     final dto = CabinetQuoteDto(
       id: quote.id,
