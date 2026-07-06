@@ -362,6 +362,7 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetUpcomingAppointmentsUseCase(gi()))
     ..registerFactory(() => ModifyAppointmentUseCase(gi()))
     ..registerFactory(() => GetDirectionsUseCase(gi()))
+    ..registerFactory(() => GetAppointmentPreparationUseCase(gi()))
     // billing
     ..registerFactory(() => GetPendingQuotesUseCase(gi()))
     ..registerFactory(() => GetQuoteByIdUseCase(gi()))

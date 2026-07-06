@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/scheduling/scheduling_api.dart';
 import 'package:nubia_domain/src/entities/appointment.dart';
+import 'package:nubia_domain/src/entities/appointment_preparation.dart';
 import 'package:nubia_domain/src/entities/directions_result.dart';
 import 'package:nubia_domain/src/repositories/appointment_repository.dart';
 
@@ -208,6 +209,35 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
       }
       return Left(ServerFailure(
         message: "Impossible de calculer l'itinéraire.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, AppointmentPreparation>> getPreparation(
+    String id,
+  ) async {
+    try {
+      final dto = await _api.getPreparation(id);
+      return Right(AppointmentPreparation(
+        address: dto.address,
+        items: dto.items
+            .map((e) => PreparationItem(label: e.label, required: e.required))
+            .toList(),
+      ));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Rendez-vous introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message:
+            'Erreur lors de la récupération des informations de préparation.',
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {
