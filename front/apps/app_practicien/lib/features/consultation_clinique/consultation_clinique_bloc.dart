@@ -27,6 +27,12 @@ class ConsultationCliniqueBloc
     on<ConsultationCliniqueActAddRequested>(_onActAdd);
     on<ConsultationCliniqueCompleteRequested>(_onComplete);
     on<ConsultationHistoriqueRequested>(_onHistoriqueLoad);
+    on<ConsultationCliniqueActionErrorConsumed>((event, emit) {
+      final current = state;
+      if (current is ConsultationCliniqueLoaded) {
+        emit(current.copyWith(clearActionError: true));
+      }
+    });
   }
 
   Future<void> _onLoad(
@@ -62,7 +68,14 @@ class ConsultationCliniqueBloc
         included: event.included,
       );
       await result.fold(
-        (failure) async => safeEmit(current.copyWith(actionInProgress: false)),
+        // #3403 — surface l'erreur (ex. 403 sur séance d'un confrère) au lieu
+        // d'un échec silencieux : on porte le message pour le snackbar.
+        (failure) async => safeEmit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        // #3401 — recharge la séance après un ajout réussi pour rafraîchir la
+        // liste des actes et le total (sinon l'écran reste « 0 acte · 0.00 € »).
         (_) async {
           final reload = await _getSession(current.session.id);
           reload.fold(

@@ -8,9 +8,11 @@ class ClinicalSessionApi {
 
   ClinicalSessionApi(ApiClient client) : _dio = client.dio;
 
-  /// GET /v1/ccam/acts?q= — référentiel CCAM (#3226). Retourne des couples
-  /// (code, label) filtrés par code ou libellé (accent-insensible côté API).
-  Future<List<({String code, String label})>> searchCcamActs(String q) async {
+  /// GET /v1/ccam/acts?q= — référentiel CCAM (#3226). Retourne des triplets
+  /// (code, label, tarifCents) filtrés par code ou libellé (accent-insensible
+  /// côté API). `tarif_cents` est le tarif de référence CCAM (peut être absent).
+  Future<List<({String code, String label, int? tarifCents})>> searchCcamActs(
+      String q) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/ccam/acts',
       queryParameters: {if (q.trim().isNotEmpty) 'q': q.trim()},
@@ -20,6 +22,7 @@ class ClinicalSessionApi {
         .map((e) => (
               code: (e as Map<String, dynamic>)['code'] as String,
               label: e['label'] as String,
+              tarifCents: (e['tarif_cents'] as num?)?.toInt(),
             ))
         .toList();
   }

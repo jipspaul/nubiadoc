@@ -10,8 +10,12 @@ void main() {
   test('ApiGetActsUseCase mappe la réponse /ccam/acts en CcamAct', () async {
     final api = _MockClinicalSessionApi();
     when(() => api.searchCcamActs('detar')).thenAnswer((_) async => [
-          (code: 'HBGD036', label: 'Détartrage deux arcades'),
-          (code: 'HBGD017', label: 'Détartrage complémentaire'),
+          (code: 'HBGD036', label: 'Détartrage deux arcades', tarifCents: 2864),
+          (
+            code: 'HBGD017',
+            label: 'Détartrage complémentaire',
+            tarifCents: null
+          ),
         ]);
 
     final acts = await ApiGetActsUseCase(api).search('detar');
@@ -19,5 +23,8 @@ void main() {
     expect(acts, hasLength(2));
     expect(acts.first.code, 'HBGD036');
     expect(acts.first.label, 'Détartrage deux arcades');
+    // Le tarif de référence est propagé pour pré-remplir l'éditeur (#3402).
+    expect(acts.first.tarifCents, 2864);
+    expect(acts.last.tarifCents, isNull);
   });
 }

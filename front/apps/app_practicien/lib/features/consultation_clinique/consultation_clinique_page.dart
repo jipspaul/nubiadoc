@@ -41,7 +41,24 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ConsultationCliniqueBloc, ConsultationCliniqueState>(
+    return BlocConsumer<ConsultationCliniqueBloc, ConsultationCliniqueState>(
+      // #3403 — surface l'erreur d'action (ex. 403 « Action non autorisée »)
+      // via snackbar, puis consomme le message pour éviter les doublons.
+      listenWhen: (_, current) =>
+          current is ConsultationCliniqueLoaded && current.actionError != null,
+      listener: (context, state) {
+        if (state is ConsultationCliniqueLoaded && state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              key: const Key('consultation_action_error'),
+              content: Text(state.actionError!),
+            ),
+          );
+          context
+              .read<ConsultationCliniqueBloc>()
+              .add(const ConsultationCliniqueActionErrorConsumed());
+        }
+      },
       builder: (context, state) {
         if (state is ConsultationCliniqueInitial) {
           return const Center(
@@ -172,12 +189,22 @@ class _LoadedView extends StatelessWidget {
         CcamPicker(
           key: const Key('ccam_picker'),
           useCase: GetIt.instance<GetActsUseCase>(),
-          onActSelected: (act) => context.read<ConsultationCliniqueBloc>().add(
-                ConsultationCliniqueActAddRequested(
-                  ccamCode: act.code,
-                  label: act.label,
-                ),
-              ),
+          // #3402 — l'éditeur d'acte fournit la dent + le montant, transmis au
+          // POST .../acts (le total reflète alors la somme des montants).
+          onActSubmitted: ({
+            required String code,
+            required String label,
+            String? tooth,
+            required int amountCents,
+          }) =>
+              context.read<ConsultationCliniqueBloc>().add(
+                    ConsultationCliniqueActAddRequested(
+                      ccamCode: code,
+                      label: label,
+                      tooth: tooth,
+                      amountCents: amountCents,
+                    ),
+                  ),
         ),
         const SizedBox(height: 8),
         Expanded(
@@ -351,6 +378,15 @@ class _HistoriqueTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // #3403 — attribue la séance à son praticien pour distinguer visuellement
+    // la consultation d'un confrère (l'ajout d'acte y sera refusé, 403).
+    final practitioner = session.practitionerName?.trim();
+    final base = session.startedAt != null
+        ? '${_formatStart(session.startedAt!)} · $_statusLabel'
+        : _statusLabel;
+    final subtitle = practitioner != null && practitioner.isNotEmpty
+        ? '$base · $practitioner'
+        : base;
     return ListRow(
       key: Key('historique_${session.id}'),
       leading: CircleAvatar(
@@ -363,9 +399,7 @@ class _HistoriqueTile extends StatelessWidget {
       title: session.patientName?.trim().isNotEmpty == true
           ? session.patientName!
           : 'Consultation · ${session.acts.length} acte(s)',
-      subtitle: session.startedAt != null
-          ? '${_formatStart(session.startedAt!)} · $_statusLabel'
-          : _statusLabel,
+      subtitle: subtitle,
       trailing: StatusPill(label: _statusLabel, variant: _statusVariant),
       // #3367 : la carte doit ouvrir la séance (aucune autre voie d'accès).
       onTap: () =>

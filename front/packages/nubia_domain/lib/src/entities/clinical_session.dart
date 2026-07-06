@@ -37,6 +37,10 @@ class ClinicalSession extends Equatable {
   /// Début de séance (liste uniquement).
   final DateTime? startedAt;
 
+  /// Nom affichable du praticien propriétaire de la séance (#3403 — distinguer
+  /// la consultation d'un confrère dans l'historique).
+  final String? practitionerName;
+
   const ClinicalSession({
     required this.id,
     required this.appointmentId,
@@ -44,13 +48,21 @@ class ClinicalSession extends Equatable {
     required this.acts,
     this.patientName,
     this.startedAt,
+    this.practitionerName,
   });
 
   bool get isCompleted => status == 'completed';
 
   @override
-  List<Object?> get props =>
-      [id, appointmentId, status, acts, patientName, startedAt];
+  List<Object?> get props => [
+        id,
+        appointmentId,
+        status,
+        acts,
+        patientName,
+        startedAt,
+        practitionerName,
+      ];
 }
 
 /// Result of POST .../complete

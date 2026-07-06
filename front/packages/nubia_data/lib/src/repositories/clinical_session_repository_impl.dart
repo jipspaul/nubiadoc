@@ -20,6 +20,17 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }
+      // #3400 — La séance est déjà démarrée (409 invalid_status). Ce n'est pas
+      // une erreur fatale : on récupère la séance `in_progress` liée à ce RDV
+      // pour permettre la reprise (navigation vers la consultation existante).
+      if (e.response?.statusCode == 409) {
+        final resumed = await _resumeExistingSession(appointmentId);
+        if (resumed != null) return Right(resumed);
+        return const Left(ServerFailure(
+          message: 'Séance déjà démarrée.',
+          statusCode: 409,
+        ));
+      }
       return Left(ServerFailure(
         message: 'Impossible de démarrer la séance.',
         statusCode: e.response?.statusCode,
@@ -27,6 +38,20 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
     } catch (e) {
       return const Left(ParseFailure());
     }
+  }
+
+  /// Retrouve la séance `in_progress` d'un rendez-vous déjà démarré (#3400).
+  /// Retourne `null` si aucune séance correspondante n'est trouvable.
+  Future<ClinicalSession?> _resumeExistingSession(String appointmentId) async {
+    try {
+      final sessions = await _api.listSessions(status: 'in_progress');
+      for (final dto in sessions) {
+        if (dto.appointmentId == appointmentId) return dto.toDomain();
+      }
+    } catch (_) {
+      // On reste silencieux : l'appelant retombera sur le message 409.
+    }
+    return null;
   }
 
   @override
@@ -95,6 +120,14 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
+      }
+      // #3403 — Ajout sur la séance d'un confrère : le back répond 403. On
+      // remonte un message explicite (au lieu d'un échec silencieux côté UI).
+      if (e.response?.statusCode == 403) {
+        return const Left(ServerFailure(
+          message: 'Action non autorisée.',
+          statusCode: 403,
+        ));
       }
       return Left(ServerFailure(
         message: "Impossible d'ajouter l'acte.",
