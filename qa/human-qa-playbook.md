@@ -59,7 +59,6 @@ Pour scroller : `page.mouse.wheel(0, dy)` ou un geste de drag sur le bottom shee
 | Patient | https://patient.doc.nubia-link.com/ | `marc.dubois@patient.test` | `Nubia2026!` |
 | Praticien | https://practicien.doc.nubia-link.com/ | `hugo.marin@cabinet-lyon.test` | `Nubia2026!` |
 | Secrétariat | https://secretariat.doc.nubia-link.com/ | `sonia.accueil@cabinet-lyon.test` | `Nubia2026!` |
-| Pharmacie | https://pharmacie.doc.nubia-link.com/ | `jean.officine@pharmacie-lyon.test` | `Nubia2026!` |
 
 **Login = à la main** : tu ouvres l'app, tu vois l'écran de connexion, tu
 **cliques** le champ e-mail, tu **tapes** l'e-mail, champ mot de passe, tu tapes,
@@ -153,3 +152,27 @@ Pour CHAQUE bug/friction (bloquant, gênant, cosmétique, ou reco design) :
 
 À la fin de ton run, **liste les numéros d'issues créées** dans ton rapport.
 Un run QA sans issue créée alors que des bugs ont été trouvés = run **raté**.
+
+## 9. ⚠️⚠️ MODE BALAYAGE EXHAUSTIF — « rien ne passe, chaque bouton doit marcher »
+
+Le défaut désormais : tu ne testes pas que les parcours clés, tu testes **TOUTE
+l'app, écran par écran, bouton par bouton**. Objectif : **aucun élément
+interactif non testé**.
+
+Pour CHAQUE écran atteignable :
+1. Screenshot → **liste à l'œil TOUS les éléments interactifs** (chaque bouton,
+   onglet, carte, chip, champ, icône cliquable, FAB, menu, toggle, lien, item de
+   liste, chevron).
+2. **Actionne CHACUN** un par un : clique les boutons, tape dans les champs,
+   bascule les toggles, ouvre au moins 1 item de chaque liste, remplis ET soumets
+   les formulaires, ouvre les modales/bottom sheets et teste leurs boutons.
+3. Après chaque action : screenshot + **vérifie l'effet réel** + **le code HTTP**.
+   Bouton qui ne fait RIEN (0 requête/0 nav/0 changement) = **bouton mort = bug**.
+   4xx/5xx = bug back. Action qui perd tes données/te bloque = bug.
+4. **Scrolle** chaque écran jusqu'en bas (des boutons s'y cachent).
+
+Note un **tableau « écran → bouton → effet → HTTP → OK/BUG »**. Dis explicitement
+ce que tu n'as pas pu atteindre (ne marque jamais « OK » par défaut). **Une issue
+par bouton mort / action cassée.** Le but n'est PAS de rassurer : si tu ne trouves
+aucun bug sur une app entière, tu n'as pas assez cliqué — recommence plus profond.
+Sois impitoyable.
