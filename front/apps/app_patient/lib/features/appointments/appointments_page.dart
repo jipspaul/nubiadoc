@@ -35,8 +35,10 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
     return BlocListener<AppointmentsBloc, AppointmentsState>(
       listener: (context, state) {
         if (state is AppointmentsBookingSuccess) {
+          // Le RDV part en statut « requested » : le cabinet doit confirmer.
+          // On annonce donc une DEMANDE, pas une confirmation.
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Rendez-vous confirmé !')),
+            const SnackBar(content: Text('Demande de rendez-vous envoyée')),
           );
           context
               .read<AppointmentsBloc>()
@@ -96,9 +98,10 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
     if (state is AppointmentsBookingSuccess) {
       return const NubiaEmptyState(
         key: Key('booking_success'),
-        icon: Icons.check_circle_outline,
-        title: 'Rendez-vous confirmé !',
-        subtitle: 'Vous allez recevoir une confirmation.',
+        icon: Icons.schedule_outlined,
+        title: 'Demande envoyée',
+        subtitle: 'Le cabinet doit confirmer votre rendez-vous. '
+            'Vous serez notifié dès sa validation.',
       );
     }
     if (state is AppointmentsError) {
@@ -1018,24 +1021,31 @@ class _SlotsByDay extends StatelessWidget {
   }
 
   /// Grille (Wrap) de [SlotChip] conservant l'état de sélection courant.
+  ///
+  /// [SlotChip] centre son contenu et s'étirerait à toute la largeur dispo
+  /// dans un [Wrap] (→ 1 chip/ligne). On l'enveloppe dans [IntrinsicWidth]
+  /// pour qu'il garde une largeur intrinsèque compacte et que plusieurs
+  /// créneaux tiennent par ligne (vraie grille, façon Doctolib).
   Widget _slotWrap(BuildContext context, List<Slot> slots) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         for (final slot in slots)
-          SlotChip(
-            label: _hhmm(slot.startsAt),
-            state: !slot.isAvailable
-                ? SlotChipState.unavailable
-                : state.selectedSlot?.id == slot.id
-                    ? SlotChipState.selected
-                    : SlotChipState.available,
-            onTap: slot.isAvailable
-                ? () => context
-                    .read<AppointmentsBloc>()
-                    .add(AppointmentsSlotSelected(slot))
-                : null,
+          IntrinsicWidth(
+            child: SlotChip(
+              label: _hhmm(slot.startsAt),
+              state: !slot.isAvailable
+                  ? SlotChipState.unavailable
+                  : state.selectedSlot?.id == slot.id
+                      ? SlotChipState.selected
+                      : SlotChipState.available,
+              onTap: slot.isAvailable
+                  ? () => context
+                      .read<AppointmentsBloc>()
+                      .add(AppointmentsSlotSelected(slot))
+                  : null,
+            ),
           ),
       ],
     );

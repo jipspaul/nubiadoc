@@ -260,8 +260,16 @@ class _AppointmentCard extends StatelessWidget {
   }
 
   String _initials(String name) {
+    // Retire le préfixe de civilité (« Dr », « Dr. », « Pr », « M. »…) pour ne
+    // pas polluer les initiales : « Dr Amélie Dubois » → « AD », pas « DD ».
+    final cleaned = name
+        .replaceAll(
+          RegExp(r'^(Dr|Dr\.|Pr|Pr\.|M\.|Mme|Mlle)\s+', caseSensitive: false),
+          '',
+        )
+        .trim();
     final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+        cleaned.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) {
       return parts.first.characters.first.toUpperCase();

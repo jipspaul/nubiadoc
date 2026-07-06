@@ -312,4 +312,58 @@ void main() {
       ],
     );
   });
+
+  // #3416 — après un envoi réussi, la bulle du message envoyé doit apparaître
+  // immédiatement dans le fil ouvert (sans quitter/rouvrir la conversation).
+  group('MessagingPage — envoi (#3416)', () {
+    testWidgets('la bulle du message envoyé apparaît tout de suite',
+        (tester) async {
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+      final sent = Message(
+        id: 'msg-2',
+        conversationId: 'conv-1',
+        sender: MessageSender.patient,
+        text: 'Bonjour docteur, une question',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 11, 0),
+      );
+      when(() => mockSendMessage(
+            conversationId: any(named: 'conversationId'),
+            text: any(named: 'text'),
+          )).thenAnswer((_) async => Right(sent));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Le message n'existe pas encore avant l'envoi.
+      expect(find.text('Bonjour docteur, une question'), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const Key('messaging_input')),
+        'Bonjour docteur, une question',
+      );
+      await tester.tap(find.byKey(const Key('messaging_send_button')));
+      await tester.pumpAndSettle();
+
+      // La bulle est affichée immédiatement, sans recharger la conversation.
+      expect(find.text('Bonjour docteur, une question'), findsOneWidget);
+    });
+  });
 }

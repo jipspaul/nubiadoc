@@ -279,4 +279,101 @@ void main() {
       ],
     );
   });
+
+  // #3418 — les créneaux d'une même période (Matin / Après-midi) doivent
+  // s'afficher en grille (Wrap, plusieurs par ligne), pas en colonne unique.
+  group('créneaux en grille (#3418)', () {
+    Slot slot(String id, DateTime at) => Slot(
+          id: id,
+          cabinetId: 'cab-1',
+          practitionerId: 'prac-1',
+          startsAt: at,
+          endsAt: at.add(const Duration(minutes: 30)),
+          isAvailable: true,
+        );
+
+    testWidgets('les SlotChip d\'une période sont côte à côte (Wrap)',
+        (tester) async {
+      final day = DateTime(2026, 7, 10);
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: const ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Martin',
+            specialty: 'Dentiste',
+          ),
+          slots: [
+            slot('s1', DateTime(day.year, day.month, day.day, 9, 0)),
+            slot('s2', DateTime(day.year, day.month, day.day, 9, 30)),
+            slot('s3', DateTime(day.year, day.month, day.day, 10, 0)),
+            slot('s4', DateTime(day.year, day.month, day.day, 14, 0)),
+            slot('s5', DateTime(day.year, day.month, day.day, 14, 30)),
+          ],
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<AppointmentsBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Sections de période présentes + tous les créneaux rendus en SlotChip.
+      expect(find.text('Matin'), findsOneWidget);
+      expect(find.text('Après-midi'), findsOneWidget);
+      expect(find.byType(SlotChip), findsNWidgets(5));
+      expect(find.byType(Wrap), findsWidgets);
+
+      // Deux créneaux du matin sont sur la même ligne (même y, x différents) :
+      // preuve d'une vraie grille et non d'une colonne pleine largeur.
+      final c1 = tester.getCenter(find.text('09:00'));
+      final c2 = tester.getCenter(find.text('09:30'));
+      expect(c1.dy, moreOrLessEquals(c2.dy, epsilon: 0.5));
+      expect(c1.dx, isNot(moreOrLessEquals(c2.dx, epsilon: 0.5)));
+    });
+  });
+
+  // #3420 — après réservation, le RDV est en attente (le cabinet confirme) :
+  // le toast doit annoncer une DEMANDE, pas une confirmation.
+  group('toast de réservation (#3420)', () {
+    testWidgets('affiche « Demande de rendez-vous envoyée », pas « confirmé »',
+        (tester) async {
+      final appt = Appointment(
+        id: 'rdv-1',
+        cabinetId: 'cab-1',
+        practitionerName: 'Dr Martin',
+        practitionerSpecialty: 'Dentiste',
+        startsAt: DateTime(2026, 7, 10, 9, 0),
+        duration: const Duration(minutes: 30),
+        motif: 'Contrôle',
+        status: AppointmentStatus.requested,
+      );
+
+      final bloc = _MockAppointmentsBloc();
+      whenListen(
+        bloc,
+        Stream<AppointmentsState>.fromIterable([
+          AppointmentsBookingSuccess(appt),
+        ]),
+        initialState: const AppointmentsBookingLoading(),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<AppointmentsBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Demande de rendez-vous envoyée'), findsOneWidget);
+      expect(find.textContaining('confirmé'), findsNothing);
+    });
+  });
 }
