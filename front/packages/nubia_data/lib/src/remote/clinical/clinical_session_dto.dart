@@ -51,7 +51,9 @@ class ClinicalSessionDto {
 
   factory ClinicalSessionDto.fromJson(Map<String, dynamic> json) =>
       ClinicalSessionDto(
-        id: json['id'] as String,
+        // POST .../start renvoie `consultation_id` (pas `id`) ; GET
+        // .../consultations/{id} renvoie `id`. On accepte les deux.
+        id: (json['id'] ?? json['consultation_id']) as String,
         appointmentId: json['appointment_id'] as String,
         status: json['status'] as String,
         acts: (json['acts'] as List<dynamic>? ?? [])

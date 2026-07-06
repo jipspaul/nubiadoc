@@ -7,6 +7,7 @@ import 'package:nubia_data/src/remote/account/account_dto.dart';
 import 'package:nubia_data/src/remote/dashboard/dashboard_dto.dart';
 import 'package:nubia_data/src/remote/quotes_api.dart';
 import 'package:nubia_data/src/remote/payments_api.dart';
+import 'package:nubia_data/src/remote/clinical/clinical_session_dto.dart';
 import 'package:nubia_data/src/remote/search/search_dto.dart';
 import 'package:nubia_data/src/remote/notifications/notification_dto.dart';
 import 'package:nubia_data/src/remote/messaging/messaging_dto.dart';
@@ -126,52 +127,55 @@ void main() {
 
   group('DashboardDto (GET /v1/dashboard)', () {
     test(
-        'fromJson désérialise un patient avec données (next_appointment, to_sign, to_pay)',
-        () {
-      final json = {
-        'next_appointment': {
-          'appointment_id': 'appt-abc',
-          'starts_at': '2026-08-01T10:00:00Z',
-          'status': 'confirmed',
-        },
-        'to_sign': [
-          {'quote_id': 'q-1', 'amount_cents': 12000},
-          {'quote_id': 'q-2', 'amount_cents': 8000},
-        ],
-        'to_pay': [
-          {'payment_id': 'pay-1', 'amount_cents': 5000},
-        ],
-        'unread_messages': 3,
-        'reminders': 1,
-      };
-      final dto = DashboardDto.fromJson(json);
-      expect(dto.upcomingAppointments, 1);
-      expect(dto.documentsToSign, 2);
-      expect(dto.pendingPaymentsCents, 5000);
-      expect(dto.unreadMessages, 3);
-      expect(dto.pendingQuestionnaires, 1);
-      final domain = dto.toDomain();
-      expect(domain.upcomingAppointments, 1);
-      expect(domain.documentsToSign, 2);
-      expect(domain.pendingPaymentsCents, 5000);
-    });
+      'fromJson désérialise un patient avec données (next_appointment, to_sign, to_pay)',
+      () {
+        final json = {
+          'next_appointment': {
+            'appointment_id': 'appt-abc',
+            'starts_at': '2026-08-01T10:00:00Z',
+            'status': 'confirmed',
+          },
+          'to_sign': [
+            {'quote_id': 'q-1', 'amount_cents': 12000},
+            {'quote_id': 'q-2', 'amount_cents': 8000},
+          ],
+          'to_pay': [
+            {'payment_id': 'pay-1', 'amount_cents': 5000},
+          ],
+          'unread_messages': 3,
+          'reminders': 1,
+        };
+        final dto = DashboardDto.fromJson(json);
+        expect(dto.upcomingAppointments, 1);
+        expect(dto.documentsToSign, 2);
+        expect(dto.pendingPaymentsCents, 5000);
+        expect(dto.unreadMessages, 3);
+        expect(dto.pendingQuestionnaires, 1);
+        final domain = dto.toDomain();
+        expect(domain.upcomingAppointments, 1);
+        expect(domain.documentsToSign, 2);
+        expect(domain.pendingPaymentsCents, 5000);
+      },
+    );
 
-    test('fromJson désérialise un patient sans données (null / listes vides)',
-        () {
-      final json = {
-        'next_appointment': null,
-        'to_sign': [],
-        'to_pay': [],
-        'unread_messages': 0,
-        'reminders': 0,
-      };
-      final dto = DashboardDto.fromJson(json);
-      expect(dto.upcomingAppointments, 0);
-      expect(dto.documentsToSign, 0);
-      expect(dto.pendingPaymentsCents, 0);
-      expect(dto.unreadMessages, 0);
-      expect(dto.pendingQuestionnaires, 0);
-    });
+    test(
+      'fromJson désérialise un patient sans données (null / listes vides)',
+      () {
+        final json = {
+          'next_appointment': null,
+          'to_sign': [],
+          'to_pay': [],
+          'unread_messages': 0,
+          'reminders': 0,
+        };
+        final dto = DashboardDto.fromJson(json);
+        expect(dto.upcomingAppointments, 0);
+        expect(dto.documentsToSign, 0);
+        expect(dto.pendingPaymentsCents, 0);
+        expect(dto.unreadMessages, 0);
+        expect(dto.pendingQuestionnaires, 0);
+      },
+    );
   });
 
   group('ProviderResultDto (GET /v1/search/providers → data[])', () {
@@ -198,17 +202,19 @@ void main() {
       expect(domain.ratingAvg, 4.6);
     });
 
-    test('specialty null → libellé de repli, pas de geo → hasLocation false',
-        () {
-      final dto = ProviderResultDto.fromJson({
-        'provider_id': 'p1',
-        'display_name': 'Cabinet X',
-        'is_listed': true,
-      });
-      final domain = dto.toDomain();
-      expect(domain.specialty, 'Praticien');
-      expect(domain.hasLocation, isFalse);
-    });
+    test(
+      'specialty null → libellé de repli, pas de geo → hasLocation false',
+      () {
+        final dto = ProviderResultDto.fromJson({
+          'provider_id': 'p1',
+          'display_name': 'Cabinet X',
+          'is_listed': true,
+        });
+        final domain = dto.toDomain();
+        expect(domain.specialty, 'Praticien');
+        expect(domain.hasLocation, isFalse);
+      },
+    );
   });
 
   group('ParsedSearchDto (POST /v1/search/parse)', () {
@@ -275,20 +281,22 @@ void main() {
       expect(d.body, '');
     });
 
-    test('MessageDto : body→text, created_at→sentAt, conversationId injecté',
-        () {
-      final dto = MessageDto.fromJson({
-        'id': 'm1',
-        'body': 'Bonjour',
-        'sender': 'patient',
-        'created_at': '2026-07-02T09:45:54Z',
-        'read_at': null,
-      }, conversationId: 'c1');
-      final m = dto.toDomain();
-      expect(m.text, 'Bonjour');
-      expect(m.conversationId, 'c1');
-      expect(m.sender.toString(), contains('patient'));
-    });
+    test(
+      'MessageDto : body→text, created_at→sentAt, conversationId injecté',
+      () {
+        final dto = MessageDto.fromJson({
+          'id': 'm1',
+          'body': 'Bonjour',
+          'sender': 'patient',
+          'created_at': '2026-07-02T09:45:54Z',
+          'read_at': null,
+        }, conversationId: 'c1');
+        final m = dto.toDomain();
+        expect(m.text, 'Bonjour');
+        expect(m.conversationId, 'c1');
+        expect(m.sender.toString(), contains('patient'));
+      },
+    );
 
     test('ConversationDto : liste résumé (cabinet_name, unread_count)', () {
       final dto = ConversationDto.fromJson({
@@ -307,21 +315,23 @@ void main() {
       expect(c.lastMessageAt, DateTime.parse('2026-07-02T09:45:54Z'));
     });
 
-    test('ConversationDto : aperçu du dernier message (last_message_preview)',
-        () {
-      final c = ConversationDto.fromJson({
-        'id': 'c1',
-        'cabinet_id': 'cab',
-        'cabinet_name': 'Cabinet Lyon',
-        'last_message_at': '2026-07-02T09:45:54Z',
-        'last_message_preview': 'Bonjour, vos résultats sont disponibles.',
-        'unread_count': 3,
-      }).toDomain();
-      expect(
-        c.lastMessagePreview,
-        'Bonjour, vos résultats sont disponibles.',
-      );
-    });
+    test(
+      'ConversationDto : aperçu du dernier message (last_message_preview)',
+      () {
+        final c = ConversationDto.fromJson({
+          'id': 'c1',
+          'cabinet_id': 'cab',
+          'cabinet_name': 'Cabinet Lyon',
+          'last_message_at': '2026-07-02T09:45:54Z',
+          'last_message_preview': 'Bonjour, vos résultats sont disponibles.',
+          'unread_count': 3,
+        }).toDomain();
+        expect(
+          c.lastMessagePreview,
+          'Bonjour, vos résultats sont disponibles.',
+        );
+      },
+    );
 
     test('ConversationDto : last_message_at absent → lastMessageAt null', () {
       final c = ConversationDto.fromJson({
@@ -371,30 +381,32 @@ void main() {
       expect(q.items, isEmpty);
     });
 
-    test('QuoteDto.fromJson : détail avec items unit_amount_cents/amo_part',
-        () {
-      final q = QuoteDto.fromJson({
-        'id': 'q1',
-        'status': 'signed',
-        'total_amount_cents': 38000,
-        'created_at': '2026-07-03T06:15:29Z',
-        'signed_at': '2026-07-03T06:15:29Z',
-        'items': [
-          {
-            'id': 'i1',
-            'label': 'Composite',
-            'ccam_code': null,
-            'tooth': null,
-            'unit_amount_cents': 30000,
-            'amo_part_cents': 10000,
-            'amc_part_cents': 5000
-          },
-        ],
-      }).toDomain();
-      expect(q.items, hasLength(1));
-      expect(q.items.first.totalCents, 30000);
-      expect(q.items.first.patientShareCents, 15000); // 30000-10000-5000
-    });
+    test(
+      'QuoteDto.fromJson : détail avec items unit_amount_cents/amo_part',
+      () {
+        final q = QuoteDto.fromJson({
+          'id': 'q1',
+          'status': 'signed',
+          'total_amount_cents': 38000,
+          'created_at': '2026-07-03T06:15:29Z',
+          'signed_at': '2026-07-03T06:15:29Z',
+          'items': [
+            {
+              'id': 'i1',
+              'label': 'Composite',
+              'ccam_code': null,
+              'tooth': null,
+              'unit_amount_cents': 30000,
+              'amo_part_cents': 10000,
+              'amc_part_cents': 5000,
+            },
+          ],
+        }).toDomain();
+        expect(q.items, hasLength(1));
+        expect(q.items.first.totalCents, 30000);
+        expect(q.items.first.patientShareCents, 15000); // 30000-10000-5000
+      },
+    );
   });
 
   // --- Confirmation RDV cabinet (issue #3361) ---------------------------------
@@ -410,6 +422,32 @@ void main() {
       final domain = dto.toDomain();
       expect(domain.id, '488801b0-17d9-4ec7-8d52-c475f2564b34');
       expect(domain.status, CabinetAppointmentStatus.confirmed);
+    });
+  });
+
+  group('ClinicalSessionDto (POST /v1/cabinet/appointments/:id/start)', () {
+    test('fromJson accepte `consultation_id` (réponse du start)', () {
+      // Le back renvoie `consultation_id`, pas `id`.
+      final dto = ClinicalSessionDto.fromJson({
+        'appointment_id': 'aa-1',
+        'consultation_id': 'cs-1',
+        'status': 'in_progress',
+        'started_at': '2026-07-04T19:31:58Z',
+      });
+      expect(dto.id, 'cs-1');
+      expect(dto.appointmentId, 'aa-1');
+      expect(dto.acts, isEmpty);
+      expect(dto.toDomain().id, 'cs-1');
+    });
+
+    test('fromJson accepte `id` (réponse du GET consultation)', () {
+      final dto = ClinicalSessionDto.fromJson({
+        'id': 'cs-2',
+        'appointment_id': 'aa-2',
+        'status': 'in_progress',
+        'acts': [],
+      });
+      expect(dto.id, 'cs-2');
     });
   });
 }
