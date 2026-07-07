@@ -743,6 +743,13 @@ class _ProvidersMap extends StatelessWidget {
 /// Couche de marqueurs avec clustering « pixel » simple : les pins proches à
 /// l'écran (grille ~76 px) sont regroupés en une bulle avec le compte. Se
 /// reconstruit à chaque changement de caméra via [MapCamera.of].
+///
+/// La grille est calculée via [MapCamera.project] (coordonnées de projection
+/// pures, dépendant uniquement du zoom) plutôt que via
+/// [MapCamera.latLngToScreenPoint] (qui inclut le centre courant). Un pan pur
+/// ne fait donc plus dériver les cellules de la grille : sans ce choix, les
+/// pins proches d'une frontière de cellule changeaient de bucket à chaque
+/// frame de défilement, faisant sursauter les clusters.
 class _ClusterLayer extends StatelessWidget {
   const _ClusterLayer({
     required this.providers,
@@ -761,7 +768,7 @@ class _ClusterLayer extends StatelessWidget {
     const cell = 76.0;
     final buckets = <String, List<ProviderResult>>{};
     for (final p in providers) {
-      final pt = camera.latLngToScreenPoint(LatLng(p.lat!, p.lng!));
+      final pt = camera.project(LatLng(p.lat!, p.lng!));
       final key = '${(pt.x / cell).floor()}:${(pt.y / cell).floor()}';
       buckets.putIfAbsent(key, () => <ProviderResult>[]).add(p);
     }
