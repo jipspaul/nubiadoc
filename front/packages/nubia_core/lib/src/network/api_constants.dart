@@ -2,8 +2,10 @@ class ApiConstants {
   ApiConstants._();
 
   // Overridden via --dart-define=API_BASE_URL=...
+  // Défaut = backend de prod déployé (doc.nubia-link.com) pour que les builds
+  // mobiles sans dart-define tapent quand même au bon endroit.
   static const String baseUrl = String.fromEnvironment('API_BASE_URL',
-      defaultValue: 'https://api.nubia.health/v1');
+      defaultValue: 'https://api.doc.nubia-link.com/v1');
 
   // Timeouts
   static const Duration connectTimeout = Duration(seconds: 10);

@@ -27,6 +27,8 @@ jobs:
       image: flutter-ci:stable
     env:
       FAD_TESTERS: ${{ secrets.FAD_TESTERS || 'xav.b00@gmail.com' }}
+      # URL backend injectée dans les builds (--dart-define=API_BASE_URL).
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.doc.nubia-link.com/v1' }}
       GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/front/fastlane/.secrets/nubiadoc-fastlane.json
     steps:
       - uses: actions/checkout@v4
