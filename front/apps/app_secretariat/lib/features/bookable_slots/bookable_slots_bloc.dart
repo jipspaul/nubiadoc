@@ -35,14 +35,17 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState>
     with SafeEmitMixin<BookableSlotsState> {
   final ListBookableSlotsUseCase _listSlots;
   final CreateSlotUseCase _createSlot;
+  final ListCabinetPractitionersUseCase _listPractitioners;
   final DateTime Function() _now;
 
   BookableSlotsBloc({
     required ListBookableSlotsUseCase listSlots,
     required CreateSlotUseCase createSlot,
+    required ListCabinetPractitionersUseCase listPractitioners,
     DateTime Function()? now,
   })  : _listSlots = listSlots,
         _createSlot = createSlot,
+        _listPractitioners = listPractitioners,
         _now = now ?? DateTime.now,
         super(const BookableSlotsInitial()) {
     on<BookableSlotsLoadRequested>(_onLoad);
@@ -57,12 +60,23 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState>
     try {
       // #3365 : ne pas charger les créneaux passés — l'API filtre via `from`
       // (sanitizeBookableSlots reste en défense côté client).
-      final result = await _listSlots(from: _now());
-      result.fold(
-        (failure) => safeEmit(BookableSlotsError(failure.message)),
-        (slots) =>
-            safeEmit(BookableSlotsLoaded(sanitizeBookableSlots(slots, _now()))),
-      );
+      // #3467 : on charge aussi le roster praticiens pour afficher le nom du
+      // médecin sur chaque créneau et alimenter les sélecteurs.
+      final slotsResult = await _listSlots(from: _now());
+      final failure = slotsResult.fold((f) => f, (_) => null);
+      if (failure != null) {
+        safeEmit(BookableSlotsError(failure.message));
+        return;
+      }
+      final slots = slotsResult.getOrElse(() => const []);
+      // Le roster est secondaire : en cas d'échec, on affiche quand même les
+      // créneaux (sans nom de praticien) plutôt que de bloquer l'écran.
+      final practitionersResult = await _listPractitioners();
+      final practitioners = practitionersResult.getOrElse(() => const []);
+      safeEmit(BookableSlotsLoaded(
+        sanitizeBookableSlots(slots, _now()),
+        practitioners: practitioners,
+      ));
     } catch (_) {
       safeEmit(const BookableSlotsError('Erreur de chargement.'));
     }
@@ -75,8 +89,10 @@ class BookableSlotsBloc extends Bloc<BookableSlotsEvent, BookableSlotsState>
     emit(const BookableSlotsLoading());
     try {
       final result = await _createSlot(
+        // `cabinet_id` est ignoré par le back (extrait du JWT) ; seul le
+        // `practitioner_id` valide compte (#3465).
         cabinetId: '',
-        practitionerId: '',
+        practitionerId: event.practitionerId,
         start: event.startsAt,
         duration: event.endsAt.difference(event.startsAt),
       );

@@ -16,6 +16,9 @@ import 'package:app_secretariat/pro_config.dart';
 
 class _MockSlotsRepository extends Mock implements SlotsRepository {}
 
+class _MockCabinetAgendaRepository extends Mock
+    implements CabinetAgendaRepository {}
+
 class _MockBookableSlotsBloc
     extends MockBloc<BookableSlotsEvent, BookableSlotsState>
     implements BookableSlotsBloc {}
@@ -28,6 +31,11 @@ final _slot = Slot(
   endsAt: DateTime(2026, 6, 20, 9, 30),
   isAvailable: true,
 );
+
+const _practitioners = [
+  CabinetPractitioner(id: 'p1', displayName: 'Dr Alice Martin'),
+  CabinetPractitioner(id: 'p2', displayName: 'Dr Bob Durand'),
+];
 
 void main() {
   setUpAll(() {
@@ -73,38 +81,56 @@ void main() {
   // --- BookableSlotsBloc -------------------------------------------------------
   group('BookableSlotsBloc', () {
     late _MockSlotsRepository repo;
+    late _MockCabinetAgendaRepository agendaRepo;
     late ListBookableSlotsUseCase useCase;
     late CreateSlotUseCase createSlotUseCase;
+    late ListCabinetPractitionersUseCase listPractitionersUseCase;
 
     setUp(() {
       repo = _MockSlotsRepository();
+      agendaRepo = _MockCabinetAgendaRepository();
       useCase = ListBookableSlotsUseCase(repo);
       createSlotUseCase = CreateSlotUseCase(repo);
+      listPractitionersUseCase = ListCabinetPractitionersUseCase(agendaRepo);
     });
 
+    void stubList(List<Slot> slots) {
+      when(
+        () => repo.list(
+            from: any(named: 'from'),
+            to: any(named: 'to'),
+            practitionerId: any(named: 'practitionerId')),
+      ).thenAnswer((_) async => Right(slots));
+    }
+
+    void stubPractitioners(List<CabinetPractitioner> practitioners) {
+      when(() => agendaRepo.listPractitioners())
+          .thenAnswer((_) async => Right(practitioners));
+    }
+
+    BookableSlotsBloc buildBloc() => BookableSlotsBloc(
+          listSlots: useCase,
+          createSlot: createSlotUseCase,
+          listPractitioners: listPractitionersUseCase,
+          now: () => DateTime(2026, 6, 1),
+        );
+
     blocTest<BookableSlotsBloc, BookableSlotsState>(
-      'émet Loading puis Loaded sur succès',
+      'émet Loading puis Loaded (avec roster praticiens) sur succès',
       build: () {
-        when(
-          () => repo.list(
-              from: any(named: 'from'),
-              to: any(named: 'to'),
-              practitionerId: any(named: 'practitionerId')),
-        ).thenAnswer((_) async => Right([_slot]));
-        return BookableSlotsBloc(
-            listSlots: useCase,
-            createSlot: createSlotUseCase,
-            now: () => DateTime(2026, 6, 1));
+        stubList([_slot]);
+        stubPractitioners(_practitioners);
+        return buildBloc();
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       expect: () => [
         const BookableSlotsLoading(),
-        BookableSlotsLoaded([_slot]),
+        BookableSlotsLoaded([_slot], practitioners: _practitioners),
       ],
     );
 
     blocTest<BookableSlotsBloc, BookableSlotsState>(
-      'émet Loading puis Error sur échec',
+      'émet Loading puis Error sur échec du chargement des créneaux',
       build: () {
         when(
           () => repo.list(
@@ -114,10 +140,7 @@ void main() {
         ).thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
-        return BookableSlotsBloc(
-            listSlots: useCase,
-            createSlot: createSlotUseCase,
-            now: () => DateTime(2026, 6, 1));
+        return buildBloc();
       },
       act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
       expect: () => [
@@ -127,21 +150,31 @@ void main() {
     );
 
     blocTest<BookableSlotsBloc, BookableSlotsState>(
-      'create → émet Loading, SlotCreatedSuccess, Loading, Loaded',
+      'échec du roster n\'empêche pas d\'afficher les créneaux',
+      build: () {
+        stubList([_slot]);
+        when(() => agendaRepo.listPractitioners()).thenAnswer(
+          (_) async => Left(const ServerFailure(message: 'boom')),
+        );
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
+      expect: () => [
+        const BookableSlotsLoading(),
+        BookableSlotsLoaded([_slot]),
+      ],
+    );
+
+    blocTest<BookableSlotsBloc, BookableSlotsState>(
+      'create → envoie un practitioner_id valide puis recharge',
       build: () {
         when(() => repo.create(any())).thenAnswer((_) async => Right(_slot));
-        when(
-          () => repo.list(
-              from: any(named: 'from'),
-              to: any(named: 'to'),
-              practitionerId: any(named: 'practitionerId')),
-        ).thenAnswer((_) async => Right([_slot]));
-        return BookableSlotsBloc(
-            listSlots: useCase,
-            createSlot: createSlotUseCase,
-            now: () => DateTime(2026, 6, 1));
+        stubList([_slot]);
+        stubPractitioners(const []);
+        return buildBloc();
       },
       act: (bloc) => bloc.add(CreateSlotRequested(
+        practitionerId: 'p1',
         startsAt: DateTime(2026, 6, 20, 9, 0),
         endsAt: DateTime(2026, 6, 20, 9, 30),
       )),
@@ -151,32 +184,11 @@ void main() {
         const BookableSlotsLoading(),
         BookableSlotsLoaded([_slot]),
       ],
-    );
-
-    blocTest<BookableSlotsBloc, BookableSlotsState>(
-      'les créneaux chargés n\'exposent aucun champ clinique',
-      build: () {
-        when(
-          () => repo.list(
-              from: any(named: 'from'),
-              to: any(named: 'to'),
-              practitionerId: any(named: 'practitionerId')),
-        ).thenAnswer((_) async => Right([_slot]));
-        return BookableSlotsBloc(
-            listSlots: useCase,
-            createSlot: createSlotUseCase,
-            now: () => DateTime(2026, 6, 1));
-      },
-      act: (bloc) => bloc.add(const BookableSlotsLoadRequested()),
-      verify: (bloc) {
-        final loaded = bloc.state;
-        expect(loaded, isA<BookableSlotsLoaded>());
-        for (final slot in (loaded as BookableSlotsLoaded).slots) {
-          expect(slot.startsAt, isNotNull);
-          expect(slot.endsAt, isNotNull);
-          // Slot n'a pas de motif ni notes cliniques —
-          // contrainte garantie structurellement par le type.
-        }
+      verify: (_) {
+        final captured =
+            verify(() => repo.create(captureAny())).captured.single as Slot;
+        // #3465 : plus de practitionerId vide — l'ID sélectionné est transmis.
+        expect(captured.practitionerId, 'p1');
       },
     );
   });
@@ -261,13 +273,18 @@ void main() {
       expect(find.byType(NubiaSkeletonLoader), findsWidgets);
     });
 
-    testWidgets('affiche les créneaux — aucun champ clinique visible',
+    testWidgets(
+        'affiche les créneaux avec nom du praticien — aucun champ clinique',
         (tester) async {
-      when(() => bloc.state).thenReturn(BookableSlotsLoaded([_slot]));
+      when(() => bloc.state).thenReturn(
+        BookableSlotsLoaded([_slot], practitioners: _practitioners),
+      );
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
       expect(find.text('Disponible'), findsOneWidget);
+      // #3467 : le nom du praticien est visible (en-tête de groupe + carte).
+      expect(find.textContaining('Dr Alice Martin'), findsWidgets);
       // Cloisonnement : aucun libellé clinique ne doit apparaître
       expect(find.text('Motif'), findsNothing);
       expect(find.text('Notes médicales'), findsNothing);
@@ -275,12 +292,25 @@ void main() {
       expect(find.textContaining('notes'), findsNothing);
     });
 
+    testWidgets('affiche le filtre praticien quand le roster est présent',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        BookableSlotsLoaded([_slot], practitioners: _practitioners),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+          find.byKey(const Key('slots_practitioner_filter')), findsOneWidget);
+      expect(find.byKey(const Key('slots_date_filter')), findsOneWidget);
+    });
+
     testWidgets('affiche un message si aucun créneau', (tester) async {
       when(() => bloc.state).thenReturn(const BookableSlotsLoaded([]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      expect(find.text('Aucun créneau disponible.'), findsOneWidget);
+      expect(find.text('Aucun créneau'), findsOneWidget);
     });
 
     testWidgets('affiche l\'erreur en état BookableSlotsError', (tester) async {
@@ -308,21 +338,24 @@ void main() {
     });
   });
 
-  // --- CreateSlotDialog : non-régression LateInitializationError ---------------
+  // --- CreateSlotDialog --------------------------------------------------------
   group('CreateSlotDialog', () {
-    Widget buildApp() => MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (ctx) => TextButton(
-                onPressed: () => showDialog<dynamic>(
-                  context: ctx,
-                  builder: (_) => const CreateSlotDialog(),
-                ),
-                child: const Text('ouvrir'),
+    Widget buildApp(
+        {List<CabinetPractitioner> practitioners = _practitioners}) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (ctx) => TextButton(
+              onPressed: () => showDialog<CreateSlotResult>(
+                context: ctx,
+                builder: (_) => CreateSlotDialog(practitioners: practitioners),
               ),
+              child: const Text('ouvrir'),
             ),
           ),
-        );
+        ),
+      );
+    }
 
     testWidgets(
         's\'ouvre sans LateInitializationError et affiche les champs par défaut',
@@ -332,6 +365,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Créer un créneau'), findsOneWidget);
+      expect(find.text('Praticien *'), findsOneWidget);
       expect(find.text('Date'), findsOneWidget);
       expect(find.text('Heure début'), findsOneWidget);
       expect(find.text('Heure fin'), findsOneWidget);
@@ -348,6 +382,30 @@ void main() {
       final day = now.day.toString().padLeft(2, '0');
       final month = now.month.toString().padLeft(2, '0');
       expect(find.textContaining('$day/$month/${now.year}'), findsOneWidget);
+    });
+
+    testWidgets('sans sélection de praticien, « Créer » affiche une erreur',
+        (tester) async {
+      await tester.pumpWidget(buildApp());
+      await tester.tap(find.text('ouvrir'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('confirm_create_slot_button')));
+      await tester.pump();
+
+      expect(find.text('Sélectionnez un praticien.'), findsOneWidget);
+      // Le dialogue reste ouvert (pas de pop).
+      expect(find.text('Créer un créneau'), findsOneWidget);
+    });
+
+    testWidgets('un praticien unique est présélectionné', (tester) async {
+      await tester.pumpWidget(buildApp(practitioners: const [
+        CabinetPractitioner(id: 'solo', displayName: 'Dr Seul'),
+      ]));
+      await tester.tap(find.text('ouvrir'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dr Seul'), findsOneWidget);
     });
 
     testWidgets('Annuler ferme le dialogue sans pop de valeur', (tester) async {
