@@ -88,7 +88,7 @@ Last run: 2026-07-07T00:58:56.000Z
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
 | / | 2026-07-01 | 2026-07-07T00:58:56.000Z | OK | reconfirmé, contenu réel affiché |
-| /a2ui-demo | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (non re-testé ce run, hors cap) |
+| /a2ui-demo | 2026-07-01 | 2026-07-07T00:58:56.000Z | OK | reconfirmé |
 | /account-setup | 2026-07-01 | 2026-07-07T00:58:56.000Z | OK | Onboarding flow A : reconfirmé, formulaire soumis avec succès (compte jetable frais) |
 | /appointments | 2026-07-01 | 2026-07-07T00:58:56.000Z | OK | reconfirmé — carte + liste praticiens réelle |
 | /book | 2026-07-01 | 2026-07-07T00:58:56.000Z | OK | reconfirmé |
