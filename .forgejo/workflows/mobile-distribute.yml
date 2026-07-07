@@ -21,6 +21,8 @@
 #   FIREBASE_SERVICE_ACCOUNT  (JSON du service account, rôle App Distribution Admin)
 #   MATCH_PASSWORD, MATCH_GIT_URL, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT,
 #   FASTLANE_TEAM_ID, FAD_TESTERS, API_BASE_URL   (déjà présents)
+#   POSTHOG_API_KEY           (lu par les lanes Fastlane pour l'upload mapping
+#                              Android / dSYM iOS)
 on:
   push:
     branches: [main]
@@ -84,6 +86,9 @@ jobs:
             --projectId="$INFISICAL_PROJECT_ID" --env=prod --domain="$INFISICAL_API_URL" \
             --token="$INFISICAL_TOKEN" > fastlane/.secrets/nubiadoc-fastlane.json
           test -s fastlane/.secrets/nubiadoc-fastlane.json
+          echo "POSTHOG_API_KEY=$(infisical secrets get POSTHOG_API_KEY --plain --silent \
+            --projectId="$INFISICAL_PROJECT_ID" --env=prod --domain="$INFISICAL_API_URL" \
+            --token="$INFISICAL_TOKEN")" >> "$GITHUB_ENV"
 
       - name: Dépendances
         working-directory: front
@@ -128,6 +133,9 @@ jobs:
           infisical secrets get ASC_KEY_CONTENT --plain --silent \
             --projectId="$INFISICAL_PROJECT_ID" --env=prod --domain="$INFISICAL_API_URL" \
             --token="$INFISICAL_TOKEN" > fastlane/.secrets/asc.p8
+          echo "POSTHOG_API_KEY=$(infisical secrets get POSTHOG_API_KEY --plain --silent \
+            --projectId="$INFISICAL_PROJECT_ID" --env=prod --domain="$INFISICAL_API_URL" \
+            --token="$INFISICAL_TOKEN")" >> "$GITHUB_ENV"
 
       - name: Dépendances
         working-directory: front
