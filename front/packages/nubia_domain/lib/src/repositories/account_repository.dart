@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/consent.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
+import 'package:nubia_domain/src/entities/referring_doctor.dart';
 
 /// PORT — account boundary (profil patient, couverture, proches, consentements).
 abstract class AccountRepository {
@@ -58,6 +59,21 @@ abstract class AccountRepository {
   Future<Either<Failure, void>> setAvatar({
     required List<int> bytes,
     required String mimeType,
+  });
+
+  /// GET /v1/account/referring-doctor — Right(null) si aucun médecin déclaré.
+  Future<Either<Failure, ReferringDoctor?>> getReferringDoctor();
+
+  /// PUT /v1/account/referring-doctor — [providerId] si le médecin est un
+  /// praticien Nubia existant, sinon coordonnées saisies librement (le
+  /// médecin déclaré n'a pas besoin d'être inscrit sur Nubia).
+  Future<Either<Failure, ReferringDoctor>> setReferringDoctor({
+    String? providerId,
+    required String name,
+    String? specialty,
+    String? phone,
+    String? email,
+    String? address,
   });
 }
 

@@ -1,5 +1,6 @@
 import 'package:nubia_domain/src/entities/consent.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
+import 'package:nubia_domain/src/entities/referring_doctor.dart';
 
 class HealthCoverageDto {
   final String regime;
@@ -128,6 +129,43 @@ class ConsentDto {
         granted: granted,
         grantedAt: grantedAt != null ? DateTime.tryParse(grantedAt!) : null,
         revokedAt: revokedAt != null ? DateTime.tryParse(revokedAt!) : null,
+      );
+}
+
+class ReferringDoctorDto {
+  final String? providerId;
+  final String name;
+  final String? specialty;
+  final String? phone;
+  final String? email;
+  final String? address;
+
+  const ReferringDoctorDto({
+    this.providerId,
+    required this.name,
+    this.specialty,
+    this.phone,
+    this.email,
+    this.address,
+  });
+
+  factory ReferringDoctorDto.fromJson(Map<String, dynamic> json) =>
+      ReferringDoctorDto(
+        providerId: json['provider_id'] as String?,
+        name: json['name'] as String,
+        specialty: json['specialty'] as String?,
+        phone: json['phone'] as String?,
+        email: json['email'] as String?,
+        address: json['address'] as String?,
+      );
+
+  ReferringDoctor toDomain() => ReferringDoctor(
+        providerId: providerId,
+        name: name,
+        specialty: specialty,
+        phone: phone,
+        email: email,
+        address: address,
       );
 }
 
