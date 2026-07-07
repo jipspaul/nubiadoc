@@ -68,6 +68,7 @@ class _DocumentsBody extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.message)),
           );
+          context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
         }
       },
       child: BlocBuilder<DocumentsBloc, DocumentsState>(
