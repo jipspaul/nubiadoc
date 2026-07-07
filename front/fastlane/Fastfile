@@ -1,0 +1,144 @@
+# Distribution mobile nubiadoc via Firebase App Distribution.
+#
+# Projet Firebase : nubiadoc
+# Usage local (firebase CLI déjà connecté) :
+#   bundle exec fastlane android distribute app:app_patient
+#   bundle exec fastlane android distribute_all
+#
+# En CI (Forgejo) : définir GOOGLE_APPLICATION_CREDENTIALS (chemin vers la clé
+# JSON du service account) + FAD_TESTERS. En local, sans service account, le
+# plugin réutilise les identifiants du firebase CLI (`firebase login`).
+
+# Mapping app -> App ID Firebase (Android). Surchargeable par variable d'env.
+ANDROID_APPS = {
+  "app_patient"     => ENV["FAD_APP_ID_PATIENT"]     || "1:117935898059:android:07899c13b5bfd928e38a4e",
+  "app_practicien"  => ENV["FAD_APP_ID_PRATICIEN"]   || "1:117935898059:android:cb0c710257fce92ce38a4e",
+  "app_secretariat" => ENV["FAD_APP_ID_SECRETARIAT"] || "1:117935898059:android:13ec7bc7e17e0f7ce38a4e",
+  "app_pharmacie"   => ENV["FAD_APP_ID_PHARMACIE"]   || "1:117935898059:android:4e60d5a536628076e38a4e",
+}.freeze
+
+def distribute_android(app:, notes: nil)
+  app_id = ANDROID_APPS[app] || UI.user_error!("App inconnue: #{app} (attendu: #{ANDROID_APPS.keys.join(', ')})")
+  app_dir = File.expand_path("../apps/#{app}", __dir__) # front/apps/<app>
+  UI.user_error!("Dossier introuvable: #{app_dir}") unless File.directory?(app_dir)
+
+  UI.header("Build release APK — #{app}")
+  sh("cd #{app_dir.shellescape} && flutter build apk --release")
+
+  apk = File.join(app_dir, "build/app/outputs/flutter-apk/app-release.apk")
+  UI.user_error!("APK introuvable: #{apk}") unless File.exist?(apk)
+
+  params = {
+    app: app_id,
+    android_artifact_type: "APK",
+    android_artifact_path: apk,
+    release_notes: notes || "Build #{app} — #{Time.now.strftime('%Y-%m-%d %H:%M')}",
+  }
+  testers = ENV["FAD_TESTERS"].to_s
+  params[:testers] = testers unless testers.empty?
+  creds = ENV["GOOGLE_APPLICATION_CREDENTIALS"].to_s
+  params[:service_credentials_file] = creds unless creds.empty?
+
+  firebase_app_distribution(params)
+  UI.success("#{app} distribué sur Firebase App Distribution ✔")
+end
+
+# --- iOS ---------------------------------------------------------------------
+# Mapping app -> App ID Firebase (iOS). bundle id = com.nubiadoc.<x>.
+IOS_APPS = {
+  "app_patient"     => ENV["FAD_IOS_APP_ID_PATIENT"]     || "1:117935898059:ios:d7521ccd2638a6c5e38a4e",
+  "app_practicien"  => ENV["FAD_IOS_APP_ID_PRATICIEN"]   || "1:117935898059:ios:334b8e9520918e5fe38a4e",
+  "app_secretariat" => ENV["FAD_IOS_APP_ID_SECRETARIAT"] || "1:117935898059:ios:637b749ef74b4ef8e38a4e",
+  "app_pharmacie"   => ENV["FAD_IOS_APP_ID_PHARMACIE"]   || "1:117935898059:ios:e45bace8e02d0e63e38a4e",
+}.freeze
+
+IOS_BUNDLE_IDS = {
+  "app_patient"     => "com.nubiadoc.patient",
+  "app_practicien"  => "com.nubiadoc.praticien",
+  "app_secretariat" => "com.nubiadoc.secretariat",
+  "app_pharmacie"   => "com.nubiadoc.pharmacie",
+}.freeze
+
+# ATTENTION : cette lane MODIFIE le compte Apple Developer (crée un bundle id,
+# un certificat et un profil de provisioning via match). Nécessite :
+#   ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_FILEPATH  (clé App Store Connect)
+#   MATCH_PASSWORD + MATCH_GIT_URL                 (dépôt de certificats match)
+#   FASTLANE_TEAM_ID (défaut GRTL7MMCW7)
+# Un profil "development"/"adhoc" ne s'installe que sur les appareils dont
+# l'UDID est enregistré sur le compte : enregistre l'iPhone testeur d'abord.
+def distribute_ios(app:, notes: nil, export_method: "development")
+  app_id = IOS_APPS[app] || UI.user_error!("App iOS inconnue: #{app}")
+  bundle_id = IOS_BUNDLE_IDS[app]
+  app_dir = File.expand_path("../apps/#{app}", __dir__)
+
+  api_key = app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_filepath: ENV.fetch("ASC_KEY_FILEPATH"),
+  )
+
+  match(
+    type: export_method == "app-store" ? "appstore" : "development",
+    app_identifier: bundle_id,
+    team_id: ENV["FASTLANE_TEAM_ID"] || "GRTL7MMCW7",
+    git_url: ENV.fetch("MATCH_GIT_URL"),
+    api_key: api_key,
+    readonly: false,
+  )
+
+  UI.header("Build IPA (#{export_method}) — #{app}")
+  sh("cd #{app_dir.shellescape} && flutter build ipa --release --export-method #{export_method.shellescape}")
+
+  ipa = Dir.glob(File.join(app_dir, "build/ios/ipa/*.ipa")).first
+  UI.user_error!("IPA introuvable pour #{app}") unless ipa
+
+  params = {
+    app: app_id,
+    ipa_path: ipa,
+    release_notes: notes || "Build iOS #{app} — #{Time.now.strftime('%Y-%m-%d %H:%M')}",
+  }
+  testers = ENV["FAD_TESTERS"].to_s
+  params[:testers] = testers unless testers.empty?
+  creds = ENV["GOOGLE_APPLICATION_CREDENTIALS"].to_s
+  params[:service_credentials_file] = creds unless creds.empty?
+
+  firebase_app_distribution(params)
+  UI.success("#{app} (iOS) distribué sur Firebase App Distribution ✔")
+end
+
+platform :ios do
+  desc "Build + distribue une app iOS. MODIFIE le compte Apple. Usage: fastlane ios distribute app:app_patient"
+  lane :distribute do |options|
+    app = options[:app] || UI.user_error!("Précise app:<nom>")
+    distribute_ios(app: app, notes: options[:notes], export_method: options[:export_method] || "development")
+  end
+
+  desc "Build + distribue les 4 apps iOS (MODIFIE le compte Apple)"
+  lane :distribute_all do |options|
+    IOS_APPS.keys.each { |app| distribute_ios(app: app, notes: options[:notes]) }
+  end
+end
+
+platform :android do
+  desc "Build + distribue une app. Usage: fastlane android distribute app:app_patient"
+  lane :distribute do |options|
+    app = options[:app] || UI.user_error!("Précise app:<nom> (ex: app:app_patient)")
+    distribute_android(app: app, notes: options[:notes])
+  end
+
+  desc "Build + distribue les 4 apps"
+  lane :distribute_all do |options|
+    results = []
+    ANDROID_APPS.keys.each do |app|
+      begin
+        distribute_android(app: app, notes: options[:notes])
+        results << "#{app}: OK"
+      rescue => e
+        results << "#{app}: ECHEC — #{e.message}"
+      end
+    end
+    UI.header("Résumé distribution Android")
+    results.each { |r| UI.message(r) }
+    UI.user_error!("Au moins une app a échoué") if results.any? { |r| r.include?("ECHEC") }
+  end
+end

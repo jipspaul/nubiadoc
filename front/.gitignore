@@ -66,3 +66,8 @@ Thumbs.db
 # --- Secrets / local env ---------------------------------------------------
 *.env
 .env.local
+
+# --- fastlane / bundler (distribution mobile) ---
+front/vendor/bundle/
+vendor/bundle/
+.bundle/
