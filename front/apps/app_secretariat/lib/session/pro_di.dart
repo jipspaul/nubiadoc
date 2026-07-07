@@ -5,6 +5,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'pro_auth_cubit.dart';
 import '../features/agenda/agenda_bloc.dart';
 import '../features/admin_membres/admin_membres_bloc.dart';
+import '../features/admin_membres/members_access_cubit.dart';
 import '../features/admin_secretariats/admin_secretariats_bloc.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
@@ -68,6 +69,9 @@ void registerPro(GetIt gi) {
         listSecretariats: gi<ListSecretiariatsUseCase>(),
         inviteMember: gi<InviteMemberUseCase>(),
       ),
+    )
+    ..registerFactory<MembersAccessCubit>(
+      () => MembersAccessCubit(gi<ListMembersUseCase>()),
     )
     ..registerFactory<AdminSecretiariatsBloc>(
       () => AdminSecretiariatsBloc(
