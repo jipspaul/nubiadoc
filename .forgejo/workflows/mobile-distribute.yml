@@ -57,7 +57,10 @@ jobs:
     container:
       image: flutter-ci:stable
     env:
-      INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL || 'http://host.docker.internal:8080' }}
+      # Infisical tourne dans le cluster (namespace infisical) : le job (pod k8s
+      # / dind) l'atteint via le DNS de service in-cluster. host.docker.internal
+      # NE marche PAS ici (runner k8s, pas Docker Desktop).
+      INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL || 'http://infisical-infisical-standalone-infisical.infisical.svc.cluster.local:8080' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -99,9 +102,13 @@ jobs:
             bundle exec fastlane android $LANE
 
   ios:
-    if: ${{ vars.MOBILE_DISTRIBUTE_ENABLED == 'true' }}
+    # Nécessite un runner macOS enregistré : activer avec IOS_CI_ENABLED=true
+    # (sinon le job resterait en attente indéfiniment).
+    if: ${{ vars.MOBILE_DISTRIBUTE_ENABLED == 'true' && vars.IOS_CI_ENABLED == 'true' }}
     runs-on: ${{ vars.MACOS_RUNNER_LABELS && fromJSON(vars.MACOS_RUNNER_LABELS) || 'macos' }}
     env:
+      # Sur un runner macOS hors cluster : localhost via port-forward, ou une URL
+      # d'Infisical joignable depuis ce runner (variable INFISICAL_API_URL).
       INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL || 'http://localhost:8080' }}
     steps:
       - uses: actions/checkout@v4
@@ -140,5 +147,3 @@ jobs:
           infisical run --projectId="$INFISICAL_PROJECT_ID" --env=prod \
             --domain="$INFISICAL_API_URL" --token="$INFISICAL_TOKEN" -- \
             bundle exec fastlane ios $LANE
-
-# trigger: vérification CI 42e05d97
