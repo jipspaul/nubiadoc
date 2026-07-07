@@ -2627,6 +2627,177 @@ pub async fn post_coverage_card(
     ))
 }
 
+/// Réponse de `GET`/`PUT /v1/account/referring-doctor`.
+#[derive(Serialize)]
+pub struct ReferringDoctorResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub free_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub free_phone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub free_address: Option<String>,
+}
+
+const NO_REFERRING_DOCTOR: ReferringDoctorResponse = ReferringDoctorResponse {
+    provider_id: None,
+    free_name: None,
+    free_phone: None,
+    free_address: None,
+};
+
+/// `GET /v1/account/referring-doctor` — retourne le médecin traitant déclaré par le patient.
+///
+/// Aucune déclaration existante → `200` avec tous les champs `null` (comme `patient_coverage`).
+pub async fn get_account_referring_doctor(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<ReferringDoctorResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT provider_id, free_name, free_phone, free_address \
+         FROM patient_referring_doctor \
+         WHERE patient_account_id = $1",
+    )
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        return Ok(Json(NO_REFERRING_DOCTOR));
+    };
+
+    Ok(Json(ReferringDoctorResponse {
+        provider_id: row.try_get("provider_id").map_err(|_| AppError::Internal)?,
+        free_name: row.try_get("free_name").map_err(|_| AppError::Internal)?,
+        free_phone: row.try_get("free_phone").map_err(|_| AppError::Internal)?,
+        free_address: row
+            .try_get("free_address")
+            .map_err(|_| AppError::Internal)?,
+    }))
+}
+
+/// Corps de la requête `PUT /v1/account/referring-doctor`.
+#[derive(Deserialize)]
+pub struct PutReferringDoctorBody {
+    /// Référence vers un praticien listé dans l'annuaire Nubia.
+    provider_id: Option<Uuid>,
+    /// Saisie libre — médecin hors base Nubia. `free_name` obligatoire dans ce cas.
+    free_name: Option<String>,
+    free_phone: Option<String>,
+    free_address: Option<String>,
+}
+
+/// `PUT /v1/account/referring-doctor` — déclare (ou remplace) le médecin traitant du patient.
+///
+/// Deux cas exclusifs (issue #3451) :
+/// - `provider_id` seul : référence un praticien de l'annuaire Nubia (`provider`,
+///   visible via la policy `provider_public_read` → `is_listed = true`, sinon `404`).
+/// - `free_name` (+ `free_phone`/`free_address` optionnels) : médecin hors base,
+///   aucune fiche praticien n'est créée.
+/// Ni l'un ni l'autre, ou les deux à la fois → `422`.
+/// Remplace intégralement la déclaration existante (upsert `ON CONFLICT (patient_account_id)`).
+pub async fn put_account_referring_doctor(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Json(body): Json<PutReferringDoctorBody>,
+) -> Result<Json<ReferringDoctorResponse>, AppError> {
+    let free_name = body.free_name.filter(|s| !s.trim().is_empty());
+
+    if body.provider_id.is_some() == free_name.is_some() {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // `provider` reste soumis à sa propre RLS (provider_public_read : is_listed = true) :
+    // un provider inconnu ou non listé est invisible ici → 404.
+    if let Some(provider_id) = body.provider_id {
+        sqlx::query("SELECT id FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+    }
+
+    let row = sqlx::query(
+        "INSERT INTO patient_referring_doctor \
+           (patient_account_id, provider_id, free_name, free_phone, free_address) \
+         VALUES ($1, $2, $3, $4, $5) \
+         ON CONFLICT (patient_account_id) DO UPDATE SET \
+           provider_id  = $2, \
+           free_name    = $3, \
+           free_phone   = $4, \
+           free_address = $5, \
+           updated_at   = now() \
+         RETURNING provider_id, free_name, free_phone, free_address",
+    )
+    .bind(claims.account_id)
+    .bind(body.provider_id)
+    .bind(&free_name)
+    .bind(&body.free_phone)
+    .bind(&body.free_address)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Audit log : entité plateforme → nil UUID comme sentinel cabinet_id.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'patient', 'update_referring_doctor', 'patient_referring_doctor', $3, $4)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(claims.account_id)
+    .bind(json!({"provider_id": body.provider_id, "free_name": free_name}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        user_id = %claims.sub,
+        provider_id = ?body.provider_id,
+        "patient referring doctor updated"
+    );
+
+    Ok(Json(ReferringDoctorResponse {
+        provider_id: row.try_get("provider_id").map_err(|_| AppError::Internal)?,
+        free_name: row.try_get("free_name").map_err(|_| AppError::Internal)?,
+        free_phone: row.try_get("free_phone").map_err(|_| AppError::Internal)?,
+        free_address: row
+            .try_get("free_address")
+            .map_err(|_| AppError::Internal)?,
+    }))
+}
+
 /// Un consentement RGPD tel que retourné par `GET /v1/account/consents`.
 #[derive(Serialize)]
 pub struct ConsentItem {
