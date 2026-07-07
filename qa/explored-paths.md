@@ -16,7 +16,7 @@
 > après 4 runs consécutifs ; si tu es un futur agent QA et que tu lis ceci,
 > signale-le explicitement dans ton rapport plutôt que de trancher silencieusement.
 
-Last run: 2026-07-07T01:58:50.000Z
+Last run: 2026-07-07T04:10:45.000Z
 
 ## Faux positifs connus (méthode C)
 
@@ -85,85 +85,86 @@ Last run: 2026-07-07T01:58:50.000Z
 
 - **Run 2026-07-07T01:58 — run complet de reconfirmation, ~1h après le run précédent (2026-07-07T00:58), harness réutilisé tel quel (`qa-run/sweep2.js`, `qa-run/onboarding.js`) sans modification.** 41 routes (patient 16, praticien 12, secretariat 13) + 3 onboarding flows, 0 régression, 0 nouvelle issue filée. Les 5 consoleErrors/failedRequests mécaniques levés (patient `/pharmacy/orders/test-order-id` 400 UUID factice, `/rdv/test-appt-id/prepare` 400 UUID factice ; praticien `/patients/test-patient-id` 400 UUID factice ; secretariat `/devis/test-devis-id` 400 UUID factice, `/admin-membres` 403 rôle secretary) ont des messages d'erreur et whiteRatio **identiques au caractère près** aux runs précédents (mêmes textes `Invalid URL: UUID parsing failed` / `{"code":"forbidden"}`) — confirmés faux positifs déjà documentés, aucune capture ne montre de nouveau symptôme. Méthode A (grep TODO/stub sur `front/apps/*/lib/features/`), Méthode B (router-stub) et Méthode C (scan DOM) : 0 hit sur les 3 apps. Aucun code front/back n'a changé depuis le run précédent (`git log --since` sur nubiadoc et `/pulls?sort=recentupdate` sur Forgejo : dernier merge 2026-07-06T23:18Z, avant le run précédent) — ce run est donc une reconfirmation à isocode, valeur principalement en détection de régression d'environnement (déploiement, réseau), qu'on peut considérer nulle ici.
 - **Run 2026-07-07T01:58 — divergence méthodologique non résolue, signalée comme demandé par la note d'en-tête : ceci est le 4e run consécutif (2026-07-04, 2026-07-06, 2026-07-07×2) à suivre la spec URL-sweep v5 streaming du prompt de tâche reçu, alors que le repo documente depuis `qa/human-qa-playbook.md` une doctrine de test "comme un humain" censée la remplacer conceptuellement.** Aucune décision humaine n'a tranché entre les deux. Recommandation explicite au lecteur (agent ou humain) de ce registre : soit mettre à jour le prompt de tâche automatisé pour pointer vers le playbook humain, soit documenter explicitement que l'URL-sweep reste la méthode voulue pour ce rôle récurrent — le statu quo silencieux fait perdre la valeur du playbook déjà écrit.
+- **Run 2026-07-07T04:10 — run complet de reconfirmation, ~2h après le run précédent (2026-07-07T01:58), harness réutilisé tel quel (`qa-run/sweep2.js`, `qa-run/onboarding.js`) sans modification.** 46 routes (patient 21, praticien 12, secretariat 13) + 3 onboarding flows, 0 régression, 0 nouvelle issue filée. Confirmé qu'aucun commit n'a atterri sur `main` depuis le run précédent (`git log --since=2026-07-07T01:58:50` : vide ; dernier merge Forgejo #3442 à 2026-07-06T23:18:15Z, antérieur au run 01:58) — reconfirmation strictement à isocode. Les 5 consoleErrors/failedRequests mécaniques levés (patient `/pharmacy/orders/test-order-id` whiteRatio 0.9971, `/rdv/test-appt-id/prepare` 0.9972 ; praticien `/patients/test-patient-id` 0.9974 ; secretariat `/devis/test-devis-id` 0.9936, `/admin-membres` 0.9926) ont des messages d'erreur, statuts HTTP et whiteRatio identiques aux runs précédents (`Invalid URL: UUID parsing failed…` / `{"code":"forbidden"}`) — vérifiés à l'écran (captures `/tmp/qa-patient-reviews.png`, `/tmp/qa-secretariat-admin-membres.png` entre autres), aucun nouveau symptôme. Méthode A (grep TODO/FIXME/stub/placeholder sur `front/apps/*/lib/features/*`), Méthode B (router-stub `app_router.dart`) et Méthode C (scan DOM texte) : 0 hit sur les 3 apps (les 2 seuls hits grep, des `// TODO(nubia)` dans `session/pro_auth_cubit.dart` de praticien et secretariat, sont hors du périmètre Méthode A car situés hors de tout `features/<slug>/` rattachable à une route testée). Les 3 onboarding flows (A patient signup, B secretariat invitation invalide, C praticien register-pro) sont OK avec le harness existant sans aucune modification requise cette fois — confirmation supplémentaire que les pièges harness précédemment documentés (checkbox, dropdown Spécialité, indices de champ) restent correctement contournés. Divergence méthodologique (voir note du run 01:58 ci-dessus) toujours non tranchée par un humain — signalée à nouveau ici sans décision unilatérale de ma part.
 
 ## patient
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, contenu réel affiché |
-| /a2ui-demo | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /account-setup | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | Onboarding flow A : reconfirmé, formulaire soumis avec succès (compte jetable frais) |
-| /appointments | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé — carte + liste praticiens réelle |
-| /book | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /coverage-setup | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | Onboarding flow A : reconfirmé — 0 console.error, 0 failed-request, atteint home après clic "Plus tard" |
-| /documents | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, liste réelle |
-| /financial | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, liste réelle |
+| / | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé — 0 console.error, 0 failed-request, contenu réel affiché |
+| /a2ui-demo | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /account-setup | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | Onboarding flow A : reconfirmé, formulaire soumis avec succès (compte jetable frais) |
+| /appointments | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé — carte + liste praticiens réelle |
+| /book | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /coverage-setup | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | Onboarding flow A : reconfirmé — 0 console.error, 0 failed-request, atteint home après clic "Plus tard" |
+| /documents | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, liste réelle |
+| /financial | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, liste réelle |
 | /forgot-password | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié, non re-testé ce run, hors cap) |
-| /login | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé (contexte non-authentifié, via Onboarding flow A step 1) |
-| /mes-rdv | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /messaging | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé, liste réelle |
-| /notifications | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé (whiteRatio mécanique 0.9965 faux positif, valeur identique aux runs précédents — 1 notification réelle affichée, vérifié à l'écran) |
-| /oubliettes | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé, feature-gap #3224 toujours corrigé |
-| /pharmacy | 2026-07-04 | 2026-07-06T22:41:14.000Z | OK | reconfirmé |
-| /pharmacy/search | 2026-07-04 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, annuaire OK |
-| /pharmacy/send | 2026-07-04 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /pharmacy/orders | 2026-07-04 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, liste OK |
-| /pharmacy/orders/:id | 2026-07-04 | 2026-07-07T01:58:50.000Z | OK | bannière "Impossible de charger..." avec ID factice = comportement attendu (400 UUID parsing, reconfirmé) |
-| /profile | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /profile/dependents | 2026-07-04 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, 0 console.error |
-| /profile/consents | 2026-07-04 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /profile/notifications | 2026-07-04 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /rdv/test-appt-id/prepare | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | runtime OK (bannière 400 UUID factice attendue) ; feature-gap #3441 toujours corrigé |
+| /login | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé (contexte non-authentifié, via Onboarding flow A step 1) |
+| /mes-rdv | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /messaging | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, liste réelle |
+| /notifications | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé (whiteRatio mécanique 0.9966 faux positif, valeur cohérente avec les runs précédents — 1 notification réelle affichée) |
+| /oubliettes | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, feature-gap #3224 toujours corrigé |
+| /pharmacy | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /pharmacy/search | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, annuaire OK |
+| /pharmacy/send | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /pharmacy/orders | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, liste OK |
+| /pharmacy/orders/:id | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | bannière "Impossible de charger..." avec ID factice = comportement attendu (400 UUID parsing, reconfirmé, vérifié à l'écran) |
+| /profile | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /profile/dependents | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, 0 console.error |
+| /profile/consents | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /profile/notifications | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /rdv/test-appt-id/prepare | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | runtime OK (bannière 400 UUID factice attendue, vérifié à l'écran) ; feature-gap #3441 toujours corrigé |
 | /reset-password | 2026-07-01 | 2026-07-06T18:24:08.000Z | OK | reconfirmé (contexte non-authentifié, non re-testé ce run, hors cap) |
-| /reviews | 2026-07-01 | 2026-07-06T22:41:14.000Z | OK | reconfirmé (whiteRatio mécanique 0.997 faux positif, valeur identique aux runs précédents — empty-state légitime "Aucun avis pour ce prestataire") |
-| /signup | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé (contexte non-authentifié + via Onboarding flow A) |
+| /reviews | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé (whiteRatio mécanique 0.9972 faux positif — empty-state légitime "Aucun avis pour ce prestataire", vérifié à l'écran) |
+| /signup | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé (contexte non-authentifié + via Onboarding flow A) |
 | /splash | 2026-07-01 | 2026-07-06T21:05:13.000Z | OK | reconfirmé (contexte non-authentifié) |
 
 ## praticien
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé — 0 console.error, 0 failed-request |
-| /a2ui-demo | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /agenda | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /cabinet-setup | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, atteint via Onboarding flow C (4e confirmation indépendante) |
-| /consultation | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | runtime OK ; feature-gap déjà tracké — #3226 |
-| /devis | 2026-07-04 | 2026-07-07T01:58:50.000Z | OK | reconfirmé — feature-gap envoi devis (#3436/PR #3440) tient, rendu OK |
-| /login | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé via login flow |
-| /messages | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, liste de conversations réelle |
-| /ordonnances | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé — état vide légitime "Aucune ordonnance en cours" (whiteRatio mécanique 0.9955 faux positif) |
-| /ordonnances/new | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé — état vide légitime "Nouvelle ordonnance" (whiteRatio mécanique 0.9956 faux positif) |
-| /patients | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /patients/test-patient-id | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | bannière "Impossible de charger le patient." avec ID factice = comportement attendu (400 UUID parsing, reconfirmé) |
-| /register-pro | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | rendu + flow de soumission complet OK, **4e confirmation indépendante consécutive** (voir Onboarding flow C, correction du sélecteur dropdown Spécialité) |
-| /splash | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé via login flow |
-| /waiting-room | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
+| / | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé — 0 console.error, 0 failed-request |
+| /a2ui-demo | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /agenda | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /cabinet-setup | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, atteint via Onboarding flow C (6e confirmation indépendante) |
+| /consultation | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | runtime OK ; feature-gap déjà tracké — #3226 |
+| /devis | 2026-07-04 | 2026-07-07T04:10:45.000Z | OK | reconfirmé — feature-gap envoi devis (#3436/PR #3440) tient, rendu OK, 0 marker méthode A |
+| /login | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé via login flow |
+| /messages | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, liste de conversations réelle |
+| /ordonnances | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé — état vide légitime "Aucune ordonnance en cours" (whiteRatio mécanique 0.9955 faux positif, vérifié à l'écran) |
+| /ordonnances/new | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé — état vide légitime "Nouvelle ordonnance" (whiteRatio mécanique 0.9956 faux positif, vérifié à l'écran) |
+| /patients | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /patients/test-patient-id | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | bannière "Impossible de charger le patient." avec ID factice = comportement attendu (400 UUID parsing, reconfirmé, vérifié à l'écran) |
+| /register-pro | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | rendu + flow de soumission complet OK, **6e confirmation indépendante consécutive** |
+| /splash | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé via login flow |
+| /waiting-room | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
 
 ## secretariat
 
 | route | first_seen | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| / | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, KPI + états vides corrects |
-| /a2ui-demo | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /admin-membres | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | runtime OK (403 attendu, rôle secretary) ; feature-gap #3381 toujours corrigé |
-| /admin-secretariats | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | feature-gap #3382 toujours corrigé |
-| /agenda | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /appointments | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /bookable-slots | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, grille de créneaux réelle |
-| /devis | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /devis/test-devis-id | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | bannière 400 UUID invalide avec ID factice = comportement attendu (reconfirmé) |
-| /liste-attente | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé — état vide légitime "Pas d'attente" (whiteRatio mécanique 0.9962 faux positif) |
-| /login | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé via login flow |
-| /messages | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /onboard | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | invitation_token invalide → "Invitation invalide" (reconfirmé, voir Onboarding flow B) |
-| /patients | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé, cloisonnement clinique respecté |
-| /salle-attente | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé |
-| /splash | 2026-07-01 | 2026-07-07T01:58:50.000Z | OK | reconfirmé via login flow |
+| / | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, KPI + états vides corrects |
+| /a2ui-demo | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /admin-membres | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | runtime OK (403 attendu, rôle secretary, vérifié à l'écran) ; feature-gap #3381 toujours corrigé |
+| /admin-secretariats | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | feature-gap #3382 toujours corrigé |
+| /agenda | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /appointments | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /bookable-slots | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, grille de créneaux réelle |
+| /devis | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /devis/test-devis-id | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | bannière 400 UUID invalide avec ID factice = comportement attendu (reconfirmé, vérifié à l'écran) |
+| /liste-attente | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé — état vide légitime "Pas d'attente" (whiteRatio mécanique 0.9962 faux positif, vérifié à l'écran) |
+| /login | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé via login flow |
+| /messages | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /onboard | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | invitation_token invalide → "Invitation invalide" (reconfirmé, voir Onboarding flow B) |
+| /patients | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé, cloisonnement clinique respecté |
+| /salle-attente | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé |
+| /splash | 2026-07-01 | 2026-07-07T04:10:45.000Z | OK | reconfirmé via login flow |
 
 ## Onboarding flows (Étape 4.5)
 
 | flow | app | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
-| A (signup patient) | patient | 2026-07-07T01:58:50.000Z | OK | reconfirmé de bout en bout (signup → account-setup → coverage-setup → home) avec un compte jetable frais : 0 console.error, 0 failed-request. |
-| B (invitation secretariat) | secretariat | 2026-07-07T01:58:50.000Z | OK | reconfirmé — invitation_token invalide correctement rejeté au submit, "Invitation invalide" affiché, bouton "Retour à la connexion" fonctionnel. |
-| C (register praticien) | praticien | 2026-07-07T01:58:50.000Z | OK | **5e confirmation indépendante consécutive** — POST 201 → /cabinet-setup atteint sans rebond sur /login, run indépendant ~1h après le précédent. |
+| A (signup patient) | patient | 2026-07-07T04:10:45.000Z | OK | reconfirmé de bout en bout (signup → account-setup → coverage-setup → home) avec un compte jetable frais : 0 console.error, 0 failed-request. |
+| B (invitation secretariat) | secretariat | 2026-07-07T04:10:45.000Z | OK | reconfirmé — invitation_token invalide correctement rejeté au submit, "Invitation invalide" affiché, bouton "Retour à la connexion" fonctionnel. |
+| C (register praticien) | praticien | 2026-07-07T04:10:45.000Z | OK | **6e confirmation indépendante consécutive** — POST 201 → /cabinet-setup atteint sans rebond sur /login, run indépendant ~2h15 après le précédent. |
