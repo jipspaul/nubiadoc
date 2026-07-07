@@ -353,6 +353,8 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => ListConsentsUseCase(gi()))
     ..registerFactory(() => ListDependentsUseCase(gi()))
     ..registerFactory(() => UploadCoverageCardUseCase(gi()))
+    ..registerFactory(() => GetReferringDoctorUseCase(gi()))
+    ..registerFactory(() => SetReferringDoctorUseCase(gi()))
     // appointments
     ..registerFactory(() => BookAppointmentUseCase(gi()))
     ..registerFactory(() => CancelAppointmentUseCase(gi()))

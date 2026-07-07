@@ -167,6 +167,13 @@ class _ProfileContent extends StatelessWidget {
                 onTap: () => context.push(AppRouter.coverageSetup),
               ),
               ListRow(
+                key: const Key('tile_referring_doctor'),
+                leading: const Icon(Icons.medical_services_outlined),
+                title: 'Médecin traitant',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRouter.profileReferringDoctor),
+              ),
+              ListRow(
                 key: const Key('tile_dependents'),
                 leading: const Icon(Icons.people_outline),
                 title: 'Mes proches',
