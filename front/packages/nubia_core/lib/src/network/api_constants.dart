@@ -21,6 +21,9 @@ class ApiConstants {
       defaultValue: 'cnArmFSMqoCPGYrRKgeQ');
 
   /// URL template des tuiles raster MapTiler (streets), prête pour flutter_map.
-  static String mapTilerTilesUrl() =>
-      'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$mapTilerKey';
+  /// [dark] bascule sur le style sombre MapTiler (cohérence avec le thème
+  /// sombre de l'app : sans ça la carte reste claire même en dark mode).
+  static String mapTilerTilesUrl({bool dark = false}) => dark
+      ? 'https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=$mapTilerKey'
+      : 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$mapTilerKey';
 }
