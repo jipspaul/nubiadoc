@@ -25,6 +25,22 @@ class NubiaObservability {
 
   static bool _initialised = false;
 
+  /// Packages considérés "in-app" pour le triage des stacktraces PostHog
+  /// (error tracking). Doit couvrir les 4 apps Flutter + les packages
+  /// partagés `nubia_*`.
+  static const inAppPackages = [
+    'package:app_patient',
+    'package:app_practicien',
+    'package:app_secretariat',
+    'package:app_pharmacie',
+    'package:nubia_core',
+    'package:nubia_data',
+    'package:nubia_domain',
+    'package:nubia_design_system',
+    'package:nubia_a2ui',
+    'package:nubia_app_shell',
+  ];
+
   /// `true` sur les plateformes où le plugin posthog_flutter a une
   /// implémentation (web + Android + iOS + macOS — cf. `pubspec` du plugin).
   /// Linux/Windows ne sont pas supportés par le SDK : on s'abstient pour éviter
@@ -60,17 +76,7 @@ class NubiaObservability {
       ..captureIsolateErrors = true
       ..captureNativeExceptions = true;
     // Frames in-app → stacktraces lisibles dans l'UI error tracking.
-    config.errorTrackingConfig.inAppIncludes.addAll(const [
-      'package:app_patient',
-      'package:app_practicien',
-      'package:app_secretariat',
-      'package:nubia_core',
-      'package:nubia_data',
-      'package:nubia_domain',
-      'package:nubia_design_system',
-      'package:nubia_a2ui',
-      'package:nubia_app_shell',
-    ]);
+    config.errorTrackingConfig.inAppIncludes.addAll(inAppPackages);
 
     await Posthog().setup(config);
     _initialised = true;
