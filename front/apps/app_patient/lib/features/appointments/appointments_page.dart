@@ -454,11 +454,28 @@ class _FloatingSearchHeader extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, i) {
                     final f = _quickFilters[i];
-                    return NubiaChip(
-                      label: f.label,
-                      icon: f.icon,
-                      selected: activeFilters.contains(f.key),
-                      onTap: () => onToggleFilter(f),
+                    // Fond opaque derrière le chip : les chips non
+                    // sélectionnées ont un fond transparent (NubiaChip), ce
+                    // qui les rend illisibles superposées à la carte (surtout
+                    // en dark mode où le style de carte reste clair).
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(17),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: NubiaChip(
+                        label: f.label,
+                        icon: f.icon,
+                        selected: activeFilters.contains(f.key),
+                        onTap: () => onToggleFilter(f),
+                      ),
                     );
                   },
                 ),
@@ -726,7 +743,9 @@ class _ProvidersMap extends StatelessWidget {
         ),
         children: [
           TileLayer(
-            urlTemplate: ApiConstants.mapTilerTilesUrl(),
+            urlTemplate: ApiConstants.mapTilerTilesUrl(
+              dark: Theme.of(context).brightness == Brightness.dark,
+            ),
             userAgentPackageName: 'health.nubia.patient',
           ),
           _ClusterLayer(
@@ -743,6 +762,13 @@ class _ProvidersMap extends StatelessWidget {
 /// Couche de marqueurs avec clustering « pixel » simple : les pins proches à
 /// l'écran (grille ~76 px) sont regroupés en une bulle avec le compte. Se
 /// reconstruit à chaque changement de caméra via [MapCamera.of].
+///
+/// La grille est calculée via [MapCamera.project] (coordonnées de projection
+/// pures, dépendant uniquement du zoom) plutôt que via
+/// [MapCamera.latLngToScreenPoint] (qui inclut le centre courant). Un pan pur
+/// ne fait donc plus dériver les cellules de la grille : sans ce choix, les
+/// pins proches d'une frontière de cellule changeaient de bucket à chaque
+/// frame de défilement, faisant sursauter les clusters.
 class _ClusterLayer extends StatelessWidget {
   const _ClusterLayer({
     required this.providers,
@@ -761,7 +787,7 @@ class _ClusterLayer extends StatelessWidget {
     const cell = 76.0;
     final buckets = <String, List<ProviderResult>>{};
     for (final p in providers) {
-      final pt = camera.latLngToScreenPoint(LatLng(p.lat!, p.lng!));
+      final pt = camera.project(LatLng(p.lat!, p.lng!));
       final key = '${(pt.x / cell).floor()}:${(pt.y / cell).floor()}';
       buckets.putIfAbsent(key, () => <ProviderResult>[]).add(p);
     }

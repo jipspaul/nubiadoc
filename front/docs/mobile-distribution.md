@@ -146,3 +146,67 @@ Le fichier local `front/fastlane/.env` (gitignoré) reste une copie de secours.
 
 Note : pas de `GoogleService-Info.plist` ajouté (App Distribution ne le requiert
 pas) ; à ajouter seulement en cas d'intégration du SDK Firebase dans les apps.
+
+## Symbolisation PostHog
+
+Les 4 apps ont l'error tracking PostHog natif activé
+(`captureNativeExceptions = true` dans
+`front/packages/nubia_core/lib/src/observability/nubia_observability.dart`).
+Sans upload des symboles de debug, les crashs natifs remontent dans le
+dashboard avec des stacktraces obfusquées/adresses mémoire au lieu de
+fichiers/lignes lisibles.
+
+### Android — `mapping.txt`
+
+Les builds `flutter build apk --release` (lane `distribute_android` du
+`Fastfile`) minifient le code Java/Kotlin via **R8**, qui génère un fichier de
+mapping obfusqué → symboles :
+
+```
+<app_dir>/build/app/outputs/mapping/release/mapping.txt
+```
+
+À uploader vers PostHog après chaque build release, avant la distribution
+Firebase, via `posthog-cli` :
+
+```bash
+posthog-cli sourcemap upload --directory <app_dir>/build/app/outputs/mapping/release
+```
+
+### iOS — dSYM
+
+L'archive produite par `fastlane ios distribute` (export ad-hoc via `gym`)
+génère les `.dSYM` du binaire natif dans le dossier d'archive
+(`*.xcarchive/dSYMs/`). À uploader vers PostHog de la même façon que le
+mapping Android, juste après l'étape de build/signature et avant
+`firebase_app_distribution`/App Store Connect.
+
+### `POSTHOG_API_KEY`
+
+Le token client embarqué dans l'app (`NubiaObservability.projectToken`) est
+write-only et ne permet pas l'upload de symboles. L'upload nécessite une
+**clé d'API PostHog personnelle/projet** (droits d'écriture sur le projet
+EU Cloud), distincte du project token :
+
+- Stockée dans **Infisical** (projet nubiadoc, env prod) sous le nom
+  `POSTHOG_API_KEY`, au même titre que les autres secrets de ce pipeline (cf.
+  section CI ci-dessus).
+- Injectée dans l'environnement des jobs `android`/`ios` du workflow de
+  distribution avant l'appel à `posthog-cli`.
+- Ne jamais la committer ni la logger en clair (c'est une clé d'écriture sur
+  le projet PostHog, contrairement au project token public).
+
+### Vérifier qu'une erreur est bien symbolisée
+
+1. Déclencher une exception de test dans une app installée depuis un build
+   distribué (ex. crash volontaire dans un écran de debug, ou
+   `NubiaObservability.captureException` sur une erreur factice).
+2. Ouvrir le dashboard PostHog (EU Cloud, host `https://eu.i.posthog.com`) →
+   section **Error tracking**.
+3. Repérer l'événement correspondant : la stacktrace doit afficher des noms
+   de fichiers/classes et numéros de ligne lisibles (frames `in-app`
+   correspondant aux packages `nubia_*`/apps listés dans `inAppPackages`),
+   pas des adresses mémoire ni des noms de classes/méthodes obfusqués par R8.
+4. Si la stacktrace reste illisible : vérifier que le `mapping.txt`/`dSYM` du
+   build correspondant (même `versionCode`/build number) a bien été uploadé
+   avant que le crash ne soit remonté.

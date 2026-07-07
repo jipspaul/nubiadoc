@@ -110,4 +110,27 @@ class AccountApi {
       data: {'mime': mimeType, 'data_base64': base64Encode(bytes)},
     );
   }
+
+  /// GET /v1/account/referring-doctor — null si 404 (aucun médecin déclaré).
+  Future<ReferringDoctorDto?> getReferringDoctor() async {
+    try {
+      final response = await _dio
+          .get<Map<String, dynamic>>('/account/referring-doctor');
+      final data = response.data;
+      if (data == null || data.isEmpty) return null;
+      return ReferringDoctorDto.fromJson(data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<ReferringDoctorDto> setReferringDoctor(
+      Map<String, dynamic> body) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/account/referring-doctor',
+      data: body,
+    );
+    return ReferringDoctorDto.fromJson(response.data!);
+  }
 }

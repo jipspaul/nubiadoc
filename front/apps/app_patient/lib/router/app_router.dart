@@ -35,6 +35,8 @@ import '../features/profile/profile_bloc.dart';
 import '../features/profile/profile_event.dart';
 import '../features/pharmacy/my_pharmacy_page.dart';
 import '../features/pharmacy/pharmacy_search_page.dart';
+import '../features/referring_doctor/referring_doctor_page.dart';
+import '../features/referring_doctor/referring_doctor_search_page.dart';
 import '../features/pharmacy_orders/order_detail_page.dart';
 import '../features/pharmacy_orders/orders_page.dart';
 import '../features/pharmacy_orders/send_prescription_page.dart';
@@ -71,6 +73,7 @@ class AppRouter {
   static const profileDependents = '/profile/dependents';
   static const profileConsents = '/profile/consents';
   static const profileNotifications = '/profile/notifications';
+  static const profileReferringDoctor = '/profile/referring-doctor';
   static const messaging = '/messaging';
   static const reviews = '/reviews';
   static const notifications = '/notifications';
@@ -154,6 +157,14 @@ class AppRouter {
           builder: (_, state) => PharmacySearchPage(
             selectionMode: state.uri.queryParameters['selection'] == 'true',
           ),
+        ),
+        GoRoute(
+          path: profileReferringDoctor,
+          builder: (_, __) => const ReferringDoctorPage(),
+        ),
+        GoRoute(
+          path: '$profileReferringDoctor/search',
+          builder: (_, __) => const ReferringDoctorSearchPage(),
         ),
         GoRoute(
           path: '/pharmacy/send',

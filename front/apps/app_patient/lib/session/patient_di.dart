@@ -21,6 +21,8 @@ import '../features/notifications/notifications_bloc.dart';
 import '../features/oubliettes/oubliettes_bloc.dart';
 import '../features/pharmacy/my_pharmacy_cubit.dart';
 import '../features/pharmacy/pharmacy_search_cubit.dart';
+import '../features/referring_doctor/referring_doctor_cubit.dart';
+import '../features/referring_doctor/referring_doctor_search_cubit.dart';
 import '../features/pharmacy_orders/orders_bloc.dart';
 import '../features/pharmacy_orders/send_prescription_cubit.dart';
 import '../features/profile/profile_bloc.dart';
@@ -38,6 +40,17 @@ void registerPatient(GetIt gi) {
 
   gi.registerFactory<PharmacySearchCubit>(
     () => PharmacySearchCubit(search: gi<SearchPharmaciesUseCase>()),
+  );
+
+  gi.registerFactory<ReferringDoctorCubit>(
+    () => ReferringDoctorCubit(
+      getReferringDoctor: gi<GetReferringDoctorUseCase>(),
+      setReferringDoctor: gi<SetReferringDoctorUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<ReferringDoctorSearchCubit>(
+    () => ReferringDoctorSearchCubit(search: gi<SearchProvidersUseCase>()),
   );
 
   gi.registerFactory<PatientOrdersBloc>(

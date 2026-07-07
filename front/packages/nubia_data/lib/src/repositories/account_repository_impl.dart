@@ -4,6 +4,7 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/account/account_api.dart';
 import 'package:nubia_domain/src/entities/consent.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
+import 'package:nubia_domain/src/entities/referring_doctor.dart';
 import 'package:nubia_domain/src/repositories/account_repository.dart';
 
 class AccountRepositoryImpl implements AccountRepository {
@@ -163,6 +164,45 @@ class AccountRepositoryImpl implements AccountRepository {
     try {
       final dtos = await _api.getConsents();
       return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, ReferringDoctor?>> getReferringDoctor() async {
+    try {
+      final dto = await _api.getReferringDoctor();
+      return Right(dto?.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, ReferringDoctor>> setReferringDoctor({
+    String? providerId,
+    required String name,
+    String? specialty,
+    String? phone,
+    String? email,
+    String? address,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        if (providerId != null) 'provider_id': providerId,
+        'name': name,
+        if (specialty != null) 'specialty': specialty,
+        if (phone != null) 'phone': phone,
+        if (email != null) 'email': email,
+        if (address != null) 'address': address,
+      };
+      final dto = await _api.setReferringDoctor(body);
+      return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(_mapError(e));
     } catch (e) {
