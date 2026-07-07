@@ -140,3 +140,5 @@ jobs:
           infisical run --projectId="$INFISICAL_PROJECT_ID" --env=prod \
             --domain="$INFISICAL_API_URL" --token="$INFISICAL_TOKEN" -- \
             bundle exec fastlane ios $LANE
+
+# trigger: vérification CI 42e05d97
