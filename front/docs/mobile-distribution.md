@@ -65,10 +65,10 @@ les APK. Adapter `flutter-ci:stable` ou l'image si besoin.
 
 ## iOS
 
-État : **plateformes iOS générées et compilables** (build unsigned OK sur les 4
-apps), **apps iOS enregistrées dans Firebase**, lanes fastlane iOS prêtes. Il
-reste **la signature**, non exécutée automatiquement car elle modifie le compte
-Apple Developer.
+État : **les 4 IPA sont distribués sur App Distribution** (signature ad-hoc).
+Bundle ids `com.nubiadoc.<x>`, certificat `Apple Distribution: Tidiani Jacquot
+(GRTL7MMCW7)`, profils ad-hoc incluant les appareils enregistrés sur le compte
+Apple. Certificats chiffrés dans le dépôt dédié `nubia_cert`.
 
 ### App IDs iOS
 
@@ -79,29 +79,46 @@ Apple Developer.
 | app_secretariat  | `com.nubiadoc.secretariat` | `1:117935898059:ios:637b749ef74b4ef8e38a4e` |
 | app_pharmacie    | `com.nubiadoc.pharmacie`   | `1:117935898059:ios:e45bace8e02d0e63e38a4e` |
 
-### Étape restante : signer + distribuer
+### Signer + distribuer (rejouable)
 
-La lane `ios distribute` crée le bundle id + certificat + profil via `match`
-(donc **modifie le compte Apple Developer**) puis build et distribue l'IPA.
-Pré-requis :
+Config match : `front/fastlane/Matchfile` (dépôt `git@github.com:jipspaul/nubia_cert.git`,
+type `adhoc`). Secrets dans `front/fastlane/.env` (gitignoré) : `MATCH_PASSWORD`,
+`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_FILEPATH`, `MATCH_GIT_URL`, `FASTLANE_TEAM_ID`.
 
-1. Enregistrer l'UDID de l'iPhone testeur sur le compte (un profil
-   development/ad-hoc ne s'installe que sur les appareils enregistrés) :
-   `bundle exec fastlane run register_devices devices:'{"iPhone testeur":"<UDID>"}'`
-2. Fournir les variables (clé ASC réutilisée de jeli, dépôt de certificats match) :
-   ```bash
-   export ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILEPATH=.../AuthKey_XXXX.p8
-   export MATCH_GIT_URL=git@github.com:<org>/ios-certificate.git MATCH_PASSWORD=...
-   export FASTLANE_TEAM_ID=GRTL7MMCW7 FAD_TESTERS=xav.b00@gmail.com
-   ```
-   Utiliser de préférence un **dépôt de certificats dédié à nubiadoc** (pas celui
-   de jeli) pour ne pas mélanger les profils des deux projets.
-3. Lancer :
-   ```bash
-   cd front
-   bundle exec fastlane ios distribute app:app_patient   # ou ios distribute_all
-   ```
+```bash
+cd front
+bundle exec fastlane ios distribute app:app_patient   # ou : ios distribute_all
+```
 
-Note : la génération des plateformes n'a pas ajouté de config Firebase iOS
-(`GoogleService-Info.plist`) car App Distribution ne le requiert pas ; à ajouter
-seulement si tu intègres le SDK Firebase dans les apps.
+- `ios certs` (re)synchronise seulement les certificats/profils.
+- Un profil ad-hoc n'installe l'app que sur les **appareils enregistrés** sur le
+  compte. Ajouter un nouvel iPhone :
+  `bundle exec fastlane run register_devices devices:'{"iPhone X":"<UDID>"}'`
+  puis relancer `ios distribute` (les profils sont régénérés,
+  `force_for_new_devices` est actif).
+
+### Stockage des secrets dans Infisical
+
+Les secrets vivent dans `front/fastlane/.env` (jamais committé). Pour les pousser
+dans Infisical (nécessite `infisical login` puis `infisical init` pour lier le
+projet — étape interactive) :
+
+```bash
+cd front
+infisical init                     # choisir/créer le projet, ex. "nubiadoc"
+infisical secrets set \
+  MATCH_PASSWORD="…" \
+  MATCH_GIT_URL="git@github.com:jipspaul/nubia_cert.git" \
+  ASC_KEY_ID="4S2HD9PD26" \
+  ASC_ISSUER_ID="3aa892fd-da9b-4967-8eab-5c93370fd5f4" \
+  FASTLANE_TEAM_ID="GRTL7MMCW7" \
+  FAD_TESTERS="xav.b00@gmail.com" \
+  --env=prod
+# La clé .p8 App Store Connect : la stocker en secret (ASC_KEY_CONTENT) et
+# l'écrire dans un fichier au runtime, comme dans jeli.
+```
+
+Ensuite, injecter au build : `infisical run --env=prod -- bundle exec fastlane ios distribute_all`.
+
+Note : pas de `GoogleService-Info.plist` ajouté (App Distribution ne le requiert
+pas) ; à ajouter seulement en cas d'intégration du SDK Firebase dans les apps.
