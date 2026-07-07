@@ -9,6 +9,22 @@
 # JSON du service account) + FAD_TESTERS. En local, sans service account, le
 # plugin réutilise les identifiants du firebase CLI (`firebase login`).
 
+# URL du backend injectée dans les builds mobiles via --dart-define.
+# Défaut = prod déployée ; surchargeable par la variable d'env API_BASE_URL
+# (ex. environnement de test). Doit inclure le suffixe /v1.
+def api_base_url
+  url = ENV["API_BASE_URL"].to_s
+  url.empty? ? "https://api.doc.nubia-link.com/v1" : url
+end
+
+# Defines Flutter passés à chaque build (backend + clé cartes optionnelle).
+def dart_defines
+  defs = ["API_BASE_URL=#{api_base_url}"]
+  maptiler = ENV["MAPTILER_KEY"].to_s
+  defs << "MAPTILER_KEY=#{maptiler}" unless maptiler.empty?
+  defs.map { |d| "--dart-define=#{d}" }.join(" ")
+end
+
 # Mapping app -> App ID Firebase (Android). Surchargeable par variable d'env.
 ANDROID_APPS = {
   "app_patient"     => ENV["FAD_APP_ID_PATIENT"]     || "1:117935898059:android:07899c13b5bfd928e38a4e",
@@ -22,8 +38,8 @@ def distribute_android(app:, notes: nil)
   app_dir = File.expand_path("../apps/#{app}", __dir__) # front/apps/<app>
   UI.user_error!("Dossier introuvable: #{app_dir}") unless File.directory?(app_dir)
 
-  UI.header("Build release APK — #{app}")
-  sh("cd #{app_dir.shellescape} && flutter build apk --release")
+  UI.header("Build release APK — #{app} (API=#{api_base_url})")
+  sh("cd #{app_dir.shellescape} && flutter build apk --release #{dart_defines}")
 
   apk = File.join(app_dir, "build/app/outputs/flutter-apk/app-release.apk")
   UI.user_error!("APK introuvable: #{apk}") unless File.exist?(apk)
@@ -98,11 +114,13 @@ def distribute_ios(app:, notes: nil, export_method: "ad-hoc")
   profile_name = ENV["sigh_#{bundle_id}_#{match_type}_profile-name"] ||
                  "match #{match_type == 'adhoc' ? 'AdHoc' : 'AppStore'} #{bundle_id}"
 
-  # Génère Generated.xcconfig + pods sans build complet.
+  # Génère Generated.xcconfig (avec les dart-defines) + pods sans build complet.
+  # Les defines sont écrits dans Generated.xcconfig et repris par l'archive gym.
   # with_unbundled_env : sinon le `pod` appelé par flutter hérite de
   # l'environnement gem de bundler et CocoaPods est vu comme "cassé".
+  UI.message("API backend iOS = #{api_base_url}")
   Bundler.with_unbundled_env do
-    sh("cd #{app_dir.shellescape} && flutter build ios --release --config-only --no-codesign")
+    sh("cd #{app_dir.shellescape} && flutter build ios --release --config-only --no-codesign #{dart_defines}")
   end
 
   update_code_signing_settings(
