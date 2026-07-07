@@ -155,7 +155,7 @@ async fn insert_fixtures(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uui
     sqlx::query(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
-         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'completed', 'contrôle')",
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'done', 'contrôle')",
     )
     .bind(Uuid::new_v4())
     .bind(cabinet_id)

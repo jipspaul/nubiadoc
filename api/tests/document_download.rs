@@ -126,7 +126,7 @@ async fn document_download_pro_token_returns_403() {
 // ── Test 1 : happy-path — document existant → 302 avec Location non vide ─────
 
 #[tokio::test]
-async fn document_download_302_happy_path() {
+async fn document_download_happy_path_returns_200() {
     if !db_available() {
         return;
     }
@@ -223,23 +223,20 @@ async fn document_download_302_happy_path() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(response.status(), StatusCode::OK);
 
-    let location = response
-        .headers()
-        .get("location")
-        .expect("Location header must be present")
-        .to_str()
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
         .unwrap();
-    assert!(!location.is_empty(), "Location header must not be empty");
-
-    let cache_control = response
-        .headers()
-        .get("cache-control")
-        .expect("Cache-Control header must be present")
-        .to_str()
-        .unwrap();
-    assert_eq!(cache_control, "no-store");
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(
+        v["download_url"].as_str().is_some_and(|s| !s.is_empty()),
+        "download_url must be present and non-empty"
+    );
+    assert!(
+        v["expires_at"].as_str().is_some(),
+        "expires_at must be present"
+    );
 
     // Cleanup
     {

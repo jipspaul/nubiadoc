@@ -2706,6 +2706,7 @@ pub struct PutReferringDoctorBody {
 ///   visible via la policy `provider_public_read` → `is_listed = true`, sinon `404`).
 /// - `free_name` (+ `free_phone`/`free_address` optionnels) : médecin hors base,
 ///   aucune fiche praticien n'est créée.
+///
 /// Ni l'un ni l'autre, ou les deux à la fois → `422`.
 /// Remplace intégralement la déclaration existante (upsert `ON CONFLICT (patient_account_id)`).
 pub async fn put_account_referring_doctor(
