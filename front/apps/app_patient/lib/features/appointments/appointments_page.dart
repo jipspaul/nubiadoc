@@ -454,11 +454,28 @@ class _FloatingSearchHeader extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, i) {
                     final f = _quickFilters[i];
-                    return NubiaChip(
-                      label: f.label,
-                      icon: f.icon,
-                      selected: activeFilters.contains(f.key),
-                      onTap: () => onToggleFilter(f),
+                    // Fond opaque derrière le chip : les chips non
+                    // sélectionnées ont un fond transparent (NubiaChip), ce
+                    // qui les rend illisibles superposées à la carte (surtout
+                    // en dark mode où le style de carte reste clair).
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(17),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: NubiaChip(
+                        label: f.label,
+                        icon: f.icon,
+                        selected: activeFilters.contains(f.key),
+                        onTap: () => onToggleFilter(f),
+                      ),
                     );
                   },
                 ),
@@ -726,7 +743,9 @@ class _ProvidersMap extends StatelessWidget {
         ),
         children: [
           TileLayer(
-            urlTemplate: ApiConstants.mapTilerTilesUrl(),
+            urlTemplate: ApiConstants.mapTilerTilesUrl(
+              dark: Theme.of(context).brightness == Brightness.dark,
+            ),
             userAgentPackageName: 'health.nubia.patient',
           ),
           _ClusterLayer(
