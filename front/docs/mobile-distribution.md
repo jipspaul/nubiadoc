@@ -175,11 +175,15 @@ posthog-cli sourcemap upload --directory <app_dir>/build/app/outputs/mapping/rel
 
 ### iOS — dSYM
 
-L'archive produite par `fastlane ios distribute` (export ad-hoc via `gym`)
-génère les `.dSYM` du binaire natif dans le dossier d'archive
-(`*.xcarchive/dSYMs/`). À uploader vers PostHog de la même façon que le
-mapping Android, juste après l'étape de build/signature et avant
-`firebase_app_distribution`/App Store Connect.
+`build_app` (gym) génère un `<App>.app.dSYM.zip` à côté de l'IPA, dans
+`ipa_dir` (`build/ios/ipa`). La lane `distribute_ios` (`Fastfile`) l'upload
+automatiquement vers PostHog juste après le build/signature et avant
+`firebase_app_distribution`, via `posthog-cli` :
+
+```bash
+POSTHOG_CLI_API_KEY=$POSTHOG_API_KEY POSTHOG_CLI_HOST=https://eu.i.posthog.com \
+  posthog-cli dsym upload --directory <ipa_dir>
+```
 
 ### `POSTHOG_API_KEY`
 
