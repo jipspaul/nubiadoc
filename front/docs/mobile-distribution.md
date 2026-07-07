@@ -65,7 +65,43 @@ les APK. Adapter `flutter-ci:stable` ou l'image si besoin.
 
 ## iOS
 
-Voir la section iOS ci-dessous / le suivi dédié : la génération des plateformes
-iOS et l'enregistrement Firebase iOS sont faits, mais la **signature** (certificats
-+ profils de provisioning) requiert l'accès au compte Apple Developer et l'UDID
-des appareils testeurs pour un profil ad-hoc/development installable.
+État : **plateformes iOS générées et compilables** (build unsigned OK sur les 4
+apps), **apps iOS enregistrées dans Firebase**, lanes fastlane iOS prêtes. Il
+reste **la signature**, non exécutée automatiquement car elle modifie le compte
+Apple Developer.
+
+### App IDs iOS
+
+| App              | bundle id                  | App ID Firebase                            |
+|------------------|----------------------------|--------------------------------------------|
+| app_patient      | `com.nubiadoc.patient`     | `1:117935898059:ios:d7521ccd2638a6c5e38a4e` |
+| app_practicien   | `com.nubiadoc.praticien`   | `1:117935898059:ios:334b8e9520918e5fe38a4e` |
+| app_secretariat  | `com.nubiadoc.secretariat` | `1:117935898059:ios:637b749ef74b4ef8e38a4e` |
+| app_pharmacie    | `com.nubiadoc.pharmacie`   | `1:117935898059:ios:e45bace8e02d0e63e38a4e` |
+
+### Étape restante : signer + distribuer
+
+La lane `ios distribute` crée le bundle id + certificat + profil via `match`
+(donc **modifie le compte Apple Developer**) puis build et distribue l'IPA.
+Pré-requis :
+
+1. Enregistrer l'UDID de l'iPhone testeur sur le compte (un profil
+   development/ad-hoc ne s'installe que sur les appareils enregistrés) :
+   `bundle exec fastlane run register_devices devices:'{"iPhone testeur":"<UDID>"}'`
+2. Fournir les variables (clé ASC réutilisée de jeli, dépôt de certificats match) :
+   ```bash
+   export ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILEPATH=.../AuthKey_XXXX.p8
+   export MATCH_GIT_URL=git@github.com:<org>/ios-certificate.git MATCH_PASSWORD=...
+   export FASTLANE_TEAM_ID=GRTL7MMCW7 FAD_TESTERS=xav.b00@gmail.com
+   ```
+   Utiliser de préférence un **dépôt de certificats dédié à nubiadoc** (pas celui
+   de jeli) pour ne pas mélanger les profils des deux projets.
+3. Lancer :
+   ```bash
+   cd front
+   bundle exec fastlane ios distribute app:app_patient   # ou ios distribute_all
+   ```
+
+Note : la génération des plateformes n'a pas ajouté de config Firebase iOS
+(`GoogleService-Info.plist`) car App Distribution ne le requiert pas ; à ajouter
+seulement si tu intègres le SDK Firebase dans les apps.
