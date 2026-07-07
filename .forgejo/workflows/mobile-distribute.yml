@@ -41,11 +41,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL }}
   INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
   INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
   INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
   APP_INPUT: ${{ github.event.inputs.app || 'all' }}
+  # Infisical est self-hosted et bindé sur localhost de la machine hôte.
+  # - job docker : y accède via host.docker.internal
+  # - job macOS (hors conteneur) : via localhost
+  # Surchargeable par la variable de repo INFISICAL_API_URL si besoin.
 
 jobs:
   android:
@@ -53,6 +56,8 @@ jobs:
     runs-on: docker
     container:
       image: flutter-ci:stable
+    env:
+      INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL || 'http://host.docker.internal:8080' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -96,6 +101,8 @@ jobs:
   ios:
     if: ${{ vars.MOBILE_DISTRIBUTE_ENABLED == 'true' }}
     runs-on: ${{ vars.MACOS_RUNNER_LABELS && fromJSON(vars.MACOS_RUNNER_LABELS) || 'macos' }}
+    env:
+      INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL || 'http://localhost:8080' }}
     steps:
       - uses: actions/checkout@v4
 
