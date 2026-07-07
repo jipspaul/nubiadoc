@@ -445,6 +445,35 @@ INSERT INTO pharmacy (id, raison_sociale, address, phone, is_listed, geo) VALUES
    ST_SetSRID(ST_MakePoint(4.8590, 45.7610), 4326)::geography)
 ON CONFLICT (id) DO NOTHING;
 
+-- 6 pharmacies de démo supplémentaires (Paris + Lyon) — test « ajouter / changer
+-- ma pharmacie » côté patient (recherche annuaire + déclaration). Idempotent.
+INSERT INTO pharmacy (id, raison_sociale, siret, address, phone, is_listed, geo) VALUES
+  ('f0000000-0000-0000-0000-0000000000f3', 'Pharmacie Beaumont', '12345678901234',
+   '{"line1": "45 Avenue Montaigne", "postal_code": "75008", "city": "Paris"}',
+   '+33 1 42 25 00 01', true,
+   ST_SetSRID(ST_MakePoint(2.3069, 48.8686), 4326)::geography),
+  ('f0000000-0000-0000-0000-0000000000f4', 'Pharmacie de la Bourse', '87654321234567',
+   '{"line1": "12 Rue Vivienne", "postal_code": "75002", "city": "Paris"}',
+   '+33 1 42 60 00 02', true,
+   ST_SetSRID(ST_MakePoint(2.3396, 48.8669), 4326)::geography),
+  ('f0000000-0000-0000-0000-0000000000f5', 'Pharmacie Saint-Denis', '11111111111111',
+   '{"line1": "89 Rue Saint-Denis", "postal_code": "75001", "city": "Paris"}',
+   '+33 1 40 26 00 03', true,
+   ST_SetSRID(ST_MakePoint(2.3520, 48.8642), 4326)::geography),
+  ('f0000000-0000-0000-0000-0000000000f6', 'Pharmacie Confluence', '22222222222222',
+   '{"line1": "76 Avenue Tony Garnier", "postal_code": "69007", "city": "Lyon"}',
+   '+33 4 78 00 00 86', true,
+   ST_SetSRID(ST_MakePoint(4.8123, 45.7281), 4326)::geography),
+  ('f0000000-0000-0000-0000-0000000000f7', 'Pharmacie Presqu''île', '33333333333333',
+   '{"line1": "3 Place Bellecour", "postal_code": "69002", "city": "Lyon"}',
+   '+33 4 78 00 00 87', true,
+   ST_SetSRID(ST_MakePoint(4.8360, 45.7569), 4326)::geography),
+  ('f0000000-0000-0000-0000-0000000000f8', 'Pharmacie Garibaldi', '44444444444444',
+   '{"line1": "172 Boulevard de la Croix-Rousse", "postal_code": "69004", "city": "Lyon"}',
+   '+33 4 78 00 00 88', true,
+   ST_SetSRID(ST_MakePoint(4.8157, 45.7775), 4326)::geography)
+ON CONFLICT (id) DO NOTHING;
+
 -- Jean = pharmacien de la Pharmacie du Rhône.
 INSERT INTO pharmacy_membership (id, pharmacy_id, user_id, role, active) VALUES
   ('f0000000-0000-0000-0000-0000000000f9',
