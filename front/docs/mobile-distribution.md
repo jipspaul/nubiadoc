@@ -97,28 +97,32 @@ bundle exec fastlane ios distribute app:app_patient   # ou : ios distribute_all
   puis relancer `ios distribute` (les profils sont régénérés,
   `force_for_new_devices` est actif).
 
-### Stockage des secrets dans Infisical
+### Secrets dans Infisical (fait)
 
-Les secrets vivent dans `front/fastlane/.env` (jamais committé). Pour les pousser
-dans Infisical (nécessite `infisical login` puis `infisical init` pour lier le
-projet — étape interactive) :
+Les secrets de signature sont stockés dans Infisical (instance self-hosted
+`http://localhost:8080`), projet **nubiadoc**, environnement **prod** :
+
+| Secret | Contenu |
+|--------|---------|
+| `MATCH_PASSWORD` | passphrase de chiffrement des certs `nubia_cert` |
+| `MATCH_GIT_URL` | `git@github.com:jipspaul/nubia_cert.git` |
+| `ASC_KEY_ID` | `4S2HD9PD26` |
+| `ASC_ISSUER_ID` | `3aa892fd-da9b-4967-8eab-5c93370fd5f4` |
+| `ASC_KEY_CONTENT` | contenu de la clé `.p8` App Store Connect |
+| `FASTLANE_TEAM_ID` | `GRTL7MMCW7` |
+| `FAD_TESTERS` | `xav.b00@gmail.com` |
+
+Injecter les secrets au build (écrit la clé `.p8` au runtime depuis `ASC_KEY_CONTENT`) :
 
 ```bash
 cd front
-infisical init                     # choisir/créer le projet, ex. "nubiadoc"
-infisical secrets set \
-  MATCH_PASSWORD="…" \
-  MATCH_GIT_URL="git@github.com:jipspaul/nubia_cert.git" \
-  ASC_KEY_ID="4S2HD9PD26" \
-  ASC_ISSUER_ID="3aa892fd-da9b-4967-8eab-5c93370fd5f4" \
-  FASTLANE_TEAM_ID="GRTL7MMCW7" \
-  FAD_TESTERS="xav.b00@gmail.com" \
-  --env=prod
-# La clé .p8 App Store Connect : la stocker en secret (ASC_KEY_CONTENT) et
-# l'écrire dans un fichier au runtime, comme dans jeli.
+infisical run --projectId ce1ea05e-202c-470d-9bc6-32aeb0d2217d \
+  --domain http://localhost:8080 --env prod -- \
+  sh -c 'printf "%s" "$ASC_KEY_CONTENT" > /tmp/asc.p8; \
+         ASC_KEY_FILEPATH=/tmp/asc.p8 bundle exec fastlane ios distribute_all'
 ```
 
-Ensuite, injecter au build : `infisical run --env=prod -- bundle exec fastlane ios distribute_all`.
+Le fichier local `front/fastlane/.env` (gitignoré) reste une copie de secours.
 
 Note : pas de `GoogleService-Info.plist` ajouté (App Distribution ne le requiert
 pas) ; à ajouter seulement en cas d'intégration du SDK Firebase dans les apps.
