@@ -13,6 +13,35 @@ For _fastlane_ installation instructions, see [Installing _fastlane_](https://do
 
 # Available Actions
 
+## iOS
+
+### ios distribute
+
+```sh
+[bundle exec] fastlane ios distribute
+```
+
+Build + distribue une app iOS. MODIFIE le compte Apple. Usage: fastlane ios distribute app:app_patient
+
+### ios distribute_all
+
+```sh
+[bundle exec] fastlane ios distribute_all
+```
+
+Build + distribue les 4 apps iOS (MODIFIE le compte Apple)
+
+### ios certs
+
+```sh
+[bundle exec] fastlane ios certs
+```
+
+Crée/synchronise les certificats + profils ad-hoc des 4 apps (match). MODIFIE le compte Apple.
+
+----
+
+
 ## Android
 
 ### android distribute

@@ -65,10 +65,10 @@ les APK. Adapter `flutter-ci:stable` ou l'image si besoin.
 
 ## iOS
 
-État : **plateformes iOS générées et compilables** (build unsigned OK sur les 4
-apps), **apps iOS enregistrées dans Firebase**, lanes fastlane iOS prêtes. Il
-reste **la signature**, non exécutée automatiquement car elle modifie le compte
-Apple Developer.
+État : **les 4 IPA sont distribués sur App Distribution** (signature ad-hoc).
+Bundle ids `com.nubiadoc.<x>`, certificat `Apple Distribution: Tidiani Jacquot
+(GRTL7MMCW7)`, profils ad-hoc incluant les appareils enregistrés sur le compte
+Apple. Certificats chiffrés dans le dépôt dédié `nubia_cert`.
 
 ### App IDs iOS
 
@@ -79,29 +79,50 @@ Apple Developer.
 | app_secretariat  | `com.nubiadoc.secretariat` | `1:117935898059:ios:637b749ef74b4ef8e38a4e` |
 | app_pharmacie    | `com.nubiadoc.pharmacie`   | `1:117935898059:ios:e45bace8e02d0e63e38a4e` |
 
-### Étape restante : signer + distribuer
+### Signer + distribuer (rejouable)
 
-La lane `ios distribute` crée le bundle id + certificat + profil via `match`
-(donc **modifie le compte Apple Developer**) puis build et distribue l'IPA.
-Pré-requis :
+Config match : `front/fastlane/Matchfile` (dépôt `git@github.com:jipspaul/nubia_cert.git`,
+type `adhoc`). Secrets dans `front/fastlane/.env` (gitignoré) : `MATCH_PASSWORD`,
+`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_FILEPATH`, `MATCH_GIT_URL`, `FASTLANE_TEAM_ID`.
 
-1. Enregistrer l'UDID de l'iPhone testeur sur le compte (un profil
-   development/ad-hoc ne s'installe que sur les appareils enregistrés) :
-   `bundle exec fastlane run register_devices devices:'{"iPhone testeur":"<UDID>"}'`
-2. Fournir les variables (clé ASC réutilisée de jeli, dépôt de certificats match) :
-   ```bash
-   export ASC_KEY_ID=... ASC_ISSUER_ID=... ASC_KEY_FILEPATH=.../AuthKey_XXXX.p8
-   export MATCH_GIT_URL=git@github.com:<org>/ios-certificate.git MATCH_PASSWORD=...
-   export FASTLANE_TEAM_ID=GRTL7MMCW7 FAD_TESTERS=xav.b00@gmail.com
-   ```
-   Utiliser de préférence un **dépôt de certificats dédié à nubiadoc** (pas celui
-   de jeli) pour ne pas mélanger les profils des deux projets.
-3. Lancer :
-   ```bash
-   cd front
-   bundle exec fastlane ios distribute app:app_patient   # ou ios distribute_all
-   ```
+```bash
+cd front
+bundle exec fastlane ios distribute app:app_patient   # ou : ios distribute_all
+```
 
-Note : la génération des plateformes n'a pas ajouté de config Firebase iOS
-(`GoogleService-Info.plist`) car App Distribution ne le requiert pas ; à ajouter
-seulement si tu intègres le SDK Firebase dans les apps.
+- `ios certs` (re)synchronise seulement les certificats/profils.
+- Un profil ad-hoc n'installe l'app que sur les **appareils enregistrés** sur le
+  compte. Ajouter un nouvel iPhone :
+  `bundle exec fastlane run register_devices devices:'{"iPhone X":"<UDID>"}'`
+  puis relancer `ios distribute` (les profils sont régénérés,
+  `force_for_new_devices` est actif).
+
+### Secrets dans Infisical (fait)
+
+Les secrets de signature sont stockés dans Infisical (instance self-hosted
+`http://localhost:8080`), projet **nubiadoc**, environnement **prod** :
+
+| Secret | Contenu |
+|--------|---------|
+| `MATCH_PASSWORD` | passphrase de chiffrement des certs `nubia_cert` |
+| `MATCH_GIT_URL` | `git@github.com:jipspaul/nubia_cert.git` |
+| `ASC_KEY_ID` | `4S2HD9PD26` |
+| `ASC_ISSUER_ID` | `3aa892fd-da9b-4967-8eab-5c93370fd5f4` |
+| `ASC_KEY_CONTENT` | contenu de la clé `.p8` App Store Connect |
+| `FASTLANE_TEAM_ID` | `GRTL7MMCW7` |
+| `FAD_TESTERS` | `xav.b00@gmail.com` |
+
+Injecter les secrets au build (écrit la clé `.p8` au runtime depuis `ASC_KEY_CONTENT`) :
+
+```bash
+cd front
+infisical run --projectId ce1ea05e-202c-470d-9bc6-32aeb0d2217d \
+  --domain http://localhost:8080 --env prod -- \
+  sh -c 'printf "%s" "$ASC_KEY_CONTENT" > /tmp/asc.p8; \
+         ASC_KEY_FILEPATH=/tmp/asc.p8 bundle exec fastlane ios distribute_all'
+```
+
+Le fichier local `front/fastlane/.env` (gitignoré) reste une copie de secours.
+
+Note : pas de `GoogleService-Info.plist` ajouté (App Distribution ne le requiert
+pas) ; à ajouter seulement en cas d'intégration du SDK Firebase dans les apps.
