@@ -1,59 +1,135 @@
-# mobile-distribute — distribue les APK Android des 4 apps sur Firebase App
-# Distribution via fastlane.
+# mobile-distribute — publie les 4 apps sur Firebase App Distribution.
 #
-# Déclenchement MANUEL (workflow_dispatch) pour l'instant : le build Android
-# nécessite le SDK Android + Ruby/bundler dans l'image du runner, qui ne sont
-# pas garantis dans `flutter-ci:stable`. Une fois validé, ajouter un trigger
-# `push: branches: [main]` si tu veux distribuer à chaque merge.
+# Déclenché à CHAQUE merge sur main (comme deploy.yml) + manuellement.
+# Les secrets de signature/upload viennent d'Infisical (machine identity).
 #
-# Secrets Forgejo requis (Settings > Secrets du repo) :
-#   FIREBASE_SERVICE_ACCOUNT_JSON : contenu base64 de la clé JSON d'un service
-#     account Firebase ayant le rôle "Firebase App Distribution Admin".
-#     Génère la clé puis :  base64 -i nubiadoc-fastlane.json | pbcopy
-#   FAD_TESTERS (optionnel) : emails testeurs séparés par des virgules
-#     (défaut : xav.b00@gmail.com, défini plus bas).
+# Activation : poser la variable de repo MOBILE_DISTRIBUTE_ENABLED=true.
+# Tant qu'elle n'est pas "true", les jobs sont skippés (pas de deploy rouge).
+#
+# Variables de repo (Settings > Actions > Variables) :
+#   MOBILE_DISTRIBUTE_ENABLED = true
+#   INFISICAL_API_URL         = http://<host-joignable-par-le-runner>:8080
+#                               (ex. http://host.docker.internal:8080 pour le job
+#                                docker, ou l'IP LAN de la machine Infisical)
+#   INFISICAL_PROJECT_ID      = ce1ea05e-202c-470d-9bc6-32aeb0d2217d
+#   MACOS_RUNNER_LABELS       = ["self-hosted","macos"]  (JSON, ton runner iOS)
+# Secrets de repo (Settings > Actions > Secrets) :
+#   INFISICAL_CLIENT_ID       = <client id de la machine identity>
+#   INFISICAL_CLIENT_SECRET   = <client secret de la machine identity>
+#
+# Secrets attendus DANS Infisical (projet nubiadoc, env prod) :
+#   FIREBASE_SERVICE_ACCOUNT  (JSON du service account, rôle App Distribution Admin)
+#   MATCH_PASSWORD, MATCH_GIT_URL, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT,
+#   FASTLANE_TEAM_ID, FAD_TESTERS, API_BASE_URL   (déjà présents)
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'qa/**'
+      - 'docs/**'
+      - 'design/**'
   workflow_dispatch:
     inputs:
       app:
-        description: "App à distribuer (app_patient | app_practicien | app_secretariat | app_pharmacie | all)"
+        description: "app à distribuer (nom ou 'all')"
         required: true
         default: "all"
 
+concurrency:
+  group: mobile-distribute-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL }}
+  INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
+  INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+  INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+  APP_INPUT: ${{ github.event.inputs.app || 'all' }}
+
 jobs:
-  distribute:
+  android:
+    if: ${{ vars.MOBILE_DISTRIBUTE_ENABLED == 'true' }}
     runs-on: docker
     container:
       image: flutter-ci:stable
-    env:
-      FAD_TESTERS: ${{ secrets.FAD_TESTERS || 'xav.b00@gmail.com' }}
-      # URL backend injectée dans les builds (--dart-define=API_BASE_URL).
-      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.doc.nubia-link.com/v1' }}
-      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/front/fastlane/.secrets/nubiadoc-fastlane.json
     steps:
       - uses: actions/checkout@v4
 
-      - name: Matérialiser la clé service account
+      - name: Installer l'outil infisical
         run: |
-          mkdir -p front/fastlane/.secrets
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
-          test -s "$GOOGLE_APPLICATION_CREDENTIALS" || { echo "Secret FIREBASE_SERVICE_ACCOUNT_JSON manquant ou vide"; exit 1; }
+          if ! command -v infisical >/dev/null 2>&1; then
+            curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | bash
+            apt-get update && apt-get install -y infisical
+          fi
+          infisical --version
 
-      - name: Installer les dépendances fastlane
+      - name: Auth Infisical (machine identity) + matérialiser le service account
+        working-directory: front
+        run: |
+          export INFISICAL_TOKEN="$(infisical login --method=universal-auth \
+            --client-id="$INFISICAL_CLIENT_ID" --client-secret="$INFISICAL_CLIENT_SECRET" \
+            --domain="$INFISICAL_API_URL" --plain --silent)"
+          echo "INFISICAL_TOKEN=$INFISICAL_TOKEN" >> "$GITHUB_ENV"
+          mkdir -p fastlane/.secrets
+          infisical secrets get FIREBASE_SERVICE_ACCOUNT --plain --silent \
+            --projectId="$INFISICAL_PROJECT_ID" --env=prod --domain="$INFISICAL_API_URL" \
+            --token="$INFISICAL_TOKEN" > fastlane/.secrets/nubiadoc-fastlane.json
+          test -s fastlane/.secrets/nubiadoc-fastlane.json
+
+      - name: Dépendances
         working-directory: front
         run: |
           bundle config set --local path vendor/bundle
           bundle install --jobs 4
+          flutter pub get
 
-      - name: flutter pub get
-        working-directory: front
-        run: flutter pub get
-
-      - name: Distribuer
+      - name: Distribuer Android
         working-directory: front
         run: |
-          if [ "${{ inputs.app }}" = "all" ]; then
-            bundle exec fastlane android distribute_all
-          else
-            bundle exec fastlane android distribute app:${{ inputs.app }}
-          fi
+          export GOOGLE_APPLICATION_CREDENTIALS="$PWD/fastlane/.secrets/nubiadoc-fastlane.json"
+          LANE="distribute_all"; [ "$APP_INPUT" != "all" ] && LANE="distribute app:$APP_INPUT"
+          infisical run --projectId="$INFISICAL_PROJECT_ID" --env=prod \
+            --domain="$INFISICAL_API_URL" --token="$INFISICAL_TOKEN" -- \
+            bundle exec fastlane android $LANE
+
+  ios:
+    if: ${{ vars.MOBILE_DISTRIBUTE_ENABLED == 'true' }}
+    runs-on: ${{ vars.MACOS_RUNNER_LABELS && fromJSON(vars.MACOS_RUNNER_LABELS) || 'macos' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth Infisical + matérialiser le service account
+        working-directory: front
+        run: |
+          export INFISICAL_TOKEN="$(infisical login --method=universal-auth \
+            --client-id="$INFISICAL_CLIENT_ID" --client-secret="$INFISICAL_CLIENT_SECRET" \
+            --domain="$INFISICAL_API_URL" --plain --silent)"
+          echo "INFISICAL_TOKEN=$INFISICAL_TOKEN" >> "$GITHUB_ENV"
+          mkdir -p fastlane/.secrets
+          infisical secrets get FIREBASE_SERVICE_ACCOUNT --plain --silent \
+            --projectId="$INFISICAL_PROJECT_ID" --env=prod --domain="$INFISICAL_API_URL" \
+            --token="$INFISICAL_TOKEN" > fastlane/.secrets/nubiadoc-fastlane.json
+          # clé App Store Connect écrite sur disque pour fastlane
+          infisical secrets get ASC_KEY_CONTENT --plain --silent \
+            --projectId="$INFISICAL_PROJECT_ID" --env=prod --domain="$INFISICAL_API_URL" \
+            --token="$INFISICAL_TOKEN" > fastlane/.secrets/asc.p8
+
+      - name: Dépendances
+        working-directory: front
+        run: |
+          bundle config set --local path vendor/bundle
+          bundle install --jobs 4
+          flutter pub get
+
+      - name: Distribuer iOS
+        working-directory: front
+        # Le runner macOS doit avoir : Xcode, accès SSH à MATCH_GIT_URL (nubia_cert),
+        # cocoapods. ASC_KEY_FILEPATH pointe sur la clé matérialisée ci-dessus.
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$PWD/fastlane/.secrets/nubiadoc-fastlane.json"
+          export ASC_KEY_FILEPATH="$PWD/fastlane/.secrets/asc.p8"
+          LANE="distribute_all"; [ "$APP_INPUT" != "all" ] && LANE="distribute app:$APP_INPUT"
+          infisical run --projectId="$INFISICAL_PROJECT_ID" --env=prod \
+            --domain="$INFISICAL_API_URL" --token="$INFISICAL_TOKEN" -- \
+            bundle exec fastlane ios $LANE
