@@ -34,34 +34,54 @@ FAD_TESTERS="xav.b00@gmail.com" bundle exec fastlane android distribute_all
 En local sans service account, le plugin réutilise les identifiants du
 `firebase` CLI. Voir `front/fastlane/.env.default` pour le contrat d'env.
 
-## Distribuer en CI (Forgejo)
+## Distribuer en CI (Forgejo) — à chaque merge sur main
 
-Workflow : `.forgejo/workflows/mobile-distribute.yml` (déclenchement manuel
-`workflow_dispatch`, entrée `app` = nom d'app ou `all`).
+Workflow : `.forgejo/workflows/mobile-distribute.yml`. Déclenché sur **push
+`main`** (comme `deploy.yml`) + `workflow_dispatch`. Deux jobs :
+- `android` sur le runner `docker` (`flutter-ci:stable`),
+- `ios` sur un runner **macOS** (label via la variable `MACOS_RUNNER_LABELS`).
 
-Secrets repo à définir :
-- `FIREBASE_SERVICE_ACCOUNT_JSON` : clé JSON d'un service account Firebase
-  (rôle *Firebase App Distribution Admin*), encodée en base64.
-- `FAD_TESTERS` (optionnel) : emails testeurs séparés par des virgules.
+Les secrets viennent d'**Infisical** (machine identity), pas de secrets Forgejo
+en clair. Les jobs ne tournent que si `MOBILE_DISTRIBUTE_ENABLED == 'true'`
+(sinon skippés — pas de deploy rouge).
 
-### Créer le service account (une fois)
+### Checklist d'activation
 
-Depuis un compte ayant accès au projet `nubiadoc` :
+1. **Variables de repo** (Settings > Actions > Variables) :
+   - `MOBILE_DISTRIBUTE_ENABLED = true`
+   - `INFISICAL_API_URL = http://<hôte-joignable-par-le-runner>:8080`
+     (l'instance Infisical tourne en self-hosted ; depuis un conteneur docker,
+     `localhost` ne marche pas → utiliser `host.docker.internal` ou l'IP LAN)
+   - `INFISICAL_PROJECT_ID = ce1ea05e-202c-470d-9bc6-32aeb0d2217d`
+   - `MACOS_RUNNER_LABELS = ["self-hosted","macos"]` (adapter à ton runner)
+2. **Secrets de repo** (machine identity Infisical déjà créée) :
+   - `INFISICAL_CLIENT_ID`, `INFISICAL_CLIENT_SECRET`
+3. **Dans Infisical** (projet nubiadoc, env prod) — déjà présents sauf le 1er :
+   - `FIREBASE_SERVICE_ACCOUNT` : JSON du service account (rôle App Distribution
+     Admin) — **à ajouter** (voir ci-dessous).
+   - `MATCH_PASSWORD`, `MATCH_GIT_URL`, `ASC_KEY_ID`, `ASC_ISSUER_ID`,
+     `ASC_KEY_CONTENT`, `FASTLANE_TEAM_ID`, `FAD_TESTERS`, `API_BASE_URL` ✔
+4. Le runner macOS doit avoir Xcode + CocoaPods + accès SSH à `MATCH_GIT_URL`
+   (dépôt `nubia_cert`).
+
+### Créer le service account + le mettre dans Infisical (une fois)
+
+Depuis un compte ayant accès au projet `nubiadoc` (`gcloud auth login`) :
 
 ```bash
 gcloud config set project nubiadoc
-gcloud iam service-accounts create fastlane \
-  --display-name="fastlane App Distribution"
+gcloud iam service-accounts create fastlane --display-name="fastlane App Distribution"
 gcloud projects add-iam-policy-binding nubiadoc \
   --member="serviceAccount:fastlane@nubiadoc.iam.gserviceaccount.com" \
   --role="roles/firebaseappdistro.admin"
 gcloud iam service-accounts keys create nubiadoc-fastlane.json \
   --iam-account=fastlane@nubiadoc.iam.gserviceaccount.com
-base64 -i nubiadoc-fastlane.json    # -> coller dans le secret FIREBASE_SERVICE_ACCOUNT_JSON
+# -> stocker le CONTENU JSON dans Infisical (pas en base64, le workflow l'écrit tel quel) :
+infisical secrets set FIREBASE_SERVICE_ACCOUNT="@nubiadoc-fastlane.json" \
+  --projectId ce1ea05e-202c-470d-9bc6-32aeb0d2217d --env prod --domain http://localhost:8080
 ```
 
-L'image du runner CI doit disposer du SDK Android + Ruby/bundler pour builder
-les APK. Adapter `flutter-ci:stable` ou l'image si besoin.
+L'image `flutter-ci:stable` doit disposer du SDK Android + Ruby/bundler.
 
 ## iOS
 
