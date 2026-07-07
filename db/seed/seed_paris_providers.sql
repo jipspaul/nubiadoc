@@ -127,3 +127,80 @@ SELECT
   (SELECT count(*) FROM provider WHERE id::text LIKE '90de0000-%') AS praticiens_paris,
   (SELECT count(*) FROM availability_slot s
      WHERE s.provider_id::text LIKE '90de0000-%' AND s.status = 'open') AS creneaux_ouverts;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ENV DE TEST SECRÉTARIAT (demande fondateur) — rattacher TOUS ces médecins au
+-- Cabinet Lyon et au Secrétariat A, avec leurs créneaux, pour qu'un secrétaire
+-- (sonia.accueil@cabinet-lyon.test) les voie et les gère tous. On y ajoute
+-- Hugo Marin (f1) et Claire Lefèvre (f2, déplacée du Secrétariat B → A) et des
+-- RDV de démo à gérer. Rôle nubia_owner (BYPASSRLS). Idempotent.
+--   Cabinet Lyon  = 11111111-1111-1111-1111-111111111111
+--   Secrétariat A = 19870000-0000-0000-0000-000000000001
+-- ═══════════════════════════════════════════════════════════════════════════
+BEGIN;
+
+-- Déplacer les 14 praticiens annuaire + leurs providers + créneaux dans Cabinet Lyon.
+UPDATE practitioner    SET cabinet_id = '11111111-1111-1111-1111-111111111111'
+ WHERE id::text LIKE '90c70000-%';
+UPDATE provider        SET cabinet_id = '11111111-1111-1111-1111-111111111111'
+ WHERE id::text LIKE '90de0000-%';
+UPDATE availability_slot SET cabinet_id = '11111111-1111-1111-1111-111111111111'
+ WHERE provider_id::text LIKE '90de0000-%';
+
+-- Les inscrire comme membres « practitioner » du Cabinet Lyon (annuaire interne).
+INSERT INTO cabinet_membership (cabinet_id, user_id, role, active)
+SELECT '11111111-1111-1111-1111-111111111111', p.user_id, 'practitioner', true
+  FROM practitioner p
+ WHERE p.id::text LIKE '90c70000-%' AND p.user_id IS NOT NULL
+ON CONFLICT (cabinet_id, user_id) DO NOTHING;
+
+-- Désactiver tout lien secrétariat actif ≠ A pour ces providers (ex : Claire → B).
+UPDATE provider_secretariat SET active = false
+ WHERE active
+   AND secretariat_id <> '19870000-0000-0000-0000-000000000001'
+   AND provider_id IN (
+        SELECT id FROM provider
+         WHERE id::text LIKE '90de0000-%'
+            OR id IN ('f0000000-0000-0000-0000-0000000000f1',
+                      'f0000000-0000-0000-0000-0000000000f2'));
+
+-- Lier les 16 annuaire + Hugo + Claire au Secrétariat A (sans doublon actif).
+INSERT INTO provider_secretariat (provider_id, secretariat_id, active)
+SELECT p.id, '19870000-0000-0000-0000-000000000001', true
+  FROM provider p
+ WHERE (p.id::text LIKE '90de0000-%'
+        OR p.id IN ('f0000000-0000-0000-0000-0000000000f1',
+                    'f0000000-0000-0000-0000-0000000000f2'))
+   AND NOT EXISTS (
+        SELECT 1 FROM provider_secretariat ps
+         WHERE ps.provider_id = p.id
+           AND ps.secretariat_id = '19870000-0000-0000-0000-000000000001'
+           AND ps.active);
+
+-- RDV de démo à gérer (J+1, J+2), patients Lyon existants, mix de statuts.
+-- IDs déterministes → idempotent. Gate EXISTS = sûr même sans le seed de base.
+INSERT INTO appointment
+       (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif)
+SELECT
+  ('90a90000-0000-4000-8000-' || lpad(p.n::text, 4, '0') || lpad(s.k::text, 8, '0'))::uuid,
+  '11111111-1111-1111-1111-111111111111',
+  s.patient_id,
+  ('90c70000-0000-4000-8000-0000000000' || lpad(p.n::text, 2, '0'))::uuid,
+  s.starts_at, s.starts_at + interval '30 minutes', s.status, s.motif
+FROM generate_series(1, 14) AS p(n)
+CROSS JOIN LATERAL (VALUES
+  (1, ((current_date + 1) + time '09:00') AT TIME ZONE 'Europe/Paris',
+      'd0000000-0000-0000-0000-0000000000d1'::uuid, 'requested', 'Douleur dentaire'),
+  (2, ((current_date + 1) + time '10:00') AT TIME ZONE 'Europe/Paris',
+      'd0000000-0000-0000-0000-0000000000d4'::uuid, 'confirmed', 'Contrôle annuel'),
+  (3, ((current_date + 2) + time '14:00') AT TIME ZONE 'Europe/Paris',
+      'd0000000-0000-0000-0000-0000000000d5'::uuid, 'requested', 'Détartrage')
+) AS s(k, starts_at, patient_id, status, motif)
+WHERE EXISTS (SELECT 1 FROM practitioner pr
+               WHERE pr.id = ('90c70000-0000-4000-8000-0000000000' || lpad(p.n::text, 2, '0'))::uuid)
+  AND EXISTS (SELECT 1 FROM patient pt WHERE pt.id = s.patient_id)
+ON CONFLICT (id) DO NOTHING;
+
+COMMIT;
+
+\echo '✓ env test secrétariat : 14 médecins annuaire rattachés au Cabinet Lyon / Secrétariat A'
