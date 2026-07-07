@@ -41,9 +41,10 @@ pub struct SearchPharmaciesResponse {
 /// `pharmacy_public_read` ne laisse passer que `is_listed AND deleted_at IS NULL`
 /// (aucun GUC posé) ; le filtre est répété dans le WHERE en défense en profondeur.
 ///
-/// Filtres : `q` (raison sociale, insensible à la casse), `lat`+`lng` (tri par
-/// distance, PostGIS) et `radius_km` (borne la recherche). `422` si `lat`/`lng`
-/// sont fournis l'un sans l'autre ou si `radius_km` est fourni sans point.
+/// Filtres : `q` (raison sociale, ville ou code postal, insensible à la casse),
+/// `lat`+`lng` (tri par distance, PostGIS) et `radius_km` (borne la recherche).
+/// `422` si `lat`/`lng` sont fournis l'un sans l'autre ou si `radius_km` est
+/// fourni sans point.
 pub async fn search_pharmacies(
     State(state): State<AppState>,
     Query(params): Query<SearchPharmaciesQuery>,
@@ -65,7 +66,10 @@ pub async fn search_pharmacies(
                 END AS distance_m \
          FROM pharmacy \
          WHERE is_listed AND deleted_at IS NULL \
-           AND ($4::text IS NULL OR raison_sociale ILIKE '%' || $4 || '%') \
+           AND ($4::text IS NULL \
+                OR raison_sociale ILIKE '%' || $4 || '%' \
+                OR address->>'city' ILIKE '%' || $4 || '%' \
+                OR address->>'postal_code' ILIKE '%' || $4 || '%') \
            AND ($3::float8 IS NULL \
                 OR (geo IS NOT NULL \
                     AND ST_DWithin(geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))) \

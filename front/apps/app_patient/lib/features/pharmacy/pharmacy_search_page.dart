@@ -129,6 +129,7 @@ class _PharmacySearchBodyState extends State<PharmacySearchBody> {
                           title: pharmacy.name,
                           subtitle: [
                             if (pharmacy.address != null) pharmacy.address!,
+                            if (pharmacy.phone != null) pharmacy.phone!,
                             if (pharmacy.distanceKm != null)
                               'à ${pharmacy.distanceKm!.toStringAsFixed(1)} km',
                           ].join(' · '),
