@@ -62,6 +62,29 @@ async fn seed_pharmacy(
     id
 }
 
+/// Insère une pharmacie listée avec une adresse JSONB (line1/postal_code/city).
+async fn seed_pharmacy_with_address(
+    db: &PgPool,
+    name: &str,
+    city: &str,
+    postal_code: &str,
+) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO pharmacy (id, raison_sociale, is_listed, address) \
+         VALUES ($1, $2, true, \
+                 jsonb_build_object('line1', '1 rue Test', 'postal_code', $3, 'city', $4))",
+    )
+    .bind(id)
+    .bind(name)
+    .bind(postal_code)
+    .bind(city)
+    .execute(db)
+    .await
+    .unwrap();
+    id
+}
+
 async fn get_pharmacies(uri: &str) -> (StatusCode, serde_json::Value) {
     let response = app(test_state(app_pool().await))
         .oneshot(
@@ -103,6 +126,43 @@ async fn search_returns_listed_pharmacy_only() {
         data[0]["distance_m"].is_null(),
         "pas de point → pas de distance"
     );
+}
+
+// ── Test 1bis : recherche par ville / code postal (#3463) ─────────────────────
+
+#[tokio::test]
+async fn search_matches_city_and_postal_code() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let marker = Uuid::new_v4().simple().to_string();
+    let city = format!("Ville{marker}");
+    let postal = "75099";
+    let in_city =
+        seed_pharmacy_with_address(&db, &format!("Pharma-{marker} Centre"), &city, postal).await;
+    // Pharmacie d'une autre ville : ne doit PAS sortir sur la requête ville.
+    seed_pharmacy_with_address(
+        &db,
+        &format!("Pharma-{marker} Ailleurs"),
+        &format!("Autre{marker}"),
+        "13001",
+    )
+    .await;
+
+    // Recherche par ville (insensible à la casse).
+    let (status, v) = get_pharmacies(&format!("/v1/pharmacies?q={}", city.to_lowercase())).await;
+    assert_eq!(status, StatusCode::OK);
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1, "seule la pharmacie de la ville doit sortir");
+    assert_eq!(data[0]["id"], serde_json::json!(in_city));
+
+    // Recherche par code postal.
+    let (status, v) = get_pharmacies(&format!("/v1/pharmacies?q={postal}")).await;
+    assert_eq!(status, StatusCode::OK);
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1, "match sur le code postal");
+    assert_eq!(data[0]["id"], serde_json::json!(in_city));
 }
 
 // ── Test 2 : tri par distance + rayon ─────────────────────────────────────────
