@@ -1,0 +1,14 @@
+# Certificats/profils iOS nubiadoc — dépôt dédié (chiffré par MATCH_PASSWORD).
+git_url(ENV["MATCH_GIT_URL"] || "git@github.com:jipspaul/nubia_cert.git")
+storage_mode("git")
+
+type("adhoc")
+
+app_identifier([
+  "com.nubiadoc.patient",
+  "com.nubiadoc.praticien",
+  "com.nubiadoc.secretariat",
+  "com.nubiadoc.pharmacie",
+])
+
+team_id("GRTL7MMCW7")
