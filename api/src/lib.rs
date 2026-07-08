@@ -474,6 +474,10 @@ fn build_router(
             "/v1/payments/intent",
             axum::routing::post(billing::create_payment_intent),
         )
+        .route(
+            "/v1/payments/pharmacy-quote-intent",
+            axum::routing::post(billing::create_pharmacy_quote_payment_intent),
+        )
         .route("/v1/professions", get(marketplace::list_professions))
         .route("/v1/specialties", get(marketplace::list_specialties))
         .route("/v1/acts", get(marketplace::list_acts))
