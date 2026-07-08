@@ -1,5 +1,22 @@
 # QA Explored Paths
 
+## Scénarios cross-rôle (API live) — QA-CROSS-ROLE
+
+Table de suivi distincte du sweep URL ci-dessous : couvre des flux métier bout-en-bout
+entre rôles testés directement contre l'API live (preuve = requête/réponse HTTP réelle,
+root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à une route
+front pour le détail.
+
+| scénario | last_check | last_status | brief |
+| --- | --- | --- | --- |
+| file-attente-rdv (patient→secrétariat→praticien, RDV pris→checkin→call-next→consultation) | 2026-07-08T09:38Z | bug | P0 `call-next` mène à un cul-de-sac RDV bloqué `in_progress` (#3477) ; P1 un `checked_in` ne peut plus sortir de la file (#3478) ; P2 position `GET /queue` ignore la date (#3479) ; P2 notif « c'est votre tour » jamais délivrée (#3480) ; P2 `call-next` pas filtré par praticien dans un cabinet multi-praticiens (#3481). Les 5 restent ouverts, non re-testés en profondeur ce run (déjà couverts ~2h avant par un run indépendant le même jour) |
+| prescription→pharmacie click-and-collect (praticien crée/signe/envoie ; patient commande/annule ; guards RBAC/tenancy) | 2026-07-08T10:00Z | OK | Testé bout-en-bout côté patient/praticien/secrétariat : create→sign→send (guards de statut 409 avant sign, secretary 403), envoi vers pharmacie inconnue/non-listée 404, doublon de commande active 409, patient voit sa commande, annulation (received/preparing→cancelled) puis ré-envoi OK, pickup-token refusé 409 hors statut `ready`, séparation stricte des kinds de token (403 pro/patient sur `/v1/pharmacy/*`). Aucun écart vs le code. **Non testé ce run** : transitions côté pharmacie (`accept`/`ready`/`reject`/`pickup-scan`, cloisonnement inter-pharmacie) — `$CRED_PHARMACIE_EMAIL`/`$CRED_PHARMACIE_PASSWORD`/`$PHARMACY_ID` absents de l'environnement fourni pour ce run (à signaler côté infra pipeline). Un run antérieur le même jour (~08:01–08:03, commandes `e6a5ec5d…`/`2c4e0020…` visibles via `GET /v1/account/orders`) montre un cycle complet réussi côté pharmacie (ready→picked_up, reject avec motif) — donc vraisemblablement couvert récemment, mais non reproduit par cette session faute de credentials |
+| messagerie patient↔cabinet (conversation, triage urgent, visibilité secrétariat/praticien) | 2026-07-08T10:03Z | bug | P1 : le secrétariat ne voit **jamais** un fil de conversation créé par le vrai flux patient (`POST /v1/conversations`), y compris marqué `urgent` par la détection mots-clés — seul le praticien le voit dans `GET /v1/cabinet/conversations` (#3483). Root cause : `conversation.patient_id` jamais renseigné à la création (`api/src/messaging.rs:823`), et le filtre de visibilité secrétariat (`api/src/cabinet_messaging.rs:154-166`) l'exige. Le fil reste néanmoins pleinement fonctionnel en écriture pour le secrétariat (juste indécouvrable). Reste conforme : RBAC `scope=clinical` (403 secrétaire), validation body vide/cabinet+pharmacy exclusifs (422), 404 cross-tenant, idempotence création |
+
+Last run cross-rôle: 2026-07-08T10:03:07.000Z
+
+---
+
 > **Avant d'explorer / d'ouvrir une issue : lire `qa/route-manifest.md`** —
 > liste des routes à tester (auth, stratégie d'URL, contenu attendu) et
 > **règles anti-faux-positifs**. La plupart des issues fermées venaient de ne
