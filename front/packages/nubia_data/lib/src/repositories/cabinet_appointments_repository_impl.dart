@@ -60,6 +60,14 @@ class CabinetAppointmentsRepositoryImpl
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }
+      // 409 slot_taken : le créneau a été réservé entre-temps (course) ou
+      // chevauche un RDV existant du praticien. Message explicite (#3466).
+      if (e.response?.statusCode == 409) {
+        return const Left(ServerFailure(
+          message: 'Ce créneau vient d\'être pris, choisissez-en un autre.',
+          statusCode: 409,
+        ));
+      }
       return Left(ServerFailure(
         message: 'Impossible de créer le rendez-vous.',
         statusCode: e.response?.statusCode,

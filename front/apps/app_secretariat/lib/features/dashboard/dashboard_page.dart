@@ -12,6 +12,7 @@ import '../../pro_config.dart';
 import '../../session/pro_auth_cubit.dart';
 import '../admin_membres/admin_membres_bloc.dart';
 import '../admin_membres/admin_membres_page.dart';
+import '../admin_membres/members_access_cubit.dart';
 import '../admin_secretariats/admin_secretariats_bloc.dart';
 import '../admin_secretariats/admin_secretariats_page.dart';
 import '../agenda/agenda_page.dart';
@@ -51,8 +52,23 @@ class DashboardPage extends StatelessWidget {
         ),
     };
 
+    // Sonde l'accès admin aux membres dès l'ouverture : l'app fixe le rôle
+    // `secretary`, seul le 403 sur `GET /v1/cabinet/members` distingue le
+    // secrétaire-admin du secrétaire simple (#3468). L'entrée de nav « Membres »
+    // est masquée dès que ce 403 confirme le non-admin.
+    return BlocProvider<MembersAccessCubit>(
+      create: (_) => GetIt.instance<MembersAccessCubit>()..probe(),
+      child: Builder(
+        builder: (context) => _buildShell(context, session),
+      ),
+    );
+  }
+
+  Widget _buildShell(BuildContext context, AuthSession session) {
+    final canManageMembers =
+        context.watch<MembersAccessCubit>().canManageMembers;
     return ProShell(
-      config: ProConfig.shellConfig,
+      config: ProConfig.shellConfigFor(canManageMembers: canManageMembers),
       session: session,
       bodyBuilder: (ctx, destination) {
         final Widget body;

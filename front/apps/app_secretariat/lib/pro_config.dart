@@ -17,6 +17,11 @@ class ProConfig {
 
   static const String dashboardRoute = '/';
 
+  /// Route de l'entrée « Membres » — administration réservée aux
+  /// secrétaires-admin. Masquée pour un secrétaire simple (403 sur
+  /// `GET /v1/cabinet/members`, cf. #3468) via [shellConfigFor].
+  static const String membersRoute = '/admin-membres';
+
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
     spaceLabel: spaceLabel,
@@ -64,7 +69,7 @@ class ProConfig {
       shell.ProNavDestination(
         label: 'Membres',
         icon: Icons.group_outlined,
-        route: '/admin-membres',
+        route: membersRoute,
       ),
       shell.ProNavDestination(
         label: 'Secrétariats',
@@ -73,4 +78,23 @@ class ProConfig {
       ),
     ],
   );
+
+  /// Config de navigation filtrée selon l'accès admin aux membres.
+  ///
+  /// L'entrée « Membres » n'est conservée que lorsque [canManageMembers] est
+  /// vrai (secrétaire-admin). Pour un secrétaire simple,
+  /// `GET /v1/cabinet/members` renvoie 403 : l'onglet serait une impasse
+  /// (#3468). Les autres destinations gardent leur ordre relatif — on retire
+  /// l'entrée de la liste plutôt que de la neutraliser, donc pas de trou
+  /// d'index côté [shell.ProShell].
+  static shell.ProConfig shellConfigFor({required bool canManageMembers}) {
+    if (canManageMembers) return shellConfig;
+    return shell.ProConfig(
+      appTitle: appTitle,
+      spaceLabel: spaceLabel,
+      destinations: shellConfig.destinations
+          .where((d) => d.route != membersRoute)
+          .toList(),
+    );
+  }
 }

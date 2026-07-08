@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/cabinet_agenda/cabinet_agenda_dto.dart';
 import 'package:nubia_domain/src/entities/agenda_entry.dart';
+import 'package:nubia_domain/src/entities/cabinet_practitioner.dart';
 
 class CabinetAgendaApi {
   final Dio _dio;
@@ -38,6 +39,28 @@ class CabinetAgendaApi {
         .map((e) => AgendaEntryDto.fromSlotJson(
               e as Map<String, dynamic>,
               practitionerNames: names,
+            ))
+        .toList();
+  }
+
+  /// Roster des praticiens du cabinet — champ `practitioners` de
+  /// GET /v1/cabinet/agenda (indépendant des RDV du jour). `cabinet_id` scopé
+  /// côté serveur via le JWT.
+  Future<List<CabinetPractitioner>> listPractitioners() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/agenda',
+      queryParameters: {
+        'date': _dateOnly(DateTime.now()),
+        'view': 'week',
+      },
+    );
+    final data = response.data ?? const <String, dynamic>{};
+    return (data['practitioners'] as List<dynamic>? ?? const [])
+        .map((p) => p as Map<String, dynamic>)
+        .map((p) => CabinetPractitioner(
+              id: p['id'] as String,
+              displayName: (p['display_name'] as String?) ?? '',
+              specialite: p['specialite'] as String?,
             ))
         .toList();
   }

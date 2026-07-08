@@ -125,6 +125,32 @@ MATCH_TYPES = {
   "appstore"  => "appstore",
 }.freeze
 
+# Upload le dSYM (généré par gym à côté de l'IPA dans ipa_dir) vers PostHog
+# error tracking, pour symboliser les crashs natifs iOS
+# (`captureNativeExceptions`, cf. nubia_observability.dart). Même clé que
+# l'upload du mapping.txt Android : ENV["POSTHOG_API_KEY"]. Absente => warning
+# et skip, jamais d'échec de la lane pour ça.
+def upload_dsym_to_posthog(app:, ipa_dir:)
+  posthog_key = ENV["POSTHOG_API_KEY"].to_s
+  if posthog_key.empty?
+    UI.important("POSTHOG_API_KEY absente : upload du dSYM PostHog ignoré pour #{app} (crashs iOS non symbolisés)")
+    return
+  end
+
+  dsym = Dir.glob(File.join(ipa_dir, "*.dSYM.zip")).first
+  unless dsym
+    UI.important("dSYM introuvable dans #{ipa_dir} pour #{app} : upload PostHog ignoré")
+    return
+  end
+
+  # Host EU Cloud, doit matcher NubiaObservability.host côté app
+  # (front/packages/nubia_core/lib/src/observability/nubia_observability.dart).
+  posthog_host = "https://eu.i.posthog.com"
+  sh("POSTHOG_CLI_API_KEY=#{posthog_key.shellescape} POSTHOG_CLI_HOST=#{posthog_host.shellescape} " \
+     "posthog-cli dsym upload --directory #{ipa_dir.shellescape}")
+  UI.success("dSYM #{app} envoyé à PostHog ✔")
+end
+
 def distribute_ios(app:, notes: nil, export_method: "ad-hoc")
   app_id = IOS_APPS[app] || UI.user_error!("App iOS inconnue: #{app}")
   bundle_id = IOS_BUNDLE_IDS[app]
@@ -188,6 +214,8 @@ def distribute_ios(app:, notes: nil, export_method: "ad-hoc")
 
   ipa = Dir.glob(File.join(ipa_dir, "*.ipa")).first
   UI.user_error!("IPA introuvable pour #{app}") unless ipa
+
+  upload_dsym_to_posthog(app: app, ipa_dir: ipa_dir)
 
   params = {
     app: app_id,

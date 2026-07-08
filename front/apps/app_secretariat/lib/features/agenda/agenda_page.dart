@@ -15,6 +15,34 @@ DateTime _currentWeekStart() {
   return now.subtract(Duration(days: now.weekday - 1));
 }
 
+/// Créneaux réellement réservables pour le picker « Nouveau RDV » (#3466).
+///
+/// `slot.isAvailable` (statut `open`) ne suffit pas : les données peuvent
+/// contenir un créneau ouvert qui chevauche un RDV déjà posé pour le même
+/// praticien. Le réserver déclenche la contrainte d'exclusion back
+/// (`appointment_no_overlap`) → 409 `slot_taken`. On exclut donc tout créneau
+/// ouvert chevauchant un RDV non annulé du même praticien (les RDV connus étant
+/// ceux de la semaine chargée dans l'agenda).
+List<Slot> bookableSlots(List<Slot> slots, List<AgendaEntry> entries) {
+  final booked = entries
+      .where((e) => !e.isFree && e.status != 'cancelled')
+      .toList(growable: false);
+  bool overlapsBooked(Slot s) {
+    for (final e in booked) {
+      if (e.practitionerId == s.practitionerId &&
+          s.startsAt.isBefore(e.endsAt) &&
+          e.startsAt.isBefore(s.endsAt)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return slots
+      .where((s) => s.isAvailable && !overlapsBooked(s))
+      .toList(growable: false);
+}
+
 class AgendaPage extends StatelessWidget {
   const AgendaPage({super.key});
 
@@ -227,8 +255,7 @@ class _LoadedViewState extends State<_LoadedView> {
     AgendaLoaded state,
     Map<String, String> practitioners,
   ) {
-    final availableSlots =
-        state.availableSlots.where((s) => s.isAvailable).toList();
+    final availableSlots = bookableSlots(state.availableSlots, state.entries);
     showDialog<void>(
       context: context,
       builder: (_) => _NewAppointmentDialog(
