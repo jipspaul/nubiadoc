@@ -1204,7 +1204,8 @@ pub struct QueueResponse {
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
 /// `position` = nombre de rendez-vous antérieurs (checkin_at < le nôtre) pour le même praticien
-/// avec status `checked_in` ou `in_progress`.
+/// avec status `checked_in` ou `in_progress`, bornés à la file DU JOUR (`starts_at` du jour courant),
+/// comme la waiting-room (`scheduling::get_waiting_room`).
 /// `est_wait_min` = position × 15 (estimation forfaitaire, 15 min par patient).
 /// Si le patient n'est pas encore checké, retourne le total de la file comme `position`.
 pub async fn get_appointment_queue(
@@ -1256,6 +1257,8 @@ pub async fn get_appointment_queue(
              WHERE practitioner_id = $1 \
                AND status IN ('checked_in', 'in_progress') \
                AND deleted_at IS NULL \
+               AND starts_at >= date_trunc('day', now()) \
+               AND starts_at < date_trunc('day', now()) + interval '1 day' \
                AND checkin_at < $2 \
                AND id != $3",
         )
@@ -1274,7 +1277,9 @@ pub async fn get_appointment_queue(
              FROM appointment \
              WHERE practitioner_id = $1 \
                AND status IN ('checked_in', 'in_progress') \
-               AND deleted_at IS NULL",
+               AND deleted_at IS NULL \
+               AND starts_at >= date_trunc('day', now()) \
+               AND starts_at < date_trunc('day', now()) + interval '1 day'",
         )
         .bind(practitioner_id)
         .fetch_one(&mut *tx)
