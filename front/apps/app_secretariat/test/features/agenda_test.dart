@@ -428,4 +428,75 @@ void main() {
       await gi.reset();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // #3466 — filtrage des créneaux réellement réservables pour le picker.
+  // -------------------------------------------------------------------------
+  group('bookableSlots', () {
+    Slot slot({
+      required String id,
+      required DateTime start,
+      String practitioner = 'prac-1',
+      bool available = true,
+      Duration duration = const Duration(minutes: 30),
+    }) =>
+        Slot(
+          id: id,
+          cabinetId: 'cab-1',
+          practitionerId: practitioner,
+          startsAt: start,
+          endsAt: start.add(duration),
+          isAvailable: available,
+        );
+
+    AgendaEntry booked({
+      required DateTime start,
+      String practitioner = 'prac-1',
+      String status = 'requested',
+      Duration duration = const Duration(minutes: 30),
+    }) =>
+        AgendaEntry(
+          id: 'a-${start.millisecondsSinceEpoch}',
+          cabinetId: 'cab-1',
+          practitionerId: practitioner,
+          practitionerName: 'Dr Martin',
+          startsAt: start,
+          endsAt: start.add(duration),
+          patientId: 'pat',
+          patientName: 'Patient',
+          isFree: false,
+          status: status,
+        );
+
+    test('exclut un créneau ouvert chevauchant un RDV du même praticien', () {
+      final s = slot(id: 's1', start: DateTime(2026, 7, 8, 9, 0));
+      final b = booked(start: DateTime(2026, 7, 8, 9, 0));
+      expect(bookableSlots([s], [b]), isEmpty);
+    });
+
+    test('garde un créneau ouvert sans RDV chevauchant', () {
+      final s = slot(id: 's1', start: DateTime(2026, 7, 8, 10, 0));
+      final b = booked(start: DateTime(2026, 7, 8, 9, 0));
+      expect(bookableSlots([s], [b]).map((s) => s.id), ['s1']);
+    });
+
+    test('un RDV d\'un autre praticien ne bloque pas le créneau', () {
+      final s = slot(id: 's1', start: DateTime(2026, 7, 8, 9, 0));
+      final b =
+          booked(start: DateTime(2026, 7, 8, 9, 0), practitioner: 'prac-2');
+      expect(bookableSlots([s], [b]).map((s) => s.id), ['s1']);
+    });
+
+    test('un RDV annulé ne bloque pas le créneau', () {
+      final s = slot(id: 's1', start: DateTime(2026, 7, 8, 9, 0));
+      final b = booked(start: DateTime(2026, 7, 8, 9, 0), status: 'cancelled');
+      expect(bookableSlots([s], [b]).map((s) => s.id), ['s1']);
+    });
+
+    test('exclut les créneaux non disponibles', () {
+      final s =
+          slot(id: 's1', start: DateTime(2026, 7, 8, 9, 0), available: false);
+      expect(bookableSlots([s], const []), isEmpty);
+    });
+  });
 }

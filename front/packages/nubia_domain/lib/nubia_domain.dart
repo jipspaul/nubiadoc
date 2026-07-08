@@ -25,6 +25,7 @@ export 'src/entities/review.dart';
 export 'src/entities/agenda_entry.dart';
 export 'src/entities/cabinet_appointment.dart';
 export 'src/entities/cabinet_patient.dart';
+export 'src/entities/cabinet_practitioner.dart';
 export 'src/entities/cabinet_quote.dart';
 export 'src/entities/consultation_context.dart';
 export 'src/entities/member.dart';
@@ -158,6 +159,7 @@ export 'src/usecases/search/hold_slot_use_case.dart';
 export 'src/usecases/search/confirm_booking_use_case.dart';
 // agenda pro
 export 'src/usecases/agenda/get_cabinet_agenda_use_case.dart';
+export 'src/usecases/agenda/list_cabinet_practitioners_use_case.dart';
 export 'src/usecases/agenda/confirm_appointment_use_case.dart';
 export 'src/usecases/agenda/start_consultation_use_case.dart';
 // cabinet appointments pro

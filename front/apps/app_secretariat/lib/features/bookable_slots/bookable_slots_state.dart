@@ -25,19 +25,29 @@ class BookableSlotsLoading extends BookableSlotsState {
 }
 
 class BookableSlotsLoaded extends BookableSlotsState {
-  const BookableSlotsLoaded(this.slots);
+  const BookableSlotsLoaded(this.slots, {this.practitioners = const []});
 
   final List<Slot> slots;
+
+  /// Roster des praticiens du cabinet — sert à afficher le nom du médecin sur
+  /// chaque créneau et à alimenter les sélecteurs (création + filtre).
+  final List<CabinetPractitioner> practitioners;
 
   @override
   bool operator ==(Object other) =>
       other is BookableSlotsLoaded &&
       other.slots.length == slots.length &&
       List.generate(slots.length, (i) => other.slots[i] == slots[i])
-          .every((b) => b);
+          .every((b) => b) &&
+      other.practitioners.length == practitioners.length &&
+      List.generate(practitioners.length,
+          (i) => other.practitioners[i] == practitioners[i]).every((b) => b);
 
   @override
-  int get hashCode => Object.hashAll(slots);
+  int get hashCode => Object.hash(
+        Object.hashAll(slots),
+        Object.hashAll(practitioners),
+      );
 }
 
 class BookableSlotsSlotCreatedSuccess extends BookableSlotsState {
