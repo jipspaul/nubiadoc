@@ -981,6 +981,8 @@ pub struct CabinetAppointmentItem {
     pub status: String,
     /// Motif administratif visible par secrétariat+.
     pub motif_admin: Option<String>,
+    /// Horodatage de la demande de rappel patient (`POST .../callback-request`), si présente.
+    pub callback_requested_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1058,7 +1060,7 @@ pub async fn get_cabinet_appointments(
     let rows = match (&params.status, &date_filter) {
         (Some(status), Some((ds, de))) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
                  FROM appointment \
                  WHERE deleted_at IS NULL \
                    AND cabinet_id = $1 \
@@ -1080,7 +1082,7 @@ pub async fn get_cabinet_appointments(
 
         (Some(status), None) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
                  FROM appointment \
                  WHERE deleted_at IS NULL \
                    AND cabinet_id = $1 \
@@ -1097,7 +1099,7 @@ pub async fn get_cabinet_appointments(
 
         (None, Some((ds, de))) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
                  FROM appointment \
                  WHERE deleted_at IS NULL \
                    AND cabinet_id = $1 \
@@ -1114,7 +1116,7 @@ pub async fn get_cabinet_appointments(
 
         (None, None) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif \
+                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
                  FROM appointment \
                  WHERE deleted_at IS NULL \
                    AND cabinet_id = $1{} \
@@ -1147,6 +1149,9 @@ pub async fn get_cabinet_appointments(
             row.try_get("ends_at").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let motif_admin: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
+        let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
+            .try_get("callback_requested_at")
+            .map_err(|_| AppError::Internal)?;
         data.push(CabinetAppointmentItem {
             id,
             practitioner_id,
@@ -1155,6 +1160,7 @@ pub async fn get_cabinet_appointments(
             ends_at: ends_at.to_rfc3339(),
             status,
             motif_admin,
+            callback_requested_at: callback_requested_at.map(|ts| ts.to_rfc3339()),
         });
     }
 
