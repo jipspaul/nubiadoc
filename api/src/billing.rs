@@ -356,8 +356,11 @@ pub struct SignQuoteResponse {
 /// `POST /v1/quotes/:id/sign` — signature stub d'un devis par le patient connecté.
 ///
 /// Token `kind:"patient"` requis ; token pro → `403`.
-/// RLS via `app.patient_account_id` (policy `quote_patient_read`, migration 0029).
+/// RLS via `app.patient_account_id` (policy `quote_patient_read`, migration 0029/0134 —
+/// `draft` est invisible côté patient).
 /// Retourne `404` si le devis n'appartient pas au patient authentifié.
+/// Retourne `409` si le devis n'est pas au statut `sent` (`draft`/`refused`/`expired` :
+/// seul un devis envoyé par le cabinet peut être signé).
 /// Met à jour le devis : `status = 'signed'`, `signed_at = now()`.
 /// Retourne `200 { signed: true, signed_at: "...ISO8601..." }` (stub Yousign — pas d'appel réel).
 pub async fn sign_quote(
@@ -408,6 +411,12 @@ pub async fn sign_quote(
         }));
     }
 
+    // `sent` est l'étape obligatoire entre `draft` et `signed` (cf. send_cabinet_quote,
+    // ligne ~1094) : un devis pas encore envoyé par le cabinet ne peut pas être signé.
+    if current_status != "sent" {
+        return Err(AppError::InvalidStatus);
+    }
+
     // Scope cabinet pour l'UPDATE (tenant_isolation policy sur quote).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
@@ -415,11 +424,11 @@ pub async fn sign_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Transition stub Yousign : draft → signed.
+    // Transition stub Yousign : sent → signed.
     let update_row = sqlx::query(
         "UPDATE quote \
          SET status = 'signed', signed_at = now(), updated_at = now() \
-         WHERE id = $1 AND cabinet_id = $2 \
+         WHERE id = $1 AND cabinet_id = $2 AND status = 'sent' \
          RETURNING signed_at",
     )
     .bind(id)
