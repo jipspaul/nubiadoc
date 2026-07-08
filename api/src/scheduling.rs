@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
-    AppState,
+    notify, AppState,
 };
 
 #[derive(Deserialize)]
@@ -353,23 +353,28 @@ pub async fn call_next_patient(
         .map_err(|_| AppError::Internal)?;
 
     let pat_row = sqlx::query(
-        "SELECT first_name, last_name, app_user_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
+        "SELECT first_name, last_name, app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(patient_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let (patient_display_name, patient_app_user_id) = if let Some(row) = pat_row {
+    let (patient_display_name, patient_app_user_id, patient_account_id) = if let Some(row) = pat_row
+    {
         let first: String = row.try_get("first_name").map_err(|_| AppError::Internal)?;
         let last: String = row.try_get("last_name").map_err(|_| AppError::Internal)?;
         let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
-        (format!("{first} {last}"), uid)
+        let account_id: Option<Uuid> = row
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+        (format!("{first} {last}"), uid, account_id)
     } else {
-        (String::new(), None)
+        (String::new(), None, None)
     };
 
-    // Notification in-app au patient (si compte rattaché).
+    // Notification in-app au patient (via app_user_id direct, sinon via le
+    // compte patient rattaché — cas des patients liés par patient_account_id, #3480).
     if let Some(uid) = patient_app_user_id {
         sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
             .bind(uid.to_string())
@@ -386,6 +391,15 @@ pub async fn call_next_patient(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+    } else if let Some(account_id) = patient_account_id {
+        notify::notify_patient_account(
+            &mut tx,
+            account_id,
+            "waiting_room_called",
+            "C'est votre tour",
+            serde_json::json!({ "appointment_id": appointment_id }),
+        )
+        .await?;
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
