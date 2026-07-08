@@ -16,6 +16,7 @@ import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/consultation_clinique/ccam_picker.dart';
 import '../features/consultation_clinique/api_get_acts_use_case.dart';
+import '../features/stock/stock_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import 'pro_auth_cubit.dart';
 
@@ -117,6 +118,13 @@ void registerPro(GetIt gi) {
       getPatient: gi<GetCabinetPatientUseCase>(),
       updateNotes: gi<UpdatePatientNotesUseCase>(),
       listAppointments: gi<ListCabinetAppointmentsUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<StockBloc>(
+    () => StockBloc(
+      list: gi<ListStockRequestsUseCase>(),
+      create: gi<CreateStockRequestUseCase>(),
     ),
   );
 }

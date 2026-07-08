@@ -25,6 +25,8 @@ import '../devis/devis_bloc.dart';
 import '../devis/devis_page.dart';
 import '../patients/patients_bloc.dart';
 import '../patients/patients_page.dart';
+import '../stock/stock_bloc.dart';
+import '../stock/stock_page.dart';
 import '../waiting_list/waiting_list_bloc.dart';
 import '../waiting_list/waiting_list_page.dart';
 import '../waiting_room/waiting_room_bloc.dart';
@@ -111,6 +113,11 @@ class DashboardPage extends StatelessWidget {
           body = BlocProvider(
             create: (_) => GetIt.instance<DevisBloc>(),
             child: const DevisPage(),
+          );
+        } else if (destination.route == '/stock') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<StockBloc>(),
+            child: const StockPage(),
           );
         } else if (destination.route == '/messages') {
           body = BlocProvider(

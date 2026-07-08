@@ -19,6 +19,8 @@ import '../features/cabinet/cabinet_info_page.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/register/pro_register_page.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
+import '../features/stock/stock_bloc.dart';
+import '../features/stock/stock_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 import '../pro_config.dart';
@@ -36,6 +38,7 @@ class AppRouter {
   static const consultation = '/consultation';
   static const ordonnances = '/ordonnances';
   static const devis = '/devis';
+  static const stock = '/stock';
   static const a2uiDemo = '/a2ui-demo';
   static const registerPro = '/register-pro';
   static const cabinetSetup = '/cabinet-setup';
@@ -133,6 +136,13 @@ class AppRouter {
           path: devis,
           builder: (_, __) => const Scaffold(
             body: DevisPage(),
+          ),
+        ),
+        GoRoute(
+          path: stock,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<StockBloc>(),
+            child: const StockPage(),
           ),
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
