@@ -310,6 +310,17 @@ pub async fn moderate_review(
         return Err(AppError::ValidationError);
     }
 
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet (policy review_cabinet_moderate_read, migration 0137) : sans ce
+    // GUC, l'avis 'pending' n'est visible par aucune policy SELECT et l'UPDATE ne
+    // trouve donc jamais la ligne (404 systématique).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
         "UPDATE review SET status = $1 \
          WHERE id = $2 AND status = 'pending' \
@@ -319,13 +330,15 @@ pub async fn moderate_review(
     .bind(&body.status)
     .bind(review_id)
     .bind(claims.cabinet_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
     let review_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         account_id = %claims.sub,
