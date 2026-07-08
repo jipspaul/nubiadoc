@@ -1,5 +1,6 @@
 ---
 import NavMenu from '../components/NavMenu.astro';
+import StaleServiceWorkerCleanup from '../components/StaleServiceWorkerCleanup.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -13,6 +14,7 @@ const { title = 'Nubia' } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    <StaleServiceWorkerCleanup />
   </head>
   <body>
     <header style="background:var(--surface);border-bottom:1px solid var(--border);padding:0.5rem 2rem;display:flex;align-items:center;gap:1rem;">

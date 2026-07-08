@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import ContextSwitcher from '../components/ContextSwitcher.tsx';
+import StaleServiceWorkerCleanup from '../components/StaleServiceWorkerCleanup.astro';
 
 export type Role = 'patient' | 'practitioner' | 'secretary' | 'admin';
 
@@ -74,6 +75,7 @@ const isActive = (href: string) => {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    <StaleServiceWorkerCleanup />
   </head>
   <body>
     <header class="app-header">
