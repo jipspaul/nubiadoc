@@ -1069,7 +1069,7 @@ impl FromRequestParts<AppState> for ProAdminOrManagerClaims {
 pub(crate) struct ProPractitionerClaims {
     pub(crate) sub: Uuid,
     pub(crate) cabinet_id: Uuid,
-    role: String,
+    pub(crate) role: String,
 }
 
 #[async_trait]
