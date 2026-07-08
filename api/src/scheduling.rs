@@ -1233,7 +1233,9 @@ pub struct StartConsultationResponse {
 ///
 /// Token pro praticien requis (secretary → 403, R.4127-72 §07 §4.1).
 /// `cabinet_id` extrait du JWT, jamais du body. RLS via `app.current_cabinet_id`.
-/// Transition d'état : `confirmed → in_progress` ; toute autre transition → `409 invalid_status`.
+/// Transition d'état : `confirmed|checked_in → in_progress`. Accepte aussi `in_progress`
+/// sans `consultation_session` existante (RDV appelé via call-next, #3477) ; si une
+/// session existe déjà pour ce RDV → `409 invalid_status` (double démarrage).
 /// Pose `started_at = now()` sur l'appointment. Audité (`start_consultation`, `appointment`).
 pub async fn start_consultation(
     State(state): State<AppState>,
@@ -1265,8 +1267,23 @@ pub async fn start_consultation(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
 
-    if status != "confirmed" && status != "checked_in" {
+    if status != "confirmed" && status != "checked_in" && status != "in_progress" {
         return Err(AppError::InvalidStatus);
+    }
+
+    // `in_progress` sans consultation_session = patient appelé via call-next mais pas
+    // encore ouvert (#3477) : on laisse passer. Si une session existe déjà, le RDV a
+    // déjà été démarré → 409 pour éviter une double séance.
+    if status == "in_progress" {
+        let existing_session = sqlx::query("SELECT id FROM consultation_session WHERE appointment_id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        if existing_session.is_some() {
+            return Err(AppError::InvalidStatus);
+        }
     }
 
     let updated = sqlx::query(
