@@ -761,7 +761,8 @@ pub async fn get_cabinet_patient(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, first_name, last_name, birth_date, contact, mutuelle, created_at \
+        "SELECT id, first_name, last_name, birth_date, contact, mutuelle, created_at, \
+                patient_account_id \
          FROM patient \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
@@ -778,9 +779,60 @@ pub async fn get_cabinet_patient(
     let birth_date: Option<chrono::NaiveDate> =
         row.try_get("birth_date").map_err(|_| AppError::Internal)?;
     let contact: Value = row.try_get("contact").map_err(|_| AppError::Internal)?;
-    let mutuelle: Value = row.try_get("mutuelle").map_err(|_| AppError::Internal)?;
+    let mut mutuelle: Value = row.try_get("mutuelle").map_err(|_| AppError::Internal)?;
     let created_at: chrono::DateTime<chrono::Utc> =
         row.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let patient_account_id: Option<Uuid> = row
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // `patient.mutuelle` n'est jamais écrite par le flux normal (cf. issue #3485) : pour
+    // un patient ayant un compte plateforme lié, la couverture réelle vit dans
+    // `patient_coverage` (scope patient, RLS fail-closed sur `app.patient_account_id`).
+    // On impersonifie temporairement ce GUC (même pattern que `create_cabinet_patient`
+    // pour lire `patient_account`) afin de la lire et de la refléter côté cabinet.
+    if let Some(account_id) = patient_account_id {
+        sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+            .bind(account_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let coverage_row = sqlx::query(
+            "SELECT amc, numero_adherent, plateforme, tiers_payant \
+             FROM patient_coverage \
+             WHERE patient_account_id = $1",
+        )
+        .bind(account_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if let Some(cov) = coverage_row {
+            let amc: Option<String> = cov.try_get("amc").map_err(|_| AppError::Internal)?;
+            let numero_adherent: Option<String> = cov
+                .try_get("numero_adherent")
+                .map_err(|_| AppError::Internal)?;
+            let plateforme: Option<String> =
+                cov.try_get("plateforme").map_err(|_| AppError::Internal)?;
+            let tiers_payant: bool = cov
+                .try_get("tiers_payant")
+                .map_err(|_| AppError::Internal)?;
+            mutuelle = serde_json::json!({
+                "amc": amc,
+                "numero_adherent": numero_adherent,
+                "plateforme": plateforme,
+                "tiers_payant": tiers_payant,
+            });
+        }
+
+        // Restaure le contexte cabinet pour le reste de la transaction (RLS patient).
+        sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+            .bind("")
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
 
     let admin = PatientAdminSection {
         id,
