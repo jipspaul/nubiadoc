@@ -319,18 +319,47 @@ pub async fn call_next_patient(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Un praticien n'appelle que ses propres patients — l'admin voit tout le cabinet.
+    let practitioner_filter: Option<Uuid> = if claims.role == "practitioner" {
+        let prac_row =
+            sqlx::query("SELECT id FROM practitioner WHERE cabinet_id = $1 AND user_id = $2")
+                .bind(claims.cabinet_id)
+                .bind(claims.sub)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .ok_or(AppError::Forbidden)?;
+        Some(prac_row.try_get("id").map_err(|_| AppError::Internal)?)
+    } else {
+        None
+    };
+
     // Prochain rendez-vous checked_in (FIFO sur checkin_at).
     // FOR UPDATE SKIP LOCKED évite les doubles appels concurrents.
-    let maybe_apt = sqlx::query(
-        "SELECT id, patient_id FROM appointment \
-         WHERE status = 'checked_in' AND deleted_at IS NULL \
-         ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
-         LIMIT 1 \
-         FOR UPDATE SKIP LOCKED",
-    )
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let maybe_apt = if let Some(practitioner_id) = practitioner_filter {
+        sqlx::query(
+            "SELECT id, patient_id FROM appointment \
+             WHERE status = 'checked_in' AND deleted_at IS NULL AND practitioner_id = $1 \
+             ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
+             LIMIT 1 \
+             FOR UPDATE SKIP LOCKED",
+        )
+        .bind(practitioner_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    } else {
+        sqlx::query(
+            "SELECT id, patient_id FROM appointment \
+             WHERE status = 'checked_in' AND deleted_at IS NULL \
+             ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
+             LIMIT 1 \
+             FOR UPDATE SKIP LOCKED",
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    };
 
     let Some(apt_row) = maybe_apt else {
         tx.commit().await.map_err(|_| AppError::Internal)?;
@@ -494,6 +523,29 @@ pub async fn get_waiting_room(
         } else {
             vec![]
         }
+    } else if claims.role == "practitioner" {
+        // Un praticien ne voit que sa propre file d'attente, pas celle du cabinet entier.
+        sqlx::query(
+            "SELECT a.id, a.status, a.checkin_at, \
+                    p.first_name, p.last_name, \
+                    GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
+             FROM appointment a \
+             LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+             JOIN practitioner pr ON pr.id = a.practitioner_id \
+             WHERE a.deleted_at IS NULL \
+               AND a.checkin_at IS NOT NULL \
+               AND a.status IN ('checked_in', 'in_progress') \
+               AND a.starts_at >= date_trunc('day', now()) \
+               AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
+               AND pr.cabinet_id = $1 \
+               AND pr.user_id = $2 \
+             ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC",
+        )
+        .bind(claims.cabinet_id)
+        .bind(claims.sub)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
     } else {
         sqlx::query(
             "SELECT a.id, a.status, a.checkin_at, \
