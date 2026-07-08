@@ -102,14 +102,9 @@ pub async fn yousign_webhook(
     // L'UPDATE `WHERE signed_at IS NULL` garantit l'idempotence nativement.
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Lecture cabinet_id depuis quote (sans RLS — on pose nil le temps de lire).
-    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(Uuid::nil().to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-    let row = sqlx::query("SELECT cabinet_id FROM quote WHERE id = $1 AND deleted_at IS NULL")
+    // Lecture cabinet_id via la fonction SECURITY DEFINER quote_find_by_id (0133) :
+    // la policy tenant_isolation bloquerait ce SELECT hors contexte JWT connu.
+    let row = sqlx::query("SELECT cabinet_id FROM quote_find_by_id($1)")
         .bind(quote_id)
         .fetch_optional(&mut *tx)
         .await
