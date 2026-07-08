@@ -317,6 +317,8 @@ pub async fn list_account_pharmacy_quotes(
 
 async fn decide_quote(
     state: &AppState,
+    hub: &WsHub,
+    dispatcher: &Arc<dyn JobDispatcher>,
     account_id: Uuid,
     id: Uuid,
     decision: &str,
@@ -354,26 +356,65 @@ async fn decide_quote(
         });
     };
 
+    let quote = quote_from_row(&row)?;
+
+    // Notification du staff pharmacie — la pharmacie doit savoir que le
+    // patient a décidé (symétrique de la notification patient dans
+    // `send_pharmacy_quote`, jusqu'ici absente : voir #3505).
+    let title = if decision == "accepted" {
+        "Devis accepté par le patient"
+    } else {
+        "Devis refusé par le patient"
+    };
+    let staff = notify::notify_pharmacy_staff(
+        &mut tx,
+        quote.pharmacy_id,
+        "pharmacy_quote_decided",
+        title,
+        serde_json::json!({ "pharmacy_quote_id": id, "status": decision }),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
-    quote_from_row(&row)
+
+    for (app_user_id, notification_id) in staff {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    hub.publish_named(
+        &format!("pharmacy_orders:{}", quote.pharmacy_id),
+        serde_json::json!({
+            "channel": format!("pharmacy_orders:{}", quote.pharmacy_id),
+            "event": "pharmacy_quote_decided",
+            "data": { "pharmacy_quote_id": id, "status": decision }
+        })
+        .to_string(),
+    );
+
+    Ok(quote)
 }
 
 /// `POST /v1/account/pharmacy-quotes/{id}/accept` — sent → accepted.
+/// Notifie le staff pharmacie de la décision (lot B4).
 pub async fn accept_pharmacy_quote(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QuoteDto>, AppError> {
-    let quote = decide_quote(&state, claims.account_id, id, "accepted").await?;
+    let quote = decide_quote(&state, &hub, &dispatcher, claims.account_id, id, "accepted").await?;
     Ok(Json(quote))
 }
 
 /// `POST /v1/account/pharmacy-quotes/{id}/refuse` — sent → refused.
+/// Notifie le staff pharmacie de la décision (lot B4).
 pub async fn refuse_pharmacy_quote(
     State(state): State<AppState>,
+    Extension(hub): Extension<Arc<WsHub>>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QuoteDto>, AppError> {
-    let quote = decide_quote(&state, claims.account_id, id, "refused").await?;
+    let quote = decide_quote(&state, &hub, &dispatcher, claims.account_id, id, "refused").await?;
     Ok(Json(quote))
 }

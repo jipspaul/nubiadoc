@@ -640,6 +640,182 @@ pub async fn create_payment_intent(
     ))
 }
 
+/// Corps de `POST /v1/payments/pharmacy-quote-intent`.
+#[derive(Deserialize)]
+pub struct PharmacyQuotePaymentIntentBody {
+    pub pharmacy_quote_id: Uuid,
+    pub method: String,
+}
+
+/// `POST /v1/payments/pharmacy-quote-intent` — crée un PaymentIntent Stripe
+/// pour un devis d'officine accepté (#3505 : jusqu'ici un devis `accepted`
+/// n'avait aucun chemin de paiement, contrairement au devis dentaire
+/// `quote.status='signed'` → `POST /v1/payments/intent`).
+///
+/// Token `kind:"patient"` requis. Header `Idempotency-Key` obligatoire → `422`
+/// si absent. Le devis (`pharmacy_quote_id`) doit être dans l'état `accepted`
+/// → `409` sinon. Le montant est celui du devis (`total_cents`), jamais fourni
+/// par le client. PCI délégué : seul le `client_secret` est transmis.
+pub async fn create_pharmacy_quote_payment_intent(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    headers: HeaderMap,
+    Json(body): Json<PharmacyQuotePaymentIntentBody>,
+) -> Result<(StatusCode, Json<PaymentIntentResponse>), AppError> {
+    let idempotency_key = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+        .ok_or(AppError::ValidationError)?
+        .to_owned();
+
+    if !["card", "apple_pay", "google_pay", "sepa"].contains(&body.method.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    let cached = sqlx::query(
+        "SELECT response FROM idempotency_keys \
+         WHERE key = $1 AND created_at > now() - interval '24 hours'",
+    )
+    .bind(&idempotency_key)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(cached_row) = cached {
+        let resp: serde_json::Value = cached_row
+            .try_get("response")
+            .map_err(|_| AppError::Internal)?;
+        let payment_id: Uuid = resp["payment_id"]
+            .as_str()
+            .and_then(|s| Uuid::parse_str(s).ok())
+            .ok_or(AppError::Internal)?;
+        let client_secret: String = resp["client_secret"]
+            .as_str()
+            .map(|s| s.to_owned())
+            .ok_or(AppError::Internal)?;
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Ok((
+            StatusCode::CREATED,
+            Json(PaymentIntentResponse {
+                payment_id,
+                client_secret,
+            }),
+        ));
+    }
+
+    // Scope patient pour lire le devis (policy pharmacy_quote_patient_select)
+    // et la commande dont il découle (policy pharmacy_order_patient_select).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let quote_row = sqlx::query(
+        "SELECT pq.status, pq.total_cents, po.cabinet_id \
+         FROM pharmacy_quote pq \
+         JOIN pharmacy_order po ON po.id = pq.order_id \
+         WHERE pq.id = $1 AND pq.patient_account_id = $2",
+    )
+    .bind(body.pharmacy_quote_id)
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let status: String = quote_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    let total_cents: i64 = quote_row
+        .try_get("total_cents")
+        .map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = quote_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+
+    if status != "accepted" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    // Scope cabinet (tenant_isolation) pour résoudre le patient cabinet-scopé
+    // et insérer le paiement — même cabinet que celui d'origine de la
+    // prescription/commande (`pharmacy_order.cabinet_id`).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let patient_id: Uuid =
+        sqlx::query("SELECT id FROM patient WHERE cabinet_id = $1 AND patient_account_id = $2")
+            .bind(cabinet_id)
+            .bind(claims.account_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::Internal)?
+            .try_get("id")
+            .map_err(|_| AppError::Internal)?;
+
+    let client_secret = format!(
+        "pi_{}_secret_{}",
+        Uuid::new_v4().simple(),
+        Uuid::new_v4().simple()
+    );
+
+    let row = sqlx::query(
+        "INSERT INTO payment \
+         (cabinet_id, patient_id, pharmacy_quote_id, amount, currency, kind, provider, status, \
+          idempotency_key, method, client_secret) \
+         VALUES ($1, $2, $3, $4::numeric / 100, 'EUR', 'full', 'stripe', 'pending', $5, $6, $7) \
+         RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(body.pharmacy_quote_id)
+    .bind(total_cents)
+    .bind(&idempotency_key)
+    .bind(&body.method)
+    .bind(&client_secret)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO idempotency_keys (key, response) VALUES ($1, $2) \
+         ON CONFLICT (key) DO NOTHING",
+    )
+    .bind(&idempotency_key)
+    .bind(serde_json::json!({"payment_id": payment_id, "client_secret": &client_secret}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        cabinet_id = %cabinet_id,
+        payment_id = %payment_id,
+        pharmacy_quote_id = %body.pharmacy_quote_id,
+        "pharmacy quote payment intent created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(PaymentIntentResponse {
+            payment_id,
+            client_secret,
+        }),
+    ))
+}
+
 // ── POST /v1/cabinet/quotes ──────────────────────────────────────────────────
 
 /// Un item du devis dans le body de création.
@@ -1140,6 +1316,7 @@ pub async fn send_cabinet_quote(
 pub struct PaymentItem {
     pub payment_id: Uuid,
     pub quote_id: Option<Uuid>,
+    pub pharmacy_quote_id: Option<Uuid>,
     pub kind: String,
     pub status: String,
     pub amount_cents: i64,
@@ -1171,7 +1348,8 @@ pub async fn list_payments(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
-        "SELECT id, quote_id, kind, status, (amount * 100)::bigint AS amount_cents, \
+        "SELECT id, quote_id, pharmacy_quote_id, kind, status, \
+                (amount * 100)::bigint AS amount_cents, \
                 currency, created_at \
          FROM payment \
          ORDER BY created_at DESC \
@@ -1192,6 +1370,9 @@ pub async fn list_payments(
             Ok(PaymentItem {
                 payment_id: r.try_get("id").map_err(|_| AppError::Internal)?,
                 quote_id: r.try_get("quote_id").map_err(|_| AppError::Internal)?,
+                pharmacy_quote_id: r
+                    .try_get("pharmacy_quote_id")
+                    .map_err(|_| AppError::Internal)?,
                 kind: r.try_get("kind").map_err(|_| AppError::Internal)?,
                 status: r.try_get("status").map_err(|_| AppError::Internal)?,
                 amount_cents: r.try_get("amount_cents").map_err(|_| AppError::Internal)?,
