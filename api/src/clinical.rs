@@ -1094,10 +1094,23 @@ pub async fn list_patient_documents(
         .map(|(at, id)| (Some(at), Some(id)))
         .unwrap_or((None, None));
 
+    // Deux familles de documents pointent vers un même dossier patient :
+    // - ceux créés côté cabinet (patient_id + cabinet_id renseignés) ;
+    // - ceux déposés par le patient dans son coffre-fort (plateforme, sans
+    //   cabinet_id/patient_id — cf. migration 0026), rattachés via
+    //   patient_account_id (résolu depuis patient.id, symétrique à la policy
+    //   RLS document_cabinet_read_via_patient_account, migration 0135).
     let rows = sqlx::query(
         "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.created_at \
          FROM document d \
-         WHERE d.patient_id = $1 AND d.cabinet_id = $2 AND d.deleted_at IS NULL \
+         WHERE ( \
+           (d.patient_id = $1 AND d.cabinet_id = $2) \
+           OR (d.cabinet_id IS NULL \
+               AND d.patient_account_id = ( \
+                 SELECT patient_account_id FROM patient WHERE id = $1 \
+               )) \
+         ) \
+         AND d.deleted_at IS NULL \
          AND ($3::text IS NULL OR d.category = $3) \
          AND ($4::timestamptz IS NULL \
               OR d.created_at < $4 \
