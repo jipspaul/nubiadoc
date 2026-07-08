@@ -83,7 +83,15 @@ INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) V
   ('11430000-0000-0000-0000-000000000081',
    '11430000-0000-0000-0000-000000000001',
    '11430000-0000-0000-0000-000000000041',
-   'draft', 500.00, 'EUR');
+   'sent', 500.00, 'EUR');
+
+-- Devis 'draft' (brouillon interne cabinet, jamais envoye) : ne doit JAMAIS
+-- etre visible au patient — policy quote_patient_read exclut draft (0134, #3487).
+INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) VALUES
+  ('11430000-0000-0000-0000-000000000083',
+   '11430000-0000-0000-0000-000000000001',
+   '11430000-0000-0000-0000-000000000041',
+   'draft', 300.00, 'EUR');
 
 INSERT INTO treatment_plan (id, cabinet_id, patient_id, title, status) VALUES
   ('11430000-0000-0000-0000-000000000091',
@@ -155,7 +163,7 @@ INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) V
   ('11430000-0000-0000-0000-000000000082',
    '11430000-0000-0000-0000-000000000002',
    '11430000-0000-0000-0000-000000000042',
-   'draft', 800.00, 'EUR');
+   'sent', 800.00, 'EUR');
 
 INSERT INTO treatment_plan (id, cabinet_id, patient_id, title, status) VALUES
   ('11430000-0000-0000-0000-000000000092',
@@ -279,7 +287,13 @@ SELECT is(
   (SELECT count(*)::int FROM quote
    WHERE id = '11430000-0000-0000-0000-000000000081'),
   1,
-  '⭐ P9 patient : devis P1 visible via patient_account_id');
+  '⭐ P9 patient : devis P1 (sent) visible via patient_account_id');
+
+SELECT is(
+  (SELECT count(*)::int FROM quote
+   WHERE id = '11430000-0000-0000-0000-000000000083'),
+  0,
+  '⭐ P9 securite : devis draft (jamais envoye) invisible au patient [#3487]');
 
 SELECT is(
   (SELECT count(*)::int FROM quote
