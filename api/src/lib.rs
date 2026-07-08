@@ -265,6 +265,10 @@ fn build_router(
         )
         .route("/v1/account/coverage/card", post(auth::post_coverage_card))
         .route(
+            "/v1/account/referring-doctor",
+            get(auth::get_account_referring_doctor).put(auth::put_account_referring_doctor),
+        )
+        .route(
             "/v1/account/notification-preferences",
             get(auth::get_account_notification_preferences)
                 .patch(auth::patch_account_notification_preferences),

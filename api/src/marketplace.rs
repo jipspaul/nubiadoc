@@ -100,6 +100,7 @@ pub async fn list_acts(
 
 #[derive(Deserialize)]
 pub struct SuggestQuery {
+    #[serde(default)]
     pub q: String,
 }
 

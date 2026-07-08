@@ -180,7 +180,8 @@ async fn insert_named_patient_appt(
     sqlx::query(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) \
-         VALUES ($1, $2, $3, $4, now() + interval '10 minutes', now() + interval '40 minutes', \
+         VALUES ($1, $2, $3, $4, date_trunc('day', now()) + interval '12 hours', \
+                 date_trunc('day', now()) + interval '12 hours 30 minutes', \
                  'checked_in', 'test', now())",
     )
     .bind(appt_id)
