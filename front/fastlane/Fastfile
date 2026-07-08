@@ -39,6 +39,34 @@ ANDROID_APPS = {
   "app_pharmacie"   => ENV["FAD_APP_ID_PHARMACIE"]   || "1:117935898059:android:4e60d5a536628076e38a4e",
 }.freeze
 
+# Host CLI/API PostHog (EU Cloud) — distinct du host d'ingestion
+# `eu.i.posthog.com` utilisé par le SDK client (cf. nubia_observability.dart).
+POSTHOG_CLI_HOST = "https://eu.posthog.com"
+
+# Upload le mapping R8 (obfuscation) vers PostHog pour symboliser les crashs
+# natifs Android remontés par error tracking (captureNativeExceptions).
+# Sans ENV["POSTHOG_API_KEY"] (clé perso/projet, pas le project token client) :
+# averti et ignore l'upload plutôt que de faire échouer la lane (dev local).
+def upload_android_mapping_to_posthog(app_dir:)
+  api_key = ENV["POSTHOG_API_KEY"].to_s
+  if api_key.empty?
+    UI.important("POSTHOG_API_KEY non défini — upload du mapping R8 vers PostHog ignoré")
+    return
+  end
+
+  mapping_dir = File.join(app_dir, "build/app/outputs/mapping/release")
+  mapping_file = File.join(mapping_dir, "mapping.txt")
+  unless File.exist?(mapping_file)
+    UI.important("mapping.txt introuvable (#{mapping_file}) — upload PostHog ignoré")
+    return
+  end
+
+  UI.header("Upload mapping R8 → PostHog (error tracking)")
+  sh({ "POSTHOG_CLI_API_KEY" => api_key, "POSTHOG_CLI_HOST" => POSTHOG_CLI_HOST },
+     "posthog-cli sourcemap upload --directory #{mapping_dir.shellescape}")
+  UI.success("mapping.txt uploadé vers PostHog ✔")
+end
+
 def distribute_android(app:, notes: nil)
   app_id = ANDROID_APPS[app] || UI.user_error!("App inconnue: #{app} (attendu: #{ANDROID_APPS.keys.join(', ')})")
   app_dir = File.expand_path("../apps/#{app}", __dir__) # front/apps/<app>
@@ -49,6 +77,8 @@ def distribute_android(app:, notes: nil)
 
   apk = File.join(app_dir, "build/app/outputs/flutter-apk/app-release.apk")
   UI.user_error!("APK introuvable: #{apk}") unless File.exist?(apk)
+
+  upload_android_mapping_to_posthog(app_dir: app_dir)
 
   params = {
     app: app_id,
