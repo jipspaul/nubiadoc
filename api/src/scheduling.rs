@@ -1275,11 +1275,12 @@ pub async fn start_consultation(
     // encore ouvert (#3477) : on laisse passer. Si une session existe déjà, le RDV a
     // déjà été démarré → 409 pour éviter une double séance.
     if status == "in_progress" {
-        let existing_session = sqlx::query("SELECT id FROM consultation_session WHERE appointment_id = $1")
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+        let existing_session =
+            sqlx::query("SELECT id FROM consultation_session WHERE appointment_id = $1")
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
 
         if existing_session.is_some() {
             return Err(AppError::InvalidStatus);
