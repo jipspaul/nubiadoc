@@ -41,23 +41,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pre-flight LXC reachability (skip deploy if down)
+      - name: Pre-flight LXC reachability (retries, then FAIL loud if down)
         id: preflight
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
-          # Le LXC de test peut être down (host éteint, services crashés…). On NE veut PAS
-          # spammer le statut "failed" sur chaque merge dans ce cas : on skip proprement
-          # avec un warning visible. SSH ne sera retesté qu'au merge suivant — il faut
-          # re-run manuellement la deploy.yml une fois la LXC réparée.
+          # Postmortem #3493 : l'ancien comportement (skip silencieux + job VERT quand
+          # le LXC est injoignable) a masqué une panne de ~17h — 7+ déploiements
+          # « réussis » en 6-15s qui ne déployaient RIEN, et des issues fermées à tort
+          # sur la seule base du merge. Un faux vert est pire qu'un rouge honnête.
+          # Nouveau : on RETRY (blips réseau runner→LXC), puis on ÉCHOUE FORT (badge
+          # rouge visible) si vraiment injoignable, au lieu de skipper en silence.
           # Test TCP simple via /dev/tcp (bash built-in, pas de paquet à installer).
-          if timeout 5 bash -c "echo > /dev/tcp/${DEPLOY_HOST}/22" 2>/dev/null; then
-            echo "reachable=true" >> "$GITHUB_OUTPUT"
-            echo "✅ LXC ${DEPLOY_HOST}:22 reachable — continuing deploy"
-          else
-            echo "reachable=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::LXC ${DEPLOY_HOST}:22 unreachable — deploy SKIPPED. Restart the LXC then re-run this workflow."
+          ok=""
+          for attempt in 1 2 3 4 5; do
+            if timeout 6 bash -c "echo > /dev/tcp/${DEPLOY_HOST}/22" 2>/dev/null; then
+              ok="yes"
+              echo "✅ LXC ${DEPLOY_HOST}:22 joignable (tentative ${attempt}) — déploiement"
+              break
+            fi
+            echo "… tentative ${attempt}/5 : ${DEPLOY_HOST}:22 injoignable, retry dans 10s"
+            sleep 10
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::LXC ${DEPLOY_HOST}:22 INJOIGNABLE depuis le runner après 5 tentatives — DÉPLOIEMENT NON EFFECTUÉ (job en échec volontaire, cf. #3493). Vérifier : (1) LXC allumée + sshd actif ; (2) route réseau runner→LXC (le runner k3s/conteneur doit atteindre le port 22 du LXC) ; (3) secret DEPLOY_HOST correct. Une fois réparé, re-run ce workflow."
+            exit 1
           fi
+          echo "reachable=true" >> "$GITHUB_OUTPUT"
 
       # On cache la toolchain + les dépendances TÉLÉCHARGÉES (registry/git/bin,
       # rustup, zig) — jamais périmées pour un même Cargo.lock — mais PLUS
