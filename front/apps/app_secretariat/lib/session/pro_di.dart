@@ -12,6 +12,7 @@ import '../features/bookable_slots/bookable_slots_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
+import '../features/stock/stock_bloc.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 
@@ -93,6 +94,12 @@ void registerPro(GetIt gi) {
         listConversations: gi<ListCabinetConversationsUseCase>(),
         getMessages: gi<GetCabinetConversationUseCase>(),
         sendMessage: gi<SendMessageCabinetUseCase>(),
+      ),
+    )
+    ..registerFactory<StockBloc>(
+      () => StockBloc(
+        list: gi<ListStockRequestsUseCase>(),
+        create: gi<CreateStockRequestUseCase>(),
       ),
     );
 }

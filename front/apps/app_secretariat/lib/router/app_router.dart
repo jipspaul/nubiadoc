@@ -25,6 +25,8 @@ import '../features/login/login_page.dart';
 import '../features/onboarding/onboarding_page.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/patients/patients_page.dart';
+import '../features/stock/stock_bloc.dart';
+import '../features/stock/stock_page.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
 import '../features/waiting_list/waiting_list_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
@@ -47,6 +49,7 @@ class AppRouter {
   static const listeAttente = '/liste-attente';
   static const devis = '/devis';
   static const devisDetail = '/devis/:id';
+  static const stock = '/stock';
   static const messages = '/messages';
   static const adminMembres = '/admin-membres';
   static const adminSecretariats = '/admin-secretariats';
@@ -135,6 +138,13 @@ class AppRouter {
               ),
             ),
           ],
+        ),
+        GoRoute(
+          path: stock,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<StockBloc>(),
+            child: const StockPage(),
+          ),
         ),
         GoRoute(
           path: messages,
