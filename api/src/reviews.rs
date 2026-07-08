@@ -1,4 +1,5 @@
-//! Handlers avis praticiens : POST /v1/reviews (patient auth) + GET /v1/providers/:id/reviews (public).
+//! Handlers avis praticiens : POST /v1/reviews (patient auth),
+//! GET /v1/providers/:id/reviews (public) + PATCH /v1/cabinet/reviews/:id (modération).
 
 use axum::{
     extract::{Path, Query, State},
@@ -10,7 +11,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, PatientAccountClaims},
+    auth::{AppError, PatientAccountClaims, ProSecretaryPlusClaims},
     AppState,
 };
 
@@ -274,6 +275,66 @@ pub async fn list_provider_reviews(
             total,
         },
     }))
+}
+
+// ── PATCH /v1/cabinet/reviews/:id ────────────────────────────────────────────
+
+/// Corps de la requête `PATCH /v1/cabinet/reviews/:id`.
+#[derive(Deserialize)]
+pub struct ModerateReviewBody {
+    /// `published` ou `rejected` (transition depuis `pending`, cf. policy RLS `review_app_update`).
+    pub status: String,
+}
+
+/// Réponse de `PATCH /v1/cabinet/reviews/:id`.
+#[derive(Serialize)]
+pub struct ModerateReviewResponse {
+    pub review_id: Uuid,
+    pub status: String,
+}
+
+/// `PATCH /v1/cabinet/reviews/:id` — modération d'un avis (praticien ou secrétariat).
+///
+/// Token pro requis (praticien ou secrétaire, `ProSecretaryPlusClaims`).
+/// `status` du body doit être `published` ou `rejected` → `422` sinon.
+/// L'avis doit appartenir à un provider du cabinet du token → `404` sinon.
+/// Transition applicable uniquement depuis `pending` (avis déjà modéré → `404`,
+/// pas de re-modération pour éviter d'écraser une décision existante).
+pub async fn moderate_review(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(review_id): Path<Uuid>,
+    Json(body): Json<ModerateReviewBody>,
+) -> Result<Json<ModerateReviewResponse>, AppError> {
+    if !matches!(body.status.as_str(), "published" | "rejected") {
+        return Err(AppError::ValidationError);
+    }
+
+    let row = sqlx::query(
+        "UPDATE review SET status = $1 \
+         WHERE id = $2 AND status = 'pending' \
+           AND provider_id IN (SELECT id FROM provider WHERE cabinet_id = $3) \
+         RETURNING id, status",
+    )
+    .bind(&body.status)
+    .bind(review_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let review_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.sub,
+        review_id = %review_id,
+        status = %status,
+        "review moderated"
+    );
+
+    Ok(Json(ModerateReviewResponse { review_id, status }))
 }
 
 fn is_unique_violation(e: &sqlx::Error) -> bool {

@@ -495,6 +495,7 @@ fn build_router(
             "/v1/providers/:id/reviews",
             get(reviews::list_provider_reviews),
         )
+        .route("/v1/cabinet/reviews/:id", patch(reviews::moderate_review))
         .route(
             "/v1/waiting-list",
             post(waiting_list::create_waiting_list_entry),
