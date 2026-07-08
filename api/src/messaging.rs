@@ -804,9 +804,10 @@ async fn create_cabinet_conversation(
         return Err(AppError::NotFound);
     }
 
-    // Vérifie que le patient est lié à ce cabinet (enregistrement `patient` avec patient_account_id).
-    let patient_linked = sqlx::query(
-        "SELECT 1 FROM patient WHERE cabinet_id = $1 AND patient_account_id = $2 LIMIT 1",
+    // Vérifie que le patient est lié à ce cabinet (enregistrement `patient` avec patient_account_id)
+    // et récupère son id clinique pour renseigner conversation.patient_id (filtre secrétariat NULL-safe).
+    let patient_row = sqlx::query(
+        "SELECT id FROM patient WHERE cabinet_id = $1 AND patient_account_id = $2 LIMIT 1",
     )
     .bind(body_cabinet_id)
     .bind(claims.account_id)
@@ -814,20 +815,24 @@ async fn create_cabinet_conversation(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    if patient_linked.is_none() {
-        return Err(AppError::Forbidden);
-    }
+    let patient_id: Uuid = match patient_row {
+        Some(r) => r.try_get("id").map_err(|_| AppError::Internal)?,
+        None => return Err(AppError::Forbidden),
+    };
 
-    // ON CONFLICT DO NOTHING pour l'idempotence (contrainte unique patient_account × cabinet).
+    // ON CONFLICT DO UPDATE pour l'idempotence ET pour backfiller patient_id sur les fils
+    // pré-existants créés avant cette liaison (colonne restée NULL sinon, cf. #3483).
     let inserted = sqlx::query(
-        "INSERT INTO conversation (patient_account_id, cabinet_id, subject) \
-         VALUES ($1, $2, $3) \
-         ON CONFLICT (patient_account_id, cabinet_id) DO NOTHING \
+        "INSERT INTO conversation (patient_account_id, cabinet_id, subject, patient_id) \
+         VALUES ($1, $2, $3, $4) \
+         ON CONFLICT (patient_account_id, cabinet_id) \
+         DO UPDATE SET patient_id = EXCLUDED.patient_id \
          RETURNING id, cabinet_id, subject, created_at",
     )
     .bind(claims.account_id)
     .bind(body_cabinet_id)
     .bind(body_subject.as_deref())
+    .bind(patient_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
