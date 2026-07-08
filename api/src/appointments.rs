@@ -179,10 +179,11 @@ pub struct CancelResponse {
 }
 
 /// `POST /v1/appointments/:id/cancel` — patient annule son RDV, libère le créneau.
+/// Si le RDV est `checked_in`, permet de sortir de la file d'attente (→ `no_show`).
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
-/// Vérifie status IN ('requested','confirmed') → sinon `409 {"error":"invalid_status"}`.
-/// Vérifie starts_at > now() + 2h → sinon `409 {"error":"too_late"}`.
+/// Vérifie status IN ('requested','confirmed','checked_in') → sinon `409 {"error":"invalid_status"}`.
+/// Vérifie starts_at > now() + 2h → sinon `409 {"error":"too_late"}` (sauf si déjà `checked_in`).
 pub async fn cancel_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -220,14 +221,22 @@ pub async fn cancel_appointment(
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
     let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
 
-    if status != "requested" && status != "confirmed" {
+    if status != "requested" && status != "confirmed" && status != "checked_in" {
         return Err(AppError::InvalidStatus);
     }
 
-    // Annulation refusée si le RDV démarre dans moins de 2 heures.
-    if chrono::Utc::now() >= starts_at - chrono::Duration::hours(2) {
+    // Annulation refusée si le RDV démarre dans moins de 2 heures — sauf pour un
+    // patient déjà checked_in, qui doit pouvoir sortir de la file à tout moment.
+    if status != "checked_in" && chrono::Utc::now() >= starts_at - chrono::Duration::hours(2) {
         return Err(AppError::TooLate);
     }
+
+    // Un checked_in qui quitte la file est un no_show (il n'a pas été vu) ; sinon annulation classique.
+    let new_status = if status == "checked_in" {
+        "no_show"
+    } else {
+        "cancelled"
+    };
 
     // Scope cabinet pour UPDATE (tenant_isolation) + audit.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -238,10 +247,11 @@ pub async fn cancel_appointment(
 
     sqlx::query(
         "UPDATE appointment \
-         SET status = 'cancelled', cancelled_at = now(), cancel_reason = $2, updated_at = now() \
+         SET status = $2, cancelled_at = now(), cancel_reason = $3, updated_at = now() \
          WHERE id = $1",
     )
     .bind(id)
+    .bind(new_status)
     .bind(reason.as_deref())
     .execute(&mut *tx)
     .await
@@ -277,7 +287,7 @@ pub async fn cancel_appointment(
 
     Ok(Json(CancelResponse {
         appointment_id: id,
-        status: "cancelled".to_string(),
+        status: new_status.to_string(),
     }))
 }
 
