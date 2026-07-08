@@ -745,7 +745,11 @@ pub struct OfferSlotResponse {
 /// `POST /v1/cabinet/waiting-list/:id/offer` — propose un créneau libéré (§13).
 ///
 /// Vérifie que l'entrée est `active` et appartient au cabinet (RLS fail-closed).
-/// Passe le statut → `fulfilled`. Notification stub (NUB-T3) — aucun PII dans le payload.
+/// Notifie réellement le patient (via `app_user_id` direct ou `patient_account_id`,
+/// même mécanisme que `call_next`, #3480) avant de passer le statut → `fulfilled`.
+/// `notified` dans la réponse reflète l'envoi effectif (`false` si le patient
+/// n'a aucun compte applicatif rattaché — l'entrée reste tout de même `fulfilled`
+/// côté planning, le créneau étant physiquement proposé par le secrétariat).
 /// RBAC : `secretary+`. `cabinet_id` extrait du JWT.
 pub async fn offer_waiting_list_slot(
     State(state): State<AppState>,
@@ -767,7 +771,7 @@ pub async fn offer_waiting_list_slot(
         .map_err(|_| AppError::Internal)?;
 
     // Vérifie existence + statut actif (RLS garantit l'appartenance au cabinet).
-    let row = sqlx::query("SELECT id, status FROM waiting_list_entry WHERE id = $1")
+    let row = sqlx::query("SELECT id, patient_id, status FROM waiting_list_entry WHERE id = $1")
         .bind(entry_id)
         .fetch_optional(&mut *tx)
         .await
@@ -778,6 +782,53 @@ pub async fn offer_waiting_list_slot(
     if status != "active" {
         return Err(AppError::InvalidStatus);
     }
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+
+    let pat_row = sqlx::query(
+        "SELECT app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let (patient_app_user_id, patient_account_id) = if let Some(row) = pat_row {
+        let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+        let account_id: Option<Uuid> = row
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+        (uid, account_id)
+    } else {
+        (None, None)
+    };
+
+    let notify_data = serde_json::json!({
+        "waiting_list_entry_id": entry_id,
+        "proposed_at": body.proposed_at,
+    });
+    let notified = if let Some(uid) = patient_app_user_id {
+        notify::notify_user(
+            &mut tx,
+            uid,
+            "waiting_list_slot_offered",
+            "Un créneau vous est proposé",
+            notify_data,
+        )
+        .await?;
+        true
+    } else if let Some(account_id) = patient_account_id {
+        notify::notify_patient_account(
+            &mut tx,
+            account_id,
+            "waiting_list_slot_offered",
+            "Un créneau vous est proposé",
+            notify_data,
+        )
+        .await?
+        .is_some()
+    } else {
+        false
+    };
 
     sqlx::query("UPDATE waiting_list_entry SET status = 'fulfilled' WHERE id = $1")
         .bind(entry_id)
@@ -785,20 +836,19 @@ pub async fn offer_waiting_list_slot(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Stub : notification push au patient (NUB-T3) — pas de PII dans le payload.
-
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
         user_id = %claims.sub,
         entry_id = %entry_id,
+        notified,
         "waiting list: slot offered"
     );
 
     Ok(Json(OfferSlotResponse {
         waiting_list_entry_id: entry_id,
-        notified: true,
+        notified,
     }))
 }
 
