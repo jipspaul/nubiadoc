@@ -6,8 +6,24 @@
 # Activation : poser la variable de repo MOBILE_DISTRIBUTE_ENABLED=true.
 # Tant qu'elle n'est pas "true", les jobs sont skippés (pas de deploy rouge).
 #
+# ⚠️ CONTRAINTE D'ARCHITECTURE (postmortem 2026-07-09, cf. run #19278) :
+#   Le runner Forgejo `docker` est arm64 (Lima/k3s). Or une dépendance tire
+#   `jni`/`jni_flutter` (C++ natif compilé via NDK+cmake) :
+#     - le cmake du SDK Android est un binaire x86_64 -> sur arm64 le shell ne
+#       peut PAS l'exécuter (`cmake: 1: Syntax error: ")" unexpected`) ;
+#     - le NDK Linux n'a pas de host linux-aarch64 -> le clang planterait aussi.
+#   => Le build Android NATIF est impossible sur ce runner arm64 sans émulation
+#      x86 (que l'infra évite exprès, cf. `deploy.yml`).
+#   Le job `android` est donc gaté derrière ANDROID_CI_ENABLED (comme `ios` l'est
+#   derrière IOS_CI_ENABLED) : il ne s'exécute QUE si un runner x86_64 existe.
+#   Sinon il est SKIPPÉ (gris, pas rouge). En attendant, distribue en LOCAL sur
+#   un Mac :  cd front && bundle exec fastlane android distribute_all
+#
 # Variables de repo (Settings > Actions > Variables) :
 #   MOBILE_DISTRIBUTE_ENABLED = true
+#   ANDROID_CI_ENABLED        = true   (SEULEMENT si un runner x86_64 est dispo ;
+#                               le runner arm64 ne peut pas builder l'Android natif)
+#   IOS_CI_ENABLED            = true   (SEULEMENT si un runner macOS est enregistré)
 #   INFISICAL_API_URL         = http://<host-joignable-par-le-runner>:8080
 #                               (ex. http://host.docker.internal:8080 pour le job
 #                                docker, ou l'IP LAN de la machine Infisical)
@@ -54,7 +70,11 @@ env:
 
 jobs:
   android:
-    if: ${{ vars.MOBILE_DISTRIBUTE_ENABLED == 'true' }}
+    # Nécessite un runner x86_64 : le runner docker arm64 ne peut PAS builder
+    # l'Android natif (cmake/NDK x86_64-only + dépendance jni). Activer avec
+    # ANDROID_CI_ENABLED=true UNE FOIS qu'un runner x86_64 est enregistré ;
+    # sinon le job est skippé (en attendant, distribution Android en local).
+    if: ${{ vars.MOBILE_DISTRIBUTE_ENABLED == 'true' && vars.ANDROID_CI_ENABLED == 'true' }}
     runs-on: docker
     container:
       image: flutter-ci:stable
