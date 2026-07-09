@@ -3385,9 +3385,6 @@ pub async fn post_account_dependents(
     if !["enfant", "conjoint", "parent", "autre"].contains(&body.relationship.as_str()) {
         return Err(AppError::ValidationError);
     }
-    if body.first_name.trim().is_empty() || body.last_name.trim().is_empty() {
-        return Err(AppError::ValidationError);
-    }
 
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
         Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
@@ -3525,12 +3522,6 @@ pub async fn patch_account_dependent(
     Path(dependent_id): Path<Uuid>,
     Json(body): Json<PatchDependentBody>,
 ) -> Result<Json<DependentDetailResponse>, AppError> {
-    if body.first_name.as_deref().is_some_and(|s| s.trim().is_empty())
-        || body.last_name.as_deref().is_some_and(|s| s.trim().is_empty())
-    {
-        return Err(AppError::ValidationError);
-    }
-
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
         Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
         None => None,
