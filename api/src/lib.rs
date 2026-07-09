@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
     Extension, Router,
 };
 use sqlx::PgPool;
@@ -524,6 +524,7 @@ fn build_router(
         .route("/v1/devices", post(devices::register_device))
         // Alias BR10 : le front appelle `/v1/device-tokens` → même handler.
         .route("/v1/device-tokens", post(devices::register_device))
+        .route("/v1/devices/:token", delete(devices::unregister_device))
         .route("/v1/notifications", get(notifications::list_notifications))
         .route(
             "/v1/notifications/read-all",
