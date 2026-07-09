@@ -1745,6 +1745,8 @@ pub struct ListSlotsQuery {
     pub from: Option<String>,
     pub to: Option<String>,
     pub practitioner_id: Option<Uuid>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 /// `GET /v1/cabinet/slots` — liste les créneaux réservables du cabinet (§13).
@@ -1752,6 +1754,8 @@ pub struct ListSlotsQuery {
 /// Token pro requis (secretary, practitioner, admin, manager). `cabinet_id`
 /// extrait du JWT, RLS scopée via `app.current_cabinet_id` (fail-closed).
 /// Filtres optionnels `from`/`to` (ISO 8601) et `practitioner_id`.
+/// `limit` (défaut 200, max 500) et `offset` bornent le résultat (#3516 :
+/// sans ça l'endpoint renvoyait tous les créneaux du cabinet, ~1.2 Mo/appel).
 pub async fn list_cabinet_slots(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -1765,6 +1769,8 @@ pub async fn list_cabinet_slots(
         .to
         .as_deref()
         .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok());
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
+    let offset: i64 = params.offset.unwrap_or(0).max(0);
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -1781,12 +1787,15 @@ pub async fn list_cabinet_slots(
            AND ($2::timestamptz IS NULL OR starts_at >= $2) \
            AND ($3::timestamptz IS NULL OR starts_at < $3) \
            AND ($4::uuid IS NULL OR practitioner_id = $4) \
-         ORDER BY starts_at",
+         ORDER BY starts_at \
+         LIMIT $5 OFFSET $6",
     )
     .bind(claims.cabinet_id)
     .bind(from)
     .bind(to)
     .bind(params.practitioner_id)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
