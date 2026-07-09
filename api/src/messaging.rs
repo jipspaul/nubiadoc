@@ -165,9 +165,8 @@ pub async fn list_conversations(
             .try_get::<Option<Uuid>, _>("cabinet_id")
             .map_err(|_| AppError::Internal)?
             .unwrap_or(Uuid::nil());
-        let pharmacy_id: Option<Uuid> = row
-            .try_get("pharmacy_id")
-            .map_err(|_| AppError::Internal)?;
+        let pharmacy_id: Option<Uuid> =
+            row.try_get("pharmacy_id").map_err(|_| AppError::Internal)?;
         let conversation_type = if pharmacy_id.is_some() {
             "pharmacy"
         } else {
