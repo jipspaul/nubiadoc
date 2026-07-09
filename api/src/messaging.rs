@@ -24,12 +24,17 @@ pub struct ListConversationsQuery {
     pub cursor: Option<String>,
 }
 
-/// Un fil de messagerie patient ↔ cabinet.
+/// Un fil de messagerie patient ↔ cabinet ou patient ↔ pharmacie.
 #[derive(Serialize)]
 pub struct ConversationItem {
     pub id: Uuid,
     pub cabinet_id: Uuid,
     pub cabinet_name: String,
+    /// `Some(id)` pour un fil pharmacie (scope `patient_pharmacy`), `None` pour un fil cabinet.
+    pub pharmacy_id: Option<Uuid>,
+    /// Discriminant explicite du destinataire : `"cabinet"` ou `"pharmacy"`.
+    #[serde(rename = "type")]
+    pub conversation_type: &'static str,
     /// ISO 8601 UTC du dernier message, ou `null` si aucun message encore.
     pub last_message_at: Option<String>,
     /// Aperçu (tronqué) du dernier message, ou `null` si aucun message.
@@ -91,6 +96,7 @@ pub async fn list_conversations(
              SELECT \
                  c.id, \
                  c.cabinet_id, \
+                 c.pharmacy_id, \
                  COALESCE(cab.raison_sociale, ph.raison_sociale) AS cabinet_name, \
                  (SELECT MAX(m.created_at) FROM message m WHERE m.conversation_id = c.id) \
                      AS last_message_at, \
@@ -105,7 +111,7 @@ pub async fn list_conversations(
              LEFT JOIN cabinet cab ON cab.id = c.cabinet_id \
              LEFT JOIN pharmacy ph ON ph.id = c.pharmacy_id \
          ) \
-         SELECT id, cabinet_id, cabinet_name, last_message_at, last_body, unread_count \
+         SELECT id, cabinet_id, pharmacy_id, cabinet_name, last_message_at, last_body, unread_count \
          FROM conv \
          {cursor_clause} \
          ORDER BY last_message_at DESC NULLS LAST, id DESC \
@@ -159,6 +165,14 @@ pub async fn list_conversations(
             .try_get::<Option<Uuid>, _>("cabinet_id")
             .map_err(|_| AppError::Internal)?
             .unwrap_or(Uuid::nil());
+        let pharmacy_id: Option<Uuid> = row
+            .try_get("pharmacy_id")
+            .map_err(|_| AppError::Internal)?;
+        let conversation_type = if pharmacy_id.is_some() {
+            "pharmacy"
+        } else {
+            "cabinet"
+        };
         let cabinet_name: String = row
             .try_get("cabinet_name")
             .map_err(|_| AppError::Internal)?;
@@ -183,6 +197,8 @@ pub async fn list_conversations(
             id,
             cabinet_id,
             cabinet_name,
+            pharmacy_id,
+            conversation_type,
             last_message_at: lma.map(|dt| dt.to_rfc3339()),
             last_message_preview,
             unread_count,
