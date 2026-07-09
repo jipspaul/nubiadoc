@@ -254,7 +254,7 @@ pub struct MessagesResponse {
 /// - `message_patient_read` (migration 0029) : filtre les messages des fils du patient.
 /// - `conversation_patient_read` (migration 0029) : vérif que le fil appartient au patient.
 ///
-/// Trié par `created_at DESC, id DESC`. Conversation hors tenant → 404.
+/// Trié par `created_at ASC, id ASC` (chronologique, aligné sur le fil cabinet). Conversation hors tenant → 404.
 /// Audit `read_message` (zéro PII) — `cabinet_id` extrait de la conversation.
 pub async fn get_conversation_messages(
     State(state): State<AppState>,
@@ -300,7 +300,7 @@ pub async fn get_conversation_messages(
          FROM message \
          WHERE conversation_id = $1 \
          {cursor_clause} \
-         ORDER BY created_at DESC, id DESC \
+         ORDER BY created_at ASC, id ASC \
          LIMIT $2"
     );
 
