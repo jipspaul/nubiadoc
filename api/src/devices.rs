@@ -1,6 +1,10 @@
 //! Handler `POST /v1/devices` — enregistrement d'un device FCM.
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -84,4 +88,41 @@ pub async fn register_device(
         StatusCode::CREATED,
         Json(RegisterDeviceResponse { id: device_id }),
     ))
+}
+
+/// `DELETE /v1/devices/:token` — désenregistre (soft-delete) le device FCM de l'utilisateur
+/// courant identifié par son token FCM. Appelé au logout pour ne plus recevoir de push.
+/// Idempotent : token inconnu/déjà supprimé → 204 tout de même.
+#[tracing::instrument(skip_all, fields(user_id = %claims.sub))]
+pub async fn unregister_device(
+    State(state): State<AppState>,
+    claims: crate::auth::MeClaims,
+    Path(token): Path<String>,
+) -> Result<StatusCode, AppError> {
+    let user_id = claims.sub;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // RLS device_owner : exige app.current_user_id = app_user_id.
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "UPDATE device SET deleted_at = now() \
+         WHERE app_user_id = $1 AND fcm_token = $2 AND deleted_at IS NULL",
+    )
+    .bind(user_id)
+    .bind(&token)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(user_id = %user_id, "device unregistered");
+
+    Ok(StatusCode::NO_CONTENT)
 }
