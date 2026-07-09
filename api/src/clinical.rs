@@ -415,6 +415,15 @@ fn stub_decrypt(ciphertext: &[u8]) -> Option<String> {
     String::from_utf8(plain).ok()
 }
 
+/// Inverse du stub chiffrement `medical_record` (voir `medical_record.rs::encrypt_stub`) :
+/// pas de XOR, seulement le strip du préfixe `STUB_ENC:` — la valeur chiffrée est déjà
+/// le JSON en clair préfixé.
+fn stub_decrypt_medical_record(ciphertext: &[u8]) -> Option<String> {
+    let prefix = b"STUB_ENC:";
+    let payload = ciphertext.strip_prefix(prefix.as_ref())?;
+    String::from_utf8(payload.to_vec()).ok()
+}
+
 /// `GET /v1/cabinet/patients/:id/notes` — liste paginée (cursor) des notes cliniques.
 ///
 /// Praticien uniquement (R.4127-72) — secrétaire → 403.
@@ -881,9 +890,9 @@ pub async fn get_cabinet_patient(
             .map_err(|_| AppError::Internal)?;
         let updated_at: chrono::DateTime<chrono::Utc> =
             mr.try_get("updated_at").map_err(|_| AppError::Internal)?;
-        // Stub déchiffrement : préfixe "STUB_DEC:" — AES-256-GCM KMS à NUB-T3 (ADR-009).
+        // Stub déchiffrement — AES-256-GCM KMS à NUB-T3 (ADR-009).
         let data = ciphertext
-            .map(|b| format!("STUB_DEC:{}", base64_encode(&b)))
+            .and_then(|b| stub_decrypt_medical_record(&b))
             .unwrap_or_default();
         Some(MedicalRecordSection {
             id: mr_id,
@@ -918,7 +927,7 @@ pub async fn get_cabinet_patient(
         let note_created_at: chrono::DateTime<chrono::Utc> =
             nr.try_get("created_at").map_err(|_| AppError::Internal)?;
         // Stub déchiffrement.
-        let text = format!("STUB_DEC:{}", base64_encode(&ciphertext));
+        let text = stub_decrypt(&ciphertext).unwrap_or_default();
         notes.push(ClinicalNoteSummary {
             id: nid,
             note_kind,
@@ -959,31 +968,6 @@ pub async fn get_cabinet_patient(
             notes,
         },
     )))
-}
-
-/// Encodage base64 minimal pour le stub de déchiffrement.
-fn base64_encode(bytes: &[u8]) -> String {
-    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let b0 = chunk[0] as usize;
-        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
-        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
-        let n = (b0 << 16) | (b1 << 8) | b2;
-        out.push(TABLE[(n >> 18) & 63] as char);
-        out.push(TABLE[(n >> 12) & 63] as char);
-        if chunk.len() > 1 {
-            out.push(TABLE[(n >> 6) & 63] as char);
-        } else {
-            out.push('=');
-        }
-        if chunk.len() > 2 {
-            out.push(TABLE[n & 63] as char);
-        } else {
-            out.push('=');
-        }
-    }
-    out
 }
 
 // ── GET /v1/cabinet/patients/:id/documents ───────────────────────────────────
