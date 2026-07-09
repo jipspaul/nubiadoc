@@ -22,6 +22,8 @@ class _MockAdminMembresBloc
     extends MockBloc<AdminMembresEvent, AdminMembresState>
     implements AdminMembresBloc {}
 
+class _FakeAdminMembresEvent extends Fake implements AdminMembresEvent {}
+
 void main() {
   // --- Cloisonnement invariant --------------------------------------------------
   group('ProConfig — cloisonnement', () {
@@ -274,6 +276,10 @@ void main() {
   group('AdminMembresPage', () {
     late _MockAdminMembresBloc bloc;
 
+    setUpAll(() {
+      registerFallbackValue(_FakeAdminMembresEvent());
+    });
+
     setUp(() {
       bloc = _MockAdminMembresBloc();
     });
@@ -384,6 +390,99 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('add_member_fab')), findsOneWidget);
+    });
+
+    Future<void> submitInviteViaFab(WidgetTester tester) async {
+      await tester.tap(find.byKey(const Key('add_member_fab')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('invite_email_field')),
+        'nouveau@cabinet.fr',
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('invite_submit_button')));
+      await tester.pump();
+    }
+
+    testWidgets(
+        'échec de l\'invitation (réel, pas stub) : affiche l\'état d\'erreur',
+        (tester) async {
+      whenListen(
+        bloc,
+        Stream.fromIterable([
+          const AdminMembresLoading(),
+          const AdminMembresError('Impossible d\'inviter le membre.'),
+        ]),
+        initialState: const AdminMembresLoaded(members: [], secretariats: []),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await submitInviteViaFab(tester);
+      await tester.pumpAndSettle();
+
+      verify(
+        () => bloc.add(
+          any(
+            that: isA<AdminMembresInviteRequested>()
+                .having((e) => e.email, 'email', 'nouveau@cabinet.fr')
+                .having((e) => e.role, 'role', MemberRole.secretary),
+          ),
+        ),
+      ).called(1);
+
+      expect(find.text('Impossible d\'inviter le membre.'), findsOneWidget);
+      expect(find.text('Invitation envoyée.'), findsNothing);
+    });
+
+    testWidgets(
+        'succès réel de l\'invitation (pas stub) : SnackBar puis liste rechargée',
+        (tester) async {
+      final reloadedMembers = [
+        Member(
+          id: 'm1',
+          cabinetId: 'c1',
+          firstName: 'Sophie',
+          lastName: 'Martin',
+          email: 'sophie@example.com',
+          role: MemberRole.secretary,
+          isActive: true,
+          joinedAt: DateTime(2026, 1, 1),
+        ),
+      ];
+
+      whenListen(
+        bloc,
+        Stream.fromIterable([
+          const AdminMembresLoading(),
+          const AdminMembresInviteSuccess(),
+          const AdminMembresLoading(),
+          AdminMembresLoaded(members: reloadedMembers, secretariats: const []),
+        ]),
+        initialState: const AdminMembresLoaded(members: [], secretariats: []),
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await submitInviteViaFab(tester);
+      await tester.pumpAndSettle();
+
+      verify(
+        () => bloc.add(
+          any(
+            that: isA<AdminMembresInviteRequested>()
+                .having((e) => e.email, 'email', 'nouveau@cabinet.fr')
+                .having((e) => e.role, 'role', MemberRole.secretary),
+          ),
+        ),
+      ).called(1);
+
+      expect(find.text('Invitation envoyée.'), findsOneWidget);
+      expect(find.text('Sophie Martin'), findsOneWidget);
     });
   });
 }
