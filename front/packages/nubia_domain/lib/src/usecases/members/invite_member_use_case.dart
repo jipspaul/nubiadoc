@@ -8,6 +8,11 @@ class InviteMemberUseCase {
 
   const InviteMemberUseCase(this._repository);
 
-  Future<Either<Failure, Member>> call(String email, MemberRole role) =>
-      _repository.invite(email, role);
+  Future<Either<Failure, Member>> call(
+    String email,
+    MemberRole role,
+    String firstName,
+    String lastName,
+  ) =>
+      _repository.invite(email, role, firstName, lastName);
 }

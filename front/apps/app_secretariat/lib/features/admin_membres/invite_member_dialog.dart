@@ -10,20 +10,33 @@ class InviteMemberDialog extends StatefulWidget {
 
 class _InviteMemberDialogState extends State<InviteMemberDialog> {
   final _emailController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   MemberRole _role = MemberRole.secretary;
   bool _emailValid = false;
+  bool _firstNameValid = false;
+  bool _lastNameValid = false;
 
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  bool get _formValid => _emailValid && _firstNameValid && _lastNameValid;
 
   @override
   void dispose() {
     _emailController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     super.dispose();
   }
 
   void _onInviter() {
     Navigator.of(context).pop(
-      (email: _emailController.text.trim(), role: _role),
+      (
+        email: _emailController.text.trim(),
+        role: _role,
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+      ),
     );
   }
 
@@ -34,6 +47,28 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          TextField(
+            key: const Key('invite_first_name_field'),
+            controller: _firstNameController,
+            decoration: const InputDecoration(
+              labelText: 'Prénom',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) =>
+                setState(() => _firstNameValid = v.trim().isNotEmpty),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            key: const Key('invite_last_name_field'),
+            controller: _lastNameController,
+            decoration: const InputDecoration(
+              labelText: 'Nom',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) =>
+                setState(() => _lastNameValid = v.trim().isNotEmpty),
+          ),
+          const SizedBox(height: 16),
           TextField(
             key: const Key('invite_email_field'),
             controller: _emailController,
@@ -77,7 +112,7 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
         ),
         ElevatedButton(
           key: const Key('invite_submit_button'),
-          onPressed: _emailValid ? _onInviter : null,
+          onPressed: _formValid ? _onInviter : null,
           child: const Text('Inviter'),
         ),
       ],
