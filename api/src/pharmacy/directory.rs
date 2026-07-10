@@ -41,8 +41,9 @@ pub struct SearchPharmaciesResponse {
 /// `pharmacy_public_read` ne laisse passer que `is_listed AND deleted_at IS NULL`
 /// (aucun GUC posé) ; le filtre est répété dans le WHERE en défense en profondeur.
 ///
-/// Filtres : `q` (raison sociale, ville ou code postal, insensible à la casse),
-/// `lat`+`lng` (tri par distance, PostGIS) et `radius_km` (borne la recherche).
+/// Filtres : `q` (raison sociale, ville ou code postal, insensible à la casse
+/// ET aux accents — cf. `search_ccam_acts`, #3578), `lat`+`lng` (tri par
+/// distance, PostGIS) et `radius_km` (borne la recherche).
 /// `422` si `lat`/`lng` sont fournis l'un sans l'autre ou si `radius_km` est
 /// fourni sans point.
 pub async fn search_pharmacies(
@@ -57,6 +58,13 @@ pub async fn search_pharmacies(
 
     let radius_m: Option<f64> = params.radius_km.map(|r| r * 1000.0);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 50);
+    // q normalisée (trim + minuscules) ; la normalisation des accents se fait
+    // en SQL via translate(), même pattern que search_ccam_acts (#3226).
+    let q = params
+        .q
+        .as_deref()
+        .map(|s| s.trim().to_lowercase())
+        .filter(|q| !q.is_empty());
 
     // $1=lat  $2=lng  $3=radius_m  $4=q  $5=limit
     let rows = sqlx::query(
@@ -67,8 +75,10 @@ pub async fn search_pharmacies(
          FROM pharmacy \
          WHERE is_listed AND deleted_at IS NULL \
            AND ($4::text IS NULL \
-                OR raison_sociale ILIKE '%' || $4 || '%' \
-                OR address->>'city' ILIKE '%' || $4 || '%' \
+                OR translate(lower(raison_sociale), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                OR translate(lower(address->>'city'), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
                 OR address->>'postal_code' ILIKE '%' || $4 || '%') \
            AND ($3::float8 IS NULL \
                 OR (geo IS NOT NULL \
@@ -79,7 +89,7 @@ pub async fn search_pharmacies(
     .bind(params.lat) // $1
     .bind(params.lng) // $2
     .bind(radius_m) // $3
-    .bind(params.q.as_deref().filter(|q| !q.trim().is_empty())) // $4
+    .bind(q.as_deref()) // $4
     .bind(per_page) // $5
     .fetch_all(&state.db)
     .await
