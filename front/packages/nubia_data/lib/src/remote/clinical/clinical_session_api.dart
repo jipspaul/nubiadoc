@@ -92,6 +92,17 @@ class ClinicalSessionApi {
     );
   }
 
+  /// PUT /v1/cabinet/consultations/{consultationId}/note
+  Future<void> saveNote({
+    required String consultationId,
+    required String note,
+  }) async {
+    await _dio.put<Map<String, dynamic>>(
+      '/cabinet/consultations/$consultationId/note',
+      data: {'note': note},
+    );
+  }
+
   /// POST /v1/cabinet/consultations/{consultationId}/complete
   Future<SessionCompleteResult> completeSession(String consultationId) async {
     final response = await _dio.post<Map<String, dynamic>>(

@@ -118,12 +118,44 @@ class ConsultationCliniquePage extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _LoadedView extends StatelessWidget {
+class _LoadedView extends StatefulWidget {
   const _LoadedView({required this.state});
   final ConsultationCliniqueLoaded state;
 
   @override
+  State<_LoadedView> createState() => _LoadedViewState();
+}
+
+class _LoadedViewState extends State<_LoadedView> {
+  late final TextEditingController _noteController;
+
+  @override
+  void initState() {
+    super.initState();
+    _noteController = TextEditingController(text: widget.state.session.note);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LoadedView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Ne resynchronise le champ que si la note vient réellement de changer
+    // côté serveur (ex. rechargement après enregistrement) : évite d'écraser
+    // une saisie en cours à chaque rebuild de séance (ex. ajout d'acte).
+    if (widget.state.session.note != oldWidget.state.session.note &&
+        widget.state.session.note != _noteController.text) {
+      _noteController.text = widget.state.session.note ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final session = state.session;
     final textTheme = Theme.of(context).textTheme;
     final totalCents = session.acts.fold<int>(
@@ -181,6 +213,43 @@ class _LoadedView extends StatelessWidget {
                       : () => context.read<ConsultationCliniqueBloc>().add(
                             const ConsultationCliniqueCompleteRequested(),
                           ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: NubiaCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Note de séance', style: textTheme.titleSmall),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('consultation_note_field'),
+                  controller: _noteController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Observations cliniques...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: NubiaButton(
+                    key: const Key('save_note_button'),
+                    size: NubiaButtonSize.sm,
+                    icon: Icons.save_outlined,
+                    label: 'Enregistrer la note',
+                    onPressed: state.actionInProgress
+                        ? null
+                        : () => context.read<ConsultationCliniqueBloc>().add(
+                              ConsultationCliniqueNoteSaveRequested(
+                                  _noteController.text),
+                            ),
+                  ),
                 ),
               ],
             ),

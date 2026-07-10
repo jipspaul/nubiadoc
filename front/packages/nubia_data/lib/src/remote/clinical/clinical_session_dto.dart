@@ -41,6 +41,7 @@ class ClinicalSessionDto {
   final String appointmentId;
   final String status;
   final List<ClinicalActDto> acts;
+  final String? note;
   final String? patientName;
   final String? startedAt;
 
@@ -54,6 +55,7 @@ class ClinicalSessionDto {
     required this.appointmentId,
     required this.status,
     required this.acts,
+    this.note,
     this.patientName,
     this.startedAt,
     this.practitionerName,
@@ -69,6 +71,7 @@ class ClinicalSessionDto {
         acts: (json['acts'] as List<dynamic>? ?? [])
             .map((e) => ClinicalActDto.fromJson(e as Map<String, dynamic>))
             .toList(),
+        note: json['note'] as String?,
         patientName: json['patient_name'] as String?,
         startedAt: json['started_at'] as String?,
         practitionerName: (json['practitioner']
@@ -80,6 +83,7 @@ class ClinicalSessionDto {
         appointmentId: appointmentId,
         status: status,
         acts: acts.map((a) => a.toDomain()).toList(),
+        note: note,
         patientName: patientName,
         startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
         practitionerName: practitionerName,
