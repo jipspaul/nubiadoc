@@ -18,7 +18,7 @@ class NotificationApi {
   }
 
   Future<void> markRead(String notificationId) async {
-    await _dio.patch<void>('/notifications/$notificationId/read');
+    await _dio.post<void>('/notifications/$notificationId/read');
   }
 
   Future<void> markAllRead() async {
