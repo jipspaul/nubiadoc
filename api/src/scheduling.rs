@@ -1804,6 +1804,7 @@ pub async fn list_cabinet_slots(
         "SELECT id, cabinet_id, practitioner_id, starts_at, ends_at, status \
          FROM availability_slot \
          WHERE cabinet_id = $1 \
+           AND deleted_at IS NULL \
            AND ($2::timestamptz IS NULL OR starts_at >= $2) \
            AND ($3::timestamptz IS NULL OR starts_at < $3) \
            AND ($4::uuid IS NULL OR practitioner_id = $4) \
