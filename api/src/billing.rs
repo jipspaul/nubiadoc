@@ -864,6 +864,7 @@ pub struct CreateCabinetQuoteResponse {
 /// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403, patient → 403.
 /// - `cabinet_id` extrait du JWT.
 /// - `items` vide → 422.
+/// - `amount_cents` de chaque ligne doit être `> 0` → 422 sinon.
 /// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
 /// - `total_amount` calculé depuis les items (`sum(amount_cents) / 100`).
 /// - Insert `quote` + N `quote_item` dans une transaction RLS-scopée.
@@ -874,6 +875,9 @@ pub async fn create_cabinet_quote(
     Json(body): Json<CreateCabinetQuoteBody>,
 ) -> Result<(StatusCode, Json<CreateCabinetQuoteResponse>), AppError> {
     if body.items.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    if body.items.iter().any(|i| i.amount_cents <= 0) {
         return Err(AppError::ValidationError);
     }
     if let Some(pct) = body.deposit_pct {
