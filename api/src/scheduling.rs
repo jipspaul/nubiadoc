@@ -1747,6 +1747,10 @@ pub struct ListSlotsQuery {
     pub practitioner_id: Option<Uuid>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    /// Capté uniquement pour rejeter explicitement `?page` (non supporté ici :
+    /// cet endpoint pagine via `limit`/`offset`). Avant #3521 le param était
+    /// désérialisé dans le néant et ignoré silencieusement.
+    pub page: Option<String>,
 }
 
 /// `GET /v1/cabinet/slots` — liste les créneaux réservables du cabinet (§13).
@@ -1761,6 +1765,9 @@ pub async fn list_cabinet_slots(
     claims: ProSecretaryPlusClaims,
     Query(params): Query<ListSlotsQuery>,
 ) -> Result<Json<Vec<CabinetSlotListItem>>, AppError> {
+    if params.page.is_some() {
+        return Err(AppError::UnsupportedPageParam);
+    }
     let from = params
         .from
         .as_deref()

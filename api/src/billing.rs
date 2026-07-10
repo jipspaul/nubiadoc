@@ -1005,6 +1005,13 @@ pub async fn billing_confirm_signature(
 #[derive(Deserialize)]
 pub struct ListCabinetQuotesQuery {
     pub status: Option<String>,
+    /// `limit` (défaut 200, max 500) et `offset` bornent le résultat (#3521 :
+    /// avant, l'endpoint renvoyait tous les devis du cabinet en tableau nu).
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    /// Capté uniquement pour rejeter explicitement `?page` (non supporté ici :
+    /// pagination via `limit`/`offset`). Avant #3521 : ignoré silencieusement.
+    pub page: Option<String>,
 }
 
 /// Un devis vu du cabinet. `total_amount` en **centimes** (conventions doc12 §1.7).
@@ -1028,6 +1035,12 @@ pub async fn list_cabinet_quotes(
     claims: crate::auth::ProSecretaryPlusClaims,
     Query(params): Query<ListCabinetQuotesQuery>,
 ) -> Result<Json<Vec<CabinetQuoteItem>>, AppError> {
+    if params.page.is_some() {
+        return Err(AppError::UnsupportedPageParam);
+    }
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
+    let offset: i64 = params.offset.unwrap_or(0).max(0);
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1045,19 +1058,25 @@ pub async fn list_cabinet_quotes(
 
     let rows = if let Some(ref status) = params.status {
         sqlx::query(&format!(
-            "{base_sql} AND q.status = $2 ORDER BY q.created_at DESC"
+            "{base_sql} AND q.status = $2 ORDER BY q.created_at DESC LIMIT $3 OFFSET $4"
         ))
         .bind(claims.cabinet_id)
         .bind(status)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?
     } else {
-        sqlx::query(&format!("{base_sql} ORDER BY q.created_at DESC"))
-            .bind(claims.cabinet_id)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?
+        sqlx::query(&format!(
+            "{base_sql} ORDER BY q.created_at DESC LIMIT $2 OFFSET $3"
+        ))
+        .bind(claims.cabinet_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
     };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;

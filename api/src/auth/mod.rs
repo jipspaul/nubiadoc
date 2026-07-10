@@ -143,6 +143,10 @@ pub(crate) enum AppError {
     InvitationInvalid,
     AlreadyOrdered,
     IdempotencyKeyConflict,
+    /// Param de pagination non supporté par cet endpoint (ex: `?page` sur une
+    /// liste qui pagine via `limit`/`offset`). Renvoie un 400 explicite plutôt
+    /// que d'ignorer silencieusement le paramètre (#3521).
+    UnsupportedPageParam,
 }
 
 impl IntoResponse for AppError {
@@ -299,6 +303,15 @@ impl IntoResponse for AppError {
             AppError::IdempotencyKeyConflict => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "idempotency_key_conflict"})),
+            )
+                .into_response(),
+            AppError::UnsupportedPageParam => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "code": "unsupported_pagination_param",
+                    "message": "Le paramètre `page` n'est pas supporté sur cet endpoint ; \
+                                utilisez `limit` et `offset` pour paginer.",
+                })),
             )
                 .into_response(),
         }
