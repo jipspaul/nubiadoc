@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use axum::{
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
     routing::{delete, get, patch, post, put},
-    Extension, Router,
+    Extension, Json, Router,
 };
+use serde_json::json;
 use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
@@ -733,7 +736,50 @@ fn build_router(
             std::env::var("GOCARDLESS_WEBHOOK_SECRET").unwrap_or_default(),
         )))
         .layer(dev_cors_layer())
+        .layer(axum::middleware::map_response(normalize_extractor_rejections))
         .with_state(state)
+}
+
+/// Uniformise le contrat d'erreur (#3518).
+///
+/// Les extracteurs axum (`Path<Uuid>`, `Json<T>`, …) renvoient par défaut leur
+/// rejet en **texte brut** exposant les internes du parseur/serde (ex.
+/// « Invalid URL: UUID parsing failed… », « Failed to deserialize the JSON
+/// body… »). On réécrit ces réponses en l'enveloppe JSON standard
+/// `{"code": …}` cohérente avec `AppError`, sans toucher aux handlers.
+///
+/// Les réponses déjà en `application/json` (donc celles émises par `AppError`)
+/// sont laissées intactes : seul le corps `text/plain` des rejets par défaut
+/// est normalisé. Le code HTTP d'origine est préservé.
+async fn normalize_extractor_rejections(resp: Response) -> Response {
+    let status = resp.status();
+    // On ne cible que les statuts émis par les rejets d'extracteurs.
+    let is_extractor_status = matches!(
+        status,
+        StatusCode::BAD_REQUEST
+            | StatusCode::UNPROCESSABLE_ENTITY
+            | StatusCode::UNSUPPORTED_MEDIA_TYPE
+            | StatusCode::LENGTH_REQUIRED
+            | StatusCode::PAYLOAD_TOO_LARGE
+    );
+    if !is_extractor_status {
+        return resp;
+    }
+    // Réponse déjà JSON (contrat respecté, typiquement `AppError`) → on ne touche pas.
+    let already_json = resp
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("application/json"));
+    if already_json {
+        return resp;
+    }
+    let code = if status == StatusCode::UNPROCESSABLE_ENTITY {
+        "validation_error"
+    } else {
+        "bad_request"
+    };
+    (status, Json(json!({ "code": code }))).into_response()
 }
 
 /// CORS permissif — strictement réservé au dev/POC local (web-console sur :4321,
