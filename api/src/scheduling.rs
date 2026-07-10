@@ -757,10 +757,15 @@ pub async fn offer_waiting_list_slot(
     axum::extract::Path(entry_id): axum::extract::Path<Uuid>,
     Json(body): Json<OfferSlotBody>,
 ) -> Result<Json<OfferSlotResponse>, AppError> {
-    // Valide le format de la date proposée avant toute requête DB.
-    body.proposed_at
+    // Valide le format de la date proposée, et qu'elle est bien dans le futur
+    // (même règle que la création de RDV, `appointments.rs::create_appointment`).
+    let proposed_at = body
+        .proposed_at
         .parse::<chrono::DateTime<chrono::Utc>>()
         .map_err(|_| AppError::ValidationError)?;
+    if proposed_at <= chrono::Utc::now() + chrono::Duration::minutes(5) {
+        return Err(AppError::ValidationError);
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
