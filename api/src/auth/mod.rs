@@ -142,6 +142,7 @@ pub(crate) enum AppError {
     StartAtNotFuture,
     InvitationInvalid,
     AlreadyOrdered,
+    IdempotencyKeyConflict,
 }
 
 impl IntoResponse for AppError {
@@ -293,6 +294,11 @@ impl IntoResponse for AppError {
             AppError::AlreadyOrdered => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "already_ordered"})),
+            )
+                .into_response(),
+            AppError::IdempotencyKeyConflict => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "idempotency_key_conflict"})),
             )
                 .into_response(),
         }
