@@ -1205,7 +1205,7 @@ pub async fn callback_appointment(
 /// Réponse de `GET /v1/appointments/:id/queue`.
 #[derive(Serialize)]
 pub struct QueueResponse {
-    pub position: i64,
+    pub position: Option<i64>,
     pub est_wait_min: Option<i64>,
     pub status: String,
 }
@@ -1216,8 +1216,9 @@ pub struct QueueResponse {
 /// `position` = nombre de rendez-vous antérieurs (checkin_at < le nôtre) pour le même praticien
 /// avec status `checked_in` ou `in_progress`, bornés à la file DU JOUR (`starts_at` du jour courant),
 /// comme la waiting-room (`scheduling::get_waiting_room`).
-/// `est_wait_min` = position × 15 (estimation forfaitaire, 15 min par patient).
-/// Si le patient n'est pas encore checké, retourne le total de la file comme `position`.
+/// `est_wait_min` reste `null` (pas d'estimation de temps d'attente en MVP).
+/// Si le patient n'est pas encore checké (`status` ni `checked_in` ni `in_progress`), `position`
+/// vaut `null` et `status` vaut `"not_checked_in"` : le patient n'est pas dans la file d'attente.
 pub async fn get_appointment_queue(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -1312,16 +1313,25 @@ pub async fn get_appointment_queue(
     let position_1 = position + 1;
 
     // Mapping statut DB → statut file spec §7 :
-    //   in_progress → "in_progress" (patient appelé, en consultation)
-    //   checked_in  → "waiting"     (en salle d'attente)
-    //   sinon       → "waiting"     (pas encore checké)
+    //   in_progress → "in_progress"   (patient appelé, en consultation)
+    //   checked_in  → "waiting"       (en salle d'attente)
+    //   sinon       → "not_checked_in" (pas encore en salle d'attente : confirmed/requested/
+    //                                   cancelled/no_show/completed, etc.)
     let queue_status = match status.as_str() {
         "in_progress" => "in_progress",
-        _ => "waiting",
+        "checked_in" => "waiting",
+        _ => "not_checked_in",
+    };
+
+    // Un RDV non checké n'a pas sa place dans la file : pas de position.
+    let position_out = if queue_status == "not_checked_in" {
+        None
+    } else {
+        Some(position_1)
     };
 
     Ok(Json(QueueResponse {
-        position: position_1,
+        position: position_out,
         est_wait_min: None,
         status: queue_status.to_string(),
     }))
