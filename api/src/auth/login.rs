@@ -124,7 +124,10 @@ pub async fn login(
         .map_err(|_| AppError::Internal)?;
     let totp_secret: Option<String> = row.try_get("totp_secret").map_err(|_| AppError::Internal)?;
 
-    let parsed_hash = PasswordHash::new(&password_hash).map_err(|_| AppError::Internal)?;
+    // Un hash mal formé en base (ex. comptes seed 'SEED_PLACEHOLDER') ne doit
+    // pas fuiter d'information : on le traite comme un échec d'auth (401 neutre),
+    // exactement comme un mot de passe faux, et non comme une erreur 500.
+    let parsed_hash = PasswordHash::new(&password_hash).map_err(|_| AppError::Unauthenticated)?;
     Argon2::default()
         .verify_password(body.password.as_bytes(), &parsed_hash)
         .map_err(|_| AppError::Unauthenticated)?;
