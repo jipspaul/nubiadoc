@@ -2859,6 +2859,10 @@ pub async fn put_account_consent(
     Path(purpose): Path<String>,
     Json(body): Json<PutConsentBody>,
 ) -> Result<Json<ConsentUpdateResponse>, AppError> {
+    if !["soins", "ia_scribe", "marketing", "partage_confrere"].contains(&purpose.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
