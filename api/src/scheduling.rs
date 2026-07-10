@@ -1033,6 +1033,7 @@ pub struct CabinetAppointmentItem {
     pub motif_admin: Option<String>,
     /// Horodatage de la demande de rappel patient (`POST .../callback-request`), si présente.
     pub callback_requested_at: Option<String>,
+    pub patient_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1073,7 +1074,7 @@ pub async fn get_cabinet_appointments(
 
     // R10 : clause supplémentaire pour les secrétaires — filtre sur les praticiens du secrétariat.
     // Le placeholder du secrétariat dépend du nombre de binds posés par la branche
-    // appelante ; la colonne du RDV doit être qualifiée (`appointment.`), sinon
+    // appelante ; la colonne du RDV doit être qualifiée (`a.`), sinon
     // `practitioner_id` se résout sur `pr` et la clause est une tautologie.
     let mk_sec_filter = |n: usize| -> String {
         if claims.role == "secretary" {
@@ -1081,7 +1082,7 @@ pub async fn get_cabinet_appointments(
                 " AND EXISTS ( \
                      SELECT 1 FROM provider pr \
                      JOIN provider_secretariat ps ON ps.provider_id = pr.id \
-                     WHERE pr.practitioner_id = appointment.practitioner_id \
+                     WHERE pr.practitioner_id = a.practitioner_id \
                        AND ps.secretariat_id = ${n} \
                        AND ps.active = true \
                  )"
@@ -1110,13 +1111,15 @@ pub async fn get_cabinet_appointments(
     let rows = match (&params.status, &date_filter) {
         (Some(status), Some((ds, de))) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1 \
-                   AND status = $2 \
-                   AND starts_at >= $3 AND starts_at < $4{} \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.cabinet_id = $1 \
+                   AND a.status = $2 \
+                   AND a.starts_at >= $3 AND a.starts_at < $4{} \
+                 ORDER BY a.starts_at",
                 mk_sec_filter(5),
             );
             let q = sqlx::query(&sql)
@@ -1132,12 +1135,14 @@ pub async fn get_cabinet_appointments(
 
         (Some(status), None) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1 \
-                   AND status = $2{} \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.cabinet_id = $1 \
+                   AND a.status = $2{} \
+                 ORDER BY a.starts_at",
                 mk_sec_filter(3),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(status);
@@ -1149,12 +1154,14 @@ pub async fn get_cabinet_appointments(
 
         (None, Some((ds, de))) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1 \
-                   AND starts_at >= $2 AND starts_at < $3{} \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.cabinet_id = $1 \
+                   AND a.starts_at >= $2 AND a.starts_at < $3{} \
+                 ORDER BY a.starts_at",
                 mk_sec_filter(4),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(ds).bind(de);
@@ -1166,11 +1173,13 @@ pub async fn get_cabinet_appointments(
 
         (None, None) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1{} \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.cabinet_id = $1{} \
+                 ORDER BY a.starts_at",
                 mk_sec_filter(2),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id);
@@ -1202,6 +1211,9 @@ pub async fn get_cabinet_appointments(
         let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
             .try_get("callback_requested_at")
             .map_err(|_| AppError::Internal)?;
+        let patient_name: Option<String> = row
+            .try_get("patient_name")
+            .map_err(|_| AppError::Internal)?;
         data.push(CabinetAppointmentItem {
             id,
             practitioner_id,
@@ -1211,6 +1223,7 @@ pub async fn get_cabinet_appointments(
             status,
             motif_admin,
             callback_requested_at: callback_requested_at.map(|ts| ts.to_rfc3339()),
+            patient_name,
         });
     }
 
