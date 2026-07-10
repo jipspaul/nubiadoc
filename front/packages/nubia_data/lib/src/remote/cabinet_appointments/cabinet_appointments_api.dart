@@ -74,7 +74,7 @@ class CabinetAppointmentsApi {
   Future<CabinetAppointmentDto> reschedule(
       String id, DateTime newStartsAt) async {
     final response = await _dio.patch<Map<String, dynamic>>(
-      '/cabinet/appointments/$id/reschedule',
+      '/cabinet/appointments/$id',
       data: {'starts_at': newStartsAt.toIso8601String()},
     );
     return CabinetAppointmentDto.fromJson(response.data!);
