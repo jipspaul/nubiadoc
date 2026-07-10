@@ -52,7 +52,7 @@ pub async fn patch_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, starts_at, status, cabinet_id \
+        "SELECT id, starts_at, status, cabinet_id, practitioner_id \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -67,6 +67,9 @@ pub async fn patch_appointment(
         row.try_get("starts_at").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
 
     if status != "requested" && status != "confirmed" {
         return Err(AppError::InvalidStatus);
@@ -83,6 +86,31 @@ pub async fn patch_appointment(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    // Nouveau starts_at (s'il diffère du starts_at courant) : doit être dans le futur
+    // ET correspondre à un créneau d'ouverture réel du praticien, exactement comme
+    // POST /v1/bookings exige un availability_slot réel via hold_token (#3558). Sans
+    // ce garde, un PATCH acceptait n'importe quel starts_at (passé, hors ouverture).
+    if let Some(new_dt) = new_starts_at.filter(|dt| *dt != starts_at) {
+        validate_appointment_payload(new_dt)?;
+
+        let slot_row = sqlx::query(
+            "SELECT id FROM availability_slot \
+             WHERE practitioner_id = $1 AND cabinet_id = $2 AND starts_at = $3 \
+               AND status = 'open' AND deleted_at IS NULL \
+             LIMIT 1",
+        )
+        .bind(practitioner_id)
+        .bind(cabinet_id)
+        .bind(new_dt)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if slot_row.is_none() {
+            return Err(AppError::SlotUnavailable);
+        }
+    }
 
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
     let result = sqlx::query(
