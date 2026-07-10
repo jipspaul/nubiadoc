@@ -3527,6 +3527,12 @@ pub async fn patch_account_dependent(
         None => None,
     };
 
+    if let Some(ref rel) = body.relationship {
+        if !["enfant", "conjoint", "parent", "autre"].contains(&rel.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
