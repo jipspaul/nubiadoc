@@ -29,6 +29,12 @@ abstract class ClinicalSessionRepository {
   Future<Either<Failure, SessionCompleteResult>> completeSession(
       String consultationId);
 
+  /// PUT /v1/cabinet/consultations/{id}/note
+  Future<Either<Failure, void>> saveNote({
+    required String consultationId,
+    required String note,
+  });
+
   /// GET /v1/cabinet/consultations — historique des séances du cabinet (#3232).
   /// Résumés sans actes ni note clinique (le détail passe par [getSession]).
   Future<Either<Failure, List<ClinicalSession>>> listSessions({

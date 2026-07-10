@@ -410,6 +410,7 @@ void _registerClinical(GetIt gi) {
     ..registerFactory(() => GetSessionUseCase(gi()))
     ..registerFactory(() => ListClinicalSessionsUseCase(gi()))
     ..registerFactory(() => RemoveActUseCase(gi()))
+    ..registerFactory(() => SaveNoteUseCase(gi()))
     ..registerFactory(() => StartSessionUseCase(gi()))
     // prescription use cases
     ..registerFactory(() => CreatePrescriptionUseCase(gi()))
