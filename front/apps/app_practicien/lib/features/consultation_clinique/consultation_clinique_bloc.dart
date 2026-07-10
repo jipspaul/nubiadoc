@@ -12,20 +12,24 @@ class ConsultationCliniqueBloc
   final AddActUseCase _addAct;
   final CompleteSessionUseCase _completeSession;
   final ListClinicalSessionsUseCase _listSessions;
+  final SaveNoteUseCase _saveNote;
 
   ConsultationCliniqueBloc({
     required GetSessionUseCase getSession,
     required AddActUseCase addAct,
     required CompleteSessionUseCase completeSession,
     required ListClinicalSessionsUseCase listSessions,
+    required SaveNoteUseCase saveNote,
   })  : _getSession = getSession,
         _addAct = addAct,
         _completeSession = completeSession,
         _listSessions = listSessions,
+        _saveNote = saveNote,
         super(const ConsultationCliniqueInitial()) {
     on<ConsultationCliniqueLoadRequested>(_onLoad);
     on<ConsultationCliniqueActAddRequested>(_onActAdd);
     on<ConsultationCliniqueCompleteRequested>(_onComplete);
+    on<ConsultationCliniqueNoteSaveRequested>(_onNoteSave);
     on<ConsultationHistoriqueRequested>(_onHistoriqueLoad);
     on<ConsultationCliniqueActionErrorConsumed>((event, emit) {
       final current = state;
@@ -76,6 +80,36 @@ class ConsultationCliniqueBloc
         )),
         // #3401 — recharge la séance après un ajout réussi pour rafraîchir la
         // liste des actes et le total (sinon l'écran reste « 0 acte · 0.00 € »).
+        (_) async {
+          final reload = await _getSession(current.session.id);
+          reload.fold(
+            (_) => safeEmit(current.copyWith(actionInProgress: false)),
+            (s) => safeEmit(ConsultationCliniqueLoaded(session: s)),
+          );
+        },
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(actionInProgress: false));
+    }
+  }
+
+  Future<void> _onNoteSave(
+    ConsultationCliniqueNoteSaveRequested event,
+    Emitter<ConsultationCliniqueState> emit,
+  ) async {
+    final current = state;
+    if (current is! ConsultationCliniqueLoaded) return;
+    emit(current.copyWith(actionInProgress: true));
+    try {
+      final result = await _saveNote(
+        consultationId: current.session.id,
+        note: event.note,
+      );
+      await result.fold(
+        (failure) async => safeEmit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
         (_) async {
           final reload = await _getSession(current.session.id);
           reload.fold(

@@ -87,6 +87,7 @@ void registerPro(GetIt gi) {
       addAct: gi<AddActUseCase>(),
       completeSession: gi<CompleteSessionUseCase>(),
       listSessions: gi<ListClinicalSessionsUseCase>(),
+      saveNote: gi<SaveNoteUseCase>(),
     ),
   );
 

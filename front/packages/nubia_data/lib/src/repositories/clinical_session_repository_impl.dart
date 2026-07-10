@@ -160,6 +160,33 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
   }
 
   @override
+  Future<Either<Failure, void>> saveNote({
+    required String consultationId,
+    required String note,
+  }) async {
+    try {
+      await _api.saveNote(consultationId: consultationId, note: note);
+      return const Right(null);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (e.response?.statusCode == 403) {
+        return const Left(ServerFailure(
+          message: 'Action non autorisée.',
+          statusCode: 403,
+        ));
+      }
+      return Left(ServerFailure(
+        message: "Impossible d'enregistrer la note.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, SessionCompleteResult>> completeSession(
       String consultationId) async {
     try {
