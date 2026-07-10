@@ -990,7 +990,7 @@ pub async fn get_appointment_preparation(
             let lon = v["lon"].as_f64()?;
             Some(GeoCoord { lat, lon })
         })
-        .or_else(|| match (provider_geo_lat, provider_geo_lng) {
+        .or(match (provider_geo_lat, provider_geo_lng) {
             (Some(lat), Some(lng)) => Some(GeoCoord { lat, lon: lng }),
             _ => None,
         });
