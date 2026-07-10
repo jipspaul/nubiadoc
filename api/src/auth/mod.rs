@@ -3412,7 +3412,13 @@ pub async fn post_account_dependents(
     }
 
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
-        Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
+        Some(s) => {
+            let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
+            if d > chrono::Utc::now().date_naive() {
+                return Err(AppError::ValidationError);
+            }
+            Some(d)
+        }
         None => None,
     };
 
@@ -3548,7 +3554,13 @@ pub async fn patch_account_dependent(
     Json(body): Json<PatchDependentBody>,
 ) -> Result<Json<DependentDetailResponse>, AppError> {
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
-        Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
+        Some(s) => {
+            let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
+            if d > chrono::Utc::now().date_naive() {
+                return Err(AppError::ValidationError);
+            }
+            Some(d)
+        }
         None => None,
     };
 
