@@ -141,6 +141,7 @@ pub(crate) enum AppError {
     LastAdminCannotBeRemoved,
     StartAtNotFuture,
     InvitationInvalid,
+    AlreadyOrdered,
 }
 
 impl IntoResponse for AppError {
@@ -287,6 +288,11 @@ impl IntoResponse for AppError {
             AppError::InvitationInvalid => (
                 StatusCode::BAD_REQUEST,
                 Json(json!({"code": "invitation_invalid"})),
+            )
+                .into_response(),
+            AppError::AlreadyOrdered => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "already_ordered"})),
             )
                 .into_response(),
         }

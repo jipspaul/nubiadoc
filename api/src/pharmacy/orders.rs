@@ -359,7 +359,7 @@ pub async fn create_account_order(
     .await
     .map_err(|e| match &e {
         sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
-            AppError::InvalidStatus
+            AppError::AlreadyOrdered
         }
         _ => AppError::Internal,
     })?;
