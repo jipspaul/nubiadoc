@@ -692,10 +692,17 @@ pub async fn create_pharmacy_quote_payment_intent(
         return Err(AppError::ValidationError);
     }
 
+    // Empreinte de la requête : une même clé rejouée avec un compte/devis/méthode
+    // différent ne doit jamais renvoyer le paiement d'une autre requête (#3547, #3620).
+    let fingerprint = format!(
+        "account={}|pharmacy_quote={}|method={}",
+        claims.account_id, body.pharmacy_quote_id, body.method
+    );
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     let cached = sqlx::query(
-        "SELECT response FROM idempotency_keys \
+        "SELECT response, fingerprint FROM idempotency_keys \
          WHERE key = $1 AND created_at > now() - interval '24 hours'",
     )
     .bind(&idempotency_key)
@@ -704,6 +711,17 @@ pub async fn create_pharmacy_quote_payment_intent(
     .map_err(|_| AppError::Internal)?;
 
     if let Some(cached_row) = cached {
+        let cached_fingerprint: Option<String> = cached_row
+            .try_get("fingerprint")
+            .map_err(|_| AppError::Internal)?;
+        if cached_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+            tx.commit().await.map_err(|_| AppError::Internal)?;
+            tracing::warn!(
+                account_id = %claims.account_id,
+                "pharmacy quote idempotency key replayed with a different fingerprint"
+            );
+            return Err(AppError::IdempotencyKeyConflict);
+        }
         let resp: serde_json::Value = cached_row
             .try_get("response")
             .map_err(|_| AppError::Internal)?;
@@ -807,11 +825,12 @@ pub async fn create_pharmacy_quote_payment_intent(
     let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
     sqlx::query(
-        "INSERT INTO idempotency_keys (key, response) VALUES ($1, $2) \
+        "INSERT INTO idempotency_keys (key, response, fingerprint) VALUES ($1, $2, $3) \
          ON CONFLICT (key) DO NOTHING",
     )
     .bind(&idempotency_key)
     .bind(serde_json::json!({"payment_id": payment_id, "client_secret": &client_secret}))
+    .bind(&fingerprint)
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
