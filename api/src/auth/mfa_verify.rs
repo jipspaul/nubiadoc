@@ -49,7 +49,7 @@ pub async fn mfa_verify(
         .await
         .map_err(|_| AppError::Internal)?;
     sqlx::query!(
-        "UPDATE app_user SET mfa_secret = $1, mfa_enabled = true, updated_at = now() WHERE id = $2",
+        "UPDATE app_user SET totp_secret = $1, totp_enabled = true, updated_at = now() WHERE id = $2",
         body.totp_secret,
         claims.sub,
     )
