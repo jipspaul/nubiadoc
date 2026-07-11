@@ -366,6 +366,7 @@ pub async fn search_slots(
          LEFT JOIN specialty s ON s.id = p.specialty_id \
          WHERE p.is_listed = true \
              AND sl.status = 'open' \
+             AND sl.deleted_at IS NULL \
              AND sl.online_booking = true \
              AND sl.starts_at > now() \
              AND ($4::text IS NULL \
@@ -847,6 +848,7 @@ pub async fn get_provider_availability(
            FROM availability_slot
            WHERE provider_id = $1
              AND status = 'open'
+             AND deleted_at IS NULL
              AND online_booking = true
              AND starts_at > now()
            ORDER BY starts_at ASC
