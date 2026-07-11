@@ -52,7 +52,7 @@ pub async fn patch_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, starts_at, status, cabinet_id \
+        "SELECT id, starts_at, status, cabinet_id, slot_id \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -67,6 +67,7 @@ pub async fn patch_appointment(
         row.try_get("starts_at").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
 
     if status != "requested" && status != "confirmed" {
         return Err(AppError::InvalidStatus);
@@ -85,6 +86,9 @@ pub async fn patch_appointment(
         .map_err(|_| AppError::Internal)?;
 
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
+    // Un starts_at différent délie le RDV de son créneau d'origine (le nouvel
+    // horaire n'est adossé à aucun availability_slot) : slot_id est remis à
+    // NULL pour rester cohérent avec starts_at.
     let result = sqlx::query(
         "UPDATE appointment \
          SET \
@@ -93,6 +97,7 @@ pub async fn patch_appointment(
                              THEN $1 + (ends_at - starts_at) \
                              ELSE ends_at END, \
            motif      = COALESCE($2, motif), \
+           slot_id    = CASE WHEN $1 IS NOT NULL THEN NULL ELSE slot_id END, \
            updated_at = now() \
          WHERE id = $3 \
          RETURNING id, starts_at, ends_at, status, motif, practitioner_id",
@@ -108,6 +113,17 @@ pub async fn patch_appointment(
         Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
         Err(_) => return Err(AppError::Internal),
     };
+
+    // Libère l'ancien créneau (comme cancel_appointment) puisqu'il n'est plus occupé.
+    if new_starts_at.is_some() {
+        if let Some(sid) = slot_id {
+            sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+                .bind(sid)
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        }
+    }
 
     let appointment_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
     let new_starts_at: chrono::DateTime<chrono::Utc> = updated
@@ -784,6 +800,33 @@ pub async fn get_appointment(
     }))
 }
 
+/// Formate l'adresse jsonb `establishment.address` (`{"rue":...,"cp":...,"ville":...}`,
+/// cf. `db/migrations/0040_marketplace_provider_seed.sql`) en une ligne affichable /
+/// utilisable comme destination de navigation.
+fn format_establishment_address(address: &serde_json::Value) -> Option<String> {
+    let rue = address.get("rue").and_then(|v| v.as_str());
+    let cp = address.get("cp").and_then(|v| v.as_str());
+    let ville = address.get("ville").and_then(|v| v.as_str());
+
+    let cp_ville = match (cp, ville) {
+        (Some(cp), Some(ville)) => Some(format!("{cp} {ville}")),
+        (Some(cp), None) => Some(cp.to_string()),
+        (None, Some(ville)) => Some(ville.to_string()),
+        (None, None) => None,
+    };
+
+    let parts: Vec<String> = [rue.map(str::to_string), cp_ville]
+        .into_iter()
+        .flatten()
+        .collect();
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(", "))
+    }
+}
+
 // ── Preparation ─────────────────────────────────────────────────────────────
 
 /// Provider summary for `GET /v1/appointments/:id/preparation`.
@@ -879,15 +922,35 @@ pub async fn get_appointment_preparation(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let provider_row =
-        sqlx::query("SELECT display_name FROM provider WHERE practitioner_id = $1 LIMIT 1")
-            .bind(practitioner_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+    // Jointure establishment/geo praticien : fallback quand `cabinet.settings` ne porte
+    // pas d'adresse (cas du cabinet seed — cf. #3557).
+    let provider_row = sqlx::query(
+        "SELECT p.display_name, e.address AS establishment_address, \
+                ST_Y(p.geo::geometry) AS geo_lat, ST_X(p.geo::geometry) AS geo_lng \
+         FROM provider p \
+         LEFT JOIN establishment e ON e.id = p.establishment_id \
+         WHERE p.practitioner_id = $1 \
+         LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
 
-    let provider_name: Option<String> =
-        provider_row.and_then(|r| r.try_get::<String, _>("display_name").ok());
+    let provider_name: Option<String> = provider_row
+        .as_ref()
+        .and_then(|r| r.try_get::<String, _>("display_name").ok());
+    let establishment_address: Option<serde_json::Value> = provider_row.as_ref().and_then(|r| {
+        r.try_get::<Option<serde_json::Value>, _>("establishment_address")
+            .ok()
+            .flatten()
+    });
+    let provider_geo_lat: Option<f64> = provider_row
+        .as_ref()
+        .and_then(|r| r.try_get::<Option<f64>, _>("geo_lat").ok().flatten());
+    let provider_geo_lng: Option<f64> = provider_row
+        .as_ref()
+        .and_then(|r| r.try_get::<Option<f64>, _>("geo_lng").ok().flatten());
 
     let cab_row = sqlx::query(
         "SELECT settings->>'address'   AS address, \
@@ -929,11 +992,24 @@ pub async fn get_appointment_preparation(
 
     let pmr = pmr_str.as_deref() == Some("true");
 
-    let geo = geo_val.and_then(|v| {
-        let lat = v["lat"].as_f64()?;
-        let lon = v["lon"].as_f64()?;
-        Some(GeoCoord { lat, lon })
+    // Fallback annuaire quand `cabinet.settings` n'a pas d'adresse (#3557) : même donnée
+    // que celle déjà exposée par `GET /v1/providers/:id`.
+    let address = address.or_else(|| {
+        establishment_address
+            .as_ref()
+            .and_then(format_establishment_address)
     });
+
+    let geo = geo_val
+        .and_then(|v| {
+            let lat = v["lat"].as_f64()?;
+            let lon = v["lon"].as_f64()?;
+            Some(GeoCoord { lat, lon })
+        })
+        .or(match (provider_geo_lat, provider_geo_lng) {
+            (Some(lat), Some(lng)) => Some(GeoCoord { lat, lon: lng }),
+            _ => None,
+        });
 
     let mut bring = vec![BringItem {
         label: "Carte Vitale".to_string(),
@@ -1030,15 +1106,19 @@ pub async fn get_appointment_directions(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row =
-        sqlx::query("SELECT cabinet_id FROM appointment WHERE id = $1 AND deleted_at IS NULL")
-            .bind(appt_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?
-            .ok_or(AppError::NotFound)?;
+    let row = sqlx::query(
+        "SELECT cabinet_id, practitioner_id FROM appointment WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
 
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
@@ -1055,12 +1135,49 @@ pub async fn get_appointment_directions(
 
     let address: Option<String> = cab_row.try_get("address").map_err(|_| AppError::Internal)?;
 
+    // Jointure establishment/geo praticien : fallback quand `cabinet.settings` ne porte
+    // pas d'adresse (cas du cabinet seed — cf. #3557), même donnée que celle déjà
+    // exposée par `GET /v1/providers/:id`.
+    let provider_row = sqlx::query(
+        "SELECT e.address AS establishment_address, \
+                ST_Y(p.geo::geometry) AS geo_lat, ST_X(p.geo::geometry) AS geo_lng \
+         FROM provider p \
+         LEFT JOIN establishment e ON e.id = p.establishment_id \
+         WHERE p.practitioner_id = $1 \
+         LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let establishment_address: Option<serde_json::Value> = provider_row.as_ref().and_then(|r| {
+        r.try_get::<Option<serde_json::Value>, _>("establishment_address")
+            .ok()
+            .flatten()
+    });
+    let provider_geo_lat: Option<f64> = provider_row
+        .as_ref()
+        .and_then(|r| r.try_get::<Option<f64>, _>("geo_lat").ok().flatten());
+    let provider_geo_lng: Option<f64> = provider_row
+        .as_ref()
+        .and_then(|r| r.try_get::<Option<f64>, _>("geo_lng").ok().flatten());
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let destination = address
-        .as_deref()
-        .map(|a| a.replace(' ', "+"))
-        .unwrap_or_default();
+    let resolved_address = address.or_else(|| {
+        establishment_address
+            .as_ref()
+            .and_then(format_establishment_address)
+    });
+
+    let destination = match resolved_address {
+        Some(a) => a.replace(' ', "+"),
+        None => match (provider_geo_lat, provider_geo_lng) {
+            (Some(lat), Some(lng)) => format!("{lat},{lng}"),
+            _ => String::new(),
+        },
+    };
     let deeplink = format!(
         "https://www.google.com/maps/dir/?api=1&destination={}",
         destination

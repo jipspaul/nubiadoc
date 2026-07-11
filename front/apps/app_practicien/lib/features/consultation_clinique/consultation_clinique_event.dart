@@ -38,6 +38,14 @@ class ConsultationCliniqueCompleteRequested extends ConsultationCliniqueEvent {
   const ConsultationCliniqueCompleteRequested();
 }
 
+class ConsultationCliniqueNoteSaveRequested extends ConsultationCliniqueEvent {
+  final String note;
+  const ConsultationCliniqueNoteSaveRequested(this.note);
+
+  @override
+  List<Object?> get props => [note];
+}
+
 class ConsultationHistoriqueRequested extends ConsultationCliniqueEvent {
   const ConsultationHistoriqueRequested();
 }

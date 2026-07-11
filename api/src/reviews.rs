@@ -325,7 +325,7 @@ pub async fn moderate_review(
         "UPDATE review SET status = $1 \
          WHERE id = $2 AND status = 'pending' \
            AND provider_id IN (SELECT id FROM provider WHERE cabinet_id = $3) \
-         RETURNING id, status",
+         RETURNING id, status, provider_id",
     )
     .bind(&body.status)
     .bind(review_id)
@@ -337,6 +337,23 @@ pub async fn moderate_review(
 
     let review_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let provider_id: Uuid = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
+
+    // Recalcule l'agrégat affiché du praticien (carte annuaire + tri marketplace)
+    // à partir des avis effectivement publiés, plutôt que de garder les colonnes
+    // dénormalisées figées à leur valeur de seed.
+    sqlx::query(
+        "UPDATE provider SET \
+           rating_avg = (SELECT avg(rating)::numeric(2,1) FROM review \
+                         WHERE provider_id = $1 AND status = 'published'), \
+           rating_count = (SELECT count(*) FROM review \
+                            WHERE provider_id = $1 AND status = 'published') \
+         WHERE id = $1",
+    )
+    .bind(provider_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 

@@ -120,11 +120,11 @@ async fn mfa_verify_valid_code_returns_200_and_activates() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["message"], "MFA activée.");
 
-    let row = sqlx::query!("SELECT mfa_enabled FROM app_user WHERE id = $1", user_id)
+    let row = sqlx::query!("SELECT totp_enabled FROM app_user WHERE id = $1", user_id)
         .fetch_one(&owner_db)
         .await
         .unwrap();
-    assert!(row.mfa_enabled);
+    assert!(row.totp_enabled);
 
     sqlx::query!("DELETE FROM app_user WHERE id = $1", user_id)
         .execute(&owner_db)

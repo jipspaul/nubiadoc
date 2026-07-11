@@ -98,12 +98,13 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
-/// Insère les fixtures minimales : cabinet + app_user + patient.
+/// Insère les fixtures minimales : cabinet + app_user + patient + appointment.
 /// Retourne `(cabinet_id, user_id, patient_id)`.
 async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
@@ -130,12 +131,34 @@ async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     .await
     .unwrap();
 
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
     sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
          VALUES ($1, $2, 'Alice', 'Dupont')",
     )
     .bind(patient_id)
     .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // Appointment passé : le praticien a consulté ce patient (requis par E.2.16.c).
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'done', 'contrôle')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -157,8 +180,18 @@ async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM patient WHERE id = $1")
         .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(cabinet_id)
         .execute(&mut *tx)
         .await
         .ok();

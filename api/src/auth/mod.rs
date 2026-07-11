@@ -2859,6 +2859,10 @@ pub async fn put_account_consent(
     Path(purpose): Path<String>,
     Json(body): Json<PutConsentBody>,
 ) -> Result<Json<ConsentUpdateResponse>, AppError> {
+    if !["soins", "ia_scribe", "marketing", "partage_confrere"].contains(&purpose.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
@@ -3412,7 +3416,13 @@ pub async fn post_account_dependents(
     }
 
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
-        Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
+        Some(s) => {
+            let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
+            if d > chrono::Utc::now().date_naive() {
+                return Err(AppError::ValidationError);
+            }
+            Some(d)
+        }
         None => None,
     };
 
@@ -3548,7 +3558,13 @@ pub async fn patch_account_dependent(
     Json(body): Json<PatchDependentBody>,
 ) -> Result<Json<DependentDetailResponse>, AppError> {
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
-        Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
+        Some(s) => {
+            let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
+            if d > chrono::Utc::now().date_naive() {
+                return Err(AppError::ValidationError);
+            }
+            Some(d)
+        }
         None => None,
     };
 

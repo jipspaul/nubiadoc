@@ -757,10 +757,15 @@ pub async fn offer_waiting_list_slot(
     axum::extract::Path(entry_id): axum::extract::Path<Uuid>,
     Json(body): Json<OfferSlotBody>,
 ) -> Result<Json<OfferSlotResponse>, AppError> {
-    // Valide le format de la date proposée avant toute requête DB.
-    body.proposed_at
+    // Valide le format de la date proposée, et qu'elle est bien dans le futur
+    // (même règle que la création de RDV, `appointments.rs::create_appointment`).
+    let proposed_at = body
+        .proposed_at
         .parse::<chrono::DateTime<chrono::Utc>>()
         .map_err(|_| AppError::ValidationError)?;
+    if proposed_at <= chrono::Utc::now() + chrono::Duration::minutes(5) {
+        return Err(AppError::ValidationError);
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -1033,6 +1038,7 @@ pub struct CabinetAppointmentItem {
     pub motif_admin: Option<String>,
     /// Horodatage de la demande de rappel patient (`POST .../callback-request`), si présente.
     pub callback_requested_at: Option<String>,
+    pub patient_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1073,7 +1079,7 @@ pub async fn get_cabinet_appointments(
 
     // R10 : clause supplémentaire pour les secrétaires — filtre sur les praticiens du secrétariat.
     // Le placeholder du secrétariat dépend du nombre de binds posés par la branche
-    // appelante ; la colonne du RDV doit être qualifiée (`appointment.`), sinon
+    // appelante ; la colonne du RDV doit être qualifiée (`a.`), sinon
     // `practitioner_id` se résout sur `pr` et la clause est une tautologie.
     let mk_sec_filter = |n: usize| -> String {
         if claims.role == "secretary" {
@@ -1081,7 +1087,7 @@ pub async fn get_cabinet_appointments(
                 " AND EXISTS ( \
                      SELECT 1 FROM provider pr \
                      JOIN provider_secretariat ps ON ps.provider_id = pr.id \
-                     WHERE pr.practitioner_id = appointment.practitioner_id \
+                     WHERE pr.practitioner_id = a.practitioner_id \
                        AND ps.secretariat_id = ${n} \
                        AND ps.active = true \
                  )"
@@ -1110,13 +1116,15 @@ pub async fn get_cabinet_appointments(
     let rows = match (&params.status, &date_filter) {
         (Some(status), Some((ds, de))) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1 \
-                   AND status = $2 \
-                   AND starts_at >= $3 AND starts_at < $4{} \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.cabinet_id = $1 \
+                   AND a.status = $2 \
+                   AND a.starts_at >= $3 AND a.starts_at < $4{} \
+                 ORDER BY a.starts_at",
                 mk_sec_filter(5),
             );
             let q = sqlx::query(&sql)
@@ -1132,12 +1140,14 @@ pub async fn get_cabinet_appointments(
 
         (Some(status), None) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1 \
-                   AND status = $2{} \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.cabinet_id = $1 \
+                   AND a.status = $2{} \
+                 ORDER BY a.starts_at",
                 mk_sec_filter(3),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(status);
@@ -1149,12 +1159,14 @@ pub async fn get_cabinet_appointments(
 
         (None, Some((ds, de))) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1 \
-                   AND starts_at >= $2 AND starts_at < $3{} \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.cabinet_id = $1 \
+                   AND a.starts_at >= $2 AND a.starts_at < $3{} \
+                 ORDER BY a.starts_at",
                 mk_sec_filter(4),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(ds).bind(de);
@@ -1166,11 +1178,13 @@ pub async fn get_cabinet_appointments(
 
         (None, None) => {
             let sql = format!(
-                "SELECT id, practitioner_id, patient_id, starts_at, ends_at, status, motif, callback_requested_at \
-                 FROM appointment \
-                 WHERE deleted_at IS NULL \
-                   AND cabinet_id = $1{} \
-                 ORDER BY starts_at",
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                 FROM appointment a \
+                 LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 WHERE a.deleted_at IS NULL \
+                   AND a.cabinet_id = $1{} \
+                 ORDER BY a.starts_at",
                 mk_sec_filter(2),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id);
@@ -1202,6 +1216,9 @@ pub async fn get_cabinet_appointments(
         let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
             .try_get("callback_requested_at")
             .map_err(|_| AppError::Internal)?;
+        let patient_name: Option<String> = row
+            .try_get("patient_name")
+            .map_err(|_| AppError::Internal)?;
         data.push(CabinetAppointmentItem {
             id,
             practitioner_id,
@@ -1211,6 +1228,7 @@ pub async fn get_cabinet_appointments(
             status,
             motif_admin,
             callback_requested_at: callback_requested_at.map(|ts| ts.to_rfc3339()),
+            patient_name,
         });
     }
 
@@ -1499,7 +1517,7 @@ pub async fn patch_cabinet_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, status FROM appointment \
+        "SELECT id, status, slot_id FROM appointment \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(appt_id)
@@ -1511,12 +1529,16 @@ pub async fn patch_cabinet_appointment(
 
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
 
     if status != "requested" && status != "confirmed" {
         return Err(AppError::InvalidStatus);
     }
 
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
+    // Un starts_at différent délie le RDV de son créneau d'origine (le nouvel
+    // horaire n'est adossé à aucun availability_slot) : slot_id est remis à
+    // NULL pour rester cohérent avec starts_at.
     let result = sqlx::query(
         "UPDATE appointment \
          SET \
@@ -1525,6 +1547,7 @@ pub async fn patch_cabinet_appointment(
                              THEN $1 + (ends_at - starts_at) \
                              ELSE ends_at END, \
            motif      = COALESCE($2, motif), \
+           slot_id    = CASE WHEN $1 IS NOT NULL THEN NULL ELSE slot_id END, \
            updated_at = now() \
          WHERE id = $3 \
          RETURNING id, status",
@@ -1540,6 +1563,17 @@ pub async fn patch_cabinet_appointment(
         Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
         Err(_) => return Err(AppError::Internal),
     };
+
+    // Libère l'ancien créneau (comme cancel_appointment) puisqu'il n'est plus occupé.
+    if new_starts_at.is_some() {
+        if let Some(sid) = slot_id {
+            sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+                .bind(sid)
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        }
+    }
 
     let appointment_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
     let new_status: String = updated.try_get("status").map_err(|_| AppError::Internal)?;
@@ -1791,6 +1825,7 @@ pub async fn list_cabinet_slots(
         "SELECT id, cabinet_id, practitioner_id, starts_at, ends_at, status \
          FROM availability_slot \
          WHERE cabinet_id = $1 \
+           AND deleted_at IS NULL \
            AND ($2::timestamptz IS NULL OR starts_at >= $2) \
            AND ($3::timestamptz IS NULL OR starts_at < $3) \
            AND ($4::uuid IS NULL OR practitioner_id = $4) \

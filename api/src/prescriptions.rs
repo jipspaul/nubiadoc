@@ -59,6 +59,11 @@ pub async fn create_prescription(
     if body.items.is_empty() {
         return Err(AppError::ValidationError);
     }
+    if body.items.iter().any(|i| {
+        i.label.trim().is_empty() || i.posology.trim().is_empty() || i.duration.trim().is_empty()
+    }) {
+        return Err(AppError::ValidationError);
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -80,6 +85,20 @@ pub async fn create_prescription(
             .ok_or(AppError::Forbidden)?;
 
     let practitioner_id: Uuid = prac_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le patient appartient au cabinet (RLS garantit le tenant).
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(body.patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
 
     // Insère la prescription (statut draft).
     let presc_row = sqlx::query(

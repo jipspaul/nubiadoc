@@ -383,6 +383,10 @@ fn build_router(
             post(consultations::complete_consultation),
         )
         .route(
+            "/v1/cabinet/consultations/:id/note",
+            put(consultations::set_consultation_note),
+        )
+        .route(
             "/v1/cabinet/conversations",
             get(cabinet_messaging::list_cabinet_conversations),
         )

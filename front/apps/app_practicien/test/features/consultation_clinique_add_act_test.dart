@@ -18,6 +18,8 @@ class MockCompleteSessionUseCase extends Mock
 class MockListClinicalSessionsUseCase extends Mock
     implements ListClinicalSessionsUseCase {}
 
+class MockSaveNoteUseCase extends Mock implements SaveNoteUseCase {}
+
 const _empty = ClinicalSession(
   id: 's1',
   appointmentId: 'a1',
@@ -58,6 +60,7 @@ void main() {
         addAct: addAct,
         completeSession: MockCompleteSessionUseCase(),
         listSessions: listSessions,
+        saveNote: MockSaveNoteUseCase(),
       );
 
   setUp(() {

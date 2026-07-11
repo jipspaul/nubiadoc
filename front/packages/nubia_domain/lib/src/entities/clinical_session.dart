@@ -30,6 +30,9 @@ class ClinicalSession extends Equatable {
   final String status; // 'in_progress' | 'completed'
   final List<ClinicalAct> acts;
 
+  /// Note de séance (chiffrée côté serveur). `null` si aucune note enregistrée.
+  final String? note;
+
   /// Nom du patient (renvoyé par la liste GET /v1/cabinet/consultations —
   /// #3371 : la carte titrait par l'UUID de séance).
   final String? patientName;
@@ -46,6 +49,7 @@ class ClinicalSession extends Equatable {
     required this.appointmentId,
     required this.status,
     required this.acts,
+    this.note,
     this.patientName,
     this.startedAt,
     this.practitionerName,
@@ -59,6 +63,7 @@ class ClinicalSession extends Equatable {
         appointmentId,
         status,
         acts,
+        note,
         patientName,
         startedAt,
         practitionerName,

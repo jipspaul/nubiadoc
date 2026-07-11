@@ -42,7 +42,7 @@ pub struct ConsultationContextResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
     pub practitioner: PractitionerSummary,
-    /// Note clinique déchiffrée. `None` si aucune note ou clé KMS non disponible (NUB-T3).
+    /// Note clinique déchiffrée. `None` si aucune note enregistrée.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
     pub acts: Vec<ConsultationActItem>,
@@ -53,7 +53,7 @@ pub struct ConsultationContextResponse {
 /// Praticien uniquement (R.4127-72, §07 §4.1) — secrétaire → 403.
 /// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
 /// RLS tenant-scoped via `app.current_cabinet_id`.
-/// Note clinique : déchiffrée côté serveur via `core/crypto` (NUB-T3 — `None` si scaffold).
+/// Note clinique : déchiffrée via stub `STUB_ENC:` (AES-256-GCM/KMS à NUB-T3, ADR-009).
 /// Séance inexistante ou hors tenant → 404.
 pub async fn get_consultation_context(
     State(state): State<AppState>,
@@ -108,14 +108,9 @@ pub async fn get_consultation_context(
         .try_get("display_name")
         .map_err(|_| AppError::Internal)?;
 
-    // Note : déchiffrement via core/crypto (NUB-T3). Pour l'instant le crate est un
-    // scaffold (CryptoError::NotImplemented) → on retourne None si ciphertext présent.
-    let note: Option<String> = if note_ciphertext.is_some() {
-        // TODO(NUB-T3) : appeler core_crypto::decrypt_column(ciphertext, key_ref, kms).
-        None
-    } else {
-        None
-    };
+    // Déchiffre `note_ciphertext` via stub (KMS/AES-256-GCM à NUB-T3, ADR-009) —
+    // voir `clinical.rs::add_patient_note` pour le même stub sur `clinical_note`.
+    let note: Option<String> = note_ciphertext.as_deref().and_then(stub_decrypt_note);
 
     // Actes CCAM de la séance.
     let act_rows = sqlx::query(
@@ -380,6 +375,119 @@ pub async fn complete_consultation(
         invoice_id,
         next_step: next_step.to_string(),
     }))
+}
+
+// ── PUT /v1/cabinet/consultations/:id/note ────────────────────────────────────
+
+/// Inverse du stub chiffrement `note_ciphertext` : supprime le préfixe `STUB_ENC:`
+/// et XOR 0xFF octet à octet. Même stub que `clinical.rs::add_patient_note`
+/// (KMS/AES-256-GCM à NUB-T3, ADR-009). `None` si préfixe absent (ex. legacy/scaffold).
+fn stub_decrypt_note(ciphertext: &[u8]) -> Option<String> {
+    let prefix = b"STUB_ENC:";
+    let payload = ciphertext.strip_prefix(prefix.as_ref())?;
+    let plain: Vec<u8> = payload.iter().map(|b| b ^ 0xFF).collect();
+    String::from_utf8(plain).ok()
+}
+
+/// Body de `PUT /v1/cabinet/consultations/:id/note`.
+#[derive(Deserialize)]
+pub struct SetConsultationNoteBody {
+    pub note: String,
+}
+
+/// Réponse de `PUT /v1/cabinet/consultations/:id/note`.
+#[derive(Serialize)]
+pub struct SetConsultationNoteResponse {
+    pub note: String,
+}
+
+/// `PUT /v1/cabinet/consultations/:id/note` — enregistre la note de séance (chiffrée).
+///
+/// Praticien uniquement (R.4127-72, §07 §4.1) — secrétaire → 403.
+/// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
+/// RLS tenant-scoped via `app.current_cabinet_id`.
+/// Seul le praticien propriétaire de la séance peut écrire sa note.
+/// Séance `cancelled` → `409 invalid_status` (séance figée, non éditable).
+/// Chiffrement colonne : stub `"STUB_ENC:" + XOR 0xFF` en dev — AES-256-GCM/KMS
+/// à NUB-T3 (ADR-009), voir `clinical.rs::add_patient_note`.
+/// Séance inexistante ou hors tenant → 404.
+pub async fn set_consultation_note(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetConsultationNoteBody>,
+) -> Result<Json<SetConsultationNoteResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let session_row = sqlx::query(
+        "SELECT cs.practitioner_id, cs.status \
+         FROM consultation_session cs \
+         WHERE cs.id = $1 AND cs.cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let practitioner_id: Uuid = session_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let status: String = session_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+
+    // Seul le praticien propriétaire de la séance peut écrire sa note.
+    let prac_row = sqlx::query(
+        "SELECT id FROM practitioner WHERE id = $1 AND user_id = $2 AND cabinet_id = $3",
+    )
+    .bind(practitioner_id)
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if prac_row.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
+    if status == "cancelled" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    // Stub chiffrement : préfixe "STUB_ENC:" + XOR 0xFF octet à octet.
+    // Remplacé par AES-256-GCM + KMS Scaleway à NUB-T3 (ADR-009).
+    let mut ciphertext: Vec<u8> = b"STUB_ENC:".to_vec();
+    ciphertext.extend(body.note.as_bytes().iter().map(|b| b ^ 0xFF));
+
+    sqlx::query(
+        "UPDATE consultation_session \
+         SET note_ciphertext = $1, note_key_ref = 'stub-key-ref', updated_at = now() \
+         WHERE id = $2",
+    )
+    .bind(&ciphertext)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        consultation_id = %id,
+        "consultation note saved"
+    );
+
+    Ok(Json(SetConsultationNoteResponse { note: body.note }))
 }
 
 // ── POST /v1/cabinet/consultations/:id/acts ───────────────────────────────────
