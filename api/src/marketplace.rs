@@ -533,6 +533,7 @@ pub async fn search_providers(
             " AND EXISTS (\
               SELECT 1 FROM availability_slot sl \
               WHERE sl.provider_id = p.id AND sl.status = 'open' \
+              AND sl.deleted_at IS NULL AND sl.online_booking = true \
               AND sl.starts_at >= date_trunc('day', now()) \
               AND sl.starts_at < date_trunc('day', now()) + interval '1 day')"
         }
@@ -540,6 +541,7 @@ pub async fn search_providers(
             " AND EXISTS (\
               SELECT 1 FROM availability_slot sl \
               WHERE sl.provider_id = p.id AND sl.status = 'open' \
+              AND sl.deleted_at IS NULL AND sl.online_booking = true \
               AND sl.starts_at >= now() \
               AND sl.starts_at < now() + interval '7 days')"
         }
@@ -560,7 +562,9 @@ pub async fn search_providers(
                   THEN ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) \
                   ELSE NULL END AS distance_m, \
              (SELECT min(sl.starts_at) FROM availability_slot sl \
-              WHERE sl.provider_id = p.id AND sl.status = 'open' AND sl.starts_at > now()) AS next_slot_at, \
+              WHERE sl.provider_id = p.id AND sl.status = 'open' \
+              AND sl.deleted_at IS NULL AND sl.online_booking = true \
+              AND sl.starts_at > now()) AS next_slot_at, \
              p.rating_avg::double precision AS rating_avg, \
              ST_Y(p.geo::geometry) AS geo_lat, \
              ST_X(p.geo::geometry) AS geo_lng, \
