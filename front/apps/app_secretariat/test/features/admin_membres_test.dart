@@ -190,8 +190,7 @@ void main() {
     blocTest<AdminMembresBloc, AdminMembresState>(
       'émet Loading puis Error si l\'invitation échoue',
       build: () {
-        when(() => membersRepo.invite(any(), any(), any(), any()))
-            .thenAnswer(
+        when(() => membersRepo.invite(any(), any(), any(), any())).thenAnswer(
           (_) async => const Left(
             ServerFailure(message: 'Impossible d\'inviter le membre.'),
           ),
@@ -227,8 +226,7 @@ void main() {
     blocTest<AdminMembresBloc, AdminMembresState>(
       'émet Loading puis InviteSuccess et recharge la liste si l\'invitation réussit',
       build: () {
-        when(() => membersRepo.invite(any(), any(), any(), any()))
-            .thenAnswer(
+        when(() => membersRepo.invite(any(), any(), any(), any())).thenAnswer(
           (_) async => Right(members.first),
         );
         when(() => membersRepo.list()).thenAnswer((_) async => Right(members));
