@@ -279,8 +279,8 @@ pub struct SearchSlotsResponse {
 /// `GET /v1/search/slots` — prochains créneaux disponibles par praticien (docs/12 §12.1).
 ///
 /// Route publique, pas de JWT. Mêmes filtres que `/v1/search/providers`.
-/// Retourne uniquement les créneaux `status='open'` (RLS `slot_public_read`),
-/// triés par `first_slot_at` ascendant.
+/// Retourne uniquement les créneaux `status='open'` et `online_booking=true`
+/// (RLS `slot_public_read`), triés par `first_slot_at` ascendant.
 pub async fn search_slots(
     State(state): State<AppState>,
     Query(params): Query<SearchProvidersQuery>,
@@ -366,6 +366,7 @@ pub async fn search_slots(
          LEFT JOIN specialty s ON s.id = p.specialty_id \
          WHERE p.is_listed = true \
              AND sl.status = 'open' \
+             AND sl.online_booking = true \
              AND sl.starts_at > now() \
              AND ($4::text IS NULL \
                   OR p.display_name ILIKE '%' || $4 || '%' \
@@ -825,7 +826,8 @@ struct AvailabilitySlotRow {
 /// `GET /v1/providers/:id/availability` — 50 prochains créneaux ouverts (docs/12 §12.2).
 ///
 /// Route publique, pas de JWT. Provider inexistant ou `is_listed=false` → `404`.
-/// Créneaux filtrés `status='open'` + `starts_at > now()`, triés ASC, limite 50.
+/// Créneaux filtrés `status='open'` + `online_booking=true` + `starts_at > now()`,
+/// triés ASC, limite 50.
 pub async fn get_provider_availability(
     State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
@@ -845,6 +847,7 @@ pub async fn get_provider_availability(
            FROM availability_slot
            WHERE provider_id = $1
              AND status = 'open'
+             AND online_booking = true
              AND starts_at > now()
            ORDER BY starts_at ASC
            LIMIT 50"#,

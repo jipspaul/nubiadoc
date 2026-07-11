@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id AS \"slot_id!\", starts_at, ends_at, motif\n           FROM availability_slot\n           WHERE provider_id = $1\n             AND status = 'open'\n             AND starts_at > now()\n           ORDER BY starts_at ASC\n           LIMIT 50",
+  "query": "SELECT id AS \"slot_id!\", starts_at, ends_at, motif\n           FROM availability_slot\n           WHERE provider_id = $1\n             AND status = 'open'\n             AND online_booking = true\n             AND starts_at > now()\n           ORDER BY starts_at ASC\n           LIMIT 50",
   "describe": {
     "columns": [
       {
@@ -36,5 +36,5 @@
       true
     ]
   },
-  "hash": "e3e83bb949d840c635bffce930fd7015582b593778e295e86345046171e686b8"
+  "hash": "0990386c1e4d61cbbe0f5e92dc8472734cf7223c229cad728389809a5286b906"
 }
