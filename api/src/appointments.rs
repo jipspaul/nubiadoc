@@ -52,7 +52,7 @@ pub async fn patch_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, starts_at, status, cabinet_id \
+        "SELECT id, starts_at, status, cabinet_id, slot_id \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -67,6 +67,7 @@ pub async fn patch_appointment(
         row.try_get("starts_at").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
 
     if status != "requested" && status != "confirmed" {
         return Err(AppError::InvalidStatus);
@@ -85,6 +86,9 @@ pub async fn patch_appointment(
         .map_err(|_| AppError::Internal)?;
 
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
+    // Un starts_at différent délie le RDV de son créneau d'origine (le nouvel
+    // horaire n'est adossé à aucun availability_slot) : slot_id est remis à
+    // NULL pour rester cohérent avec starts_at.
     let result = sqlx::query(
         "UPDATE appointment \
          SET \
@@ -93,6 +97,7 @@ pub async fn patch_appointment(
                              THEN $1 + (ends_at - starts_at) \
                              ELSE ends_at END, \
            motif      = COALESCE($2, motif), \
+           slot_id    = CASE WHEN $1 IS NOT NULL THEN NULL ELSE slot_id END, \
            updated_at = now() \
          WHERE id = $3 \
          RETURNING id, starts_at, ends_at, status, motif, practitioner_id",
@@ -108,6 +113,17 @@ pub async fn patch_appointment(
         Err(e) if is_exclusion_violation(&e) => return Err(AppError::SlotTaken),
         Err(_) => return Err(AppError::Internal),
     };
+
+    // Libère l'ancien créneau (comme cancel_appointment) puisqu'il n'est plus occupé.
+    if new_starts_at.is_some() {
+        if let Some(sid) = slot_id {
+            sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+                .bind(sid)
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        }
+    }
 
     let appointment_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
     let new_starts_at: chrono::DateTime<chrono::Utc> = updated
