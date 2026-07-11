@@ -640,6 +640,8 @@ pub struct AccountPrescriptionsResponse {
 /// `GET /v1/account/prescriptions` — ordonnances visibles par le compte
 /// patient (policy `prescription_patient_read`, 0109). Fournit les ids
 /// nécessaires à `POST /v1/account/prescriptions/{id}/order`.
+/// Les brouillons (`status = 'draft'`, jamais signés/envoyés) sont exclus,
+/// cohérent avec la liste devis patient (fix #3487) : cf. issue #3622.
 pub async fn list_account_prescriptions(
     State(state): State<AppState>,
     claims: crate::auth::PatientAccountClaims,
@@ -653,7 +655,7 @@ pub async fn list_account_prescriptions(
 
     let rows = sqlx::query(
         "SELECT id, status, document_id, created_at, signed_at \
-         FROM prescription WHERE deleted_at IS NULL \
+         FROM prescription WHERE deleted_at IS NULL AND status <> 'draft' \
          ORDER BY created_at DESC LIMIT 100",
     )
     .fetch_all(&mut *tx)
