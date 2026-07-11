@@ -897,6 +897,20 @@ pub async fn create_cabinet_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Vérifie que le patient appartient au cabinet (RLS garantit le tenant).
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(body.patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
     // Insère le devis.
     let quote_row = sqlx::query(
         "INSERT INTO quote \
