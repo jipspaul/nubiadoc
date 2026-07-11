@@ -1207,14 +1207,28 @@ async fn resolve_specialty(
             }
         }
 
-        // 3) Profession (ex. « dentiste » → « Chirurgien-dentiste ») → une spécialité.
-        let sql = "SELECT s.id AS id, s.label AS label \
+        // 3) Profession (ex. « dentiste » → « Chirurgien-dentiste »).
+        // Une profession avec une seule spécialité peut être résolue précisément ;
+        // sinon (ex. Chirurgien-dentiste = Omnipratique + Implantologie…) on NE
+        // collapse PAS sur une spécialité arbitraire : specialty reste `None` et
+        // la recherche reste à l'échelle de la profession via `q` (cf. #3618).
+        let sql = "SELECT pr.label AS profession_label, s.id AS specialty_id, \
+                          s.label AS specialty_label \
                    FROM profession pr JOIN specialty s ON s.profession_id = pr.id \
-                   WHERE pr.label ILIKE '%' || $1 || '%' ORDER BY s.label LIMIT 1";
-        if let Ok(Some(row)) = sqlx::query(sql).bind(term).fetch_optional(db).await {
-            if let Ok(id) = row.try_get::<Uuid, _>("id") {
-                let label = row.try_get::<String, _>("label").unwrap_or_default();
-                return (Some(id), Some(label), Some(term.to_lowercase()));
+                   WHERE pr.label ILIKE '%' || $1 || '%' ORDER BY s.label";
+        if let Ok(rows) = sqlx::query(sql).bind(term).fetch_all(db).await {
+            if rows.len() == 1 {
+                if let Ok(id) = rows[0].try_get::<Uuid, _>("specialty_id") {
+                    let label = rows[0]
+                        .try_get::<String, _>("specialty_label")
+                        .unwrap_or_default();
+                    return (Some(id), Some(label), Some(term.to_lowercase()));
+                }
+            } else if let Some(row) = rows.first() {
+                let label = row
+                    .try_get::<String, _>("profession_label")
+                    .unwrap_or_default();
+                return (None, Some(label), Some(term.to_lowercase()));
             }
         }
     }
