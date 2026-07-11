@@ -559,6 +559,10 @@ pub async fn send_message(
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendMessageBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    if body.body.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
     let (triage_flag, triage_reason) = triage(&body.body);
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
