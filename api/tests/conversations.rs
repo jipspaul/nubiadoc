@@ -1879,8 +1879,9 @@ async fn conversations_read_cross_patient_returns_404() {
 }
 
 /// Lecture partielle : `last_read_message_id` fourni → seuls les messages dont
-/// l'`id <= last_read_message_id` sont marqués lus ; les autres restent non lus.
-/// Valide la branche `Some(last_read_message_id)` du handler `mark_conversation_read`.
+/// le `created_at <= created_at(last_read_message_id)` sont marqués lus ; les
+/// autres restent non lus. Valide la branche `Some(last_read_message_id)` du
+/// handler `mark_conversation_read`.
 #[tokio::test]
 async fn conversations_read_partial_with_last_message_id_marks_only_earlier_messages() {
     if !db_available() {
@@ -1898,13 +1899,13 @@ async fn conversations_read_partial_with_last_message_id_marks_only_earlier_mess
     let msg1_id = Uuid::new_v4();
     let msg2_id = Uuid::new_v4();
 
-    // Détermine lequel des deux UUIDs est le plus petit (comparaison binaire).
-    // L'UPDATE filtre `id <= last_read_message_id` : seul smaller_id sera marqué lu.
-    let (smaller_id, larger_id) = if msg1_id < msg2_id {
-        (msg1_id, msg2_id)
-    } else {
-        (msg2_id, msg1_id)
-    };
+    // msg1 est envoyé strictement avant msg2 (created_at explicite) : l'UPDATE
+    // filtre par `created_at`, donc seul le message le plus ancien (earlier_id)
+    // doit être marqué lu quand on envoie `last_read_message_id = earlier_id`.
+    let earlier_id = msg1_id;
+    let later_id = msg2_id;
+    let earlier_created_at = chrono::Utc::now() - chrono::Duration::seconds(1);
+    let later_created_at = chrono::Utc::now();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
@@ -1978,20 +1979,21 @@ async fn conversations_read_partial_with_last_message_id_marks_only_earlier_mess
             .await
             .unwrap();
 
-        // Deux messages praticien non lus.
-        for mid in [msg1_id, msg2_id] {
+        // Deux messages praticien non lus, avec des `created_at` distincts.
+        for (mid, created_at) in [(msg1_id, earlier_created_at), (msg2_id, later_created_at)] {
             sqlx::query(
                 "INSERT INTO message \
                  (id, cabinet_id, conversation_id, sender_kind, sender_id, \
-                  body_ciphertext, body_key_ref) \
+                  body_ciphertext, body_key_ref, created_at) \
                  VALUES ($1, $2, $3, 'practitioner', $4, \
               convert_to('Bonjour Bob, vos résultats sont prêts.', 'UTF8'), \
-              'key-ref-test')",
+              'key-ref-test', $5)",
             )
             .bind(mid)
             .bind(cabinet_id)
             .bind(conv_id)
             .bind(prac_id)
+            .bind(created_at)
             .execute(&mut *tx)
             .await
             .unwrap();
@@ -2006,7 +2008,7 @@ async fn conversations_read_partial_with_last_message_id_marks_only_earlier_mess
         mailer: Arc::new(StubMailer),
     };
 
-    // POST avec last_read_message_id = smaller_id → seul ce message doit être marqué lu.
+    // POST avec last_read_message_id = earlier_id → seul ce message doit être marqué lu.
     let response = app(state)
         .oneshot(
             Request::builder()
@@ -2018,7 +2020,7 @@ async fn conversations_read_partial_with_last_message_id_marks_only_earlier_mess
                     format!("Bearer {}", make_patient_jwt(user_id, account_id)),
                 )
                 .body(Body::from(
-                    json!({ "last_read_message_id": smaller_id }).to_string(),
+                    json!({ "last_read_message_id": earlier_id }).to_string(),
                 ))
                 .unwrap(),
         )
@@ -2027,25 +2029,25 @@ async fn conversations_read_partial_with_last_message_id_marks_only_earlier_mess
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
-    // smaller_id : read_at doit être renseigné (id <= last_read_message_id).
+    // earlier_id : read_at doit être renseigné (created_at <= created_at(last_read_message_id)).
     let row_s = sqlx::query("SELECT read_at FROM message WHERE id = $1")
-        .bind(smaller_id)
+        .bind(earlier_id)
         .fetch_one(&db)
         .await
         .unwrap();
     let read_at_s: Option<chrono::DateTime<chrono::Utc>> = row_s.try_get("read_at").unwrap();
-    assert!(read_at_s.is_some(), "smaller_id doit être marqué lu");
+    assert!(read_at_s.is_some(), "earlier_id doit être marqué lu");
 
-    // larger_id : read_at doit rester NULL (id > last_read_message_id, non touché).
+    // later_id : read_at doit rester NULL (created_at > created_at(last_read_message_id), non touché).
     let row_l = sqlx::query("SELECT read_at FROM message WHERE id = $1")
-        .bind(larger_id)
+        .bind(later_id)
         .fetch_one(&db)
         .await
         .unwrap();
     let read_at_l: Option<chrono::DateTime<chrono::Utc>> = row_l.try_get("read_at").unwrap();
     assert!(
         read_at_l.is_none(),
-        "larger_id doit rester non lu (id > last_read_message_id)"
+        "later_id doit rester non lu (created_at > created_at(last_read_message_id))"
     );
 
     // Cleanup

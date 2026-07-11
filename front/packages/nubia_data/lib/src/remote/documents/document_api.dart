@@ -7,23 +7,38 @@ class DocumentApi {
 
   DocumentApi(ApiClient client) : _dio = client.dio;
 
+  // Pagination par cursor côté API (limit défaut 20, cf. api/src/documents.rs
+  // `list_documents`) : on suit `page.next_cursor` jusqu'à épuisement pour
+  // ramener le coffre-fort complet plutôt que les 20 documents les plus récents.
   Future<List<DocumentDto>> getAll() async {
-    final response = await _dio.get<Map<String, dynamic>>('/documents');
-    final data = response.data!['data'] as List<dynamic>;
-    return data
-        .map((e) => DocumentDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _getAllPages(const {});
   }
 
   Future<List<DocumentDto>> getByCategory(String category) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/documents',
-      queryParameters: {'category': category},
-    );
-    final data = response.data!['data'] as List<dynamic>;
-    return data
-        .map((e) => DocumentDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _getAllPages({'category': category});
+  }
+
+  Future<List<DocumentDto>> _getAllPages(
+    Map<String, dynamic> queryParameters,
+  ) async {
+    final result = <DocumentDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/documents',
+        queryParameters: {
+          ...queryParameters,
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final data = response.data!['data'] as List<dynamic>;
+      result.addAll(
+        data.map((e) => DocumentDto.fromJson(e as Map<String, dynamic>)),
+      );
+      cursor = (response.data!['page'] as Map<String, dynamic>?)?['next_cursor']
+          as String?;
+    } while (cursor != null);
+    return result;
   }
 
   Future<DocumentSignedUrlDto> getSignedUrl(String documentId) async {
