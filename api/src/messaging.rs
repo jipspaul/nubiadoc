@@ -467,7 +467,7 @@ pub async fn mark_conversation_read(
                 "UPDATE message \
                  SET read_at = now() \
                  WHERE conversation_id = $1 \
-                   AND created_at <= (SELECT created_at FROM message WHERE id = $2) \
+                   AND (created_at, id) <= (SELECT created_at, id FROM message WHERE id = $2) \
                    AND sender_kind IN ('practitioner', 'secretary', 'pharmacist') \
                    AND read_at IS NULL",
             )
@@ -559,6 +559,10 @@ pub async fn send_message(
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendMessageBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    if body.body.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
     let (triage_flag, triage_reason) = triage(&body.body);
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;

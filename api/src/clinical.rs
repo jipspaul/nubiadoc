@@ -987,6 +987,11 @@ const VALID_CATEGORIES: &[&str] = &[
     "consentement",
 ];
 
+// §14 — catégories administratives, accessibles sans relation de soin (secrétaire/admin).
+// Le reste (ordonnance, radio, cbct, photo, cr, consigne, passeport_implantaire,
+// consentement) est clinique et exige une relation de soin (praticien + appointment).
+const NON_CLINICAL_CATEGORIES: &[&str] = &["devis", "facture", "attestation", "carte_mutuelle"];
+
 #[derive(Deserialize)]
 pub struct ListPatientDocumentsQuery {
     pub category: Option<String>,
@@ -1027,6 +1032,13 @@ fn doc_decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
 /// Patient hors cabinet → 404. `?category=` filtre par catégorie (catégorie inconnue → liste vide).
+///
+/// §14 — relation de soin : un praticien sans `appointment` avec ce patient → 403
+/// (même garde que `notes`/`medical-record`/`dental-chart`). Les rôles non-praticiens
+/// (secretary, admin…) n'ont pas de relation de soin possible et restent cantonnés
+/// aux catégories administratives (`NON_CLINICAL_CATEGORIES`) ; toute catégorie
+/// clinique demandée explicitement, ou l'absence de filtre, ne renvoie que ces
+/// catégories pour eux.
 pub async fn list_patient_documents(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -1034,18 +1046,28 @@ pub async fn list_patient_documents(
     Query(params): Query<ListPatientDocumentsQuery>,
 ) -> Result<Json<ListPatientDocumentsResponse>, AppError> {
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
+    let is_practitioner = claims.role == "practitioner";
+
+    let empty_response = || {
+        Ok(Json(ListPatientDocumentsResponse {
+            data: vec![],
+            page: PageInfo {
+                next_cursor: None,
+                limit,
+                offset: 0,
+            },
+        }))
+    };
 
     // Catégorie inconnue → liste vide immédiate, sans requête DB.
     if let Some(ref cat) = params.category {
         if !VALID_CATEGORIES.contains(&cat.as_str()) {
-            return Ok(Json(ListPatientDocumentsResponse {
-                data: vec![],
-                page: PageInfo {
-                    next_cursor: None,
-                    limit,
-                    offset: 0,
-                },
-            }));
+            return empty_response();
+        }
+        // §14 : les rôles non-praticiens n'ont pas de relation de soin possible
+        // et ne peuvent pas demander une catégorie clinique explicitement.
+        if !is_practitioner && !NON_CLINICAL_CATEGORIES.contains(&cat.as_str()) {
+            return empty_response();
         }
     }
 
@@ -1071,12 +1093,45 @@ pub async fn list_patient_documents(
         return Err(AppError::NotFound);
     }
 
+    // RLS strict E.2.16.c : le praticien doit avoir eu au moins un appointment
+    // avec ce patient dans ce cabinet (§14 — accès documents cliniques).
+    if is_practitioner {
+        let has_appointment = sqlx::query(
+            "SELECT 1 FROM appointment a \
+             JOIN practitioner p ON p.id = a.practitioner_id \
+             WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+               AND p.user_id = $3 AND a.deleted_at IS NULL",
+        )
+        .bind(patient_id)
+        .bind(claims.cabinet_id)
+        .bind(claims.sub)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if has_appointment.is_none() {
+            return Err(AppError::Forbidden);
+        }
+    }
+
     let cursor = params.cursor.as_deref().and_then(doc_decode_cursor);
     let fetch_limit = limit + 1;
 
     let (cursor_at, cursor_id) = cursor
         .map(|(at, id)| (Some(at), Some(id)))
         .unwrap_or((None, None));
+
+    // §14 : un praticien avec relation de soin voit tout (filtre catégorie
+    // optionnel, déjà validé ci-dessus). Un rôle non-praticien reste cantonné
+    // aux catégories administratives, même sans filtre explicite.
+    let category_filter: Option<Vec<&str>> = if is_practitioner {
+        params.category.as_deref().map(|c| vec![c])
+    } else {
+        Some(match params.category.as_deref() {
+            Some(c) => vec![c],
+            None => NON_CLINICAL_CATEGORIES.to_vec(),
+        })
+    };
 
     // Deux familles de documents pointent vers un même dossier patient :
     // - ceux créés côté cabinet (patient_id + cabinet_id renseignés) ;
@@ -1095,7 +1150,7 @@ pub async fn list_patient_documents(
                )) \
          ) \
          AND d.deleted_at IS NULL \
-         AND ($3::text IS NULL OR d.category = $3) \
+         AND ($3::text[] IS NULL OR d.category = ANY($3)) \
          AND ($4::timestamptz IS NULL \
               OR d.created_at < $4 \
               OR (d.created_at = $4 AND d.id < $5)) \
@@ -1104,7 +1159,7 @@ pub async fn list_patient_documents(
     )
     .bind(patient_id)
     .bind(claims.cabinet_id)
-    .bind(params.category.as_deref())
+    .bind(category_filter)
     .bind(cursor_at)
     .bind(cursor_id)
     .bind(fetch_limit)
