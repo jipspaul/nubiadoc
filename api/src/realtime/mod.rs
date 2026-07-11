@@ -109,6 +109,8 @@ struct AnyClaims {
     account_id: Option<Uuid>,
     #[serde(default)]
     pharmacy_id: Option<Uuid>,
+    #[serde(default)]
+    role: Option<String>,
 }
 
 /// Contexte extrait du JWT, porté pour toute la durée de la connexion.
@@ -118,6 +120,7 @@ struct WsSession {
     cabinet_id: Option<Uuid>,
     account_id: Option<Uuid>,
     pharmacy_id: Option<Uuid>,
+    role: Option<String>,
 }
 
 fn resolve_token(query: &WsQuery, headers: &HeaderMap) -> Option<String> {
@@ -143,6 +146,7 @@ fn verify_jwt(token: &str, secret: &str) -> Option<WsSession> {
             cabinet_id: d.claims.cabinet_id,
             account_id: d.claims.account_id,
             pharmacy_id: d.claims.pharmacy_id,
+            role: d.claims.role,
         })
 }
 
@@ -444,14 +448,18 @@ async fn authorize_conversation(
             {
                 return false;
             }
-            sqlx::query("SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2")
-                .bind(conversation_id)
-                .bind(cabinet_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .ok()
-                .flatten()
-                .is_some()
+            sqlx::query(
+                "SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2 \
+                 AND (scope != 'clinical' OR $3 != 'secretary')",
+            )
+            .bind(conversation_id)
+            .bind(cabinet_id)
+            .bind(session.role.as_deref().unwrap_or(""))
+            .fetch_optional(&mut *tx)
+            .await
+            .ok()
+            .flatten()
+            .is_some()
         }
         ("patient", _, Some(account_id)) => {
             if sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
