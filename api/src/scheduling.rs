@@ -914,17 +914,20 @@ pub async fn create_cabinet_appointment(
     let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
 
     // Résout le créneau pour starts_at / ends_at / practitioner_id.
+    // status = 'open' : un créneau blocked (indispo praticien) ou held (hold
+    // patient actif) ne doit pas être réservable par un walk-in cabinet, au
+    // même titre que claim_and_hold_slot() côté patient.
     let slot_row = sqlx::query(
         "SELECT starts_at, ends_at, practitioner_id \
          FROM availability_slot \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL AND status = 'open'",
     )
     .bind(body.slot_id)
     .bind(claims.cabinet_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::NotFound)?;
+    .ok_or(AppError::SlotTaken)?;
 
     let starts_at: chrono::DateTime<chrono::Utc> = slot_row
         .try_get("starts_at")
