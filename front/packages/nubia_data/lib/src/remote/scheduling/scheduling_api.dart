@@ -65,15 +65,29 @@ class SchedulingApi {
         .toList();
   }
 
+  // `page` n'a pas d'existence côté API (pagination par cursor, cf.
+  // api/src/appointments.rs `AppointmentsQuery`) : conservé uniquement pour
+  // compatibilité de signature, sans effet. On suit `page.next_cursor` en
+  // interne jusqu'à épuisement pour ramener l'historique complet.
   Future<List<AppointmentDto>> getHistory({int page = 1}) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/appointments',
-      queryParameters: {'filter': 'history', 'page': page},
-    );
-    final data = response.data!['data'] as List<dynamic>;
-    return data
-        .map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final result = <AppointmentDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/appointments',
+        queryParameters: {
+          'filter': 'history',
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final data = response.data!['data'] as List<dynamic>;
+      result.addAll(
+        data.map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>)),
+      );
+      cursor = (response.data!['page'] as Map<String, dynamic>?)?['next_cursor']
+          as String?;
+    } while (cursor != null);
+    return result;
   }
 
   Future<AppointmentDto> getById(String id) async {
