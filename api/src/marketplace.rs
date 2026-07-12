@@ -276,6 +276,28 @@ pub struct SearchSlotsResponse {
     pub data: Vec<SlotProviderItem>,
 }
 
+/// Fragment SQL du filtre `available` sur `sl.starts_at` (constantes hardcodées,
+/// jamais de données utilisateur interpolées). Vocabulaire aligné sur celui émis
+/// par `detect_available` (`/search/parse`) : `today`, `week`/`this_week`, et les
+/// noms de jours anglais (`monday`…`sunday`).
+fn available_time_clause(available: Option<&str>) -> &'static str {
+    match available {
+        Some("today") => {
+            " AND sl.starts_at >= date_trunc('day', now()) \
+              AND sl.starts_at < date_trunc('day', now()) + interval '1 day'"
+        }
+        Some("week") | Some("this_week") => " AND sl.starts_at < now() + interval '7 days'",
+        Some("monday") => " AND EXTRACT(DOW FROM sl.starts_at) = 1",
+        Some("tuesday") => " AND EXTRACT(DOW FROM sl.starts_at) = 2",
+        Some("wednesday") => " AND EXTRACT(DOW FROM sl.starts_at) = 3",
+        Some("thursday") => " AND EXTRACT(DOW FROM sl.starts_at) = 4",
+        Some("friday") => " AND EXTRACT(DOW FROM sl.starts_at) = 5",
+        Some("saturday") => " AND EXTRACT(DOW FROM sl.starts_at) = 6",
+        Some("sunday") => " AND EXTRACT(DOW FROM sl.starts_at) = 0",
+        _ => "",
+    }
+}
+
 /// `GET /v1/search/slots` — prochains créneaux disponibles par praticien (docs/12 §12.1).
 ///
 /// Route publique, pas de JWT. Mêmes filtres que `/v1/search/providers`.
@@ -350,10 +372,13 @@ pub async fn search_slots(
         })
         .filter(|v| !v.is_empty());
 
+    let available_clause = available_time_clause(params.available.as_deref());
+
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
     // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
-    let sql = "SELECT \
+    let sql = format!(
+        "SELECT \
              p.id AS provider_id, \
              p.display_name, \
              CASE WHEN $1::double precision IS NOT NULL AND $2::double precision IS NOT NULL \
@@ -386,9 +411,11 @@ pub async fn search_slots(
                   OR p.geo IS NULL \
                   OR ST_Within(p.geo::geometry, \
                      ST_MakeEnvelope($11, $12, $13, $14, 4326))) \
-         ORDER BY sl.starts_at ASC";
+             {available_clause} \
+         ORDER BY sl.starts_at ASC"
+    );
 
-    let rows = sqlx::query(sql)
+    let rows = sqlx::query(&sql)
         .bind(near_lat) // $1
         .bind(near_lng) // $2
         .bind(radius_m) // $3
@@ -528,24 +555,16 @@ pub async fn search_providers(
     };
 
     // Available filter — hardcoded constants, never user data
-    let available_clause = match params.available.as_deref() {
-        Some("today") => {
+    let available_time = available_time_clause(params.available.as_deref());
+    let available_clause = if available_time.is_empty() {
+        String::new()
+    } else {
+        format!(
             " AND EXISTS (\
               SELECT 1 FROM availability_slot sl \
               WHERE sl.provider_id = p.id AND sl.status = 'open' \
-              AND sl.deleted_at IS NULL AND sl.online_booking = true \
-              AND sl.starts_at >= date_trunc('day', now()) \
-              AND sl.starts_at < date_trunc('day', now()) + interval '1 day')"
-        }
-        Some("week") => {
-            " AND EXISTS (\
-              SELECT 1 FROM availability_slot sl \
-              WHERE sl.provider_id = p.id AND sl.status = 'open' \
-              AND sl.deleted_at IS NULL AND sl.online_booking = true \
-              AND sl.starts_at >= now() \
-              AND sl.starts_at < now() + interval '7 days')"
-        }
-        _ => "",
+              AND sl.deleted_at IS NULL AND sl.online_booking = true{available_time})"
+        )
     };
 
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
