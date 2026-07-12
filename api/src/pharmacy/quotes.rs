@@ -104,11 +104,17 @@ pub async fn create_pharmacy_quote(
     claims: PharmaPharmacistClaims,
     Json(body): Json<CreateQuoteBody>,
 ) -> Result<(StatusCode, Json<QuoteDto>), AppError> {
+    const MAX_QTY: i64 = 1_000_000;
+    const MAX_UNIT_PRICE_CENTS: i64 = 100_000_000;
+
     if body.items.is_empty()
-        || body
-            .items
-            .iter()
-            .any(|item| item.label.trim().is_empty() || item.qty <= 0 || item.unit_price_cents < 0)
+        || body.items.iter().any(|item| {
+            item.label.trim().is_empty()
+                || item.qty <= 0
+                || item.qty > MAX_QTY
+                || item.unit_price_cents < 0
+                || item.unit_price_cents > MAX_UNIT_PRICE_CENTS
+        })
     {
         return Err(AppError::ValidationError);
     }
@@ -144,8 +150,12 @@ pub async fn create_pharmacy_quote(
     let total_cents: i64 = body
         .items
         .iter()
-        .map(|item| item.qty * item.unit_price_cents)
-        .sum();
+        .try_fold(0i64, |acc, item| {
+            item.qty
+                .checked_mul(item.unit_price_cents)
+                .and_then(|line_total| acc.checked_add(line_total))
+        })
+        .ok_or(AppError::ValidationError)?;
     let items = serde_json::json!(body
         .items
         .iter()
