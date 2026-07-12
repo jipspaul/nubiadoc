@@ -296,6 +296,111 @@ async fn prescription_sign_practitioner_returns_200() {
     .await;
 }
 
+// ── Test régression #3684 : un AUTRE praticien du cabinet ne peut pas signer ──
+// L'ordonnance appartient au prescripteur ; la signature eIDAS engage SA
+// responsabilité. Un confrère du même cabinet doit recevoir 403, pas 200.
+
+#[tokio::test]
+async fn prescription_sign_other_practitioner_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_user_id, prac_id, patient_id, prescription_id) =
+        insert_prescription_fixture(&db).await;
+
+    // 2ᵉ praticien du MÊME cabinet, utilisateur distinct (non-prescripteur).
+    let other_user_id = Uuid::new_v4();
+    let other_prac_id = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(other_user_id)
+        .bind(format!("presc-other+{}@nubia.test", other_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(other_prac_id)
+            .bind(cabinet_id)
+            .bind(other_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/prescriptions/{}/sign",
+                    prescription_id
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(other_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // La prescription reste 'draft' (non signée par un tiers).
+    let row = sqlx::query("SELECT status FROM prescription WHERE id = $1")
+        .bind(prescription_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let status: String = sqlx::Row::try_get(&row, "status").unwrap();
+    assert_eq!(status, "draft");
+
+    // Cleanup du 2ᵉ praticien avant la fixture (FK cabinet).
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(other_prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM app_user WHERE id = $1")
+            .bind(other_user_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_user_id,
+        prac_id,
+        patient_id,
+        prescription_id,
+    )
+    .await;
+}
+
 // ── Test 2 : ordonnance déjà signée → 409 ─────────────────────────────────────
 
 #[tokio::test]
