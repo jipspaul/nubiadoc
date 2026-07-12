@@ -96,9 +96,14 @@ class MembersRepositoryImpl implements MembersRepository {
   }
 
   @override
-  Future<Either<Failure, Member>> invite(String email, MemberRole role) async {
+  Future<Either<Failure, Member>> invite(
+    String email,
+    MemberRole role,
+    String firstName,
+    String lastName,
+  ) async {
     try {
-      final dto = await _api.invite(email, role);
+      final dto = await _api.invite(email, role, firstName, lastName);
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {

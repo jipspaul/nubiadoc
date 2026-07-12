@@ -190,7 +190,7 @@ void main() {
     blocTest<AdminMembresBloc, AdminMembresState>(
       'émet Loading puis Error si l\'invitation échoue',
       build: () {
-        when(() => membersRepo.invite(any(), any())).thenAnswer(
+        when(() => membersRepo.invite(any(), any(), any(), any())).thenAnswer(
           (_) async => const Left(
             ServerFailure(message: 'Impossible d\'inviter le membre.'),
           ),
@@ -205,6 +205,8 @@ void main() {
         const AdminMembresInviteRequested(
           email: 'nouveau@cabinet.fr',
           role: MemberRole.secretary,
+          firstName: 'Camille',
+          lastName: 'Durand',
         ),
       ),
       expect: () => [
@@ -212,16 +214,19 @@ void main() {
         const AdminMembresError('Impossible d\'inviter le membre.'),
       ],
       verify: (_) {
-        verify(() =>
-                membersRepo.invite('nouveau@cabinet.fr', MemberRole.secretary))
-            .called(1);
+        verify(() => membersRepo.invite(
+              'nouveau@cabinet.fr',
+              MemberRole.secretary,
+              'Camille',
+              'Durand',
+            )).called(1);
       },
     );
 
     blocTest<AdminMembresBloc, AdminMembresState>(
       'émet Loading puis InviteSuccess et recharge la liste si l\'invitation réussit',
       build: () {
-        when(() => membersRepo.invite(any(), any())).thenAnswer(
+        when(() => membersRepo.invite(any(), any(), any(), any())).thenAnswer(
           (_) async => Right(members.first),
         );
         when(() => membersRepo.list()).thenAnswer((_) async => Right(members));
@@ -237,6 +242,8 @@ void main() {
         const AdminMembresInviteRequested(
           email: 'nouveau@cabinet.fr',
           role: MemberRole.secretary,
+          firstName: 'Camille',
+          lastName: 'Durand',
         ),
       ),
       expect: () => [
@@ -397,6 +404,14 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
+        find.byKey(const Key('invite_first_name_field')),
+        'Camille',
+      );
+      await tester.enterText(
+        find.byKey(const Key('invite_last_name_field')),
+        'Durand',
+      );
+      await tester.enterText(
         find.byKey(const Key('invite_email_field')),
         'nouveau@cabinet.fr',
       );
@@ -429,7 +444,9 @@ void main() {
           any(
             that: isA<AdminMembresInviteRequested>()
                 .having((e) => e.email, 'email', 'nouveau@cabinet.fr')
-                .having((e) => e.role, 'role', MemberRole.secretary),
+                .having((e) => e.role, 'role', MemberRole.secretary)
+                .having((e) => e.firstName, 'firstName', 'Camille')
+                .having((e) => e.lastName, 'lastName', 'Durand'),
           ),
         ),
       ).called(1);
@@ -476,7 +493,9 @@ void main() {
           any(
             that: isA<AdminMembresInviteRequested>()
                 .having((e) => e.email, 'email', 'nouveau@cabinet.fr')
-                .having((e) => e.role, 'role', MemberRole.secretary),
+                .having((e) => e.role, 'role', MemberRole.secretary)
+                .having((e) => e.firstName, 'firstName', 'Camille')
+                .having((e) => e.lastName, 'lastName', 'Durand'),
           ),
         ),
       ).called(1);

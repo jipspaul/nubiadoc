@@ -59,10 +59,20 @@ class MembersApi {
     return MemberDto.fromJson(response.data!);
   }
 
-  Future<MemberDto> invite(String email, MemberRole role) async {
+  Future<MemberDto> invite(
+    String email,
+    MemberRole role,
+    String firstName,
+    String lastName,
+  ) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/cabinet/members',
-      data: {'email': email, 'role': role.name},
+      data: {
+        'email': email,
+        'role': role.name,
+        'first_name': firstName,
+        'last_name': lastName,
+      },
     );
     return MemberDto.fromJson(response.data!);
   }

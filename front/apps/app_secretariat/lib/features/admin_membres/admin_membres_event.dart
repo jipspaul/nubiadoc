@@ -9,8 +9,15 @@ class AdminMembresLoadRequested extends AdminMembresEvent {
 }
 
 class AdminMembresInviteRequested extends AdminMembresEvent {
-  const AdminMembresInviteRequested({required this.email, required this.role});
+  const AdminMembresInviteRequested({
+    required this.email,
+    required this.role,
+    required this.firstName,
+    required this.lastName,
+  });
 
   final String email;
   final MemberRole role;
+  final String firstName;
+  final String lastName;
 }

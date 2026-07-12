@@ -66,7 +66,12 @@ class AdminMembresBloc extends Bloc<AdminMembresEvent, AdminMembresState>
   ) async {
     emit(const AdminMembresLoading());
     try {
-      final result = await _inviteMember(event.email, event.role);
+      final result = await _inviteMember(
+        event.email,
+        event.role,
+        event.firstName,
+        event.lastName,
+      );
       result.fold(
         (failure) => safeEmit(AdminMembresError(failure.message)),
         (_) {

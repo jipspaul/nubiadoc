@@ -64,8 +64,13 @@ class _AdminMembresPageState extends State<AdminMembresPage>
               key: const Key('add_member_fab'),
               onPressed: () async {
                 final bloc = context.read<AdminMembresBloc>();
-                final result =
-                    await showDialog<({String email, MemberRole role})>(
+                final result = await showDialog<
+                    ({
+                      String email,
+                      MemberRole role,
+                      String firstName,
+                      String lastName,
+                    })>(
                   context: context,
                   builder: (_) => const InviteMemberDialog(),
                 );
@@ -74,6 +79,8 @@ class _AdminMembresPageState extends State<AdminMembresPage>
                     AdminMembresInviteRequested(
                       email: result.email,
                       role: result.role,
+                      firstName: result.firstName,
+                      lastName: result.lastName,
                     ),
                   );
                 }
