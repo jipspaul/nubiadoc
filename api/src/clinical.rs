@@ -642,6 +642,25 @@ pub async fn add_patient_note(
         return Err(AppError::NotFound);
     }
 
+    // RLS strict E.2.16.c : le praticien doit avoir eu au moins un appointment
+    // avec ce patient dans ce cabinet (§14 — accès journal clinique), y compris en écriture.
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+           AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
     let act_ref = body.act_ref.unwrap_or_else(|| serde_json::json!({}));
 
     let row = sqlx::query(
