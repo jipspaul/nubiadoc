@@ -35,6 +35,10 @@ pub async fn register_device(
     claims: crate::auth::MeClaims,
     Json(body): Json<RegisterDeviceBody>,
 ) -> Result<(StatusCode, Json<RegisterDeviceResponse>), AppError> {
+    if body.fcm_token.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
     if !["ios", "android", "web"].contains(&body.platform.as_str()) {
         return Err(AppError::ValidationError);
     }
