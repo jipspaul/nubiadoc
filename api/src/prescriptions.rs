@@ -214,7 +214,27 @@ pub async fn sign_prescription(
     .ok_or(AppError::NotFound)?;
 
     let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    // Seul le praticien prescripteur peut signer sa propre ordonnance : la
+    // signature eIDAS (AES) engage sa responsabilité. Le scope cabinet (RLS) ne
+    // suffit pas — on vérifie prescription.practitioner_id -> practitioner.user_id
+    // == claims.sub, comme add_consultation_act / complete_consultation. #3684.
+    let owner = sqlx::query(
+        "SELECT id FROM practitioner WHERE id = $1 AND user_id = $2 AND cabinet_id = $3",
+    )
+    .bind(practitioner_id)
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if owner.is_none() {
+        return Err(AppError::Forbidden);
+    }
 
     // Seule une ordonnance en statut `draft` peut être signée.
     if status != "draft" {
@@ -457,7 +477,7 @@ pub async fn send_prescription(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT patient_id, status, document_id \
+        "SELECT patient_id, practitioner_id, status, document_id \
          FROM prescription \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
@@ -469,8 +489,26 @@ pub async fn send_prescription(
     .ok_or(AppError::NotFound)?;
 
     let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let document_id: Option<Uuid> = row.try_get("document_id").map_err(|_| AppError::Internal)?;
+
+    // Seul le praticien prescripteur peut envoyer sa propre ordonnance à la
+    // pharmacie (même garde que sign_prescription). #3684.
+    let owner = sqlx::query(
+        "SELECT id FROM practitioner WHERE id = $1 AND user_id = $2 AND cabinet_id = $3",
+    )
+    .bind(practitioner_id)
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if owner.is_none() {
+        return Err(AppError::Forbidden);
+    }
 
     // `sent` reste ré-envoyable (ex. après annulation patient) — l'index
     // unique partiel bloque les doublons actifs.
