@@ -3423,6 +3423,10 @@ pub async fn post_account_dependents(
         return Err(AppError::ValidationError);
     }
 
+    if body.first_name.trim().is_empty() || body.last_name.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
         Some(s) => {
             let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
@@ -3586,6 +3590,18 @@ pub async fn patch_account_dependent(
         if !["enfant", "conjoint", "parent", "autre"].contains(&rel.as_str()) {
             return Err(AppError::ValidationError);
         }
+    }
+
+    if body
+        .first_name
+        .as_deref()
+        .is_some_and(|s| s.trim().is_empty())
+        || body
+            .last_name
+            .as_deref()
+            .is_some_and(|s| s.trim().is_empty())
+    {
+        return Err(AppError::ValidationError);
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
