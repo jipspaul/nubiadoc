@@ -93,10 +93,10 @@ pub async fn get_dashboard(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    // Messages non lus envoyés par le cabinet (practitioner ou secrétaire)
+    // Messages non lus envoyés par un soignant (cabinet ou pharmacie)
     let msg_row = sqlx::query(
         "SELECT COUNT(*) AS cnt FROM message \
-         WHERE sender_kind IN ('practitioner','secretary') AND read_at IS NULL",
+         WHERE sender_kind IN ('practitioner','secretary','pharmacist') AND read_at IS NULL",
     )
     .fetch_one(&mut *tx)
     .await

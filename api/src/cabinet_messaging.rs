@@ -32,7 +32,7 @@ pub struct CabinetConversationItem {
     pub last_message_at: Option<String>,
     /// Aperçu (tronqué) du dernier message — POC chiffrement UTF-8 (#3373).
     pub last_message_preview: Option<String>,
-    /// `urgent` ou `normal` — issu du dernier message du fil.
+    /// `urgent` ou `normal` — `urgent` tant qu'un message patient urgent est non lu dans le fil.
     pub triage_flag: String,
     /// Messages patient non lus (`sender_kind='patient'`, `read_at IS NULL`).
     pub unread_count: i64,
@@ -178,18 +178,20 @@ pub async fn list_cabinet_conversations(
                  (SELECT m.body_ciphertext FROM message m \
                   WHERE m.conversation_id = c.id \
                   ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_body, \
-                 COALESCE( \
-                     (SELECT m.triage_flag FROM message m \
-                      WHERE m.conversation_id = c.id \
-                      ORDER BY m.created_at DESC NULLS LAST LIMIT 1), \
-                     'normal' \
-                 ) AS triage_flag, \
-                 CASE WHEN COALESCE( \
-                     (SELECT m.triage_flag FROM message m \
-                      WHERE m.conversation_id = c.id \
-                      ORDER BY m.created_at DESC NULLS LAST LIMIT 1), \
-                     'normal' \
-                 ) = 'urgent' THEN 0 ELSE 1 END AS urgency_int, \
+                 CASE WHEN EXISTS ( \
+                     SELECT 1 FROM message m \
+                     WHERE m.conversation_id = c.id \
+                       AND m.sender_kind = 'patient' \
+                       AND m.triage_flag = 'urgent' \
+                       AND m.read_at IS NULL \
+                 ) THEN 'urgent' ELSE 'normal' END AS triage_flag, \
+                 CASE WHEN EXISTS ( \
+                     SELECT 1 FROM message m \
+                     WHERE m.conversation_id = c.id \
+                       AND m.sender_kind = 'patient' \
+                       AND m.triage_flag = 'urgent' \
+                       AND m.read_at IS NULL \
+                 ) THEN 0 ELSE 1 END AS urgency_int, \
                  (SELECT COUNT(*) FROM message m \
                   WHERE m.conversation_id = c.id \
                     AND m.sender_kind = 'patient' \
