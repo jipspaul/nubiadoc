@@ -3,6 +3,7 @@
 use axum::extract::State;
 use axum::Json;
 use serde::Serialize;
+use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
@@ -31,14 +32,48 @@ pub struct RemindersResponse {
 
 /// `GET /v1/reminders` — rappels de suivi et prévention du patient authentifié.
 ///
-/// Version 🎭 : données mockées (prochain RDV, document à signer, prévention).
+/// Le rappel `document` (devis à signer) est dérivé des devis réels du patient :
+/// un rappel par devis `status = 'sent'` (envoyé par le cabinet, en attente de
+/// signature), RLS scoped via `app.patient_account_id` (policy `quote_patient_read`,
+/// migration 0029), comme `GET /v1/dashboard`. Aucun devis en attente → aucun
+/// rappel `document`.
 /// Triés par `due_at ASC` (plus urgents en premier).
 /// Aucun rappel → `{ data: [] }`.
+/// Devis `sent` (en attente de signature) du patient scopé, ou `sqlx::Error`.
+/// Isolé pour permettre un appel BEST-EFFORT depuis `list_reminders` : une DB
+/// indisponible ou une requête en échec ne doit PAS faire échouer tout l'écran
+/// rappels (postmortem 2026-07-12 #3648 : la requête renvoyait 500 au lieu de
+/// dégrader gracieusement).
+async fn fetch_sent_quotes(
+    state: &AppState,
+    account_id: Uuid,
+) -> Result<Vec<(Uuid, chrono::DateTime<chrono::Utc>)>, sqlx::Error> {
+    let mut tx = state.db.begin().await?;
+    // Scope patient — quote_patient_read (migration 0029).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(account_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    let rows = sqlx::query(
+        "SELECT id, updated_at FROM quote \
+         WHERE status = 'sent' AND deleted_at IS NULL \
+         ORDER BY updated_at ASC",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push((row.try_get("id")?, row.try_get("updated_at")?));
+    }
+    Ok(out)
+}
+
 pub async fn list_reminders(
-    State(_state): State<AppState>,
-    _claims: PatientAccountClaims,
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
 ) -> Result<Json<RemindersResponse>, AppError> {
-    let data = vec![
+    let mut data = vec![
         ReminderItem {
             id: uuid::uuid!("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
             kind: "appointment".to_string(),
@@ -51,16 +86,6 @@ pub async fn list_reminders(
             })),
         },
         ReminderItem {
-            id: uuid::uuid!("b2c3d4e5-f6a7-8901-bcde-f12345678901"),
-            kind: "document".to_string(),
-            title: "Devis à signer avant votre prochain soin".to_string(),
-            due_at: "2026-06-20T00:00:00Z".to_string(),
-            status: "pending".to_string(),
-            metadata: Some(serde_json::json!({
-                "document_id": "d3e4f5a6-b7c8-9012-cdef-123456789012"
-            })),
-        },
-        ReminderItem {
             id: uuid::uuid!("c3d4e5f6-a7b8-9012-cdef-234567890123"),
             kind: "prevention".to_string(),
             title: "Détartrage annuel recommandé".to_string(),
@@ -69,6 +94,27 @@ pub async fn list_reminders(
             metadata: None,
         },
     ];
+
+    // BEST-EFFORT : une DB indisponible ou une requête devis en échec ne doit pas
+    // faire échouer tout l'écran rappels (on renvoie au moins RDV + prévention).
+    let sent_quotes = match fetch_sent_quotes(&state, claims.account_id).await {
+        Ok(rows) => rows,
+        Err(err) => {
+            tracing::warn!(%err, "list_reminders: rappels devis indisponibles (best-effort)");
+            Vec::new()
+        }
+    };
+
+    for (quote_id, updated_at) in sent_quotes {
+        data.push(ReminderItem {
+            id: quote_id,
+            kind: "document".to_string(),
+            title: "Devis à signer avant votre prochain soin".to_string(),
+            due_at: updated_at.to_rfc3339(),
+            status: "pending".to_string(),
+            metadata: Some(serde_json::json!({ "document_id": quote_id })),
+        });
+    }
 
     Ok(Json(RemindersResponse { data }))
 }
