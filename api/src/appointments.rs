@@ -1583,10 +1583,22 @@ pub async fn create_appointment(
         cab_row.try_get("address").map_err(|_| AppError::Internal)?;
 
     // Idempotence : si une Idempotency-Key est fournie et qu'un RDV existe déjà pour ce
-    // cabinet + clé, on retourne le RDV existant sans insérer de doublon.
+    // cabinet + clé, on retourne le RDV existant sans insérer de doublon. Une clé rejouée
+    // avec une charge utile différente ne doit jamais renvoyer le RDV d'une autre requête
+    // (#3632, jumeau de #3547/#3620 côté bookings.rs) -> empreinte comparée, divergence ->
+    // 409 au lieu d'absorber silencieusement la 2e réservation.
     if let Some(ref key) = idempotency_key {
+        let fingerprint = format!(
+            "provider={}|slot={}|starts_at={}|motif={}|on_behalf_of={}",
+            body.provider_id,
+            body.slot_id.map(|s| s.to_string()).unwrap_or_default(),
+            body.starts_at.as_deref().unwrap_or(""),
+            body.motif.as_deref().unwrap_or(""),
+            body.on_behalf_of.map(|s| s.to_string()).unwrap_or_default(),
+        );
+
         let existing = sqlx::query(
-            "SELECT id, status, starts_at, ends_at, motif FROM appointment \
+            "SELECT id, status, starts_at, ends_at, motif, idempotency_fingerprint FROM appointment \
              WHERE cabinet_id = $1 AND idempotency_key = $2",
         )
         .bind(cabinet_id)
@@ -1596,6 +1608,18 @@ pub async fn create_appointment(
         .map_err(|_| AppError::Internal)?;
 
         if let Some(row) = existing {
+            let cached_fingerprint: Option<String> = row
+                .try_get("idempotency_fingerprint")
+                .map_err(|_| AppError::Internal)?;
+            if cached_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+                tx.commit().await.map_err(|_| AppError::Internal)?;
+                tracing::warn!(
+                    account_id = %claims.account_id,
+                    "appointment idempotency key replayed with a different fingerprint"
+                );
+                return Err(AppError::IdempotencyKeyConflict);
+            }
+
             let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let idem_starts_at: chrono::DateTime<chrono::Utc> =
@@ -1652,14 +1676,22 @@ pub async fn create_appointment(
     let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
 
     // Résout starts_at / ends_at selon slot_id ou starts_at fourni.
+    // status = 'open' : un créneau blocked (indispo praticien) ou held (hold
+    // patient actif) ne doit pas être réservable, au même titre que le
+    // chemin cabinet (create_cabinet_appointment).
     let (starts_at, ends_at) = if let Some(slot_id) = body.slot_id {
-        let slot_row =
-            sqlx::query("SELECT starts_at, ends_at FROM availability_slot WHERE id = $1")
-                .bind(slot_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?
-                .ok_or(AppError::NotFound)?;
+        let slot_row = sqlx::query(
+            "SELECT starts_at, ends_at FROM availability_slot \
+             WHERE id = $1 AND cabinet_id = $2 AND practitioner_id = $3 \
+             AND deleted_at IS NULL AND status = 'open'",
+        )
+        .bind(slot_id)
+        .bind(cabinet_id)
+        .bind(practitioner_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::SlotTaken)?;
 
         let sa: chrono::DateTime<chrono::Utc> = slot_row
             .try_get("starts_at")
@@ -1678,11 +1710,22 @@ pub async fn create_appointment(
         (sa, ea)
     };
 
+    let fingerprint = idempotency_key.as_ref().map(|_| {
+        format!(
+            "provider={}|slot={}|starts_at={}|motif={}|on_behalf_of={}",
+            body.provider_id,
+            body.slot_id.map(|s| s.to_string()).unwrap_or_default(),
+            body.starts_at.as_deref().unwrap_or(""),
+            body.motif.as_deref().unwrap_or(""),
+            body.on_behalf_of.map(|s| s.to_string()).unwrap_or_default(),
+        )
+    });
+
     // INSERT — 23P01 (appointment_no_overlap) → 409 slot_taken.
     let result = sqlx::query(
         "INSERT INTO appointment \
-         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, slot_id, idempotency_key) \
-         VALUES ($1, $2, $3, $4, $5, 'requested', $6, $7, $8) \
+         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, slot_id, idempotency_key, idempotency_fingerprint) \
+         VALUES ($1, $2, $3, $4, $5, 'requested', $6, $7, $8, $9) \
          RETURNING id, status",
     )
     .bind(cabinet_id)
@@ -1693,6 +1736,7 @@ pub async fn create_appointment(
     .bind(body.motif.as_deref())
     .bind(body.slot_id)
     .bind(&idempotency_key)
+    .bind(&fingerprint)
     .fetch_one(&mut *tx)
     .await;
 
