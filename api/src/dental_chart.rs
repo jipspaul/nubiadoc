@@ -35,6 +35,34 @@ pub struct PutDentalChartBody {
     pub teeth: Value,
 }
 
+/// Valide le contrat `teeth` : objet position→état, clés = codes dent ISO 3950.
+///
+/// ISO 3950 (notation FDI) : `<quadrant><dent>` où quadrant 1-4 (dentition
+/// permanente, dents 1-8) ou quadrant 5-8 (dentition temporaire, dents 1-5).
+/// Rejette tout scalaire (chaîne/entier/tableau) ainsi que les clés hors
+/// numérotation ISO 3950 — cf. #3680.
+fn validate_teeth(teeth: &Value) -> Result<(), AppError> {
+    let map = teeth.as_object().ok_or(AppError::ValidationError)?;
+
+    for key in map.keys() {
+        let is_valid_tooth_code = key.len() == 2 && key.chars().all(|c| c.is_ascii_digit()) && {
+            let quadrant = key.as_bytes()[0] - b'0';
+            let tooth = key.as_bytes()[1] - b'0';
+            match quadrant {
+                1..=4 => (1..=8).contains(&tooth),
+                5..=8 => (1..=5).contains(&tooth),
+                _ => false,
+            }
+        };
+
+        if !is_valid_tooth_code {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    Ok(())
+}
+
 // ── GET /v1/cabinet/patients/:id/dental-chart ─────────────────────────────────
 
 /// `GET /v1/cabinet/patients/:id/dental-chart` — odontogramme du patient.
@@ -145,6 +173,8 @@ pub async fn put_dental_chart(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<PutDentalChartBody>,
 ) -> Result<Json<DentalChartResponse>, AppError> {
+    validate_teeth(&body.teeth)?;
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
