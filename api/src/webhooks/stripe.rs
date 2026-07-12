@@ -32,6 +32,12 @@ fn verify_stripe_signature(
     body: &[u8],
     stripe_sig_header: &str,
 ) -> Result<(), AppError> {
+    // Un secret vide (var d'env absente) rendrait le HMAC calculable publiquement :
+    // on échoue fermée plutôt que d'accepter une clé vide.
+    if secret.is_empty() {
+        return Err(AppError::Unauthorized);
+    }
+
     // Parse timestamp et signatures v1.
     let mut timestamp: Option<&str> = None;
     let mut signatures: Vec<&str> = Vec::new();
