@@ -1600,7 +1600,10 @@ pub async fn post_cabinet_members(
     claims: ProAdminOrManagerClaims,
     Json(body): Json<PostCabinetMemberBody>,
 ) -> Result<(StatusCode, Json<CabinetMemberItem>), AppError> {
-    if !["practitioner", "secretary", "admin", "manager", "doctor"].contains(&body.role.as_str()) {
+    // Rôles valides pour `cabinet_membership` (cf. `patch_cabinet_member`) :
+    // `manager` est un rôle de secrétariat, pas de cabinet ; le rôle
+    // praticien s'appelle `practitioner` (pas `doctor`).
+    if !["practitioner", "secretary", "admin"].contains(&body.role.as_str()) {
         return Err(AppError::ValidationError);
     }
 
