@@ -148,7 +148,8 @@ pub(crate) enum AppError {
     /// que d'ignorer silencieusement le paramètre (#3521).
     UnsupportedPageParam,
     /// `PATCH /v1/appointments/:id` avec un `starts_at` qui ne correspond à
-    /// aucun `availability_slot` ouvert du praticien (#3558).
+    /// aucun `availability_slot` ouvert du praticien (ou dans le passé) → 409
+    /// (#3558 : reprogrammation vers un créneau inexistant / date passée).
     SlotUnavailable,
 }
 
@@ -2867,7 +2868,15 @@ pub async fn put_account_consent(
     Path(purpose): Path<String>,
     Json(body): Json<PutConsentBody>,
 ) -> Result<Json<ConsentUpdateResponse>, AppError> {
-    if !["soins", "ia_scribe", "marketing", "partage_confrere"].contains(&purpose.as_str()) {
+    if ![
+        "soins",
+        "ia_scribe",
+        "marketing",
+        "partage_confrere",
+        "partage_pharmacie",
+    ]
+    .contains(&purpose.as_str())
+    {
         return Err(AppError::ValidationError);
     }
 
@@ -3423,6 +3432,10 @@ pub async fn post_account_dependents(
         return Err(AppError::ValidationError);
     }
 
+    if body.first_name.trim().is_empty() || body.last_name.trim().is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
     let birth_date: Option<chrono::NaiveDate> = match body.birth_date.as_deref() {
         Some(s) => {
             let d: chrono::NaiveDate = s.parse().map_err(|_| AppError::ValidationError)?;
@@ -3484,6 +3497,12 @@ pub async fn post_account_dependents(
     .map_err(|_| AppError::Internal)?;
 
     if let Some(cov) = body.coverage {
+        if let Some(ref regime) = cov.regime_obligatoire {
+            if !["regime_general", "ame", "css"].contains(&regime.as_str()) {
+                return Err(AppError::ValidationError);
+            }
+        }
+
         // patient_coverage est scopée par app.patient_account_id (migration 0023).
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
             .bind(dependent_account_id.to_string())
@@ -3582,6 +3601,18 @@ pub async fn patch_account_dependent(
         }
     }
 
+    if body
+        .first_name
+        .as_deref()
+        .is_some_and(|s| s.trim().is_empty())
+        || body
+            .last_name
+            .as_deref()
+            .is_some_and(|s| s.trim().is_empty())
+    {
+        return Err(AppError::ValidationError);
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
@@ -3637,6 +3668,12 @@ pub async fn patch_account_dependent(
 
     // Upsert de la couverture si présente (RLS scoped par app.patient_account_id).
     if let Some(cov) = body.coverage {
+        if let Some(ref regime) = cov.regime_obligatoire {
+            if !["regime_general", "ame", "css"].contains(&regime.as_str()) {
+                return Err(AppError::ValidationError);
+            }
+        }
+
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
             .bind(dependent_id.to_string())
             .execute(&mut *tx)
