@@ -52,7 +52,7 @@ pub async fn patch_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, starts_at, status, cabinet_id, slot_id \
+        "SELECT id, starts_at, status, cabinet_id, slot_id, practitioner_id \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -68,6 +68,9 @@ pub async fn patch_appointment(
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
     let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
 
     if status != "requested" && status != "confirmed" {
         return Err(AppError::InvalidStatus);
@@ -76,6 +79,37 @@ pub async fn patch_appointment(
     // Délai configurable, défaut 24 h avant le starts_at courant.
     if chrono::Utc::now() >= starts_at - chrono::Duration::hours(24) {
         return Err(AppError::TooLate);
+    }
+
+    // Reprogrammation : le nouveau créneau doit être validé côté serveur, comme
+    // la réservation initiale (POST /v1/bookings exige un availability_slot réel).
+    // Sinon un patient pouvait déplacer son RDV vers une date passée ou une heure
+    // sans ouverture (03h17…) — RDV fantôme "requested" polluant la liste cabinet
+    // (#3558). Le nouveau starts_at doit être (a) dans le futur ET (b) correspondre
+    // à un créneau `open` du praticien. Les créneaux ouverts sont publiquement
+    // lisibles (policy availability_slot_patient_read, 0117 — aucun GUC requis).
+    if let Some(new_ts) = new_starts_at {
+        if new_ts <= chrono::Utc::now() {
+            return Err(AppError::SlotUnavailable);
+        }
+        let has_open_slot: bool = sqlx::query_scalar(
+            "SELECT EXISTS( \
+               SELECT 1 FROM availability_slot s \
+               JOIN provider p ON p.id = s.provider_id \
+               WHERE p.practitioner_id = $1 \
+                 AND s.starts_at = $2 \
+                 AND s.status = 'open' \
+                 AND s.deleted_at IS NULL \
+             )",
+        )
+        .bind(practitioner_id)
+        .bind(new_ts)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        if !has_open_slot {
+            return Err(AppError::SlotUnavailable);
+        }
     }
 
     // Scope cabinet pour UPDATE (tenant_isolation) + audit.
