@@ -346,3 +346,78 @@ async fn consent_put_malformed_body_returns_422() {
 
     cleanup(&db, user_id).await;
 }
+
+// ── Test 7 : régression #3624 — une ligne CGU plateforme préexistante
+// (app_user_id, 'soins') ne doit PAS faire 500 sur PUT /consents/soins. ───────
+
+#[tokio::test]
+async fn consent_put_soins_with_existing_platform_cgu_row_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id) = setup_patient(&db).await;
+
+    // Ligne CGU plateforme préexistante pour CET app_user (comme le seed) :
+    // app_user_id renseigné, patient_account_id NULL, purpose 'soins'. Avant le
+    // fix, l'INSERT du handler liait aussi app_user_id → collision avec la
+    // contrainte UNIQUE (app_user_id, purpose) 0027, non gérée par l'ON CONFLICT
+    // (patient_account_id, purpose) → 500 permanent.
+    sqlx::query(
+        "INSERT INTO consent_record (app_user_id, purpose, granted, granted_at) \
+         VALUES ($1, 'soins', true, now())",
+    )
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/account/consents/soins")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::from(r#"{"granted":true}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["purpose"], "soins");
+    assert_eq!(v["granted"], true);
+
+    // La ligne consentement patient est créée séparément (scopée patient_account_id).
+    let cnt: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM consent_record WHERE patient_account_id = $1 AND purpose = 'soins'",
+    )
+    .bind(account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(cnt, 1, "la ligne consentement patient doit exister");
+
+    sqlx::query("DELETE FROM consent_record WHERE app_user_id = $1 OR patient_account_id = $2")
+        .bind(user_id)
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+    cleanup(&db, user_id).await;
+}
