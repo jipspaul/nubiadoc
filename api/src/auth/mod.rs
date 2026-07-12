@@ -2859,8 +2859,14 @@ pub async fn put_account_consent(
     Path(purpose): Path<String>,
     Json(body): Json<PutConsentBody>,
 ) -> Result<Json<ConsentUpdateResponse>, AppError> {
-    if !["soins", "ia_scribe", "marketing", "partage_confrere", "partage_pharmacie"]
-        .contains(&purpose.as_str())
+    if ![
+        "soins",
+        "ia_scribe",
+        "marketing",
+        "partage_confrere",
+        "partage_pharmacie",
+    ]
+    .contains(&purpose.as_str())
     {
         return Err(AppError::ValidationError);
     }
