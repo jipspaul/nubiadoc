@@ -11,10 +11,9 @@ class CabinetQuotesApi {
   Future<List<CabinetQuoteDto>> list({int page = 1}) async {
     // Le back renvoie un tableau nu `[CabinetQuoteItem]` (pas de wrapper
     // `{data}`). On tolère les deux formes par robustesse.
-    final response = await _dio.get<dynamic>(
-      '/cabinet/quotes',
-      queryParameters: {'page': page},
-    );
+    // Note : l'endpoint ne supporte pas la pagination `page` (rejet 400
+    // `unsupported_pagination_param`) ; `page` n'est donc pas transmis.
+    final response = await _dio.get<dynamic>('/cabinet/quotes');
     final raw = response.data;
     final data = raw is List
         ? raw
