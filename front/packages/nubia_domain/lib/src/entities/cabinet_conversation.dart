@@ -12,6 +12,11 @@ class CabinetConversation extends Equatable {
   /// Aperçu tronqué du dernier message (`last_message_preview`, #3373).
   final String? lastMessagePreview;
 
+  /// `urgent` tant qu'un message patient urgent est non lu dans le fil
+  /// (`triage_flag` du contrat liste, #3556) — pas dérivé du seul dernier
+  /// message, qui peut être un message normal postérieur.
+  final MessageUrgency triageFlag;
+
   const CabinetConversation({
     required this.id,
     required this.patientId,
@@ -20,6 +25,7 @@ class CabinetConversation extends Equatable {
     this.lastMessageAt,
     this.lastMessage,
     this.lastMessagePreview,
+    this.triageFlag = MessageUrgency.normal,
   });
 
   @override
