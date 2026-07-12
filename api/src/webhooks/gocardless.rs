@@ -44,6 +44,12 @@ fn verify_gocardless_signature(
     body: &[u8],
     sig_header: &str,
 ) -> Result<(), AppError> {
+    // Un secret vide (var d'env absente) rendrait le HMAC calculable publiquement :
+    // on échoue fermée plutôt que d'accepter une clé vide.
+    if secret.is_empty() {
+        return Err(AppError::Unauthorized);
+    }
+
     let mut mac =
         HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| AppError::Unauthorized)?;
     mac.update(body);

@@ -35,6 +35,12 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 /// Format du header : `<hex_sig>` (SHA256 HMAC du body brut).
 /// Retourne `Err(Unauthorized)` si la signature est absente ou invalide.
 fn verify_yousign_signature(secret: &str, body: &[u8], sig_header: &str) -> Result<(), AppError> {
+    // Un secret vide (var d'env absente) rendrait le HMAC calculable publiquement :
+    // on échoue fermée plutôt que d'accepter une clé vide.
+    if secret.is_empty() {
+        return Err(AppError::Unauthorized);
+    }
+
     let mut mac =
         HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| AppError::Unauthorized)?;
     mac.update(body);
@@ -125,10 +131,13 @@ pub async fn yousign_webhook(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // `sent` est l'étape obligatoire entre `draft` et `signed` (même contrainte que
+    // le parcours patient `sign_quote`, billing.rs) : un devis draft/refusé/expiré
+    // ne doit pas pouvoir sauter directement à `signed`.
     sqlx::query(
         "UPDATE quote \
          SET signed_at = now(), status = 'signed', updated_at = now() \
-         WHERE id = $1 AND cabinet_id = $2 AND signed_at IS NULL",
+         WHERE id = $1 AND cabinet_id = $2 AND status = 'sent' AND signed_at IS NULL",
     )
     .bind(quote_id)
     .bind(cabinet_id)
