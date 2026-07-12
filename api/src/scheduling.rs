@@ -1496,6 +1496,9 @@ pub async fn start_consultation(
 /// Token pro requis (secretary+). `cabinet_id` extrait du JWT. 404 si le RDV
 /// n'appartient pas au cabinet (RLS). Statut valide pour modification :
 /// `requested` ou `confirmed` → `409 invalid_status` sinon.
+/// Nouveau `starts_at` : doit être dans le futur et correspondre à un
+/// `availability_slot` `open` du praticien → `409 slot_unavailable` sinon
+/// (même garde que `patch_appointment` côté patient, #3558).
 /// Conflit créneau (contrainte PG `23P01`) → `409 slot_taken`.
 /// Toute modification est auditée dans `audit_log`.
 pub async fn patch_cabinet_appointment(
@@ -1520,7 +1523,7 @@ pub async fn patch_cabinet_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, status, slot_id FROM appointment \
+        "SELECT id, status, slot_id, practitioner_id FROM appointment \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(appt_id)
@@ -1533,9 +1536,40 @@ pub async fn patch_cabinet_appointment(
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
+    let practitioner_id: Uuid = row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
 
     if status != "requested" && status != "confirmed" {
         return Err(AppError::InvalidStatus);
+    }
+
+    // Reprogrammation cabinet : même garde que patch_appointment côté patient
+    // (#3558) — le nouveau starts_at doit être (a) dans le futur ET (b)
+    // correspondre à un availability_slot 'open' du praticien, sinon le RDV
+    // se retrouve délié de tout créneau (slot_id NULL) et fantôme dans l'agenda.
+    if let Some(new_ts) = new_starts_at {
+        if new_ts <= chrono::Utc::now() {
+            return Err(AppError::SlotUnavailable);
+        }
+        let has_open_slot: bool = sqlx::query_scalar(
+            "SELECT EXISTS( \
+               SELECT 1 FROM availability_slot s \
+               JOIN provider p ON p.id = s.provider_id \
+               WHERE p.practitioner_id = $1 \
+                 AND s.starts_at = $2 \
+                 AND s.status = 'open' \
+                 AND s.deleted_at IS NULL \
+             )",
+        )
+        .bind(practitioner_id)
+        .bind(new_ts)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        if !has_open_slot {
+            return Err(AppError::SlotUnavailable);
+        }
     }
 
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
