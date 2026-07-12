@@ -340,6 +340,8 @@ pub async fn call_next_patient(
         sqlx::query(
             "SELECT id, patient_id FROM appointment \
              WHERE status = 'checked_in' AND deleted_at IS NULL AND practitioner_id = $1 \
+               AND starts_at >= date_trunc('day', now()) \
+               AND starts_at < date_trunc('day', now()) + interval '1 day' \
              ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
              LIMIT 1 \
              FOR UPDATE SKIP LOCKED",
@@ -352,6 +354,8 @@ pub async fn call_next_patient(
         sqlx::query(
             "SELECT id, patient_id FROM appointment \
              WHERE status = 'checked_in' AND deleted_at IS NULL \
+               AND starts_at >= date_trunc('day', now()) \
+               AND starts_at < date_trunc('day', now()) + interval '1 day' \
              ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
              LIMIT 1 \
              FOR UPDATE SKIP LOCKED",
@@ -1345,6 +1349,9 @@ pub struct PatchCabinetAppointmentBody {
     pub starts_at: Option<String>,
     /// Nouveau motif administratif.
     pub motif: Option<String>,
+    /// Transition de clôture explicite — seule valeur acceptée : `no_show`,
+    /// pour sortir un RDV `checked_in` (jour passé ou non) de la file (#3670).
+    pub status: Option<String>,
 }
 
 /// Réponse de `PATCH /v1/cabinet/appointments/:id`.
@@ -1496,6 +1503,9 @@ pub async fn start_consultation(
 /// Token pro requis (secretary+). `cabinet_id` extrait du JWT. 404 si le RDV
 /// n'appartient pas au cabinet (RLS). Statut valide pour modification :
 /// `requested` ou `confirmed` → `409 invalid_status` sinon.
+/// `status: "no_show"` : clôture cabinet d'un RDV `checked_in` (seule
+/// transition acceptée en entrée) → `409 invalid_status` si le RDV n'est pas
+/// `checked_in`, `422`/`400 validation_error` si une autre valeur est fournie.
 /// Nouveau `starts_at` : doit être dans le futur et correspondre à un
 /// `availability_slot` `open` du praticien → `409 slot_unavailable` sinon
 /// (même garde que `patch_appointment` côté patient, #3558).
@@ -1539,6 +1549,59 @@ pub async fn patch_cabinet_appointment(
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
+
+    // Clôture cabinet d'un `checked_in` (typiquement périmé, d'un jour passé,
+    // donc absent de waiting-room/queue) : seule sortie de file possible avant
+    // ce correctif était un cul-de-sac (#3670). Même statut cible que le
+    // patient sortant lui-même de la file (cancel_appointment, appointments.rs).
+    if let Some(target_status) = body.status.as_deref() {
+        if target_status != "no_show" {
+            return Err(AppError::ValidationError);
+        }
+        if status != "checked_in" {
+            return Err(AppError::InvalidStatus);
+        }
+
+        sqlx::query(
+            "UPDATE appointment \
+             SET status = 'no_show', cancelled_at = now(), \
+                 cancel_reason = COALESCE($2, cancel_reason), updated_at = now() \
+             WHERE id = $1",
+        )
+        .bind(id)
+        .bind(body.motif.as_deref())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if let Some(sid) = slot_id {
+            sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+                .bind(sid)
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        }
+
+        sqlx::query(
+            "INSERT INTO audit_log \
+             (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+             VALUES ($1, $2, $3, 'update_appointment', 'appointment', $4)",
+        )
+        .bind(claims.cabinet_id)
+        .bind(claims.sub)
+        .bind(&claims.role)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+
+        return Ok(Json(PatchCabinetAppointmentResponse {
+            appointment_id: id,
+            status: "no_show".to_string(),
+        }));
+    }
 
     if status != "requested" && status != "confirmed" {
         return Err(AppError::InvalidStatus);
