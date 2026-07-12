@@ -68,9 +68,19 @@ pub async fn create_review(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Idempotence : retourner l'avis existant si même patient + même clé.
+    // Empreinte de la requête : une clé rejouée avec un appointment_id/rating/comment
+    // différent ne doit jamais renvoyer silencieusement l'avis de la 1re requête
+    // (#3671, jumeau de #3632/#3620) -> divergence d'empreinte -> 409.
+    let fingerprint = format!(
+        "appointment={}|rating={}|comment={}",
+        body.appointment_id,
+        body.rating,
+        body.comment.as_deref().unwrap_or(""),
+    );
+
+    // Idempotence : retourner l'avis existant si même patient + même clé + même empreinte.
     let existing = sqlx::query(
-        "SELECT id, status FROM review \
+        "SELECT id, status, idempotency_fingerprint FROM review \
          WHERE patient_account_id = $1 AND idempotency_key = $2",
     )
     .bind(claims.account_id)
@@ -80,6 +90,18 @@ pub async fn create_review(
     .map_err(|_| AppError::Internal)?;
 
     if let Some(row) = existing {
+        let cached_fingerprint: Option<String> = row
+            .try_get("idempotency_fingerprint")
+            .map_err(|_| AppError::Internal)?;
+        if cached_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+            tx.commit().await.map_err(|_| AppError::Internal)?;
+            tracing::warn!(
+                account_id = %claims.account_id,
+                "review idempotency key replayed with a different fingerprint"
+            );
+            return Err(AppError::IdempotencyKeyConflict);
+        }
+
         let review_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         tx.commit().await.map_err(|_| AppError::Internal)?;
@@ -133,8 +155,8 @@ pub async fn create_review(
     let result = sqlx::query(
         "INSERT INTO review \
          (provider_id, patient_account_id, appointment_id, rating, comment, \
-          status, author_display, idempotency_key) \
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) \
+          status, author_display, idempotency_key, idempotency_fingerprint) \
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8) \
          RETURNING id, status",
     )
     .bind(provider_id)
@@ -144,6 +166,7 @@ pub async fn create_review(
     .bind(body.comment.as_deref())
     .bind(&author_display)
     .bind(&idempotency_key)
+    .bind(&fingerprint)
     .fetch_one(&mut *tx)
     .await;
 
