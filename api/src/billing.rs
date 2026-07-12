@@ -498,6 +498,9 @@ pub async fn create_payment_intent(
     if !["card", "apple_pay", "google_pay", "sepa"].contains(&body.method.as_str()) {
         return Err(AppError::ValidationError);
     }
+    if body.amount_cents <= 0 {
+        return Err(AppError::ValidationError);
+    }
 
     // Empreinte de la requête : une même clé rejouée avec un compte/devis/montant
     // différent ne doit jamais renvoyer le paiement d'une autre requête (#3547).
@@ -564,7 +567,7 @@ pub async fn create_payment_intent(
         .map_err(|_| AppError::Internal)?;
 
     let quote_row = sqlx::query(
-        "SELECT q.cabinet_id, q.patient_id, q.status \
+        "SELECT q.cabinet_id, q.patient_id, q.status, (q.total_amount * 100)::bigint AS total_amount_cents \
          FROM quote q \
          JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.deleted_at IS NULL \
@@ -586,6 +589,9 @@ pub async fn create_payment_intent(
     let status: String = quote_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
+    let total_amount_cents: i64 = quote_row
+        .try_get("total_amount_cents")
+        .map_err(|_| AppError::Internal)?;
 
     if status != "signed" {
         return Err(AppError::InvalidStatus);
@@ -597,6 +603,26 @@ pub async fn create_payment_intent(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    // Montant restant dû = total du devis - paiements déjà en cours/aboutis (jamais
+    // les `failed`/`refunded`, qui n'engagent aucune somme).
+    let already_committed_row = sqlx::query(
+        "SELECT COALESCE(SUM(amount * 100), 0)::bigint AS committed_cents \
+         FROM payment \
+         WHERE quote_id = $1 AND status IN ('pending', 'paid')",
+    )
+    .bind(body.quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let already_committed_cents: i64 = already_committed_row
+        .try_get("committed_cents")
+        .map_err(|_| AppError::Internal)?;
+    let remaining_due_cents = total_amount_cents - already_committed_cents;
+
+    if body.amount_cents > remaining_due_cents {
+        return Err(AppError::ValidationError);
+    }
 
     // Génère un client_secret stub (remplacé par l'appel Stripe réel post-T2).
     let client_secret = format!(
