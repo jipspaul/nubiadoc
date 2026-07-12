@@ -2132,6 +2132,18 @@ pub async fn patch_account(
         return Err(AppError::ValidationError);
     }
 
+    if body
+        .first_name
+        .as_deref()
+        .is_some_and(|s| s.trim().is_empty())
+        || body
+            .last_name
+            .as_deref()
+            .is_some_and(|s| s.trim().is_empty())
+    {
+        return Err(AppError::ValidationError);
+    }
+
     // Validation format E.164 : commence par '+', suivi de 7 à 14 chiffres.
     if let Some(ref phone) = body.phone {
         let digits: &str = phone.strip_prefix('+').unwrap_or("");
