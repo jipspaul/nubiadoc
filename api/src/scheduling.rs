@@ -1417,6 +1417,22 @@ pub async fn start_consultation(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
 
+    // Seul le praticien du RDV peut démarrer la séance (elle est ouverte à SON
+    // nom : consultation_session.practitioner_id + audit). Le scope cabinet ne
+    // suffit pas — même garde que add_consultation_act / complete_consultation. #3688.
+    let owner = sqlx::query(
+        "SELECT id FROM practitioner WHERE id = $1 AND user_id = $2 AND cabinet_id = $3",
+    )
+    .bind(practitioner_id)
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if owner.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
     if status != "confirmed" && status != "checked_in" && status != "in_progress" {
         return Err(AppError::InvalidStatus);
     }
