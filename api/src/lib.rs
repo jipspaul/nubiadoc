@@ -736,7 +736,9 @@ fn build_router(
             std::env::var("GOCARDLESS_WEBHOOK_SECRET").unwrap_or_default(),
         )))
         .layer(dev_cors_layer())
-        .layer(axum::middleware::map_response(normalize_extractor_rejections))
+        .layer(axum::middleware::map_response(
+            normalize_extractor_rejections,
+        ))
         .with_state(state)
 }
 
