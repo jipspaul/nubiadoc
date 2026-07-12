@@ -16,8 +16,8 @@ class SlotsApi {
     final response = await _dio.get<List<dynamic>>(
       '/cabinet/slots',
       queryParameters: {
-        if (from != null) 'from': from.toIso8601String(),
-        if (to != null) 'to': to.toIso8601String(),
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (to != null) 'to': to.toUtc().toIso8601String(),
         if (practitionerId != null) 'practitioner_id': practitionerId,
       },
     );
