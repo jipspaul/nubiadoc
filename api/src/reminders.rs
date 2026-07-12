@@ -39,31 +39,40 @@ pub struct RemindersResponse {
 /// rappel `document`.
 /// Triés par `due_at ASC` (plus urgents en premier).
 /// Aucun rappel → `{ data: [] }`.
-pub async fn list_reminders(
-    State(state): State<AppState>,
-    claims: PatientAccountClaims,
-) -> Result<Json<RemindersResponse>, AppError> {
-    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
-
+/// Devis `sent` (en attente de signature) du patient scopé, ou `sqlx::Error`.
+/// Isolé pour permettre un appel BEST-EFFORT depuis `list_reminders` : une DB
+/// indisponible ou une requête en échec ne doit PAS faire échouer tout l'écran
+/// rappels (postmortem 2026-07-12 #3648 : la requête renvoyait 500 au lieu de
+/// dégrader gracieusement).
+async fn fetch_sent_quotes(
+    state: &AppState,
+    account_id: Uuid,
+) -> Result<Vec<(Uuid, chrono::DateTime<chrono::Utc>)>, sqlx::Error> {
+    let mut tx = state.db.begin().await?;
     // Scope patient — quote_patient_read (migration 0029).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
-        .bind(claims.account_id.to_string())
+        .bind(account_id.to_string())
         .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-    // Devis envoyés au patient, en attente de signature.
-    let quote_rows = sqlx::query(
+        .await?;
+    let rows = sqlx::query(
         "SELECT id, updated_at FROM quote \
          WHERE status = 'sent' AND deleted_at IS NULL \
          ORDER BY updated_at ASC",
     )
     .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    .await?;
+    tx.commit().await?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push((row.try_get("id")?, row.try_get("updated_at")?));
+    }
+    Ok(out)
+}
 
-    tx.commit().await.map_err(|_| AppError::Internal)?;
-
+pub async fn list_reminders(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<RemindersResponse>, AppError> {
     let mut data = vec![
         ReminderItem {
             id: uuid::uuid!("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
@@ -86,10 +95,17 @@ pub async fn list_reminders(
         },
     ];
 
-    for row in quote_rows {
-        let quote_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-        let updated_at: chrono::DateTime<chrono::Utc> =
-            row.try_get("updated_at").map_err(|_| AppError::Internal)?;
+    // BEST-EFFORT : une DB indisponible ou une requête devis en échec ne doit pas
+    // faire échouer tout l'écran rappels (on renvoie au moins RDV + prévention).
+    let sent_quotes = match fetch_sent_quotes(&state, claims.account_id).await {
+        Ok(rows) => rows,
+        Err(err) => {
+            tracing::warn!(%err, "list_reminders: rappels devis indisponibles (best-effort)");
+            Vec::new()
+        }
+    };
+
+    for (quote_id, updated_at) in sent_quotes {
         data.push(ReminderItem {
             id: quote_id,
             kind: "document".to_string(),
