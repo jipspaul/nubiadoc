@@ -290,7 +290,7 @@ pub async fn get_conversation_messages(
         .unwrap_or(Uuid::nil());
 
     let cursor_clause = if cursor.is_some() {
-        " AND (created_at < $3 OR (created_at = $3 AND id < $4))"
+        " AND (created_at > $3 OR (created_at = $3 AND id > $4))"
     } else {
         ""
     };
