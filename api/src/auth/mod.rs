@@ -3476,6 +3476,12 @@ pub async fn post_account_dependents(
     .map_err(|_| AppError::Internal)?;
 
     if let Some(cov) = body.coverage {
+        if let Some(ref regime) = cov.regime_obligatoire {
+            if !["regime_general", "ame", "css"].contains(&regime.as_str()) {
+                return Err(AppError::ValidationError);
+            }
+        }
+
         // patient_coverage est scopée par app.patient_account_id (migration 0023).
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
             .bind(dependent_account_id.to_string())
@@ -3629,6 +3635,12 @@ pub async fn patch_account_dependent(
 
     // Upsert de la couverture si présente (RLS scoped par app.patient_account_id).
     if let Some(cov) = body.coverage {
+        if let Some(ref regime) = cov.regime_obligatoire {
+            if !["regime_general", "ame", "css"].contains(&regime.as_str()) {
+                return Err(AppError::ValidationError);
+            }
+        }
+
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
             .bind(dependent_id.to_string())
             .execute(&mut *tx)
