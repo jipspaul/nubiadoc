@@ -405,12 +405,12 @@ pub async fn search_slots(
              AND ($10::text[] IS NULL \
                   OR (p.languages IS NOT NULL AND p.languages && $10)) \
              AND ($3::double precision IS NULL OR $1::double precision IS NULL \
-                  OR p.geo IS NULL \
-                  OR ST_DWithin(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3)) \
+                  OR (p.geo IS NOT NULL \
+                      AND ST_DWithin(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))) \
              AND ($11::double precision IS NULL \
-                  OR p.geo IS NULL \
-                  OR ST_Within(p.geo::geometry, \
-                     ST_MakeEnvelope($11, $12, $13, $14, 4326))) \
+                  OR (p.geo IS NOT NULL \
+                      AND ST_Within(p.geo::geometry, \
+                          ST_MakeEnvelope($11, $12, $13, $14, 4326)))) \
              {available_clause} \
          ORDER BY sl.starts_at ASC"
     );
@@ -605,12 +605,12 @@ pub async fn search_providers(
              AND ($10::text[] IS NULL \
                   OR (p.languages IS NOT NULL AND p.languages && $10)) \
              AND ($3::double precision IS NULL OR $1::double precision IS NULL \
-                  OR p.geo IS NULL \
-                  OR ST_DWithin(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3)) \
+                  OR (p.geo IS NOT NULL \
+                      AND ST_DWithin(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))) \
              AND ($11::double precision IS NULL \
-                  OR p.geo IS NULL \
-                  OR ST_Within(p.geo::geometry, \
-                     ST_MakeEnvelope($11, $12, $13, $14, 4326))) \
+                  OR (p.geo IS NOT NULL \
+                      AND ST_Within(p.geo::geometry, \
+                          ST_MakeEnvelope($11, $12, $13, $14, 4326)))) \
              {available_clause} \
          ORDER BY {sort_clause} \
          LIMIT $15 OFFSET $16"
