@@ -83,7 +83,7 @@ class _ConversationsList extends StatelessWidget {
       itemBuilder: (context, index) {
         final conv = conversations[index];
         final isUnread = conv.unreadCount > 0;
-        final isUrgent = conv.lastMessage?.urgency == MessageUrgency.urgent;
+        final isUrgent = conv.triageFlag == MessageUrgency.urgent;
         final timestamp = conv.lastMessageAt ?? conv.lastMessage?.sentAt;
 
         // #3373 : aperçu réel du dernier message (serveur), nom de repli

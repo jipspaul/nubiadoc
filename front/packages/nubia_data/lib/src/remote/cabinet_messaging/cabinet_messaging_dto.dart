@@ -1,4 +1,5 @@
 import 'package:nubia_domain/src/entities/cabinet_conversation.dart';
+import 'package:nubia_domain/src/entities/message.dart';
 import '../messaging/messaging_dto.dart';
 
 class CabinetConversationDto {
@@ -9,6 +10,7 @@ class CabinetConversationDto {
   final String? lastMessageAt;
   final MessageDto? lastMessage;
   final String? lastMessagePreview;
+  final String triageFlag;
 
   const CabinetConversationDto({
     required this.id,
@@ -18,6 +20,7 @@ class CabinetConversationDto {
     this.lastMessageAt,
     this.lastMessage,
     this.lastMessagePreview,
+    this.triageFlag = 'normal',
   });
 
   factory CabinetConversationDto.fromJson(Map<String, dynamic> json) {
@@ -35,6 +38,7 @@ class CabinetConversationDto {
           ? null
           : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
       lastMessagePreview: json['last_message_preview'] as String?,
+      triageFlag: json['triage_flag'] as String? ?? 'normal',
     );
   }
 
@@ -47,5 +51,8 @@ class CabinetConversationDto {
             lastMessageAt == null ? null : DateTime.parse(lastMessageAt!),
         lastMessage: lastMessage?.toDomain(),
         lastMessagePreview: lastMessagePreview,
+        triageFlag: triageFlag == 'urgent'
+            ? MessageUrgency.urgent
+            : MessageUrgency.normal,
       );
 }

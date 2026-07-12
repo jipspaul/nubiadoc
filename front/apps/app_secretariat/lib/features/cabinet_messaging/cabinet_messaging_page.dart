@@ -140,7 +140,7 @@ class _ConversationsListState extends State<_ConversationsList> {
                       conv.lastMessageAt ?? last?.sentAt,
                     ),
                     unreadCount: conv.unreadCount,
-                    urgent: last?.urgency == MessageUrgency.urgent,
+                    urgent: conv.triageFlag == MessageUrgency.urgent,
                   ),
                   onTap: () => context.read<CabinetMessagingBloc>().add(
                         CabinetMessagingThreadOpened(conv),
