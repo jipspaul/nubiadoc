@@ -3,6 +3,7 @@
 use axum::extract::State;
 use axum::Json;
 use serde::Serialize;
+use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
@@ -31,44 +32,86 @@ pub struct RemindersResponse {
 
 /// `GET /v1/reminders` — rappels de suivi et prévention du patient authentifié.
 ///
-/// Version 🎭 : données mockées (prochain RDV, document à signer, prévention).
+/// Le rappel `type:"appointment"` est dérivé du prochain RDV futur confirmé du
+/// patient (cabinet/praticien réels). Aucun RDV à venir → aucun rappel `appointment`
+/// (pas de fallback mocké).
 /// Triés par `due_at ASC` (plus urgents en premier).
 /// Aucun rappel → `{ data: [] }`.
 pub async fn list_reminders(
-    State(_state): State<AppState>,
-    _claims: PatientAccountClaims,
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
 ) -> Result<Json<RemindersResponse>, AppError> {
-    let data = vec![
-        ReminderItem {
-            id: uuid::uuid!("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — appointment_patient_read (policy 0029).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Prochain RDV futur confirmé — même critère que GET /v1/dashboard.
+    let appt = sqlx::query(
+        "SELECT id, starts_at, cabinet_id, practitioner_id FROM appointment \
+         WHERE status IN ('confirmed','checked_in') AND starts_at > now() \
+         ORDER BY starts_at LIMIT 1",
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let mut data = Vec::new();
+
+    if let Some(row) = appt {
+        let appt_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let starts_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+        let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+        let practitioner_id: Uuid = row
+            .try_get("practitioner_id")
+            .map_err(|_| AppError::Internal)?;
+
+        // Scope cabinet pour lire raison_sociale + provider (tenant_isolation).
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let cabinet_name: Option<String> =
+            sqlx::query("SELECT raison_sociale FROM cabinet WHERE id = $1")
+                .bind(cabinet_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .map(|r| r.try_get("raison_sociale"))
+                .transpose()
+                .map_err(|_| AppError::Internal)?;
+
+        let practitioner: Option<String> =
+            sqlx::query("SELECT display_name FROM provider WHERE practitioner_id = $1 LIMIT 1")
+                .bind(practitioner_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+                .map(|r| r.try_get("display_name"))
+                .transpose()
+                .map_err(|_| AppError::Internal)?;
+
+        data.push(ReminderItem {
+            id: appt_id,
             kind: "appointment".to_string(),
             title: "Prochain rendez-vous de contrôle".to_string(),
-            due_at: "2026-06-15T09:00:00Z".to_string(),
+            due_at: starts_at.to_rfc3339(),
             status: "pending".to_string(),
             metadata: Some(serde_json::json!({
-                "cabinet_name": "Cabinet Dentaire Dubois",
-                "practitioner": "Dr. Dubois"
+                "cabinet_name": cabinet_name,
+                "practitioner": practitioner
             })),
-        },
-        ReminderItem {
-            id: uuid::uuid!("b2c3d4e5-f6a7-8901-bcde-f12345678901"),
-            kind: "document".to_string(),
-            title: "Devis à signer avant votre prochain soin".to_string(),
-            due_at: "2026-06-20T00:00:00Z".to_string(),
-            status: "pending".to_string(),
-            metadata: Some(serde_json::json!({
-                "document_id": "d3e4f5a6-b7c8-9012-cdef-123456789012"
-            })),
-        },
-        ReminderItem {
-            id: uuid::uuid!("c3d4e5f6-a7b8-9012-cdef-234567890123"),
-            kind: "prevention".to_string(),
-            title: "Détartrage annuel recommandé".to_string(),
-            due_at: "2026-07-01T00:00:00Z".to_string(),
-            status: "pending".to_string(),
-            metadata: None,
-        },
-    ];
+        });
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     Ok(Json(RemindersResponse { data }))
 }
