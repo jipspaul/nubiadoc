@@ -147,6 +147,10 @@ pub(crate) enum AppError {
     /// liste qui pagine via `limit`/`offset`). Renvoie un 400 explicite plutôt
     /// que d'ignorer silencieusement le paramètre (#3521).
     UnsupportedPageParam,
+    /// `PATCH /v1/appointments/:id` avec un `starts_at` qui ne correspond à
+    /// aucun `availability_slot` ouvert du praticien (ou dans le passé) → 409
+    /// (#3558 : reprogrammation vers un créneau inexistant / date passée).
+    SlotUnavailable,
 }
 
 impl IntoResponse for AppError {
@@ -312,6 +316,11 @@ impl IntoResponse for AppError {
                     "message": "Le paramètre `page` n'est pas supporté sur cet endpoint ; \
                                 utilisez `limit` et `offset` pour paginer.",
                 })),
+            )
+                .into_response(),
+            AppError::SlotUnavailable => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "slot_unavailable"})),
             )
                 .into_response(),
         }

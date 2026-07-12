@@ -113,6 +113,55 @@ async fn insert_fixture(
     (cabinet_id, prac_id, patient_id, appt_id)
 }
 
+/// Insère un `provider` (lié au praticien) + un créneau `open` au moment `starts_at_sql`,
+/// et renvoie le `starts_at` RÉEL du créneau. On PATCHe ensuite sur cette valeur exacte :
+/// la validation de reprogrammation (#3558) exige que le nouveau `starts_at` corresponde
+/// à un `availability_slot` ouvert du praticien.
+async fn seed_open_slot(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    prac_id: Uuid,
+    prac_user_id: Uuid,
+    starts_at_sql: &str,
+) -> chrono::DateTime<chrono::Utc> {
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    let provider_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO provider \
+         (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, $4, 'Dr. Patch', true, true)",
+    )
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    let starts_at: chrono::DateTime<chrono::Utc> = sqlx::query_scalar(&format!(
+        "INSERT INTO availability_slot \
+         (id, provider_id, cabinet_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, {starts_at_sql}, {starts_at_sql} + INTERVAL '30 min', 'open') \
+         RETURNING starts_at"
+    ))
+    .bind(Uuid::new_v4())
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+    starts_at
+}
+
 async fn cleanup(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid, prac_id: Uuid) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -126,6 +175,17 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid, prac_id: Uuid)
         .await
         .ok();
     sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    // availability_slot + provider avant practitioner/cabinet (FK). Seedés par seed_open_slot.
+    sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
         .bind(cabinet_id)
         .execute(&mut *tx)
         .await
@@ -204,7 +264,16 @@ async fn patch_appointment_happy_path_returns_200() {
         mailer: Arc::new(StubMailer),
     };
 
-    let new_starts_at = (chrono::Utc::now() + chrono::Duration::hours(72)).to_rfc3339();
+    // Créneau d'ouverture réel à ~72 h (validation #3558) — on PATCHe sur son starts_at exact.
+    let new_starts_at = seed_open_slot(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        "now() + interval '72 hours'",
+    )
+    .await
+    .to_rfc3339();
 
     let response = app(state)
         .oneshot(
@@ -243,6 +312,110 @@ async fn patch_appointment_happy_path_returns_200() {
     assert!(v["status"].is_string());
     assert!(v["provider"].is_object());
     assert!(v["cabinet"].is_object());
+
+    cleanup(&db, cabinet_id, patient_id, prac_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test : reprogrammation vers une date passée → 409 slot_unavailable ───────
+// Régression #3558 : un patient déplaçait son RDV ~18 mois dans le passé (accepté,
+// 200). Le nouveau starts_at doit être dans le futur ET sur un créneau réel.
+
+#[tokio::test]
+async fn patch_appointment_past_date_returns_409_slot_unavailable() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("patch-past+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Patch', 'Past')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("patch-past-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // starts_at courant dans 48 h → dans les délais (le check too_late passe).
+    let (cabinet_id, prac_id, patient_id, appt_id) = insert_fixture(
+        &db,
+        prac_user_id,
+        patient_account_id,
+        "confirmed",
+        "now() + interval '48 hours'",
+    )
+    .await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // ~18 mois dans le passé, comme le repro de l'issue.
+    let past_starts_at = "2025-01-01T09:00:00Z";
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/appointments/{}", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({"starts_at": past_starts_at})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "slot_unavailable");
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
@@ -727,10 +900,18 @@ async fn patch_appointment_slot_taken_returns_409() {
         mailer: Arc::new(StubMailer),
     };
 
-    // PATCH appt A pour qu'il chevauche appt B (now + 50h + 15min → overlap).
-    let conflict_starts_at =
-        (chrono::Utc::now() + chrono::Duration::hours(50) + chrono::Duration::minutes(15))
-            .to_rfc3339();
+    // PATCH appt A pour qu'il chevauche appt B (50h15 → overlap avec 50h..50h30).
+    // Le créneau doit exister (validation #3558) pour atteindre la contrainte d'exclusion
+    // (23P01 → slot_taken) ; on seed donc un créneau ouvert à 50h15 et on PATCHe dessus.
+    let conflict_starts_at = seed_open_slot(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        "now() + interval '50 hours 15 minutes'",
+    )
+    .await
+    .to_rfc3339();
 
     let response = app(state)
         .oneshot(
