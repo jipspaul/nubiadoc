@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use nubia_api::{app, AppState, StubMailer};
@@ -23,5 +24,10 @@ async fn main() {
     let bind = format!("0.0.0.0:{port}");
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap();
     println!("nubia-api listening on {bind}");
-    axum::serve(listener, app(state)).await.unwrap();
+    axum::serve(
+        listener,
+        app(state).into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
