@@ -528,6 +528,9 @@ pub async fn upload_document(
     }
 
     let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
+    if file_bytes.is_empty() {
+        return Err(AppError::ValidationError);
+    }
     let file_mime = file_mime.ok_or(AppError::ValidationError)?;
     if !ALLOWED_UPLOAD_MIMES.contains(&file_mime.as_str()) {
         return Err(AppError::ValidationError);
