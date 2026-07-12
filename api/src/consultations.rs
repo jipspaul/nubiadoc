@@ -733,7 +733,8 @@ pub struct PatchActResponse {
 
 /// `PATCH /v1/cabinet/consultations/:id/acts/:act_id` — modifie un acte CCAM.
 ///
-/// Praticien uniquement. Séance doit être `in_progress`.
+/// Praticien uniquement, et seulement le praticien propriétaire de la séance
+/// (comme `add_consultation_act`) — sinon 403. Séance doit être `in_progress`.
 /// `cabinet_id` extrait du JWT. RLS tenant-scoped.
 /// 404 si séance ou acte absents ou hors tenant.
 pub async fn patch_consultation_act(
@@ -761,7 +762,7 @@ pub async fn patch_consultation_act(
 
     // Vérifie séance + statut in_progress.
     let session_row = sqlx::query(
-        "SELECT appointment_id, status FROM consultation_session \
+        "SELECT appointment_id, practitioner_id, status FROM consultation_session \
          WHERE id = $1 AND cabinet_id = $2",
     )
     .bind(id)
@@ -771,9 +772,27 @@ pub async fn patch_consultation_act(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
+    let practitioner_id: Uuid = session_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
     let session_status: String = session_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
+
+    // Seul le praticien qui a démarré la séance peut en modifier les actes.
+    let prac_row = sqlx::query(
+        "SELECT id FROM practitioner WHERE id = $1 AND user_id = $2 AND cabinet_id = $3",
+    )
+    .bind(practitioner_id)
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if prac_row.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
     if session_status != "in_progress" {
         return Err(AppError::InvalidStatus);
     }
@@ -821,7 +840,8 @@ pub async fn patch_consultation_act(
 
 /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` — supprime un acte CCAM.
 ///
-/// Praticien uniquement. Séance doit être `in_progress`.
+/// Praticien uniquement, et seulement le praticien propriétaire de la séance
+/// (comme `add_consultation_act`) — sinon 403. Séance doit être `in_progress`.
 /// `cabinet_id` extrait du JWT. RLS tenant-scoped.
 /// 404 si séance ou acte absents ou hors tenant.
 pub async fn delete_consultation_act(
@@ -839,7 +859,7 @@ pub async fn delete_consultation_act(
 
     // Vérifie séance + statut in_progress.
     let session_row = sqlx::query(
-        "SELECT appointment_id, status FROM consultation_session \
+        "SELECT appointment_id, practitioner_id, status FROM consultation_session \
          WHERE id = $1 AND cabinet_id = $2",
     )
     .bind(id)
@@ -849,9 +869,27 @@ pub async fn delete_consultation_act(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
+    let practitioner_id: Uuid = session_row
+        .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
     let session_status: String = session_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
+
+    // Seul le praticien qui a démarré la séance peut en supprimer les actes.
+    let prac_row = sqlx::query(
+        "SELECT id FROM practitioner WHERE id = $1 AND user_id = $2 AND cabinet_id = $3",
+    )
+    .bind(practitioner_id)
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if prac_row.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
     if session_status != "in_progress" {
         return Err(AppError::InvalidStatus);
     }
