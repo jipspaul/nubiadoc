@@ -99,6 +99,21 @@ pub async fn create_waiting_list_entry(
         return Err(AppError::AlreadyOnWaitingList);
     }
 
+    // Valide start_date/end_date : dates ISO parsables et fenêtre cohérente (end >= start).
+    let start_date: Option<chrono::NaiveDate> = match body.start_date.as_deref() {
+        Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
+        None => None,
+    };
+    let end_date: Option<chrono::NaiveDate> = match body.end_date.as_deref() {
+        Some(s) => Some(s.parse().map_err(|_| AppError::ValidationError)?),
+        None => None,
+    };
+    if let (Some(start), Some(end)) = (start_date, end_date) {
+        if end < start {
+            return Err(AppError::ValidationError);
+        }
+    }
+
     // Construit desired_window depuis les champs optionnels.
     let desired_window = json!({
         "motif": body.motif,
