@@ -27,7 +27,7 @@ pub struct ProviderInfo {
 #[derive(Serialize)]
 pub struct AccessInfo {
     pub door_code: Option<String>,
-    pub parking: Option<String>,
+    pub parking: Option<bool>,
     pub pmr: Option<bool>,
 }
 
@@ -109,16 +109,13 @@ pub async fn get_cabinet_info(
     let address = settings.get("address").cloned();
     let geo = settings.get("geo").cloned();
     let contact = settings.get("contact").cloned();
-    let hours = settings.get("hours").cloned();
+    let hours = settings.get("horaires").cloned();
     let access_door_code = settings
-        .get("door_code")
+        .get("code_entree")
         .and_then(|v| v.as_str())
         .map(|s| s.to_owned());
-    let access_parking = settings
-        .get("parking")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_owned());
-    let access_pmr = settings.get("pmr_access").and_then(|v| v.as_bool());
+    let access_parking = settings.get("parking").and_then(|v| v.as_bool());
+    let access_pmr = settings.get("pmr").and_then(|v| v.as_bool());
 
     // Récupère le provider lié au cabinet (premier praticien listé ou propriétaire).
     let prov_row = sqlx::query(
@@ -148,12 +145,6 @@ pub async fn get_cabinet_info(
         }
     });
 
-    let access = Some(AccessInfo {
-        door_code: access_door_code,
-        parking: access_parking,
-        pmr: access_pmr,
-    });
-
     // Enrichissement optionnel : is_current_patient si token patient valide fourni.
     let is_current_patient =
         if let Some(account_id) = extract_patient_account_id(&headers, &state.jwt_secret) {
@@ -170,6 +161,18 @@ pub async fn get_cabinet_info(
         } else {
             None
         };
+
+    // Le code d'entrée n'est exposé qu'au patient courant du cabinet, jamais à un
+    // appelant anonyme ou à un patient d'un autre cabinet (route publique par ailleurs).
+    let access = Some(AccessInfo {
+        door_code: if is_current_patient == Some(true) {
+            access_door_code
+        } else {
+            None
+        },
+        parking: access_parking,
+        pmr: access_pmr,
+    });
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
