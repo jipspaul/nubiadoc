@@ -2891,11 +2891,18 @@ pub async fn put_account_consent(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Les consentements RGPD du portail patient sont scopés `patient_account_id` ;
+    // `app_user_id` reste NULL (migration 0050 l'a rendu nullable exprès). L'ancien
+    // code liait aussi `app_user_id = claims.sub`, ce qui entrait en collision avec
+    // la contrainte UNIQUE (app_user_id, purpose) 0027 dès qu'une ligne CGU plateforme
+    // existait déjà pour ce user (seed « soins ») : l'ON CONFLICT ne visant que
+    // (patient_account_id, purpose), la unique_violation remontait en 500 permanent —
+    // symptôme « soins-only ». #3624. On n'insère donc plus app_user_id.
     let row = sqlx::query(
-        "INSERT INTO consent_record (patient_account_id, app_user_id, purpose, granted, granted_at, revoked_at)
-         VALUES ($1, $2, $3, $4,
-                 CASE WHEN $4 THEN now() ELSE NULL END,
-                 CASE WHEN NOT $4 THEN now() ELSE NULL END)
+        "INSERT INTO consent_record (patient_account_id, purpose, granted, granted_at, revoked_at)
+         VALUES ($1, $2, $3,
+                 CASE WHEN $3 THEN now() ELSE NULL END,
+                 CASE WHEN NOT $3 THEN now() ELSE NULL END)
          ON CONFLICT (patient_account_id, purpose) DO UPDATE SET
            granted    = EXCLUDED.granted,
            granted_at = CASE WHEN EXCLUDED.granted THEN now()
@@ -2905,7 +2912,6 @@ pub async fn put_account_consent(
                    COALESCE(revoked_at, granted_at, created_at) AS updated_at",
     )
     .bind(claims.account_id)
-    .bind(claims.sub)
     .bind(&purpose)
     .bind(body.granted)
     .fetch_one(&mut *tx)
