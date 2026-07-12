@@ -296,6 +296,96 @@ async fn start_consultation_secretary_returns_403() {
     cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
 }
 
+// ── Régression #3688 : un AUTRE praticien du cabinet ne peut pas démarrer ─────
+
+#[tokio::test]
+async fn start_consultation_other_practitioner_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&owner_db, "confirmed").await;
+
+    // 2ᵉ praticien du même cabinet (non titulaire du RDV).
+    let other_user_id = Uuid::new_v4();
+    let other_prac_id = Uuid::new_v4();
+    {
+        let mut tx = owner_db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(other_user_id)
+        .bind(format!("start-other+{}@nubia.test", other_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(other_prac_id)
+            .bind(cabinet_id)
+            .bind(other_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/start", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(other_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // Aucune séance créée par un tiers.
+    let sessions: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM consultation_session WHERE appointment_id = $1")
+            .bind(appt_id)
+            .fetch_one(&owner_db)
+            .await
+            .unwrap();
+    assert_eq!(sessions, 0);
+
+    {
+        let mut tx = owner_db.begin().await.unwrap();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(other_prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM app_user WHERE id = $1")
+            .bind(other_user_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
+}
+
 // ── Test 3 : transition invalide (done → in_progress) → 409 ──────────────────
 
 #[tokio::test]
