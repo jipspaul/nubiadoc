@@ -97,7 +97,7 @@ pub async fn create_stock_request(
         || body
             .items
             .iter()
-            .any(|item| item.label.trim().is_empty() || item.qty <= 0)
+            .any(|item| item.label.trim().is_empty() || item.qty <= 0 || item.qty > 9999)
     {
         return Err(AppError::ValidationError);
     }
