@@ -102,7 +102,7 @@ class _CcamPickerState extends State<CcamPicker> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
           child: NubiaTextField(
             key: const Key('ccam_search_field'),
             variant: NubiaTextFieldVariant.search,
