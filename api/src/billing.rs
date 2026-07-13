@@ -571,12 +571,17 @@ pub async fn create_payment_intent(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // FOR UPDATE OF q verrouille la ligne quote pour la durée de la transaction :
+    // deux POST /payments/intent concurrents sur le même devis se sérialisent ici,
+    // si bien que le calcul du reste-dû ci-dessous voit toujours les paiements
+    // déjà insérés par la transaction gagnante (plus de garde TOCTOU, cf #3775).
     let quote_row = sqlx::query(
         "SELECT q.cabinet_id, q.patient_id, q.status, (q.total_amount * 100)::bigint AS total_amount_cents \
          FROM quote q \
          JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.deleted_at IS NULL \
-           AND p.patient_account_id = $2",
+           AND p.patient_account_id = $2 \
+         FOR UPDATE OF q",
     )
     .bind(body.quote_id)
     .bind(claims.account_id)
