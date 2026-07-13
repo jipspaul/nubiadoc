@@ -15,7 +15,7 @@ abstract class AppointmentRepository {
   Future<Either<Failure, Appointment>> cancel(String id);
   Future<Either<Failure, Appointment>> modify({
     required String id,
-    required String newSlotId,
+    required DateTime newStartsAt,
   });
   Future<Either<Failure, Appointment>> checkin(String id);
   Future<Either<Failure, DirectionsResult>> getDirections(

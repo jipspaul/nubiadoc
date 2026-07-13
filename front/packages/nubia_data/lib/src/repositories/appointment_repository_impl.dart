@@ -185,10 +185,10 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
   @override
   Future<Either<Failure, Appointment>> modify({
     required String id,
-    required String newSlotId,
+    required DateTime newStartsAt,
   }) async {
     try {
-      final dto = await _api.modify(id: id, newSlotId: newSlotId);
+      final dto = await _api.modify(id: id, newStartsAt: newStartsAt);
       return Right(dto.toDomain());
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode;

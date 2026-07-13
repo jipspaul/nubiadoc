@@ -75,9 +75,9 @@ class CachedAppointmentsRepositoryImpl extends CachedXRepository<Appointment>
   @override
   Future<Either<Failure, Appointment>> modify({
     required String id,
-    required String newSlotId,
+    required DateTime newStartsAt,
   }) async {
-    final result = await _remote.modify(id: id, newSlotId: newSlotId);
+    final result = await _remote.modify(id: id, newStartsAt: newStartsAt);
     await result.fold(
       (_) async {},
       (_) => _cache.clear(),

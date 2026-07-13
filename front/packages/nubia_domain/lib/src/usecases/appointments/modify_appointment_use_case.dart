@@ -10,7 +10,7 @@ class ModifyAppointmentUseCase {
 
   Future<Either<Failure, Appointment>> call({
     required String id,
-    required String newSlotId,
+    required DateTime newStartsAt,
   }) =>
-      _repository.modify(id: id, newSlotId: newSlotId);
+      _repository.modify(id: id, newStartsAt: newStartsAt);
 }
