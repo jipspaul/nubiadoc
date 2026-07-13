@@ -25,6 +25,7 @@ import '../features/reset_password/reset_password_page.dart';
 import '../features/signup/signup_cubit.dart';
 import '../features/signup/signup_page.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
+import '../features/mes_rdv/modify_rdv_page.dart';
 import '../features/mes_rdv/prepare_rdv_page.dart';
 import '../features/notifications/notifications_bloc.dart';
 import '../features/notifications/notifications_event.dart';
@@ -79,6 +80,7 @@ class AppRouter {
   static const notifications = '/notifications';
   static const oubliettes = '/oubliettes';
   static const prepareRdv = '/rdv/:id/prepare';
+  static const modifyRdv = '/rdv/:id/modifier';
   static const book = '/book';
 
   static GoRouter create(RouterNotifier notifier) {
@@ -294,6 +296,12 @@ class AppRouter {
         GoRoute(
           path: prepareRdv,
           builder: (_, state) => PrepareRdvPage(
+            appointmentId: state.pathParameters['id']!,
+          ),
+        ),
+        GoRoute(
+          path: modifyRdv,
+          builder: (_, state) => ModifyRdvPage(
             appointmentId: state.pathParameters['id']!,
           ),
         ),

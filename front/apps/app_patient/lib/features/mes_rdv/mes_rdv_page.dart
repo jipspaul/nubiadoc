@@ -329,7 +329,7 @@ class _ActionButtons extends StatelessWidget {
             variant: NubiaButtonVariant.secondary,
             size: NubiaButtonSize.sm,
             icon: Icons.edit_calendar_outlined,
-            onPressed: () => context.push('/appointments'),
+            onPressed: () => context.push('/rdv/${appointment.id}/modifier'),
           ),
         if (appointment.canCancel)
           NubiaButton(
