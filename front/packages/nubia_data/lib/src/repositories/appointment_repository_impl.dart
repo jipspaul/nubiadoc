@@ -149,9 +149,33 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }
+      final statusCode = e.response?.statusCode;
+      // Erreurs métier renvoyées par l'API sous la clé "error" (et non "code",
+      // cf. api AppError::{TooEarly,OutOfWindow,InvalidStatus}).
+      final apiError = e.response?.data is Map
+          ? (e.response!.data as Map)['error'] as String?
+          : null;
+      if (statusCode == 409 && apiError == 'too_early') {
+        return const Left(ValidationFailure(
+          message:
+              'Il est trop tôt pour effectuer le check-in. Réessayez plus près de l\'heure du rendez-vous.',
+        ));
+      }
+      if (statusCode == 422 && apiError == 'out_of_window') {
+        return const Left(ValidationFailure(
+          message:
+              'Le délai pour effectuer le check-in de ce rendez-vous est dépassé.',
+        ));
+      }
+      if (statusCode == 409 && apiError == 'invalid_status') {
+        return const Left(ValidationFailure(
+          message:
+              'Le check-in n\'est plus possible pour ce rendez-vous (déjà effectué ou rendez-vous annulé).',
+        ));
+      }
       return Left(ServerFailure(
         message: 'Erreur lors du check-in.',
-        statusCode: e.response?.statusCode,
+        statusCode: statusCode,
       ));
     } catch (e) {
       return const Left(ParseFailure());
