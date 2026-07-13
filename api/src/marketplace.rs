@@ -847,14 +847,22 @@ struct AvailabilitySlotRow {
     motif: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct AvailabilityQuery {
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub motif: Option<String>,
+}
+
 /// `GET /v1/providers/:id/availability` — 50 prochains créneaux ouverts (docs/12 §12.2).
 ///
 /// Route publique, pas de JWT. Provider inexistant ou `is_listed=false` → `404`.
 /// Créneaux filtrés `status='open'` + `online_booking=true` + `starts_at > now()`,
-/// triés ASC, limite 50.
+/// bornables par `?from=&to=` (RFC3339) et `?motif=`, triés ASC, limite 50.
 pub async fn get_provider_availability(
     State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
+    Query(params): Query<AvailabilityQuery>,
 ) -> Result<Json<ProviderAvailabilityResponse>, AppError> {
     sqlx::query!(
         "SELECT id FROM provider WHERE id = $1 AND is_listed = true",
@@ -865,6 +873,19 @@ pub async fn get_provider_availability(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
+    let from = params
+        .from
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+    let to = params
+        .to
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+
     let rows = sqlx::query_as!(
         AvailabilitySlotRow,
         r#"SELECT id AS "slot_id!", starts_at, ends_at, motif
@@ -874,9 +895,15 @@ pub async fn get_provider_availability(
              AND deleted_at IS NULL
              AND online_booking = true
              AND starts_at > now()
+             AND ($2::timestamptz IS NULL OR starts_at >= $2)
+             AND ($3::timestamptz IS NULL OR starts_at < $3)
+             AND ($4::text IS NULL OR motif = $4)
            ORDER BY starts_at ASC
            LIMIT 50"#,
-        provider_id
+        provider_id,
+        from,
+        to,
+        params.motif,
     )
     .fetch_all(&state.db)
     .await

@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"slot_id!\", starts_at, ends_at, motif\n           FROM availability_slot\n           WHERE provider_id = $1\n             AND status = 'open'\n             AND deleted_at IS NULL\n             AND online_booking = true\n             AND starts_at > now()\n             AND ($2::timestamptz IS NULL OR starts_at >= $2)\n             AND ($3::timestamptz IS NULL OR starts_at < $3)\n             AND ($4::text IS NULL OR motif = $4)\n           ORDER BY starts_at ASC\n           LIMIT 50",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "slot_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "starts_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "ends_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "motif",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "379b74722bb7f77e710336954922a3bc55b7d3d09946a87a146a7f9075eebf6b"
+}
