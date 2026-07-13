@@ -232,11 +232,12 @@ void main() {
     });
 
     test('modify réussi → clear appelé, saveOne jamais appelé', () async {
-      when(() => mockRemote.modify(id: 'appt-1', newSlotId: 'slot-99'))
+      final newStartsAt = DateTime(2026, 8, 1, 11);
+      when(() => mockRemote.modify(id: 'appt-1', newStartsAt: newStartsAt))
           .thenAnswer((_) async => Right(_appt1));
       when(() => mockCache.clear()).thenAnswer((_) async {});
 
-      await repo.modify(id: 'appt-1', newSlotId: 'slot-99');
+      await repo.modify(id: 'appt-1', newStartsAt: newStartsAt);
 
       verify(() => mockCache.clear()).called(1);
       verifyNever(() => mockCache.saveOne(any()));
