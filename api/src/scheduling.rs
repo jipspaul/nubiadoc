@@ -65,11 +65,11 @@ pub async fn get_cabinet_agenda(
     claims: ProSecretaryPlusClaims,
     Query(params): Query<AgendaQuery>,
 ) -> Result<Json<AgendaResponse>, AppError> {
-    let base_date = params
-        .date
-        .as_deref()
-        .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive());
+    let base_date = match params.date.as_deref() {
+        Some(s) => chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+            .map_err(|_| AppError::ValidationError)?,
+        None => chrono::Utc::now().date_naive(),
+    };
 
     let ndt = base_date
         .and_hms_opt(0, 0, 0)
