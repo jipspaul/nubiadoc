@@ -430,10 +430,12 @@ pub struct SetConsultationNoteResponse {
 /// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
 /// RLS tenant-scoped via `app.current_cabinet_id`.
 /// Seul le praticien propriétaire de la séance peut écrire sa note.
-/// Séance `cancelled` → `409 invalid_status` (séance figée, non éditable).
+/// Séance `cancelled` ou `completed` → `409 invalid_status` (séance figée, non
+/// éditable — même gel que les actes, cf. `add_consultation_act`).
 /// Chiffrement colonne : stub `"STUB_ENC:" + XOR 0xFF` en dev — AES-256-GCM/KMS
 /// à NUB-T3 (ADR-009), voir `clinical.rs::add_patient_note`.
 /// Séance inexistante ou hors tenant → 404.
+/// Écriture auditée dans `audit_log` (action `set_consultation_note`).
 pub async fn set_consultation_note(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -481,7 +483,7 @@ pub async fn set_consultation_note(
         return Err(AppError::Forbidden);
     }
 
-    if status == "cancelled" {
+    if status == "cancelled" || status == "completed" {
         return Err(AppError::InvalidStatus);
     }
 
@@ -496,6 +498,19 @@ pub async fn set_consultation_note(
          WHERE id = $2",
     )
     .bind(&ciphertext)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Audit.
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, 'practitioner', 'set_consultation_note', 'consultation_session', $3)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
     .bind(id)
     .execute(&mut *tx)
     .await
