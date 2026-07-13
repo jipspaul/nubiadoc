@@ -651,12 +651,12 @@ pub(crate) async fn minimized_patient_name(
 // ── Machine à états (lot B3) ──────────────────────────────────────────────────
 
 /// Applique une transition atomique côté pharmacie : `UPDATE … WHERE status =
-/// $expected` — 0 ligne mise à jour = commande invisible (404) ou statut
+/// ANY($expected)` — 0 ligne mise à jour = commande invisible (404) ou statut
 /// invalide (409). Chaque transition est auditée dans le journal du cabinet
 /// d'origine et horodatée.
 struct Transition<'a> {
     order_id: Uuid,
-    expected: &'a str,
+    expected: &'a [&'a str],
     update_sql: &'a str,
     action: &'a str,
     reason: Option<&'a str>,
@@ -792,11 +792,11 @@ pub async fn accept_pharmacy_order(
         claims.sub,
         Transition {
             order_id: id,
-            expected: "received",
+            expected: &["received"],
             update_sql: &format!(
                 "UPDATE pharmacy_order \
                  SET status = 'preparing', preparing_at = now(), updated_at = now() \
-                 WHERE id = $1 AND status = $2 \
+                 WHERE id = $1 AND status = ANY($2) \
                  RETURNING {ORDER_COLUMNS}",
             ),
             action: "accept_pharmacy_order",
@@ -823,11 +823,11 @@ pub async fn ready_pharmacy_order(
         claims.sub,
         Transition {
             order_id: id,
-            expected: "preparing",
+            expected: &["preparing"],
             update_sql: &format!(
                 "UPDATE pharmacy_order \
                  SET status = 'ready', ready_at = now(), updated_at = now() \
-                 WHERE id = $1 AND status = $2 \
+                 WHERE id = $1 AND status = ANY($2) \
                  RETURNING {ORDER_COLUMNS}",
             ),
             action: "ready_pharmacy_order",
@@ -844,8 +844,10 @@ pub struct RejectOrderBody {
     pub reason: String,
 }
 
-/// `POST /v1/pharmacy/orders/{id}/reject` — received → rejected.
+/// `POST /v1/pharmacy/orders/{id}/reject` — received|preparing|ready → rejected.
 /// Réservé `pharmacist`/`admin` (le préparateur ne refuse pas une commande).
+/// Une commande déjà `ready` non retirée doit rester rejetable (rupture de
+/// stock découverte tardivement) pour libérer l'ordonnance côté patient.
 /// Motif obligatoire → 422 si vide.
 pub async fn reject_pharmacy_order(
     State(state): State<AppState>,
@@ -867,11 +869,11 @@ pub async fn reject_pharmacy_order(
         claims.sub,
         Transition {
             order_id: id,
-            expected: "received",
+            expected: &["received", "preparing", "ready"],
             update_sql: &format!(
                 "UPDATE pharmacy_order \
                  SET status = 'rejected', rejection_reason = $3, updated_at = now() \
-                 WHERE id = $1 AND status = $2 \
+                 WHERE id = $1 AND status = ANY($2) \
                  RETURNING {ORDER_COLUMNS}",
             ),
             action: "reject_pharmacy_order",
