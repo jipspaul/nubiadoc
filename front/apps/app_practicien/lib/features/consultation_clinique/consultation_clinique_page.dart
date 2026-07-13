@@ -179,8 +179,13 @@ class _LoadedViewState extends State<_LoadedView> {
                     children: [
                       Row(
                         children: [
-                          Text('Consultation au fauteuil',
-                              style: textTheme.titleMedium),
+                          Flexible(
+                            child: Text(
+                              'Consultation au fauteuil',
+                              style: textTheme.titleMedium,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                           const SizedBox(width: 8),
                           StatusPill(
                             label:
