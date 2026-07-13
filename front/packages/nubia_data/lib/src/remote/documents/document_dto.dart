@@ -80,6 +80,13 @@ class DocumentSignedUrlDto {
 
   const DocumentSignedUrlDto({required this.url});
 
+  // L'API `GET /v1/documents/:id/download` renvoie `{"download_url": ...}`
+  // (cf. api/src/documents.rs DownloadUrlResponse). On lit donc `download_url`
+  // en priorité ; fallback `url` par tolérance (redirection 302 / évolution).
+  // Avant : `json['url']` seul → null → « Erreur de décodage de la réponse »
+  // à l'ouverture d'un document (JEL-25).
   factory DocumentSignedUrlDto.fromJson(Map<String, dynamic> json) =>
-      DocumentSignedUrlDto(url: json['url'] as String);
+      DocumentSignedUrlDto(
+        url: (json['download_url'] ?? json['url']) as String,
+      );
 }
