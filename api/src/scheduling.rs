@@ -1627,34 +1627,33 @@ pub async fn patch_cabinet_appointment(
     // (#3558) — le nouveau starts_at doit être (a) dans le futur ET (b)
     // correspondre à un availability_slot 'open' du praticien, sinon le RDV
     // se retrouve délié de tout créneau (slot_id NULL) et fantôme dans l'agenda.
+    let mut new_slot_id: Option<Uuid> = None;
     if let Some(new_ts) = new_starts_at {
         if new_ts <= chrono::Utc::now() {
             return Err(AppError::SlotUnavailable);
         }
-        let has_open_slot: bool = sqlx::query_scalar(
-            "SELECT EXISTS( \
-               SELECT 1 FROM availability_slot s \
+        new_slot_id = sqlx::query_scalar(
+            "SELECT s.id FROM availability_slot s \
                JOIN provider p ON p.id = s.provider_id \
                WHERE p.practitioner_id = $1 \
                  AND s.starts_at = $2 \
                  AND s.status = 'open' \
-                 AND s.deleted_at IS NULL \
-             )",
+                 AND s.deleted_at IS NULL",
         )
         .bind(practitioner_id)
         .bind(new_ts)
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
-        if !has_open_slot {
+        if new_slot_id.is_none() {
             return Err(AppError::SlotUnavailable);
         }
     }
 
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
-    // Un starts_at différent délie le RDV de son créneau d'origine (le nouvel
-    // horaire n'est adossé à aucun availability_slot) : slot_id est remis à
-    // NULL pour rester cohérent avec starts_at.
+    // Un starts_at différent délie le RDV de son créneau d'origine et le
+    // rattache au nouveau créneau de destination (slot_id = new_slot_id),
+    // symétrique de create_appointment.
     let result = sqlx::query(
         "UPDATE appointment \
          SET \
@@ -1663,7 +1662,7 @@ pub async fn patch_cabinet_appointment(
                              THEN $1 + (ends_at - starts_at) \
                              ELSE ends_at END, \
            motif      = COALESCE($2, motif), \
-           slot_id    = CASE WHEN $1 IS NOT NULL THEN NULL ELSE slot_id END, \
+           slot_id    = CASE WHEN $1 IS NOT NULL THEN $4 ELSE slot_id END, \
            updated_at = now() \
          WHERE id = $3 \
          RETURNING id, status",
@@ -1671,6 +1670,7 @@ pub async fn patch_cabinet_appointment(
     .bind(new_starts_at)
     .bind(body.motif.as_deref())
     .bind(id)
+    .bind(new_slot_id)
     .fetch_one(&mut *tx)
     .await;
 
@@ -1688,6 +1688,20 @@ pub async fn patch_cabinet_appointment(
                 .execute(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?;
+        }
+
+        // Consomme le créneau de destination (symétrique de create_appointment) :
+        // sinon il reste 'open' et apparaît comme réservable dans la recherche
+        // publique alors qu'il est déjà occupé (#3707).
+        if let Some(sid) = new_slot_id {
+            sqlx::query(
+                "UPDATE availability_slot SET status = 'booked', updated_at = now() \
+                 WHERE id = $1",
+            )
+            .bind(sid)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
         }
     }
 
