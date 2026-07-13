@@ -85,7 +85,7 @@ class ModifyRdvBloc extends Bloc<ModifyRdvEvent, ModifyRdvState>
     try {
       final result = await _modifyAppointment(
         id: current.appointment.id,
-        newSlotId: slot.id,
+        newStartsAt: slot.startsAt,
       );
       result.fold(
         (failure) => safeEmit(

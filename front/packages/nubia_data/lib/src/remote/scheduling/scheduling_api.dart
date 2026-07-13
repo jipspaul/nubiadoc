@@ -114,11 +114,11 @@ class SchedulingApi {
 
   Future<AppointmentDto> modify({
     required String id,
-    required String newSlotId,
+    required DateTime newStartsAt,
   }) async {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/appointments/$id',
-      data: {'slot_id': newSlotId},
+      data: {'starts_at': newStartsAt.toIso8601String()},
     );
     return AppointmentDto.fromJson(response.data!);
   }
