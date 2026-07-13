@@ -329,7 +329,16 @@ class _ActionButtons extends StatelessWidget {
             variant: NubiaButtonVariant.secondary,
             size: NubiaButtonSize.sm,
             icon: Icons.edit_calendar_outlined,
-            onPressed: () => context.push('/appointments'),
+            onPressed: () async {
+              final modified =
+                  await context.push<bool>('/rdv/${appointment.id}/modifier');
+              if (modified == true && context.mounted) {
+                context.read<MesRdvBloc>().add(const MesRdvLoadRequested());
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Rendez-vous modifié')),
+                );
+              }
+            },
           ),
         if (appointment.canCancel)
           NubiaButton(

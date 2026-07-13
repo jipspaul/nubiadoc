@@ -15,6 +15,7 @@ import '../features/reset_password/reset_password_cubit.dart';
 import '../features/documents/documents_bloc.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/mes_rdv/mes_rdv_bloc.dart';
+import '../features/mes_rdv/modify_rdv_bloc.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/home/home_bloc.dart';
 import '../features/notifications/notifications_bloc.dart';
@@ -126,6 +127,14 @@ void registerPatient(GetIt gi) {
       getHistory: gi<GetAppointmentHistoryUseCase>(),
       cancel: gi<CancelAppointmentUseCase>(),
       checkin: gi<CheckinAppointmentUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<ModifyRdvBloc>(
+    () => ModifyRdvBloc(
+      getAppointment: gi<GetAppointmentByIdUseCase>(),
+      searchSlots: gi<SearchSlotsUseCase>(),
+      modifyAppointment: gi<ModifyAppointmentUseCase>(),
     ),
   );
 

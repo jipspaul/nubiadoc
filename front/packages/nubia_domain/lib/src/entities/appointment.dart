@@ -16,6 +16,9 @@ class Appointment extends Equatable {
   final AppointmentType type;
   final String? cabinetAddress;
   final String? cabinetPhone;
+  // Requis pour proposer une nouvelle date/heure avec le même praticien
+  // (GET /providers/:id/availability) — vide si l'API ne l'expose pas.
+  final String practitionerId;
 
   const Appointment({
     required this.id,
@@ -29,6 +32,7 @@ class Appointment extends Equatable {
     this.type = AppointmentType.inPerson,
     this.cabinetAddress,
     this.cabinetPhone,
+    this.practitionerId = '',
   });
 
   bool get isUpcoming =>

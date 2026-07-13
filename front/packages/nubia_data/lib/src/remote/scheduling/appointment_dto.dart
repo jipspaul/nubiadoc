@@ -12,6 +12,7 @@ class AppointmentDto {
   final String type;
   final String? cabinetAddress;
   final String? cabinetPhone;
+  final String practitionerId;
 
   const AppointmentDto({
     required this.id,
@@ -25,6 +26,7 @@ class AppointmentDto {
     required this.type,
     this.cabinetAddress,
     this.cabinetPhone,
+    this.practitionerId = '',
   });
 
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
@@ -43,6 +45,10 @@ class AppointmentDto {
     final practitionerName = (provider?['display_name'] as String?) ??
         (json['practitioner_name'] as String?) ??
         '';
+    final practitionerId = (provider?['id'] as String?) ??
+        (json['practitioner_id'] as String?) ??
+        (json['provider_id'] as String?) ??
+        '';
     return AppointmentDto(
       id: json['id'] as String,
       cabinetId: json['cabinet_id'] as String? ?? '',
@@ -55,6 +61,7 @@ class AppointmentDto {
       type: json['type'] as String? ?? 'in_person',
       cabinetAddress: json['cabinet_address'] as String?,
       cabinetPhone: json['cabinet_phone'] as String?,
+      practitionerId: practitionerId,
     );
   }
 
@@ -72,6 +79,7 @@ class AppointmentDto {
             : AppointmentType.inPerson,
         cabinetAddress: cabinetAddress,
         cabinetPhone: cabinetPhone,
+        practitionerId: practitionerId,
       );
 
   static AppointmentStatus _parseStatus(String value) {
