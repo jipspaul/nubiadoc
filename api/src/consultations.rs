@@ -53,6 +53,9 @@ pub struct ConsultationContextResponse {
 /// Praticien uniquement (R.4127-72, §07 §4.1) — secrétaire → 403.
 /// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
 /// RLS tenant-scoped via `app.current_cabinet_id`.
+/// Garde relation-de-soin E.2.16.c §14 (miroir `medical_record.rs`) : le praticien
+/// appelant doit avoir eu au moins un `appointment` avec le patient de la séance,
+/// sinon 403 — même s'il est dans le même cabinet.
 /// Note clinique : déchiffrée via stub `STUB_ENC:` (AES-256-GCM/KMS à NUB-T3, ADR-009).
 /// Séance inexistante ou hors tenant → 404.
 pub async fn get_consultation_context(
@@ -95,6 +98,26 @@ pub async fn get_consultation_context(
     let status: String = session_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
+
+    // RLS strict E.2.16.c : le praticien appelant doit avoir eu au moins un
+    // appointment avec le patient de cette séance (§14 — miroir de medical_record.rs).
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = (SELECT patient_id FROM appointment WHERE id = $1 AND cabinet_id = $2) \
+           AND a.cabinet_id = $2 AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(appointment_id)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
     let started_at: chrono::DateTime<chrono::Utc> = session_row
         .try_get("started_at")
         .map_err(|_| AppError::Internal)?;
@@ -643,6 +666,9 @@ pub struct ListActsResponse {
 ///
 /// Praticien uniquement. `cabinet_id` extrait du JWT (invariant tenancy).
 /// RLS tenant-scoped via `app.current_cabinet_id`. 404 si séance absente ou hors tenant.
+/// Garde relation-de-soin E.2.16.c §14 (miroir `medical_record.rs`) : le praticien
+/// appelant doit avoir eu au moins un `appointment` avec le patient de la séance,
+/// sinon 403 — même s'il est dans le même cabinet.
 pub async fn list_consultation_acts(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -671,6 +697,25 @@ pub async fn list_consultation_acts(
     let appointment_id: Uuid = session_row
         .try_get("appointment_id")
         .map_err(|_| AppError::Internal)?;
+
+    // RLS strict E.2.16.c : le praticien appelant doit avoir eu au moins un
+    // appointment avec le patient de cette séance (§14 — miroir de medical_record.rs).
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = (SELECT patient_id FROM appointment WHERE id = $1 AND cabinet_id = $2) \
+           AND a.cabinet_id = $2 AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(appointment_id)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
 
     let act_rows = sqlx::query(
         "SELECT id, ccam_code, label, tooth, amount_cents \
