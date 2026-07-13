@@ -9,7 +9,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -374,6 +374,87 @@ async fn cabinet_waiting_list_exposes_patient_name() {
     assert_eq!(
         data[0]["patient_name"], "Alice Attente",
         "le nom du patient doit être joint (#3364)"
+    );
+
+    cleanup_fixture(&db, &f).await;
+}
+
+// ── Offer ne doit PAS clore prématurément l'entrée (#3759, correctif #3577) ──
+
+/// Un `POST .../offer` sur un créneau valide notifie le patient mais ne doit
+/// PAS faire passer l'entrée en `fulfilled` : tant que le patient n'a pas
+/// confirmé (aucun RDV réel créé), elle doit rester `active` et continuer à
+/// apparaître dans `GET /v1/cabinet/waiting-list`.
+#[tokio::test]
+async fn offer_does_not_prematurely_fulfill_entry() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db).await;
+
+    let entry_id = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO waiting_list_entry \
+             (id, cabinet_id, patient_id, desired_window, score, status) \
+             VALUES ($1, $2, $3, '{\"from\":\"2026-07-13\"}'::jsonb, 1.0, 'active')",
+        )
+        .bind(entry_id)
+        .bind(f.cabinet_id)
+        .bind(f.patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: {
+            let url = std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+            PgPool::connect(&url).await.unwrap()
+        },
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let proposed_at = (chrono::Utc::now() + chrono::Duration::days(3)).to_rfc3339();
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/waiting-list/{entry_id}/offer"))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_token(f.cabinet_id, "secretary")),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "proposed_at": proposed_at })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK, "l'offer doit réussir");
+
+    let status: String = sqlx::query("SELECT status FROM waiting_list_entry WHERE id = $1")
+        .bind(entry_id)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+        .try_get("status")
+        .unwrap();
+    assert_eq!(
+        status, "active",
+        "l'entrée ne doit PAS passer en fulfilled au simple envoi de l'offer (#3759)"
     );
 
     cleanup_fixture(&db, &f).await;

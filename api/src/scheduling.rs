@@ -750,10 +750,12 @@ pub struct OfferSlotResponse {
 ///
 /// Vérifie que l'entrée est `active` et appartient au cabinet (RLS fail-closed).
 /// Notifie réellement le patient (via `app_user_id` direct ou `patient_account_id`,
-/// même mécanisme que `call_next`, #3480) avant de passer le statut → `fulfilled`.
-/// `notified` dans la réponse reflète l'envoi effectif (`false` si le patient
-/// n'a aucun compte applicatif rattaché — l'entrée reste tout de même `fulfilled`
-/// côté planning, le créneau étant physiquement proposé par le secrétariat).
+/// même mécanisme que `call_next`, #3480). L'entrée reste `active` : l'envoi de
+/// l'offer n'est qu'une notification, pas une réservation — elle ne passe en
+/// `fulfilled` que lorsqu'un RDV est effectivement créé pour ce patient (#3759,
+/// correctif du passage prématuré introduit par #3577). `notified` dans la
+/// réponse reflète l'envoi effectif (`false` si le patient n'a aucun compte
+/// applicatif rattaché).
 /// RBAC : `secretary+`. `cabinet_id` extrait du JWT.
 pub async fn offer_waiting_list_slot(
     State(state): State<AppState>,
@@ -839,12 +841,9 @@ pub async fn offer_waiting_list_slot(
         false
     };
 
-    sqlx::query("UPDATE waiting_list_entry SET status = 'fulfilled' WHERE id = $1")
-        .bind(entry_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
+    // Ne PAS passer l'entrée en `fulfilled` ici : l'offer n'est qu'une
+    // notification, pas une réservation. L'entrée reste `active` tant qu'aucun
+    // RDV réel n'a été créé pour ce patient (cf. commentaire de fonction, #3759).
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
