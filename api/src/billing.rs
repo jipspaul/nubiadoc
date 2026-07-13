@@ -1085,6 +1085,7 @@ pub struct CabinetQuoteItem {
     pub patient_name: Option<String>,
     pub status: String,
     pub total_amount: i64,
+    pub patient_share_cents: i64,
     pub created_at: String,
 }
 
@@ -1114,7 +1115,11 @@ pub async fn list_cabinet_quotes(
 
     let base_sql = "SELECT q.id, q.patient_id, \
                     trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
-                    q.status, (q.total_amount * 100)::bigint AS amount_cents, q.created_at \
+                    q.status, (q.total_amount * 100)::bigint AS amount_cents, \
+                    (SELECT coalesce(sum((qi.qty * qi.unit_amount \
+                        - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
+                     FROM quote_item qi WHERE qi.quote_id = q.id) AS patient_share_cents, \
+                    q.created_at \
              FROM quote q \
              LEFT JOIN patient p ON p.id = q.patient_id \
              WHERE q.cabinet_id = $1";
@@ -1157,6 +1162,9 @@ pub async fn list_cabinet_quotes(
             let amount_cents: i64 = row
                 .try_get("amount_cents")
                 .map_err(|_| AppError::Internal)?;
+            let patient_share_cents: i64 = row
+                .try_get("patient_share_cents")
+                .map_err(|_| AppError::Internal)?;
             let created_at: chrono::DateTime<chrono::Utc> =
                 row.try_get("created_at").map_err(|_| AppError::Internal)?;
             Ok(CabinetQuoteItem {
@@ -1165,6 +1173,7 @@ pub async fn list_cabinet_quotes(
                 patient_name: patient_name.filter(|n| !n.is_empty()),
                 status,
                 total_amount: amount_cents,
+                patient_share_cents,
                 created_at: created_at.to_rfc3339(),
             })
         })
