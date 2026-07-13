@@ -12,8 +12,9 @@ class WaitingRoomApi {
   // --- Salle d'attente (waiting room) ---
 
   Future<List<WaitingRoomEntryDto>> listWaitingRoom() async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/cabinet/waiting-room');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/waiting-room',
+    );
     final data = (response.data!['data'] as List<dynamic>?) ?? [];
     return data
         .map((e) => WaitingRoomEntryDto.fromJson(e as Map<String, dynamic>))
@@ -21,13 +22,15 @@ class WaitingRoomApi {
   }
 
   Future<WaitingRoomEntryDto> getWaitingRoomById(String id) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/cabinet/waiting-room/$id');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/waiting-room/$id',
+    );
     return WaitingRoomEntryDto.fromJson(response.data!);
   }
 
   Future<WaitingRoomEntryDto> createWaitingRoomEntry(
-      WaitingRoomEntry entry) async {
+    WaitingRoomEntry entry,
+  ) async {
     final dto = WaitingRoomEntryDto(
       id: '',
       cabinetId: entry.cabinetId,
@@ -52,7 +55,8 @@ class WaitingRoomApi {
   }
 
   Future<WaitingRoomEntryDto> updateWaitingRoomEntry(
-      WaitingRoomEntry entry) async {
+    WaitingRoomEntry entry,
+  ) async {
     final dto = WaitingRoomEntryDto(
       id: entry.id,
       cabinetId: entry.cabinetId,
@@ -72,8 +76,9 @@ class WaitingRoomApi {
   // --- Liste d'attente (waiting list) ---
 
   Future<List<WaitingListEntryDto>> listWaitingList() async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/cabinet/waiting-list');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/waiting-list',
+    );
     final data = (response.data!['data'] as List<dynamic>?) ?? [];
     return data
         .map((e) => WaitingListEntryDto.fromJson(e as Map<String, dynamic>))
@@ -81,13 +86,15 @@ class WaitingRoomApi {
   }
 
   Future<WaitingListEntryDto> getWaitingListById(String id) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/cabinet/waiting-list/$id');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/waiting-list/$id',
+    );
     return WaitingListEntryDto.fromJson(response.data!);
   }
 
   Future<WaitingListEntryDto> createWaitingListEntry(
-      WaitingListEntry entry) async {
+    WaitingListEntry entry,
+  ) async {
     final dto = WaitingListEntryDto(
       id: '',
       cabinetId: entry.cabinetId,
@@ -105,7 +112,8 @@ class WaitingRoomApi {
   }
 
   Future<WaitingListEntryDto> updateWaitingListEntry(
-      WaitingListEntry entry) async {
+    WaitingListEntry entry,
+  ) async {
     final dto = WaitingListEntryDto(
       id: entry.id,
       cabinetId: entry.cabinetId,
@@ -126,11 +134,18 @@ class WaitingRoomApi {
     // Le back exige un corps JSON `{ proposed_at }` (ISO 8601 UTC) — cf.
     // `OfferSlotBody` côté Rust. Sans corps → 415/400. L'écran « Combler » ne
     // sélectionne pas de créneau précis : on propose le prochain créneau
-    // disponible (maintenant), le back se contente de marquer l'entrée
-    // `fulfilled` et de notifier le patient.
+    // disponible, le back se contente de marquer l'entrée `fulfilled` et de
+    // notifier le patient. Le back rejette (422) tout `proposed_at` <=
+    // now+5min (cf. `offer_waiting_list_slot`) : on marge donc largement
+    // au-delà de ce seuil pour éviter tout écart de latence réseau/horloge.
     await _dio.post<void>(
       '/cabinet/waiting-list/$id/offer',
-      data: {'proposed_at': DateTime.now().toUtc().toIso8601String()},
+      data: {
+        'proposed_at': DateTime.now()
+            .toUtc()
+            .add(const Duration(minutes: 15))
+            .toIso8601String(),
+      },
     );
   }
 }
