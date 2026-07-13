@@ -48,6 +48,8 @@ pub struct CreatePrescriptionResponse {
 /// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403.
 /// - `cabinet_id` extrait du JWT (jamais du body — invariant tenancy).
 /// - Body invalide (items vides, champs manquants) → 422 (Axum rejection).
+/// - `patient_id` inconnu/hors tenant → 404 ; `consultation_id` (si fourni)
+///   inexistant, hors tenant ou hors patient → 404 (#3790).
 /// - Insert `prescription` + N `prescription_item` dans la même transaction RLS-scoped.
 /// - Audit `action:'create_prescription', entity:'prescription'`.
 /// - Retourne `201 { prescription_id }`.
@@ -98,6 +100,26 @@ pub async fn create_prescription(
 
     if patient_exists.is_none() {
         return Err(AppError::NotFound);
+    }
+
+    // Vérifie que la consultation (si fournie) existe, appartient au cabinet
+    // et concerne bien ce patient — sinon FK 23503 remontée en 500 (#3790).
+    if let Some(consultation_id) = body.consultation_id {
+        let consultation_exists = sqlx::query(
+            "SELECT 1 FROM consultation_session cs \
+             JOIN appointment a ON a.id = cs.appointment_id \
+             WHERE cs.id = $1 AND cs.cabinet_id = $2 AND a.patient_id = $3",
+        )
+        .bind(consultation_id)
+        .bind(claims.cabinet_id)
+        .bind(body.patient_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if consultation_exists.is_none() {
+            return Err(AppError::NotFound);
+        }
     }
 
     // Insère la prescription (statut draft).
