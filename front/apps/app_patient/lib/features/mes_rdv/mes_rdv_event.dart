@@ -12,6 +12,12 @@ class MesRdvLoadRequested extends MesRdvEvent {
   const MesRdvLoadRequested();
 }
 
+/// Déclenché à l'ouverture de l'onglet Historique : charge l'historique
+/// paresseusement, sans bloquer l'affichage de la vue À venir.
+class MesRdvHistoryRequested extends MesRdvEvent {
+  const MesRdvHistoryRequested();
+}
+
 class MesRdvCancelRequested extends MesRdvEvent {
   final Appointment appointment;
   const MesRdvCancelRequested(this.appointment);

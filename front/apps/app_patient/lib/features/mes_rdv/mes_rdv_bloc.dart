@@ -23,6 +23,7 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
         _checkin = checkin,
         super(const MesRdvInitial()) {
     on<MesRdvLoadRequested>(_onLoad);
+    on<MesRdvHistoryRequested>(_onHistoryLoad);
     on<MesRdvCancelRequested>(_onCancel);
     on<MesRdvCheckinRequested>(_onCheckin);
   }
@@ -34,21 +35,43 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
     emit(const MesRdvLoading());
     try {
       final upcomingResult = await _getUpcoming();
-      if (upcomingResult.isLeft()) {
-        final message = upcomingResult.fold((f) => f.message, (_) => '');
-        safeEmit(MesRdvError(message));
-        return;
-      }
-      final historyResult = await _getHistory();
-      historyResult.fold(
+      upcomingResult.fold(
         (failure) => safeEmit(MesRdvError(failure.message)),
-        (history) => safeEmit(MesRdvLoaded(
-          upcoming: upcomingResult.getOrElse(() => []),
-          history: history,
-        )),
+        // La vue À venir s'affiche dès sa réponse ; l'historique se charge
+        // paresseusement (voir _onHistoryLoad), sans bloquer ce rendu.
+        (upcoming) => safeEmit(MesRdvLoaded(upcoming: upcoming, history: const [])),
       );
     } catch (_) {
       safeEmit(const MesRdvError('Erreur de chargement.'));
+    }
+  }
+
+  Future<void> _onHistoryLoad(
+    MesRdvHistoryRequested event,
+    Emitter<MesRdvState> emit,
+  ) async {
+    final current = state;
+    if (current is! MesRdvLoaded) return;
+    if (current.historyLoading || current.historyLoaded) return;
+    safeEmit(current.copyWith(historyLoading: true, clearHistoryError: true));
+    try {
+      final historyResult = await _getHistory();
+      historyResult.fold(
+        (failure) => safeEmit(current.copyWith(
+          historyLoading: false,
+          historyError: failure.message,
+        )),
+        (history) => safeEmit(current.copyWith(
+          history: history,
+          historyLoading: false,
+          historyLoaded: true,
+        )),
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(
+        historyLoading: false,
+        historyError: 'Erreur de chargement.',
+      ));
     }
   }
 
