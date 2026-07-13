@@ -775,6 +775,10 @@ pub enum PatientDetailResponse {
 /// - `secretary` : retourne uniquement la partie administrative (R.4127-72, §07 §4.1).
 ///   Pas de 403 : les champs cliniques sont *omis*, pas interdits.
 /// - `practitioner` / `admin` : retourne la fiche complète + audite `read_record`.
+///   Si le praticien n'a aucun `appointment` avec ce patient (pas de relation de
+///   soin, §14), dégrade vers la partie administrative (200) au lieu d'un 403 —
+///   cohérence avec `list_cabinet_patients`, qui ne filtre pas sur cette relation
+///   pour le praticien (#3767).
 pub async fn get_cabinet_patient(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -907,7 +911,21 @@ pub async fn get_cabinet_patient(
         .map_err(|_| AppError::Internal)?;
 
         if has_appointment.is_none() {
-            return Err(AppError::Forbidden);
+            // Pas de relation de soin avec ce patient : dégrade vers la section
+            // administrative (même traitement que le secrétaire) au lieu d'un 403 sec,
+            // pour rester cohérent avec `list_cabinet_patients` qui n'applique pas
+            // cette garde pour le praticien et liste donc aussi ces patients (#3767).
+            tx.commit().await.map_err(|_| AppError::Internal)?;
+            tracing::info!(
+                cabinet_id = %claims.cabinet_id,
+                user_id = %claims.sub,
+                patient_id = %patient_id,
+                role = "practitioner",
+                "patient detail fetched (practitioner without care relationship — clinical sections omitted)"
+            );
+            return Ok(Json(PatientDetailResponse::Secretary(
+                PatientDetailSecretary { admin },
+            )));
         }
     }
 
