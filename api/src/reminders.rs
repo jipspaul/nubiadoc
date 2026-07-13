@@ -30,6 +30,79 @@ pub struct RemindersResponse {
     pub data: Vec<ReminderItem>,
 }
 
+/// Le rappel `appointment` — prochain RDV réel du patient, RLS scoped via
+/// `app.patient_account_id` (policy `appointment_patient_read`, migration 0029),
+/// puis `app.current_cabinet_id` pour lire `provider`/`cabinet` (comme
+/// `GET /v1/appointments/:id`, appointments.rs:754-796).
+/// Aucun RDV futur confirmé → pas de rappel `appointment` (au lieu d'un RDV
+/// fictif), ou `sqlx::Error`. Isolé pour permettre un appel BEST-EFFORT depuis
+/// `list_reminders`, comme `fetch_sent_quotes`.
+async fn fetch_next_appointment(
+    state: &AppState,
+    account_id: Uuid,
+) -> Result<Option<ReminderItem>, sqlx::Error> {
+    let mut tx = state.db.begin().await?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(account_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+
+    let appt = sqlx::query(
+        "SELECT id, starts_at, cabinet_id, practitioner_id FROM appointment \
+         WHERE status IN ('confirmed','checked_in') AND starts_at > now() \
+           AND deleted_at IS NULL \
+         ORDER BY starts_at ASC LIMIT 1",
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(appt) = appt else {
+        tx.commit().await?;
+        return Ok(None);
+    };
+
+    let appointment_id: Uuid = appt.try_get("id")?;
+    let starts_at: chrono::DateTime<chrono::Utc> = appt.try_get("starts_at")?;
+    let cabinet_id: Uuid = appt.try_get("cabinet_id")?;
+    let practitioner_id: Uuid = appt.try_get("practitioner_id")?;
+
+    // Scope cabinet pour provider_cabinet_manage + tenant_isolation (cabinet).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+
+    let practitioner: Option<String> =
+        sqlx::query("SELECT display_name FROM provider WHERE practitioner_id = $1 LIMIT 1")
+            .bind(practitioner_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .map(|r| r.try_get("display_name"))
+            .transpose()?;
+
+    let cabinet_name: Option<String> =
+        sqlx::query("SELECT raison_sociale FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .map(|r| r.try_get("raison_sociale"))
+            .transpose()?;
+
+    tx.commit().await?;
+
+    Ok(Some(ReminderItem {
+        id: appointment_id,
+        kind: "appointment".to_string(),
+        title: "Prochain rendez-vous de contrôle".to_string(),
+        due_at: starts_at.to_rfc3339(),
+        status: "pending".to_string(),
+        metadata: Some(serde_json::json!({
+            "cabinet_name": cabinet_name,
+            "practitioner": practitioner,
+        })),
+    }))
+}
+
 /// `GET /v1/reminders` — rappels de suivi et prévention du patient authentifié.
 ///
 /// Le rappel `document` (devis à signer) est dérivé des devis réels du patient :
@@ -73,27 +146,24 @@ pub async fn list_reminders(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
 ) -> Result<Json<RemindersResponse>, AppError> {
-    let mut data = vec![
-        ReminderItem {
-            id: uuid::uuid!("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
-            kind: "appointment".to_string(),
-            title: "Prochain rendez-vous de contrôle".to_string(),
-            due_at: "2026-06-15T09:00:00Z".to_string(),
-            status: "pending".to_string(),
-            metadata: Some(serde_json::json!({
-                "cabinet_name": "Cabinet Dentaire Dubois",
-                "practitioner": "Dr. Dubois"
-            })),
-        },
-        ReminderItem {
-            id: uuid::uuid!("c3d4e5f6-a7b8-9012-cdef-234567890123"),
-            kind: "prevention".to_string(),
-            title: "Détartrage annuel recommandé".to_string(),
-            due_at: "2026-07-01T00:00:00Z".to_string(),
-            status: "pending".to_string(),
-            metadata: None,
-        },
-    ];
+    let mut data = vec![ReminderItem {
+        id: uuid::uuid!("c3d4e5f6-a7b8-9012-cdef-234567890123"),
+        kind: "prevention".to_string(),
+        title: "Détartrage annuel recommandé".to_string(),
+        due_at: "2026-07-01T00:00:00Z".to_string(),
+        status: "pending".to_string(),
+        metadata: None,
+    }];
+
+    // BEST-EFFORT : une DB indisponible ou une requête RDV en échec ne doit pas
+    // faire échouer tout l'écran rappels (on renvoie au moins la prévention).
+    match fetch_next_appointment(&state, claims.account_id).await {
+        Ok(Some(item)) => data.push(item),
+        Ok(None) => {}
+        Err(err) => {
+            tracing::warn!(%err, "list_reminders: rappel RDV indisponible (best-effort)");
+        }
+    }
 
     // BEST-EFFORT : une DB indisponible ou une requête devis en échec ne doit pas
     // faire échouer tout l'écran rappels (on renvoie au moins RDV + prévention).
