@@ -210,6 +210,7 @@ pub struct SearchProvidersQuery {
     pub languages: Option<String>,
     pub accepts_new: Option<bool>,
     pub available: Option<String>,
+    pub tiers_payant: Option<bool>,
     pub sort: Option<String>,
     pub page: Option<i64>,
     pub per_page: Option<i64>,
@@ -377,6 +378,7 @@ pub async fn search_slots(
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
     // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
+    // $15=tiers_payant
     let sql = format!(
         "SELECT \
              p.id AS provider_id, \
@@ -411,6 +413,7 @@ pub async fn search_slots(
                   OR (p.geo IS NOT NULL \
                       AND ST_Within(p.geo::geometry, \
                           ST_MakeEnvelope($11, $12, $13, $14, 4326)))) \
+             AND ($15::boolean IS NULL OR p.tiers_payant = $15) \
              {available_clause} \
          ORDER BY sl.starts_at ASC"
     );
@@ -430,6 +433,7 @@ pub async fn search_slots(
         .bind(bbox_min_lat) // $12
         .bind(bbox_max_lng) // $13
         .bind(bbox_max_lat) // $14
+        .bind(params.tiers_payant) // $15
         .fetch_all(&state.db)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -570,7 +574,7 @@ pub async fn search_providers(
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
     // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
-    // $15=per_page  $16=offset
+    // $15=tiers_payant  $16=per_page  $17=offset
     let sql = format!(
         "SELECT \
              p.id AS provider_id, \
@@ -611,9 +615,10 @@ pub async fn search_providers(
                   OR (p.geo IS NOT NULL \
                       AND ST_Within(p.geo::geometry, \
                           ST_MakeEnvelope($11, $12, $13, $14, 4326)))) \
+             AND ($15::boolean IS NULL OR p.tiers_payant = $15) \
              {available_clause} \
          ORDER BY {sort_clause} \
-         LIMIT $15 OFFSET $16"
+         LIMIT $16 OFFSET $17"
     );
 
     let rows = sqlx::query(&sql)
@@ -631,8 +636,9 @@ pub async fn search_providers(
         .bind(bbox_min_lat) // $12
         .bind(bbox_max_lng) // $13
         .bind(bbox_max_lat) // $14
-        .bind(per_page) // $15
-        .bind(offset) // $16
+        .bind(params.tiers_payant) // $15
+        .bind(per_page) // $16
+        .bind(offset) // $17
         .fetch_all(&state.db)
         .await
         .map_err(|_| AppError::Internal)?;
