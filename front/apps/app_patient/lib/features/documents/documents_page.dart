@@ -36,38 +36,38 @@ class _DocumentsBody extends StatelessWidget {
     return BlocListener<DocumentsBloc, DocumentsState>(
       listener: (context, state) {
         if (state is DocumentsDownloadReady) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Lien prêt : ${state.url}'),
-              action: SnackBarAction(
-                label: 'OK',
-                onPressed: () {},
-              ),
-            ),
-          );
+          openDocumentUrl(state.url).then((opened) {
+            if (!opened && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Impossible d\'ouvrir ce document.'),
+                ),
+              );
+            }
+          });
           context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
         }
         if (state is DocumentsDownloadError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
           context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
         }
         if (state is DocumentsUploading) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Envoi en cours…')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Envoi en cours…')));
         }
         if (state is DocumentsUploadSuccess) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Document envoyé.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Document envoyé.')));
           context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
         }
         if (state is DocumentsUploadFailure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
           context.read<DocumentsBloc>().add(const DocumentsLoadRequested());
         }
       },
@@ -80,9 +80,9 @@ class _DocumentsBody extends StatelessWidget {
             return NubiaErrorWidget(
               key: const Key('documents_error'),
               message: state.message,
-              onRetry: () => context
-                  .read<DocumentsBloc>()
-                  .add(const DocumentsLoadRequested()),
+              onRetry: () => context.read<DocumentsBloc>().add(
+                const DocumentsLoadRequested(),
+              ),
             );
           }
           if (state is DocumentsLoaded) {
@@ -187,9 +187,9 @@ class _DocumentsLoaded extends StatelessWidget {
                           : Key('filter_${cat.name}'),
                       label: Text(label),
                       selected: state.activeFilter == cat,
-                      onSelected: (_) => context
-                          .read<DocumentsBloc>()
-                          .add(DocumentsFilterChanged(cat)),
+                      onSelected: (_) => context.read<DocumentsBloc>().add(
+                        DocumentsFilterChanged(cat),
+                      ),
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -202,7 +202,8 @@ class _DocumentsLoaded extends StatelessWidget {
                       key: const Key('documents_empty'),
                       icon: Icons.folder_open_outlined,
                       title: 'Aucun document pour l\'instant',
-                      subtitle: 'Vos ordonnances, cartes et comptes-rendus '
+                      subtitle:
+                          'Vos ordonnances, cartes et comptes-rendus '
                           'apparaîtront ici.',
                       action: NubiaButton(
                         label: 'Ajouter un document',
@@ -231,9 +232,9 @@ class _DocumentsLoaded extends StatelessWidget {
                           return _DocumentCard(
                             key: Key('document_${doc.id}'),
                             doc: doc,
-                            onDownload: () => context
-                                .read<DocumentsBloc>()
-                                .add(DocumentsDownloadRequested(doc.id)),
+                            onOpen: () => context.read<DocumentsBloc>().add(
+                              DocumentsDownloadRequested(doc.id),
+                            ),
                           );
                         },
                       ),
@@ -295,12 +296,14 @@ class _DocumentsLoaded extends StatelessWidget {
     );
     if (category == null) return;
 
-    bloc.add(DocumentsUploadRequested(
-      bytes: file.bytes,
-      filename: file.name,
-      mimeType: file.mimeType,
-      category: category,
-    ));
+    bloc.add(
+      DocumentsUploadRequested(
+        bytes: file.bytes,
+        filename: file.name,
+        mimeType: file.mimeType,
+        category: category,
+      ),
+    );
   }
 }
 
@@ -309,14 +312,10 @@ class _DocumentsLoaded extends StatelessWidget {
 /// Ligne document en carte : pastille icône de type + nom + méta + action de
 /// téléchargement.
 class _DocumentCard extends StatelessWidget {
-  const _DocumentCard({
-    super.key,
-    required this.doc,
-    required this.onDownload,
-  });
+  const _DocumentCard({super.key, required this.doc, required this.onOpen});
 
   final Document doc;
-  final VoidCallback onDownload;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -328,6 +327,8 @@ class _DocumentCard extends StatelessWidget {
     final meta = size == null ? label : '$label · $size';
 
     return NubiaCard(
+      state: NubiaCardState.interactive,
+      onTap: onOpen,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
@@ -356,8 +357,9 @@ class _DocumentCard extends StatelessWidget {
                   meta,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style:
-                      textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -366,7 +368,7 @@ class _DocumentCard extends StatelessWidget {
             icon: const Icon(Icons.download_outlined),
             tooltip: 'Télécharger',
             color: cs.primary,
-            onPressed: onDownload,
+            onPressed: onOpen,
           ),
         ],
       ),
