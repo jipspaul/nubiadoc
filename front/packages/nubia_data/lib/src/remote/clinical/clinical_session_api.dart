@@ -12,18 +12,21 @@ class ClinicalSessionApi {
   /// (code, label, tarifCents) filtrés par code ou libellé (accent-insensible
   /// côté API). `tarif_cents` est le tarif de référence CCAM (peut être absent).
   Future<List<({String code, String label, int? tarifCents})>> searchCcamActs(
-      String q) async {
+    String q,
+  ) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/ccam/acts',
       queryParameters: {if (q.trim().isNotEmpty) 'q': q.trim()},
     );
     final data = (response.data?['data'] as List<dynamic>? ?? []);
     return data
-        .map((e) => (
-              code: (e as Map<String, dynamic>)['code'] as String,
-              label: e['label'] as String,
-              tarifCents: (e['tarif_cents'] as num?)?.toInt(),
-            ))
+        .map(
+          (e) => (
+            code: (e as Map<String, dynamic>)['code'] as String,
+            label: e['label'] as String,
+            tarifCents: (e['tarif_cents'] as num?)?.toInt(),
+          ),
+        )
         .toList();
   }
 
@@ -79,7 +82,14 @@ class ClinicalSessionApi {
         'included': included,
       },
     );
-    return ClinicalActDto.fromJson(response.data!);
+    return ClinicalActDto.fromCreateResponse(
+      response.data!,
+      ccamCode: ccamCode,
+      label: label,
+      tooth: tooth,
+      amountCents: amountCents,
+      included: included,
+    );
   }
 
   /// DELETE /v1/cabinet/consultations/{consultationId}/acts/{actId}

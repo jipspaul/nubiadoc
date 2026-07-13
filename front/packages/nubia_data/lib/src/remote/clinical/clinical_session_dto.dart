@@ -18,22 +18,41 @@ class ClinicalActDto {
   });
 
   factory ClinicalActDto.fromJson(Map<String, dynamic> json) => ClinicalActDto(
-        id: json['id'] as String,
-        ccamCode: json['ccam_code'] as String,
-        label: json['label'] as String,
-        tooth: json['tooth'] as String?,
-        amountCents: (json['amount_cents'] as num?)?.toInt(),
-        included: (json['included'] as bool?) ?? false,
-      );
+    id: json['id'] as String,
+    ccamCode: json['ccam_code'] as String,
+    label: json['label'] as String,
+    tooth: json['tooth'] as String?,
+    amountCents: (json['amount_cents'] as num?)?.toInt(),
+    included: (json['included'] as bool?) ?? false,
+  );
+
+  /// POST .../acts renvoie seulement `{ act_id }` (vérifié en live), pas
+  /// l'acte complet (#3697, même schéma que le confirm RDV JEL-19) : on
+  /// reconstruit le DTO à partir de la réponse et des champs envoyés.
+  factory ClinicalActDto.fromCreateResponse(
+    Map<String, dynamic> json, {
+    required String ccamCode,
+    required String label,
+    String? tooth,
+    int? amountCents,
+    required bool included,
+  }) => ClinicalActDto(
+    id: json['act_id'] as String,
+    ccamCode: ccamCode,
+    label: label,
+    tooth: tooth,
+    amountCents: amountCents,
+    included: included,
+  );
 
   ClinicalAct toDomain() => ClinicalAct(
-        id: id,
-        ccamCode: ccamCode,
-        label: label,
-        tooth: tooth,
-        amountCents: amountCents,
-        included: included,
-      );
+    id: id,
+    ccamCode: ccamCode,
+    label: label,
+    tooth: tooth,
+    amountCents: amountCents,
+    included: included,
+  );
 }
 
 class ClinicalSessionDto {
@@ -74,18 +93,19 @@ class ClinicalSessionDto {
         note: json['note'] as String?,
         patientName: json['patient_name'] as String?,
         startedAt: json['started_at'] as String?,
-        practitionerName: (json['practitioner']
-            as Map<String, dynamic>?)?['display_name'] as String?,
+        practitionerName:
+            (json['practitioner'] as Map<String, dynamic>?)?['display_name']
+                as String?,
       );
 
   ClinicalSession toDomain() => ClinicalSession(
-        id: id,
-        appointmentId: appointmentId,
-        status: status,
-        acts: acts.map((a) => a.toDomain()).toList(),
-        note: note,
-        patientName: patientName,
-        startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
-        practitionerName: practitionerName,
-      );
+    id: id,
+    appointmentId: appointmentId,
+    status: status,
+    acts: acts.map((a) => a.toDomain()).toList(),
+    note: note,
+    patientName: patientName,
+    startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
+    practitionerName: practitionerName,
+  );
 }
