@@ -206,7 +206,6 @@ pub struct ListReviewsQuery {
 pub struct ReviewItem {
     pub id: Uuid,
     pub provider_id: Uuid,
-    pub appointment_id: Uuid,
     pub rating: i32,
     pub comment: Option<String>,
     pub author_name: String,
@@ -242,7 +241,7 @@ pub async fn list_provider_reviews(
     let offset = (page - 1) * per_page;
 
     let rows = sqlx::query(
-        "SELECT id, provider_id, appointment_id, rating, comment, \
+        "SELECT id, provider_id, rating, comment, \
                 created_at, author_display, status, \
                 COUNT(*) OVER() AS total_count \
          FROM review \
@@ -266,9 +265,6 @@ pub async fn list_provider_reviews(
         }
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
         let provider_id: Uuid = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
-        let appointment_id: Uuid = row
-            .try_get("appointment_id")
-            .map_err(|_| AppError::Internal)?;
         let rating: i32 = row.try_get("rating").map_err(|_| AppError::Internal)?;
         let comment: Option<String> = row.try_get("comment").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
@@ -281,7 +277,6 @@ pub async fn list_provider_reviews(
         data.push(ReviewItem {
             id,
             provider_id,
-            appointment_id,
             rating,
             comment,
             author_name,
