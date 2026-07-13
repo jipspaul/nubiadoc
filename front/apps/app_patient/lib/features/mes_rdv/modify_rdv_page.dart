@@ -1,131 +1,287 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-/// Écran (minimal) ouvert par le bouton "Modifier" d'un rendez-vous confirmé.
+import 'modify_rdv_bloc.dart';
+import 'modify_rdv_event.dart';
+import 'modify_rdv_state.dart';
+
+const _weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const _months = [
+  'jan',
+  'fév',
+  'mar',
+  'avr',
+  'mai',
+  'jun',
+  'jul',
+  'aoû',
+  'sep',
+  'oct',
+  'nov',
+  'déc',
+];
+
+String _dayHeader(DateTime dt) =>
+    '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+
+String _hhmm(DateTime dt) =>
+    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+/// Écran "Modifier le rendez-vous".
 ///
-/// Le contenu détaillé du flow de modification (choix d'un nouveau créneau)
-/// est traité dans un ticket séparé (JEL-22#2) : cet écran affiche pour
-/// l'instant le récapitulatif du RDV visé, sans laisser le tap sans action.
-class ModifyRdvPage extends StatefulWidget {
-  const ModifyRdvPage({super.key, required this.appointmentId, this.useCase});
-
+/// L'API (`PATCH /v1/appointments/:id`) n'expose aujourd'hui qu'une seule
+/// option de modification : proposer une nouvelle date/heure avec le même
+/// praticien. La structure de l'écran (options en section) permet d'ajouter
+/// d'autres options le jour où l'API les exposera.
+class ModifyRdvPage extends StatelessWidget {
+  const ModifyRdvPage({required this.appointmentId, super.key});
   final String appointmentId;
-  final GetAppointmentByIdUseCase? useCase;
-
-  @override
-  State<ModifyRdvPage> createState() => _ModifyRdvPageState();
-}
-
-class _ModifyRdvPageState extends State<ModifyRdvPage> {
-  late final GetAppointmentByIdUseCase _useCase;
-  bool _loading = true;
-  String? _error;
-  Appointment? _appointment;
-
-  @override
-  void initState() {
-    super.initState();
-    _useCase = widget.useCase ?? GetIt.instance<GetAppointmentByIdUseCase>();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    final result = await _useCase(widget.appointmentId);
-    if (!mounted) return;
-    result.fold(
-      (failure) => setState(() {
-        _loading = false;
-        _error = failure.message;
-      }),
-      (appointment) => setState(() {
-        _loading = false;
-        _appointment = appointment;
-      }),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Modifier le rendez-vous')),
-        body: const Center(
-          key: Key('modify_rdv_loading'),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-    if (_error != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Modifier le rendez-vous')),
-        body: NubiaErrorWidget(
-          key: const Key('modify_rdv_error'),
-          message: _error!,
-          onRetry: _load,
-        ),
-      );
-    }
-    final appointment = _appointment!;
+    return BlocProvider(
+      create: (_) =>
+          GetIt.instance<ModifyRdvBloc>()
+            ..add(ModifyRdvLoadRequested(appointmentId)),
+      child: _ModifyRdvBody(appointmentId: appointmentId),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _ModifyRdvBody extends StatelessWidget {
+  const _ModifyRdvBody({required this.appointmentId});
+  final String appointmentId;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Modifier le rendez-vous')),
-      body: ListView(
-        key: const Key('modify_rdv_body'),
-        padding: const EdgeInsets.all(16),
+      body: BlocConsumer<ModifyRdvBloc, ModifyRdvState>(
+        listener: (context, state) {
+          if (state is ModifyRdvSuccess) {
+            Navigator.of(context).pop(true);
+          }
+          if (state is ModifyRdvLoaded && state.error != null) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(state.error!)));
+          }
+        },
+        builder: (context, state) {
+          if (state is ModifyRdvInitial || state is ModifyRdvLoading) {
+            return const Center(
+              key: Key('modify_rdv_loading'),
+              child: CircularProgressIndicator(),
+            );
+          }
+          if (state is ModifyRdvError) {
+            return NubiaErrorWidget(
+              key: const Key('modify_rdv_error'),
+              message: state.message,
+              onRetry: () => context.read<ModifyRdvBloc>().add(
+                ModifyRdvLoadRequested(appointmentId),
+              ),
+            );
+          }
+          if (state is ModifyRdvLoaded) {
+            return _LoadedView(state: state);
+          }
+          return const SizedBox.shrink();
+        },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _LoadedView extends StatelessWidget {
+  const _LoadedView({required this.state});
+  final ModifyRdvLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (state.submitting)
+          const LinearProgressIndicator(key: Key('modify_rdv_progress')),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: _CurrentAppointmentCard(appointment: state.appointment),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Text(
+            'Nouvelle date/heure',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        Expanded(
+          child: state.slots.isEmpty
+              ? const NubiaEmptyState(
+                  key: Key('modify_rdv_no_slots'),
+                  icon: Icons.event_busy_outlined,
+                  title: 'Aucun créneau disponible.',
+                  subtitle: 'Revenez plus tard pour ce praticien.',
+                )
+              : _SlotsByDay(
+                  slots: state.slots,
+                  selectedSlot: state.selectedSlot,
+                ),
+        ),
+        if (state.selectedSlot != null) _ConfirmPanel(state: state),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _CurrentAppointmentCard extends StatelessWidget {
+  const _CurrentAppointmentCard({required this.appointment});
+  final Appointment appointment;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          NubiaCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  appointment.practitionerName,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${appointment.motif} · ${appointment.practitionerSpecialty}',
-                ),
-                const SizedBox(height: 8),
-                Text(_formatDateTime(appointment.startsAt)),
-              ],
+          Text(
+            'Rendez-vous actuel',
+            style: textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 24),
-          const NubiaEmptyState(
-            key: Key('modify_rdv_placeholder'),
-            icon: Icons.construction_outlined,
-            title: 'La modification en ligne arrive bientôt',
-            subtitle:
-                'Contactez le cabinet pour changer la date ou l\'heure de ce rendez-vous.',
+          const SizedBox(height: 4),
+          Text(
+            '${appointment.practitionerName} · ${appointment.practitionerSpecialty}',
+            style: textTheme.titleSmall,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${_dayHeader(appointment.startsAt)} à ${_hhmm(appointment.startsAt)}',
+            style: textTheme.bodyMedium,
           ),
         ],
       ),
     );
   }
+}
 
-  String _formatDateTime(DateTime dt) {
-    const weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    const months = [
-      'jan',
-      'fév',
-      'mar',
-      'avr',
-      'mai',
-      'jun',
-      'jul',
-      'aoû',
-      'sep',
-      'oct',
-      'nov',
-      'déc',
-    ];
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]} à $h:$m';
+// ---------------------------------------------------------------------------
+
+class _SlotsByDay extends StatelessWidget {
+  const _SlotsByDay({required this.slots, required this.selectedSlot});
+  final List<Slot> slots;
+  final Slot? selectedSlot;
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = <DateTime, List<Slot>>{};
+    for (final slot in slots) {
+      final key = DateTime(
+        slot.startsAt.year,
+        slot.startsAt.month,
+        slot.startsAt.day,
+      );
+      groups.putIfAbsent(key, () => []).add(slot);
+    }
+
+    return ListView(
+      key: const Key('modify_rdv_slots_list'),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      children: [
+        for (final entry in groups.entries) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              _dayHeader(entry.key),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final slot in entry.value)
+                IntrinsicWidth(
+                  child: SlotChip(
+                    label: _hhmm(slot.startsAt),
+                    state: !slot.isAvailable
+                        ? SlotChipState.unavailable
+                        : selectedSlot?.id == slot.id
+                        ? SlotChipState.selected
+                        : SlotChipState.available,
+                    onTap: slot.isAvailable
+                        ? () => context.read<ModifyRdvBloc>().add(
+                            ModifyRdvSlotSelected(slot),
+                          )
+                        : null,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _ConfirmPanel extends StatelessWidget {
+  const _ConfirmPanel({required this.state});
+  final ModifyRdvLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>();
+    final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
+    final slot = state.selectedSlot!;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: borderColor)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Nouveau créneau : ${_dayHeader(slot.startsAt)} à ${_hhmm(slot.startsAt)}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: NubiaButton(
+              key: const Key('confirm_modify_rdv_button'),
+              label: 'Confirmer la modification',
+              size: NubiaButtonSize.lg,
+              icon: Icons.check_rounded,
+              onPressed: state.submitting
+                  ? null
+                  : () => context.read<ModifyRdvBloc>().add(
+                      const ModifyRdvConfirmRequested(),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
