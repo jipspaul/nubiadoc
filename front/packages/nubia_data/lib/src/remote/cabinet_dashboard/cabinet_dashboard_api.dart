@@ -15,8 +15,14 @@ class CabinetDashboardApi {
   /// (cf. #3225 — un seul sous-appel en erreur affichait un écran d'erreur
   /// générique alors que les autres compteurs étaient disponibles).
   Future<CabinetDashboardDto> getSummary() async {
+    final today = DateTime.now();
+    final todayIso =
+        '${today.year.toString().padLeft(4, '0')}-'
+        '${today.month.toString().padLeft(2, '0')}-'
+        '${today.day.toString().padLeft(2, '0')}';
+
     final results = await Future.wait([
-      _fetchList('/cabinet/appointments'),
+      _fetchList('/cabinet/appointments', queryParameters: {'date': todayIso}),
       _fetchList('/cabinet/waiting-room'),
       _fetchList('/cabinet/conversations'),
       _fetchList(
