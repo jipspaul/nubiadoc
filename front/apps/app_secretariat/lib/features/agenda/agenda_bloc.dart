@@ -46,7 +46,10 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
         safeEmit(AgendaError(failure.message));
         return;
       }
-      final slotsResult = await _listSlots();
+      final slotsResult = await _listSlots(
+        from: event.weekStart,
+        to: event.weekStart.add(const Duration(days: 7)),
+      );
       final entries = entriesResult.getOrElse(() => []);
       final slots = slotsResult.getOrElse(() => []);
       safeEmit(AgendaLoaded(entries: entries, availableSlots: slots));

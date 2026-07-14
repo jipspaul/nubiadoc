@@ -219,11 +219,11 @@ class _LoadedViewState extends State<_LoadedView> {
           ),
         ),
         const Divider(height: 1),
-        if (widget.state.availableSlots.isNotEmpty)
+        if (widget.state.availableSlots.any((s) => s.isAvailable))
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Text(
-              '${widget.state.availableSlots.length} créneau(x) disponible(s)',
+              '${widget.state.availableSlots.where((s) => s.isAvailable).length} créneau(x) disponible(s)',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

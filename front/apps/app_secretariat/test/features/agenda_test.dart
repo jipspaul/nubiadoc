@@ -151,7 +151,9 @@ void main() {
       build: () {
         when(() => mockGetAgenda(any()))
             .thenAnswer((_) async => Right([_entry]));
-        when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+        when(() =>
+                mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+            .thenAnswer((_) async => const Right([]));
         return makeBloc();
       },
       act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
@@ -166,7 +168,9 @@ void main() {
       build: () {
         when(() => mockGetAgenda(any()))
             .thenAnswer((_) async => const Right([]));
-        when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+        when(() =>
+                mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+            .thenAnswer((_) async => const Right([]));
         return makeBloc();
       },
       act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
@@ -265,7 +269,9 @@ void main() {
         build: () {
           when(() => mockGetAgenda(any()))
               .thenAnswer((_) async => Right([_entry]));
-          when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+          when(() =>
+                  mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+              .thenAnswer((_) async => const Right([]));
           return makeBloc();
         },
         act: (bloc) => bloc.add(AgendaLoadRequested(weekStart: _weekStart)),
@@ -291,7 +297,8 @@ void main() {
   group('AgendaPage (widget)', () {
     testWidgets('affiche le chargement initialement', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
-      when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
       final bloc = makeBloc();
       await tester.pumpWidget(_wrap(bloc));
       expect(find.byKey(const Key('agenda_loading')), findsOneWidget);
@@ -299,7 +306,8 @@ void main() {
 
     testWidgets('affiche la liste après chargement', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
-      when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
       final bloc = makeBloc()..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
@@ -308,7 +316,8 @@ void main() {
 
     testWidgets('affiche l\'état vide quand aucun créneau', (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
-      when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
       final bloc = makeBloc()..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
@@ -328,7 +337,8 @@ void main() {
     testWidgets('pull-to-refresh déclenche AgendaLoadRequested',
         (tester) async {
       when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
-      when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
       final bloc = makeBloc()..add(AgendaLoadRequested(weekStart: _weekStart));
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
@@ -387,7 +397,8 @@ void main() {
 
       when(() => mockGetAgenda(any()))
           .thenAnswer((_) async => Right([e1, e2, e3]));
-      when(() => mockListSlots()).thenAnswer((_) async => const Right([]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
 
       final gi = GetIt.instance;
       await gi.reset();
