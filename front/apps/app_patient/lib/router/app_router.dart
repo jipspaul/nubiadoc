@@ -213,9 +213,8 @@ class AppRouter {
         GoRoute(
           path: financial,
           builder: (_, __) => BlocProvider(
-            create: (_) =>
-                GetIt.instance<FinancialBloc>()
-                  ..add(const FinancialLoadRequested()),
+            create: (_) => GetIt.instance<FinancialBloc>()
+              ..add(const FinancialLoadRequested()),
             child: Scaffold(
               appBar: AppBar(title: const Text('Mes devis')),
               body: const FinancialPage(),
@@ -225,9 +224,8 @@ class AppRouter {
         GoRoute(
           path: profile,
           builder: (_, __) => BlocProvider(
-            create: (_) =>
-                GetIt.instance<ProfileBloc>()
-                  ..add(const ProfileLoadRequested()),
+            create: (_) => GetIt.instance<ProfileBloc>()
+              ..add(const ProfileLoadRequested()),
             child: Scaffold(
               appBar: AppBar(title: const Text('Mon profil')),
               body: const ProfilePage(),
@@ -249,9 +247,8 @@ class AppRouter {
         GoRoute(
           path: messaging,
           builder: (_, __) => BlocProvider(
-            create: (_) =>
-                GetIt.instance<MessagingBloc>()
-                  ..add(const MessagingConversationsLoadRequested()),
+            create: (_) => GetIt.instance<MessagingBloc>()
+              ..add(const MessagingConversationsLoadRequested()),
             child: Scaffold(
               appBar: AppBar(title: const Text('Messages')),
               body: const MessagingPage(),
@@ -263,9 +260,8 @@ class AppRouter {
           builder: (context, state) {
             final providerId = state.uri.queryParameters['providerId'] ?? '';
             return BlocProvider(
-              create: (_) =>
-                  GetIt.instance<ReviewsBloc>()
-                    ..add(ReviewsLoadRequested(providerId)),
+              create: (_) => GetIt.instance<ReviewsBloc>()
+                ..add(ReviewsLoadRequested(providerId)),
               child: Scaffold(
                 appBar: AppBar(title: const Text('Avis')),
                 body: const ReviewsPage(),
@@ -276,9 +272,8 @@ class AppRouter {
         GoRoute(
           path: notifications,
           builder: (_, __) => BlocProvider(
-            create: (_) =>
-                GetIt.instance<NotificationsBloc>()
-                  ..add(const NotificationsLoadRequested()),
+            create: (_) => GetIt.instance<NotificationsBloc>()
+              ..add(const NotificationsLoadRequested()),
             child: Scaffold(
               key: const Key('notifications_scaffold'),
               appBar: AppBar(title: const Text('Notifications')),
@@ -289,9 +284,8 @@ class AppRouter {
         GoRoute(
           path: oubliettes,
           builder: (_, __) => BlocProvider(
-            create: (_) =>
-                GetIt.instance<OubliettesBloc>()
-                  ..add(const OubliettesLoadRequested()),
+            create: (_) => GetIt.instance<OubliettesBloc>()
+              ..add(const OubliettesLoadRequested()),
             child: Scaffold(
               appBar: AppBar(title: const Text('Oubliettes')),
               body: const OubliettesPage(),
