@@ -1788,6 +1788,9 @@ pub async fn create_cabinet_slot(
     if ends_at <= starts_at {
         return Err(AppError::ValidationError);
     }
+    if starts_at <= chrono::Utc::now() {
+        return Err(AppError::StartAtNotFuture);
+    }
 
     let status = body.status.as_deref().unwrap_or("open").to_string();
     if status != "open" && status != "blocked" {
@@ -2042,6 +2045,11 @@ pub async fn patch_cabinet_slot(
     if let (Some(sa), Some(ea)) = (new_starts_at, new_ends_at) {
         if ea <= sa {
             return Err(AppError::ValidationError);
+        }
+    }
+    if let Some(sa) = new_starts_at {
+        if sa <= chrono::Utc::now() {
+            return Err(AppError::StartAtNotFuture);
         }
     }
 

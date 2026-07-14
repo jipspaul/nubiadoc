@@ -73,6 +73,15 @@ pub async fn create_booking(
         .try_get("ends_at")
         .map_err(|_| AppError::Internal)?;
 
+    // Un créneau révolu (#3750) ne doit jamais donner lieu à un RDV : ce cas
+    // ne devrait plus arriver via claim_and_hold_slot (migration 0145), mais
+    // on revalide ici en défense en profondeur (créneau déjà held avant le
+    // déploiement du correctif, contrairement à la garde `> now()` déjà
+    // appliquée par POST /appointments — cf. #3722).
+    if starts_at <= chrono::Utc::now() {
+        return Err(AppError::StartAtNotFuture);
+    }
+
     // Scope cabinet pour les requêtes soumises à la RLS tenant_isolation.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())

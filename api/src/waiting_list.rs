@@ -1,6 +1,11 @@
-//! Handler `POST /v1/waiting-list` — inscription d'un patient sur la liste d'attente (US-P12).
+//! Handlers `/v1/waiting-list` — inscription et annulation d'un patient sur la
+//! liste d'attente (US-P12).
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::Row;
@@ -151,4 +156,75 @@ pub async fn create_waiting_list_entry(
         StatusCode::CREATED,
         Json(CreateWaitingListResponse { id, status }),
     ))
+}
+
+/// Réponse de `POST /v1/waiting-list/:id/cancel`.
+#[derive(Serialize)]
+pub struct CancelWaitingListResponse {
+    pub id: Uuid,
+    pub status: String,
+}
+
+/// `POST /v1/waiting-list/:id/cancel` — le patient retire son entrée de la
+/// liste d'attente (seule sortie possible côté patient, hors `offer` cabinet).
+///
+/// Token `kind:"patient"` requis. Ownership via policy RLS
+/// `waiting_list_entry_patient_read` (migration 0146, `app.patient_account_id`)
+/// → 404 si l'entrée n'existe pas ou appartient à un autre patient.
+/// Vérifie status == 'active' → sinon 409 `invalid_status`.
+/// Passe l'entrée en `status = 'cancelled'`, ce qui libère l'anti-doublon
+/// (index unique partiel `WHERE status = 'active'`, migration 0096) et permet
+/// au patient de se réinscrire (#3737).
+pub async fn cancel_waiting_list_entry(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Path(entry_id): Path<Uuid>,
+) -> Result<Json<CancelWaitingListResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope patient — waiting_list_entry_patient_read (policy 0146) → 404 si autre patient.
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query("SELECT id, status, cabinet_id FROM waiting_list_entry WHERE id = $1")
+        .bind(entry_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
+
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    if status != "active" {
+        return Err(AppError::InvalidStatus);
+    }
+    let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet pour l'UPDATE (tenant_isolation, policy 0011).
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("UPDATE waiting_list_entry SET status = 'cancelled' WHERE id = $1")
+        .bind(entry_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        waiting_list_entry_id = %entry_id,
+        "waiting list entry cancelled"
+    );
+
+    Ok(Json(CancelWaitingListResponse {
+        id: entry_id,
+        status: "cancelled".to_string(),
+    }))
 }
