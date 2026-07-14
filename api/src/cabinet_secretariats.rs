@@ -495,7 +495,10 @@ pub async fn provision_staff(
         // Utilisateur existant : rattacher uniquement.
         let uid: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
-        // Upsert cabinet_membership (idempotent).
+        // Upsert cabinet_membership (idempotent sur cabinet_id+user_id). L'index partiel
+        // `cabinet_membership_one_active_per_user` (migration 0099, un user = actif dans un
+        // seul cabinet) n'est pas couvert par ce ON CONFLICT : un utilisateur déjà actif
+        // ailleurs viole cet index (23505) → 409 métier plutôt que 500 (#3746).
         sqlx::query(
             "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
              VALUES ($1, $2, 'secretary', true) \
@@ -505,7 +508,13 @@ pub async fn provision_staff(
         .bind(uid)
         .execute(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal)?;
+        .map_err(|e| {
+            if is_unique_violation(&e) {
+                AppError::MemberAlreadyExists
+            } else {
+                AppError::Internal
+            }
+        })?;
 
         // Upsert secretariat_membership (idempotent).
         sqlx::query(
