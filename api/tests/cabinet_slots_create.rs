@@ -425,3 +425,50 @@ async fn create_slot_overlap_returns_409_slot_taken() {
 
     teardown(&db, &f).await;
 }
+
+// ── Test 6 : starts_at dans le passé → 422 (#3808) ───────────────────────────
+
+#[tokio::test]
+async fn create_slot_past_starts_at_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "past").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let token = make_pro_jwt(Uuid::new_v4(), f.cabinet_id, "admin");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/slots")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "practitioner_id": f.prac_id,
+                        "starts_at": "2019-01-01T09:00:00Z",
+                        "ends_at": "2019-01-01T10:00:00Z",
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "créneau daté dans le passé doit être rejeté (422)"
+    );
+
+    teardown(&db, &f).await;
+}
