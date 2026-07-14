@@ -472,3 +472,60 @@ async fn hold_slot_booked_slot_returns_409() {
         .await
         .ok();
 }
+
+// ── Test 7 : slot dont starts_at est PASSÉ → 404 (#3809, défense en profondeur
+// claim_and_hold_slot / migration 0145) ──────────────────────────────────────
+
+#[tokio::test]
+async fn hold_slot_past_slot_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let (_, slot_id) = insert_provider_with_open_slot(&db, &suffix).await;
+
+    // Force le slot dans le passé, comme un créneau créé avant la migration
+    // 0145 (aucune borne temporelle à la création).
+    sqlx::query(
+        "UPDATE availability_slot SET starts_at = now() - interval '1 hour', \
+         ends_at = now() - interval '30 minutes' WHERE id = $1",
+    )
+    .bind(slot_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let suffix2 = Uuid::new_v4().to_string();
+    let (user_id, account_id) = insert_patient(&db, &suffix2).await;
+    let token = make_patient_jwt(user_id, account_id);
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/slots/{}/hold", slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // claim_and_hold_slot() traite un créneau passé comme inexistant → 404,
+    // pas 200 (sinon /bookings crée un RDV révolu, inclôturable — cul-de-sac).
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // Nettoyage
+    sqlx::query("DELETE FROM availability_slot WHERE id = $1")
+        .bind(slot_id)
+        .execute(&db)
+        .await
+        .ok();
+}
