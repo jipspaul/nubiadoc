@@ -512,6 +512,10 @@ fn build_router(
             post(waiting_list::create_waiting_list_entry),
         )
         .route(
+            "/v1/waiting-list/:id/cancel",
+            post(waiting_list::cancel_waiting_list_entry),
+        )
+        .route(
             "/v1/account/avatar",
             get(auth::get_account_avatar).put(auth::put_account_avatar),
         )
