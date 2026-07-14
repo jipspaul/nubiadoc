@@ -225,19 +225,19 @@ impl IntoResponse for AppError {
                 .into_response(),
             AppError::InvalidStatus => (
                 StatusCode::CONFLICT,
-                Json(json!({"error": "invalid_status"})),
+                Json(json!({"code": "invalid_status"})),
             )
                 .into_response(),
             AppError::OutOfWindow => (
                 StatusCode::UNPROCESSABLE_ENTITY,
-                Json(json!({"error": "out_of_window"})),
+                Json(json!({"code": "out_of_window"})),
             )
                 .into_response(),
             AppError::TooEarly => {
-                (StatusCode::CONFLICT, Json(json!({"error": "too_early"}))).into_response()
+                (StatusCode::CONFLICT, Json(json!({"code": "too_early"}))).into_response()
             }
             AppError::TooLate => {
-                (StatusCode::CONFLICT, Json(json!({"error": "too_late"}))).into_response()
+                (StatusCode::CONFLICT, Json(json!({"code": "too_late"}))).into_response()
             }
             AppError::LinkExpired => {
                 (StatusCode::GONE, Json(json!({"code": "link_expired"}))).into_response()
