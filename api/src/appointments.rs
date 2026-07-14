@@ -247,7 +247,8 @@ pub struct CancelResponse {
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
 /// Vérifie status IN ('requested','confirmed','checked_in') → sinon `409 {"error":"invalid_status"}`.
-/// Vérifie starts_at > now() + 2h → sinon `409 {"error":"too_late"}` (sauf si déjà `checked_in`).
+/// Vérifie starts_at > now() + 2h → sinon `409 {"error":"too_late"}` (sauf si déjà `checked_in`
+/// ou si starts_at est déjà dans le passé, #3811 — sinon un RDV périmé devient inclôturable).
 pub async fn cancel_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -290,8 +291,12 @@ pub async fn cancel_appointment(
     }
 
     // Annulation refusée si le RDV démarre dans moins de 2 heures — sauf pour un
-    // patient déjà checked_in, qui doit pouvoir sortir de la file à tout moment.
-    if status != "checked_in" && chrono::Utc::now() >= starts_at - chrono::Duration::hours(2) {
+    // patient déjà checked_in, qui doit pouvoir sortir de la file à tout moment,
+    // et sauf si starts_at est déjà dans le passé : la fenêtre des 2h est alors
+    // déjà révolue et bloquer indéfiniment créerait un cul-de-sac (#3811) pour
+    // les RDV résiduels créés avant le déploiement des gardes amont (#3750).
+    let now = chrono::Utc::now();
+    if status != "checked_in" && now < starts_at && now >= starts_at - chrono::Duration::hours(2) {
         return Err(AppError::TooLate);
     }
 
