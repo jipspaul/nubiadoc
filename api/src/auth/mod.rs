@@ -288,7 +288,7 @@ impl IntoResponse for AppError {
                 .into_response(),
             AppError::StartAtNotFuture => (
                 StatusCode::UNPROCESSABLE_ENTITY,
-                Json(json!({"error": "start_at must be at least 5 minutes in the future"})),
+                Json(json!({"code": "start_at_not_future"})),
             )
                 .into_response(),
             AppError::HasBooking => {
