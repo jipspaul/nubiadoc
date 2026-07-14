@@ -5,6 +5,8 @@ use argon2::{
     Argon2,
 };
 use axum::extract::{ConnectInfo, Json, State};
+use axum::http::HeaderMap;
+use axum_client_ip::{SecureClientIp, SecureClientIpSource};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Deserialize;
 use sqlx::Row;
@@ -81,11 +83,27 @@ pub struct LoginBody {
 pub async fn login(
     State(state): State<AppState>,
     connect_info: Option<ConnectInfo<SocketAddr>>,
+    headers: HeaderMap,
     Json(body): Json<LoginBody>,
 ) -> Result<Json<LoginResponse>, AppError> {
-    let ip_key = connect_info
-        .map(|ci| ci.0.ip().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+    // Derrière Caddy, l'IP de connexion TCP (`ConnectInfo`) est toujours celle
+    // du reverse-proxy, identique pour tout appelant externe : un bucket par
+    // peer TCP verrouille alors la plateforme entière (#3849). Caddy pose
+    // `X-Forwarded-For` en y ajoutant l'IP réelle du client comme dernière
+    // entrée (non falsifiable par le client, qui ne contrôle que les entrées
+    // précédentes) ; on la préfère, avec repli sur le peer TCP quand l'en-tête
+    // est absent (appels internes/tests hors Caddy).
+    let ip_key = SecureClientIp::from(
+        &SecureClientIpSource::RightmostXForwardedFor,
+        &headers,
+        &Default::default(),
+    )
+    .map(|SecureClientIp(ip)| ip.to_string())
+    .unwrap_or_else(|_| {
+        connect_info
+            .map(|ci| ci.0.ip().to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    });
     if is_ip_rate_limited(&ip_key) {
         return Err(AppError::TooManyRequests(60));
     }
