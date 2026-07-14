@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -99,7 +100,7 @@ class AppRouter {
           splash,
           signup,
           forgotPassword,
-          resetPassword
+          resetPassword,
         },
         // signup authentifie l'utilisateur en cours de flow (restore() après
         // le 201) puis navigue explicitement vers /account-setup : ne pas le
@@ -150,10 +151,7 @@ class AppRouter {
           ),
         ),
         GoRoute(path: home, builder: (_, __) => const DashboardPage()),
-        GoRoute(
-          path: '/pharmacy',
-          builder: (_, __) => const MyPharmacyPage(),
-        ),
+        GoRoute(path: '/pharmacy', builder: (_, __) => const MyPharmacyPage()),
         GoRoute(
           path: '/pharmacy/search',
           builder: (_, state) => PharmacySearchPage(
@@ -181,7 +179,8 @@ class AppRouter {
           builder: (_, state) =>
               PatientOrderDetailPage(orderId: state.pathParameters['id']!),
         ),
-        GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
+        if (kDebugMode)
+          GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
         GoRoute(
           path: appointments,
           builder: (_, __) => BlocProvider(
@@ -295,20 +294,15 @@ class AppRouter {
         ),
         GoRoute(
           path: prepareRdv,
-          builder: (_, state) => PrepareRdvPage(
-            appointmentId: state.pathParameters['id']!,
-          ),
+          builder: (_, state) =>
+              PrepareRdvPage(appointmentId: state.pathParameters['id']!),
         ),
         GoRoute(
           path: modifyRdv,
-          builder: (_, state) => ModifyRdvPage(
-            appointmentId: state.pathParameters['id']!,
-          ),
+          builder: (_, state) =>
+              ModifyRdvPage(appointmentId: state.pathParameters['id']!),
         ),
-        GoRoute(
-          path: book,
-          builder: (_, __) => const BookAppointmentPage(),
-        ),
+        GoRoute(path: book, builder: (_, __) => const BookAppointmentPage()),
       ],
     );
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -64,11 +65,12 @@ class _DashboardPageState extends State<DashboardPage> {
         appBar: NubiaAppBar(
           title: _tabs[_index].label,
           actions: [
-            IconButton(
-              icon: const Icon(Icons.auto_awesome_outlined),
-              tooltip: 'Démo A2UI',
-              onPressed: () => context.push('/a2ui-demo'),
-            ),
+            if (kDebugMode)
+              IconButton(
+                icon: const Icon(Icons.auto_awesome_outlined),
+                tooltip: 'Démo A2UI',
+                onPressed: () => context.push('/a2ui-demo'),
+              ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Se déconnecter',
