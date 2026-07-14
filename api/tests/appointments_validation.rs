@@ -89,8 +89,5 @@ async fn post_appointment_past_start_at_returns_422() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(
-        v["error"],
-        "start_at must be at least 5 minutes in the future"
-    );
+    assert_eq!(v["code"], "start_at_not_future");
 }
