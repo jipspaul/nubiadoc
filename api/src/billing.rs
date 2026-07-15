@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
+    reviews::is_unique_violation,
     AppState,
 };
 
@@ -477,6 +478,10 @@ pub struct PaymentIntentResponse {
 /// Header `Idempotency-Key` obligatoire → `422` si absent.
 /// Le devis (`quote_id`) doit être dans l'état `signed` → `409` sinon.
 /// Idempotence : même clé sur un paiement existant → `201` avec le même `client_secret`.
+/// Le cache `idempotency_keys` a un TTL de 24h ; passé ce délai, la contrainte
+/// UNIQUE `payment_idempotency_key_unique` (permanente, elle) sur `payment.idempotency_key`
+/// peut encore détecter une clé déjà utilisée → `409 idempotency_key_conflict`
+/// (jamais un `500`, l'empreinte d'origine n'étant plus vérifiable, cf. #3867).
 /// PCI délégué (§07 §6.1) : seul le `client_secret` est transmis, aucune donnée carte.
 /// Confirmation finale par webhook Stripe (statut `pending` → `paid`).
 pub async fn create_payment_intent(
@@ -631,7 +636,7 @@ pub async fn create_payment_intent(
         Uuid::new_v4().simple()
     );
 
-    let row = sqlx::query(
+    let insert_result = sqlx::query(
         "INSERT INTO payment \
          (cabinet_id, patient_id, quote_id, amount, currency, kind, provider, status, \
           idempotency_key, method, client_secret) \
@@ -647,8 +652,27 @@ pub async fn create_payment_intent(
     .bind(&body.method)
     .bind(&client_secret)
     .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    .await;
+
+    // Contrainte UNIQUE payment_idempotency_key_unique (permanente, sans fenêtre
+    // de temps — contrairement au cache idempotency_keys, TTL 24h). Si la clé a
+    // déjà servi pour un paiement mais que son entrée de cache a expiré (ou
+    // n'existe plus), l'empreinte d'origine n'est plus disponible pour vérifier
+    // qu'il s'agit bien du même patient/devis/montant : on refuse en 409 plutôt
+    // que de laisser la violation UNIQUE remonter en 500, et plutôt que de
+    // rejouer aveuglément une réponse qui pourrait appartenir à un autre
+    // patient ayant choisi la même clé (#3867).
+    let row = match insert_result {
+        Ok(row) => row,
+        Err(e) if is_unique_violation(&e) => {
+            tracing::warn!(
+                account_id = %claims.account_id,
+                "idempotency key already bound to a payment outside the 24h cache window"
+            );
+            return Err(AppError::IdempotencyKeyConflict);
+        }
+        Err(_) => return Err(AppError::Internal),
+    };
 
     let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
@@ -830,7 +854,7 @@ pub async fn create_pharmacy_quote_payment_intent(
         Uuid::new_v4().simple()
     );
 
-    let row = sqlx::query(
+    let insert_result = sqlx::query(
         "INSERT INTO payment \
          (cabinet_id, patient_id, pharmacy_quote_id, amount, currency, kind, provider, status, \
           idempotency_key, method, client_secret) \
@@ -845,8 +869,21 @@ pub async fn create_pharmacy_quote_payment_intent(
     .bind(&body.method)
     .bind(&client_secret)
     .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    .await;
+
+    // Même garde-fou que create_payment_intent : contrainte UNIQUE permanente
+    // vs cache idempotency_keys à TTL 24h (#3867).
+    let row = match insert_result {
+        Ok(row) => row,
+        Err(e) if is_unique_violation(&e) => {
+            tracing::warn!(
+                account_id = %claims.account_id,
+                "idempotency key already bound to a pharmacy quote payment outside the 24h cache window"
+            );
+            return Err(AppError::IdempotencyKeyConflict);
+        }
+        Err(_) => return Err(AppError::Internal),
+    };
 
     let payment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 

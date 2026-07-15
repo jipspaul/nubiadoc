@@ -332,3 +332,285 @@ async fn payment_intent_missing_idempotency_key_returns_422() {
 
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+// ── Test 3 : clé déjà utilisée pour un `payment` mais absente du cache ───────
+// idempotency_keys (TTL 24h expiré, ou jamais écrite) → 409, jamais 500.
+// Reproduit #3867 : la contrainte UNIQUE `payment_idempotency_key_unique` est
+// permanente en DB, contrairement au cache applicatif à TTL 24h. Couvre aussi
+// le cas de deux patients différents qui choisissent la même clé.
+
+#[tokio::test]
+async fn payment_intent_stale_cache_existing_payment_returns_conflict_not_500() {
+    if !db_available() {
+        return;
+    }
+
+    let db = owner_pool().await;
+
+    // Patient A : propriétaire du `payment` déjà en base.
+    let user_a = Uuid::new_v4();
+    let account_a = Uuid::new_v4();
+    // Patient B : rejoue la même Idempotency-Key sur son propre devis.
+    let user_b = Uuid::new_v4();
+    let account_b = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_a_id = Uuid::new_v4();
+    let patient_b_id = Uuid::new_v4();
+    let quote_a_id = Uuid::new_v4();
+    let quote_b_id = Uuid::new_v4();
+    let existing_payment_id = Uuid::new_v4();
+    // Clé partagée par coïncidence par les deux patients — jamais présente dans
+    // idempotency_keys (simule un cache expiré/absent), mais déjà consommée par
+    // un `payment` permanent en DB.
+    let idempotency_key = format!("idem-stale-{}", Uuid::new_v4());
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_a)
+    .bind(format!("idem-stale-a+{}@nubia.test", user_a))
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_b)
+    .bind(format!("idem-stale-b+{}@nubia.test", user_b))
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'IdemStale', 'A')",
+    )
+    .bind(account_a)
+    .bind(user_a)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'IdemStale', 'B')",
+    )
+    .bind(account_b)
+    .bind(user_b)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("idem-stale-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Idem Stale Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient \
+             (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'IdemStale', 'PatientA', $3)",
+        )
+        .bind(patient_a_id)
+        .bind(cabinet_id)
+        .bind(account_a)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient \
+             (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'IdemStale', 'PatientB', $3)",
+        )
+        .bind(patient_b_id)
+        .bind(cabinet_id)
+        .bind(account_b)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO quote \
+             (id, cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, $3, 'signed', 100.00, 'EUR')",
+        )
+        .bind(quote_a_id)
+        .bind(cabinet_id)
+        .bind(patient_a_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO quote \
+             (id, cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, $3, 'signed', 100.00, 'EUR')",
+        )
+        .bind(quote_b_id)
+        .bind(cabinet_id)
+        .bind(patient_b_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // `payment` déjà en base pour le patient A, sur cette clé — sans aucune
+        // entrée correspondante dans idempotency_keys (cache expiré/absent).
+        sqlx::query(
+            "INSERT INTO payment \
+             (id, cabinet_id, patient_id, quote_id, amount, currency, kind, provider, \
+              status, idempotency_key, method, client_secret) \
+             VALUES ($1, $2, $3, $4, 100.00, 'EUR', 'full', 'stripe', \
+                     'pending', $5, 'card', 'pi_stale_secret_stub')",
+        )
+        .bind(existing_payment_id)
+        .bind(cabinet_id)
+        .bind(patient_a_id)
+        .bind(quote_a_id)
+        .bind(&idempotency_key)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    // Garantit qu'aucune entrée de cache ne subsiste pour cette clé (TTL 24h
+    // expiré / jamais écrite — reproduit l'état "stale cache" du bug #3867).
+    sqlx::query("DELETE FROM idempotency_keys WHERE key = $1")
+        .bind(&idempotency_key)
+        .execute(&db)
+        .await
+        .ok();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Patient B rejoue la même clé sur son propre devis : la contrainte UNIQUE
+    // permanente sur payment.idempotency_key doit être détectée en amont d'un
+    // 500 — jamais de 500, et jamais la réponse/le client_secret du patient A.
+    let body = json!({
+        "quote_id": quote_b_id,
+        "kind": "full",
+        "amount_cents": 10000,
+        "method": "card"
+    });
+    let jwt_b = make_patient_jwt(user_b, account_b);
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/payments/intent")
+                .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {}", jwt_b))
+                .header("Idempotency-Key", &idempotency_key)
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_ne!(
+        response.status(),
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "une clé déjà utilisée hors fenêtre de cache ne doit jamais provoquer un 500"
+    );
+    assert_eq!(
+        response.status(),
+        StatusCode::CONFLICT,
+        "doit être rejetée en 409 idempotency_key_conflict"
+    );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(payload["code"], "idempotency_key_conflict");
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM payment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote WHERE id = $1 OR id = $2")
+            .bind(quote_a_id)
+            .bind(quote_b_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1 OR id = $2")
+            .bind(patient_a_id)
+            .bind(patient_b_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM idempotency_keys WHERE key = $1")
+        .bind(&idempotency_key)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2 OR id = $3")
+        .bind(user_a)
+        .bind(user_b)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1 OR id = $2")
+        .bind(account_a)
+        .bind(account_b)
+        .execute(&db)
+        .await
+        .ok();
+}

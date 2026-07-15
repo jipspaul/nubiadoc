@@ -390,7 +390,11 @@ pub async fn moderate_review(
     Ok(Json(ModerateReviewResponse { review_id, status }))
 }
 
-fn is_unique_violation(e: &sqlx::Error) -> bool {
+/// Détecte une violation de contrainte UNIQUE Postgres (code SQLSTATE `23505`),
+/// par opposition à une autre erreur DB (connexion, contrainte CHECK, etc.).
+/// Permet de distinguer un doublon légitime (→ 409) d'une vraie panne (→ 500).
+/// Réutilisé par `billing.rs` pour `payment_idempotency_key_unique` (#3867).
+pub(crate) fn is_unique_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
         sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505")
