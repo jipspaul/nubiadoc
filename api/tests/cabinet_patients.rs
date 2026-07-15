@@ -93,6 +93,92 @@ async fn create_patient_account(owner: &PgPool, email: &str) -> Uuid {
     id
 }
 
+/// Crée une fiche `practitioner` (table distincte de `provider` — `POST /v1/pro/register`
+/// ne crée qu'un `provider`, cf. `api/src/auth/mod.rs`) pour ce cabinet/utilisateur,
+/// nécessaire pour insérer un `appointment` (FK `practitioner_id`) dans les tests.
+async fn create_practitioner_for_cabinet(owner: &PgPool, cabinet_id: Uuid, user_id: Uuid) -> Uuid {
+    sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO practitioner (cabinet_id, user_id) VALUES ($1, $2) RETURNING id",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .fetch_one(owner)
+    .await
+    .unwrap()
+}
+
+/// Crée un `patient_account` avec un historique de RDV réel dans ce cabinet, PUIS
+/// soft-supprime la fiche `patient` (simule une fiche effacée après la relation,
+/// ex. RGPD). Sert à tester la garde #3872 : la relation doit rester détectable
+/// via `appointment` même quand `patient.deleted_at` est posé — et exercer
+/// réellement la nouvelle garde plutôt que le raccourci idempotent (fiche active).
+async fn create_patient_account_with_appointment(
+    owner: &PgPool,
+    cabinet_id: Uuid,
+    practitioner_id: Uuid,
+    email: &str,
+) -> Uuid {
+    let patient_account_id = create_patient_account(owner, email).await;
+
+    let patient_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, patient_account_id, first_name, last_name, contact) \
+         VALUES ($1, $2, $3, 'Marie', 'Curie', '{}'::jsonb)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(patient_account_id)
+    .execute(owner)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO appointment (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, now() - interval '30 days', now() - interval '30 days' + interval '30 minutes', 'done')",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .execute(owner)
+    .await
+    .unwrap();
+
+    sqlx::query("UPDATE patient SET deleted_at = now() WHERE id = $1")
+        .bind(patient_id)
+        .execute(owner)
+        .await
+        .unwrap();
+
+    patient_account_id
+}
+
+/// Appelle `POST /v1/cabinet/patients` et renvoie `(status, body)`.
+async fn attach_patient(
+    db: PgPool,
+    token: &str,
+    account_id: Uuid,
+) -> (StatusCode, serde_json::Value) {
+    let body = json!({ "patient_account_id": account_id });
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/patients")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    (status, v)
+}
+
 /// Crée un JWT signé `kind=patient` (pour tester le 403 patient).
 fn make_patient_token(sub: Uuid, account_id: Uuid) -> String {
     #[derive(serde::Serialize)]
@@ -218,8 +304,16 @@ async fn create_cabinet_patient_returns_201() {
     let owner = owner_pool().await;
     let db = app_pool().await;
 
-    let (token, _, _) = register_pro(db.clone(), &pro_email).await;
-    let patient_account_id = create_patient_account(&owner, &patient_email).await;
+    let (token, user_id, cabinet_id) = register_pro(db.clone(), &pro_email).await;
+    let practitioner_id = create_practitioner_for_cabinet(&owner, cabinet_id, user_id).await;
+    // Relation légitime requise depuis #3872 : historique de RDV dans ce cabinet.
+    let patient_account_id = create_patient_account_with_appointment(
+        &owner,
+        cabinet_id,
+        practitioner_id,
+        &patient_email,
+    )
+    .await;
 
     let body = json!({ "patient_account_id": patient_account_id, "note": "Test" });
     let resp = app(make_state(db))
@@ -682,8 +776,16 @@ async fn get_cabinet_patient_secretary_sees_admin_only_200() {
     let owner = owner_pool().await;
     let db = app_pool().await;
 
-    let (pro_token, _, cabinet_id) = register_pro(db.clone(), &pro_email).await;
-    let patient_account_id = create_patient_account(&owner, &patient_email).await;
+    let (pro_token, user_id, cabinet_id) = register_pro(db.clone(), &pro_email).await;
+    let practitioner_id = create_practitioner_for_cabinet(&owner, cabinet_id, user_id).await;
+    // Relation légitime requise depuis #3872 : historique de RDV dans ce cabinet.
+    let patient_account_id = create_patient_account_with_appointment(
+        &owner,
+        cabinet_id,
+        practitioner_id,
+        &patient_email,
+    )
+    .await;
 
     // Crée le patient dans ce cabinet via le token pro.
     let body = json!({ "patient_account_id": patient_account_id });
@@ -777,29 +879,24 @@ async fn list_patient_notes_no_appointment_returns_403() {
     let owner = owner_pool().await;
     let db = app_pool().await;
 
-    let (token, _, _) = register_pro(db.clone(), &pro_email).await;
+    let (token, _, cabinet_id) = register_pro(db.clone(), &pro_email).await;
     let patient_account_id = create_patient_account(&owner, &patient_email).await;
 
-    // Crée le patient dans le cabinet (sans créer de RDV).
-    let body = json!({ "patient_account_id": patient_account_id });
-    let resp = app(make_state(db.clone()))
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/v1/cabinet/patients")
-                .header("content-type", "application/json")
-                .header("Authorization", format!("Bearer {}", token))
-                .body(Body::from(body.to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::CREATED);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let patient_id = v["patient_id"].as_str().unwrap().to_string();
+    // Crée directement la fiche patient dans le cabinet (bypass RLS, rôle owner) —
+    // SANS passer par POST /v1/cabinet/patients : depuis #3872 cet endpoint exige
+    // lui-même une relation (RDV) préalable, ce qui n'est pas l'objet de ce test
+    // (qui vérifie une garde différente : l'accès aux notes cliniques sans RDV).
+    let patient_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, patient_account_id, first_name, last_name, contact) \
+         VALUES ($1, $2, $3, 'Marie', 'Curie', '{}'::jsonb)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(patient_account_id)
+    .execute(&owner)
+    .await
+    .unwrap();
 
     // Aucun appointment → E.2.16.c : 403.
     let resp = app(make_state(db))
@@ -907,8 +1004,16 @@ async fn create_cabinet_patient_idempotent_same_id() {
     let owner = owner_pool().await;
     let db = app_pool().await;
 
-    let (token, _, _) = register_pro(db.clone(), &pro_email).await;
-    let patient_account_id = create_patient_account(&owner, &patient_email).await;
+    let (token, user_id, cabinet_id) = register_pro(db.clone(), &pro_email).await;
+    let practitioner_id = create_practitioner_for_cabinet(&owner, cabinet_id, user_id).await;
+    // Relation légitime requise depuis #3872 : historique de RDV dans ce cabinet.
+    let patient_account_id = create_patient_account_with_appointment(
+        &owner,
+        cabinet_id,
+        practitioner_id,
+        &patient_email,
+    )
+    .await;
 
     let body = json!({ "patient_account_id": patient_account_id });
 
@@ -1154,4 +1259,144 @@ async fn list_patient_documents_unknown_category_returns_200_empty() {
         v["data"].as_array().unwrap().is_empty(),
         "data doit être vide pour une catégorie inconnue"
     );
+}
+
+// ── Tests garde cloisonnement #3872 : oracle d'existence / PII cross-tenant ───
+
+/// `POST /v1/cabinet/patients` avec un `patient_account_id` SANS relation légitime
+/// avec ce cabinet (aucun RDV/appointment) → 404, PAS 201, aucune copie de PII,
+/// aucune fiche patient créée. Reproduit QA-20260715-4 (#3872, cabinet Paris/Lyon).
+#[tokio::test]
+async fn create_cabinet_patient_no_relation_returns_404_no_pii_leak() {
+    if !db_available() {
+        return;
+    }
+    let pro_email = format!("noref_pro_{}@test.local", Uuid::new_v4());
+    let patient_email = format!("noref_patient_{}@test.local", Uuid::new_v4());
+    let owner = owner_pool().await;
+    let db = app_pool().await;
+
+    let (token, _, cabinet_id) = register_pro(db.clone(), &pro_email).await;
+    // Compte patient plateforme SANS AUCUNE relation avec ce cabinet (ni RDV, ni
+    // fiche patient) — exactement le cas du repro #3872 ("cabinet Paris" arbitraire
+    // vu depuis le cabinet Lyon appelant).
+    let patient_account_id = create_patient_account(&owner, &patient_email).await;
+
+    let (status, body) = attach_patient(db, &token, patient_account_id).await;
+
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "sans relation légitime, l'attach ne doit PAS réussir (201) — #3872"
+    );
+    assert_eq!(body["code"], "not_found");
+    // Aucune PII (nom/prénom du patient_account visé) ne doit fuiter dans la réponse.
+    assert!(body.get("first_name").is_none());
+    assert!(body.get("last_name").is_none());
+
+    // Aucune fiche patient ne doit avoir été créée pour ce cabinet.
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM patient WHERE cabinet_id = $1 AND patient_account_id = $2",
+    )
+    .bind(cabinet_id)
+    .bind(patient_account_id)
+    .fetch_one(&owner)
+    .await
+    .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucune fiche patient ne doit être créée sans relation légitime"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
+        .bind(&pro_email)
+        .bind(&patient_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
+/// Ferme l'oracle d'existence (#3872) : un `patient_account_id` totalement
+/// inexistant ET un `patient_account_id` existant mais sans relation légitime
+/// avec ce cabinet renvoient EXACTEMENT le même statut/corps de réponse —
+/// impossible de distinguer les deux cas depuis l'extérieur.
+#[tokio::test]
+async fn create_cabinet_patient_unknown_vs_no_relation_same_response() {
+    if !db_available() {
+        return;
+    }
+    let pro_email = format!("oracle_pro_{}@test.local", Uuid::new_v4());
+    let patient_email = format!("oracle_patient_{}@test.local", Uuid::new_v4());
+    let owner = owner_pool().await;
+    let db = app_pool().await;
+
+    let (token, _, _) = register_pro(db.clone(), &pro_email).await;
+    let existing_no_relation_id = create_patient_account(&owner, &patient_email).await;
+    let nonexistent_id = Uuid::new_v4();
+
+    let (status_a, body_a) = attach_patient(db.clone(), &token, nonexistent_id).await;
+    let (status_b, body_b) = attach_patient(db, &token, existing_no_relation_id).await;
+
+    assert_eq!(status_a, StatusCode::NOT_FOUND);
+    assert_eq!(
+        status_a, status_b,
+        "compte inexistant et compte sans relation doivent avoir le même statut"
+    );
+    assert_eq!(
+        body_a, body_b,
+        "compte inexistant et compte sans relation doivent avoir le même corps"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
+        .bind(&pro_email)
+        .bind(&patient_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
+/// Cas légitime (non-régression) : un `patient_account` avec un historique de RDV
+/// réel dans CE cabinet (fiche `patient` supprimée depuis, ex. RGPD) peut être
+/// réattaché avec succès — la garde #3872 ne bloque pas les relations réelles.
+#[tokio::test]
+async fn create_cabinet_patient_with_appointment_history_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let pro_email = format!("legit_pro_{}@test.local", Uuid::new_v4());
+    let patient_email = format!("legit_patient_{}@test.local", Uuid::new_v4());
+    let owner = owner_pool().await;
+    let db = app_pool().await;
+
+    let (token, user_id, cabinet_id) = register_pro(db.clone(), &pro_email).await;
+    let practitioner_id = create_practitioner_for_cabinet(&owner, cabinet_id, user_id).await;
+    let patient_account_id = create_patient_account_with_appointment(
+        &owner,
+        cabinet_id,
+        practitioner_id,
+        &patient_email,
+    )
+    .await;
+
+    let (status, body) = attach_patient(db, &token, patient_account_id).await;
+
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "une relation légitime (RDV historique) doit permettre le rattachement"
+    );
+    assert!(
+        body["patient_id"]
+            .as_str()
+            .and_then(|s| s.parse::<Uuid>().ok())
+            .is_some(),
+        "patient_id doit être un UUID valide"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
+        .bind(&pro_email)
+        .bind(&patient_email)
+        .execute(&owner)
+        .await
+        .ok();
 }

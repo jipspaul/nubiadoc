@@ -273,9 +273,29 @@ pub struct AttachPatientResponse {
 /// `cabinet_id` extrait du JWT, `patient_account_id` depuis le body.
 /// Idempotent : si un dossier existe déjà pour ce `patient_account_id` dans ce cabinet,
 /// retourne le `patient_id` existant avec `201`.
-/// `first_name`/`last_name` copiés depuis `patient_account` (accessible via
-/// `app.current_account_id` temporaire dans la transaction).
-/// `patient_account_id` inexistant ou inaccessible → `404`.
+///
+/// **Garde cloisonnement (#3872)** : `patient_account_id` n'est PAS une simple clé
+/// libre — un cabinet ne peut rattacher que des comptes avec lesquels il a une
+/// relation métier déjà tracée dans CE cabinet. Faute de table de relation dédiée
+/// (invitation explicite, etc. — cf. doc handler), on réutilise le seul signal fiable
+/// du modèle actuel : un `appointment` existant, rattaché via `patient.patient_account_id`,
+/// pour ce couple (compte, cabinet). RLS `tenant_isolation` (déjà positionnée via
+/// `app.current_cabinet_id` juste en dessous) scope naturellement `appointment` ET
+/// `patient` à CE cabinet — donc une seule requête suffit, aucun filtre cabinet_id
+/// explicite nécessaire. Cette requête ne fuite RIEN sur l'existence globale du compte :
+/// elle ne peut renvoyer une ligne que si ce cabinet a déjà eu un RDV avec ce compte.
+/// Historique conservé même si la fiche `patient` a été soft-supprimée depuis
+/// (`p.deleted_at` volontairement non filtré) : un rattachement a réellement existé.
+///
+/// Pas de relation légitime **OU** `patient_account_id` inexistant → même `404`
+/// (`not_found`) dans les deux cas : les deux échecs sont indiscernables pour fermer
+/// l'oracle d'existence (#3872) — voir aussi le rapport de fix associé.
+///
+/// **Limite connue** : ce garde-fou ne couvre pas le cas légitime « patient déjà
+/// inscrit sur la plateforme mais qui n'a encore jamais eu de RDV via ce cabinet »
+/// (ex: pris par téléphone hors plateforme). Une vraie solution demanderait une table
+/// de relation explicite (invitation cabinet→patient avec consentement, ou vérification
+/// d'identité en cabinet) — hors scope de ce fix ciblé, voir rapport.
 pub async fn create_cabinet_patient(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -315,6 +335,38 @@ pub async fn create_cabinet_patient(
             StatusCode::CREATED,
             Json(AttachPatientResponse { patient_id }),
         ));
+    }
+
+    // Garde cloisonnement (#3872) : refuse tout rattachement sans relation métier
+    // déjà tracée entre ce cabinet et ce patient_account_id. Signal retenu : un
+    // appointment existant (quel que soit son statut/deleted_at — l'historique
+    // suffit à prouver la relation) rattaché via patient.patient_account_id.
+    // RLS tenant_isolation (app.current_cabinet_id positionné ci-dessus) scope déjà
+    // `appointment` et `patient` à ce cabinet : la requête ne peut renvoyer une ligne
+    // que si CE cabinet a réellement eu un RDV avec ce compte, quelle que soit son
+    // existence ailleurs sur la plateforme (ferme l'oracle d'existence).
+    let has_legitimate_relation = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN patient p ON p.id = a.patient_id \
+         WHERE p.patient_account_id = $1 \
+         LIMIT 1",
+    )
+    .bind(body.patient_account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .is_some();
+
+    if !has_legitimate_relation {
+        tracing::warn!(
+            cabinet_id = %claims.cabinet_id,
+            user_id = %claims.sub,
+            patient_account_id = %body.patient_account_id,
+            "cabinet patient attach refused: no legitimate relation with this account"
+        );
+        // Même code que "compte inexistant" (cf. plus bas) : ne pas distinguer les
+        // deux cas d'échec pour ne pas offrir d'oracle d'existence sur patient_account.
+        return Err(AppError::NotFound);
     }
 
     // Lecture de patient_account via app.current_account_id (policy account_self_select).
