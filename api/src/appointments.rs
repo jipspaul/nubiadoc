@@ -1817,6 +1817,22 @@ pub async fn create_appointment(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+    } else {
+        // Réservation via starts_at direct (pas de slot_id) : consomme quand même
+        // tout créneau 'open' du praticien qui recouvre l'horaire réservé, sinon
+        // il reste annoncé disponible alors qu'il est déjà irréservable (#3866).
+        sqlx::query(
+            "UPDATE availability_slot SET status = 'booked', updated_at = now() \
+             WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'open' \
+             AND deleted_at IS NULL AND tstzrange(starts_at, ends_at) && tstzrange($3, $4)",
+        )
+        .bind(cabinet_id)
+        .bind(practitioner_id)
+        .bind(starts_at)
+        .bind(ends_at)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
     }
 
     // Fetch provider + cabinet pour la réponse (même shape que GET /:id).
