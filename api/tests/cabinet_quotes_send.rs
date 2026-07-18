@@ -313,7 +313,7 @@ async fn send_signed_quote_returns_409() {
     .await;
 
     assert_eq!(status, StatusCode::CONFLICT);
-    assert_eq!(body["error"], "invalid_status");
+    assert_eq!(body["code"], "invalid_status");
 
     cleanup(&db, cabinet_id).await;
 }

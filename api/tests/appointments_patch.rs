@@ -514,7 +514,7 @@ async fn patch_appointment_too_late_returns_409() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "too_late");
+    assert_eq!(v["code"], "too_late");
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
@@ -711,7 +711,7 @@ async fn patch_appointment_invalid_status_returns_409() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "invalid_status");
+    assert_eq!(v["code"], "invalid_status");
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")

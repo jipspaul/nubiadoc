@@ -291,7 +291,7 @@ async fn confirm_appointment_already_confirmed_returns_409() {
         .await
         .unwrap();
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(body["error"], "invalid_status");
+    assert_eq!(body["code"], "invalid_status");
 
     cleanup_fixture(
         &seed_db,
