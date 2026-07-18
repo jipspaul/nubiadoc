@@ -280,6 +280,74 @@ async fn document_get_by_id_owner_returns_200() {
         .ok();
 }
 
+// ── Test 1b : tuteur avec tutelle active → 200 sur le doc du proche (#3778) ────
+
+#[tokio::test]
+async fn document_get_by_id_guardian_with_guardianship_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (guardian_user_id, guardian_account_id) = insert_patient(&db, "guardian").await;
+    let (dependent_user_id, dependent_account_id) = insert_patient(&db, "dependent").await;
+    let (cabinet_id, patient_id, doc_id) = insert_doc_fixture(&db, dependent_account_id).await;
+
+    sqlx::query(
+        "INSERT INTO account_guardianship \
+         (guardian_account_id, dependent_account_id, relationship) \
+         VALUES ($1, $2, 'enfant')",
+    )
+    .bind(guardian_account_id)
+    .bind(dependent_account_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/documents/{doc_id}?patient_account={dependent_account_id}"
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(guardian_user_id, guardian_account_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "un tuteur avec tutelle active doit voir le document de son proche"
+    );
+
+    cleanup_fixture(&db, cabinet_id, patient_id, doc_id).await;
+    sqlx::query("DELETE FROM account_guardianship WHERE guardian_account_id = $1")
+        .bind(guardian_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = ANY($1)")
+        .bind([guardian_user_id, dependent_user_id].as_slice())
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 2 : document d'un autre patient → 404 (anti-énumération) ─────────────────
 
 #[tokio::test]
