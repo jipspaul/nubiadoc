@@ -40,6 +40,52 @@ pub struct ListDocumentsQuery {
     pub cursor: Option<String>,
 }
 
+/// `?patient_account=` partagé par `get_document`/`download_document`
+/// (même résolution tuteur→proche que `list_documents`, issue #3778).
+#[derive(Deserialize)]
+pub struct PatientAccountQuery {
+    pub patient_account: Option<Uuid>,
+}
+
+/// Résout le compte patient effectif pour une requête `?patient_account=`
+/// (tuteur → proche à charge) : soi-même si absent/égal, sinon vérifie
+/// `account_guardianship` (relation active) → `Forbidden` sinon.
+/// Partagé par `list_documents`, `get_document`, `download_document`
+/// (issue #3778 : les deux derniers ne le faisaient pas, cassant l'accès
+/// tuteur→document d'un proche que `list_documents` autorise pourtant).
+async fn resolve_effective_account(
+    tx: &mut sqlx::PgConnection,
+    account_id: Uuid,
+    requested: Option<Uuid>,
+) -> Result<Uuid, AppError> {
+    let Some(dependent_id) = requested else {
+        return Ok(account_id);
+    };
+    if dependent_id == account_id {
+        return Ok(account_id);
+    }
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let guardianship = sqlx::query(
+        "SELECT id FROM account_guardianship \
+         WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+    )
+    .bind(account_id)
+    .bind(dependent_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if guardianship.is_none() {
+        return Err(AppError::Forbidden);
+    }
+    Ok(dependent_id)
+}
+
 #[derive(Serialize)]
 pub struct DocumentItem {
     pub id: Uuid,
@@ -104,34 +150,8 @@ pub async fn list_documents(
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Résout le compte effectif (tuteur → proche, ou soi-même).
-    let effective_account_id = if let Some(dependent_id) = params.patient_account {
-        if dependent_id == claims.account_id {
-            claims.account_id
-        } else {
-            sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
-                .bind(claims.account_id.to_string())
-                .execute(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
-
-            let guardianship = sqlx::query(
-                "SELECT id FROM account_guardianship \
-                 WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
-            )
-            .bind(claims.account_id)
-            .bind(dependent_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-
-            if guardianship.is_none() {
-                return Err(AppError::Forbidden);
-            }
-            dependent_id
-        }
-    } else {
-        claims.account_id
-    };
+    let effective_account_id =
+        resolve_effective_account(&mut tx, claims.account_id, params.patient_account).await?;
 
     // Scope patient — RLS document_patient_read (migration 0034).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
@@ -297,12 +317,18 @@ pub async fn get_document(
     claims: PatientAccountClaims,
     Extension(storage): Extension<Arc<dyn StorageClient>>,
     Path(doc_id): Path<Uuid>,
+    Query(params): Query<PatientAccountQuery>,
 ) -> Result<Json<DocumentDetail>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    // Résout le compte effectif (tuteur → proche, ou soi-même) — même règle
+    // que list_documents, absente ici avant #3778.
+    let effective_account_id =
+        resolve_effective_account(&mut tx, claims.account_id, params.patient_account).await?;
+
     // Scope patient — RLS document_patient_read (migration 0034) → 0 ligne si hors tenant.
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
-        .bind(claims.account_id.to_string())
+        .bind(effective_account_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -395,12 +421,18 @@ pub async fn download_document(
     claims: PatientAccountClaims,
     Extension(signer): Extension<Arc<dyn StorageSigner>>,
     Path(id): Path<Uuid>,
+    Query(params): Query<PatientAccountQuery>,
 ) -> Result<Json<DownloadUrlResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    // Résout le compte effectif (tuteur → proche, ou soi-même) — même règle
+    // que list_documents, absente ici avant #3778.
+    let effective_account_id =
+        resolve_effective_account(&mut tx, claims.account_id, params.patient_account).await?;
+
     // Scope patient — RLS document_patient_read (migration 0034).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
-        .bind(claims.account_id.to_string())
+        .bind(effective_account_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
