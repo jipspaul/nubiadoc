@@ -187,3 +187,107 @@ async fn devices_post_invalid_platform_returns_422() {
         .await
         .ok();
 }
+
+// ── Test 4 : même fcm_token réenregistré par un AUTRE user → invalide l'ancien (#3789) ──
+
+#[tokio::test]
+async fn devices_post_same_token_other_user_deactivates_previous_owner() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_a = Uuid::new_v4();
+    let user_b = Uuid::new_v4();
+    let token = format!("tok_shared_{}", Uuid::new_v4());
+
+    for u in [user_a, user_b] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+        )
+        .bind(u)
+        .bind(format!("device-3789+{}@nubia.test", u))
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // A enregistre le token.
+    let resp_a = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/devices")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_a)),
+                )
+                .body(Body::from(
+                    json!({"fcm_token": token, "platform": "ios"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp_a.status(), StatusCode::CREATED);
+
+    // B enregistre le MÊME token (terminal réattribué).
+    let resp_b = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/devices")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_b)),
+                )
+                .body(Body::from(
+                    json!({"fcm_token": token, "platform": "ios"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp_b.status(), StatusCode::CREATED);
+
+    // La ligne de A pour ce token doit être invalidée (deleted_at IS NOT NULL).
+    let a_deleted_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT deleted_at FROM device WHERE app_user_id = $1 AND fcm_token = $2",
+    )
+    .bind(user_a)
+    .bind(&token)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert!(
+        a_deleted_at.is_some(),
+        "le device de l'ancien propriétaire (A) doit être invalidé quand B réenregistre le même token"
+    );
+
+    // La ligne de B pour ce token doit rester active.
+    let b_deleted_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT deleted_at FROM device WHERE app_user_id = $1 AND fcm_token = $2",
+    )
+    .bind(user_b)
+    .bind(&token)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert!(
+        b_deleted_at.is_none(),
+        "le device du nouveau propriétaire (B) doit rester actif"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = ANY($1)")
+        .bind([user_a, user_b].as_slice())
+        .execute(&db)
+        .await
+        .ok();
+}
