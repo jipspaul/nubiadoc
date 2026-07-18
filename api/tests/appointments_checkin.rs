@@ -325,7 +325,7 @@ async fn post_checkin_invalid_status_returns_409() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "invalid_status");
+    assert_eq!(v["code"], "invalid_status");
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
@@ -424,7 +424,7 @@ async fn post_checkin_too_late_returns_422() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "out_of_window");
+    assert_eq!(v["code"], "out_of_window");
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")
@@ -615,7 +615,7 @@ async fn post_checkin_tomorrow_returns_409_too_early() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "too_early");
+    assert_eq!(v["code"], "too_early");
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")

@@ -425,7 +425,7 @@ async fn start_consultation_invalid_status_returns_409() {
         .await
         .unwrap();
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(body["error"], "invalid_status");
+    assert_eq!(body["code"], "invalid_status");
 
     cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
 }
