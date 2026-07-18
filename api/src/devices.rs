@@ -66,6 +66,19 @@ pub async fn register_device(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Un fcm_token identifie UN install physique : invalide toute ligne active
+    // d'un AUTRE utilisateur sur ce même token (terminal réattribué / partagé).
+    // Sinon le worker push livre les notifs santé de l'ancien compte au nouveau
+    // détenteur du terminal (issue #3789). La RLS device_owner (0052) empêche
+    // nubia_app de voir/modifier les devices d'un autre app_user_id — passe par
+    // la fonction SECURITY DEFINER device_deactivate_other_owners (0147).
+    sqlx::query("SELECT device_deactivate_other_owners($1, $2)")
+        .bind(&body.fcm_token)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // Insert du nouveau device avec id pré-généré (évite RETURNING bloqué par RLS).
     sqlx::query(
         "INSERT INTO device (id, app_user_id, fcm_token, platform) \
