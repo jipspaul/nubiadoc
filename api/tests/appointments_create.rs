@@ -175,6 +175,32 @@ async fn setup(db: &PgPool, prefix: &str) -> Fixtures {
     }
 }
 
+/// Insère un availability_slot 'open' — requis depuis #3722 pour qu'une
+/// réservation via `starts_at` direct (sans `slot_id`) résolve un créneau réel.
+async fn insert_open_slot(db: &PgPool, f: &Fixtures, starts_at: &str, ends_at: &str) {
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO availability_slot \
+         (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'open')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(f.provider_id)
+    .bind(f.cabinet_id)
+    .bind(f.prac_id)
+    .bind(starts_at.parse::<chrono::DateTime<chrono::Utc>>().unwrap())
+    .bind(ends_at.parse::<chrono::DateTime<chrono::Utc>>().unwrap())
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+}
+
 async fn teardown(db: &PgPool, f: &Fixtures) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -235,6 +261,7 @@ async fn create_appointment_returns_201_with_full_detail() {
     }
     let db = owner_pool().await;
     let f = setup(&db, "detail").await;
+    insert_open_slot(&db, &f, "2032-07-10T09:00:00Z", "2032-07-10T09:30:00Z").await;
 
     let state = AppState {
         db: app_pool().await,
@@ -307,6 +334,7 @@ async fn create_appointment_without_motif_returns_201() {
     }
     let db = owner_pool().await;
     let f = setup(&db, "nomotif").await;
+    insert_open_slot(&db, &f, "2032-08-10T10:00:00Z", "2032-08-10T10:30:00Z").await;
 
     let state = AppState {
         db: app_pool().await,
@@ -353,6 +381,7 @@ async fn create_appointment_overlap_returns_409_slot_taken() {
     }
     let db = owner_pool().await;
     let f = setup(&db, "overlap").await;
+    insert_open_slot(&db, &f, "2032-09-15T14:00:00Z", "2032-09-15T14:30:00Z").await;
 
     let make_state = || AppState {
         db: PgPool::connect_lazy(

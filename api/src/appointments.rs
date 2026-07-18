@@ -1732,7 +1732,7 @@ pub async fn create_appointment(
     // status = 'open' : un créneau blocked (indispo praticien) ou held (hold
     // patient actif) ne doit pas être réservable, au même titre que le
     // chemin cabinet (create_cabinet_appointment).
-    let (starts_at, ends_at) = if let Some(slot_id) = body.slot_id {
+    let (starts_at, ends_at, resolved_slot_id) = if let Some(slot_id) = body.slot_id {
         let slot_row = sqlx::query(
             "SELECT starts_at, ends_at FROM availability_slot \
              WHERE id = $1 AND cabinet_id = $2 AND practitioner_id = $3 \
@@ -1752,15 +1752,37 @@ pub async fn create_appointment(
         let ea: chrono::DateTime<chrono::Utc> = slot_row
             .try_get("ends_at")
             .map_err(|_| AppError::Internal)?;
-        (sa, ea)
+        (sa, ea, Some(slot_id))
     } else {
         let sa = body
             .starts_at
             .as_deref()
             .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok())
             .ok_or(AppError::ValidationError)?;
-        let ea = sa + chrono::Duration::minutes(30);
-        (sa, ea)
+
+        // La branche starts_at doit résoudre/exiger un availability_slot 'open'
+        // du praticien, comme la branche slot_id ci-dessus et comme la
+        // reprogrammation (patch_appointment) — sinon starts_at est accepté
+        // sans aucun créneau réel (heure hors-agenda) et l'exclusion GiST ne
+        // bloque que les chevauchements, pas les horaires impossibles (#3722).
+        let slot_row = sqlx::query(
+            "SELECT id, ends_at FROM availability_slot \
+             WHERE cabinet_id = $1 AND practitioner_id = $2 AND starts_at = $3 \
+             AND deleted_at IS NULL AND status = 'open'",
+        )
+        .bind(cabinet_id)
+        .bind(practitioner_id)
+        .bind(sa)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::SlotTaken)?;
+
+        let resolved_id: Uuid = slot_row.try_get("id").map_err(|_| AppError::Internal)?;
+        let ea: chrono::DateTime<chrono::Utc> = slot_row
+            .try_get("ends_at")
+            .map_err(|_| AppError::Internal)?;
+        (sa, ea, Some(resolved_id))
     };
 
     let fingerprint = idempotency_key.as_ref().map(|_| {
@@ -1787,7 +1809,7 @@ pub async fn create_appointment(
     .bind(starts_at)
     .bind(ends_at)
     .bind(body.motif.as_deref())
-    .bind(body.slot_id)
+    .bind(resolved_slot_id)
     .bind(&idempotency_key)
     .bind(&fingerprint)
     .fetch_one(&mut *tx)
@@ -1807,29 +1829,15 @@ pub async fn create_appointment(
     // Consomme le créneau : il ne doit plus apparaître dans la recherche de
     // disponibilités (`/v1/search/slots` filtre `status = 'open'`). Symétrique de
     // l'annulation qui le repasse à 'open'. Scopé cabinet (slot_cabinet_write).
-    if let Some(slot_id) = body.slot_id {
+    // Les deux branches ci-dessus résolvent désormais un availability_slot réel
+    // (#3722), resolved_slot_id est toujours Some ici.
+    if let Some(slot_id) = resolved_slot_id {
         sqlx::query(
             "UPDATE availability_slot SET status = 'booked', updated_at = now() \
              WHERE id = $1 AND cabinet_id = $2",
         )
         .bind(slot_id)
         .bind(cabinet_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-    } else {
-        // Réservation via starts_at direct (pas de slot_id) : consomme quand même
-        // tout créneau 'open' du praticien qui recouvre l'horaire réservé, sinon
-        // il reste annoncé disponible alors qu'il est déjà irréservable (#3866).
-        sqlx::query(
-            "UPDATE availability_slot SET status = 'booked', updated_at = now() \
-             WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'open' \
-             AND deleted_at IS NULL AND tstzrange(starts_at, ends_at) && tstzrange($3, $4)",
-        )
-        .bind(cabinet_id)
-        .bind(practitioner_id)
-        .bind(starts_at)
-        .bind(ends_at)
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;

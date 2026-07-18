@@ -156,6 +156,21 @@ async fn post_appointment_happy_path_returns_201() {
         .await
         .unwrap();
 
+        // Réservation via starts_at direct exige un availability_slot 'open'
+        // au même horaire depuis #3722.
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, '2030-01-15T09:00:00Z', '2030-01-15T09:30:00Z', 'open')",
+        )
+        .bind(Uuid::new_v4())
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
         tx.commit().await.unwrap();
     }
 
@@ -237,6 +252,11 @@ async fn post_appointment_happy_path_returns_201() {
             .await
             .ok();
         sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
             .bind(cabinet_id)
             .execute(&mut *tx)
             .await
@@ -368,6 +388,21 @@ async fn post_appointment_double_booking_returns_409() {
         .await
         .unwrap();
 
+        // Réservation via starts_at direct exige un availability_slot 'open'
+        // au même horaire depuis #3722.
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, '2030-03-10T10:00:00Z', '2030-03-10T10:30:00Z', 'open')",
+        )
+        .bind(Uuid::new_v4())
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
         tx.commit().await.unwrap();
     }
 
@@ -453,6 +488,11 @@ async fn post_appointment_double_booking_returns_409() {
             .await
             .ok();
         sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
             .bind(cabinet_id)
             .execute(&mut *tx)
             .await
@@ -584,6 +624,21 @@ async fn post_appointment_idempotency_key_returns_same_appointment() {
         .await
         .unwrap();
 
+        // Réservation via starts_at direct exige un availability_slot 'open'
+        // au même horaire depuis #3722.
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, '2031-05-20T10:00:00Z', '2031-05-20T10:30:00Z', 'open')",
+        )
+        .bind(Uuid::new_v4())
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
         tx.commit().await.unwrap();
     }
 
@@ -680,6 +735,11 @@ async fn post_appointment_idempotency_key_returns_same_appointment() {
             .await
             .ok();
         sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
             .bind(cabinet_id)
             .execute(&mut *tx)
             .await
