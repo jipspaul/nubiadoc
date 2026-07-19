@@ -2137,6 +2137,14 @@ pub async fn patch_cabinet_slot(
     if current_status == "booked" {
         return Err(AppError::InvalidStatus);
     }
+    // Un créneau `held` est tenu par un patient (hold en cours) : retimer ses
+    // heures pendant qu'il est tenu décale silencieusement le RDV créé ensuite
+    // par /bookings vers une heure jamais sélectionnée (#3743). resolve_slot_
+    // for_booking lit les heures FRAÎCHES du slot sans les comparer à ce qui a
+    // été tenu — la seule garde fiable est d'interdire le déplacement ici.
+    if current_status == "held" && (new_starts_at.is_some() || new_ends_at.is_some()) {
+        return Err(AppError::InvalidStatus);
+    }
 
     let result = sqlx::query(
         "UPDATE availability_slot \

@@ -231,6 +231,117 @@ async fn patch_slot_retime_to_past_returns_422() {
     cleanup(&db, f.cabinet_id, f.user_id).await;
 }
 
+// ── Test : retime d'un créneau `held` → 409 (#3743) ──────────────────────────
+// Repro : un créneau tenu par un patient (hold en cours) ne doit pas pouvoir
+// être retimé — sinon /bookings crée le RDV à une heure jamais sélectionnée.
+
+#[tokio::test]
+async fn patch_slot_retime_while_held_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let f = insert_slot_fixture(&db, &suffix).await;
+
+    sqlx::query("UPDATE availability_slot SET status = 'held' WHERE id = $1")
+        .bind(f.slot_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let token = make_admin_token(f.user_id, f.cabinet_id);
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/slots/{}", f.slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "starts_at": "2026-10-25T14:00:00Z",
+                        "ends_at": "2026-10-25T14:30:00Z",
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::CONFLICT,
+        "un créneau held ne doit pas pouvoir être retimé pendant qu'un patient le tient"
+    );
+
+    // Les heures n'ont pas bougé.
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT starts_at FROM availability_slot WHERE id = $1")
+            .bind(f.slot_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert!(
+        starts_at < chrono::Utc::now() + chrono::Duration::days(6),
+        "starts_at ne doit pas avoir été déplacé vers le nouveau créneau demandé"
+    );
+
+    cleanup(&db, f.cabinet_id, f.user_id).await;
+}
+
+// ── Test : status/motif restent modifiables sur un créneau `held` ───────────
+// Seules les heures sont bloquées (#3743) — pas de sur-blocage du reste.
+
+#[tokio::test]
+async fn patch_slot_motif_while_held_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let f = insert_slot_fixture(&db, &suffix).await;
+
+    sqlx::query("UPDATE availability_slot SET status = 'held' WHERE id = $1")
+        .bind(f.slot_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let token = make_admin_token(f.user_id, f.cabinet_id);
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/slots/{}", f.slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"motif": "détartrage"})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    cleanup(&db, f.cabinet_id, f.user_id).await;
+}
+
 // ── Test : praticien → 403 (mêmes rôles que create_cabinet_slot, #3742) ─────
 
 #[tokio::test]
