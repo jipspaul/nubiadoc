@@ -105,11 +105,11 @@ async fn fetch_next_appointment(
 
 /// `GET /v1/reminders` — rappels de suivi et prévention du patient authentifié.
 ///
-/// Le rappel `document` (devis à signer) est dérivé des devis réels du patient :
+/// Le rappel `quote` (devis à signer) est dérivé des devis réels du patient :
 /// un rappel par devis `status = 'sent'` (envoyé par le cabinet, en attente de
 /// signature), RLS scoped via `app.patient_account_id` (policy `quote_patient_read`,
 /// migration 0029), comme `GET /v1/dashboard`. Aucun devis en attente → aucun
-/// rappel `document`.
+/// rappel `quote`.
 /// Triés par `due_at ASC` (plus urgents en premier).
 /// Aucun rappel → `{ data: [] }`.
 /// Devis `sent` (en attente de signature) du patient scopé, ou `sqlx::Error`.
@@ -176,11 +176,16 @@ pub async fn list_reminders(
     for (quote_id, updated_at) in sent_quotes {
         data.push(ReminderItem {
             id: quote_id,
-            kind: "document".to_string(),
+            // #3795 : quote_id présenté comme document_id (type "document")
+            // violait le contrat type:document ⇒ document_id résoluble via
+            // GET /documents/:id — aucune ligne `document` ne correspond,
+            // donc 404 systématique (cul-de-sac). "quote"/"quote_id" est le
+            // bon type, cohérent avec dashboard.to_sign.quote_id.
+            kind: "quote".to_string(),
             title: "Devis à signer avant votre prochain soin".to_string(),
             due_at: updated_at.to_rfc3339(),
             status: "pending".to_string(),
-            metadata: Some(serde_json::json!({ "document_id": quote_id })),
+            metadata: Some(serde_json::json!({ "quote_id": quote_id })),
         });
     }
 
