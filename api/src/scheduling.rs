@@ -755,7 +755,9 @@ pub struct OfferSlotResponse {
 /// `fulfilled` que lorsqu'un RDV est effectivement créé pour ce patient (#3759,
 /// correctif du passage prématuré introduit par #3577). `notified` dans la
 /// réponse reflète l'envoi effectif (`false` si le patient n'a aucun compte
-/// applicatif rattaché).
+/// applicatif rattaché). `proposed_at` doit correspondre à un `availability_slot`
+/// `open` réel du provider de l'entrée, sinon `409 slot_unavailable` (#3726/#3758 :
+/// avant, tout datetime futur était accepté et notifiait un créneau fantôme).
 /// RBAC : `secretary+`. `cabinet_id` extrait du JWT.
 pub async fn offer_waiting_list_slot(
     State(state): State<AppState>,
@@ -782,18 +784,41 @@ pub async fn offer_waiting_list_slot(
         .map_err(|_| AppError::Internal)?;
 
     // Vérifie existence + statut actif (RLS garantit l'appartenance au cabinet).
-    let row = sqlx::query("SELECT id, patient_id, status FROM waiting_list_entry WHERE id = $1")
-        .bind(entry_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?
-        .ok_or(AppError::NotFound)?;
+    let row = sqlx::query(
+        "SELECT id, patient_id, provider_id, status FROM waiting_list_entry WHERE id = $1",
+    )
+    .bind(entry_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
 
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     if status != "active" {
         return Err(AppError::InvalidStatus);
     }
     let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+    let provider_id: Option<Uuid> = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
+
+    // Le docstring de cette fonction promet « même règle que create_appointment »,
+    // mais seule la date était validée (#3577 incomplet) : n'importe quel datetime
+    // futur — hors horaires, sans slot réel — était accepté, notifiait le patient
+    // d'un créneau fantôme (#3726/#3758). Exige désormais un availability_slot
+    // `open` du même provider à cette heure exacte, comme create_appointment.
+    let provider_id = provider_id.ok_or(AppError::ValidationError)?;
+    let real_slot = sqlx::query(
+        "SELECT 1 FROM availability_slot \
+         WHERE provider_id = $1 AND starts_at = $2 AND status = 'open' \
+           AND deleted_at IS NULL",
+    )
+    .bind(provider_id)
+    .bind(proposed_at)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if real_slot.is_none() {
+        return Err(AppError::SlotUnavailable);
+    }
 
     let pat_row = sqlx::query(
         "SELECT app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
