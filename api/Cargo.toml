@@ -3,6 +3,7 @@ members = [
   "crates/core/config",
   "crates/core/tenancy",
   "crates/core/crypto",
+  "crates/integrations/hl7v2",
 ]
 resolver = "2"
 
