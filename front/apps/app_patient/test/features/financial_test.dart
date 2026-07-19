@@ -274,10 +274,22 @@ void main() {
     );
 
     blocTest<FinancialBloc, FinancialState>(
-      'émet [SignatureInProgress] quand la signature est lancée',
+      'émet [QuoteDetail(signed)] quand la signature est lancée (#3705 : '
+      'synchrone, pas de redirection à attendre)',
       build: () {
+        final signedQuote = Quote(
+          id: _quote.id,
+          cabinetId: _quote.cabinetId,
+          practitionerName: _quote.practitionerName,
+          items: _quote.items,
+          totalCents: _quote.totalCents,
+          patientShareCents: _quote.patientShareCents,
+          depositCents: _quote.depositCents,
+          status: QuoteStatus.signed,
+          createdAt: _quote.createdAt,
+        );
         when(() => mockInitiateSignature(any()))
-            .thenAnswer((_) async => const Right('https://sign.yousign.com'));
+            .thenAnswer((_) async => Right(signedQuote));
         return _makeBloc(
           getPendingQuotes: mockGetPendingQuotes,
           getQuoteById: mockGetQuoteById,
@@ -288,8 +300,8 @@ void main() {
       seed: () => FinancialQuoteDetail(quote: _quote, quotes: [_quote]),
       act: (bloc) => bloc.add(const FinancialSignatureRequested()),
       expect: () => [
-        isA<FinancialSignatureInProgress>().having(
-            (s) => s.signatureUrl, 'signatureUrl', 'https://sign.yousign.com'),
+        isA<FinancialQuoteDetail>()
+            .having((s) => s.quote.status, 'quote.status', QuoteStatus.signed),
       ],
     );
 

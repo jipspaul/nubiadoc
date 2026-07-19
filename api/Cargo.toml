@@ -3,6 +3,7 @@ members = [
   "crates/core/config",
   "crates/core/tenancy",
   "crates/core/crypto",
+  "crates/integrations/hl7v2",
   "crates/integrations/interop",
 ]
 resolver = "2"
@@ -49,8 +50,9 @@ hex          = "0.4"
 base64       = "0.22"
 reqwest      = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 axum-client-ip = "0.6"
-integrations-interop = { path = "crates/integrations/interop" }
 core-tenancy = { path = "crates/core/tenancy" }
+integrations-hl7v2 = { path = "crates/integrations/hl7v2" }
+integrations-interop = { path = "crates/integrations/interop" }
 
 [dev-dependencies]
 tokio-tungstenite = "0.24"
