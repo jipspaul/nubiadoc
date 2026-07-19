@@ -48,8 +48,9 @@ pub struct CreatePrescriptionResponse {
 /// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403.
 /// - `cabinet_id` extrait du JWT (jamais du body — invariant tenancy).
 /// - Body invalide (items vides, champs manquants) → 422 (Axum rejection).
-/// - `patient_id` inconnu/hors tenant → 404 ; `consultation_id` (si fourni)
-///   inexistant, hors tenant ou hors patient → 404 (#3790).
+/// - `patient_id` inconnu/hors tenant → 404 ; sans relation de soin
+///   (aucun `appointment` du praticien avec ce patient) → 403 (#3769).
+/// - `consultation_id` (si fourni) inexistant, hors tenant ou hors patient → 404 (#3790).
 /// - Insert `prescription` + N `prescription_item` dans la même transaction RLS-scoped.
 /// - Audit `action:'create_prescription', entity:'prescription'`.
 /// - Retourne `201 { prescription_id }`.
@@ -100,6 +101,27 @@ pub async fn create_prescription(
 
     if patient_exists.is_none() {
         return Err(AppError::NotFound);
+    }
+
+    // RLS strict E.2.16.c : le praticien doit avoir eu au moins un appointment
+    // avec ce patient dans ce cabinet (§14 — garde relation-de-soin, cf. #3769 —
+    // manquait ici alors qu'elle est imposée par tous les frères cliniques :
+    // add_patient_note, patch_medical_record, put_dental_chart).
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+           AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(body.patient_id)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
     }
 
     // Vérifie que la consultation (si fournie) existe, appartient au cabinet

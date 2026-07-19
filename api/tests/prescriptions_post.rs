@@ -140,6 +140,78 @@ async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid) {
     .await
     .unwrap();
 
+    // Appointment passé : le praticien a bien soigné ce patient (requis par
+    // la garde relation-de-soin E.2.16.c, cf. #3769).
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'done', 'contrôle')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    (cabinet_id, prac_user_id, prac_id, patient_id)
+}
+
+/// Variante sans relation de soin : le praticien n'a JAMAIS eu de rendez-vous
+/// avec ce patient (cf. #3769 — garde `has_appointment` manquante).
+async fn insert_fixture_no_appointment(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid) {
+    let cabinet_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("presc-create-noappt+{}@nubia.test", prac_user_id))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) \
+         VALUES ($1, 'Cabinet Presc Create NoAppt Test', 'dentaire')",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+         VALUES ($1, $2, 'Camille', 'Rousseau')",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     (cabinet_id, prac_user_id, prac_id, patient_id)
@@ -166,6 +238,11 @@ async fn cleanup_fixture(
         .await
         .ok();
     sqlx::query("DELETE FROM prescription WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
         .bind(cabinet_id)
         .execute(&mut *tx)
         .await
@@ -368,6 +445,65 @@ async fn create_prescription_secretary_returns_403() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
+}
+
+// ── Test 4 : praticien sans relation de soin avec le patient → 403 (#3769) ───
+
+#[tokio::test]
+async fn create_prescription_no_appointment_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_user_id, prac_id, patient_id) = insert_fixture_no_appointment(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": patient_id,
+        "items": [
+            {
+                "label": "Amoxicilline 1g",
+                "posology": "1 matin et soir",
+                "duration": "7 jours"
+            }
+        ]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/prescriptions")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // Aucune prescription ne doit avoir été créée.
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM prescription WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
 
     cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
 }
