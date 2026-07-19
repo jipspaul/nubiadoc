@@ -55,6 +55,26 @@ fn make_admin_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
+fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    encode(
+        &Header::default(),
+        &json!({
+            "sub": sub,
+            "kind": "pro",
+            "cabinet_id": cabinet_id,
+            "role": "practitioner",
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 struct SlotFixture {
     cabinet_id: Uuid,
     user_id: Uuid,
@@ -206,6 +226,90 @@ async fn patch_slot_retime_to_past_returns_422() {
         resp.status(),
         StatusCode::UNPROCESSABLE_ENTITY,
         "retime vers le passé d'un créneau initialement futur doit être rejeté (422)"
+    );
+
+    cleanup(&db, f.cabinet_id, f.user_id).await;
+}
+
+// ── Test : praticien → 403 (mêmes rôles que create_cabinet_slot, #3742) ─────
+
+#[tokio::test]
+async fn patch_slot_practitioner_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let f = insert_slot_fixture(&db, &suffix).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/slots/{}", f.slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"status": "blocked"})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "un praticien ne doit pas pouvoir modifier un créneau (secretary/admin uniquement)"
+    );
+
+    cleanup(&db, f.cabinet_id, f.user_id).await;
+}
+
+// ── Test : PUT .../online praticien → 403 (mêmes rôles, #3742) ──────────────
+
+#[tokio::test]
+async fn put_slot_online_practitioner_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let f = insert_slot_fixture(&db, &suffix).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/v1/cabinet/slots/{}/online", f.slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"online_booking": true})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "un praticien ne doit pas pouvoir changer l'exposition en ligne d'un créneau"
     );
 
     cleanup(&db, f.cabinet_id, f.user_id).await;

@@ -2035,6 +2035,12 @@ pub async fn patch_cabinet_slot(
     Path(slot_id): Path<Uuid>,
     Json(body): Json<PatchSlotBody>,
 ) -> Result<Json<CabinetSlotResponse>, AppError> {
+    // Même politique de rôle que create_cabinet_slot : un praticien ne gère
+    // pas les créneaux (secretary/admin uniquement). Absente ici avant #3742
+    // (idem delete_cabinet_slot / put_cabinet_slot_online, corrigés pareil).
+    if claims.role == "practitioner" {
+        return Err(AppError::Forbidden);
+    }
     let new_starts_at: Option<chrono::DateTime<chrono::Utc>> = body
         .starts_at
         .as_deref()
@@ -2156,6 +2162,10 @@ pub async fn delete_cabinet_slot(
     claims: ProSecretaryPlusClaims,
     Path(slot_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
+    // Même politique de rôle que create_cabinet_slot (#3742).
+    if claims.role == "practitioner" {
+        return Err(AppError::Forbidden);
+    }
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -2234,6 +2244,10 @@ pub async fn put_cabinet_slot_online(
     Path(slot_id): Path<Uuid>,
     Json(body): Json<PutSlotOnlineBody>,
 ) -> Result<Json<SlotOnlineResponse>, AppError> {
+    // Même politique de rôle que create_cabinet_slot (#3742).
+    if claims.role == "practitioner" {
+        return Err(AppError::Forbidden);
+    }
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")

@@ -57,6 +57,26 @@ fn make_admin_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
+fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    encode(
+        &Header::default(),
+        &json!({
+            "sub": sub,
+            "kind": "pro",
+            "cabinet_id": cabinet_id,
+            "role": "practitioner",
+            "exp": exp
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 struct SlotFixture {
     cabinet_id: Uuid,
     user_id: Uuid,
@@ -201,6 +221,45 @@ async fn delete_slot_happy_path_returns_204() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    cleanup(&db, f.cabinet_id, f.user_id).await;
+}
+
+// ── Test 1b : praticien → 403 (mêmes rôles que create_cabinet_slot, #3742) ──
+
+#[tokio::test]
+async fn delete_slot_practitioner_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let f = insert_slot_fixture(&db, &suffix).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/v1/cabinet/slots/{}", f.slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "un praticien ne doit pas pouvoir supprimer un créneau (secretary/admin uniquement)"
+    );
 
     cleanup(&db, f.cabinet_id, f.user_id).await;
 }
