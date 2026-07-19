@@ -58,10 +58,13 @@ fn lazy_state() -> AppState {
     }
 }
 
-// ── Test 1 : happy path → 200 + data contient ≥1 rappel ──────────────────────
+// ── Test 1 : happy path → 200 + data est un tableau (rappels réels, pas mockés) ─
+// Le rappel "prevention" codé en dur (identique pour tout patient) a été
+// retiré (#3880) : un patient sans RDV ni devis réels reçoit désormais
+// `data: []`, pas un item fictif.
 
 #[tokio::test]
-async fn reminders_list_returns_200_with_data() {
+async fn reminders_list_returns_200_with_array() {
     let response = app(lazy_state())
         .oneshot(
             Request::builder()
@@ -87,10 +90,6 @@ async fn reminders_list_returns_200_with_data() {
     assert!(
         v["data"].is_array(),
         "la réponse doit contenir un champ data tableau"
-    );
-    assert!(
-        !v["data"].as_array().unwrap().is_empty(),
-        "data ne doit pas être vide (rappels mockés attendus)"
     );
 }
 
@@ -194,4 +193,47 @@ async fn reminders_expired_jwt_returns_401() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Test 6 : le rappel "prevention" codé en dur a été retiré (#3880) ─────────
+// Régression #3880 : le rappel prevention (id/titre/due_at constants,
+// due_at fixe déjà passée) était renvoyé à l'identique pour tout patient,
+// même sans aucune donnée clinique réelle.
+
+#[tokio::test]
+async fn reminders_no_hardcoded_prevention_stub() {
+    let response = app(lazy_state())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/reminders")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(Uuid::new_v4())),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    for item in v["data"].as_array().unwrap() {
+        assert_ne!(
+            item["id"].as_str(),
+            Some("c3d4e5f6-a7b8-9012-cdef-234567890123"),
+            "l'id constant du rappel prevention codé en dur ne doit plus apparaître"
+        );
+        assert_ne!(
+            item["type"].as_str(),
+            Some("prevention"),
+            "le type prevention (stub) ne doit plus être émis"
+        );
+    }
 }

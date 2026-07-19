@@ -127,11 +127,11 @@ async fn dashboard_empty_patient_returns_200_empty() {
     assert_eq!(v["to_sign"], json!([]), "to_sign doit être vide");
     assert_eq!(v["to_pay"], json!([]), "to_pay doit être vide");
     assert_eq!(v["unread_messages"], 0, "unread_messages doit être 0");
-    // reminders inclut toujours le rappel "prevention" (fixe, cf. reminders.rs
-    // list_reminders) même sans RDV ni devis — aligné sur GET /v1/reminders (#3888).
+    // reminders reflète GET /v1/reminders (#3888) — sans RDV ni devis, 0
+    // (le rappel "prevention" codé en dur a été retiré en #3880).
     assert_eq!(
-        v["reminders"], 1,
-        "reminders doit refléter GET /v1/reminders (prevention seule ici)"
+        v["reminders"], 0,
+        "reminders doit refléter GET /v1/reminders (vide ici)"
     );
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
@@ -286,8 +286,8 @@ async fn dashboard_with_confirmed_appointment_returns_next_appointment() {
         v["next_appointment"]["starts_at"].is_string(),
         "starts_at doit être présent"
     );
-    // reminders = prevention (1) + rappel RDV (1, un seul même RDV présent) + 0 devis (#3888).
-    assert_eq!(v["reminders"], 2, "reminders doit compter prevention + RDV");
+    // reminders = rappel RDV (1, un seul même RDV présent) + 0 devis (#3888).
+    assert_eq!(v["reminders"], 1, "reminders doit compter le RDV");
 
     // Cleanup — FORCE RLS : GUC requis pour DELETE cabinet-scoped.
     {
@@ -437,11 +437,8 @@ async fn dashboard_with_sent_quote_counts_reminder() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(v["to_sign"].as_array().unwrap().len(), 1);
-    // reminders = prevention (1) + 0 RDV + 1 devis sent.
-    assert_eq!(
-        v["reminders"], 2,
-        "reminders doit compter prevention + le devis sent"
-    );
+    // reminders = 0 RDV + 1 devis sent.
+    assert_eq!(v["reminders"], 1, "reminders doit compter le devis sent");
 
     {
         let mut tx = db.begin().await.unwrap();
