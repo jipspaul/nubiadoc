@@ -731,6 +731,16 @@ fn build_router(
             "/v1/interop/fhir/metadata",
             get(interop::capability::capability_statement),
         )
+        .route(
+            "/v1/interop/fhir/Appointment",
+            get(interop::appointment::search_appointments)
+                .post(interop::appointment::create_appointment),
+        )
+        .route(
+            "/v1/interop/fhir/Appointment/:id",
+            get(interop::appointment::get_appointment)
+                .patch(interop::appointment::update_appointment_status),
+        )
         .layer(Extension(hub))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
