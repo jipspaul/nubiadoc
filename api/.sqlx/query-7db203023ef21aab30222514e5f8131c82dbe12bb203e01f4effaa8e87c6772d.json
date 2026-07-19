@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, label FROM medical_act WHERE translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' OR EXISTS (SELECT 1 FROM unnest(motifs) AS m WHERE translate(lower(m), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') ORDER BY label LIMIT 5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "label",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7db203023ef21aab30222514e5f8131c82dbe12bb203e01f4effaa8e87c6772d"
+}

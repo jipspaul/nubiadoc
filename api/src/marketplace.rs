@@ -133,13 +133,19 @@ pub async fn suggest_search(
     if params.q.chars().count() < 2 {
         return Err(AppError::ValidationError);
     }
+    // #3796 : repli d'accents (« detartrage » doit matcher « Détartrage »),
+    // même schéma que search_ccam_acts (consultations.rs) et la recherche
+    // pharmacie — normalisation Rust (minuscules) + translate() SQL des deux
+    // côtés de la comparaison.
+    let q = params.q.trim().to_lowercase();
 
     let specialty_rows = sqlx::query_as!(
         SuggestRow,
         "SELECT id, label FROM specialty \
-         WHERE label ILIKE '%' || $1 || '%' \
+         WHERE translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
          ORDER BY label LIMIT 5",
-        params.q
+        q
     )
     .fetch_all(&state.db)
     .await
@@ -148,10 +154,13 @@ pub async fn suggest_search(
     let act_rows = sqlx::query_as!(
         SuggestRow,
         "SELECT id, label FROM medical_act \
-         WHERE label ILIKE '%' || $1 || '%' \
-            OR EXISTS (SELECT 1 FROM unnest(motifs) AS m WHERE m ILIKE '%' || $1 || '%') \
+         WHERE translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+            OR EXISTS (SELECT 1 FROM unnest(motifs) AS m \
+                       WHERE translate(lower(m), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                              LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') \
          ORDER BY label LIMIT 5",
-        params.q
+        q
     )
     .fetch_all(&state.db)
     .await
@@ -378,6 +387,8 @@ pub async fn search_slots(
     State(state): State<AppState>,
     Query(params): Query<SearchProvidersQuery>,
 ) -> Result<Json<SearchSlotsResponse>, AppError> {
+    // #3796 : repli d'accents, même schéma que suggest_search.
+    let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
         params.place.as_deref(),
@@ -454,9 +465,12 @@ pub async fn search_slots(
              AND sl.online_booking = true \
              AND sl.starts_at > now() \
              AND ($4::text IS NULL \
-                  OR p.display_name ILIKE '%' || $4 || '%' \
-                  OR s.label ILIKE '%' || $4 || '%' \
-                  OR pr.label ILIKE '%' || $4 || '%') \
+                  OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                  OR translate(lower(s.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                  OR translate(lower(pr.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') \
              AND ($5::uuid IS NULL OR p.specialty_id = $5) \
              AND ($6::text IS NULL OR p.sector = $6) \
              AND ($7::boolean IS NULL OR p.teleconsult = $7) \
@@ -480,7 +494,7 @@ pub async fn search_slots(
         .bind(near_lat) // $1
         .bind(near_lng) // $2
         .bind(radius_m) // $3
-        .bind(params.q.as_deref()) // $4
+        .bind(q_norm.as_deref()) // $4
         .bind(params.specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
@@ -535,6 +549,8 @@ pub async fn search_providers(
     State(state): State<AppState>,
     Query(params): Query<SearchProvidersQuery>,
 ) -> Result<Json<SearchProvidersResponse>, AppError> {
+    // #3796 : repli d'accents, même schéma que suggest_search/search_slots.
+    let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
         params.place.as_deref(),
@@ -643,9 +659,12 @@ pub async fn search_providers(
          LEFT JOIN profession pr ON pr.id = s.profession_id \
          WHERE p.is_listed = true \
              AND ($4::text IS NULL \
-                  OR p.display_name ILIKE '%' || $4 || '%' \
-                  OR s.label ILIKE '%' || $4 || '%' \
-                  OR pr.label ILIKE '%' || $4 || '%') \
+                  OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                  OR translate(lower(s.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                  OR translate(lower(pr.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') \
              AND ($5::uuid IS NULL OR p.specialty_id = $5) \
              AND ($6::text IS NULL OR p.sector = $6) \
              AND ($7::boolean IS NULL OR p.teleconsult = $7) \
@@ -670,7 +689,7 @@ pub async fn search_providers(
         .bind(near_lat) // $1
         .bind(near_lng) // $2
         .bind(radius_m) // $3
-        .bind(params.q.as_deref()) // $4
+        .bind(q_norm.as_deref()) // $4
         .bind(params.specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
