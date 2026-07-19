@@ -192,6 +192,10 @@ async fn full_thread_patient_and_pharmacy() {
     assert_eq!(status, StatusCode::OK);
     let first = &messages["data"].as_array().unwrap()[0];
     assert_eq!(first["sender_kind"], "patient");
+    // #3712 : MessageDto.fromJson (front) exige la clé `sender` (non-nullable) —
+    // seul cet endpoint ne l'émettait pas, faisant planter le fil pharmacie
+    // au décodage malgré un 200 valide.
+    assert_eq!(first["sender"], "patient");
     assert!(
         first["body"].as_str().unwrap().contains("traitement"),
         "le corps du message est déchiffré côté pharmacie"

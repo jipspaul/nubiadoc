@@ -198,11 +198,17 @@ pub async fn get_pharmacy_order_document(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Cloisonnement cycle de vie (#3724) : cancelled/rejected éteint la base de
+    // consentement partage_pharmacie de ce partage — l'accès au PDF d'ordonnance
+    // doit cesser avec, pas rester accessible indéfiniment via une URL signée
+    // re-générable. La RLS document_pharmacy_read (0124) borne au tenant, pas
+    // au cycle de vie de la commande : filtre explicite ici.
     let row = sqlx::query(
         "SELECT o.cabinet_id, o.document_id, d.storage_key \
          FROM pharmacy_order o \
          JOIN document d ON d.id = o.document_id \
-         WHERE o.id = $1",
+         WHERE o.id = $1 \
+           AND o.status IN ('received', 'preparing', 'ready', 'picked_up')",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
