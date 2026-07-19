@@ -99,6 +99,7 @@ pub async fn patch_appointment(
                WHERE p.practitioner_id = $1 \
                  AND s.starts_at = $2 \
                  AND s.status = 'open' \
+                 AND s.online_booking = true \
                  AND s.deleted_at IS NULL",
         )
         .bind(practitioner_id)
