@@ -124,8 +124,9 @@ async fn insert_provider_with_open_slot(db: &PgPool, suffix: &str) -> (Uuid, Uui
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, status) \
-         VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open')",
+        "INSERT INTO availability_slot \
+         (id, provider_id, starts_at, ends_at, status, online_booking) \
+         VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open', true)",
     )
     .bind(slot_id)
     .bind(provider_id)

@@ -97,8 +97,9 @@ async fn availability_get_happy_path_returns_200_with_slots() {
     // 1 créneau ouvert dans le futur
     let slot_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, status) \
-         VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open')",
+        "INSERT INTO availability_slot \
+         (id, provider_id, starts_at, ends_at, status, online_booking) \
+         VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open', true)",
     )
     .bind(slot_id)
     .bind(provider_id)
