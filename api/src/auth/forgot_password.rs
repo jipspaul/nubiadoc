@@ -22,6 +22,14 @@ pub struct ForgotPasswordBody {
 /// Réponse toujours `204` que l'email existe ou non (anti-énumération §1.8).
 /// Si l'email est connu, génère un token UUID, le stocke hashé (SHA-256 via pgcrypto)
 /// avec une expiration d'une heure, puis notifie via le mailer.
+///
+/// #3785 : un email inconnu ne doit pas seulement renvoyer la MÊME réponse
+/// qu'un email connu, mais faire le MÊME travail — sinon la latence (2e
+/// transaction + UPDATE + mailer en plus pour un email connu) devient un
+/// canal auxiliaire mesurable qui défait l'anti-énumération malgré le 204
+/// constant. On exécute donc systématiquement la 2e transaction + l'UPDATE
+/// (sur un id bidon si l'email est inconnu — 0 ligne affectée, même coût
+/// d'index lookup) ; seul l'envoi mailer reste conditionnel au résultat réel.
 pub async fn forgot_password(
     State(state): State<AppState>,
     body: Result<Json<ForgotPasswordBody>, JsonRejection>,
@@ -33,7 +41,6 @@ pub async fn forgot_password(
     let token = Uuid::new_v4().to_string();
 
     // Pose app.current_login_email pour satisfaire user_login_select (migration 0065).
-    // Puis pose app.current_user_id pour satisfaire user_self_update (FORCE RLS) avant l'UPDATE.
     let mut auth_tx = match state.db.begin().await {
         Ok(tx) => tx,
         Err(_) => return StatusCode::NO_CONTENT,
@@ -52,12 +59,14 @@ pub async fn forgot_password(
         .await;
     let _ = auth_tx.rollback().await;
 
-    let user_id = match user_row {
+    // Email inconnu → id bidon (ne matchera jamais de ligne réelle) plutôt
+    // qu'un retour anticipé : la suite du handler s'exécute à l'identique.
+    let (user_id, user_found) = match user_row {
         Ok(Some(r)) => match r.try_get::<Uuid, _>("id") {
-            Ok(id) => id,
-            Err(_) => return StatusCode::NO_CONTENT,
+            Ok(id) => (id, true),
+            Err(_) => (Uuid::new_v4(), false),
         },
-        _ => return StatusCode::NO_CONTENT,
+        _ => (Uuid::new_v4(), false),
     };
 
     let mut tx = match state.db.begin().await {
@@ -89,10 +98,10 @@ pub async fn forgot_password(
     .await;
 
     match (result, tx.commit().await) {
-        (Ok(outcome), Ok(())) if outcome.rows_affected() > 0 => {
+        (Ok(outcome), Ok(())) if user_found && outcome.rows_affected() > 0 => {
             state.mailer.send_password_reset(&body.email, &token);
         }
-        (Err(e), _) => {
+        (Err(e), _) if user_found => {
             tracing::error!(error = ?e, "forgot_password: db update failed");
         }
         _ => {}

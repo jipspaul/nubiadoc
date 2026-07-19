@@ -117,6 +117,62 @@ async fn forgot_unknown_email_returns_204_silently() {
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 }
 
+/// #3785 : un email inconnu exécute maintenant la même 2e transaction UPDATE
+/// (sur un id bidon) que le chemin email-connu, pour égaliser le coût — donc
+/// le canal temporel. Vérifie que ce chemin bidon reste un no-op DB réel : un
+/// compte existant NON concerné par la requête ne doit pas voir son
+/// `password_reset_token` touché par la mise à jour bidon.
+#[tokio::test]
+async fn forgot_unknown_email_does_not_touch_unrelated_account() {
+    let Some(state) = test_state().await else {
+        return;
+    };
+    let Some(owner_db) = owner_pool().await else {
+        return;
+    };
+
+    let control_email = format!("control_{}@test.local", Uuid::new_v4());
+    sqlx::query(
+        "INSERT INTO app_user (email, password_hash, kind) \
+         VALUES ($1, 'placeholder', 'patient')",
+    )
+    .bind(&control_email)
+    .execute(&owner_db)
+    .await
+    .expect("insert control user");
+
+    let fake_email = format!("nobody_{}@test.local", Uuid::new_v4());
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/password/forgot")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(r#"{{"email":"{}"}}"#, fake_email)))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let token: Option<String> =
+        sqlx::query_scalar("SELECT password_reset_token FROM app_user WHERE email = $1")
+            .bind(&control_email)
+            .fetch_one(&owner_db)
+            .await
+            .unwrap();
+    assert!(
+        token.is_none(),
+        "un compte non concerné ne doit pas être affecté par le chemin email-inconnu"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&control_email)
+        .execute(&owner_db)
+        .await
+        .unwrap();
+}
+
 /// Validation input : body JSON manquant → 422 Unprocessable Entity.
 #[tokio::test]
 async fn forgot_missing_body_returns_422() {
