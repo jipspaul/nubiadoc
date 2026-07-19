@@ -256,6 +256,57 @@ async fn start_consultation_practitioner_confirmed_returns_200() {
     cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
 }
 
+// ── Test 1b : démarré depuis 'confirmed' → checkin_at posé (#3734) ──────────
+
+#[tokio::test]
+async fn start_consultation_from_confirmed_sets_checkin_at() {
+    if !db_available() {
+        return;
+    }
+
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&owner_db, "confirmed").await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let server = app(state);
+
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/start", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let row = sqlx::query("SELECT checkin_at FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .fetch_one(&owner_db)
+        .await
+        .unwrap();
+    let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
+        sqlx::Row::try_get(&row, "checkin_at").unwrap();
+    assert!(
+        checkin_at.is_some(),
+        "checkin_at doit être posé quand la séance démarre directement depuis 'confirmed' \
+         (sinon le RDV disparaît de la salle d'attente, #3734)"
+    );
+
+    cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
+}
+
 // ── Test 2 : secrétaire → 403 ─────────────────────────────────────────────────
 
 #[tokio::test]
