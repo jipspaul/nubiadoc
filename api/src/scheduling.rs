@@ -1618,11 +1618,17 @@ pub async fn patch_cabinet_appointment(
     // donc absent de waiting-room/queue) : seule sortie de file possible avant
     // ce correctif était un cul-de-sac (#3670). Même statut cible que le
     // patient sortant lui-même de la file (cancel_appointment, appointments.rs).
+    //
+    // Étendu à `requested`/`confirmed` (#3733) : un patient qui ne se présente
+    // jamais (jamais checked_in) laissait le RDV bloqué `confirmed` à vie — le
+    // cabinet ne pouvait ni no_show (réservé à checked_in) ni cancel (aucune
+    // transition cabinet n'existait), et le patient se heurtait à la fenêtre
+    // des 2h. `no_show` couvre les deux cas : « vu puis parti » ET « jamais vu ».
     if let Some(target_status) = body.status.as_deref() {
         if target_status != "no_show" {
             return Err(AppError::ValidationError);
         }
-        if status != "checked_in" {
+        if status != "checked_in" && status != "requested" && status != "confirmed" {
             return Err(AppError::InvalidStatus);
         }
 
