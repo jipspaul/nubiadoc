@@ -313,6 +313,24 @@ pub async fn create_account_order(
     }
     let document_id = document_id.ok_or(AppError::InvalidStatus)?;
 
+    // Ordonnance déjà délivrée (une commande picked_up) → non re-commandable
+    // (#3736). L'index unique partiel (0124) ne couvre que received/preparing
+    // /ready ; picked_up en est volontairement exclu (une commande clôturée
+    // ne bloque pas une nouvelle commande légitime après ANNULATION), mais
+    // ça laissait aussi passer une re-délivrance illégitime dans une AUTRE
+    // pharmacie — sans compteur ni état terminal sur la prescription.
+    let already_dispensed = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM pharmacy_order \
+         WHERE prescription_id = $1 AND status = 'picked_up')",
+    )
+    .bind(prescription_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if already_dispensed {
+        return Err(AppError::AlreadyOrdered);
+    }
+
     // Pharmacie listée uniquement (policy annuaire public) — 404 sinon.
     let pharmacy = sqlx::query("SELECT raison_sociale FROM pharmacy WHERE id = $1 AND is_listed")
         .bind(body.pharmacy_id)

@@ -362,6 +362,77 @@ async fn patient_cannot_order_someone_elses_prescription() {
     assert_eq!(status, StatusCode::NOT_FOUND, "anti-énumération RLS");
 }
 
+// ── Non re-délivrable après pickup (#3736) ────────────────────────────────────
+// Une ordonnance déjà retirée (commande picked_up) ne doit pas pouvoir repartir
+// en délivrance dans une AUTRE pharmacie : l'index unique partiel (received/
+// preparing/ready) ne couvre pas picked_up, donc sans garde applicative
+// explicite la même ordonnance était re-délivrable à l'infini.
+
+#[tokio::test]
+async fn patient_cannot_reorder_prescription_already_picked_up() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let token = patient_jwt(fx.user_id, fx.account_id);
+
+    let (status, first_order) = request(
+        "POST",
+        &format!("/v1/account/prescriptions/{}/order", fx.prescription_id),
+        &token,
+        Some(json!({"pharmacy_id": fx.pharmacy_id})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {first_order}");
+    let first_order_id = Uuid::parse_str(first_order["id"].as_str().unwrap()).unwrap();
+
+    // La 1ère commande arrive à picked_up (délivrée).
+    sqlx::query(
+        "UPDATE pharmacy_order SET status = 'picked_up', picked_up_at = now() WHERE id = $1",
+    )
+    .bind(first_order_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Une AUTRE pharmacie, même ordonnance → doit être refusé (409), pas une 2e délivrance.
+    let other_pharmacy = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO pharmacy (id, raison_sociale, is_listed) VALUES ($1, 'Autre PO', true)",
+    )
+    .bind(other_pharmacy)
+    .execute(&db)
+    .await
+    .unwrap();
+    let (status, body) = request(
+        "POST",
+        &format!("/v1/account/prescriptions/{}/order", fx.prescription_id),
+        &token,
+        Some(json!({"pharmacy_id": other_pharmacy})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::CONFLICT,
+        "ordonnance déjà délivrée, body: {body}"
+    );
+
+    // Aucune 2e commande n'a été créée pour cette ordonnance.
+    let count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM pharmacy_order WHERE prescription_id = $1")
+            .bind(fx.prescription_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
+    assert_eq!(
+        count, 1,
+        "une seule commande doit exister pour cette ordonnance"
+    );
+}
+
 // ── Lecture des deux bords ────────────────────────────────────────────────────
 
 #[tokio::test]
