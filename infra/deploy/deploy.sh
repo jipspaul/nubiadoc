@@ -84,7 +84,14 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
   --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=20s \
   -e APP_DATABASE_URL=postgres://nubia_app@127.0.0.1:5432/nubia \
   -e APP_PORT=3000 -e JWT_SECRET=dev-only-not-for-prod -e LOGIN_RATE_MAX_ATTEMPTS=10000 \
+  -e MLLP_PORT=2575 \
   localhost/nubia-api:latest >/dev/null
+# Lot B10 (interop HL7v2) : le listener MLLP reste désactivé tant que
+# MLLP_TLS_CERT_PATH/MLLP_TLS_KEY_PATH/MLLP_TLS_CLIENT_CA_PATH ne sont pas
+# fournis (pas de certs partenaires provisionnés pour l'instant — process
+# d'onboarding à définir). `--network host` : pas de `-p` à ajouter, mais le
+# port 2575 contourne Caddy — le filtrer au niveau hôte/LXC aux IP des
+# partenaires EAI attendus avant toute mise en service réelle.
 
 echo "[deploy] console"
 podman rm -f nubia-console >/dev/null 2>&1 || true

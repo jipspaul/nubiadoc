@@ -53,7 +53,15 @@ axum-client-ip = "0.6"
 core-tenancy = { path = "crates/core/tenancy" }
 integrations-hl7v2 = { path = "crates/integrations/hl7v2" }
 integrations-interop = { path = "crates/integrations/interop" }
+# Lot B10 : chargement des certs/clé PEM (fichiers) pour le listener MLLP et
+# type `TlsAcceptor` — mêmes versions que `integrations-hl7v2` (backend
+# crypto `ring`, cf. son Cargo.toml pour le choix détaillé).
+tokio-rustls     = { version = "0.26", default-features = false, features = ["ring"] }
+rustls-pki-types = "1.15"
+rustls-pemfile   = "2"
 
 [dev-dependencies]
 tokio-tungstenite = "0.24"
 futures-util      = { version = "0.3", default-features = false, features = ["sink"] }
+rcgen             = "0.14"
+rustls            = { version = "0.23.41", default-features = false, features = ["std", "tls12", "ring"] }
