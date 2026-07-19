@@ -146,17 +146,15 @@ pub async fn list_reminders(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
 ) -> Result<Json<RemindersResponse>, AppError> {
-    let mut data = vec![ReminderItem {
-        id: uuid::uuid!("c3d4e5f6-a7b8-9012-cdef-234567890123"),
-        kind: "prevention".to_string(),
-        title: "Détartrage annuel recommandé".to_string(),
-        due_at: "2026-07-01T00:00:00Z".to_string(),
-        status: "pending".to_string(),
-        metadata: None,
-    }];
+    // Le rappel "prevention" était un littéral codé en dur (même id/titre pour
+    // TOUT patient, due_at fixe s'enfonçant dans le passé) — donnée factice
+    // servie en prod, sans base clinique réelle (#3880). Retiré plutôt
+    // qu'inventé : aucune donnée de suivi (dernier détartrage, etc.) n'existe
+    // encore côté modèle pour le calculer dynamiquement.
+    let mut data: Vec<ReminderItem> = Vec::new();
 
     // BEST-EFFORT : une DB indisponible ou une requête RDV en échec ne doit pas
-    // faire échouer tout l'écran rappels (on renvoie au moins la prévention).
+    // faire échouer tout l'écran rappels (on renvoie au moins les autres rappels).
     match fetch_next_appointment(&state, claims.account_id).await {
         Ok(Some(item)) => data.push(item),
         Ok(None) => {}
@@ -166,7 +164,7 @@ pub async fn list_reminders(
     }
 
     // BEST-EFFORT : une DB indisponible ou une requête devis en échec ne doit pas
-    // faire échouer tout l'écran rappels (on renvoie au moins RDV + prévention).
+    // faire échouer tout l'écran rappels (on renvoie au moins le rappel RDV).
     let sent_quotes = match fetch_sent_quotes(&state, claims.account_id).await {
         Ok(rows) => rows,
         Err(err) => {

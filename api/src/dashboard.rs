@@ -107,10 +107,11 @@ pub async fn get_dashboard(
     // Rappels (US-P13) : reflète EXACTEMENT ce que calcule GET /v1/reminders
     // (reminders.rs), pas un COUNT sur `notification` — `kind='appointment_reminder'`
     // n'y est émis par aucun émetteur, ce compteur était donc structurellement
-    // toujours à 0 (#3888). 1 (prévention, toujours présente) + 1 si un prochain
-    // RDV confirmé/checked_in existe (reminders.rs n'en affiche jamais qu'un seul,
-    // d'où le booléen plutôt qu'un COUNT) + un devis `sent` par rappel document.
-    let reminders: i64 = 1 + if appt.is_some() { 1 } else { 0 } + quotes.len() as i64;
+    // toujours à 0 (#3888). 1 si un prochain RDV confirmé/checked_in existe
+    // (reminders.rs n'en affiche jamais qu'un seul, d'où le booléen plutôt
+    // qu'un COUNT) + un devis `sent` par rappel document. Le rappel "prevention"
+    // codé en dur a été retiré de reminders.rs (#3880) — plus de +1 fixe ici.
+    let reminders: i64 = if appt.is_some() { 1 } else { 0 } + quotes.len() as i64;
 
     let next_appointment = appt
         .map(|row| -> Result<NextAppointment, AppError> {
