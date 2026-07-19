@@ -57,16 +57,26 @@ pub struct ConversationsResponse {
     pub page: PageInfo,
 }
 
-fn encode_cursor(last_message_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
-    format!("{}|{}", last_message_at.timestamp_micros(), id)
+/// Encode un curseur à partir des 2 clés de tri : last_message_at (vide si
+/// null — fil sans message), id. Même schéma que `cabinet_messaging.rs`.
+fn encode_cursor(last_message_at: Option<chrono::DateTime<chrono::Utc>>, id: Uuid) -> String {
+    let ts = last_message_at
+        .map(|dt| dt.timestamp_micros().to_string())
+        .unwrap_or_default();
+    format!("{ts}|{id}")
 }
 
-fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
-    let (micros_str, id_str) = s.split_once('|')?;
-    let micros: i64 = micros_str.parse().ok()?;
-    let dt = chrono::DateTime::from_timestamp_micros(micros)?;
+/// Décode un curseur en `(last_message_at?, id)`. Retourne `None` si malformé.
+fn decode_cursor(s: &str) -> Option<(Option<chrono::DateTime<chrono::Utc>>, Uuid)> {
+    let (ts_str, id_str) = s.split_once('|')?;
+    let ts = if ts_str.is_empty() {
+        None
+    } else {
+        let micros: i64 = ts_str.parse().ok()?;
+        Some(chrono::DateTime::from_timestamp_micros(micros)?)
+    };
     let id = Uuid::parse_str(id_str).ok()?;
-    Some((dt, id))
+    Some((ts, id))
 }
 
 /// `GET /v1/conversations` — liste paginée des fils de messagerie du patient connecté.
@@ -85,10 +95,18 @@ pub async fn list_conversations(
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
     let cursor = params.cursor.as_deref().and_then(decode_cursor);
 
-    let cursor_clause = if cursor.is_some() {
-        " WHERE (last_message_at < $2 OR (last_message_at = $2 AND id < $3) OR last_message_at IS NULL)"
-    } else {
-        ""
+    // Deux formes selon que le curseur pointe sur un fil avec message (ts
+    // connu) ou un fil vide (ts null, cf. #3771) — même schéma que
+    // `cabinet_messaging.rs`. Un curseur `ts=Some` place tous les fils vides
+    // après (NULLS LAST inconditionnel, aucun id à comparer) ; un curseur
+    // `ts=None` vient déjà d'un fil vide, donc seuls les fils vides d'id
+    // strictement inférieur restent à parcourir.
+    let cursor_clause = match &cursor {
+        None => "",
+        Some((Some(_), _)) => {
+            " WHERE (last_message_at < $2 OR (last_message_at = $2 AND id < $3) OR last_message_at IS NULL)"
+        }
+        Some((None, _)) => " WHERE (last_message_at IS NULL AND id < $2)",
     };
 
     let sql = format!(
@@ -130,9 +148,15 @@ pub async fn list_conversations(
     let fetch_limit = limit + 1;
 
     let rows = match cursor {
-        Some((cursor_ts, cursor_id)) => sqlx::query(&sql)
+        Some((Some(cursor_ts), cursor_id)) => sqlx::query(&sql)
             .bind(fetch_limit)
             .bind(cursor_ts)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        Some((None, cursor_id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
             .bind(cursor_id)
             .fetch_all(&mut *tx)
             .await
@@ -204,9 +228,11 @@ pub async fn list_conversations(
         });
     }
 
-    // Cursor only when the last visible row has a non-null last_message_at.
+    // #3771 : un curseur doit être émis tant que has_more == true, même si le
+    // dernier fil visible n'a pas encore de message (last_message_at NULL) —
+    // sinon les fils suivants deviennent injoignables (cf. encode_cursor).
     let next_cursor = if has_more {
-        last_lma.zip(last_id).map(|(dt, id)| encode_cursor(dt, id))
+        last_id.map(|id| encode_cursor(last_lma, id))
     } else {
         None
     };
@@ -289,7 +315,10 @@ pub async fn get_conversation_messages(
         .map_err(|_| AppError::Internal)?
         .unwrap_or(Uuid::nil());
 
-    let cursor_clause = if cursor.is_some() {
+    // `message.created_at` n'est jamais null — un curseur `ts=None` décodé
+    // ici ne peut provenir que d'un curseur `/v1/conversations` mal aiguillé ;
+    // traité comme absent (1ère page) plutôt que de désaligner les binds SQL.
+    let cursor_clause = if matches!(cursor, Some((Some(_), _))) {
         " AND (created_at > $3 OR (created_at = $3 AND id > $4))"
     } else {
         ""
@@ -307,7 +336,7 @@ pub async fn get_conversation_messages(
     let fetch_limit = limit + 1;
 
     let rows = match cursor {
-        Some((cursor_ts, cursor_id)) => sqlx::query(&sql)
+        Some((Some(cursor_ts), cursor_id)) => sqlx::query(&sql)
             .bind(conversation_id)
             .bind(fetch_limit)
             .bind(cursor_ts)
@@ -315,7 +344,7 @@ pub async fn get_conversation_messages(
             .fetch_all(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?,
-        None => sqlx::query(&sql)
+        _ => sqlx::query(&sql)
             .bind(conversation_id)
             .bind(fetch_limit)
             .fetch_all(&mut *tx)
@@ -382,7 +411,7 @@ pub async fn get_conversation_messages(
     let next_cursor = if has_more {
         last_created_at
             .zip(last_id)
-            .map(|(dt, id)| encode_cursor(dt, id))
+            .map(|(dt, id)| encode_cursor(Some(dt), id))
     } else {
         None
     };

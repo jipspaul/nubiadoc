@@ -1027,6 +1027,7 @@ pub struct CreateCabinetQuoteResponse {
 /// - `cabinet_id` extrait du JWT.
 /// - `items` vide → 422.
 /// - `amount_cents` de chaque ligne doit être dans `]0, 100_000_000]` (1M€) → 422 sinon (#3762).
+/// - `label` de chaque ligne ne doit pas être vide/blanc (trim) → 422 sinon (#3770).
 /// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
 /// - `total_amount` calculé depuis les items (`sum(amount_cents) / 100`).
 /// - Insert `quote` + N `quote_item` dans une transaction RLS-scopée.
@@ -1050,6 +1051,12 @@ pub async fn create_cabinet_quote(
         .iter()
         .any(|i| i.amount_cents <= 0 || i.amount_cents > MAX_ITEM_AMOUNT_CENTS)
     {
+        return Err(AppError::ValidationError);
+    }
+    // Libellé vide/blanc → 422 (#3770), comme create_prescription (prescriptions.rs)
+    // et add_consultation_act : un devis présenté/signé par le patient ne doit
+    // pas contenir de ligne facturable sans libellé.
+    if body.items.iter().any(|i| i.label.trim().is_empty()) {
         return Err(AppError::ValidationError);
     }
     if let Some(pct) = body.deposit_pct {
