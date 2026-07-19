@@ -331,3 +331,63 @@ async fn notifications_pagination_cursor() {
         .await
         .ok();
 }
+
+// ── Test 5 : cursor indécodable → 422, pas silencieusement ignoré (#3874) ────
+// Régression #3874 : ?cursor=garbage était avalé (.and_then transforme un
+// cursor indécodable en "pas de cursor") → 200 avec la page 1, identique à
+// l'absence de cursor. Un client paginant jusqu'à next_cursor==null bouclait
+// indéfiniment sur un cursor corrompu/expiré.
+
+#[tokio::test]
+async fn notifications_malformed_cursor_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-badcursor+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    insert_notification(&app_db, user_id, "rdv", "Votre RDV", false).await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    for bad_cursor in ["garbage", "1784011195493655|garbage", "abc|def"] {
+        let response = app(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/v1/notifications?cursor={}", bad_cursor))
+                    .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "cursor='{}' doit être rejeté (422), pas silencieusement ignoré",
+            bad_cursor
+        );
+    }
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
