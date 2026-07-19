@@ -199,7 +199,8 @@ pub async fn patch_appointment(
 
     let (provider_id, provider_display_name, provider_specialty) =
         fetch_provider_for_response(&mut tx, practitioner_id).await?;
-    let (cabinet_name, cabinet_address) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
+    let (cabinet_name, cabinet_address) =
+        fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -798,21 +799,10 @@ pub async fn get_appointment(
         None => (None, None, None),
     };
 
-    // Fetch cabinet (accessible via tenant_isolation après SET LOCAL cabinet GUC).
-    let cab_row = sqlx::query(
-        "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
-    )
-    .bind(cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::Internal)?;
-
-    let cabinet_name: String = cab_row
-        .try_get("raison_sociale")
-        .map_err(|_| AppError::Internal)?;
-    let cabinet_address: Option<String> =
-        cab_row.try_get("address").map_err(|_| AppError::Internal)?;
+    // Fetch cabinet (accessible via tenant_isolation après SET LOCAL cabinet GUC) +
+    // fallback establishment (#3799, même helper que create/patch_appointment).
+    let (cabinet_name, cabinet_address) =
+        fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
 
     // Audit (§07 §2.9) — cabinet_id correspond au GUC positionné ci-dessus.
     sqlx::query(
@@ -1684,7 +1674,8 @@ pub async fn create_appointment(
 
             let (prov_id, prov_name, prov_spec) =
                 fetch_provider_for_response(&mut tx, practitioner_id).await?;
-            let (cab_name, cab_addr) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
+            let (cab_name, cab_addr) =
+                fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
 
             tx.commit().await.map_err(|_| AppError::Internal)?;
             tracing::info!(
@@ -1846,7 +1837,8 @@ pub async fn create_appointment(
     // Fetch provider + cabinet pour la réponse (même shape que GET /:id).
     let (provider_id, provider_display_name, provider_specialty) =
         fetch_provider_for_response(&mut tx, practitioner_id).await?;
-    let (cabinet_name, cabinet_address) = fetch_cabinet_for_response(&mut tx, cabinet_id).await?;
+    let (cabinet_name, cabinet_address) =
+        fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -1914,6 +1906,7 @@ async fn fetch_provider_for_response(
 async fn fetch_cabinet_for_response(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     cabinet_id: Uuid,
+    practitioner_id: Uuid,
 ) -> Result<(String, Option<String>), AppError> {
     let row = sqlx::query(
         "SELECT raison_sociale, settings->>'address' AS address FROM cabinet WHERE id = $1",
@@ -1928,5 +1921,34 @@ async fn fetch_cabinet_for_response(
         .try_get("raison_sociale")
         .map_err(|_| AppError::Internal)?;
     let address: Option<String> = row.try_get("address").map_err(|_| AppError::Internal)?;
+
+    // Fallback establishment quand `cabinet.settings` ne porte pas d'adresse
+    // (cas du cabinet seed — #3557), déjà appliqué à preparation/directions
+    // mais pas ici : détail/create/patch renvoyaient `address: null` (#3799).
+    let address = if address.is_some() {
+        address
+    } else {
+        let est_row = sqlx::query(
+            "SELECT e.address AS establishment_address \
+             FROM provider p \
+             LEFT JOIN establishment e ON e.id = p.establishment_id \
+             WHERE p.practitioner_id = $1 \
+             LIMIT 1",
+        )
+        .bind(practitioner_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        est_row
+            .and_then(|r| {
+                r.try_get::<Option<serde_json::Value>, _>("establishment_address")
+                    .ok()
+                    .flatten()
+            })
+            .as_ref()
+            .and_then(format_establishment_address)
+    };
+
     Ok((name, address))
 }
