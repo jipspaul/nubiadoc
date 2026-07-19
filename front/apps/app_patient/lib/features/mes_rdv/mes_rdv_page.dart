@@ -77,17 +77,36 @@ class _LoadedView extends StatefulWidget {
 }
 
 class _LoadedViewState extends State<_LoadedView> {
-  bool _sortAsc = false;
+  // #3801 : « À venir » et « Historique » veulent des ordres par défaut
+  // opposés (le prochain RDV en tête vs le plus récent passé en tête) — un
+  // seul état de tri partagé appliquait l'ordre pensé pour l'historique
+  // (DESC) à l'onglet à venir, reléguant le RDV imminent en bas de liste.
+  bool _upcomingSortAsc = true;
+  bool _historySortAsc = false;
   int _selectedIndex = 0;
+
+  bool get _currentSortAsc =>
+      _selectedIndex == 0 ? _upcomingSortAsc : _historySortAsc;
+
+  void _toggleSort() => setState(() {
+        if (_selectedIndex == 0) {
+          _upcomingSortAsc = !_upcomingSortAsc;
+        } else {
+          _historySortAsc = !_historySortAsc;
+        }
+      });
 
   @override
   Widget build(BuildContext context) {
-    int compare(Appointment a, Appointment b) => _sortAsc
+    int compareUpcoming(Appointment a, Appointment b) => _upcomingSortAsc
+        ? a.startsAt.compareTo(b.startsAt)
+        : b.startsAt.compareTo(a.startsAt);
+    int compareHistory(Appointment a, Appointment b) => _historySortAsc
         ? a.startsAt.compareTo(b.startsAt)
         : b.startsAt.compareTo(a.startsAt);
 
-    final upcoming = [...widget.state.upcoming]..sort(compare);
-    final history = [...widget.state.history]..sort(compare);
+    final upcoming = [...widget.state.upcoming]..sort(compareUpcoming);
+    final history = [...widget.state.history]..sort(compareHistory);
 
     return Column(
       children: [
@@ -108,9 +127,14 @@ class _LoadedViewState extends State<_LoadedView> {
               IconButton(
                 key: const Key('sort_button'),
                 icon: const Icon(Icons.sort),
-                tooltip:
-                    _sortAsc ? 'Plus récent d\'abord' : 'Plus ancien d\'abord',
-                onPressed: () => setState(() => _sortAsc = !_sortAsc),
+                tooltip: _selectedIndex == 0
+                    ? (_currentSortAsc
+                        ? 'Plus lointain d\'abord'
+                        : 'Plus proche d\'abord')
+                    : (_currentSortAsc
+                        ? 'Plus récent d\'abord'
+                        : 'Plus ancien d\'abord'),
+                onPressed: _toggleSort,
               ),
             ],
           ),
