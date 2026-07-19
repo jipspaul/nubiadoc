@@ -1708,19 +1708,20 @@ pub async fn create_appointment(
         }
     }
 
-    // Résout le dossier patient dans ce cabinet (RLS via GUC cabinet).
-    let patient_row = sqlx::query(
-        "SELECT id FROM patient \
-         WHERE patient_account_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
-    )
-    .bind(effective_account_id)
-    .bind(cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::NotFound)?;
-
-    let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
+    // Récupère-ou-crée le dossier patient de ce cabinet (SECURITY DEFINER,
+    // migration 0123 — même fonction que create_booking). Un simple SELECT
+    // 404 sur un dossier absent : cas NORMAL pour un dépendant (compte géré
+    // sans fiche patient tant qu'il n'a jamais consulté dans ce cabinet),
+    // rendant `on_behalf_of` totalement inutilisable (#3739/#3836). NULL
+    // uniquement si le compte lui-même n'existe pas → 404 légitime.
+    let patient_id: Uuid =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT ensure_patient_for_cabinet($1, $2)")
+            .bind(effective_account_id)
+            .bind(cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
 
     // Résout starts_at / ends_at selon slot_id ou starts_at fourni.
     // status = 'open' : un créneau blocked (indispo praticien) ou held (hold
