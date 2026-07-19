@@ -563,9 +563,9 @@ class _EntryCard extends StatelessWidget {
                     variant: StatusPillVariant.success,
                   )
                 else
-                  const StatusPill(
-                    label: 'Réservé',
-                    variant: StatusPillVariant.info,
+                  StatusPill(
+                    label: _statusLabel(entry),
+                    variant: _statusVariant(entry),
                   ),
               ],
             ),
@@ -600,38 +600,46 @@ class _EntryCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(entry.motif!, style: textTheme.bodyMedium),
             ],
-            if (!entry.isFree) ...[
+            // #3802 : un RDV annulé/terminé/en cours n'offre plus jamais
+            // Confirmer/Démarrer (409 en cul-de-sac côté back sinon) ; seul
+            // un RDV requested propose Confirmer, seul un RDV confirmed (ou
+            // déjà arrivé) propose Démarrer.
+            if (!entry.isFree &&
+                (entry.isPending ||
+                    entry.isConfirmed ||
+                    entry.isCheckedIn)) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
-                  NubiaButton(
-                    key: Key('confirm_${entry.id}'),
-                    variant: NubiaButtonVariant.secondary,
-                    size: NubiaButtonSize.sm,
-                    icon: Icons.check,
-                    label: 'Confirmer',
-                    onPressed: actionInProgress
-                        ? null
-                        : () => context.read<AgendaBloc>().add(
-                              AgendaAppointmentConfirmRequested(
-                                appointmentId: entry.id,
+                  if (entry.isPending)
+                    NubiaButton(
+                      key: Key('confirm_${entry.id}'),
+                      variant: NubiaButtonVariant.secondary,
+                      size: NubiaButtonSize.sm,
+                      icon: Icons.check,
+                      label: 'Confirmer',
+                      onPressed: actionInProgress
+                          ? null
+                          : () => context.read<AgendaBloc>().add(
+                                AgendaAppointmentConfirmRequested(
+                                  appointmentId: entry.id,
+                                ),
                               ),
-                            ),
-                  ),
-                  const SizedBox(width: 8),
-                  NubiaButton(
-                    key: Key('start_${entry.id}'),
-                    size: NubiaButtonSize.sm,
-                    icon: Icons.play_arrow,
-                    label: 'Démarrer',
-                    onPressed: actionInProgress
-                        ? null
-                        : () => context.read<AgendaBloc>().add(
-                              AgendaConsultationStartRequested(
-                                appointmentId: entry.id,
+                    ),
+                  if (entry.isConfirmed || entry.isCheckedIn)
+                    NubiaButton(
+                      key: Key('start_${entry.id}'),
+                      size: NubiaButtonSize.sm,
+                      icon: Icons.play_arrow,
+                      label: 'Démarrer',
+                      onPressed: actionInProgress
+                          ? null
+                          : () => context.read<AgendaBloc>().add(
+                                AgendaConsultationStartRequested(
+                                  appointmentId: entry.id,
+                                ),
                               ),
-                            ),
-                  ),
+                    ),
                 ],
               ),
             ],
@@ -661,6 +669,29 @@ class _AgendaSkeleton extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Libellé de statut d'un créneau occupé (#3802 — reflète `entry.status`,
+/// au lieu d'un « Réservé » unique masquant annulé/terminé/à confirmer).
+String _statusLabel(AgendaEntry entry) {
+  if (entry.isCancelled) return 'Annulé';
+  if (entry.isDone) return 'Terminé';
+  if (entry.isInProgress) return 'En cours';
+  if (entry.isNoShow) return 'Absent';
+  if (entry.isCheckedIn) return 'Arrivé';
+  if (entry.isConfirmed) return 'Confirmé';
+  if (entry.isPending) return 'À confirmer';
+  return 'Réservé';
+}
+
+/// Variante de couleur associée à [_statusLabel].
+StatusPillVariant _statusVariant(AgendaEntry entry) {
+  if (entry.isCancelled || entry.isNoShow) return StatusPillVariant.error;
+  if (entry.isDone) return StatusPillVariant.info;
+  if (entry.isInProgress || entry.isCheckedIn) return StatusPillVariant.warning;
+  if (entry.isConfirmed) return StatusPillVariant.success;
+  if (entry.isPending) return StatusPillVariant.warning;
+  return StatusPillVariant.info;
 }
 
 /// Initiales (max 2 lettres) à partir d'un nom complet.

@@ -43,6 +43,21 @@ class AgendaEntry extends Equatable {
   /// Le RDV attend une confirmation du secrétariat.
   bool get isPending => status == 'requested';
 
+  /// Le patient est arrivé (check-in effectué), consultation pas encore démarrée.
+  bool get isCheckedIn => status == 'checked_in';
+
+  /// La consultation est en cours.
+  bool get isInProgress => status == 'in_progress';
+
+  /// Le RDV est terminé.
+  bool get isDone => status == 'done';
+
+  /// Le RDV a été annulé.
+  bool get isCancelled => status == 'cancelled';
+
+  /// Le patient ne s'est pas présenté.
+  bool get isNoShow => status == 'no_show';
+
   @override
   List<Object?> get props => [id, status];
 }
