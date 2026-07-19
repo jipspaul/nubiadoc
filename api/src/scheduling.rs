@@ -585,8 +585,6 @@ pub async fn get_waiting_room(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let is_secretary = claims.role == "secretary";
-
     let data = rows
         .into_iter()
         .map(|row| -> Result<WaitingRoomEntry, AppError> {
@@ -601,13 +599,15 @@ pub async fn get_waiting_room(
                 row.try_get("first_name").map_err(|_| AppError::Internal)?;
             let last: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
 
+            // Un champ nommé `patient_name_initials` contient des initiales pour
+            // TOUT rôle — avant, seule la branche secretary minimisait, praticien/
+            // admin/owner recevaient le nom complet dans le même champ (#3893).
             let patient_name_initials = match (first.as_deref(), last.as_deref()) {
-                (Some(f), Some(l)) if is_secretary => format!(
+                (Some(f), Some(l)) => format!(
                     "{}{}",
                     f.chars().next().unwrap_or('?'),
                     l.chars().next().unwrap_or('?')
                 ),
-                (Some(f), Some(l)) => format!("{f} {l}"),
                 _ => String::new(),
             };
 
