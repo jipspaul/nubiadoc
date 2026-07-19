@@ -490,6 +490,81 @@ async fn coverage_card_invalid_side_returns_422() {
         .ok();
 }
 
+// ── Test 6bis (#3731) : fichier 0 octet → 422 (pas de document vide créé) ────
+
+#[tokio::test]
+async fn coverage_card_empty_file_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("card-empty+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Emma', 'Empty')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(user_id, account_id);
+    let boundary = "testboundaryemptyfile";
+    // Repro exacte de l'issue : file=@/dev/null (0 octet), Content-Type image/png.
+    let body = make_multipart(boundary, "recto", b"", "empty.png", "image/png");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/coverage/card")
+                .header("Authorization", format!("Bearer {jwt}"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Aucun document ne doit avoir été créé pour ce compte.
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM document WHERE patient_account_id = $1 AND category = 'carte_mutuelle'",
+    )
+    .bind(account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(count, 0, "aucun document vide ne doit être créé");
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 7 : champ `side` absent → 422 ───────────────────────────────────────
 
 #[tokio::test]
