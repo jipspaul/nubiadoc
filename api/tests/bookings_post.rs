@@ -865,6 +865,266 @@ async fn post_booking_idempotency_key_returns_same_201() {
         );
     }
 
+    // Cleanup (body-key variant).
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM slot_holds WHERE slot_id = $1")
+            .bind(slot_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM availability_slot WHERE id = $1")
+            .bind(slot_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test : idempotence via l'en-tête Idempotency-Key (comme le front l'envoie, #3835) ──
+
+#[tokio::test]
+async fn post_booking_idempotency_key_header_returns_same_201() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let idempotency_key = Uuid::new_v4().to_string();
+
+    let cabinet_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let slot_id = Uuid::new_v4();
+    let patient_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let hold_token = Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("idemhdr-prac-{}@nubia.test", suffix))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("idemhdr-patient-{}@nubia.test", suffix))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'IdemHdr', 'Patient')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet IdemHdr {}", suffix))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, $4, 'Dr. IdemHdr', true, true)",
+        )
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'IdemHdr', 'Patient', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(patient_account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, \
+                     now() + interval '4 days', \
+                     now() + interval '4 days 30 minutes', \
+                     'held')",
+        )
+        .bind(slot_id)
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    sqlx::query(
+        "INSERT INTO slot_holds (slot_id, user_id, hold_token, expires_at) \
+         VALUES ($1, $2, $3, now() + interval '5 minutes')",
+    )
+    .bind(slot_id)
+    .bind(patient_user_id)
+    .bind(&hold_token)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Corps SANS idempotency_key — la clé voyage uniquement par l'en-tête,
+    // exactement comme le front (front/packages/nubia_data/.../search_api.dart).
+    let body_json = serde_json::to_string(&json!({
+        "slot_id": slot_id,
+        "hold_token": hold_token,
+    }))
+    .unwrap();
+    let jwt = make_patient_jwt(patient_user_id, patient_account_id);
+
+    let state1 = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let resp1 = app(state1)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/bookings")
+                .header("Authorization", format!("Bearer {}", jwt))
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", &idempotency_key)
+                .body(Body::from(body_json.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp1.status(),
+        StatusCode::CREATED,
+        "1er appel doit retourner 201"
+    );
+    let b1 = axum::body::to_bytes(resp1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&b1).unwrap();
+    let appt_id_1: Uuid = v1["appointment_id"].as_str().unwrap().parse().unwrap();
+
+    // Deuxième appel — même en-tête Idempotency-Key, hold déjà consommé.
+    let state2 = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let resp2 = app(state2)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/bookings")
+                .header("Authorization", format!("Bearer {}", jwt))
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", &idempotency_key)
+                .body(Body::from(body_json))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp2.status(),
+        StatusCode::CREATED,
+        "2ème appel (en-tête, hold déjà consommé) doit quand même retourner 201 (#3835)"
+    );
+    let b2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&b2).unwrap();
+    let appt_id_2: Uuid = v2["appointment_id"].as_str().unwrap().parse().unwrap();
+
+    assert_eq!(
+        appt_id_1, appt_id_2,
+        "les deux appels doivent retourner le même appointment_id (idempotence via en-tête)"
+    );
+
     // Cleanup.
     {
         let mut tx = db.begin().await.unwrap();

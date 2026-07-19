@@ -4,7 +4,7 @@
 //! Ce handler valide le hold (non expiré, appartient au caller), crée l'appointment
 //! et supprime le hold en une transaction atomique.
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::State, http::HeaderMap, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
@@ -43,8 +43,20 @@ pub struct CreateBookingResponse {
 pub async fn create_booking(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
+    headers: HeaderMap,
     Json(body): Json<CreateBookingBody>,
 ) -> Result<(StatusCode, Json<CreateBookingResponse>), AppError> {
+    // Le front envoie la clé via l'en-tête `Idempotency-Key` (comme
+    // create_appointment), jamais dans le corps — `body.idempotency_key`
+    // restait donc toujours None en pratique (#3835). Priorité à l'en-tête,
+    // repli sur le corps pour compat ascendante.
+    let idempotency_key = headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_owned())
+        .or_else(|| body.idempotency_key.clone());
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Résout le créneau pour obtenir cabinet_id + practitioner_id + starts_at/ends_at.
@@ -93,7 +105,7 @@ pub async fn create_booking(
     // Une clé rejouée avec un slot_id/motif différent ne doit jamais renvoyer le
     // RDV d'une autre requête (#3632, jumeau de #3547) -> empreinte comparée,
     // divergence -> 409 au lieu d'absorber silencieusement la 2e réservation.
-    if let Some(ref key) = body.idempotency_key {
+    if let Some(ref key) = idempotency_key {
         let fingerprint = format!(
             "slot={}|motif={}",
             body.slot_id,
@@ -175,7 +187,7 @@ pub async fn create_booking(
             .map_err(|_| AppError::Internal)?
             .ok_or(AppError::NotFound)?;
 
-    let fingerprint = body.idempotency_key.as_ref().map(|_| {
+    let fingerprint = idempotency_key.as_ref().map(|_| {
         format!(
             "slot={}|motif={}",
             body.slot_id,
@@ -196,7 +208,7 @@ pub async fn create_booking(
     .bind(body.slot_id)
     .bind(starts_at)
     .bind(ends_at)
-    .bind(&body.idempotency_key)
+    .bind(&idempotency_key)
     .bind(&body.motif)
     .bind(&fingerprint)
     .fetch_one(&mut *tx)
