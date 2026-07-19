@@ -502,3 +502,52 @@ async fn cabinet_quotes_post_amount_over_ceiling_returns_422() {
         "montant hors plafond doit être 422, jamais 500"
     );
 }
+
+// ── Test 8 : libellé de ligne vide/blanc → 422 (#3770) ───────────────────────
+
+#[tokio::test]
+async fn cabinet_quotes_post_blank_label_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+
+    for label in ["", "   "] {
+        let state = AppState {
+            db: db.clone(),
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        };
+
+        let body = json!({
+            "patient_id": Uuid::new_v4(),
+            "items": [{ "label": label, "amount_cents": 5000 }]
+        });
+
+        let response = app(state)
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/cabinet/quotes")
+                    .header("Content-Type", "application/json")
+                    .header(
+                        "Authorization",
+                        format!(
+                            "Bearer {}",
+                            make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                        ),
+                    )
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "label={label:?} vide/blanc doit être 422, jamais 201"
+        );
+    }
+}
