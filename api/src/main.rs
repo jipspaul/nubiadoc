@@ -34,24 +34,25 @@ async fn main() {
     let mllp_status = Hl7v2ListenerStatus::default();
     let mllp_task = listener::serve(pool, mllp_status.clone());
 
+    // `tokio::spawn` (et non `tokio::select!`) : le listener MLLP retourne
+    // quasi immédiatement quand sa config est absente/invalide (cf. doc de
+    // `listener::serve`), et `select!` fait alors avorter la branche HTTP
+    // dès que la branche MLLP se termine — tuant le process quelques
+    // secondes après le boot (postmortem déploiement LXC : nubia-api
+    // Exited(0) en boucle malgré "listening on ..." dans les logs).
+    tokio::spawn(async move {
+        mllp_task.await;
+        eprintln!("listener MLLP arrêté (configuration absente ou invalide)");
+    });
+
     let http_task = axum::serve(
         listener,
         app_with_hl7v2_status(state, mllp_status)
             .into_make_service_with_connect_info::<SocketAddr>(),
     );
 
-    tokio::select! {
-        result = http_task => {
-            if let Err(e) = result {
-                eprintln!("serveur HTTP arrêté avec une erreur : {e}");
-            }
-        }
-        _ = mllp_task => {
-            // `listener::serve` ne retourne qu'en cas de configuration
-            // invalide/absente (cf. sa doc) — ne doit jamais faire tomber le
-            // serveur HTTP, qui continue de tourner via `tokio::select!`.
-            eprintln!("listener MLLP arrêté (configuration absente ou invalide)");
-        }
+    if let Err(e) = http_task.await {
+        eprintln!("serveur HTTP arrêté avec une erreur : {e}");
     }
 }
 
