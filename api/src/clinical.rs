@@ -1253,6 +1253,36 @@ pub async fn list_patient_documents(
         }
     }
 
+    // R10 : même garde de scope secrétariat que list_cabinet_patients
+    // (sec_clause) et get_cabinet_patient (#3821) — sans elle, une secrétaire
+    // pouvait sonder l'existence (200 vs 404) et lister les documents non-
+    // cliniques d'un patient hors de son secrétariat, masqué de sa propre
+    // liste (#3823, frère de #3821).
+    if claims.role == "secretary" {
+        let in_scope = match claims.secretariat_id {
+            Some(secretariat_id) => sqlx::query(
+                "SELECT 1 FROM appointment a \
+                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                 WHERE a.patient_id = $1 \
+                   AND a.deleted_at IS NULL \
+                   AND a.status <> 'cancelled' \
+                   AND ps.secretariat_id = $2 \
+                   AND ps.active = true",
+            )
+            .bind(patient_id)
+            .bind(secretariat_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .is_some(),
+            None => false,
+        };
+        if !in_scope {
+            return Err(AppError::NotFound);
+        }
+    }
+
     let cursor = params.cursor.as_deref().and_then(doc_decode_cursor);
     let fetch_limit = limit + 1;
 
