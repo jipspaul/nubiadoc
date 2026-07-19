@@ -553,6 +553,14 @@ pub async fn pro_register(
         return Err(AppError::PasswordPolicy);
     }
 
+    if body.cabinet.raison_sociale.trim().is_empty()
+        || body.cabinet.specialite.trim().is_empty()
+        || body.practitioner.first_name.trim().is_empty()
+        || body.practitioner.last_name.trim().is_empty()
+    {
+        return Err(AppError::ValidationError);
+    }
+
     let salt = SaltString::generate(&mut OsRng);
     let password_hash = Argon2::default()
         .hash_password(body.password.as_bytes(), &salt)
