@@ -216,6 +216,13 @@ pub struct QuoteDetail {
     pub created_at: String,
     pub updated_at: String,
     pub items: Vec<QuoteLineItem>,
+    /// Pourcentage d'acompte demandé par le cabinet (0..100), `null` si aucun
+    /// acompte imposé. Jamais exposé avant #3761 : le patient signait sans
+    /// connaître le montant dû à `POST /v1/billing/quotes/:id/deposit`.
+    pub deposit_pct: Option<f64>,
+    /// Montant d'acompte minimum en centimes, dérivé de `deposit_pct` (arrondi
+    /// au centime supérieur). `null` si `deposit_pct` est `null`.
+    pub deposit_amount_cents: Option<i64>,
 }
 
 /// `GET /v1/quotes/:id` — détail d'un devis du patient connecté.
@@ -240,7 +247,7 @@ pub async fn get_quote(
     let quote_row = sqlx::query(
         "SELECT q.id, q.cabinet_id, q.status, q.version, \
                 (q.total_amount * 100)::bigint AS amount_cents, \
-                q.currency, q.signed_at, q.created_at, q.updated_at \
+                q.currency, q.signed_at, q.created_at, q.updated_at, q.deposit_pct::double precision AS deposit_pct \
          FROM quote q \
          WHERE q.id = $1 AND q.deleted_at IS NULL",
     )
@@ -299,6 +306,11 @@ pub async fn get_quote(
     let updated_at: chrono::DateTime<chrono::Utc> = quote_row
         .try_get("updated_at")
         .map_err(|_| AppError::Internal)?;
+    let deposit_pct: Option<f64> = quote_row
+        .try_get("deposit_pct")
+        .map_err(|_| AppError::Internal)?;
+    let deposit_amount_cents =
+        deposit_pct.map(|pct| ((amount_cents as f64) * pct / 100.0).ceil() as i64);
 
     let mut items = Vec::with_capacity(item_rows.len());
     for row in &item_rows {
@@ -344,6 +356,8 @@ pub async fn get_quote(
         created_at: created_at.to_rfc3339(),
         updated_at: updated_at.to_rfc3339(),
         items,
+        deposit_pct,
+        deposit_amount_cents,
     }))
 }
 
@@ -571,17 +585,21 @@ pub async fn create_payment_intent(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // FOR UPDATE OF q verrouille la ligne quote pour la durée de la transaction :
-    // deux POST /payments/intent concurrents sur le même devis se sérialisent ici,
-    // si bien que le calcul du reste-dû ci-dessous voit toujours les paiements
-    // déjà insérés par la transaction gagnante (plus de garde TOCTOU, cf #3775).
+    // Lecture non verrouillée pour résoudre cabinet_id : la policy RLS
+    // `quote_patient_read` (permissive, scope app.patient_account_id) suffit
+    // ici. On ne peut pas encore poser FOR UPDATE (cf. plus bas) car le GUC
+    // cabinet, requis par la policy tenant_isolation (SELECT+UPDATE) que
+    // Postgres exige aussi sous FOR UPDATE, n'est positionné qu'après avoir
+    // lu cabinet_id — donc un premier FOR UPDATE ici renverrait toujours 0
+    // ligne (régression #3775 : le correctif avait rendu POST /payments/intent
+    // 404 sur CHAQUE appel, pas seulement en cas de course concurrente).
     let quote_row = sqlx::query(
-        "SELECT q.cabinet_id, q.patient_id, q.status, (q.total_amount * 100)::bigint AS total_amount_cents \
+        "SELECT q.cabinet_id, q.patient_id, q.status, q.deposit_pct::double precision AS deposit_pct, \
+                (q.total_amount * 100)::bigint AS total_amount_cents \
          FROM quote q \
          JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.deleted_at IS NULL \
-           AND p.patient_account_id = $2 \
-         FOR UPDATE OF q",
+           AND p.patient_account_id = $2",
     )
     .bind(body.quote_id)
     .bind(claims.account_id)
@@ -599,6 +617,9 @@ pub async fn create_payment_intent(
     let status: String = quote_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
+    let deposit_pct: Option<f64> = quote_row
+        .try_get("deposit_pct")
+        .map_err(|_| AppError::Internal)?;
     let total_amount_cents: i64 = quote_row
         .try_get("total_amount_cents")
         .map_err(|_| AppError::Internal)?;
@@ -607,10 +628,36 @@ pub async fn create_payment_intent(
         return Err(AppError::InvalidStatus);
     }
 
+    // Acompte obligatoire (#3761) : deposit_pct était stocké à la création du
+    // devis mais jamais imposé — un patient pouvait régler un acompte
+    // arbitraire (ex. 1 centime) très en dessous du plancher demandé par le
+    // cabinet. `body.amount_cents` d'un paiement `kind:"deposit"` doit
+    // couvrir au moins `deposit_pct`% du total (arrondi au centime supérieur
+    // pour ne jamais sous-collecter).
+    if body.kind == "deposit" {
+        if let Some(pct) = deposit_pct {
+            let min_deposit_cents = ((total_amount_cents as f64) * pct / 100.0).ceil() as i64;
+            if body.amount_cents < min_deposit_cents {
+                return Err(AppError::ValidationError);
+            }
+        }
+    }
+
     // Scope cabinet pour les opérations sur payment (tenant_isolation policy).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Verrouille la ligne quote maintenant que le GUC cabinet est positionné :
+    // deux POST /payments/intent concurrents sur le même devis se sérialisent
+    // ici, si bien que le calcul du reste-dû ci-dessous voit toujours les
+    // paiements déjà insérés par la transaction gagnante (garde TOCTOU, #3775 —
+    // corrigée pour de bon cette fois, cf. commentaire plus haut).
+    sqlx::query("SELECT id FROM quote WHERE id = $1 FOR UPDATE")
+        .bind(body.quote_id)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
 
@@ -1287,6 +1334,11 @@ pub struct CabinetQuoteDetail {
     pub created_at: String,
     pub signed_at: Option<String>,
     pub items: Vec<CabinetQuoteLineItem>,
+    /// Pourcentage d'acompte demandé à la création (0..100), `null` si aucun
+    /// acompte imposé (#3761 : jamais exposé auparavant).
+    pub deposit_pct: Option<f64>,
+    /// Montant d'acompte minimum en centimes, dérivé de `deposit_pct`.
+    pub deposit_amount_cents: Option<i64>,
 }
 
 /// `GET /v1/cabinet/quotes/:id` — détail d'un devis du cabinet courant.
@@ -1315,7 +1367,7 @@ pub async fn get_cabinet_quote(
         "SELECT q.id, q.patient_id, \
                 trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
                 q.status, (q.total_amount * 100)::bigint AS amount_cents, \
-                q.signed_at, q.created_at \
+                q.signed_at, q.created_at, q.deposit_pct::double precision AS deposit_pct \
          FROM quote q \
          LEFT JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL",
@@ -1362,6 +1414,11 @@ pub async fn get_cabinet_quote(
     let created_at: chrono::DateTime<chrono::Utc> = quote_row
         .try_get("created_at")
         .map_err(|_| AppError::Internal)?;
+    let deposit_pct: Option<f64> = quote_row
+        .try_get("deposit_pct")
+        .map_err(|_| AppError::Internal)?;
+    let deposit_amount_cents =
+        deposit_pct.map(|pct| ((amount_cents as f64) * pct / 100.0).ceil() as i64);
 
     let mut items = Vec::with_capacity(item_rows.len());
     let mut patient_share_total: i64 = 0;
@@ -1397,6 +1454,8 @@ pub async fn get_cabinet_quote(
         created_at: created_at.to_rfc3339(),
         signed_at: signed_at.map(|d| d.to_rfc3339()),
         items,
+        deposit_pct,
+        deposit_amount_cents,
     }))
 }
 
