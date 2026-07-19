@@ -1,4 +1,5 @@
--- 0148_hl7v2_partner.sql
+-- 0151_hl7v2_partner.sql (renumérotée depuis 0148 : collision avec
+-- 0148_interop_client.sql, lot A1, merge sur main entre-temps)
 -- Interop HL7 v2 / MLLP (lot B6, suite des lots B1-B4 : parseur + codec MLLP,
 -- crate `integrations-hl7v2`, sans persistance). Ici : le registre des
 -- partenaires EAI/laboratoires qui parlent HL7v2 en mTLS.
