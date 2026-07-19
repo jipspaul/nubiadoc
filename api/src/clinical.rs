@@ -930,6 +930,34 @@ pub async fn get_cabinet_patient(
 
     // Secrétaire : retourne uniquement la partie administrative (R.4127-72).
     if claims.role == "secretary" {
+        // Même garde de scope secrétariat que list_cabinet_patients (R10) :
+        // sans elle, le détail exposait le dossier admin/mutuelle d'un patient
+        // que la LISTE de cette même secrétaire masque déjà — contournement
+        // trivial par accès direct à l'URL (#3821).
+        let in_scope = match claims.secretariat_id {
+            Some(secretariat_id) => sqlx::query(
+                "SELECT 1 FROM appointment a \
+                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                 WHERE a.patient_id = $1 \
+                   AND a.deleted_at IS NULL \
+                   AND a.status <> 'cancelled' \
+                   AND ps.secretariat_id = $2 \
+                   AND ps.active = true",
+            )
+            .bind(patient_id)
+            .bind(secretariat_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .is_some(),
+            // Secrétaire sans secrétariat actif : aucun patient visible (comme la liste).
+            None => false,
+        };
+        if !in_scope {
+            return Err(AppError::NotFound);
+        }
+
         tx.commit().await.map_err(|_| AppError::Internal)?;
         tracing::info!(
             cabinet_id = %claims.cabinet_id,
