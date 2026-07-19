@@ -225,9 +225,12 @@ pub async fn mark_notification_read(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // read_at = COALESCE(read_at, now()) : relire une notification déjà lue ne
+    // doit pas réécrire l'horodatage de première lecture (#3884, non idempotent
+    // avant ce fix — même classe que #3876 sur consent.granted_at).
     let row = sqlx::query(
         "UPDATE notification \
-         SET is_read = true, read_at = now() \
+         SET is_read = true, read_at = COALESCE(read_at, now()) \
          WHERE id = $1 AND app_user_id = $2 \
          RETURNING id, kind, title, is_read, created_at, read_at",
     )
