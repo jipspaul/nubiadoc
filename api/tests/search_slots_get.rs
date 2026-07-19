@@ -293,6 +293,106 @@ async fn search_slots_past_slot_excluded() {
         .ok();
 }
 
+// ── Test 5bis (#3727) : `q` matche le libellé de PROFESSION comme /search/providers ──
+
+#[tokio::test]
+async fn search_slots_q_matches_profession_label() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let provider_id = insert_provider(&db, &Uuid::new_v4().to_string()).await;
+
+    // Rattache le provider à une spécialité "Chirurgien-dentiste" de la profession "dentiste".
+    let profession_id = Uuid::new_v4();
+    let specialty_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO profession (id, label) VALUES ($1, 'dentiste')")
+        .bind(profession_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO specialty (id, profession_id, label) VALUES ($1, $2, 'Chirurgien-dentiste')",
+    )
+    .bind(specialty_id)
+    .bind(profession_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE provider SET specialty_id = $1 WHERE id = $2")
+        .bind(specialty_id)
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO availability_slot \
+         (id, provider_id, starts_at, ends_at, status, online_booking) \
+         VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open', true)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(provider_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // `q=dentiste` : libellé de la PROFESSION, pas de la spécialité ni du display_name.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/slots?q=dentiste")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    let found = data
+        .iter()
+        .any(|e| e["provider_id"].as_str() == Some(&provider_id.to_string()));
+    assert!(
+        found,
+        "q=dentiste (libellé profession) doit remonter le provider, comme /search/providers"
+    );
+
+    // Nettoyage
+    sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM specialty WHERE id = $1")
+        .bind(specialty_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM profession WHERE id = $1")
+        .bind(profession_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 5 : slot `held` exclu — status != 'open' → absent de data ────────────
 
 #[tokio::test]
