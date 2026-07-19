@@ -527,6 +527,32 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 
 ---
 
+## 23. Interopérabilité — FHIR R4 & HL7 v2 (partenaires externes)
+> Chantier interop façon Doctolib (ADR-012, `04-architecture.md`) : synchro agenda, annuaire, référentiel patient pour des EAI (Enovacom, Cloverleaf) ou un SIH. Deux protocoles, une même couche de service. Issues Forgejo #3912-#3930.
+
+### 23.1 Authentification partenaire (REST FHIR)
+`POST /v1/interop/oauth/token` — grant `client_credentials` (RFC 6749 §4.4, corps `application/x-www-form-urlencoded`). Réponse et erreurs au format **RFC 6749** (`{"access_token":...}` / `{"error":"invalid_client"}`), volontairement distinct du contrat RFC 9457 du reste de l'API. Token JWT `aud:"interop"`, durée de vie 15 min, scopes : `directory:read`, `slots:read`, `patients:read`, `appointments:read`, `appointments:write`, `subscriptions:write`. Un scope demandé hors du périmètre accordé au client → `invalid_scope` (jamais d'octroi partiel silencieux). Provisioning des clients (`interop_client`/`interop_client_secret`, rotation, révocation) : hors API publique pour l'instant, opération d'administration côté cabinet à définir dans un lot ultérieur.
+
+### 23.2 Base FHIR R4
+Toutes les ressources sous `/v1/interop/fhir/...` (le `/v1` respecte la règle de versionnement du reste de l'API ; `/v1/interop/fhir` est la base FHIR déclarée dans le `CapabilityStatement`, `GET /v1/interop/fhir/metadata`). Réponses `application/fhir+json`. Erreurs métier en `OperationOutcome` FHIR (404 `not-found`, 409 `conflict`, 422 `business-rule`/`invalid`, 403 `forbidden` sur scope insuffisant) — distinct du RFC 6749 de §23.1 et du RFC 9457 du reste de l'API. Chaque lecture/écriture est scopée au `cabinet_id` du token (RLS **et** filtre explicite dans la requête — certaines tables source, ex. `establishment`/`practitioner`, n'ont aucune policy RLS propre, cf. `05`).
+
+| Ressource | Méthode/Chemin | Scope | Notes |
+|---|---|---|---|
+| `Practitioner` | `GET .../Practitioner/{id}` · `GET .../Practitioner` | `directory:read` | Liste = praticiens du cabinet du token uniquement. |
+| `Organization` | `GET .../Organization/{id}` | `directory:read` | `{id}` doit être le `cabinet_id` du token — jamais un autre cabinet même si l'UUID existe. |
+| `Location` | `GET .../Location/{id}` | `directory:read` | `establishment`, isolé par jointure `provider.cabinet_id` (pas de RLS propre à `establishment`). |
+| `Slot` | `GET .../Slot/{id}` · `GET .../Slot?from=&to=` | `slots:read` | Lecture seule. Réservation = `Appointment`, pas d'écriture directe sur `Slot` dans cette tranche. Statuts `availability_slot` → FHIR : `open→free`, `held→busy-tentative`, `booked→busy`, `blocked→busy-unavailable`. |
+| `Schedule` | `GET .../Schedule/{id}` | `slots:read` | Représentation minimale (`id` = `practitioner_id`, `actor` → `Practitioner`). |
+| `Appointment` | `GET .../Appointment/{id}` · `GET .../Appointment?patient=&practitioner=&date_from=&date_to=` · `POST .../Appointment` · `PATCH .../Appointment/{id}` | `appointments:read` / `appointments:write` | Cœur de la synchro RDV. `POST` : `Idempotency-Key` **obligatoire** (clé rejouée avec une charge différente → `409`), patient/praticien référencés doivent déjà exister dans ce cabinet (pas de création à la volée — c'est `Patient`, hors scope actuel), statut initial `confirmed` (un partenaire qui pousse un RDV affirme une réservation actée, pas une demande — différent du flux patient qui démarre à `requested`). Chevauchement (contrainte DB `appointment_no_overlap`) → `409 conflict`. `PATCH` : changement de statut uniquement, matrice de transitions légales stricte (`done`/`cancelled`/`no_show` sont terminaux). Mapping statut interne → FHIR : `requested→pending`, `confirmed→booked`, `checked_in→checked-in`, `in_progress→arrived` (R4 n'a pas de valeur dédiée), `done→fulfilled`, `cancelled→cancelled`, `no_show→noshow`. |
+| `Subscription` | `POST .../Subscription` · `GET .../Subscription/{id}` | `subscriptions:write` | Rest-hook : le partenaire s'abonne à un type de ressource (ex. `Appointment`) sur un `endpoint_url`. Secret HMAC retourné **une seule fois** à la création (`X-Nubia-Signature: sha256=...` sur chaque callback). Payload de notification minimal (type + id + cabinet) — le partenaire re-`GET` la ressource complète avec son propre token s'il en a besoin. |
+
+**Non implémenté dans cette tranche** (voir `07-conformite.md` §9 et le backlog de suivi) : `Patient` (recherche/lecture par INS — bloqué sur `api/crates/core/crypto`, encore un scaffold non implémenté au moment de ces lots), rapprochement/dédoublonnage (`patient_merge_candidate`), écriture `Slot`.
+
+### 23.3 HL7 v2 / MLLP
+Listener MLLP dédié (port `2575` par défaut), TLS mutuel obligatoire (empreinte SHA-256 du certificat client, pas le CN — un partenaire est identifié par `hl7v2_partner`/`hl7v2_partner_facility_map`, mécanisme distinct de l'OAuth2 de §23.1, tables volontairement séparées). Messages supportés dans cette tranche : `ADT^A28`/`A31`/`A08` (patient — mapping non encore câblé, dépend de la couche `Patient` ci-dessus), `SIU^S12`/`S14`/`S15` (agenda — mapping non encore câblé, dépend de la couche `Appointment` de §23.2). Le dispatch (résolution partenaire → cabinet via `MSH-4`/`MSH-6`, dédup par `MSH-10`, audit) est en place ; le branchement effectif sur les mêmes chemins d'écriture que le REST FHIR, le listener TCP réel dans `main.rs`, et le test end-to-end restent à faire (backlog de suivi).
+
+---
+
 ## Annexe A — Back-office V2 (recherche unifiée + assistant) · post-traction
 > Proposition à arbitrer (`../design/08-back-office-v2-spotlight.md`). **Non-MVP.** L'état multi-fenêtres/dock est **client (Bloc)** → pas d'API.
 

@@ -378,6 +378,126 @@ async fn delete_cabinet_member_admin_ok_returns_204() {
         .ok();
 }
 
+// ── Test 5b : ré-invitation d'un membre retiré → 200, adhésion réactivée ─────
+// Régression #3878 : un membre soft-deleted (active=false) ne pouvait jamais
+// être ré-invité, POST /v1/cabinet/members renvoyait 409 member_already_exists
+// à vie (violation d'unicité sur app_user.email, sans chemin de réactivation).
+
+#[tokio::test]
+async fn post_cabinet_members_reinvite_after_removal_returns_200_reactivated() {
+    if !db_available() {
+        return;
+    }
+    let admin_email = format!("reinvite_admin_{}@test.local", Uuid::new_v4());
+    let member_email = format!("reinvite_member_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &admin_email).await;
+
+    let member_body = json!({
+        "email": member_email,
+        "role": "secretary",
+        "first_name": "Eve",
+        "last_name": "Renvoyée"
+    });
+
+    // Invitation initiale → 201
+    let r_post = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/members")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(member_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r_post.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(r_post.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let member_id = v["user_id"].as_str().unwrap().to_string();
+
+    // Retrait → 204
+    let r_delete = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/v1/cabinet/members/{}", member_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r_delete.status(), StatusCode::NO_CONTENT);
+
+    // Ré-invitation du même email → 200 (réactivation), pas 409
+    let r_reinvite = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/members")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(member_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r_reinvite.status(), StatusCode::OK);
+
+    let reinvite_bytes = axum::body::to_bytes(r_reinvite.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let rv: serde_json::Value = serde_json::from_slice(&reinvite_bytes).unwrap();
+    assert_eq!(
+        rv["user_id"], member_id,
+        "réactive le même compte, n'en recrée pas un"
+    );
+    assert_eq!(rv["active"], true);
+    assert_eq!(rv["email"], member_email);
+
+    // GET /v1/cabinet/members confirme l'adhésion active à nouveau.
+    let r_get = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/members")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r_get.status(), StatusCode::OK);
+    let get_bytes = axum::body::to_bytes(r_get.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let members: serde_json::Value = serde_json::from_slice(&get_bytes).unwrap();
+    let reactivated = members
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["user_id"] == member_id)
+        .expect("le membre réactivé doit apparaître dans la liste");
+    assert_eq!(reactivated["active"], true);
+
+    let owner = owner_pool().await;
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&admin_email)
+        .execute(&owner)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&member_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
 // ── Test 6 : DELETE /v1/cabinet/members/:user_id last admin → 409 ────────────
 
 #[tokio::test]

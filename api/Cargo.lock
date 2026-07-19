@@ -915,6 +915,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "integrations-interop"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1127,6 +1135,7 @@ dependencies = [
  "hex",
  "hmac",
  "integrations-hl7v2",
+ "integrations-interop",
  "jsonwebtoken",
  "reqwest",
  "serde",

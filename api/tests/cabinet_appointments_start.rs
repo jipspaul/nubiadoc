@@ -91,6 +91,17 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
 /// `status` est le statut initial du RDV inséré.
 /// Retourne `(cabinet_id, prac_id, prac_user_id, appt_id)`.
 async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid) {
+    insert_fixture_with_starts_at(db, status, "now() + interval '1 hour'").await
+}
+
+/// Comme `insert_fixture`, avec un `starts_at` paramétrable (littéral SQL) —
+/// permet de tester la garde temporelle de `start_consultation` (#3822) sur
+/// un RDV `confirmed` loin dans le futur.
+async fn insert_fixture_with_starts_at(
+    db: &PgPool,
+    status: &str,
+    starts_at_sql: &str,
+) -> (Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
@@ -140,11 +151,11 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid) {
     .await
     .unwrap();
 
-    sqlx::query(
+    sqlx::query(&format!(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
-         VALUES ($1, $2, $3, $4, now() + interval '1 hour', now() + interval '2 hours', $5, 'détartrage')",
-    )
+         VALUES ($1, $2, $3, $4, {starts_at_sql}, {starts_at_sql} + interval '1 hour', $5, 'détartrage')"
+    ))
     .bind(appt_id)
     .bind(cabinet_id)
     .bind(patient_id)
@@ -477,6 +488,62 @@ async fn start_consultation_invalid_status_returns_409() {
         .unwrap();
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["code"], "invalid_status");
+
+    cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
+}
+
+// ── Test 6 : RDV confirmed loin dans le futur → 409 too_early (#3822) ────────
+// Régression #3822 : start_consultation n'imposait aucune garde temporelle —
+// un RDV confirmé à J+8 pouvait être démarré (puis terminé) des jours avant
+// son heure réelle, invisible de la salle d'attente mais actif pour le patient.
+
+#[tokio::test]
+async fn start_consultation_confirmed_far_future_returns_409_too_early() {
+    if !db_available() {
+        return;
+    }
+
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+
+    let (cabinet_id, prac_id, prac_user_id, appt_id) =
+        insert_fixture_with_starts_at(&owner_db, "confirmed", "now() + interval '8 days'").await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let server = app(state);
+
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+    let response = server
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/start", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["code"], "too_early");
+
+    // Le RDV ne doit pas avoir été déplacé en in_progress.
+    let status: String = sqlx::query_scalar("SELECT status FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .fetch_one(&owner_db)
+        .await
+        .unwrap();
+    assert_eq!(status, "confirmed", "le RDV ne doit pas démarrer en avance");
 
     cleanup_fixture(&owner_db, cabinet_id, prac_id, prac_user_id, appt_id).await;
 }

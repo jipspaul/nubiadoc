@@ -145,6 +145,8 @@
 
 > Ne bloque pas le MVP sur Ségur/PSC (cf. `01` §3.4). Le modèle de données prévoit déjà l'INS et les champs nécessaires pour ne pas créer de dette.
 
+> **9.5 — précision** : une API **FHIR R4** existe désormais (ADR-012, `04-architecture.md`, `12-api-reference.md` §23), mais elle sert l'**interopérabilité partenaire** (EAI/SIH type Enovacom/Cloverleaf, synchro agenda/annuaire) — **pas** l'export DMP/Mon Espace Santé, qui suppose en plus la conformité aux profils FHIR ANS (FR Core) et une homologation CI-SIS/CNDA distincte. Le statut ☐ de 9.5 reste donc valable pour le volet DMP ; seul le socle technique FHIR est réutilisable pour les deux. La couche `Patient` de cette API interop (recherche/lecture par INS) est elle-même bloquante sur 9.1 : `api/crates/core/crypto` (chiffrement des colonnes PII) n'est pas encore implémenté au moment de la rédaction de cette note.
+
 ---
 
 ## 10. Sécurité applicative & audits
