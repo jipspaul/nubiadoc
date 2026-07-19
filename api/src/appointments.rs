@@ -892,7 +892,7 @@ pub struct GeoCoord {
 #[derive(Serialize)]
 pub struct AccessInfo {
     pub door_code: Option<String>,
-    pub parking: Option<String>,
+    pub parking: bool,
     pub pmr: bool,
 }
 
@@ -1016,7 +1016,7 @@ pub async fn get_appointment_preparation(
     let door_code: Option<String> = cab_row
         .try_get("door_code")
         .map_err(|_| AppError::Internal)?;
-    let parking: Option<String> = cab_row.try_get("parking").map_err(|_| AppError::Internal)?;
+    let parking_str: Option<String> = cab_row.try_get("parking").map_err(|_| AppError::Internal)?;
     let pmr_str: Option<String> = cab_row.try_get("pmr").map_err(|_| AppError::Internal)?;
     let geo_val: Option<serde_json::Value> =
         cab_row.try_get("geo").map_err(|_| AppError::Internal)?;
@@ -1037,6 +1037,10 @@ pub async fn get_appointment_preparation(
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let pmr = pmr_str.as_deref() == Some("true");
+    // Même parsing que pmr : settings->>'parking' est du texte JSON ("true"/
+    // "false"), pas un bool natif. Non converti auparavant, AccessInfo.parking
+    // exposait la chaîne brute au lieu d'un bool (#3741).
+    let parking = parking_str.as_deref() == Some("true");
 
     // Fallback annuaire quand `cabinet.settings` n'a pas d'adresse (#3557) : même donnée
     // que celle déjà exposée par `GET /v1/providers/:id`.
