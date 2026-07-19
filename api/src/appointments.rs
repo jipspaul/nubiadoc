@@ -93,6 +93,14 @@ pub async fn patch_appointment(
         if new_ts <= chrono::Utc::now() {
             return Err(AppError::SlotUnavailable);
         }
+        // Préavis 24 h évalué sur la DESTINATION, pas seulement la source (:80) :
+        // sans ce contrôle, un RDV source >24h pouvait être déplacé vers un créneau
+        // <24h (préavis contourné) et se retrouvait ensuite piégé — toute nouvelle
+        // reprogrammation lit alors le nouveau starts_at <24h → 409 too_late à vie
+        // (#3891, cul-de-sac one-way).
+        if chrono::Utc::now() >= new_ts - chrono::Duration::hours(24) {
+            return Err(AppError::TooLate);
+        }
         new_slot_id = sqlx::query_scalar(
             "SELECT s.id FROM availability_slot s \
                JOIN provider p ON p.id = s.provider_id \

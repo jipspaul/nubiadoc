@@ -974,6 +974,131 @@ async fn patch_appointment_slot_taken_returns_409() {
 // permettant de s'attribuer un créneau que le cabinet a explicitement soustrait
 // à la réservation en ligne (POST /v1/cabinet/slots → toujours online_booking=false).
 
+// ── Test 5 : préavis 24h évalué sur la DESTINATION, pas la source ────────────
+// Régression #3891 : un RDV source >24h pouvait être déplacé vers un créneau
+// <24h (préavis contourné), le piégeant ensuite (route reprogrammation
+// ultérieure lit le nouveau starts_at <24h → 409 too_late à vie).
+
+#[tokio::test]
+async fn patch_appointment_destination_within_24h_returns_409_too_late() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("patch-destnotice+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Patch', 'DestNotice')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("patch-destnotice-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Source : starts_at à 48 h (passe largement le préavis source).
+    let (cabinet_id, prac_id, patient_id, appt_id) = insert_fixture(
+        &db,
+        prac_user_id,
+        patient_account_id,
+        "requested",
+        "now() + interval '48 hours'",
+    )
+    .await;
+
+    // Destination : créneau ouvert réservable en ligne à ~1 h (< 24 h de préavis).
+    let near_starts_at = seed_open_slot(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        "now() + interval '1 hour'",
+    )
+    .await
+    .to_rfc3339();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/appointments/{}", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({"starts_at": near_starts_at})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "too_late");
+
+    // Le RDV source ne doit pas avoir bougé (refusé, pas piégé).
+    let unchanged: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT starts_at FROM appointment WHERE id = $1")
+            .bind(appt_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert!(
+        unchanged > chrono::Utc::now() + chrono::Duration::hours(40),
+        "le RDV doit rester sur son starts_at source (~48h), pas déplacé vers la destination refusée"
+    );
+
+    cleanup(&db, cabinet_id, patient_id, prac_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 #[tokio::test]
 async fn patch_appointment_internal_slot_returns_409_slot_unavailable() {
     if !db_available() {
