@@ -529,6 +529,7 @@ pub async fn create_appointment(
                 .bind(existing_id)
                 .fetch_one(&mut *tx)
                 .await?;
+                tx.commit().await?;
                 return Ok(Ok(row));
             }
 
@@ -570,6 +571,7 @@ pub async fn create_appointment(
             .execute(&mut *tx)
             .await?;
 
+            tx.commit().await?;
             Ok(Ok(row))
         })
         .await
@@ -666,6 +668,7 @@ pub async fn update_appointment_status(
             .fetch_one(&mut *tx)
             .await?;
 
+            tx.commit().await?;
             Ok(Ok(updated))
         })
         .await

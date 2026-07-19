@@ -224,6 +224,7 @@ pub async fn create_subscription(
         .bind(&secret_hash)
         .fetch_one(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(row)
     })
     .await
@@ -427,6 +428,7 @@ async fn deliver_one(
         .bind(next_attempt_at)
         .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     })
     .await;
