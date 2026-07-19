@@ -2406,6 +2406,20 @@ pub async fn get_account_coverage(
     }))
 }
 
+/// Rejette une chaîne vide/whitespace-only fournie explicitement pour un champ
+/// couverture requis (amc/numero_adherent) : `Some("")` passe `COALESCE($n, ...)`
+/// (n'est pas NULL) et écrase silencieusement la valeur existante en base avec
+/// une chaîne vide (#3797, même gap non couvert par la validation regime_obligatoire
+/// juste à côté).
+fn validate_coverage_field_non_empty(value: &Option<String>) -> Result<(), AppError> {
+    if let Some(v) = value {
+        if v.trim().is_empty() {
+            return Err(AppError::ValidationError);
+        }
+    }
+    Ok(())
+}
+
 /// Sous-corps mutuelle pour `PATCH /v1/account/coverage`.
 #[derive(Deserialize)]
 pub struct PatchCoverageMutuelle {
@@ -2446,7 +2460,12 @@ pub async fn patch_account_coverage(
     let nss_encrypted: Option<Vec<u8>> = body.nss.as_deref().map(|s| s.as_bytes().to_vec());
 
     let (mutuelle_amc, mutuelle_numero, mutuelle_plateforme) = match body.mutuelle {
-        Some(m) => (Some(m.amc), Some(m.numero_adherent), m.plateforme),
+        Some(m) => {
+            if m.amc.trim().is_empty() || m.numero_adherent.trim().is_empty() {
+                return Err(AppError::ValidationError);
+            }
+            (Some(m.amc), Some(m.numero_adherent), m.plateforme)
+        }
         None => (None, None, None),
     };
 
@@ -3531,6 +3550,8 @@ pub async fn post_account_dependents(
                 return Err(AppError::ValidationError);
             }
         }
+        validate_coverage_field_non_empty(&cov.amc)?;
+        validate_coverage_field_non_empty(&cov.numero_adherent)?;
 
         // patient_coverage est scopée par app.patient_account_id (migration 0023).
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
@@ -3702,6 +3723,8 @@ pub async fn patch_account_dependent(
                 return Err(AppError::ValidationError);
             }
         }
+        validate_coverage_field_non_empty(&cov.amc)?;
+        validate_coverage_field_non_empty(&cov.numero_adherent)?;
 
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
             .bind(dependent_id.to_string())
