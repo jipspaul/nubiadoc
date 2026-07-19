@@ -24,11 +24,11 @@ class BillingApi {
     return QuoteDto.fromJson(response.data!);
   }
 
-  /// POST /v1/quotes/:id/sign
-  Future<SignatureUrlDto> initiateSignature(String quoteId) async {
+  /// POST /v1/quotes/:id/sign — signe le devis (synchrone, stub Yousign).
+  Future<QuoteSignedDto> initiateSignature(String quoteId) async {
     final response =
         await _dio.post<Map<String, dynamic>>('/quotes/$quoteId/sign');
-    return SignatureUrlDto.fromJson(response.data!);
+    return QuoteSignedDto.fromJson(response.data!);
   }
 
   /// POST /v1/billing/quotes/:id/confirm_signature

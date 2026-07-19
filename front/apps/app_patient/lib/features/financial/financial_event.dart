@@ -27,14 +27,9 @@ final class FinancialBackToList extends FinancialEvent {
   const FinancialBackToList();
 }
 
-/// Lance le flux de signature Yousign pour le devis sélectionné.
+/// Signe le devis sélectionné (synchrone — stub Yousign, pas de redirection).
 final class FinancialSignatureRequested extends FinancialEvent {
   const FinancialSignatureRequested();
-}
-
-/// Signature confirmée (retour deep-link ou bouton de confirmation).
-final class FinancialSignatureCompleted extends FinancialEvent {
-  const FinancialSignatureCompleted();
 }
 
 /// Lance le paiement de l'acompte.

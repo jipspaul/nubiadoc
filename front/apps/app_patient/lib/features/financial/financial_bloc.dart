@@ -22,7 +22,6 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     on<FinancialQuoteSelected>(_onQuoteSelected);
     on<FinancialBackToList>(_onBackToList);
     on<FinancialSignatureRequested>(_onSignatureRequested);
-    on<FinancialSignatureCompleted>(_onSignatureCompleted);
     on<FinancialPaymentRequested>(_onPaymentRequested);
   }
 
@@ -74,6 +73,11 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
     emit(FinancialLoaded(quotes));
   }
 
+  // Signature synchrone (stub Yousign, cf. api/src/billing.rs sign_quote) :
+  // pas de redirection à attendre, le devis est signé et verrouillé dès la
+  // réponse de _initiateSignature. On réémet directement FinancialQuoteDetail
+  // avec le devis à jour (#3705 — avant, un état intermédiaire attendait une
+  // confirmation qui n'arrivait jamais que via un bouton manuel).
   Future<void> _onSignatureRequested(
     FinancialSignatureRequested event,
     Emitter<FinancialState> emit,
@@ -85,35 +89,12 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
       result.fold(
         (f) => safeEmit(
             FinancialError(message: f.message, quotes: current.quotes)),
-        (url) => safeEmit(FinancialSignatureInProgress(
-          quote: current.quote,
-          quotes: current.quotes,
-          signatureUrl: url,
-        )),
+        (quote) =>
+            safeEmit(FinancialQuoteDetail(quote: quote, quotes: current.quotes)),
       );
     } catch (_) {
       safeEmit(FinancialError(
           message: 'Erreur lors de la signature.', quotes: current.quotes));
-    }
-  }
-
-  Future<void> _onSignatureCompleted(
-    FinancialSignatureCompleted event,
-    Emitter<FinancialState> emit,
-  ) async {
-    final current = state;
-    if (current is! FinancialSignatureInProgress) return;
-    try {
-      final result = await _getQuoteById(current.quote.id);
-      result.fold(
-        (f) => safeEmit(
-            FinancialError(message: f.message, quotes: current.quotes)),
-        (quote) => safeEmit(
-            FinancialQuoteDetail(quote: quote, quotes: current.quotes)),
-      );
-    } catch (_) {
-      safeEmit(FinancialError(
-          message: 'Erreur de rechargement.', quotes: current.quotes));
     }
   }
 
@@ -149,7 +130,6 @@ class FinancialBloc extends Bloc<FinancialEvent, FinancialState>
   List<Quote> _extractQuotes(FinancialState s) => switch (s) {
         FinancialLoaded(:final quotes) => quotes,
         FinancialQuoteDetail(:final quotes) => quotes,
-        FinancialSignatureInProgress(:final quotes) => quotes,
         FinancialPaymentInProgress(:final quotes) => quotes,
         FinancialPaymentSuccess(:final quotes) => quotes,
         FinancialError(:final quotes) => quotes,
