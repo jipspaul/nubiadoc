@@ -19,6 +19,10 @@
 //!
 //! Consommé par `api/src/hl7v2/listener.rs` (lot B10), qui appelle
 //! [`dispatch`] pour chaque message MLLP reçu.
+//!
+//! Le traitement métier (`process_message`) branche `ADT` sur un stub (lot
+//! B8, bloqué sur `crates/core/crypto`) et `SIU` sur [`crate::hl7v2::siu`]
+//! (lot B9, agenda).
 
 use core_tenancy::with_tenant;
 use integrations_hl7v2::{
@@ -28,8 +32,10 @@ use integrations_hl7v2::{
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
+use crate::hl7v2::siu;
+
 /// Pourquoi un message a été rejeté (ACK `AR`/`AE`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RejectReason {
     /// Absent de `hl7v2_partner`, ou `status != 'active'`.
     UnknownOrInactivePartner,
@@ -38,13 +44,21 @@ pub enum RejectReason {
     /// Échec technique (DB, etc.) — pas une décision métier ; l'appelant
     /// (métriques/alerting) doit pouvoir distinguer ce cas des deux autres.
     Internal,
+    /// Partenaire/cabinet résolus, message frais, mais le contenu métier
+    /// (ADT/SIU) n'a pas pu être traité (lot B9, ex. patient/practitioner
+    /// inconnu, créneau occupé, type de message non supporté). Contrairement
+    /// aux autres variantes, la décision de dédup (MSH-10) a déjà eu lieu
+    /// **avant** cet échec — un rejeu du même message par l'émetteur sera vu
+    /// comme un doublon (`AA`), pas retraité. Limitation connue héritée du
+    /// lot B7 (dédup avant traitement métier), pas introduite par B9.
+    ProcessingFailed(String),
 }
 
 /// Issue du dispatch pour un message donné.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DispatchStatus {
     /// Frais : partenaire actif, cabinet résolu, pas de doublon — traité par
-    /// le stub B8/B9 (voir [`stub_process`]) et audité.
+    /// `process_message` (ADT stub B8 / SIU réel B9) et audité.
     Accepted { partner_id: Uuid, cabinet_id: Uuid },
     /// `MSH-10` déjà vu pour ce partenaire : effet déjà produit, on ne
     /// re-traite pas (pas de second `audit_log`), mais l'ACK reste `AA`
@@ -106,14 +120,17 @@ pub async fn dispatch(pool: &PgPool, fingerprint: &str, message: &Message) -> Di
         .await
     {
         Ok(true) => {
-            stub_process(&message_type); // ── 6. Frontière stub B8/B9 ──
-            accept(
-                &control_id,
-                DispatchStatus::Accepted {
-                    partner_id: partner.id,
-                    cabinet_id,
-                },
-            )
+            // ── 6. Traitement métier (ADT stub B8 / SIU réel B9) ────────
+            match process_message(pool, cabinet_id, partner.id, message, &message_type).await {
+                Ok(()) => accept(
+                    &control_id,
+                    DispatchStatus::Accepted {
+                        partner_id: partner.id,
+                        cabinet_id,
+                    },
+                ),
+                Err(detail) => reject(&control_id, RejectReason::ProcessingFailed(detail)),
+            }
         }
         Ok(false) => accept(
             &control_id,
@@ -248,24 +265,42 @@ async fn check_idempotency_and_audit(
     .await
 }
 
-/// ── Frontière stub B8/B9 ── Ce lot (B7) ne déclenche AUCUNE logique métier
-/// patient/RDV : périmètre des lots B8 (ADT) / B9 (SIU), qui n'existent pas
-/// encore. Seul ce `match` est à toucher pour les brancher plus tard, sans
-/// réécrire `dispatch()` — stub optimiste, ne fait que tracer.
-fn stub_process(message_type: &str) {
-    // Le groupe de message (avant `^`) suffit à distinguer les futures
-    // branches B8/B9 ; le sous-type précis (A28, S12, ...) sera discriminé
-    // dans chaque handler une fois branché.
+/// ── Frontière métier ADT (B8) / SIU (B9) ── Seul ce `match` est à toucher
+/// pour brancher/étendre le traitement, sans réécrire `dispatch()`.
+///
+/// `Err(detail)` → ACK `AE` avec `detail` en `MSA-3` (cf. [`RejectReason::ProcessingFailed`]).
+/// `Ok(())` → ACK `AA`. Ne panique jamais : toute erreur (segment manquant,
+/// UUID invalide, échec service) est convertie en `Err`, jamais un `unwrap`.
+async fn process_message(
+    pool: &PgPool,
+    cabinet_id: Uuid,
+    partner_id: Uuid,
+    message: &Message,
+    message_type: &str,
+) -> Result<(), String> {
+    // Le groupe de message (avant `^`) suffit à distinguer ADT/SIU ; le
+    // sous-type précis (A28, S12, ...) est discriminé dans chaque module.
     let message_group = message_type.split('^').next().unwrap_or(message_type);
     match message_group {
-        // TODO(B8): "ADT" => adt::handle(message_type, ...) — création/màj patient.
-        "ADT" => tracing::debug!(message_type, "hl7v2 dispatch: stub ADT (B8 à venir)"),
-        // TODO(B9): "SIU" => siu::handle(message_type, ...) — RDV.
-        "SIU" => tracing::debug!(message_type, "hl7v2 dispatch: stub SIU (B9 à venir)"),
-        _ => tracing::debug!(
-            message_type,
-            "hl7v2 dispatch: type non géré, stub optimiste"
-        ),
+        // TODO(B8): bloqué sur `crates/core/crypto` (chiffrement INS) —
+        // création/màj patient hors scope tant que ce socle n'existe pas.
+        "ADT" => {
+            tracing::debug!(
+                message_type,
+                "hl7v2 dispatch: stub ADT (B8 bloqué sur crypto)"
+            );
+            Ok(())
+        }
+        "SIU" => siu::handle(pool, cabinet_id, partner_id, message, message_type)
+            .await
+            .map_err(|e| e.to_string()),
+        _ => {
+            tracing::debug!(
+                message_type,
+                "hl7v2 dispatch: type non géré, stub optimiste"
+            );
+            Ok(())
+        }
     }
 }
 
@@ -284,24 +319,25 @@ fn msh_field(message: &Message, n: usize) -> Option<String> {
 /// crate pure `integrations-hl7v2` ne génère ni horodatage ni aléa).
 fn reject(control_id: &str, reason: RejectReason) -> DispatchOutcome {
     let code = match reason {
-        RejectReason::Internal => AckCode::ApplicationError,
+        RejectReason::Internal | RejectReason::ProcessingFailed(_) => AckCode::ApplicationError,
         RejectReason::UnknownOrInactivePartner | RejectReason::UnknownFacilityMapping => {
             AckCode::ApplicationReject
         }
     };
-    let text = match reason {
-        RejectReason::UnknownOrInactivePartner => "partenaire inconnu ou inactif",
+    let text = match &reason {
+        RejectReason::UnknownOrInactivePartner => "partenaire inconnu ou inactif".to_string(),
         RejectReason::UnknownFacilityMapping => {
-            "aucun cabinet associé à cet établissement émetteur/destinataire"
+            "aucun cabinet associé à cet établissement émetteur/destinataire".to_string()
         }
-        RejectReason::Internal => "erreur technique",
+        RejectReason::Internal => "erreur technique".to_string(),
+        RejectReason::ProcessingFailed(detail) => detail.clone(),
     };
     let ack_control_id = Uuid::new_v4().to_string();
     let ack = build_ack(&AckParams {
         original_control_id: control_id,
         ack_control_id: &ack_control_id,
         code,
-        text: Some(text),
+        text: Some(&text),
     });
     DispatchOutcome {
         status: DispatchStatus::Rejected(reason),
@@ -398,10 +434,32 @@ PV1|1|O\r";
         assert_eq!(reparsed_dup.segment("MSA").unwrap().field(1), Some("AA"));
     }
 
-    #[test]
-    fn stub_process_never_panics_for_any_message_type() {
-        stub_process("ADT^A28");
-        stub_process("SIU^S12");
-        stub_process("ZZZ^Z99"); // type non géré : reste un no-op sûr
+    /// Pool jamais connecté (`connect_lazy`) : suffisant pour ADT (stub, ne
+    /// touche jamais `pool`) et un type non géré (idem) — pas de DB requise.
+    /// Le traitement SIU réel (qui, lui, a besoin d'une vraie DB) est couvert
+    /// par les tests DB-gated de `siu.rs` et le test e2e (lot B11).
+    fn lazy_pool() -> PgPool {
+        sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://fake@localhost/fake")
+            .expect("connect_lazy ne doit jamais échouer (aucune connexion tentée)")
+    }
+
+    #[tokio::test]
+    async fn process_message_adt_and_unknown_never_panic_without_db() {
+        let pool = lazy_pool();
+        let partner_id = Uuid::new_v4();
+        let cabinet_id = Uuid::new_v4();
+        let msg = parse("MSH|^~\\&|A|B|C|D|20260719||ADT^A28|1|P|2.5\r").unwrap();
+
+        assert_eq!(
+            process_message(&pool, cabinet_id, partner_id, &msg, "ADT^A28").await,
+            Ok(())
+        );
+
+        let unknown = parse("MSH|^~\\&|A|B|C|D|20260719||ZZZ^Z99|1|P|2.5\r").unwrap();
+        assert_eq!(
+            process_message(&pool, cabinet_id, partner_id, &unknown, "ZZZ^Z99").await,
+            Ok(()) // type non géré : reste un no-op sûr
+        );
     }
 }

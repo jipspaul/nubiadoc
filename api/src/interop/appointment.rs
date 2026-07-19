@@ -204,13 +204,13 @@ fn is_legal_transition(current: &str, target: &str) -> bool {
 // ─────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, sqlx::FromRow)]
-struct AppointmentRow {
-    id: Uuid,
-    patient_id: Uuid,
-    practitioner_id: Uuid,
-    starts_at: chrono::DateTime<chrono::Utc>,
-    ends_at: chrono::DateTime<chrono::Utc>,
-    status: String,
+pub(crate) struct AppointmentRow {
+    pub(crate) id: Uuid,
+    pub(crate) patient_id: Uuid,
+    pub(crate) practitioner_id: Uuid,
+    pub(crate) starts_at: chrono::DateTime<chrono::Utc>,
+    pub(crate) ends_at: chrono::DateTime<chrono::Utc>,
+    pub(crate) status: String,
 }
 
 fn appointment_to_fhir(row: &AppointmentRow) -> Value {
@@ -407,6 +407,186 @@ fn extract_participant_ref(
     })
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Couche service — pure (pas d'Axum), réutilisable par le handler FHIR
+// ci-dessous ET par le mapping SIU HL7v2 (lot B9, `api/src/hl7v2/siu.rs`).
+// Introduite au moment de B9 : au lancement de A6, ce fichier était du code
+// tout neuf, non encore mergé, donc dupliquer plutôt que refactorer était le
+// choix prudent (cf. doc de module). A6 est maintenant mergé sur `main` et
+// relu — l'extraire proprement ici, une fois, est plus sûr que de dupliquer
+// une troisième fois la logique anti-double-booking/idempotence pour B9.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Entrée de [`create_appointment_service`] — indépendante du protocole
+/// (FHIR REST ou HL7v2 SIU) qui l'appelle.
+pub struct CreateAppointmentInput {
+    pub patient_id: Uuid,
+    pub practitioner_id: Uuid,
+    pub starts_at: chrono::DateTime<chrono::Utc>,
+    pub ends_at: chrono::DateTime<chrono::Utc>,
+    /// Clé d'idempotence — `Idempotency-Key` HTTP côté FHIR, `MSH-10`
+    /// (préfixé) côté HL7v2. Toujours requise : la dédup est portée par
+    /// `appointment.idempotency_key`, pas par l'appelant.
+    pub idempotency_key: String,
+}
+
+/// Erreur de [`create_appointment_service`] — traduite en `FhirError`
+/// (OperationOutcome) côté FHIR, en NACK/AE côté HL7v2 (lot B9).
+#[derive(Debug, PartialEq, Eq)]
+pub enum CreateAppointmentError {
+    PatientNotFound,
+    PractitionerNotFound,
+    IdempotencyConflict,
+    SlotTaken,
+    Internal,
+}
+
+/// Crée un rendez-vous pour un patient/praticien déjà existants dans ce
+/// cabinet (pas de création/matching patient ici — lot A4). Statut initial
+/// `confirmed` : un appelant externe (partenaire FHIR ou SIH via HL7v2)
+/// affirme une réservation déjà actée, pas une demande à confirmer (contexte
+/// différent du flux patient qui démarre à `requested`).
+///
+/// `actor_id`/`actor_role` alimentent `audit_log` — `actor_role` distingue
+/// la provenance (`"interop_client"` FHIR vs `"hl7v2_partner"` HL7v2) sans
+/// dupliquer cette fonction.
+pub async fn create_appointment_service(
+    db: &sqlx::PgPool,
+    cabinet_id: Uuid,
+    actor_id: Uuid,
+    actor_role: &str,
+    input: CreateAppointmentInput,
+) -> Result<AppointmentRow, CreateAppointmentError> {
+    let CreateAppointmentInput {
+        patient_id,
+        practitioner_id,
+        starts_at,
+        ends_at,
+        idempotency_key,
+    } = input;
+    let actor_role = actor_role.to_string();
+
+    let fingerprint = format!(
+        "patient={patient_id}|practitioner={practitioner_id}|start={}|end={}",
+        starts_at.to_rfc3339(),
+        ends_at.to_rfc3339()
+    );
+
+    with_tenant(db, cabinet_id, move |mut tx| async move {
+        // Le patient référencé doit exister et appartenir à ce cabinet
+        // (pas de création/matching ici — lot A4).
+        let patient_row = sqlx::query(
+            "SELECT id FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if patient_row.is_none() {
+            return Ok(Err(CreateAppointmentError::PatientNotFound));
+        }
+
+        let practitioner_row =
+            sqlx::query("SELECT id FROM practitioner WHERE id = $1 AND cabinet_id = $2")
+                .bind(practitioner_id)
+                .bind(cabinet_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if practitioner_row.is_none() {
+            return Ok(Err(CreateAppointmentError::PractitionerNotFound));
+        }
+
+        // Idempotence — même convention que appointments.rs (#3632) : clé
+        // rejouée avec une empreinte différente → conflit, jamais absorbée.
+        let existing = sqlx::query_as::<_, (Uuid, Option<String>)>(
+            "SELECT id, idempotency_fingerprint FROM appointment \
+             WHERE cabinet_id = $1 AND idempotency_key = $2",
+        )
+        .bind(cabinet_id)
+        .bind(&idempotency_key)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some((existing_id, existing_fingerprint)) = existing {
+            if existing_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+                return Ok(Err(CreateAppointmentError::IdempotencyConflict));
+            }
+            let row = sqlx::query_as::<_, AppointmentRow>(
+                "SELECT id, patient_id, practitioner_id, starts_at, ends_at, status \
+                 FROM appointment WHERE id = $1",
+            )
+            .bind(existing_id)
+            .fetch_one(&mut *tx)
+            .await?;
+            tx.commit().await?;
+            return Ok(Ok(row));
+        }
+
+        // INSERT — statut initial 'confirmed' (cf. doc de la fonction).
+        // 23P01 (appointment_no_overlap) → SlotTaken.
+        let insert_result = sqlx::query_as::<_, AppointmentRow>(
+            "INSERT INTO appointment \
+             (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, idempotency_key, idempotency_fingerprint) \
+             VALUES ($1, $2, $3, $4, $5, 'confirmed', $6, $7) \
+             RETURNING id, patient_id, practitioner_id, starts_at, ends_at, status",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(practitioner_id)
+        .bind(starts_at)
+        .bind(ends_at)
+        .bind(&idempotency_key)
+        .bind(&fingerprint)
+        .fetch_one(&mut *tx)
+        .await;
+
+        let row = match insert_result {
+            Ok(row) => row,
+            Err(e) if is_exclusion_violation(&e) => {
+                return Ok(Err(CreateAppointmentError::SlotTaken))
+            }
+            Err(e) => return Err(TenancyError::Db(e)),
+        };
+
+        sqlx::query(
+            "INSERT INTO audit_log (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+             VALUES ($1, $2, $3, 'interop_appointment_created', 'appointment', $4)",
+        )
+        .bind(cabinet_id)
+        .bind(actor_id)
+        .bind(&actor_role)
+        .bind(row.id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(Ok(row))
+    })
+    .await
+    .map_err(|_| CreateAppointmentError::Internal)
+    .and_then(|inner| inner)
+}
+
+impl From<CreateAppointmentError> for FhirError {
+    fn from(err: CreateAppointmentError) -> Self {
+        match err {
+            CreateAppointmentError::PatientNotFound => {
+                FhirError::unprocessable("patient référencé inconnu ou hors de ce cabinet")
+            }
+            CreateAppointmentError::PractitionerNotFound => {
+                FhirError::unprocessable("practitioner référencé inconnu ou hors de ce cabinet")
+            }
+            CreateAppointmentError::IdempotencyConflict => {
+                FhirError::conflict("Idempotency-Key rejouée avec une charge de requête différente")
+            }
+            CreateAppointmentError::SlotTaken => {
+                FhirError::conflict("créneau déjà occupé pour ce praticien (chevauchement)")
+            }
+            CreateAppointmentError::Internal => FhirError::Internal,
+        }
+    }
+}
+
 /// `POST /v1/interop/fhir/Appointment` — création d'un RDV pour un patient et
 /// un praticien EXISTANTS (référencés par UUID interne dans `participant`).
 ///
@@ -470,113 +650,24 @@ pub async fn create_appointment(
     let practitioner_id = extract_participant_ref(&body.participant, "Practitioner")
         .ok_or_else(|| FhirError::bad_request("participant Practitioner/<uuid> requis"))?;
 
-    let fingerprint = format!(
-        "patient={patient_id}|practitioner={practitioner_id}|start={}|end={}",
-        starts_at.to_rfc3339(),
-        ends_at.to_rfc3339()
-    );
-
     let cabinet_id = claims.cabinet_id;
     let actor_id = claims.sub;
 
-    let outcome: Result<AppointmentRow, FhirError> =
-        with_tenant(&state.db, cabinet_id, move |mut tx| async move {
-            // Le patient référencé doit exister et appartenir à ce cabinet
-            // (pas de création/matching ici — lot A4).
-            let patient_row = sqlx::query("SELECT id FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL")
-                .bind(patient_id)
-                .bind(cabinet_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-            if patient_row.is_none() {
-                return Ok(Err(FhirError::unprocessable(
-                    "patient référencé inconnu ou hors de ce cabinet",
-                )));
-            }
+    let row = create_appointment_service(
+        &state.db,
+        cabinet_id,
+        actor_id,
+        "interop_client",
+        CreateAppointmentInput {
+            patient_id,
+            practitioner_id,
+            starts_at,
+            ends_at,
+            idempotency_key,
+        },
+    )
+    .await?;
 
-            let practitioner_row = sqlx::query("SELECT id FROM practitioner WHERE id = $1 AND cabinet_id = $2")
-                .bind(practitioner_id)
-                .bind(cabinet_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-            if practitioner_row.is_none() {
-                return Ok(Err(FhirError::unprocessable(
-                    "practitioner référencé inconnu ou hors de ce cabinet",
-                )));
-            }
-
-            // Idempotence — même convention que appointments.rs (#3632) : clé
-            // rejouée avec une empreinte différente → 409, jamais absorbée.
-            let existing = sqlx::query_as::<_, (Uuid, Option<String>)>(
-                "SELECT id, idempotency_fingerprint FROM appointment \
-                 WHERE cabinet_id = $1 AND idempotency_key = $2",
-            )
-            .bind(cabinet_id)
-            .bind(&idempotency_key)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-            if let Some((existing_id, existing_fingerprint)) = existing {
-                if existing_fingerprint.as_deref() != Some(fingerprint.as_str()) {
-                    return Ok(Err(FhirError::conflict(
-                        "Idempotency-Key rejouée avec une charge de requête différente",
-                    )));
-                }
-                let row = sqlx::query_as::<_, AppointmentRow>(
-                    "SELECT id, patient_id, practitioner_id, starts_at, ends_at, status \
-                     FROM appointment WHERE id = $1",
-                )
-                .bind(existing_id)
-                .fetch_one(&mut *tx)
-                .await?;
-                return Ok(Ok(row));
-            }
-
-            // INSERT — statut initial 'confirmed' (cf. doc du handler).
-            // 23P01 (appointment_no_overlap) → 409 conflict.
-            let insert_result = sqlx::query_as::<_, AppointmentRow>(
-                "INSERT INTO appointment \
-                 (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, idempotency_key, idempotency_fingerprint) \
-                 VALUES ($1, $2, $3, $4, $5, 'confirmed', $6, $7) \
-                 RETURNING id, patient_id, practitioner_id, starts_at, ends_at, status",
-            )
-            .bind(cabinet_id)
-            .bind(patient_id)
-            .bind(practitioner_id)
-            .bind(starts_at)
-            .bind(ends_at)
-            .bind(&idempotency_key)
-            .bind(&fingerprint)
-            .fetch_one(&mut *tx)
-            .await;
-
-            let row = match insert_result {
-                Ok(row) => row,
-                Err(e) if is_exclusion_violation(&e) => {
-                    return Ok(Err(FhirError::conflict(
-                        "créneau déjà occupé pour ce praticien (chevauchement)",
-                    )))
-                }
-                Err(e) => return Err(TenancyError::Db(e)),
-            };
-
-            sqlx::query(
-                "INSERT INTO audit_log (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
-                 VALUES ($1, $2, 'interop_client', 'interop_appointment_created', 'appointment', $3)",
-            )
-            .bind(cabinet_id)
-            .bind(actor_id)
-            .bind(row.id)
-            .execute(&mut *tx)
-            .await?;
-
-            Ok(Ok(row))
-        })
-        .await
-        .map_err(internal_from_tenancy)
-        .and_then(|inner| inner);
-
-    let row = outcome?;
     tracing::info!(
         cabinet_id = %cabinet_id,
         client_id = %claims.client_id,
@@ -611,6 +702,82 @@ pub struct FhirAppointmentStatusPatch {
     pub status: String,
 }
 
+/// Erreur de [`update_appointment_status_service`].
+#[derive(Debug, PartialEq, Eq)]
+pub enum UpdateAppointmentStatusError {
+    NotFound,
+    IllegalTransition { from: String, to: String },
+    Internal,
+}
+
+/// Met à jour le statut d'un rendez-vous existant (transition validée par
+/// [`is_legal_transition`]) — service pur, réutilisé par le handler FHIR
+/// ci-dessous et par le mapping SIU^S15 (annulation, lot B9,
+/// `api/src/hl7v2/siu.rs`). Voir la doc de [`create_appointment_service`]
+/// pour le contexte de cette extraction.
+pub async fn update_appointment_status_service(
+    db: &sqlx::PgPool,
+    cabinet_id: Uuid,
+    appointment_id: Uuid,
+    target_status: &str,
+) -> Result<AppointmentRow, UpdateAppointmentStatusError> {
+    let target_status = target_status.to_string();
+    with_tenant(db, cabinet_id, move |mut tx| async move {
+        let current = sqlx::query_as::<_, AppointmentRow>(
+            "SELECT id, patient_id, practitioner_id, starts_at, ends_at, status \
+             FROM appointment WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(appointment_id)
+        .bind(cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let Some(current) = current else {
+            return Ok(Err(UpdateAppointmentStatusError::NotFound));
+        };
+
+        if !is_legal_transition(&current.status, &target_status) {
+            return Ok(Err(UpdateAppointmentStatusError::IllegalTransition {
+                from: current.status.clone(),
+                to: target_status.clone(),
+            }));
+        }
+
+        let updated = sqlx::query_as::<_, AppointmentRow>(
+            "UPDATE appointment SET status = $1, updated_at = now() \
+             WHERE id = $2 AND cabinet_id = $3 \
+             RETURNING id, patient_id, practitioner_id, starts_at, ends_at, status",
+        )
+        .bind(&target_status)
+        .bind(appointment_id)
+        .bind(cabinet_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(Ok(updated))
+    })
+    .await
+    .map_err(|_| UpdateAppointmentStatusError::Internal)
+    .and_then(|inner| inner)
+}
+
+impl From<UpdateAppointmentStatusError> for FhirError {
+    fn from(err: UpdateAppointmentStatusError) -> Self {
+        match err {
+            UpdateAppointmentStatusError::NotFound => {
+                FhirError::not_found("Appointment introuvable pour ce cabinet")
+            }
+            UpdateAppointmentStatusError::IllegalTransition { from, to } => {
+                FhirError::unprocessable(format!(
+                    "transition de statut '{from}' -> '{to}' non autorisée"
+                ))
+            }
+            UpdateAppointmentStatusError::Internal => FhirError::Internal,
+        }
+    }
+}
+
 /// `PATCH /v1/interop/fhir/Appointment/:id` — transition de statut.
 ///
 /// Scope `appointments:write` requis. Scopé `cabinet_id` (404 si le RDV
@@ -631,48 +798,7 @@ pub async fn update_appointment_status(
         .ok_or_else(|| FhirError::bad_request("status FHIR non supporté"))?;
 
     let cabinet_id = claims.cabinet_id;
-    let outcome: Result<AppointmentRow, FhirError> =
-        with_tenant(&state.db, cabinet_id, move |mut tx| async move {
-            let current = sqlx::query_as::<_, AppointmentRow>(
-                "SELECT id, patient_id, practitioner_id, starts_at, ends_at, status \
-                 FROM appointment WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
-            )
-            .bind(id)
-            .bind(cabinet_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-            let Some(current) = current else {
-                return Ok(Err(FhirError::not_found(
-                    "Appointment introuvable pour ce cabinet",
-                )));
-            };
-
-            if !is_legal_transition(&current.status, target_status) {
-                return Ok(Err(FhirError::unprocessable(format!(
-                    "transition de statut '{}' -> '{}' non autorisée",
-                    current.status, target_status
-                ))));
-            }
-
-            let updated = sqlx::query_as::<_, AppointmentRow>(
-                "UPDATE appointment SET status = $1, updated_at = now() \
-                 WHERE id = $2 AND cabinet_id = $3 \
-                 RETURNING id, patient_id, practitioner_id, starts_at, ends_at, status",
-            )
-            .bind(target_status)
-            .bind(id)
-            .bind(cabinet_id)
-            .fetch_one(&mut *tx)
-            .await?;
-
-            Ok(Ok(updated))
-        })
-        .await
-        .map_err(internal_from_tenancy)
-        .and_then(|inner| inner);
-
-    let row = outcome?;
+    let row = update_appointment_status_service(&state.db, cabinet_id, id, target_status).await?;
 
     // Pas de `tracing::info!` préexistant dans ce handler (contrairement à
     // `create_appointment`) — l'appel est ajouté au même endroit logique :

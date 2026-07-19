@@ -41,6 +41,7 @@ chrono      = { workspace = true }
 tracing     = { workspace = true }
 anyhow      = { workspace = true }
 async-trait = { workspace = true }
+thiserror   = { workspace = true }
 totp-rs      = { version = "5", features = ["gen_secret"] }
 jsonwebtoken = "9"
 argon2       = { version = "0.5", features = ["std", "password-hash"] }
