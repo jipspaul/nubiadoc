@@ -582,16 +582,31 @@ pub async fn list_appointments(
 
     let is_past = effective_status == Some("past");
 
-    let status_clause = match effective_status {
-        Some("upcoming") => {
-            " AND (a.status IN ('checked_in','in_progress') \
+    // Statuts réels d'appointment (hors vues upcoming/past) — whitelist fermée,
+    // seule interpolée directement dans le SQL (pas d'entrée libre possible).
+    const REAL_STATUSES: &[&str] = &[
+        "requested",
+        "confirmed",
+        "checked_in",
+        "in_progress",
+        "done",
+        "cancelled",
+        "no_show",
+    ];
+
+    let status_clause: String = match effective_status {
+        Some("upcoming") => " AND (a.status IN ('checked_in','in_progress') \
               OR (a.starts_at > now() AND a.status IN ('requested','confirmed')))"
-        }
-        Some("past") => {
-            " AND (a.status IN ('done','cancelled','no_show') \
+            .to_string(),
+        Some("past") => " AND (a.status IN ('done','cancelled','no_show') \
               OR (a.starts_at <= now() AND a.status IN ('requested','confirmed')))"
-        }
-        _ => "",
+            .to_string(),
+        Some(s) if REAL_STATUSES.contains(&s) => format!(" AND a.status = '{s}'"),
+        // `status` nommé mais non reconnu (ni vue upcoming/past, ni vrai statut) :
+        // avant, tombait silencieusement dans une clause vide (#3877) → renvoyait
+        // TOUS les RDV au lieu de filtrer. Un filtre nommé doit filtrer ou être refusé.
+        Some(_) => return Err(AppError::ValidationError),
+        None => String::new(),
     };
 
     let order = if is_past { "DESC" } else { "ASC" };
