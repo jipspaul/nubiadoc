@@ -417,6 +417,8 @@ class _StatusPill extends StatelessWidget {
     final (label, variant) = switch (status) {
       AppointmentStatus.confirmed => ('Confirmé', StatusPillVariant.success),
       AppointmentStatus.requested => ('En attente', StatusPillVariant.warning),
+      AppointmentStatus.checkedIn => ('Arrivé', StatusPillVariant.info),
+      AppointmentStatus.inProgress => ('En cours', StatusPillVariant.warning),
       AppointmentStatus.cancelled => ('Annulé', StatusPillVariant.error),
       AppointmentStatus.completed => ('Terminé', StatusPillVariant.info),
       AppointmentStatus.noShow => ('Absent', StatusPillVariant.error),

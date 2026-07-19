@@ -82,14 +82,24 @@ class AppointmentDto {
         practitionerId: practitionerId,
       );
 
+  // #3804 : le back envoie 'done' (jamais 'completed') et distingue
+  // checked_in/in_progress (CHECK constraint appointment.status,
+  // db/migrations/0005_scheduling.sql) — un statut non mappé ici retombait
+  // silencieusement sur `requested`, faisant apparaître un RDV terminé ou
+  // en cours comme une simple demande en attente.
   static AppointmentStatus _parseStatus(String value) {
     switch (value) {
       case 'requested':
         return AppointmentStatus.requested;
       case 'confirmed':
         return AppointmentStatus.confirmed;
+      case 'checked_in':
+        return AppointmentStatus.checkedIn;
+      case 'in_progress':
+        return AppointmentStatus.inProgress;
       case 'cancelled':
         return AppointmentStatus.cancelled;
+      case 'done':
       case 'completed':
         return AppointmentStatus.completed;
       case 'no_show':
