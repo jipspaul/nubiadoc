@@ -67,3 +67,85 @@ impl IntoResponse for InteropError {
         (status, Json(body)).into_response()
     }
 }
+
+/// Erreur des routes ressources FHIR (`/v1/interop/fhir/Practitioner|Organization|Location`,
+/// lot A2+) — rendue en `OperationOutcome` (FHIR R4), volontairement **distinct**
+/// du format RFC 6749 ci-dessus : une fois le bearer token validé par
+/// [`crate::interop::auth::InteropClaims`] (qui reste RFC 6749/6750, cf. son
+/// propre extracteur), toute erreur de résolution d'une ressource FHIR (scope
+/// insuffisant, ressource absente, erreur interne) doit prendre la forme
+/// attendue par un client FHIR standard.
+#[derive(Debug)]
+pub enum FhirError {
+    /// Scope requis absent des claims du token porteur (cf. `require_scope`).
+    Forbidden,
+    /// Ressource absente, ou appartenant à un autre cabinet que celui du token
+    /// (jamais distingué du "vraiment absent" — pas de fuite d'existence
+    /// cross-tenant).
+    NotFound,
+    /// Erreur interne (DB, ...) — jamais de détail exposé.
+    Internal,
+}
+
+/// Une [`InteropError::InsufficientScope`] (rejet de `require_scope`) se
+/// traduit en `Forbidden` FHIR ; toute autre variante (ne devrait pas se
+/// produire ici, `require_scope` ne renvoie que celle-ci) tombe en `Internal`
+/// fail-closed plutôt que de paniquer sur un pattern non exhaustif.
+impl From<InteropError> for FhirError {
+    fn from(err: InteropError) -> Self {
+        match err {
+            InteropError::InsufficientScope => FhirError::Forbidden,
+            _ => FhirError::Internal,
+        }
+    }
+}
+
+impl IntoResponse for FhirError {
+    fn into_response(self) -> Response {
+        let (status, code, diagnostics) = match self {
+            FhirError::Forbidden => (
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                "scope insuffisant pour accéder à cette ressource",
+            ),
+            FhirError::NotFound => (StatusCode::NOT_FOUND, "not-found", "ressource introuvable"),
+            FhirError::Internal => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "exception",
+                "erreur interne",
+            ),
+        };
+
+        let body = json!({
+            "resourceType": "OperationOutcome",
+            "issue": [{
+                "severity": "error",
+                "code": code,
+                "diagnostics": diagnostics,
+            }]
+        });
+
+        (status, Json(body)).into_response()
+    }
+}
+
+#[cfg(test)]
+mod fhir_error_tests {
+    use super::*;
+
+    #[test]
+    fn insufficient_scope_maps_to_forbidden() {
+        assert!(matches!(
+            FhirError::from(InteropError::InsufficientScope),
+            FhirError::Forbidden
+        ));
+    }
+
+    #[test]
+    fn other_interop_errors_map_to_internal_fail_closed() {
+        assert!(matches!(
+            FhirError::from(InteropError::Unauthorized),
+            FhirError::Internal
+        ));
+    }
+}
