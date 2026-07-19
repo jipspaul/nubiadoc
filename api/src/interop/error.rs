@@ -68,40 +68,37 @@ impl IntoResponse for InteropError {
     }
 }
 
-/// Erreur des routes FHIR **ressources** (`Slot`/`Schedule`/... — lot A3+),
-/// rendue en `OperationOutcome` FHIR R4 — contrat distinct de [`InteropError`]
-/// (RFC 6749), qui reste réservé au token endpoint et à l'extracteur bearer
-/// (`api/src/interop/auth.rs`) : un bearer token absent/expiré/mal signé
-/// continue de produire `{"error": "invalid_token"}` (échec avant même
-/// d'atteindre un handler ressource), mais tout ce qui est décidé *dans* un
-/// handler ressource (scope insuffisant, ressource introuvable, paramètre de
-/// recherche invalide) est un problème FHIR, pas OAuth2.
+/// Erreur des routes ressources FHIR (`Practitioner`/`Organization`/`Location`
+/// lot A2, `Slot`/`Schedule` lot A3, `Appointment` lot A6, ...) — rendue en
+/// `OperationOutcome` (FHIR R4), volontairement **distinct** du format
+/// RFC 6749 ci-dessus : une fois le bearer token validé par
+/// [`crate::interop::auth::InteropClaims`] (qui reste RFC 6749/6750, cf. son
+/// propre extracteur), toute erreur décidée *dans* un handler ressource
+/// (scope insuffisant, ressource introuvable, paramètre de recherche
+/// invalide, erreur interne) doit prendre la forme attendue par un client
+/// FHIR standard.
 #[derive(Debug)]
 pub enum FhirError {
-    /// Scope requis (ex. `slots:read`) absent des claims du token porteur.
-    InsufficientScope,
-    /// Ressource introuvable — id inconnu, supprimé (`deleted_at`), ou hors du
-    /// `cabinet_id` du token. Même statut dans les deux derniers cas : jamais
-    /// de distinction observable entre « n'existe pas » et « appartient à un
-    /// autre cabinet » (pas de fuite d'existence cross-tenant).
+    /// Scope requis absent des claims du token porteur (cf. `require_scope`).
+    Forbidden,
+    /// Ressource absente, ou appartenant à un autre cabinet que celui du token
+    /// (jamais distingué du "vraiment absent" — pas de fuite d'existence
+    /// cross-tenant).
     NotFound,
-    /// Paramètre de recherche malformé (ex. `from`/`to` non ISO 8601).
+    /// Paramètre de recherche malformé (ex. `from`/`to` non ISO 8601, lot A3).
     InvalidParameter(String),
     /// Erreur interne (DB, ...) — jamais de détail exposé.
     Internal,
 }
 
+/// Une [`InteropError::InsufficientScope`] (rejet de `require_scope`) se
+/// traduit en `Forbidden` FHIR ; toute autre variante (ne devrait pas se
+/// produire ici, `require_scope` ne renvoie que celle-ci) tombe en `Internal`
+/// fail-closed plutôt que de paniquer sur un pattern non exhaustif.
 impl From<InteropError> for FhirError {
-    /// Permet d'utiliser `require_scope(&claims, ...)?` (qui renvoie
-    /// [`InteropError`]) directement dans un handler dont l'erreur est
-    /// [`FhirError`] : le seul cas qu'il produit en pratique ici est
-    /// `InsufficientScope` (le token a déjà été validé par l'extracteur
-    /// `InteropClaims` avant d'atteindre le handler), mais on couvre les
-    /// autres variantes fail-closed en `Internal` plutôt que de paniquer sur
-    /// un `match` non exhaustif.
     fn from(err: InteropError) -> Self {
         match err {
-            InteropError::InsufficientScope => FhirError::InsufficientScope,
+            InteropError::InsufficientScope => FhirError::Forbidden,
             _ => FhirError::Internal,
         }
     }
@@ -110,10 +107,10 @@ impl From<InteropError> for FhirError {
 impl IntoResponse for FhirError {
     fn into_response(self) -> Response {
         let (status, code, diagnostics): (StatusCode, &str, String) = match self {
-            FhirError::InsufficientScope => (
+            FhirError::Forbidden => (
                 StatusCode::FORBIDDEN,
                 "forbidden",
-                "scope requis absent du token porteur".to_string(),
+                "scope insuffisant pour accéder à cette ressource".to_string(),
             ),
             FhirError::NotFound => (
                 StatusCode::NOT_FOUND,
@@ -138,5 +135,26 @@ impl IntoResponse for FhirError {
         });
 
         (status, Json(body)).into_response()
+    }
+}
+
+#[cfg(test)]
+mod fhir_error_tests {
+    use super::*;
+
+    #[test]
+    fn insufficient_scope_maps_to_forbidden() {
+        assert!(matches!(
+            FhirError::from(InteropError::InsufficientScope),
+            FhirError::Forbidden
+        ));
+    }
+
+    #[test]
+    fn other_interop_errors_map_to_internal_fail_closed() {
+        assert!(matches!(
+            FhirError::from(InteropError::Unauthorized),
+            FhirError::Internal
+        ));
     }
 }
