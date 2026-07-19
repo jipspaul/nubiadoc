@@ -86,6 +86,22 @@ pub trait JobDispatcher: Send + Sync {
     /// Enfile l'envoi du push FCM d'une notification in-app (payload sans PII :
     /// le contenu réel est chargé authentifié à l'ouverture). Fire-and-forget.
     fn enqueue_push_notification(&self, app_user_id: Uuid, notification_id: Uuid);
+    /// Enfile une notification interop (Subscription FHIR, lot A7) suite à
+    /// l'écriture d'une ressource FHIR (`Appointment` aujourd'hui). Fire-and-forget.
+    ///
+    /// Hook posé pour un futur dispatcher apalis réel — aucune implémentation
+    /// non-stub de `JobDispatcher` n'existe dans ce dépôt à ce jour (`grep -rn
+    /// "impl JobDispatcher"` ne renvoie que `StubJobDispatcher`). La livraison
+    /// réelle (lookup abonnements + POST signé HMAC + `interop_delivery`) est
+    /// donc effectuée de façon synchrone best-effort par
+    /// `interop::subscription::dispatch_notification`, PAS par cette méthode
+    /// (raccourci documenté, cf. doc de module `interop/subscription.rs`).
+    fn enqueue_interop_notification(
+        &self,
+        cabinet_id: Uuid,
+        resource_type: &str,
+        resource_id: Uuid,
+    );
 }
 
 /// Implémentation no-op pour les tests et le dev local.
@@ -95,6 +111,13 @@ impl JobDispatcher for StubJobDispatcher {
     fn enqueue_verify_provider(&self, _verification_id: Uuid) {}
     fn enqueue_notify_callback(&self, _appointment_id: Uuid, _cabinet_id: Uuid) {}
     fn enqueue_push_notification(&self, _app_user_id: Uuid, _notification_id: Uuid) {}
+    fn enqueue_interop_notification(
+        &self,
+        _cabinet_id: Uuid,
+        _resource_type: &str,
+        _resource_id: Uuid,
+    ) {
+    }
 }
 
 /// Secret Stripe pour la vérification HMAC-SHA256 des webhooks.
@@ -111,6 +134,16 @@ pub struct StripeWebhookSecret(pub String);
 pub struct YousignWebhookSecret(pub String);
 
 pub use webhooks::gocardless::GocardlessWebhookSecret;
+
+/// Clé serveur pour la dérivation déterministe des secrets d'abonnement
+/// interop (`HMAC-SHA256(INTEROP_SIGNING_KEY, subscription_id)`, lot A7) et
+/// la signature des livraisons sortantes (`interop::subscription`). Dédiée —
+/// jamais partagée avec `jwt_secret` (séparation des clés : algorithmes/usages
+/// différents). Vide en dev/test : la livraison interop est alors ignorée
+/// fail-closed plutôt que signée avec une clé devinable (cf.
+/// `interop::subscription::dispatch_notification`).
+#[derive(Clone)]
+pub struct InteropSigningKey(pub String);
 
 /// Trait de signature d'URL Object Storage — swappable (stub en test, Scaleway en prod).
 pub trait StorageSigner: Send + Sync {
@@ -747,6 +780,24 @@ fn build_router(
             "/v1/interop/fhir/Location/:id",
             get(interop::directory::get_location),
         )
+        .route(
+            "/v1/interop/fhir/Appointment",
+            get(interop::appointment::search_appointments)
+                .post(interop::appointment::create_appointment),
+        )
+        .route(
+            "/v1/interop/fhir/Appointment/:id",
+            get(interop::appointment::get_appointment)
+                .patch(interop::appointment::update_appointment_status),
+        )
+        .route(
+            "/v1/interop/fhir/Subscription",
+            post(interop::subscription::create_subscription),
+        )
+        .route(
+            "/v1/interop/fhir/Subscription/:id",
+            get(interop::subscription::get_subscription),
+        )
         .layer(Extension(hub))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
@@ -764,6 +815,9 @@ fn build_router(
         )))
         .layer(Extension(webhooks::gocardless::GocardlessWebhookSecret(
             std::env::var("GOCARDLESS_WEBHOOK_SECRET").unwrap_or_default(),
+        )))
+        .layer(Extension(InteropSigningKey(
+            std::env::var("INTEROP_SIGNING_KEY").unwrap_or_default(),
         )))
         .layer(dev_cors_layer())
         .layer(axum::middleware::map_response(

@@ -93,12 +93,21 @@ pub async fn patch_appointment(
         if new_ts <= chrono::Utc::now() {
             return Err(AppError::SlotUnavailable);
         }
+        // Préavis 24 h évalué sur la DESTINATION, pas seulement la source (:80) :
+        // sans ce contrôle, un RDV source >24h pouvait être déplacé vers un créneau
+        // <24h (préavis contourné) et se retrouvait ensuite piégé — toute nouvelle
+        // reprogrammation lit alors le nouveau starts_at <24h → 409 too_late à vie
+        // (#3891, cul-de-sac one-way).
+        if chrono::Utc::now() >= new_ts - chrono::Duration::hours(24) {
+            return Err(AppError::TooLate);
+        }
         new_slot_id = sqlx::query_scalar(
             "SELECT s.id FROM availability_slot s \
                JOIN provider p ON p.id = s.provider_id \
                WHERE p.practitioner_id = $1 \
                  AND s.starts_at = $2 \
                  AND s.status = 'open' \
+                 AND s.online_booking = true \
                  AND s.deleted_at IS NULL",
         )
         .bind(practitioner_id)
@@ -582,16 +591,31 @@ pub async fn list_appointments(
 
     let is_past = effective_status == Some("past");
 
-    let status_clause = match effective_status {
-        Some("upcoming") => {
-            " AND (a.status IN ('checked_in','in_progress') \
+    // Statuts réels d'appointment (hors vues upcoming/past) — whitelist fermée,
+    // seule interpolée directement dans le SQL (pas d'entrée libre possible).
+    const REAL_STATUSES: &[&str] = &[
+        "requested",
+        "confirmed",
+        "checked_in",
+        "in_progress",
+        "done",
+        "cancelled",
+        "no_show",
+    ];
+
+    let status_clause: String = match effective_status {
+        Some("upcoming") => " AND (a.status IN ('checked_in','in_progress') \
               OR (a.starts_at > now() AND a.status IN ('requested','confirmed')))"
-        }
-        Some("past") => {
-            " AND (a.status IN ('done','cancelled','no_show') \
+            .to_string(),
+        Some("past") => " AND (a.status IN ('done','cancelled','no_show') \
               OR (a.starts_at <= now() AND a.status IN ('requested','confirmed')))"
-        }
-        _ => "",
+            .to_string(),
+        Some(s) if REAL_STATUSES.contains(&s) => format!(" AND a.status = '{s}'"),
+        // `status` nommé mais non reconnu (ni vue upcoming/past, ni vrai statut) :
+        // avant, tombait silencieusement dans une clause vide (#3877) → renvoyait
+        // TOUS les RDV au lieu de filtrer. Un filtre nommé doit filtrer ou être refusé.
+        Some(_) => return Err(AppError::ValidationError),
+        None => String::new(),
     };
 
     let order = if is_past { "DESC" } else { "ASC" };
