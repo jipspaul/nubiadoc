@@ -22,7 +22,13 @@ class WaitingRoomEntryDto {
 
   factory WaitingRoomEntryDto.fromJson(Map<String, dynamic> json) =>
       WaitingRoomEntryDto(
-        id: json['id'] as String,
+        // GET /v1/cabinet/waiting-room (api/src/scheduling.rs, WaitingRoomEntry)
+        // n'envoie jamais `id` — seulement `appointment_id` (#3782). Un cast
+        // dur sur `id` faisait échouer le décodage de CHAQUE entrée dès qu'un
+        // patient était en salle d'attente (écran d'erreur plein écran).
+        id: (json['id'] as String?) ??
+            (json['appointment_id'] as String?) ??
+            '',
         cabinetId: (json['cabinet_id'] as String?) ?? '',
         patientId: (json['patient_id'] as String?) ?? '',
         patientName: (json['patient_name_initials'] as String?) ??
