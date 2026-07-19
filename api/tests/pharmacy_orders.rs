@@ -474,6 +474,50 @@ async fn pharmacy_gets_signed_document_url() {
     );
 }
 
+// ── Cloisonnement cycle de vie : document inaccessible après cancel/reject ───
+// Régression #3724 : sans filtre de statut, une commande cancelled/rejected
+// donnait toujours une URL signée re-générable vers le PDF d'ordonnance.
+
+#[tokio::test]
+async fn pharmacy_document_inaccessible_after_cancelled_or_rejected() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    for status in ["cancelled", "rejected"] {
+        let fx = seed(&db).await;
+        let (_, order) = request(
+            "POST",
+            &format!("/v1/account/prescriptions/{}/order", fx.prescription_id),
+            &patient_jwt(fx.user_id, fx.account_id),
+            Some(json!({"pharmacy_id": fx.pharmacy_id})),
+        )
+        .await;
+        let order_id = order["id"].as_str().unwrap();
+
+        sqlx::query("UPDATE pharmacy_order SET status = $1 WHERE id = $2")
+            .bind(status)
+            .bind(Uuid::parse_str(order_id).unwrap())
+            .execute(&db)
+            .await
+            .unwrap();
+
+        let (doc_status, doc) = request(
+            "GET",
+            &format!("/v1/pharmacy/orders/{order_id}/document"),
+            &pharma_jwt(Uuid::new_v4(), fx.pharmacy_id),
+            None,
+        )
+        .await;
+        assert_eq!(
+            doc_status,
+            StatusCode::NOT_FOUND,
+            "status={status}, body: {doc}"
+        );
+    }
+}
+
 // ── Pharmacie déclarée ────────────────────────────────────────────────────────
 
 #[tokio::test]

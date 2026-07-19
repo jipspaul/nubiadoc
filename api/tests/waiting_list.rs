@@ -394,6 +394,8 @@ async fn offer_does_not_prematurely_fulfill_entry() {
     let f = setup_fixture(&db).await;
 
     let entry_id = Uuid::new_v4();
+    let slot_id = Uuid::new_v4();
+    let proposed_at_dt = chrono::Utc::now() + chrono::Duration::days(3);
     {
         let mut tx = db.begin().await.unwrap();
         sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -403,12 +405,27 @@ async fn offer_does_not_prematurely_fulfill_entry() {
             .unwrap();
         sqlx::query(
             "INSERT INTO waiting_list_entry \
-             (id, cabinet_id, patient_id, desired_window, score, status) \
-             VALUES ($1, $2, $3, '{\"from\":\"2026-07-13\"}'::jsonb, 1.0, 'active')",
+             (id, cabinet_id, patient_id, provider_id, desired_window, score, status) \
+             VALUES ($1, $2, $3, $4, '{\"from\":\"2026-07-13\"}'::jsonb, 1.0, 'active')",
         )
         .bind(entry_id)
         .bind(f.cabinet_id)
         .bind(f.patient_id)
+        .bind(f.provider_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        // Créneau réel (#3726/#3758) : offer exige désormais un availability_slot
+        // open du provider à l'heure proposée, sinon 409 slot_unavailable.
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, $4 + interval '30 min', 'open')",
+        )
+        .bind(slot_id)
+        .bind(f.provider_id)
+        .bind(f.cabinet_id)
+        .bind(proposed_at_dt)
         .execute(&mut *tx)
         .await
         .unwrap();
@@ -425,7 +442,7 @@ async fn offer_does_not_prematurely_fulfill_entry() {
         mailer: Arc::new(StubMailer),
     };
 
-    let proposed_at = (chrono::Utc::now() + chrono::Duration::days(3)).to_rfc3339();
+    let proposed_at = proposed_at_dt.to_rfc3339();
     let response = app(state)
         .oneshot(
             Request::builder()
@@ -455,6 +472,99 @@ async fn offer_does_not_prematurely_fulfill_entry() {
     assert_eq!(
         status, "active",
         "l'entrée ne doit PAS passer en fulfilled au simple envoi de l'offer (#3759)"
+    );
+
+    sqlx::query("DELETE FROM availability_slot WHERE id = $1")
+        .bind(slot_id)
+        .execute(&db)
+        .await
+        .ok();
+    cleanup_fixture(&db, &f).await;
+}
+
+// ── Test : offer sur un créneau fantôme → 409 slot_unavailable ───────────────
+// Régression #3726/#3758 : sans validation de disponibilité réelle, tout
+// datetime futur était accepté, notifiait le patient d'un créneau fantôme
+// et n'était détecté qu'après coup (aucun RDV en base).
+
+#[tokio::test]
+async fn offer_phantom_slot_returns_409_slot_unavailable() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db).await;
+
+    let entry_id = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO waiting_list_entry \
+             (id, cabinet_id, patient_id, provider_id, desired_window, score, status) \
+             VALUES ($1, $2, $3, $4, '{\"from\":\"2026-07-13\"}'::jsonb, 1.0, 'active')",
+        )
+        .bind(entry_id)
+        .bind(f.cabinet_id)
+        .bind(f.patient_id)
+        .bind(f.provider_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        // AUCUN availability_slot n'est seedé pour ce créneau : fantôme.
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: {
+            let url = std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+            PgPool::connect(&url).await.unwrap()
+        },
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // 3h du matin, 2035 : hors horaires, aucun slot — exactement le repro de l'issue.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/waiting-list/{entry_id}/offer"))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_token(f.cabinet_id, "secretary")),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "proposed_at": "2035-01-01T03:00:00Z" }))
+                        .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "slot_unavailable");
+
+    let status: String = sqlx::query("SELECT status FROM waiting_list_entry WHERE id = $1")
+        .bind(entry_id)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+        .try_get("status")
+        .unwrap();
+    assert_eq!(
+        status, "active",
+        "l'entrée doit rester active, pas consommée par une offer refusée"
     );
 
     cleanup_fixture(&db, &f).await;

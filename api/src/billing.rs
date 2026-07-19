@@ -730,6 +730,9 @@ pub struct PharmacyQuotePaymentIntentBody {
 /// si absent. Le devis (`pharmacy_quote_id`) doit être dans l'état `accepted`
 /// → `409` sinon. Le montant est celui du devis (`total_cents`), jamais fourni
 /// par le client. PCI délégué : seul le `client_secret` est transmis.
+///
+/// Un devis déjà couvert par un paiement `pending`/`paid` refuse tout nouvel
+/// intent (`422`), même avec une clé d'idempotence différente (#3732).
 pub async fn create_pharmacy_quote_payment_intent(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -806,6 +809,10 @@ pub async fn create_pharmacy_quote_payment_intent(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Pas de FOR UPDATE ici (contrairement à create_payment_intent / #3775) :
+    // la policy RLS pharmacy_quote_patient_update n'autorise le verrou que sur
+    // status='sent', donc un devis déjà 'accepted' deviendrait invisible sous
+    // FOR UPDATE — la garde reste-dû ci-dessous suffit à empêcher la race.
     let quote_row = sqlx::query(
         "SELECT pq.status, pq.total_cents, po.cabinet_id \
          FROM pharmacy_quote pq \
@@ -841,6 +848,27 @@ pub async fn create_pharmacy_quote_payment_intent(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    // Reste dû : contrairement au devis dentaire (montant partiel possible),
+    // ce devis se règle toujours en une fois (`total_cents`) — la garde se
+    // réduit donc à « aucun paiement pending/paid déjà engagé sur ce devis »
+    // (#3732 : sans cette garde, chaque appel avec une clé d'idempotence
+    // fraîche insérait un nouveau paiement plein-montant, sans borne).
+    let already_committed_row = sqlx::query(
+        "SELECT COALESCE(SUM(amount * 100), 0)::bigint AS committed_cents \
+         FROM payment \
+         WHERE pharmacy_quote_id = $1 AND status IN ('pending', 'paid')",
+    )
+    .bind(body.pharmacy_quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let already_committed_cents: i64 = already_committed_row
+        .try_get("committed_cents")
+        .map_err(|_| AppError::Internal)?;
+    if already_committed_cents >= total_cents {
+        return Err(AppError::ValidationError);
+    }
 
     let patient_id: Uuid =
         sqlx::query("SELECT id FROM patient WHERE cabinet_id = $1 AND patient_account_id = $2")

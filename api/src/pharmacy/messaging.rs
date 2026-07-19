@@ -100,10 +100,15 @@ pub async fn list_pharmacy_conversations(
 // ── GET /v1/pharmacy/conversations/:id/messages ───────────────────────────────
 
 /// Un message du fil (mêmes clés que le cabinet — chiffrement POC UTF-8).
+/// `sender` reprend `sender_kind` : `MessageDto.fromJson` (front) exige la
+/// clé `sender`, non-nullable — seul cet endpoint ne l'émettait pas (#3712),
+/// faisant planter le fil pharmacie au décodage. Même pattern que
+/// `CabinetMessageItem` (cabinet_messaging.rs).
 #[derive(Serialize)]
 pub struct MessageItem {
     pub id: Uuid,
     pub body: String,
+    pub sender: String,
     pub sender_kind: String,
     pub created_at: String,
     pub read_at: Option<String>,
@@ -154,11 +159,13 @@ pub async fn get_pharmacy_conversation_messages(
             let ciphertext: Vec<u8> = row
                 .try_get("body_ciphertext")
                 .map_err(|_| AppError::Internal)?;
+            let sender_kind: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
             Ok(MessageItem {
                 id: row.try_get("id").map_err(|_| AppError::Internal)?,
                 // Chiffrement POC : UTF-8 brut (NUB-T3 pour le réel).
                 body: String::from_utf8_lossy(&ciphertext).into_owned(),
-                sender_kind: row.try_get("sender_kind").map_err(|_| AppError::Internal)?,
+                sender: sender_kind.clone(),
+                sender_kind,
                 created_at: row
                     .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
                     .map_err(|_| AppError::Internal)?

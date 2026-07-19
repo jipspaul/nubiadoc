@@ -10,6 +10,8 @@
 pub mod appointment;
 pub mod auth;
 pub mod capability;
+pub mod directory;
 pub mod error;
 pub mod oauth;
+pub mod slot;
 pub mod subscription;
