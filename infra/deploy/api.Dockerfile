@@ -12,4 +12,11 @@ FROM alpine:3.20
 COPY nubia-api /usr/local/bin/nubia-api
 ENV APP_PORT=3000
 EXPOSE 3000
+# Lot B10 (interop HL7v2) : listener MLLP optionnel, désactivé si
+# MLLP_TLS_CERT_PATH n'est pas fourni (cf. api/src/hl7v2/listener.rs). Port
+# IANA MLLP standard. Ce port ne passe PAS par le reverse proxy HTTP
+# (Caddy) — à filtrer au niveau hôte/LXC aux IP des partenaires EAI attendus,
+# jamais exposé publiquement sans restriction.
+ENV MLLP_PORT=2575
+EXPOSE 2575
 ENTRYPOINT ["/usr/local/bin/nubia-api"]

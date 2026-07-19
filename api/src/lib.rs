@@ -28,7 +28,7 @@ mod dental_chart;
 mod devices;
 mod documents;
 mod health;
-mod hl7v2;
+pub mod hl7v2;
 mod implant_passport;
 mod marketplace;
 mod medical_record;

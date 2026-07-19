@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{app, AppState, StubMailer};
 use sqlx::PgPool;
 
@@ -12,7 +13,7 @@ async fn main() {
             .expect("failed to connect to database");
 
     let state = AppState {
-        db: pool,
+        db: pool.clone(),
         jwt_secret: std::env::var("JWT_SECRET").unwrap_or_default(),
         mailer: Arc::new(StubMailer),
     };
@@ -24,10 +25,53 @@ async fn main() {
     let bind = format!("0.0.0.0:{port}");
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap();
     println!("nubia-api listening on {bind}");
-    axum::serve(
+
+    // Lot B10 : le listener MLLP tourne comme second tokio::task dans le même
+    // binaire (ADR-002/ADR-012 : monolithe modulaire, pas un second
+    // conteneur). Désactivé silencieusement si MLLP_TLS_CERT_PATH n'est pas
+    // configuré (cf. hl7v2::listener::serve) — pas de blocage du démarrage
+    // HTTP sur une fonctionnalité encore optionnelle en production.
+    let mllp_status = Hl7v2ListenerStatus::default();
+    let mllp_task = listener::serve(pool, mllp_status.clone());
+
+    let http_task = axum::serve(
         listener,
-        app(state).into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await
-    .unwrap();
+        app_with_hl7v2_status(state, mllp_status)
+            .into_make_service_with_connect_info::<SocketAddr>(),
+    );
+
+    tokio::select! {
+        result = http_task => {
+            if let Err(e) = result {
+                eprintln!("serveur HTTP arrêté avec une erreur : {e}");
+            }
+        }
+        _ = mllp_task => {
+            // `listener::serve` ne retourne qu'en cas de configuration
+            // invalide/absente (cf. sa doc) — ne doit jamais faire tomber le
+            // serveur HTTP, qui continue de tourner via `tokio::select!`.
+            eprintln!("listener MLLP arrêté (configuration absente ou invalide)");
+        }
+    }
+}
+
+/// Ajoute `GET /v1/interop/hl7v2/health` au routeur Axum standard : le
+/// healthcheck HTTP existant (`/v1/health`) ne couvre que le serveur Axum,
+/// pas le second listener TCP MLLP (lot B10) — route dédiée pour ne pas
+/// modifier la signature de `build_router`/`app` (utilisée par de nombreux
+/// tests d'intégration existants).
+fn app_with_hl7v2_status(state: AppState, mllp_status: Hl7v2ListenerStatus) -> axum::Router {
+    app(state)
+        .route("/v1/interop/hl7v2/health", axum::routing::get(hl7v2_health))
+        .layer(axum::Extension(mllp_status))
+}
+
+async fn hl7v2_health(
+    axum::Extension(status): axum::Extension<Hl7v2ListenerStatus>,
+) -> impl axum::response::IntoResponse {
+    if status.is_ready() {
+        (axum::http::StatusCode::OK, "ok")
+    } else {
+        (axum::http::StatusCode::SERVICE_UNAVAILABLE, "not_ready")
+    }
 }
