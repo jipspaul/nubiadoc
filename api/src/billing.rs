@@ -979,7 +979,7 @@ pub struct CreateCabinetQuoteResponse {
 /// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403, patient → 403.
 /// - `cabinet_id` extrait du JWT.
 /// - `items` vide → 422.
-/// - `amount_cents` de chaque ligne doit être `> 0` → 422 sinon.
+/// - `amount_cents` de chaque ligne doit être dans `]0, 100_000_000]` (1M€) → 422 sinon (#3762).
 /// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
 /// - `total_amount` calculé depuis les items (`sum(amount_cents) / 100`).
 /// - Insert `quote` + N `quote_item` dans une transaction RLS-scopée.
@@ -992,7 +992,17 @@ pub async fn create_cabinet_quote(
     if body.items.is_empty() {
         return Err(AppError::ValidationError);
     }
-    if body.items.iter().any(|i| i.amount_cents <= 0) {
+    // Plafond métier réaliste (#3762) : sans borne haute, un amount_cents
+    // débordant la précision de la colonne `numeric(12,2)` (quote/quote_item)
+    // provoquait une erreur SQL avalée par `.map_err(|_| AppError::Internal)`
+    // → 500 au lieu d'un 422 propre. 100 000 000 cents = 1 000 000,00 € par
+    // ligne, largement suffisant pour un acte dentaire/médical le plus lourd.
+    const MAX_ITEM_AMOUNT_CENTS: i64 = 100_000_000;
+    if body
+        .items
+        .iter()
+        .any(|i| i.amount_cents <= 0 || i.amount_cents > MAX_ITEM_AMOUNT_CENTS)
+    {
         return Err(AppError::ValidationError);
     }
     if let Some(pct) = body.deposit_pct {

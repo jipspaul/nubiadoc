@@ -454,3 +454,51 @@ async fn cabinet_quotes_post_invalid_deposit_pct_returns_422() {
 
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+// ── Test 7 (#3762) : amount_cents hors plafond → 422, jamais 500 ────────────
+
+#[tokio::test]
+async fn cabinet_quotes_post_amount_over_ceiling_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+    let state = AppState {
+        db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Repro exacte de l'issue : 1e13 dépasse la précision numeric(12,2) et
+    // provoquait un 500 avant le plafond.
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": [{ "label": "ovf", "amount_cents": 10_000_000_000_000i64 }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "montant hors plafond doit être 422, jamais 500"
+    );
+}
