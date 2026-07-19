@@ -331,3 +331,90 @@ async fn notifications_pagination_cursor() {
         .await
         .ok();
 }
+
+// ── Test 5 : POST /notifications/:id/read est idempotent (#3884) ─────────────
+// Régression #3884 : relire une notification déjà lue réécrivait read_at à
+// now(), perdant l'horodatage de première lecture.
+
+#[tokio::test]
+async fn notification_mark_read_is_idempotent() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-idempotent+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let notif_id = insert_notification(&app_db, user_id, "rdv", "Votre RDV", false).await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let uri = format!("/v1/notifications/{}/read", notif_id);
+
+    let r1 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&uri)
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let body1 = axum::body::to_bytes(r1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&body1).unwrap();
+    let read_at_1 = v1["read_at"]
+        .as_str()
+        .expect("read_at doit être présent après le 1er marquage")
+        .to_string();
+
+    // Écart mesurable avant la relecture, pour distinguer un now() figé d'un
+    // now() réécrit (résolution timestamptz largement < 50ms).
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    let r2 = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&uri)
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+    let body2 = axum::body::to_bytes(r2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
+    let read_at_2 = v2["read_at"].as_str().unwrap();
+
+    assert_eq!(
+        read_at_2, read_at_1,
+        "read_at doit rester figé au premier marquage, pas réécrit à chaque relecture"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
