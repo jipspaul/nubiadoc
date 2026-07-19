@@ -17,9 +17,8 @@
 //! compilable de façon autonome. Voir les commentaires `ASSOMPTION` pour le
 //! détail des formes supposées, à revalider à l'intégration des 3 branches.
 //!
-//! `#![allow(dead_code)]` : seul B10 (listener TCP/MLLP, hors périmètre)
-//! appellera réellement [`dispatch`] — même précédent qu'`auth/mod.rs:1170`.
-#![allow(dead_code)]
+//! Consommé par `api/src/hl7v2/listener.rs` (lot B10), qui appelle
+//! [`dispatch`] pour chaque message MLLP reçu.
 
 use core_tenancy::with_tenant;
 use integrations_hl7v2::{
