@@ -584,10 +584,13 @@ pub async fn list_appointments(
 
     let status_clause = match effective_status {
         Some("upcoming") => {
-            " AND a.starts_at > now() \
-              AND a.status IN ('requested','confirmed','checked_in','in_progress')"
+            " AND (a.status IN ('checked_in','in_progress') \
+              OR (a.starts_at > now() AND a.status IN ('requested','confirmed')))"
         }
-        Some("past") => " AND (a.starts_at <= now() OR a.status IN ('done','cancelled','no_show'))",
+        Some("past") => {
+            " AND (a.status IN ('done','cancelled','no_show') \
+              OR (a.starts_at <= now() AND a.status IN ('requested','confirmed')))"
+        }
         _ => "",
     };
 
