@@ -510,3 +510,172 @@ async fn appointment_get_by_id_other_patient_returns_404() {
         .await
         .ok();
 }
+
+// ── Test 5 : cabinet sans adresse propre → fallback establishment (#3799) ───────
+
+#[tokio::test]
+async fn appointment_get_by_id_falls_back_to_establishment_address() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("appt-estfallback+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Est', 'Fallback')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("appt-estfallback-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let appt_id = Uuid::new_v4();
+    let establishment_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    // Cabinet SANS adresse dans `settings` (cas seed — #3557/#3799).
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet EstFallback {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO establishment (id, name, address) \
+         VALUES ($1, 'Centre Dentaire Est', $2)",
+    )
+    .bind(establishment_id)
+    .bind(serde_json::json!({"rue": "10 rue de l'Est", "cp": "75020", "ville": "Paris"}))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider \
+         (cabinet_id, practitioner_id, establishment_id, user_id, display_name, specialite, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, $4, 'Dr. EstFallback', 'dentaire', true, true)",
+    )
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(establishment_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Test', 'Patient', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, \
+                 now() + interval '3 days', now() + interval '3 days 1 hour', \
+                 'confirmed', 'détartrage')",
+    )
+    .bind(appt_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}", appt_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(
+        v["cabinet"]["address"], "10 rue de l'Est, 75020 Paris",
+        "cabinet.address doit retomber sur l'adresse establishment quand cabinet.settings n'en porte pas (#3799)"
+    );
+
+    // Cleanup
+    cleanup_fixture(&db, cabinet_id, prac_id, patient_id, appt_id).await;
+    sqlx::query("DELETE FROM establishment WHERE id = $1")
+        .bind(establishment_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
