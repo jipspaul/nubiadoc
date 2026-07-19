@@ -299,6 +299,76 @@ fn available_time_clause(available: Option<&str>) -> &'static str {
     }
 }
 
+/// Lookup géo statique (#3753) : `place` (nom de ville) était parsé par
+/// `/search/parse` et par les query params `search_providers`/`search_slots`,
+/// mais totalement ignoré par le SQL — un vrai géocodage externe reste hors
+/// scope MVP (docs/12), mais laisser `place` silencieusement sans effet
+/// produisait des résultats nationaux pour une recherche nommant une ville
+/// (« dentiste à Paris » renvoyait des praticiens de Lyon). Couvre les
+/// grandes villes françaises (dont celles du jeu de seed) ; toute ville hors
+/// liste reste ignorée — comportement historique inchangé pour ces cas-là.
+const KNOWN_CITY_COORDS: &[(&str, f64, f64)] = &[
+    ("paris", 48.8566, 2.3522),
+    ("lyon", 45.7640, 4.8357),
+    ("marseille", 43.2965, 5.3698),
+    ("toulouse", 43.6047, 1.4442),
+    ("nice", 43.7102, 7.2620),
+    ("nantes", 47.2184, -1.5536),
+    ("strasbourg", 48.5734, 7.7521),
+    ("montpellier", 43.6108, 3.8767),
+    ("bordeaux", 44.8378, -0.5792),
+    ("lille", 50.6292, 3.0573),
+    ("rennes", 48.1173, -1.6778),
+];
+
+/// Rayon (km) appliqué quand `place` résout une ville connue et qu'aucun
+/// `radius_km` explicite n'est fourni par l'appelant.
+const PLACE_DEFAULT_RADIUS_KM: f64 = 20.0;
+
+fn resolve_place_coords(place: &str) -> Option<(f64, f64)> {
+    let needle = place.trim().to_lowercase();
+    KNOWN_CITY_COORDS
+        .iter()
+        .find(|(name, _, _)| *name == needle)
+        .map(|(_, lat, lng)| (*lat, *lng))
+}
+
+/// `(lat, lng, radius_km)` résolus par [`resolve_geo_filter`].
+type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
+
+/// Résout le filtre géo `near`/`place` en `(lat, lng, radius_km effectif)`.
+/// `near` (coordonnées explicites) est toujours prioritaire sur `place` si les
+/// deux sont fournis. `place` résolu via `KNOWN_CITY_COORDS` (#3753).
+fn resolve_geo_filter(
+    near: Option<&str>,
+    place: Option<&str>,
+    radius_km: Option<f64>,
+) -> Result<GeoFilter, AppError> {
+    if let Some(s) = near {
+        let mut parts = s.splitn(2, ',');
+        let lat = parts
+            .next()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .ok_or(AppError::ValidationError)?;
+        let lng = parts
+            .next()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .ok_or(AppError::ValidationError)?;
+        return Ok((Some(lat), Some(lng), radius_km));
+    }
+    if let Some(p) = place {
+        if let Some((lat, lng)) = resolve_place_coords(p) {
+            return Ok((
+                Some(lat),
+                Some(lng),
+                Some(radius_km.unwrap_or(PLACE_DEFAULT_RADIUS_KM)),
+            ));
+        }
+        tracing::warn!(place = %p, "place inconnu du lookup géo statique, filtre ignoré");
+    }
+    Ok((None, None, radius_km))
+}
+
 /// `GET /v1/search/slots` — prochains créneaux disponibles par praticien (docs/12 §12.1).
 ///
 /// Route publique, pas de JWT. Mêmes filtres que `/v1/search/providers`.
@@ -308,25 +378,11 @@ pub async fn search_slots(
     State(state): State<AppState>,
     Query(params): Query<SearchProvidersQuery>,
 ) -> Result<Json<SearchSlotsResponse>, AppError> {
-    if params.place.is_some() {
-        tracing::warn!("search_slots: `place` geocoding not implemented at MVP");
-    }
-
-    let (near_lat, near_lng): (Option<f64>, Option<f64>) = match params.near.as_deref() {
-        Some(s) => {
-            let mut parts = s.splitn(2, ',');
-            let lat = parts
-                .next()
-                .and_then(|v| v.trim().parse::<f64>().ok())
-                .ok_or(AppError::ValidationError)?;
-            let lng = parts
-                .next()
-                .and_then(|v| v.trim().parse::<f64>().ok())
-                .ok_or(AppError::ValidationError)?;
-            (Some(lat), Some(lng))
-        }
-        None => (None, None),
-    };
+    let (near_lat, near_lng, radius_km) = resolve_geo_filter(
+        params.near.as_deref(),
+        params.place.as_deref(),
+        params.radius_km,
+    )?;
 
     let (bbox_min_lng, bbox_min_lat, bbox_max_lng, bbox_max_lat): (
         Option<f64>,
@@ -360,7 +416,7 @@ pub async fn search_slots(
         None => (None, None, None, None),
     };
 
-    let radius_m: Option<f64> = params.radius_km.map(|r| r * 1000.0);
+    let radius_m: Option<f64> = radius_km.map(|r| r * 1000.0);
 
     let lang_filter: Option<Vec<String>> = params
         .languages
@@ -472,32 +528,18 @@ pub async fn search_slots(
 /// `GET /v1/search/providers` — annuaire public de praticiens (docs/12 §12.1).
 ///
 /// Route publique, pas de JWT. Seuls les providers `is_listed=true` sont exposés
-/// (RLS `provider_public_read` + clause WHERE explicite). `place` → geocoding EU
-/// non implémenté au MVP (log warning). Distance via PostGIS si `near` fourni.
+/// (RLS `provider_public_read` + clause WHERE explicite). `place` résolu via
+/// le lookup géo statique `KNOWN_CITY_COORDS` (#3753, vrai géocodage externe
+/// hors scope MVP). Distance via PostGIS si `near` ou `place` fourni.
 pub async fn search_providers(
     State(state): State<AppState>,
     Query(params): Query<SearchProvidersQuery>,
 ) -> Result<Json<SearchProvidersResponse>, AppError> {
-    if params.place.is_some() {
-        tracing::warn!("search_providers: `place` geocoding not implemented at MVP");
-    }
-
-    // Parse `near=lat,lng`
-    let (near_lat, near_lng): (Option<f64>, Option<f64>) = match params.near.as_deref() {
-        Some(s) => {
-            let mut parts = s.splitn(2, ',');
-            let lat = parts
-                .next()
-                .and_then(|v| v.trim().parse::<f64>().ok())
-                .ok_or(AppError::ValidationError)?;
-            let lng = parts
-                .next()
-                .and_then(|v| v.trim().parse::<f64>().ok())
-                .ok_or(AppError::ValidationError)?;
-            (Some(lat), Some(lng))
-        }
-        None => (None, None),
-    };
+    let (near_lat, near_lng, radius_km) = resolve_geo_filter(
+        params.near.as_deref(),
+        params.place.as_deref(),
+        params.radius_km,
+    )?;
 
     // Parse `bbox=minLng,minLat,maxLng,maxLat` (GeoJSON convention)
     let (bbox_min_lng, bbox_min_lat, bbox_max_lng, bbox_max_lat): (
@@ -535,7 +577,7 @@ pub async fn search_providers(
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
-    let radius_m: Option<f64> = params.radius_km.map(|r| r * 1000.0);
+    let radius_m: Option<f64> = radius_km.map(|r| r * 1000.0);
 
     // Languages: comma-separated → vec for `&&` array overlap filter
     let lang_filter: Option<Vec<String>> = params

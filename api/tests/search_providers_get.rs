@@ -454,3 +454,79 @@ async fn search_providers_default_pagination() {
         "data ne doit pas dépasser per_page=20 résultats"
     );
 }
+
+// ── Test (#3753) : `place` filtre géographiquement via le lookup statique ────
+// Repro exacte de l'issue : "dentiste à Paris" ne doit pas renvoyer un
+// praticien de Lyon. `place=Paris` doit borner les résultats à la même zone
+// que `near=48.8566,2.3522` (Paris).
+
+#[tokio::test]
+async fn search_providers_place_filters_by_known_city() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let paris_id = insert_provider(&db, &format!("paris-{suffix}")).await;
+    let lyon_id = insert_provider(&db, &format!("lyon-{suffix}")).await;
+
+    sqlx::query(
+        "UPDATE provider SET geo = ST_SetSRID(ST_MakePoint(2.3522, 48.8566), 4326)::geography \
+         WHERE id = $1",
+    )
+    .bind(paris_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE provider SET geo = ST_SetSRID(ST_MakePoint(4.8357, 45.7640), 4326)::geography \
+         WHERE id = $1",
+    )
+    .bind(lyon_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?place=Paris")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    assert!(
+        data.iter()
+            .any(|p| p["provider_id"].as_str() == Some(&paris_id.to_string())),
+        "le praticien parisien doit apparaître pour place=Paris"
+    );
+    assert!(
+        !data
+            .iter()
+            .any(|p| p["provider_id"].as_str() == Some(&lyon_id.to_string())),
+        "le praticien lyonnais ne doit PAS apparaître pour place=Paris"
+    );
+
+    sqlx::query("DELETE FROM provider WHERE id = $1 OR id = $2")
+        .bind(paris_id)
+        .bind(lyon_id)
+        .execute(&db)
+        .await
+        .ok();
+}
