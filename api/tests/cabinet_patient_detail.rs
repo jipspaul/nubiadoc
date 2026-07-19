@@ -329,6 +329,72 @@ async fn list_patient_documents_returns_200() {
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
 
+// ── Test 4b : secrétaire HORS scope secrétariat → 404 sur /documents (#3823) ─
+// Frère de #3821 : sans la garde secrétariat, l'endpoint servait un oracle
+// d'existence (200 vs 404) et listait les documents non-cliniques d'un
+// patient masqué de la liste de cette même secrétaire.
+
+#[tokio::test]
+async fn list_patient_documents_secretary_out_of_scope_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+
+    // Un secrétariat existe dans ce cabinet, mais aucun provider_secretariat
+    // ne le rattache au(x) praticien(s) de ce patient (aucun n'existe même) —
+    // donc hors scope, comme il le serait pour list_cabinet_patients.
+    let secretariat_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Docs Test')")
+        .bind(secretariat_id)
+        .bind(cabinet_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let secretary_id = Uuid::new_v4();
+    let token = encode(
+        &Header::default(),
+        &json!({"sub": secretary_id, "kind": "pro", "cabinet_id": cabinet_id, "role": "secretary",
+                "secretariat_id": secretariat_id, "exp": exp()}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/patients/{}/documents", patient_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "secrétaire hors scope ne doit pas obtenir un oracle d'existence (200) sur /documents"
+    );
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM secretariat WHERE id = $1")
+        .bind(secretariat_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
+
 // ── Test 5 : POST documents → 201 + document_id ──────────────────────────────
 
 #[tokio::test]
