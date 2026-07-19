@@ -16,7 +16,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HOST="${DEPLOY_HOST:-192.168.1.100}"
+# LXC accessible via son IP Tailscale (le LAN 192.168.1.100 n'est plus joignable
+# depuis le runner CI — machine deplacee/reconnectee hors du LAN d'origine).
+HOST="${DEPLOY_HOST:-100.117.41.116}"
 SSH_USER="${DEPLOY_USER:-root}"
 export SSHPASS="${DEPLOY_PASSWORD:-jipsjips}"
 API_BASE="${API_BASE:-http://${HOST}:3000}"
