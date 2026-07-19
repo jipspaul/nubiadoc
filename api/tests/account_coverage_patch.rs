@@ -170,6 +170,124 @@ async fn coverage_patch_nss_returns_200_and_nss_masked() {
         .ok();
 }
 
+// ── Test 1b : mutuelle.amc vide → 422, valeur existante non écrasée (#3797) ──
+
+#[tokio::test]
+async fn coverage_patch_empty_mutuelle_amc_returns_422_and_preserves_existing() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("cov-patch-empty+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Dupont')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // 1) Pose une mutuelle valide.
+    let resp1 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "mutuelle": {"amc": "AMC-REAL-123", "numero_adherent": "ADH-456"}
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), StatusCode::OK);
+
+    // 2) Rejoue avec amc vide — doit être rejeté, PAS écraser la valeur existante.
+    let resp2 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "mutuelle": {"amc": "", "numero_adherent": "ADH-456"}
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp2.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "amc vide doit être rejeté (422), pas silencieusement accepté"
+    );
+
+    // 3) Vérifie via GET que la valeur d'origine est toujours là.
+    let get_resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let gb = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let gv: serde_json::Value = serde_json::from_slice(&gb).unwrap();
+    assert_eq!(
+        gv["amc"], "AMC-REAL-123",
+        "amc existant ne doit pas avoir été écrasé par la chaîne vide rejetée"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 2 : token pro → 403 ─────────────────────────────────────────────────
 
 #[tokio::test]
