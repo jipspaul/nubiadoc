@@ -53,6 +53,10 @@ async fn suggest_match_dent_returns_results() {
         "specialties doit être un tableau"
     );
     assert!(v["acts"].is_array(), "acts doit être un tableau");
+    assert!(
+        v["professions"].is_array(),
+        "professions doit être un tableau"
+    );
 
     let total = v["specialties"].as_array().unwrap().len() + v["acts"].as_array().unwrap().len();
     assert!(total >= 1, "au moins 1 résultat attendu pour 'dent'");
@@ -179,4 +183,46 @@ async fn suggest_unknown_term_returns_empty() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["specialties"].as_array().unwrap().len(), 0);
     assert_eq!(v["acts"].as_array().unwrap().len(), 0);
+    assert_eq!(v["professions"].as_array().unwrap().len(), 0);
+}
+
+/// Régression #3788 : "dentiste" est une PROFESSION (pas une spécialité) —
+/// le terme de recherche n°1 de la plateforme doit produire une suggestion.
+#[tokio::test]
+async fn suggest_dentiste_returns_profession() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/suggest?q=dentiste")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let professions = v["professions"].as_array().unwrap();
+    assert!(
+        !professions.is_empty(),
+        "q=dentiste doit proposer au moins la profession Chirurgien-dentiste"
+    );
+    assert!(professions.iter().any(|p| p["label"]
+        .as_str()
+        .unwrap()
+        .to_lowercase()
+        .contains("dentiste")));
 }
