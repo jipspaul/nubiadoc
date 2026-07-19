@@ -68,13 +68,15 @@ impl IntoResponse for InteropError {
     }
 }
 
-/// Erreur des routes ressources FHIR (`/v1/interop/fhir/Practitioner|Organization|Location`,
-/// lot A2+) — rendue en `OperationOutcome` (FHIR R4), volontairement **distinct**
-/// du format RFC 6749 ci-dessus : une fois le bearer token validé par
+/// Erreur des routes ressources FHIR (`Practitioner`/`Organization`/`Location`
+/// lot A2, `Slot`/`Schedule` lot A3, `Appointment` lot A6, ...) — rendue en
+/// `OperationOutcome` (FHIR R4), volontairement **distinct** du format
+/// RFC 6749 ci-dessus : une fois le bearer token validé par
 /// [`crate::interop::auth::InteropClaims`] (qui reste RFC 6749/6750, cf. son
-/// propre extracteur), toute erreur de résolution d'une ressource FHIR (scope
-/// insuffisant, ressource absente, erreur interne) doit prendre la forme
-/// attendue par un client FHIR standard.
+/// propre extracteur), toute erreur décidée *dans* un handler ressource
+/// (scope insuffisant, ressource introuvable, paramètre de recherche
+/// invalide, erreur interne) doit prendre la forme attendue par un client
+/// FHIR standard.
 #[derive(Debug)]
 pub enum FhirError {
     /// Scope requis absent des claims du token porteur (cf. `require_scope`).
@@ -83,6 +85,8 @@ pub enum FhirError {
     /// (jamais distingué du "vraiment absent" — pas de fuite d'existence
     /// cross-tenant).
     NotFound,
+    /// Paramètre de recherche malformé (ex. `from`/`to` non ISO 8601, lot A3).
+    InvalidParameter(String),
     /// Erreur interne (DB, ...) — jamais de détail exposé.
     Internal,
 }
@@ -102,17 +106,22 @@ impl From<InteropError> for FhirError {
 
 impl IntoResponse for FhirError {
     fn into_response(self) -> Response {
-        let (status, code, diagnostics) = match self {
+        let (status, code, diagnostics): (StatusCode, &str, String) = match self {
             FhirError::Forbidden => (
                 StatusCode::FORBIDDEN,
                 "forbidden",
-                "scope insuffisant pour accéder à cette ressource",
+                "scope insuffisant pour accéder à cette ressource".to_string(),
             ),
-            FhirError::NotFound => (StatusCode::NOT_FOUND, "not-found", "ressource introuvable"),
+            FhirError::NotFound => (
+                StatusCode::NOT_FOUND,
+                "not-found",
+                "ressource introuvable".to_string(),
+            ),
+            FhirError::InvalidParameter(detail) => (StatusCode::BAD_REQUEST, "invalid", detail),
             FhirError::Internal => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "exception",
-                "erreur interne",
+                "erreur interne".to_string(),
             ),
         };
 

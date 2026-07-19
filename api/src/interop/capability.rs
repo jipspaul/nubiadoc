@@ -20,7 +20,7 @@ pub async fn capability_statement() -> Json<Value> {
         "rest": [
             {
                 "mode": "server",
-                // Patient/Slot/... seront listées ici par les lots qui les implémentent.
+                // Patient/... sera listée ici par le lot qui l'implémente.
                 "resource": [
                     { "type": "Practitioner", "interaction": [{ "code": "read" }, { "code": "search-type" }] },
                     { "type": "Organization", "interaction": [{ "code": "read" }] },
@@ -33,7 +33,9 @@ pub async fn capability_statement() -> Json<Value> {
                             {"code": "create"},
                             {"code": "update"}
                         ]
-                    }
+                    },
+                    { "type": "Slot", "interaction": [{ "code": "read" }, { "code": "search-type" }] },
+                    { "type": "Schedule", "interaction": [{ "code": "read" }] }
                 ]
             }
         ]

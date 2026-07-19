@@ -82,11 +82,13 @@ impl FromRequestParts<AppState> for InteropClaims {
 
 /// Vérifie que `claims` porte bien `scope` — sinon `403 insufficient_scope`.
 ///
-/// Consommé par les routes FHIR des lots suivants (annuaire lot A2,
-/// `api/src/interop/directory.rs` ; rendez-vous lot A6,
-/// `api/src/interop/appointment.rs`) — le rejet `InteropError` est ensuite
-/// converti en [`crate::interop::error::FhirError`] (`OperationOutcome`) par
-/// les routes ressources, RFC 6749 restant réservé à la couche bearer/token.
+/// Appelée par les handlers de ressources FHIR (annuaire lot A2,
+/// `api/src/interop/directory.rs` ; créneaux lot A3, `api/src/interop/slot.rs` ;
+/// rendez-vous lot A6, `api/src/interop/appointment.rs`) juste après
+/// extraction de [`InteropClaims`], avant tout accès DB — le rejet
+/// `InteropError` est ensuite converti en [`crate::interop::error::FhirError`]
+/// (`OperationOutcome`) par les routes ressources, RFC 6749 restant réservé
+/// à la couche bearer/token.
 pub fn require_scope(claims: &InteropClaims, scope: Scope) -> Result<(), InteropError> {
     if claims.scopes().contains(&scope) {
         Ok(())
