@@ -83,12 +83,22 @@ RESET app.current_cabinet_id;
 
 -- ===========================================================================
 -- 4. INSERT même-cabinet accepté.
+--
+-- Couple (sending_facility, receiving_facility) volontairement DIFFÉRENT de
+-- la fixture #1 (LABX/NUBIA, partenaire a1, cabinet A) : la contrainte
+-- UNIQUE(partner_id, sending_facility, receiving_facility) est globale, pas
+-- par cabinet — un même partenaire peut parler à plusieurs cabinets, mais un
+-- couple (MSH-4, MSH-6) donné ne résout jamais qu'à un seul cabinet (c'est
+-- tout l'intérêt de hl7v2_partner_facility_map_find_cabinet). Réutiliser
+-- LABX/NUBIA ici violerait cette contrainte légitime — ce n'est pas ce que ce
+-- test veut exercer (il veut juste vérifier qu'un cabinet peut créer SA
+-- PROPRE association, pas dupliquer celle d'un autre cabinet).
 -- ===========================================================================
 SET LOCAL app.current_cabinet_id = '01480000-0000-0000-0000-000000000002';
 INSERT INTO hl7v2_partner_facility_map
     (id, partner_id, sending_facility, receiving_facility, cabinet_id)
   VALUES ('01480000-0000-0000-0000-000000000053',
-          '01480000-0000-0000-0000-0000000000a1', 'LABX', 'NUBIA',
+          '01480000-0000-0000-0000-0000000000a1', 'LABX', 'NUBIA_B',
           '01480000-0000-0000-0000-000000000002');
 SELECT is(
   (SELECT count(*)::int FROM hl7v2_partner_facility_map
