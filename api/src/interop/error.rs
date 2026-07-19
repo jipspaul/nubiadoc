@@ -67,3 +67,76 @@ impl IntoResponse for InteropError {
         (status, Json(body)).into_response()
     }
 }
+
+/// Erreur des routes FHIR **ressources** (`Slot`/`Schedule`/... — lot A3+),
+/// rendue en `OperationOutcome` FHIR R4 — contrat distinct de [`InteropError`]
+/// (RFC 6749), qui reste réservé au token endpoint et à l'extracteur bearer
+/// (`api/src/interop/auth.rs`) : un bearer token absent/expiré/mal signé
+/// continue de produire `{"error": "invalid_token"}` (échec avant même
+/// d'atteindre un handler ressource), mais tout ce qui est décidé *dans* un
+/// handler ressource (scope insuffisant, ressource introuvable, paramètre de
+/// recherche invalide) est un problème FHIR, pas OAuth2.
+#[derive(Debug)]
+pub enum FhirError {
+    /// Scope requis (ex. `slots:read`) absent des claims du token porteur.
+    InsufficientScope,
+    /// Ressource introuvable — id inconnu, supprimé (`deleted_at`), ou hors du
+    /// `cabinet_id` du token. Même statut dans les deux derniers cas : jamais
+    /// de distinction observable entre « n'existe pas » et « appartient à un
+    /// autre cabinet » (pas de fuite d'existence cross-tenant).
+    NotFound,
+    /// Paramètre de recherche malformé (ex. `from`/`to` non ISO 8601).
+    InvalidParameter(String),
+    /// Erreur interne (DB, ...) — jamais de détail exposé.
+    Internal,
+}
+
+impl From<InteropError> for FhirError {
+    /// Permet d'utiliser `require_scope(&claims, ...)?` (qui renvoie
+    /// [`InteropError`]) directement dans un handler dont l'erreur est
+    /// [`FhirError`] : le seul cas qu'il produit en pratique ici est
+    /// `InsufficientScope` (le token a déjà été validé par l'extracteur
+    /// `InteropClaims` avant d'atteindre le handler), mais on couvre les
+    /// autres variantes fail-closed en `Internal` plutôt que de paniquer sur
+    /// un `match` non exhaustif.
+    fn from(err: InteropError) -> Self {
+        match err {
+            InteropError::InsufficientScope => FhirError::InsufficientScope,
+            _ => FhirError::Internal,
+        }
+    }
+}
+
+impl IntoResponse for FhirError {
+    fn into_response(self) -> Response {
+        let (status, code, diagnostics): (StatusCode, &str, String) = match self {
+            FhirError::InsufficientScope => (
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                "scope requis absent du token porteur".to_string(),
+            ),
+            FhirError::NotFound => (
+                StatusCode::NOT_FOUND,
+                "not-found",
+                "ressource introuvable".to_string(),
+            ),
+            FhirError::InvalidParameter(detail) => (StatusCode::BAD_REQUEST, "invalid", detail),
+            FhirError::Internal => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "exception",
+                "erreur interne".to_string(),
+            ),
+        };
+
+        let body = json!({
+            "resourceType": "OperationOutcome",
+            "issue": [{
+                "severity": "error",
+                "code": code,
+                "diagnostics": diagnostics,
+            }]
+        });
+
+        (status, Json(body)).into_response()
+    }
+}

@@ -731,6 +731,12 @@ fn build_router(
             "/v1/interop/fhir/metadata",
             get(interop::capability::capability_statement),
         )
+        .route("/v1/interop/fhir/Slot/:id", get(interop::slot::get_slot))
+        .route("/v1/interop/fhir/Slot", get(interop::slot::search_slots))
+        .route(
+            "/v1/interop/fhir/Schedule/:id",
+            get(interop::slot::get_schedule),
+        )
         .layer(Extension(hub))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
