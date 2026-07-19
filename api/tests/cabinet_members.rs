@@ -671,7 +671,7 @@ async fn post_cabinet_members_admin_returns_201() {
 
     let body = json!({
         "email": member_email,
-        "role": "doctor",
+        "role": "practitioner",
         "first_name": "Frank",
         "last_name": "Leblanc"
     });
@@ -695,7 +695,7 @@ async fn post_cabinet_members_admin_returns_201() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(v["role"], "doctor");
+    assert_eq!(v["role"], "practitioner");
     assert_eq!(v["email"], member_email);
 
     let owner = owner_pool().await;

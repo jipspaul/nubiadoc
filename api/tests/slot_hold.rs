@@ -105,9 +105,13 @@ async fn insert_provider_and_slot(db: &PgPool, suffix: &str) -> (Uuid, Uuid) {
     .await
     .unwrap();
 
+    // online_booking=false par défaut (migration 0075) : claim_and_hold_slot
+    // (0142, #3608) traite un créneau non exposé en ligne comme inexistant
+    // pour le funnel public (404), donc explicite ici.
     sqlx::query(
-        "INSERT INTO availability_slot (id, provider_id, starts_at, ends_at, status) \
-         VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open')",
+        "INSERT INTO availability_slot \
+         (id, provider_id, starts_at, ends_at, status, online_booking) \
+         VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open', true)",
     )
     .bind(slot_id)
     .bind(provider_id)

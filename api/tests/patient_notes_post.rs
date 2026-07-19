@@ -143,6 +143,29 @@ async fn insert_fixtures(owner_db: &PgPool, app_db: &PgPool) -> (Uuid, Uuid, Uui
     .await
     .unwrap();
 
+    // Relation de soin (has_appointment) : add_patient_note l'exige depuis
+    // le durcissement RLS strict E.2.16.c (cf. #3730 pour l'écriture
+    // documents, même garde). Sans elle, un praticien est 403 partout.
+    let practitioner_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(practitioner_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO appointment \
+         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, now() - interval '1 day', now() - interval '1 day' + interval '30 min', 'done')",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     (cabinet_id, user_id, patient_id)
@@ -163,6 +186,16 @@ async fn cleanup_fixtures(
         .ok();
     sqlx::query("DELETE FROM clinical_note WHERE patient_id = $1")
         .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE patient_id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(cabinet_id)
         .execute(&mut *tx)
         .await
         .ok();
