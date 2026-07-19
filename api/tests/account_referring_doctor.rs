@@ -359,6 +359,92 @@ async fn put_referring_doctor_with_both_provider_and_free_name_returns_422() {
         .ok();
 }
 
+// ── provider_id + free_phone/free_address (sans free_name) : exclusivité (#3798) ─
+//
+// La garde provider_id.is_some() == free_name.is_some() ne compare que ces deux
+// champs : provider_id + free_phone/free_address sans free_name la contourne.
+// Le backend doit ignorer free_phone/free_address quand provider_id est fourni,
+// pas les stocker à côté d'une référence provider.
+
+#[tokio::test]
+async fn put_referring_doctor_with_provider_id_and_free_phone_ignores_free_phone() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let (user_id, account_id) = create_patient_account(&owner_db).await;
+    let provider_id = create_listed_provider(&owner_db).await;
+
+    let state = test_state(app_pool().await);
+
+    let put_response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/account/referring-doctor")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "provider_id": provider_id,
+                        "free_phone": "+33612345678",
+                        "free_address": "12 rue de la Paix, Paris"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(put_response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(put_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["provider_id"], provider_id.to_string());
+    assert!(
+        v["free_phone"].is_null(),
+        "free_phone ne doit pas être stocké aux côtés d'un provider_id"
+    );
+    assert!(
+        v["free_address"].is_null(),
+        "free_address ne doit pas être stocké aux côtés d'un provider_id"
+    );
+
+    let get_response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/referring-doctor")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(get_response.status(), StatusCode::OK);
+    let get_body = axum::body::to_bytes(get_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let gv: serde_json::Value = serde_json::from_slice(&get_body).unwrap();
+    assert!(gv["free_phone"].is_null());
+    assert!(gv["free_address"].is_null());
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&owner_db)
+        .await
+        .ok();
+}
+
 // ── provider_id inconnu → 404 ─────────────────────────────────────────────────
 
 #[tokio::test]
