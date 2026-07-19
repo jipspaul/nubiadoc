@@ -1,4 +1,4 @@
--- 0148_reactivate_cabinet_member_fn.sql
+-- 0149_reactivate_cabinet_member_fn.sql
 -- Fonction SECURITY DEFINER qui résout la ré-invitation d'un membre de cabinet
 -- retiré (soft-delete). `post_cabinet_members` ne peut pas, sous RLS nubia_app,
 -- retrouver un `app_user` existant par email (policy user_self_select restreint
