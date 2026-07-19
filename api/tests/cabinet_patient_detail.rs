@@ -157,7 +157,9 @@ async fn scope_patient_to_secretariat(db: &PgPool, cabinet_id: Uuid, patient_id:
     secretariat_id
 }
 
-/// Insère les fixtures minimales (cabinet + app_user + patient).
+/// Insère les fixtures minimales (cabinet + app_user + patient + practitioner
+/// + appointment reliant `user_id` à `patient_id` — relation de soin établie,
+/// cf. garde `has_appointment` en lecture ET écriture, issue #3730).
 /// Retourne `(cabinet_id, user_id, patient_id)`.
 async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
@@ -199,9 +201,68 @@ async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     .await
     .unwrap();
 
+    let practitioner_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO practitioner (id, cabinet_id, user_id, specialite) \
+         VALUES ($1, $2, $3, 'dentaire')",
+    )
+    .bind(practitioner_id)
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO appointment \
+         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, now() - interval '1 day', now() - interval '1 day' + interval '30 min', 'done')",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     (cabinet_id, user_id, patient_id)
+}
+
+/// Insère un SECOND practitioner du même cabinet, SANS appointment avec
+/// `patient_id` (aucune relation de soin) — pour les tests d'ownership-gap.
+/// Retourne son `user_id`.
+async fn insert_practitioner_without_relation(db: &PgPool, cabinet_id: Uuid) -> Uuid {
+    let other_user_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(other_user_id)
+    .bind(format!("detail780-other+{}@nubia.test", other_user_id))
+    .execute(db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO practitioner (id, cabinet_id, user_id, specialite) \
+         VALUES ($1, $2, $3, 'dentaire')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(other_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    other_user_id
 }
 
 async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_id: Uuid) {
@@ -221,6 +282,16 @@ async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM appointment WHERE patient_id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM patient WHERE id = $1")
         .bind(patient_id)
         .execute(&mut *tx)
@@ -234,6 +305,15 @@ async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_
     tx.commit().await.ok();
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)
+        .execute(db)
+        .await
+        .ok();
+}
+
+/// Supprime le second `app_user` créé par `insert_practitioner_without_relation`.
+async fn cleanup_other_practitioner(db: &PgPool, other_user_id: Uuid) {
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(other_user_id)
         .execute(db)
         .await
         .ok();
@@ -707,5 +787,56 @@ async fn list_patient_documents_wrong_cabinet_returns_404() {
 
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
+
+// ── Test 7 : POST documents par un praticien SANS relation de soin → 403 (#3730) ──
+
+#[tokio::test]
+async fn upload_patient_document_without_care_relation_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let other_user_id = insert_practitioner_without_relation(&db, cabinet_id).await;
+
+    let token = make_practitioner_token(other_user_id, cabinet_id);
+
+    let boundary = "----TestBoundary3730";
+    let body_bytes = format!(
+        "--{boundary}\r\n\
+         Content-Disposition: form-data; name=\"category\"\r\n\r\n\
+         ordonnance\r\n\
+         --{boundary}\r\n\
+         Content-Disposition: form-data; name=\"file\"; filename=\"inject.pdf\"\r\n\
+         Content-Type: application/pdf\r\n\r\n\
+         %PDF-stub\r\n\
+         --{boundary}--\r\n"
+    );
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/patients/{}/documents", patient_id))
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body_bytes))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "un praticien sans relation de soin ne doit pas pouvoir écrire dans le dossier (issue #3730)"
+    );
+
+    cleanup_other_practitioner(&db, other_user_id).await;
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
