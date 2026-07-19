@@ -427,3 +427,78 @@ async fn appointment_preparation_wrong_patient_returns_404() {
     )
     .await;
 }
+
+// ── Test : access.parking est un bool JSON, pas la chaîne "true" (#3741) ────
+
+#[tokio::test]
+async fn appointment_preparation_parking_is_json_bool() {
+    if !db_available() {
+        return;
+    }
+    let db = seed_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+
+    let (cabinet_id, prac_id, patient_id, appt_id) =
+        insert_fixture(&db, user_id, account_id, prac_user_id).await;
+
+    // cabinet.settings porte parking (comme pmr) en texte JSON "true"/"false".
+    sqlx::query("UPDATE cabinet SET settings = $2 WHERE id = $1")
+        .bind(cabinet_id)
+        .bind(serde_json::json!({"parking": "true", "pmr": "true"}))
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}/preparation", appt_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(
+        v["establishment"]["access"]["parking"],
+        serde_json::json!(true),
+        "parking doit être un bool JSON true, pas la chaîne \"true\" (#3741), got: {v}"
+    );
+    assert_eq!(
+        v["establishment"]["access"]["pmr"],
+        serde_json::json!(true),
+        "pmr (déjà converti) doit rester un bool JSON true"
+    );
+
+    cleanup(
+        &db,
+        cabinet_id,
+        prac_id,
+        patient_id,
+        appt_id,
+        user_id,
+        prac_user_id,
+    )
+    .await;
+}

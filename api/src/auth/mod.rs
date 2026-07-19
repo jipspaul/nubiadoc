@@ -278,7 +278,7 @@ impl IntoResponse for AppError {
                 .into_response(),
             AppError::NoActiveMembership => (
                 StatusCode::FORBIDDEN,
-                Json(json!({"error": "no_membership"})),
+                Json(json!({"code": "no_membership"})),
             )
                 .into_response(),
             AppError::LastAdminCannotBeRemoved => (
@@ -1601,8 +1601,11 @@ pub struct PostCabinetMemberBody {
 /// `POST /v1/cabinet/members` — crée un compte collaborateur et l'invite par email.
 ///
 /// Si l'email est inconnu : crée `app_user` (password_hash NULL) + token invite 72 h
-/// stocké dans `password_reset_token`. Si l'email est déjà membre du même cabinet → `409`.
-/// Si `rpps` est fourni et `role=practitioner` → crée une entrée `provider`. Rôle `admin` requis.
+/// stocké dans `password_reset_token`. Si l'email correspond à un membre RETIRÉ de ce
+/// cabinet (adhésion inactive) : réactive l'adhésion existante (`200`) plutôt que de
+/// heurter l'unicité de l'email (#3878). Si l'email est déjà membre ACTIF du même
+/// cabinet → `409`. Si `rpps` est fourni et `role=practitioner` → crée une entrée
+/// `provider`. Rôle `admin` requis.
 pub async fn post_cabinet_members(
     State(state): State<AppState>,
     claims: ProAdminOrManagerClaims,
@@ -1634,6 +1637,90 @@ pub async fn post_cabinet_members(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    // Ré-invitation d'un membre retiré (#3878) : app_user.email est unique
+    // globalement ; sans ce contrôle, un membre soft-deleted (active=false)
+    // heurtait à vie 23505 sur l'INSERT app_user → 409 permanent, aucun chemin
+    // de réactivation. reactivate_cabinet_member (SECURITY DEFINER, migration
+    // 0148) contourne la RLS pour retrouver le compte par email et réactiver
+    // son adhésion à CE cabinet si elle est inactive.
+    let reactivation = sqlx::query(
+        "SELECT matched_user_id, already_active FROM reactivate_cabinet_member($1, $2, $3)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(&body.email)
+    .bind(&body.role)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(row) = reactivation {
+        let matched_user_id: Uuid = row
+            .try_get("matched_user_id")
+            .map_err(|_| AppError::Internal)?;
+        let already_active: bool = row
+            .try_get("already_active")
+            .map_err(|_| AppError::Internal)?;
+
+        if already_active {
+            return Err(AppError::MemberAlreadyExists);
+        }
+
+        // Relit le profil via le même contournement RLS que get_cabinet_members
+        // (user_self_select exige current_user_id = id de la ligne lue).
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(matched_user_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        let member_row = sqlx::query(
+            "SELECT au.email, au.first_name, au.last_name, cm.created_at AS joined_at \
+             FROM cabinet_membership cm JOIN app_user au ON au.id = cm.user_id \
+             WHERE cm.cabinet_id = $1 AND cm.user_id = $2",
+        )
+        .bind(claims.cabinet_id)
+        .bind(matched_user_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let email: String = member_row
+            .try_get("email")
+            .map_err(|_| AppError::Internal)?;
+        let first_name: Option<String> = member_row
+            .try_get("first_name")
+            .map_err(|_| AppError::Internal)?;
+        let last_name: Option<String> = member_row
+            .try_get("last_name")
+            .map_err(|_| AppError::Internal)?;
+        let joined_at: chrono::DateTime<chrono::Utc> = member_row
+            .try_get("joined_at")
+            .map_err(|_| AppError::Internal)?;
+
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+
+        tracing::info!(
+            cabinet_id = %claims.cabinet_id,
+            user_id = %matched_user_id,
+            role = %body.role,
+            "cabinet member reactivated"
+        );
+
+        return Ok((
+            StatusCode::OK,
+            Json(CabinetMemberItem {
+                user_id: matched_user_id,
+                cabinet_id: claims.cabinet_id,
+                email,
+                first_name,
+                last_name,
+                role: body.role,
+                active: true,
+                joined_at: joined_at.to_rfc3339(),
+            }),
+        ));
+    }
 
     // Set current_user_id to the pre-generated UUID so that the user_self_select policy
     // passes for this new row within the same transaction (used by subsequent SELECT if needed).
@@ -2406,6 +2493,20 @@ pub async fn get_account_coverage(
     }))
 }
 
+/// Rejette une chaîne vide/whitespace-only fournie explicitement pour un champ
+/// couverture requis (amc/numero_adherent) : `Some("")` passe `COALESCE($n, ...)`
+/// (n'est pas NULL) et écrase silencieusement la valeur existante en base avec
+/// une chaîne vide (#3797, même gap non couvert par la validation regime_obligatoire
+/// juste à côté).
+fn validate_coverage_field_non_empty(value: &Option<String>) -> Result<(), AppError> {
+    if let Some(v) = value {
+        if v.trim().is_empty() {
+            return Err(AppError::ValidationError);
+        }
+    }
+    Ok(())
+}
+
 /// Sous-corps mutuelle pour `PATCH /v1/account/coverage`.
 #[derive(Deserialize)]
 pub struct PatchCoverageMutuelle {
@@ -2446,7 +2547,12 @@ pub async fn patch_account_coverage(
     let nss_encrypted: Option<Vec<u8>> = body.nss.as_deref().map(|s| s.as_bytes().to_vec());
 
     let (mutuelle_amc, mutuelle_numero, mutuelle_plateforme) = match body.mutuelle {
-        Some(m) => (Some(m.amc), Some(m.numero_adherent), m.plateforme),
+        Some(m) => {
+            if m.amc.trim().is_empty() || m.numero_adherent.trim().is_empty() {
+                return Err(AppError::ValidationError);
+            }
+            (Some(m.amc), Some(m.numero_adherent), m.plateforme)
+        }
         None => (None, None, None),
     };
 
@@ -2796,6 +2902,17 @@ pub async fn put_account_referring_doctor(
             .ok_or(AppError::NotFound)?;
     }
 
+    // Exclusivité provider_id / free_* : la garde ci-dessus ne compare que
+    // provider_id.is_some() == free_name.is_some(), elle ignore free_phone/
+    // free_address — liés inconditionnellement plus bas, ce qui stockait les
+    // deux ensemble en violation du contrat (#3798). Force-les à NULL côté
+    // provider pour que le contrat reste vrai en base, pas seulement en entrée.
+    let (free_phone, free_address) = if body.provider_id.is_some() {
+        (None, None)
+    } else {
+        (body.free_phone, body.free_address)
+    };
+
     let row = sqlx::query(
         "INSERT INTO patient_referring_doctor \
            (patient_account_id, provider_id, free_name, free_phone, free_address) \
@@ -2811,8 +2928,8 @@ pub async fn put_account_referring_doctor(
     .bind(claims.account_id)
     .bind(body.provider_id)
     .bind(&free_name)
-    .bind(&body.free_phone)
-    .bind(&body.free_address)
+    .bind(&free_phone)
+    .bind(&free_address)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -3531,6 +3648,8 @@ pub async fn post_account_dependents(
                 return Err(AppError::ValidationError);
             }
         }
+        validate_coverage_field_non_empty(&cov.amc)?;
+        validate_coverage_field_non_empty(&cov.numero_adherent)?;
 
         // patient_coverage est scopée par app.patient_account_id (migration 0023).
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
@@ -3702,6 +3821,8 @@ pub async fn patch_account_dependent(
                 return Err(AppError::ValidationError);
             }
         }
+        validate_coverage_field_non_empty(&cov.amc)?;
+        validate_coverage_field_non_empty(&cov.numero_adherent)?;
 
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
             .bind(dependent_id.to_string())

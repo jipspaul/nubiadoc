@@ -93,12 +93,21 @@ pub async fn patch_appointment(
         if new_ts <= chrono::Utc::now() {
             return Err(AppError::SlotUnavailable);
         }
+        // Préavis 24 h évalué sur la DESTINATION, pas seulement la source (:80) :
+        // sans ce contrôle, un RDV source >24h pouvait être déplacé vers un créneau
+        // <24h (préavis contourné) et se retrouvait ensuite piégé — toute nouvelle
+        // reprogrammation lit alors le nouveau starts_at <24h → 409 too_late à vie
+        // (#3891, cul-de-sac one-way).
+        if chrono::Utc::now() >= new_ts - chrono::Duration::hours(24) {
+            return Err(AppError::TooLate);
+        }
         new_slot_id = sqlx::query_scalar(
             "SELECT s.id FROM availability_slot s \
                JOIN provider p ON p.id = s.provider_id \
                WHERE p.practitioner_id = $1 \
                  AND s.starts_at = $2 \
                  AND s.status = 'open' \
+                 AND s.online_booking = true \
                  AND s.deleted_at IS NULL",
         )
         .bind(practitioner_id)
@@ -582,16 +591,31 @@ pub async fn list_appointments(
 
     let is_past = effective_status == Some("past");
 
-    let status_clause = match effective_status {
-        Some("upcoming") => {
-            " AND (a.status IN ('checked_in','in_progress') \
+    // Statuts réels d'appointment (hors vues upcoming/past) — whitelist fermée,
+    // seule interpolée directement dans le SQL (pas d'entrée libre possible).
+    const REAL_STATUSES: &[&str] = &[
+        "requested",
+        "confirmed",
+        "checked_in",
+        "in_progress",
+        "done",
+        "cancelled",
+        "no_show",
+    ];
+
+    let status_clause: String = match effective_status {
+        Some("upcoming") => " AND (a.status IN ('checked_in','in_progress') \
               OR (a.starts_at > now() AND a.status IN ('requested','confirmed')))"
-        }
-        Some("past") => {
-            " AND (a.status IN ('done','cancelled','no_show') \
+            .to_string(),
+        Some("past") => " AND (a.status IN ('done','cancelled','no_show') \
               OR (a.starts_at <= now() AND a.status IN ('requested','confirmed')))"
-        }
-        _ => "",
+            .to_string(),
+        Some(s) if REAL_STATUSES.contains(&s) => format!(" AND a.status = '{s}'"),
+        // `status` nommé mais non reconnu (ni vue upcoming/past, ni vrai statut) :
+        // avant, tombait silencieusement dans une clause vide (#3877) → renvoyait
+        // TOUS les RDV au lieu de filtrer. Un filtre nommé doit filtrer ou être refusé.
+        Some(_) => return Err(AppError::ValidationError),
+        None => String::new(),
     };
 
     let order = if is_past { "DESC" } else { "ASC" };
@@ -892,7 +916,7 @@ pub struct GeoCoord {
 #[derive(Serialize)]
 pub struct AccessInfo {
     pub door_code: Option<String>,
-    pub parking: Option<String>,
+    pub parking: bool,
     pub pmr: bool,
 }
 
@@ -1016,7 +1040,7 @@ pub async fn get_appointment_preparation(
     let door_code: Option<String> = cab_row
         .try_get("door_code")
         .map_err(|_| AppError::Internal)?;
-    let parking: Option<String> = cab_row.try_get("parking").map_err(|_| AppError::Internal)?;
+    let parking_str: Option<String> = cab_row.try_get("parking").map_err(|_| AppError::Internal)?;
     let pmr_str: Option<String> = cab_row.try_get("pmr").map_err(|_| AppError::Internal)?;
     let geo_val: Option<serde_json::Value> =
         cab_row.try_get("geo").map_err(|_| AppError::Internal)?;
@@ -1037,6 +1061,10 @@ pub async fn get_appointment_preparation(
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let pmr = pmr_str.as_deref() == Some("true");
+    // Même parsing que pmr : settings->>'parking' est du texte JSON ("true"/
+    // "false"), pas un bool natif. Non converti auparavant, AccessInfo.parking
+    // exposait la chaîne brute au lieu d'un bool (#3741).
+    let parking = parking_str.as_deref() == Some("true");
 
     // Fallback annuaire quand `cabinet.settings` n'a pas d'adresse (#3557) : même donnée
     // que celle déjà exposée par `GET /v1/providers/:id`.
@@ -1708,19 +1736,20 @@ pub async fn create_appointment(
         }
     }
 
-    // Résout le dossier patient dans ce cabinet (RLS via GUC cabinet).
-    let patient_row = sqlx::query(
-        "SELECT id FROM patient \
-         WHERE patient_account_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
-    )
-    .bind(effective_account_id)
-    .bind(cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::NotFound)?;
-
-    let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
+    // Récupère-ou-crée le dossier patient de ce cabinet (SECURITY DEFINER,
+    // migration 0123 — même fonction que create_booking). Un simple SELECT
+    // 404 sur un dossier absent : cas NORMAL pour un dépendant (compte géré
+    // sans fiche patient tant qu'il n'a jamais consulté dans ce cabinet),
+    // rendant `on_behalf_of` totalement inutilisable (#3739/#3836). NULL
+    // uniquement si le compte lui-même n'existe pas → 404 légitime.
+    let patient_id: Uuid =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT ensure_patient_for_cabinet($1, $2)")
+            .bind(effective_account_id)
+            .bind(cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
 
     // Résout starts_at / ends_at selon slot_id ou starts_at fourni.
     // status = 'open' : un créneau blocked (indispo praticien) ou held (hold

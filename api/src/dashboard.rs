@@ -102,17 +102,16 @@ pub async fn get_dashboard(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    // Rappels non lus (notifications de kind 'appointment_reminder')
-    let reminder_row = sqlx::query(
-        "SELECT COUNT(*) AS cnt FROM notification \
-         WHERE app_user_id = $1 AND kind = 'appointment_reminder' AND is_read = false",
-    )
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Rappels (US-P13) : reflète EXACTEMENT ce que calcule GET /v1/reminders
+    // (reminders.rs), pas un COUNT sur `notification` — `kind='appointment_reminder'`
+    // n'y est émis par aucun émetteur, ce compteur était donc structurellement
+    // toujours à 0 (#3888). 1 si un prochain RDV confirmé/checked_in existe
+    // (reminders.rs n'en affiche jamais qu'un seul, d'où le booléen plutôt
+    // qu'un COUNT) + un devis `sent` par rappel document. Le rappel "prevention"
+    // codé en dur a été retiré de reminders.rs (#3880) — plus de +1 fixe ici.
+    let reminders: i64 = if appt.is_some() { 1 } else { 0 } + quotes.len() as i64;
 
     let next_appointment = appt
         .map(|row| -> Result<NextAppointment, AppError> {
@@ -157,9 +156,6 @@ pub async fn get_dashboard(
         .collect::<Result<Vec<_>, _>>()?;
 
     let unread_messages: i64 = msg_row.try_get("cnt").map_err(|_| AppError::Internal)?;
-    let reminders: i64 = reminder_row
-        .try_get("cnt")
-        .map_err(|_| AppError::Internal)?;
 
     tracing::info!(
         account_id = %claims.account_id,

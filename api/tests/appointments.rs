@@ -728,6 +728,222 @@ async fn appointments_past_filter_returns_past_appointments() {
         .ok();
 }
 
+// ── Test 3b : status=<vrai statut> filtre par a.status (#3877) ───────────────
+// Régression #3877 : ?status=cancelled tombait dans le bras `_ => ""` (aucun
+// filtre), renvoyant TOUS les RDV au lieu des seuls RDV annulés.
+
+#[tokio::test]
+async fn appointments_real_status_filter_returns_matching_status_only() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let cancelled_appt_id = Uuid::new_v4();
+    let done_appt_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("appts-realstatus+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Dina', 'Statut')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("appts-realstatus-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet RealStatus Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient \
+             (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Dina', 'Statut', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, \
+                     now() - interval '1 day', now() - interval '1 day' + interval '1 hour', \
+                     'cancelled')",
+        )
+        .bind(cancelled_appt_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, \
+                     now() - interval '2 days', now() - interval '2 days' + interval '1 hour', \
+                     'done')",
+        )
+        .bind(done_appt_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/appointments?status=cancelled")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().unwrap();
+    let ids: Vec<&str> = data.iter().filter_map(|a| a["id"].as_str()).collect();
+
+    assert!(
+        ids.contains(&cancelled_appt_id.to_string().as_str()),
+        "le RDV cancelled doit être présent"
+    );
+    assert!(
+        !ids.contains(&done_appt_id.to_string().as_str()),
+        "?status=cancelled ne doit pas renvoyer un RDV done"
+    );
+
+    // Valeur non reconnue (ni vue upcoming/past, ni vrai statut) → 422, pas un
+    // silencieux "aucun filtre".
+    let bogus_response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/appointments?status=bogus")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(bogus_response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM appointment WHERE id = $1 OR id = $2")
+            .bind(cancelled_appt_id)
+            .bind(done_appt_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 4 : token pro → 403 ──────────────────────────────────────────────────
 
 #[tokio::test]

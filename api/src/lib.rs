@@ -29,6 +29,7 @@ mod devices;
 mod documents;
 mod health;
 mod implant_passport;
+mod interop;
 mod marketplace;
 mod medical_record;
 mod messaging;
@@ -724,6 +725,11 @@ fn build_router(
         .route(
             "/v1/webhooks/gocardless",
             post(webhooks::gocardless::gocardless_webhook),
+        )
+        .route("/v1/interop/oauth/token", post(interop::oauth::issue_token))
+        .route(
+            "/v1/interop/fhir/metadata",
+            get(interop::capability::capability_statement),
         )
         .layer(Extension(hub))
         .layer(Extension(

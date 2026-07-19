@@ -1,0 +1,9 @@
+[package]
+name    = "integrations-interop"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+argon2    = { version = "0.5", features = ["std", "password-hash"] }
+thiserror = { workspace = true }
