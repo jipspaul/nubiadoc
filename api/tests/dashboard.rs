@@ -127,7 +127,12 @@ async fn dashboard_empty_patient_returns_200_empty() {
     assert_eq!(v["to_sign"], json!([]), "to_sign doit être vide");
     assert_eq!(v["to_pay"], json!([]), "to_pay doit être vide");
     assert_eq!(v["unread_messages"], 0, "unread_messages doit être 0");
-    assert_eq!(v["reminders"], 0, "reminders doit être 0");
+    // reminders inclut toujours le rappel "prevention" (fixe, cf. reminders.rs
+    // list_reminders) même sans RDV ni devis — aligné sur GET /v1/reminders (#3888).
+    assert_eq!(
+        v["reminders"], 1,
+        "reminders doit refléter GET /v1/reminders (prevention seule ici)"
+    );
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)
@@ -281,6 +286,8 @@ async fn dashboard_with_confirmed_appointment_returns_next_appointment() {
         v["next_appointment"]["starts_at"].is_string(),
         "starts_at doit être présent"
     );
+    // reminders = prevention (1) + rappel RDV (1, un seul même RDV présent) + 0 devis (#3888).
+    assert_eq!(v["reminders"], 2, "reminders doit compter prevention + RDV");
 
     // Cleanup — FORCE RLS : GUC requis pour DELETE cabinet-scoped.
     {
@@ -315,6 +322,153 @@ async fn dashboard_with_confirmed_appointment_returns_next_appointment() {
     sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
         .bind(user_id)
         .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 2b : devis "sent" → compté dans reminders (#3888) ───────────────────
+// Régression #3888 : dashboard.reminders comptait des notifications
+// kind='appointment_reminder' jamais émises (toujours 0), déconnecté de
+// GET /v1/reminders. Vérifie que reminders inclut bien un rappel par devis
+// en attente de signature, comme le fait déjà to_sign.
+
+#[tokio::test]
+async fn dashboard_with_sent_quote_counts_reminder() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("dashboard-quote+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Cléo', 'Devis')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Dashboard Quote Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Cléo', 'Devis', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount) \
+             VALUES ($1, $2, $3, 'sent', 120.00)",
+        )
+        .bind(quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/dashboard")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(v["to_sign"].as_array().unwrap().len(), 1);
+    // reminders = prevention (1) + 0 RDV + 1 devis sent.
+    assert_eq!(
+        v["reminders"], 2,
+        "reminders doit compter prevention + le devis sent"
+    );
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote WHERE id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
         .execute(&db)
         .await
         .ok();
