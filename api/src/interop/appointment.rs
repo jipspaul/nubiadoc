@@ -26,17 +26,18 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use core_tenancy::{with_tenant, TenancyError};
 use integrations_interop::Scope;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
     interop::auth::{require_scope, InteropClaims},
-    AppState,
+    AppState, InteropSigningKey, JobDispatcher,
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -431,6 +432,8 @@ fn extract_participant_ref(
 /// d'exclusion DB `appointment_no_overlap` (`23P01` → `409 conflict`).
 pub async fn create_appointment(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
+    Extension(InteropSigningKey(signing_key)): Extension<InteropSigningKey>,
     claims: InteropClaims,
     headers: HeaderMap,
     Json(body): Json<FhirAppointmentIn>,
@@ -580,6 +583,17 @@ pub async fn create_appointment(
         appointment_id = %row.id,
         "interop appointment created"
     );
+
+    crate::interop::subscription::dispatch_notification(
+        &state,
+        &dispatcher,
+        &signing_key,
+        cabinet_id,
+        "Appointment",
+        row.id,
+    )
+    .await;
+
     Ok((StatusCode::CREATED, Json(appointment_to_fhir(&row))))
 }
 
@@ -605,6 +619,8 @@ pub struct FhirAppointmentStatusPatch {
 /// rejeté (`422 business-rule`), pas silencieusement accepté.
 pub async fn update_appointment_status(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<Arc<dyn JobDispatcher>>,
+    Extension(InteropSigningKey(signing_key)): Extension<InteropSigningKey>,
     claims: InteropClaims,
     Path(id): Path<Uuid>,
     Json(body): Json<FhirAppointmentStatusPatch>,
@@ -657,6 +673,20 @@ pub async fn update_appointment_status(
         .and_then(|inner| inner);
 
     let row = outcome?;
+
+    // Pas de `tracing::info!` préexistant dans ce handler (contrairement à
+    // `create_appointment`) — l'appel est ajouté au même endroit logique :
+    // juste après la transaction commitée, avant la réponse.
+    crate::interop::subscription::dispatch_notification(
+        &state,
+        &dispatcher,
+        &signing_key,
+        cabinet_id,
+        "Appointment",
+        row.id,
+    )
+    .await;
+
     Ok(Json(appointment_to_fhir(&row)))
 }
 
