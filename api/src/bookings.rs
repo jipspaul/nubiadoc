@@ -84,6 +84,7 @@ pub async fn create_booking(
     let ends_at: chrono::DateTime<chrono::Utc> = slot_row
         .try_get("ends_at")
         .map_err(|_| AppError::Internal)?;
+    let slot_status: String = slot_row.try_get("status").map_err(|_| AppError::Internal)?;
 
     // Un créneau révolu (#3750) ne doit jamais donner lieu à un RDV : ce cas
     // ne devrait plus arriver via claim_and_hold_slot (migration 0145), mais
@@ -151,6 +152,19 @@ pub async fn create_booking(
                 }),
             ));
         }
+    }
+
+    // Jumeau de #3637 (déjà corrigé sur POST /appointments) : le hold passe le
+    // créneau en 'held' (claim_and_hold_slot, 0120), mais rien ne ré-attestait
+    // que le créneau était TOUJOURS 'held' au moment du booking. Un PATCH
+    // secrétariat entre-temps (ex. status='blocked', indisponibilité
+    // praticien posée après le hold patient) laissait passer une réservation
+    // sur un créneau explicitement bloqué (#3744). Seul 'held' est légitime
+    // ici : le hold_token/user_id/expiration est validé juste après.
+    // Vérifié APRÈS le court-circuit idempotent ci-dessus : un replay légitime
+    // arrive après que le 1er appel a déjà fait passer le créneau à 'booked'.
+    if slot_status != "held" {
+        return Err(AppError::SlotUnavailable);
     }
 
     // Valide le hold : appartient au caller, non expiré.

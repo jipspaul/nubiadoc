@@ -475,6 +475,110 @@ async fn cleanup_slot_fixtures(db: &PgPool, cabinet_id: Uuid, slot_id: Uuid) {
     tx.commit().await.ok();
 }
 
+// ── Test : créneau `blocked` après le hold (#3744, jumeau de #3637) ──────────
+// Repro exacte de l'issue : le patient tient un créneau, le secrétariat le
+// marque `blocked` (indisponibilité praticien) pendant que le hold est actif,
+// et /bookings doit refuser au lieu de créer un RDV sur un créneau bloqué.
+
+#[tokio::test]
+async fn post_booking_slot_blocked_after_hold_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+
+    let (cabinet_id, slot_id, patient_user_id, patient_account_id) =
+        setup_slot_fixtures(&db, &suffix).await;
+
+    let hold_token = Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO slot_holds (slot_id, user_id, hold_token, expires_at) \
+         VALUES ($1, $2, $3, now() + interval '5 minutes')",
+    )
+    .bind(slot_id)
+    .bind(patient_user_id)
+    .bind(&hold_token)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Le secrétariat bloque le créneau APRÈS le hold (indisponibilité praticien).
+    sqlx::query("UPDATE availability_slot SET status = 'blocked' WHERE id = $1")
+        .bind(slot_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/bookings")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "slot_id": slot_id,
+                        "hold_token": hold_token,
+                        "motif": "QA-blockhold",
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = response.status();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        status,
+        StatusCode::CONFLICT,
+        "un créneau blocked ne doit jamais être réservable, body: {v}"
+    );
+
+    // Aucun appointment n'a été créé sur ce créneau.
+    let appt_count: i64 = sqlx::query(
+        "SELECT COUNT(*) AS cnt FROM appointment WHERE slot_id = $1 AND cabinet_id = $2",
+    )
+    .bind(slot_id)
+    .bind(cabinet_id)
+    .fetch_one(&db)
+    .await
+    .unwrap()
+    .try_get("cnt")
+    .unwrap();
+    assert_eq!(appt_count, 0, "aucun RDV ne doit exister sur ce créneau");
+
+    cleanup_slot_fixtures(&db, cabinet_id, slot_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE app_user_id = $1")
+        .bind(patient_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE email LIKE $1")
+        .bind(format!("409-%{}@nubia.test", suffix))
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test : hold_token inconnu → 409 ──
 
 #[tokio::test]
