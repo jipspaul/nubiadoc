@@ -9,7 +9,6 @@ export 'src/remote/auth/auth_api.dart';
 export 'src/remote/auth/auth_dto.dart';
 export 'src/remote/billing/billing_api.dart';
 export 'src/remote/billing/billing_dto.dart';
-export 'src/remote/quotes_api.dart';
 export 'src/remote/payments_api.dart';
 export 'src/remote/clinical/clinical_session_api.dart';
 export 'src/remote/clinical/clinical_session_dto.dart';

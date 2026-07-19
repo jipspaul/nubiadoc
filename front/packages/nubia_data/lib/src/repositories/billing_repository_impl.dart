@@ -35,13 +35,16 @@ class BillingRepositoryImpl implements BillingRepository {
   }
 
   @override
-  Future<Either<Failure, String>> initiateSignature(String quoteId) async {
+  Future<Either<Failure, Quote>> initiateSignature(String quoteId) async {
     try {
-      final dto = await _api.initiateSignature(quoteId);
-      return Right(dto.redirectUrl);
+      // Signature synchrone (stub Yousign, cf. QuoteSignedDto) : pas de
+      // redirection à attendre — on relit directement le devis à jour.
+      await _api.initiateSignature(quoteId);
+      final dto = await _api.getQuoteById(quoteId);
+      return Right(dto.toDomain());
     } on DioException catch (e) {
       return Left(
-          _mapDioError(e, 'Erreur lors de l\'initiation de la signature.'));
+          _mapDioError(e, 'Erreur lors de la signature du devis.'));
     } catch (e) {
       return const Left(ParseFailure());
     }

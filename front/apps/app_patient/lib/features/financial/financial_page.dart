@@ -42,9 +42,6 @@ class FinancialPage extends StatelessWidget {
         if (state is FinancialQuoteDetail) {
           return _QuoteDetailView(state: state);
         }
-        if (state is FinancialSignatureInProgress) {
-          return _SignatureView(state: state);
-        }
         if (state is FinancialPaymentInProgress) {
           return const _PaymentLoadingView(
               key: Key('financial_payment_loading'));
@@ -550,36 +547,6 @@ class _StickyActions extends StatelessWidget {
             children: spaced,
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Signature en cours
-// ---------------------------------------------------------------------------
-
-class _SignatureView extends StatelessWidget {
-  const _SignatureView({required this.state});
-
-  final FinancialSignatureInProgress state;
-
-  @override
-  Widget build(BuildContext context) {
-    return NubiaEmptyState(
-      key: const Key('financial_signature'),
-      icon: Icons.draw_outlined,
-      title: 'Signature en cours',
-      subtitle: 'Ouvrez le lien sécurisé pour signer votre devis, '
-          'puis confirmez ci-dessous.',
-      action: NubiaButton(
-        key: const Key('btn_confirm_signature'),
-        label: 'Confirmer la signature',
-        icon: Icons.check,
-        size: NubiaButtonSize.lg,
-        onPressed: () => context
-            .read<FinancialBloc>()
-            .add(const FinancialSignatureCompleted()),
       ),
     );
   }

@@ -5,7 +5,6 @@ import 'package:nubia_data/src/remote/scheduling/appointment_dto.dart';
 import 'package:nubia_data/src/remote/auth/auth_dto.dart';
 import 'package:nubia_data/src/remote/account/account_dto.dart';
 import 'package:nubia_data/src/remote/dashboard/dashboard_dto.dart';
-import 'package:nubia_data/src/remote/quotes_api.dart';
 import 'package:nubia_data/src/remote/payments_api.dart';
 import 'package:nubia_data/src/remote/clinical/clinical_session_dto.dart';
 import 'package:nubia_data/src/remote/search/search_dto.dart';
@@ -97,19 +96,16 @@ void main() {
     });
   });
 
-  group('QuoteSignDto (POST /v1/quotes/:id/sign response)', () {
-    test('fromJson désérialise une réponse de signature eIDAS Yousign', () {
+  group('QuoteSignedDto (POST /v1/quotes/:id/sign response)', () {
+    test('fromJson désérialise le contrat réel (signature synchrone, stub)',
+        () {
       final json = {
-        'signature_id': 'sig-abc-123',
-        'provider': 'yousign',
-        'redirect_url': 'https://yousign.com/procedure/abc',
-        'embed_token': null,
+        'signed': true,
+        'signed_at': '2026-07-13T12:21:48.9+00:00',
       };
-      final dto = QuoteSignDto.fromJson(json);
-      expect(dto.signatureId, 'sig-abc-123');
-      expect(dto.provider, 'yousign');
-      expect(dto.redirectUrl, 'https://yousign.com/procedure/abc');
-      expect(dto.embedToken, isNull);
+      final dto = QuoteSignedDto.fromJson(json);
+      expect(dto.signed, isTrue);
+      expect(dto.signedAt, '2026-07-13T12:21:48.9+00:00');
     });
   });
 

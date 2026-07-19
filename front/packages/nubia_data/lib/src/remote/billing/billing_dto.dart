@@ -161,13 +161,22 @@ class QuoteDto {
   }
 }
 
-class SignatureUrlDto {
-  final String redirectUrl;
+/// `POST /v1/quotes/:id/sign` signe le devis de façon SYNCHRONE côté API
+/// (stub Yousign — cf. commentaire `sign_quote`, api/src/billing.rs) et
+/// renvoie `{signed, signed_at}`, jamais `redirect_url` : il n'y a pas de
+/// parcours de redirection à attendre. Avant : `json['redirect_url']` →
+/// null → « Erreur de décodage de la réponse », alors que le devis était
+/// déjà signé et verrouillé côté serveur (#3705).
+class QuoteSignedDto {
+  final bool signed;
+  final String signedAt;
 
-  const SignatureUrlDto({required this.redirectUrl});
+  const QuoteSignedDto({required this.signed, required this.signedAt});
 
-  factory SignatureUrlDto.fromJson(Map<String, dynamic> json) =>
-      SignatureUrlDto(redirectUrl: json['redirect_url'] as String);
+  factory QuoteSignedDto.fromJson(Map<String, dynamic> json) => QuoteSignedDto(
+        signed: json['signed'] as bool,
+        signedAt: json['signed_at'] as String,
+      );
 }
 
 class DepositSecretDto {
