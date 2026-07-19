@@ -2,8 +2,8 @@
 //!
 //! Stub statique et public (pas de JWT) : sert à un client partenaire pour
 //! découvrir le serveur avant d'obtenir un token. Les ressources concrètes
-//! (Patient/Appointment/Slot/...) sont ajoutées par les lots suivants qui
-//! dépendent de ce socle — le tableau `resource` reste vide en lot A1.
+//! (Patient/Appointment/Slot/...) sont ajoutées au tableau `resource` par les
+//! lots qui les implémentent — `Appointment` (lot A6) est la première.
 
 use axum::Json;
 use serde_json::{json, Value};
@@ -19,9 +19,20 @@ pub async fn capability_statement() -> Json<Value> {
         "rest": [
             {
                 "mode": "server",
-                // Lot A1 = socle auth uniquement. Patient/Appointment/Slot/...
-                // seront listées ici par les lots qui implémentent ces ressources.
-                "resource": []
+                // Patient/... sera listée ici par le lot qui l'implémente.
+                "resource": [
+                    {
+                        "type": "Appointment",
+                        "interaction": [
+                            {"code": "read"},
+                            {"code": "search-type"},
+                            {"code": "create"},
+                            {"code": "update"}
+                        ]
+                    },
+                    { "type": "Slot", "interaction": [{ "code": "read" }, { "code": "search-type" }] },
+                    { "type": "Schedule", "interaction": [{ "code": "read" }] }
+                ]
             }
         ]
     }))

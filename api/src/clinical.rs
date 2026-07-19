@@ -930,6 +930,34 @@ pub async fn get_cabinet_patient(
 
     // Secrétaire : retourne uniquement la partie administrative (R.4127-72).
     if claims.role == "secretary" {
+        // Même garde de scope secrétariat que list_cabinet_patients (R10) :
+        // sans elle, le détail exposait le dossier admin/mutuelle d'un patient
+        // que la LISTE de cette même secrétaire masque déjà — contournement
+        // trivial par accès direct à l'URL (#3821).
+        let in_scope = match claims.secretariat_id {
+            Some(secretariat_id) => sqlx::query(
+                "SELECT 1 FROM appointment a \
+                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                 WHERE a.patient_id = $1 \
+                   AND a.deleted_at IS NULL \
+                   AND a.status <> 'cancelled' \
+                   AND ps.secretariat_id = $2 \
+                   AND ps.active = true",
+            )
+            .bind(patient_id)
+            .bind(secretariat_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .is_some(),
+            // Secrétaire sans secrétariat actif : aucun patient visible (comme la liste).
+            None => false,
+        };
+        if !in_scope {
+            return Err(AppError::NotFound);
+        }
+
         tx.commit().await.map_err(|_| AppError::Internal)?;
         tracing::info!(
             cabinet_id = %claims.cabinet_id,
@@ -1225,6 +1253,36 @@ pub async fn list_patient_documents(
         }
     }
 
+    // R10 : même garde de scope secrétariat que list_cabinet_patients
+    // (sec_clause) et get_cabinet_patient (#3821) — sans elle, une secrétaire
+    // pouvait sonder l'existence (200 vs 404) et lister les documents non-
+    // cliniques d'un patient hors de son secrétariat, masqué de sa propre
+    // liste (#3823, frère de #3821).
+    if claims.role == "secretary" {
+        let in_scope = match claims.secretariat_id {
+            Some(secretariat_id) => sqlx::query(
+                "SELECT 1 FROM appointment a \
+                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                 WHERE a.patient_id = $1 \
+                   AND a.deleted_at IS NULL \
+                   AND a.status <> 'cancelled' \
+                   AND ps.secretariat_id = $2 \
+                   AND ps.active = true",
+            )
+            .bind(patient_id)
+            .bind(secretariat_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .is_some(),
+            None => false,
+        };
+        if !in_scope {
+            return Err(AppError::NotFound);
+        }
+    }
+
     let cursor = params.cursor.as_deref().and_then(doc_decode_cursor);
     let fetch_limit = limit + 1;
 
@@ -1370,6 +1428,7 @@ pub async fn upload_patient_document(
     Path(patient_id): Path<Uuid>,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<UploadPatientDocumentResponse>), AppError> {
+    let is_practitioner = claims.role == "practitioner";
     let mut category_raw: Option<String> = None;
     let mut filename_field: Option<String> = None;
     let mut file_mime: Option<String> = None;
@@ -1444,6 +1503,30 @@ pub async fn upload_patient_document(
 
     if patient_exists.is_none() {
         return Err(AppError::NotFound);
+    }
+
+    // RLS strict E.2.16.c : même garde en écriture qu'en lecture
+    // (list_patient_documents) — un praticien doit avoir eu au moins un
+    // appointment avec ce patient dans ce cabinet pour écrire dans son
+    // dossier (§14). Les rôles non-praticiens (secretary, admin) n'ont pas
+    // de relation de soin possible et restent hors de cette garde.
+    if is_practitioner {
+        let has_appointment = sqlx::query(
+            "SELECT 1 FROM appointment a \
+             JOIN practitioner p ON p.id = a.practitioner_id \
+             WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+               AND p.user_id = $3 AND a.deleted_at IS NULL",
+        )
+        .bind(patient_id)
+        .bind(claims.cabinet_id)
+        .bind(claims.sub)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if has_appointment.is_none() {
+            return Err(AppError::Forbidden);
+        }
     }
 
     let row = sqlx::query(

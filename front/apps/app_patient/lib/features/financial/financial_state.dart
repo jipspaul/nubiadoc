@@ -39,22 +39,6 @@ final class FinancialQuoteDetail extends FinancialState {
   List<Object?> get props => [quote, quotes];
 }
 
-/// URL Yousign obtenue, attente de la confirmation de signature.
-final class FinancialSignatureInProgress extends FinancialState {
-  const FinancialSignatureInProgress({
-    required this.quote,
-    required this.quotes,
-    required this.signatureUrl,
-  });
-
-  final Quote quote;
-  final List<Quote> quotes;
-  final String signatureUrl;
-
-  @override
-  List<Object?> get props => [quote, quotes, signatureUrl];
-}
-
 /// Paiement en cours.
 final class FinancialPaymentInProgress extends FinancialState {
   const FinancialPaymentInProgress({

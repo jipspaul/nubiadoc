@@ -82,8 +82,9 @@ impl FromRequestParts<AppState> for InteropClaims {
 
 /// Vérifie que `claims` porte bien `scope` — sinon `403 insufficient_scope`.
 ///
-/// Appelée par les handlers de ressources FHIR (`Slot`/`Schedule`/... — lot
-/// A3+) juste après extraction de [`InteropClaims`], avant tout accès DB.
+/// Appelée par les handlers de ressources FHIR (annuaire lot A2, créneaux
+/// lot A3, rendez-vous lot A6, `api/src/interop/appointment.rs`) juste après
+/// extraction de [`InteropClaims`], avant tout accès DB.
 pub fn require_scope(claims: &InteropClaims, scope: Scope) -> Result<(), InteropError> {
     if claims.scopes().contains(&scope) {
         Ok(())
