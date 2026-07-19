@@ -38,7 +38,6 @@ impl InteropClaims {
     /// indiquerait une corruption (ou une évolution de l'enum côté serveur
     /// après émission) — fail-closed : liste vide plutôt que de paniquer ou
     /// de faire confiance à un scope non reconnu.
-    #[allow(dead_code)] // consommé par les lots suivants (Patient/Appointment/Slot) via require_scope
     pub fn scopes(&self) -> Vec<Scope> {
         parse_scopes(&self.scope).unwrap_or_default()
     }
@@ -83,10 +82,8 @@ impl FromRequestParts<AppState> for InteropClaims {
 
 /// Vérifie que `claims` porte bien `scope` — sinon `403 insufficient_scope`.
 ///
-/// Pas encore appelé en lot A1 (aucune route Patient/Appointment/Slot
-/// protégée n'existe dans ce lot) — fourni pour les lots suivants qui
-/// dépendent de ce socle auth.
-#[allow(dead_code)]
+/// Consommé par les routes FHIR des lots suivants (ex. lot A6,
+/// `api/src/interop/appointment.rs`) qui dépendent de ce socle auth.
 pub fn require_scope(claims: &InteropClaims, scope: Scope) -> Result<(), InteropError> {
     if claims.scopes().contains(&scope) {
         Ok(())

@@ -1027,6 +1027,7 @@ dependencies = [
  "axum-client-ip",
  "base64 0.22.1",
  "chrono",
+ "core-tenancy",
  "futures-util",
  "hex",
  "hmac",

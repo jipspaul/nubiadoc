@@ -7,7 +7,9 @@
 //! utilisé par le reste de l'API — les clients OAuth2 partenaires attendent
 //! la forme standard.
 
+pub mod appointment;
 pub mod auth;
 pub mod capability;
 pub mod error;
 pub mod oauth;
+pub mod subscription;
