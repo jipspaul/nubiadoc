@@ -157,8 +157,8 @@ async fn scope_patient_to_secretariat(db: &PgPool, cabinet_id: Uuid, patient_id:
     secretariat_id
 }
 
-/// Insère les fixtures minimales (cabinet + app_user + patient + practitioner
-/// + appointment reliant `user_id` à `patient_id` — relation de soin établie,
+/// Insère les fixtures minimales (cabinet + app_user + patient + practitioner +
+/// appointment reliant `user_id` à `patient_id` — relation de soin établie,
 /// cf. garde `has_appointment` en lecture ET écriture, issue #3730).
 /// Retourne `(cabinet_id, user_id, patient_id)`.
 async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
