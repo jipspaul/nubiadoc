@@ -2724,6 +2724,10 @@ pub async fn post_coverage_card(
 
     let side = side.ok_or(AppError::ValidationError)?;
     let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
+    // Fichier vide : même garde que POST /documents (#3552), angle mort non répliqué ici (#3731).
+    if file_bytes.is_empty() {
+        return Err(AppError::ValidationError);
+    }
     let file_mime = file_mime.ok_or(AppError::ValidationError)?;
 
     // Antivirus : rejet EICAR (stub — intégration ClamAV à NUB-T3).
