@@ -2815,6 +2815,17 @@ pub async fn put_account_referring_doctor(
             .ok_or(AppError::NotFound)?;
     }
 
+    // Exclusivité provider_id / free_* : la garde ci-dessus ne compare que
+    // provider_id.is_some() == free_name.is_some(), elle ignore free_phone/
+    // free_address — liés inconditionnellement plus bas, ce qui stockait les
+    // deux ensemble en violation du contrat (#3798). Force-les à NULL côté
+    // provider pour que le contrat reste vrai en base, pas seulement en entrée.
+    let (free_phone, free_address) = if body.provider_id.is_some() {
+        (None, None)
+    } else {
+        (body.free_phone, body.free_address)
+    };
+
     let row = sqlx::query(
         "INSERT INTO patient_referring_doctor \
            (patient_account_id, provider_id, free_name, free_phone, free_address) \
@@ -2830,8 +2841,8 @@ pub async fn put_account_referring_doctor(
     .bind(claims.account_id)
     .bind(body.provider_id)
     .bind(&free_name)
-    .bind(&body.free_phone)
-    .bind(&body.free_address)
+    .bind(&free_phone)
+    .bind(&free_address)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
