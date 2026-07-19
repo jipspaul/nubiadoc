@@ -545,6 +545,9 @@ impl FromRequestParts<AppState> for MeClaims {
 
 /// `POST /v1/pro/register` — crée un compte pro + cabinet + membership admin + provider
 /// en une transaction atomique. Émet un JWT portant `cabinet_id` et `role:"admin"`.
+///
+/// Anti-énumération (#3748) : email déjà pris → `201` générique quand même (aucun
+/// compte créé, JWT décoratif sur des IDs jetables), jamais `409 email_taken`.
 pub async fn pro_register(
     State(state): State<AppState>,
     Json(body): Json<ProRegisterBody>,
@@ -577,19 +580,60 @@ pub async fn pro_register(
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Insert app_user with explicit id — no RETURNING needed (we already know user_id).
-    sqlx::query("INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'pro')")
-        .bind(user_id)
-        .bind(&body.email)
-        .bind(&password_hash)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| {
-            if is_unique_violation(&e) {
-                AppError::EmailTaken
-            } else {
-                AppError::Internal
-            }
-        })?;
+    let insert_result = sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'pro')",
+    )
+    .bind(user_id)
+    .bind(&body.email)
+    .bind(&password_hash)
+    .execute(&mut *tx)
+    .await;
+    if let Err(e) = insert_result {
+        if is_unique_violation(&e) {
+            // Anti-énumération (#3748) : un 409 email_taken vs 201 est un oracle
+            // fiable d'existence de compte sur un endpoint anonyme sans rate-limit
+            // ni CAPTCHA. `tx` n'est jamais commit (drop = rollback implicite) —
+            // aucune écriture, aucun compte réel ni token n'accède au compte
+            // d'autrui. Réponse 201 structurellement indiscernable d'un succès :
+            // mêmes types de champs, un vrai JWT signé (même format/longueur),
+            // mais portant des IDs jetables jamais persistés en base — inutilisable
+            // pour accéder à quoi que ce soit.
+            tracing::warn!(
+                "pro_register: tentative sur un email déjà pris (anti-énumération, aucun compte créé)"
+            );
+            let decoy_user_id = Uuid::new_v4();
+            let decoy_cabinet_id = Uuid::new_v4();
+            let exp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+                + 900;
+            let decoy_claims = ProRegisterClaims {
+                sub: decoy_user_id,
+                kind: "pro".to_string(),
+                cabinet_id: decoy_cabinet_id,
+                role: "admin".to_string(),
+                secretariat_id: None,
+                exp,
+            };
+            let access_token = encode(
+                &Header::default(),
+                &decoy_claims,
+                &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+            )
+            .map_err(|_| AppError::Internal)?;
+            return Ok((
+                StatusCode::CREATED,
+                Json(ProRegisterResponse {
+                    account_id: decoy_user_id,
+                    cabinet_id: decoy_cabinet_id,
+                    provider_id: Uuid::new_v4(),
+                    access_token,
+                }),
+            ));
+        }
+        return Err(AppError::Internal);
+    }
 
     // Scope the tenant GUC to this transaction (SET LOCAL) so subsequent inserts
     // pass the cabinet / cabinet_membership / provider RLS WITH CHECK.

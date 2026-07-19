@@ -94,10 +94,13 @@ async fn pro_register_happy_path_returns_201() {
         .ok();
 }
 
-// ── Test 2 : email déjà pris → 409 email_taken ───────────────────────────────
+// ── Test 2 (#3748, anti-énumération) : email déjà pris → 201 générique, ─────
+// pas 409 — sinon le statut HTTP est un oracle fiable d'existence de compte
+// sur un endpoint anonyme sans rate-limit ni CAPTCHA. Réponse structurellement
+// identique à un succès (mêmes champs, vrai JWT signé), mais aucun compte créé.
 
 #[tokio::test]
-async fn pro_register_duplicate_email_returns_409() {
+async fn pro_register_duplicate_email_returns_201_generic_no_account_created() {
     if !db_available() {
         return;
     }
@@ -124,13 +127,33 @@ async fn pro_register_duplicate_email_returns_409() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        response.status(),
+        StatusCode::CREATED,
+        "email déjà pris doit renvoyer 201 générique, pas 409 (anti-énumération)"
+    );
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["code"], "email_taken");
+    // Même forme qu'un succès réel : tous les champs présents, un vrai JWT.
+    assert!(v["account_id"].is_string(), "account_id manquant");
+    assert!(v["cabinet_id"].is_string(), "cabinet_id manquant");
+    assert!(v["provider_id"].is_string(), "provider_id manquant");
+    assert!(v["access_token"].is_string(), "access_token manquant");
+    assert!(
+        v["access_token"].as_str().unwrap().split('.').count() == 3,
+        "access_token doit avoir la forme d'un JWT valide (3 segments)"
+    );
+
+    // Aucun 2e compte n'a été créé pour cet email (toujours l'unique placeholder).
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM app_user WHERE email = $1")
+        .bind(&email)
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_eq!(count, 1, "aucun 2e compte ne doit être créé");
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
