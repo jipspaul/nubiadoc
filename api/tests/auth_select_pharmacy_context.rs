@@ -186,7 +186,7 @@ async fn select_pharmacy_context_non_member_returns_403() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "no_membership");
+    assert_eq!(v["code"], "no_membership");
 }
 
 // ── Test 3 : pharmacie inexistante → 404 ──────────────────────────────────────

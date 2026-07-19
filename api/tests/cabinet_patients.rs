@@ -806,10 +806,95 @@ async fn get_cabinet_patient_secretary_sees_admin_only_200() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let patient_id = v["patient_id"].as_str().unwrap().to_string();
+    let patient_id: Uuid = v["patient_id"].as_str().unwrap().parse().unwrap();
 
-    // Token secrétaire pour le même cabinet.
-    let sec_token = make_pro_token(Uuid::new_v4(), cabinet_id, "secretary");
+    // Scope secrétariat (#3821) : sans un provider_secretariat actif liant le
+    // praticien du patient au secrétariat de la secrétaire, get_cabinet_patient
+    // masque désormais ce patient (404) — même garde que list_cabinet_patients.
+    let provider_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
+    {
+        let mut tx = owner.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        // create_cabinet_patient crée une NOUVELLE fiche patient (l'ancienne,
+        // utilisée par create_patient_account_with_appointment pour la garde
+        // #3872, reste soft-deleted) — l'appointment existant pointe donc sur
+        // l'ancien patient_id, pas sur celui-ci. Le scope secrétariat (#3821)
+        // filtre sur CE patient_id : il faut un second appointment qui le
+        // référence réellement pour que la garde le considère "en scope".
+        sqlx::query(
+            "INSERT INTO appointment (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, now() - interval '10 days', now() - interval '10 days' + interval '30 minutes', 'done')",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(practitioner_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+             VALUES ($1, $2, $3, $4, 'Dr. Secretary Scope Test', true, true)",
+        )
+        .bind(provider_id)
+        .bind(cabinet_id)
+        .bind(practitioner_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Admin Test')",
+        )
+        .bind(secretariat_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+             VALUES ($1, $2, true)",
+        )
+        .bind(provider_id)
+        .bind(secretariat_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    // Token secrétaire pour le même cabinet, rattaché au secrétariat scopé ci-dessus.
+    #[derive(serde::Serialize)]
+    struct SecretaryClaims {
+        sub: Uuid,
+        kind: String,
+        cabinet_id: Uuid,
+        role: String,
+        secretariat_id: Uuid,
+        exp: u64,
+    }
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    let sec_token = encode(
+        &Header::default(),
+        &SecretaryClaims {
+            sub: Uuid::new_v4(),
+            kind: "pro".into(),
+            cabinet_id,
+            role: "secretary".into(),
+            secretariat_id,
+            exp,
+        },
+        &EncodingKey::from_secret(b"test-secret"),
+    )
+    .unwrap();
 
     let resp = app(make_state(db))
         .oneshot(
@@ -836,6 +921,31 @@ async fn get_cabinet_patient_secretary_sees_admin_only_200() {
     assert!(v.get("notes").is_none(), "secretary should not see notes");
     // Mais les champs admin sont présents.
     assert!(v["first_name"].is_string(), "first_name should be present");
+
+    {
+        let mut tx = owner.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider_secretariat WHERE provider_id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM secretariat WHERE id = $1")
+            .bind(secretariat_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
 
     sqlx::query("DELETE FROM app_user WHERE email = $1 OR email = $2")
         .bind(&pro_email)

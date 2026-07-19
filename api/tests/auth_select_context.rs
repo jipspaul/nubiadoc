@@ -392,7 +392,7 @@ async fn select_context_not_member_returns_403() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "no_membership");
+    assert_eq!(v["code"], "no_membership");
 
     sqlx::query("DELETE FROM cabinet WHERE id = $1")
         .bind(cabinet_id)
@@ -610,7 +610,7 @@ async fn select_context_secretariat_from_other_cabinet_returns_403() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["error"], "no_membership");
+    assert_eq!(v["code"], "no_membership");
 
     sqlx::query("DELETE FROM cabinet_membership WHERE user_id = $1")
         .bind(user_id)
