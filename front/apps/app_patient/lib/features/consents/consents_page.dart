@@ -6,11 +6,17 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'consents_cubit.dart';
 
 /// Libellés lisibles des finalités RGPD connues (fallback = purpose brut).
+// Doit couvrir exactement les finalités émises par l'API (api/src/auth/mod.rs,
+// db/migrations/0008_audit_consent.sql) — un écart ici affiche la clé brute
+// en snake_case à l'utilisateur sur un écran RGPD (#3706). `research` et
+// `third_party_sharing` ne sont émises par aucun endpoint : retirées.
 const _kConsentLabels = <String, String>{
   'data_processing': 'Traitement de mes données de santé',
   'marketing': 'Communications marketing',
-  'research': 'Recherche médicale anonymisée',
-  'third_party_sharing': 'Partage avec des tiers de confiance',
+  'soins': 'Soins',
+  'partage_pharmacie': 'Partage avec ma pharmacie',
+  'partage_confrere': 'Partage avec un confrère',
+  'ia_scribe': 'Assistance IA (scribe)',
 };
 
 class ConsentsPage extends StatelessWidget {
