@@ -311,3 +311,61 @@ async fn get_provider_no_reviews_rating_avg_null() {
 
     cleanup_provider(&db, provider_id).await;
 }
+
+// ── Test 7 : colonnes dénormalisées stale ignorées (#3889) ───────────────────
+// Régression #3889 : provider.rating_avg/rating_count (colonnes dénormalisées,
+// seedées indépendamment) affichaient "265 avis @4.9" alors que /reviews
+// renvoyait 0 avis published. get_provider doit désormais calculer l'agrégat
+// depuis la table review, pas depuis les colonnes stale.
+
+#[tokio::test]
+async fn get_provider_stale_denormalized_columns_ignored() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let provider_id = insert_provider(&db, &Uuid::new_v4().to_string(), true).await;
+
+    // Simule la divergence de seed rapportée par l'issue : colonnes dénormalisées
+    // annonçant 265 avis @4.9, sans aucune ligne `review` correspondante.
+    sqlx::query("UPDATE provider SET rating_avg = 4.9, rating_count = 265 WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/providers/{}", provider_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert!(
+        v["rating_avg"].is_null(),
+        "rating_avg doit ignorer la colonne stale (4.9) et refléter 0 avis published"
+    );
+    assert_eq!(
+        v["review_count"].as_i64(),
+        Some(0),
+        "review_count doit ignorer la colonne stale (265) et refléter 0 avis published, comme /reviews"
+    );
+
+    cleanup_provider(&db, provider_id).await;
+}

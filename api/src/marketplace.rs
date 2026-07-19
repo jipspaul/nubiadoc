@@ -553,7 +553,7 @@ pub async fn search_providers(
             "ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) ASC NULLS LAST, \
              p.display_name ASC"
         }
-        Some("rating") => "p.rating_avg DESC NULLS LAST, p.display_name ASC",
+        Some("rating") => "rating_avg DESC NULLS LAST, p.display_name ASC",
         Some("next_slot") => "next_slot_at ASC NULLS LAST, p.display_name ASC",
         _ => "p.display_name ASC",
     };
@@ -588,7 +588,8 @@ pub async fn search_providers(
               WHERE sl.provider_id = p.id AND sl.status = 'open' \
               AND sl.deleted_at IS NULL AND sl.online_booking = true \
               AND sl.starts_at > now()) AS next_slot_at, \
-             p.rating_avg::double precision AS rating_avg, \
+             (SELECT avg(rating)::double precision FROM review \
+              WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
              ST_Y(p.geo::geometry) AS geo_lat, \
              ST_X(p.geo::geometry) AS geo_lng, \
              p.is_listed, \
@@ -783,8 +784,10 @@ pub async fn get_provider(
              p.teleconsult, \
              p.pmr, \
              p.establishment_id, \
-             p.rating_avg::double precision AS rating_avg, \
-             p.rating_count \
+             (SELECT avg(rating)::double precision FROM review \
+              WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
+             (SELECT count(*) FROM review \
+              WHERE provider_id = p.id AND status = 'published') AS rating_count \
          FROM provider p \
          LEFT JOIN specialty s  ON s.id  = p.specialty_id \
          LEFT JOIN profession pr ON pr.id = s.profession_id \
@@ -804,7 +807,9 @@ pub async fn get_provider(
         _ => None,
     };
 
-    let review_count: i32 = row.try_get("rating_count").unwrap_or(0);
+    // count(*) renvoie bigint (i64), pas int — auparavant p.rating_count (int)
+    // rendait i32 correct ; le sous-select ci-dessus exige i64.
+    let review_count: i64 = row.try_get("rating_count").unwrap_or(0);
 
     Ok(Json(ProviderProfile {
         provider_id: row.try_get("provider_id").map_err(|_| AppError::Internal)?,
@@ -827,7 +832,7 @@ pub async fn get_provider(
         pmr: row.try_get("pmr").unwrap_or(None),
         establishment_id: row.try_get("establishment_id").unwrap_or(None),
         rating_avg: row.try_get("rating_avg").unwrap_or(None),
-        review_count: review_count as i64,
+        review_count,
     }))
 }
 
