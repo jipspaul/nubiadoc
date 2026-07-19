@@ -1452,9 +1452,15 @@ pub async fn start_consultation(
         }
     }
 
+    // COALESCE(checkin_at, now()) : un RDV démarré directement depuis 'confirmed'
+    // (sans passer par checkin_appointment) n'a jamais checkin_at posé, alors
+    // que get_waiting_room exige checkin_at IS NOT NULL — le RDV disparaissait
+    // de la salle d'attente dès qu'il passait in_progress (#3734). Ne touche
+    // pas un checkin_at déjà posé (checked_in → in_progress normal).
     let updated = sqlx::query(
         "UPDATE appointment \
-         SET status = 'in_progress', started_at = now(), updated_at = now() \
+         SET status = 'in_progress', started_at = now(), \
+             checkin_at = COALESCE(checkin_at, now()), updated_at = now() \
          WHERE id = $1 \
          RETURNING started_at",
     )
