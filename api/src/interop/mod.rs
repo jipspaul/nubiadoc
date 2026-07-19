@@ -9,5 +9,6 @@
 
 pub mod auth;
 pub mod capability;
+pub mod directory;
 pub mod error;
 pub mod oauth;

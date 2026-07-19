@@ -1,9 +1,10 @@
 //! `GET /v1/interop/fhir/metadata` — `CapabilityStatement` FHIR minimal.
 //!
 //! Stub statique et public (pas de JWT) : sert à un client partenaire pour
-//! découvrir le serveur avant d'obtenir un token. Les ressources concrètes
-//! (Patient/Appointment/Slot/...) sont ajoutées par les lots suivants qui
-//! dépendent de ce socle — le tableau `resource` reste vide en lot A1.
+//! découvrir le serveur avant d'obtenir un token. Patient/Appointment/Slot/...
+//! sont ajoutées par les lots suivants (A3/A4/A6) qui dépendent de ce socle —
+//! seuls Practitioner/Organization/Location (lot A2, lecture seule) figurent
+//! ici pour l'instant.
 
 use axum::Json;
 use serde_json::{json, Value};
@@ -19,9 +20,13 @@ pub async fn capability_statement() -> Json<Value> {
         "rest": [
             {
                 "mode": "server",
-                // Lot A1 = socle auth uniquement. Patient/Appointment/Slot/...
-                // seront listées ici par les lots qui implémentent ces ressources.
-                "resource": []
+                // Lot A2 = annuaire lecture seule. Patient/Appointment/Slot/...
+                // seront ajoutées ici par les lots qui implémentent ces ressources.
+                "resource": [
+                    { "type": "Practitioner", "interaction": [{ "code": "read" }, { "code": "search-type" }] },
+                    { "type": "Organization", "interaction": [{ "code": "read" }] },
+                    { "type": "Location", "interaction": [{ "code": "read" }] }
+                ]
             }
         ]
     }))

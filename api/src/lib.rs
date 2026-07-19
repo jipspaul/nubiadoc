@@ -731,6 +731,22 @@ fn build_router(
             "/v1/interop/fhir/metadata",
             get(interop::capability::capability_statement),
         )
+        .route(
+            "/v1/interop/fhir/Practitioner",
+            get(interop::directory::search_practitioners),
+        )
+        .route(
+            "/v1/interop/fhir/Practitioner/:id",
+            get(interop::directory::get_practitioner),
+        )
+        .route(
+            "/v1/interop/fhir/Organization/:id",
+            get(interop::directory::get_organization),
+        )
+        .route(
+            "/v1/interop/fhir/Location/:id",
+            get(interop::directory::get_location),
+        )
         .layer(Extension(hub))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
