@@ -249,8 +249,12 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, prac_user_id: Uuid) {
 
 // ── Test 1 : praticien voit le nom complet ────────────────────────────────────
 
+// Régression #3893 : `patient_name_initials` renvoyait le nom complet pour le
+// praticien (et admin/owner) tout en renvoyant des initiales pour le secrétariat
+// — même nom de champ, sémantique différente selon le rôle. Le champ doit
+// contenir des initiales pour TOUT rôle.
 #[tokio::test]
-async fn waiting_room_pro_sees_full_name() {
+async fn waiting_room_pro_sees_initials() {
     if !db_available() {
         return;
     }
@@ -290,8 +294,8 @@ async fn waiting_room_pro_sees_full_name() {
     assert!(!data.is_empty(), "au moins 1 entrée attendue");
     assert_eq!(
         data[0]["patient_name_initials"].as_str().unwrap(),
-        "Jean Dupont",
-        "le praticien doit voir le nom complet"
+        "JD",
+        "un champ nommé patient_name_initials doit contenir des initiales, même pour le praticien"
     );
     assert!(
         data[0].get("wait_minutes").is_some(),
