@@ -1,14 +1,19 @@
-//! Tests d'intégration : worker de dispatch des rappels RDV (#4034).
+//! Tests d'intégration : worker de dispatch des rappels RDV, canal SMS (#4036).
 //!
 //! Couvre les deux critères d'acceptation de l'issue :
-//! - un reminder `pending` échu passe à `sent` après exécution du job
-//!   (patient avec un device actif) ;
-//! - un device absent produit `failed` sans panic (patient sans device, ou
-//!   patient non lié à un compte).
+//! - un reminder `channel='sms'` échu avec un numéro connu déclenche l'appel
+//!   provider (mock HTTP) et transitionne en `status='sent'` ;
+//! - un opt-out patient (`notification_preference.sms_rdv=false`) ne
+//!   déclenche AUCUN appel provider et transitionne en `status='cancelled'`.
+//!
+//! Fixture distincte de `reminder_dispatch.rs` (canal push) : pas besoin de
+//! `device`, besoin d'un numéro de téléphone sur `patient_account`.
 
-use nubia_api::{dispatch_pending_reminders, StubJobDispatcher, StubSmsSender};
+use nubia_api::{dispatch_pending_reminders, StubJobDispatcher, TwilioSmsSender};
 use sqlx::PgPool;
 use uuid::Uuid;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn db_available() -> bool {
     std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
@@ -26,71 +31,74 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-struct Fixture {
+struct SmsFixture {
     cabinet_id: Uuid,
     prac_user_id: Uuid,
-    patient_account_user_id: Option<Uuid>,
-    patient_account_id: Option<Uuid>,
+    patient_account_user_id: Uuid,
+    patient_account_id: Uuid,
     patient_id: Uuid,
     appointment_id: Uuid,
     reminder_id: Uuid,
 }
 
-/// Insère cabinet + praticien + patient + RDV + reminder `pending` échu.
-/// `with_account_and_device` : si `true`, le patient est lié à un
-/// `patient_account`/`app_user` avec un `device` actif (chemin `sent`
-/// attendu). Si `false`, le patient n'est lié à AUCUN compte (chemin
-/// `failed` attendu — cas "patient jamais inscrit côté app").
-async fn insert_fixture(db: &PgPool, suffix: &str, with_account_and_device: bool) -> Fixture {
+/// Insère cabinet + praticien + patient (compte + téléphone) + RDV + reminder
+/// `channel='sms'` `pending` échu. `sms_rdv` : `Some(false)` insère une ligne
+/// `notification_preference` en opt-out ; `None` n'en insère aucune (opt-in
+/// par défaut, DEFAULT true de la colonne).
+async fn insert_sms_fixture(
+    db: &PgPool,
+    suffix: &str,
+    phone: &str,
+    sms_rdv: Option<bool>,
+) -> SmsFixture {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
     let appointment_id = Uuid::new_v4();
     let reminder_id = Uuid::new_v4();
+    let account_user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
     )
     .bind(prac_user_id)
-    .bind(format!("reminder-dispatch-prac-{suffix}@nubia.test"))
+    .bind(format!("reminder-dispatch-sms-prac-{suffix}@nubia.test"))
     .execute(db)
     .await
     .unwrap();
 
-    let (patient_account_user_id, patient_account_id) = if with_account_and_device {
-        let account_user_id = Uuid::new_v4();
-        let account_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(account_user_id)
+    .bind(format!("reminder-dispatch-sms-pat-{suffix}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name, phone) \
+         VALUES ($1, $2, 'Marc', 'Dubois', $3)",
+    )
+    .bind(account_id)
+    .bind(account_user_id)
+    .bind(phone)
+    .execute(db)
+    .await
+    .unwrap();
+
+    if let Some(sms_rdv) = sms_rdv {
         sqlx::query(
-            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
-        )
-        .bind(account_user_id)
-        .bind(format!("reminder-dispatch-pat-{suffix}@nubia.test"))
-        .execute(db)
-        .await
-        .unwrap();
-        sqlx::query(
-            "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
-             VALUES ($1, $2, 'Marc', 'Dubois')",
+            "INSERT INTO notification_preference (patient_account_id, sms_rdv) VALUES ($1, $2)",
         )
         .bind(account_id)
-        .bind(account_user_id)
+        .bind(sms_rdv)
         .execute(db)
         .await
         .unwrap();
-        sqlx::query(
-            "INSERT INTO device (id, app_user_id, fcm_token, platform, active) \
-             VALUES ($1, $2, 'fake-fcm-token', 'android', true)",
-        )
-        .bind(Uuid::new_v4())
-        .bind(account_user_id)
-        .execute(db)
-        .await
-        .unwrap();
-        (Some(account_user_id), Some(account_id))
-    } else {
-        (None, None)
-    };
+    }
 
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -101,7 +109,7 @@ async fn insert_fixture(db: &PgPool, suffix: &str, with_account_and_device: bool
 
     sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
         .bind(cabinet_id)
-        .bind(format!("Cabinet ReminderDispatch {suffix}"))
+        .bind(format!("Cabinet ReminderDispatchSms {suffix}"))
         .execute(&mut *tx)
         .await
         .unwrap();
@@ -120,7 +128,7 @@ async fn insert_fixture(db: &PgPool, suffix: &str, with_account_and_device: bool
     )
     .bind(patient_id)
     .bind(cabinet_id)
-    .bind(patient_account_id)
+    .bind(account_id)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -139,11 +147,11 @@ async fn insert_fixture(db: &PgPool, suffix: &str, with_account_and_device: bool
     .await
     .unwrap();
 
-    // scheduled_at dans le passé : échu, ramassé par due_reminders_for_dispatch().
+    // channel='sms' : c'est ce que #4036 ajoute au dispatch.
     sqlx::query(
         "INSERT INTO reminder \
          (id, cabinet_id, appointment_id, patient_id, scheduled_at, kind, channel, status) \
-         VALUES ($1, $2, $3, $4, now() - interval '1 hour', 'rdv_rappel', 'push', 'pending')",
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', 'rdv_rappel', 'sms', 'pending')",
     )
     .bind(reminder_id)
     .bind(cabinet_id)
@@ -155,18 +163,18 @@ async fn insert_fixture(db: &PgPool, suffix: &str, with_account_and_device: bool
 
     tx.commit().await.unwrap();
 
-    Fixture {
+    SmsFixture {
         cabinet_id,
         prac_user_id,
-        patient_account_user_id,
-        patient_account_id,
+        patient_account_user_id: account_user_id,
+        patient_account_id: account_id,
         patient_id,
         appointment_id,
         reminder_id,
     }
 }
 
-async fn cleanup(db: &PgPool, f: &Fixture) {
+async fn cleanup(db: &PgPool, f: &SmsFixture) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(f.cabinet_id.to_string())
@@ -200,25 +208,21 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .ok();
     tx.commit().await.ok();
 
-    if let Some(account_id) = f.patient_account_id {
-        sqlx::query("DELETE FROM patient_account WHERE id = $1")
-            .bind(account_id)
-            .execute(db)
-            .await
-            .ok();
-    }
-    if let Some(account_user_id) = f.patient_account_user_id {
-        sqlx::query("DELETE FROM device WHERE app_user_id = $1")
-            .bind(account_user_id)
-            .execute(db)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM app_user WHERE id = $1")
-            .bind(account_user_id)
-            .execute(db)
-            .await
-            .ok();
-    }
+    sqlx::query("DELETE FROM notification_preference WHERE patient_account_id = $1")
+        .bind(f.patient_account_id)
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(f.patient_account_id)
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(f.patient_account_user_id)
+        .execute(db)
+        .await
+        .ok();
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(f.prac_user_id)
         .execute(db)
@@ -226,24 +230,45 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .ok();
 }
 
-// ── Test 1 : reminder pending échu + device actif → sent ─────────────────────
+async fn wait_for_request() {
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+}
+
+// ── Test 1 : reminder channel='sms' + numéro connu → appel provider + sent ──
 
 #[tokio::test]
-async fn dispatch_marks_reminder_sent_when_device_active() {
+async fn dispatch_sends_sms_and_marks_sent_when_channel_is_sms() {
     if !db_available() {
         return;
     }
     let owner = owner_pool().await;
     let app_db = app_pool().await;
-    let f = insert_fixture(&owner, &Uuid::new_v4().to_string(), true).await;
+    let f = insert_sms_fixture(&owner, &Uuid::new_v4().to_string(), "+33600000001", None).await;
 
-    let summary = dispatch_pending_reminders(&app_db, &StubJobDispatcher, &StubSmsSender)
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/2010-04-01/Accounts/test-sid/Messages.json"))
+        .respond_with(ResponseTemplate::new(201))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let sms_sender =
+        TwilioSmsSender::with_base_url("test-sid", "test-token", "+33700000000", mock_server.uri());
+
+    let summary = dispatch_pending_reminders(&app_db, &StubJobDispatcher, &sms_sender)
         .await
         .unwrap();
     assert!(
         summary.sent >= 1,
         "au moins ce reminder doit être compté sent (summary={summary:?})"
     );
+    wait_for_request().await;
+
+    let requests = mock_server.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 1, "un seul POST attendu vers Twilio");
+    let body = String::from_utf8(requests[0].body.clone()).unwrap();
+    assert!(body.contains("To=%2B33600000001"), "body={body}");
 
     let status: String = sqlx::query_scalar("SELECT status FROM reminder WHERE id = $1")
         .bind(f.reminder_id)
@@ -252,68 +277,51 @@ async fn dispatch_marks_reminder_sent_when_device_active() {
         .unwrap();
     assert_eq!(status, "sent");
 
-    let sent_at: Option<chrono::DateTime<chrono::Utc>> =
-        sqlx::query_scalar("SELECT sent_at FROM reminder WHERE id = $1")
-            .bind(f.reminder_id)
-            .fetch_one(&owner)
-            .await
-            .unwrap();
-    assert!(sent_at.is_some(), "sent_at doit être posé");
-
-    // Une notification in-app doit avoir été créée pour ce patient.
-    let notif_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notification WHERE app_user_id = $1 AND kind = 'rdv_rappel'",
-    )
-    .bind(f.patient_account_user_id.unwrap())
-    .fetch_one(&owner)
-    .await
-    .unwrap();
-    assert_eq!(notif_count, 1, "une notification in-app doit être créée");
-
-    sqlx::query("DELETE FROM notification WHERE app_user_id = $1")
-        .bind(f.patient_account_user_id.unwrap())
-        .execute(&owner)
-        .await
-        .ok();
     cleanup(&owner, &f).await;
 }
 
-// ── Test 2 : patient sans compte/device → failed, pas de panic ───────────────
+// ── Test 2 : reminder channel='sms' + opt-out patient → cancelled, pas d'appel ──
 
 #[tokio::test]
-async fn dispatch_marks_reminder_failed_when_no_device() {
+async fn dispatch_marks_reminder_cancelled_when_sms_opted_out() {
     if !db_available() {
         return;
     }
     let owner = owner_pool().await;
     let app_db = app_pool().await;
-    let f = insert_fixture(&owner, &Uuid::new_v4().to_string(), false).await;
+    let f = insert_sms_fixture(
+        &owner,
+        &Uuid::new_v4().to_string(),
+        "+33600000002",
+        Some(false),
+    )
+    .await;
 
-    let summary = dispatch_pending_reminders(&app_db, &StubJobDispatcher, &StubSmsSender)
+    let mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(201))
+        .expect(0)
+        .mount(&mock_server)
+        .await;
+
+    let sms_sender =
+        TwilioSmsSender::with_base_url("test-sid", "test-token", "+33700000000", mock_server.uri());
+
+    let summary = dispatch_pending_reminders(&app_db, &StubJobDispatcher, &sms_sender)
         .await
         .unwrap();
     assert!(
-        summary.failed >= 1,
-        "au moins ce reminder doit être compté failed (summary={summary:?})"
+        summary.cancelled >= 1,
+        "au moins ce reminder doit être compté cancelled (summary={summary:?})"
     );
+    wait_for_request().await;
 
     let status: String = sqlx::query_scalar("SELECT status FROM reminder WHERE id = $1")
         .bind(f.reminder_id)
         .fetch_one(&owner)
         .await
         .unwrap();
-    assert_eq!(status, "failed");
-
-    let sent_at: Option<chrono::DateTime<chrono::Utc>> =
-        sqlx::query_scalar("SELECT sent_at FROM reminder WHERE id = $1")
-            .bind(f.reminder_id)
-            .fetch_one(&owner)
-            .await
-            .unwrap();
-    assert!(
-        sent_at.is_none(),
-        "sent_at ne doit pas être posé sur un échec"
-    );
+    assert_eq!(status, "cancelled");
 
     cleanup(&owner, &f).await;
 }
