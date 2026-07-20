@@ -30,6 +30,11 @@ pub struct ConversationItem {
     pub patient_name: String,
     pub unread_count: i64,
     pub last_message_at: Option<String>,
+    /// Aperçu (tronqué) du dernier message — même contrat que
+    /// `CabinetConversationItem.last_message_preview` (#3854). Absent avant
+    /// ce fix : le front réutilise ses DTOs cabinet côté pharmacie et
+    /// affichait « Aucun message » sur TOUT fil, y compris avec des non-lus.
+    pub last_message_preview: Option<String>,
     pub scope: String,
     pub status: String,
 }
@@ -59,6 +64,9 @@ pub async fn list_pharmacy_conversations(
                 c.scope, c.status, \
                 (SELECT MAX(m.created_at) FROM message m \
                  WHERE m.conversation_id = c.id) AS last_message_at, \
+                (SELECT m.body_ciphertext FROM message m \
+                 WHERE m.conversation_id = c.id \
+                 ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_body, \
                 (SELECT COUNT(*) FROM message m \
                  WHERE m.conversation_id = c.id \
                    AND m.sender_kind = 'patient' AND m.read_at IS NULL) AS unread_count \
@@ -76,6 +84,14 @@ pub async fn list_pharmacy_conversations(
     let data = rows
         .iter()
         .map(|row| {
+            // POC chiffrement : UTF-8 brut, aperçu tronqué à 120 caractères
+            // (même contrat que list_cabinet_conversations).
+            let last_body: Option<Vec<u8>> =
+                row.try_get("last_body").map_err(|_| AppError::Internal)?;
+            let last_message_preview = last_body
+                .and_then(|b| String::from_utf8(b).ok())
+                .map(|t| t.chars().take(120).collect::<String>());
+
             Ok(ConversationItem {
                 id: row.try_get("id").map_err(|_| AppError::Internal)?,
                 patient_name: row
@@ -88,6 +104,7 @@ pub async fn list_pharmacy_conversations(
                     .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_message_at")
                     .map_err(|_| AppError::Internal)?
                     .map(|dt| dt.to_rfc3339()),
+                last_message_preview,
                 scope: row.try_get("scope").map_err(|_| AppError::Internal)?,
                 status: row.try_get("status").map_err(|_| AppError::Internal)?,
             })
