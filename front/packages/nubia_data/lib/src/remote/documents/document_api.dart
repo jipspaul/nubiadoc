@@ -80,6 +80,10 @@ class DocumentApi {
       '/documents',
       data: formData,
     );
-    return DocumentDto.fromJson(response.data!);
+    return DocumentDto.fromUploadResponse(
+      response.data!,
+      filename: filename,
+      mimeType: mimeType,
+    );
   }
 }

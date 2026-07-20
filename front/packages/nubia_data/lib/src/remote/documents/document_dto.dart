@@ -34,6 +34,31 @@ class DocumentDto {
         sha256: json['sha256'] as String?,
       );
 
+  /// Réponse de `POST /documents` (upload).
+  ///
+  /// Le back ne renvoie que `{document_id, category, filename, size_bytes,
+  /// sha256}` (`api/src/documents.rs` `UploadDocumentResponse`) — pas de
+  /// `id`/`mime_type`/`created_at`. `DocumentDto.fromJson` levait un
+  /// `TypeError` sur ce payload (`json['id']` → null as String), catché en
+  /// `ParseFailure` générique : un upload RÉUSSI (201) affichait « Erreur de
+  /// décodage de la réponse. » et poussait au ré-upload → doublons (#3831).
+  /// `mimeType`/`filename` viennent de la requête elle-même (connus par
+  /// l'appelant, jamais absents) plutôt que d'un champ que l'API ne renvoie pas.
+  factory DocumentDto.fromUploadResponse(
+    Map<String, dynamic> json, {
+    required String filename,
+    required String mimeType,
+  }) =>
+      DocumentDto(
+        id: (json['document_id'] as String?) ?? (json['id'] as String),
+        category: json['category'] as String,
+        filename: (json['filename'] as String?) ?? filename,
+        mimeType: mimeType,
+        fileSizeBytes: (json['size_bytes'] as num?)?.toInt() ?? 0,
+        createdAt: DateTime.now().toIso8601String(),
+        sha256: json['sha256'] as String?,
+      );
+
   Document toDomain() => Document(
         id: id,
         name: filename,
