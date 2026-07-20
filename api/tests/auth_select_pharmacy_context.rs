@@ -145,6 +145,10 @@ async fn select_pharmacy_context_valid_returns_200_with_token() {
     let cookie_val = set_cookie.unwrap().to_str().unwrap();
     assert!(cookie_val.starts_with("nubia_jwt="));
     assert!(cookie_val.contains("HttpOnly"));
+    assert!(
+        cookie_val.contains("Secure"),
+        "cookie must be Secure (#3846)"
+    );
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await

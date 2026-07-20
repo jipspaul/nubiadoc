@@ -110,8 +110,10 @@ pub async fn select_pharmacy_context(
         "pharmacy context selected"
     );
 
+    // Secure (#3846) : ce cookie porte un JWT de session — sans Secure, un
+    // downgrade http:// du domaine le transmettrait en clair (OWASP ASVS 3.4.1).
     let cookie = format!(
-        "nubia_jwt={}; HttpOnly; Path=/; SameSite=Strict",
+        "nubia_jwt={}; HttpOnly; Secure; Path=/; SameSite=Strict",
         access_token
     );
     let mut headers = HeaderMap::new();
