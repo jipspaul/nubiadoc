@@ -60,6 +60,23 @@ fn make_pro_jwt(user_id: Uuid) -> String {
     .unwrap()
 }
 
+/// Token déjà scopé par `select-pharmacy-context` (#3853) : porte
+/// `pharmacy_id`/`role` dans ses propres claims, jamais `cabinet_id`.
+fn make_pharma_jwt(user_id: Uuid, pharmacy_id: Uuid, role: &str) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    encode(
+        &Header::default(),
+        &json!({"sub": user_id, "kind": "pharma", "pharmacy_id": pharmacy_id,
+                "role": role, "exp": exp}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 // ── Test 1 : JWT patient valide → 200 + kind:"patient" + account_id non null ─
 
 #[tokio::test]
@@ -177,6 +194,79 @@ async fn me_pro_jwt_returns_200_with_kind_pro() {
     assert_eq!(v["kind"], "pro");
     assert_eq!(v["user_id"], user_id.to_string());
     assert!(v["memberships"].is_array());
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 3b : token pharma → pharmacy_memberships dérivé des claims (#3853) ──
+// Avant ce fix, un token kind:"pharma" (celui persisté après login pharmacie —
+// le dernier token émis, pas kind:"pro") obtenait pharmacy_memberships:[] au
+// restore de session → déconnexion silencieuse d'un pharmacien pourtant
+// authentifié.
+
+#[tokio::test]
+async fn me_pharma_jwt_returns_pharmacy_memberships_from_claims() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let pharmacy_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("me-pharma+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/me")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pharma_jwt(user_id, pharmacy_id, "pharmacist")
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["kind"], "pharma");
+    let memberships = v["pharmacy_memberships"]
+        .as_array()
+        .expect("pharmacy_memberships doit être un tableau");
+    assert_eq!(
+        memberships.len(),
+        1,
+        "un token pharma déjà scopé doit dériver sa propre appartenance, pas []"
+    );
+    assert_eq!(memberships[0]["pharmacy_id"], pharmacy_id.to_string());
+    assert_eq!(memberships[0]["role"], "pharmacist");
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)
