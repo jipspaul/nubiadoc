@@ -3735,6 +3735,12 @@ pub struct PostDependentCoverageBody {
     nss: Option<String>,
     amc: Option<String>,
     numero_adherent: Option<String>,
+    /// #3860 : absents avant ce fix — `PatchDependentCoverageBody` les
+    /// déclare et les écrit, mais la création les ignorait silencieusement
+    /// (pas de deny_unknown_fields) : tiers_payant restait au défaut `false`
+    /// et plateforme NULL, quelle que soit la valeur fournie au POST.
+    plateforme: Option<String>,
+    tiers_payant: Option<bool>,
 }
 
 /// Corps de la requête `POST /v1/account/dependents`.
@@ -3853,13 +3859,16 @@ pub async fn post_account_dependents(
 
         sqlx::query(
             "INSERT INTO patient_coverage \
-               (patient_account_id, regime_obligatoire, nss_encrypted, amc, numero_adherent) \
-             VALUES ($1, $2, $3, $4, $5) \
+               (patient_account_id, regime_obligatoire, nss_encrypted, amc, numero_adherent, \
+                plateforme, tiers_payant) \
+             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, false)) \
              ON CONFLICT (patient_account_id) DO UPDATE SET \
                regime_obligatoire = COALESCE($2, patient_coverage.regime_obligatoire), \
                nss_encrypted      = COALESCE($3, patient_coverage.nss_encrypted), \
                amc                = COALESCE($4, patient_coverage.amc), \
                numero_adherent    = COALESCE($5, patient_coverage.numero_adherent), \
+               plateforme         = COALESCE($6, patient_coverage.plateforme), \
+               tiers_payant       = COALESCE($7, patient_coverage.tiers_payant), \
                updated_at         = now()",
         )
         .bind(dependent_account_id)
@@ -3867,6 +3876,8 @@ pub async fn post_account_dependents(
         .bind(&nss_encrypted)
         .bind(&cov.amc)
         .bind(&cov.numero_adherent)
+        .bind(&cov.plateforme)
+        .bind(cov.tiers_payant)
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
