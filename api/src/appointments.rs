@@ -260,8 +260,9 @@ pub struct CancelResponse {
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
 /// Vérifie status IN ('requested','confirmed','checked_in') → sinon `409 {"error":"invalid_status"}`.
-/// Vérifie starts_at > now() + 2h → sinon `409 {"error":"too_late"}` (sauf si déjà `checked_in`
-/// ou si starts_at est déjà dans le passé, #3811 — sinon un RDV périmé devient inclôturable).
+/// Vérifie starts_at > now() + 2h → sinon `409 {"error":"too_late"}` — sauf si déjà `checked_in`,
+/// si starts_at est déjà dans le passé (#3811, évite le cul-de-sac des RDV périmés), ou si le
+/// RDV est encore `requested` (#3862, le cabinet n'a rien confirmé/engagé sur un booking <2h).
 pub async fn cancel_appointment(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -308,8 +309,20 @@ pub async fn cancel_appointment(
     // et sauf si starts_at est déjà dans le passé : la fenêtre des 2h est alors
     // déjà révolue et bloquer indéfiniment créerait un cul-de-sac (#3811) pour
     // les RDV résiduels créés avant le déploiement des gardes amont (#3750).
+    //
+    // Sauf aussi `requested` (#3862) : create_appointment n'applique aucune
+    // borne de délai amont quand un slot_id est fourni (booking direct) — un
+    // créneau réservable jusqu'à sa dernière minute produit un `requested`
+    // immédiatement dans la fenêtre des 2h, donc ni annulable (too_late) ni
+    // reprogrammable (garde 24h de patch_appointment) ni check-in (exige
+    // confirmed). Le cabinet n'a encore rien confirmé/engagé sur un
+    // `requested` : le patient doit pouvoir le retirer à tout moment.
     let now = chrono::Utc::now();
-    if status != "checked_in" && now < starts_at && now >= starts_at - chrono::Duration::hours(2) {
+    if status != "checked_in"
+        && status != "requested"
+        && now < starts_at
+        && now >= starts_at - chrono::Duration::hours(2)
+    {
         return Err(AppError::TooLate);
     }
 
