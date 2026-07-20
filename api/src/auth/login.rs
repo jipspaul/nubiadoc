@@ -1,7 +1,7 @@
 //! Handler `POST /v1/auth/login`.
 
 use argon2::{
-    password_hash::{PasswordHash, PasswordVerifier},
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
 use axum::extract::{ConnectInfo, Json, State};
@@ -54,6 +54,20 @@ static RATE_MAX_ATTEMPTS: LazyLock<u32> = LazyLock::new(|| {
 
 static LOGIN_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Hash-leurre calculé une seule fois par process (#3813) : un email inconnu
+/// exécute quand même un `verify_password` contre CE hash avant de renvoyer
+/// `Unauthenticated`, pour que le coût CPU argon2 (coûteux, seul poste de
+/// latence mesurable ici) soit identique au chemin « email connu, mauvais
+/// mot de passe » — sinon le temps de réponse fuit l'existence du compte
+/// (canal auxiliaire, même classe que #3785).
+static DECOY_PASSWORD_HASH: LazyLock<String> = LazyLock::new(|| {
+    let salt = SaltString::from_b64("ZGVjb3lzYWx0Q29uc3RhbnQ").expect("salt b64 valide");
+    Argon2::default()
+        .hash_password(b"decoy-constant-time-password", &salt)
+        .expect("le hash-leurre doit être calculable")
+        .to_string()
+});
 
 fn is_rate_limited(email: &str) -> bool {
     let mut map = LOGIN_RATE.lock().unwrap_or_else(|e| e.into_inner());
@@ -130,7 +144,13 @@ pub async fn login(
 
     auth_tx.rollback().await.map_err(|_| AppError::Internal)?;
 
-    let row = row.ok_or(AppError::Unauthenticated)?;
+    let Some(row) = row else {
+        // #3813 : verify-leurre à coût CPU équivalent (cf. DECOY_PASSWORD_HASH)
+        // — un email inconnu ne doit pas répondre plus vite qu'un email connu.
+        let decoy = PasswordHash::new(&DECOY_PASSWORD_HASH).map_err(|_| AppError::Internal)?;
+        let _ = Argon2::default().verify_password(body.password.as_bytes(), &decoy);
+        return Err(AppError::Unauthenticated);
+    };
 
     let user_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let password_hash: String = row
