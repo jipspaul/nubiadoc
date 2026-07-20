@@ -155,7 +155,14 @@ String _initialsOf(String name) {
 }
 
 /// Jour relatif court (« Aujourd'hui », « Demain » ou « Mar. 3 jun »).
-String _relativeDay(DateTime dt) {
+///
+/// #3856 : `dt` vient de DateTime.parse() sur un ISO avec offset +00:00 →
+/// isUtc == true. Lire .day/.weekday/.hour bruts affiche la date/heure UTC
+/// au lieu de locale (-2h en été/-1h en hiver pour Europe/Paris) — un
+/// créneau 23h30 Paris (21h30 UTC) resterait classé sur le mauvais jour, un
+/// créneau 13h Paris (11h UTC) serait classé « Matin ».
+String _relativeDay(DateTime utc) {
+  final dt = utc.toLocal();
   final now = DateTime.now();
   final day = DateTime(dt.year, dt.month, dt.day);
   final today = DateTime(now.year, now.month, now.day);
@@ -165,11 +172,15 @@ String _relativeDay(DateTime dt) {
   return '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
 }
 
-String _dayHeader(DateTime dt) =>
-    '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+String _dayHeader(DateTime utc) {
+  final dt = utc.toLocal();
+  return '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+}
 
-String _hhmm(DateTime dt) =>
-    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+String _hhmm(DateTime utc) {
+  final dt = utc.toLocal();
+  return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+}
 
 // ---------------------------------------------------------------------------
 // Search view : expérience MAP-CENTRIC (façon Waze/Google Maps)
@@ -1024,8 +1035,13 @@ class _SlotsByDay extends StatelessWidget {
   /// chaque période non vide = petit sous-titre + grille de [SlotChip].
   List<Widget> _buildPeriods(BuildContext context, List<Slot> slots) {
     final periods = <(String, List<Slot>)>[
-      ('Matin', slots.where((s) => s.startsAt.hour < 12).toList()),
-      ('Après-midi', slots.where((s) => s.startsAt.hour >= 12).toList()),
+      // #3856 : startsAt est UTC (isUtc == true) — grouper sur .hour brut
+      // classait un créneau 13h Paris (11h UTC) en « Matin ».
+      ('Matin', slots.where((s) => s.startsAt.toLocal().hour < 12).toList()),
+      (
+        'Après-midi',
+        slots.where((s) => s.startsAt.toLocal().hour >= 12).toList()
+      ),
     ];
     return [
       for (final (label, periodSlots) in periods)

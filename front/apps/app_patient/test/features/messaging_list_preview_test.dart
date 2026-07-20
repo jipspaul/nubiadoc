@@ -51,6 +51,49 @@ void main() {
     expect(find.text('12 mar'), findsOneWidget);
   });
 
+  // Régression #3856 : lastMessageAt vient de DateTime.parse() sur un ISO
+  // avec offset (+00:00) → isUtc == true. Afficher .hour/.minute bruts
+  // montrait l'heure UTC au lieu de l'heure locale (-2h été/-1h hiver pour
+  // Europe/Paris). Construit un instant UTC équivalent à "maintenant, heure
+  // locale" (peu importe le fuseau réel de la machine de test) : si l'heure
+  // affichée correspond à l'heure locale attendue plutôt qu'à l'heure UTC
+  // brute, la conversion .toLocal() est bien appliquée.
+  testWidgets('affiche l\'heure locale, pas l\'heure UTC brute',
+      (tester) async {
+    final nowLocal = DateTime.now();
+    // "Aujourd'hui, il y a 5 minutes" en LOCAL, converti en UTC pour
+    // simuler le contrat serveur (ISO + offset → DateTime.parse isUtc=true).
+    final localMoment = DateTime(nowLocal.year, nowLocal.month, nowLocal.day,
+            nowLocal.hour, nowLocal.minute)
+        .subtract(const Duration(minutes: 5));
+    final expectedHHmm =
+        '${localMoment.hour.toString().padLeft(2, '0')}:${localMoment.minute.toString().padLeft(2, '0')}';
+    final utcMoment = localMoment.toUtc();
+
+    final bloc = MockMessagingBloc();
+    when(() => bloc.state).thenReturn(
+      MessagingConversationsLoaded([
+        Conversation(
+          id: 'c-tz',
+          cabinetId: 'cab',
+          cabinetName: 'Cabinet TZ',
+          unreadCount: 1,
+          lastMessageAt: utcMoment,
+          lastMessagePreview: 'Message récent',
+        ),
+      ]),
+    );
+
+    await tester.pumpWidget(_wrap(bloc));
+
+    expect(
+      find.text(expectedHHmm),
+      findsOneWidget,
+      reason:
+          'doit afficher $expectedHHmm (heure locale), pas l\'heure UTC brute ${utcMoment.hour}:${utcMoment.minute}',
+    );
+  });
+
   testWidgets('reste rendable sans aperçu ni date (anciens payloads)',
       (tester) async {
     final bloc = MockMessagingBloc();
