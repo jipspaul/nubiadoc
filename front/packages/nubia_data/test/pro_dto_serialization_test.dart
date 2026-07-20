@@ -106,6 +106,34 @@ void main() {
       expect(domain.duration.inMinutes, 45);
       expect(domain.isConfirmed, isTrue);
     });
+
+    // Régression #3826 : le back envoie 'done' (jamais 'completed'), un RDV
+    // terminé retombait silencieusement sur CabinetAppointmentStatus.requested
+    // (pill « En attente ») faute de case 'done' dans _parseStatus.
+    test(
+        'fromJson mappe le statut back "done" sur CabinetAppointmentStatus.completed',
+        () {
+      final json = {
+        'id': 'rdv-2',
+        'cabinet_id': 'cab-1',
+        'patient_id': 'pat-1',
+        'patient_name': 'Marc Dubois',
+        'practitioner_id': 'prac-1',
+        'practitioner_name': 'Dr Martin',
+        'starts_at': '2021-03-15T10:00:00Z',
+        'duration_minutes': 30,
+        'motif': 'Contrôle',
+        'status': 'done',
+      };
+      final dto = CabinetAppointmentDto.fromJson(json);
+      expect(dto.status, 'done');
+      final domain = dto.toDomain();
+      expect(
+        domain.status,
+        CabinetAppointmentStatus.completed,
+        reason: 'un RDV done ne doit jamais retomber sur requested',
+      );
+    });
   });
 
   group('ConsultationContextDto (GET /v1/cabinet/consultations/:id)', () {
