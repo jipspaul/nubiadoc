@@ -42,6 +42,7 @@ mod medical_record;
 mod messaging;
 mod notifications;
 mod notify;
+mod patient_tags;
 mod pharmacy;
 mod prescriptions;
 mod provider_secretariat;
@@ -423,6 +424,14 @@ fn build_router(
         .route(
             "/v1/cabinet/patients/:id/documents",
             get(clinical::list_patient_documents).post(clinical::upload_patient_document),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/tags",
+            get(patient_tags::list_patient_tags).post(patient_tags::create_patient_tag),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/tags/:tag_id",
+            delete(patient_tags::delete_patient_tag),
         )
         .route(
             "/v1/cabinet/consultations",
