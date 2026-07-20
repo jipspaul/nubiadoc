@@ -181,6 +181,16 @@ async fn full_thread_patient_and_pharmacy() {
         .clone();
     assert_eq!(item["patient_name"], "Jean D.");
     assert_eq!(item["unread_count"], 1);
+    // #3854 : la liste pharmacie n'émettait jamais last_message_preview
+    // (contrairement à la liste cabinet) → le front affichait "Aucun message"
+    // sur TOUT fil, y compris avec des non-lus.
+    assert!(
+        item["last_message_preview"]
+            .as_str()
+            .expect("last_message_preview doit être présent")
+            .contains("traitement"),
+        "last_message_preview doit reprendre le corps du dernier message : {item}"
+    );
 
     let (status, messages) = call(
         "GET",

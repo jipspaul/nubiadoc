@@ -86,11 +86,22 @@ class _ConversationsList extends StatelessWidget {
         final isUrgent = conv.lastMessage?.urgency == MessageUrgency.urgent;
         final timestamp = conv.lastMessageAt ?? conv.lastMessage?.sentAt;
 
+        // #3854 : GET /pharmacy/conversations n'a jamais émis `last_message`
+        // (objet imbriqué) — seul `last_message_preview` (string) est réel,
+        // comme côté cabinet (#3373). Lire uniquement `lastMessage?.text`
+        // affichait « Aucun message » sur TOUT fil, y compris avec des
+        // non-lus.
+        final subtitle = conv.lastMessagePreview ??
+            conv.lastMessage?.text ??
+            (isUnread
+                ? '${conv.unreadCount} message(s) non lu(s)'
+                : 'Aucun message');
+
         return ListRow(
           key: Key('conv_${conv.id}'),
           leading: NubiaAvatar(initials: _initials(conv.patientName)),
           title: conv.patientName,
-          subtitle: conv.lastMessage?.text ?? 'Aucun message',
+          subtitle: subtitle,
           unread: isUnread,
           showDivider: index != conversations.length - 1,
           trailing: _ConversationTrailing(
