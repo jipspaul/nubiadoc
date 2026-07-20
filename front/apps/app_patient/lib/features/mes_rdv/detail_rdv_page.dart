@@ -59,7 +59,10 @@ class _DetailRdvPageState extends State<DetailRdvPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              '${appt.practitionerName} · ${appt.practitionerSpecialty}',
+              // #3825 : pas de « · » pendant quand la spécialité est vide.
+              appt.practitionerSpecialty.isEmpty
+                  ? appt.practitionerName
+                  : '${appt.practitionerName} · ${appt.practitionerSpecialty}',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (appt.cabinetAddress != null) ...[

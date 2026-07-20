@@ -49,11 +49,18 @@ class AppointmentDto {
         (json['practitioner_id'] as String?) ??
         (json['provider_id'] as String?) ??
         '';
+    // #3825 : l'API sérialise la spécialité imbriquée sous `provider.specialty`
+    // (jamais en `practitioner_specialty` de premier niveau, clé conservée en
+    // repli défensif seulement) — la lire au mauvais endroit laissait le champ
+    // vide en permanence (séparateur « · » pendant sur 3 écrans patient).
+    final practitionerSpecialty = (provider?['specialty'] as String?) ??
+        (json['practitioner_specialty'] as String?) ??
+        '';
     return AppointmentDto(
       id: json['id'] as String,
       cabinetId: json['cabinet_id'] as String? ?? '',
       practitionerName: practitionerName,
-      practitionerSpecialty: json['practitioner_specialty'] as String? ?? '',
+      practitionerSpecialty: practitionerSpecialty,
       startsAt: startsAt,
       durationMinutes: durationMinutes,
       motif: json['motif'] as String? ?? '',

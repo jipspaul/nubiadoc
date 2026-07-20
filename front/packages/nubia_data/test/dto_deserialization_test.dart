@@ -19,8 +19,10 @@ void main() {
       final json = {
         'id': 'appt-1',
         'cabinet_id': 'cab-1',
-        'practitioner_name': 'Dr Martin',
-        'practitioner_specialty': 'Dentiste',
+        // #3825 : forme réelle de l'API — la spécialité est imbriquée sous
+        // `provider`, jamais en `practitioner_specialty` de premier niveau
+        // (cette clé n'existe dans AUCUNE réponse réelle du back).
+        'provider': {'display_name': 'Dr Martin', 'specialty': 'Dentiste'},
         'starts_at': '2026-07-01T09:00:00Z',
         'duration_minutes': 30,
         'motif': 'Détartrage',
@@ -30,6 +32,8 @@ void main() {
       final dto = AppointmentDto.fromJson(json);
       expect(dto.id, 'appt-1');
       expect(dto.status, 'cancelled');
+      expect(dto.practitionerName, 'Dr Martin');
+      expect(dto.practitionerSpecialty, 'Dentiste');
     });
   });
 

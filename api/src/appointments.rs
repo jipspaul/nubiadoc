@@ -534,6 +534,10 @@ pub struct AppointmentsQuery {
 #[derive(Serialize)]
 pub struct ProviderSummary {
     pub display_name: Option<String>,
+    /// #3825 : absente jusqu'ici — le front affiche « <motif> · <spécialité> »,
+    /// séparateur toujours pendant faute de donnée côté liste (le détail,
+    /// lui, l'exposait déjà via `ProviderDetail::specialty`).
+    pub specialty: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -638,7 +642,10 @@ pub async fn list_appointments(
              a.id, a.starts_at, a.ends_at, a.status, a.motif, \
              (SELECT p.display_name FROM provider p \
               WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
-              AS provider_display_name \
+              AS provider_display_name, \
+             (SELECT p.specialite FROM provider p \
+              WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
+              AS provider_specialty \
          FROM appointment a \
          WHERE a.deleted_at IS NULL \
          {status_clause}{cursor_clause} \
@@ -695,6 +702,9 @@ pub async fn list_appointments(
         let display_name: Option<String> = row
             .try_get("provider_display_name")
             .map_err(|_| AppError::Internal)?;
+        let specialty: Option<String> = row
+            .try_get("provider_specialty")
+            .map_err(|_| AppError::Internal)?;
 
         last_starts_at = Some(starts_at);
         last_id = Some(id);
@@ -705,7 +715,10 @@ pub async fn list_appointments(
             ends_at: ends_at.to_rfc3339(),
             status,
             motif,
-            provider: ProviderSummary { display_name },
+            provider: ProviderSummary {
+                display_name,
+                specialty,
+            },
         });
     }
 

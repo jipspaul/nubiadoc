@@ -43,9 +43,8 @@ class ModifyRdvPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) =>
-          GetIt.instance<ModifyRdvBloc>()
-            ..add(ModifyRdvLoadRequested(appointmentId)),
+      create: (_) => GetIt.instance<ModifyRdvBloc>()
+        ..add(ModifyRdvLoadRequested(appointmentId)),
       child: _ModifyRdvBody(appointmentId: appointmentId),
     );
   }
@@ -84,8 +83,8 @@ class _ModifyRdvBody extends StatelessWidget {
               key: const Key('modify_rdv_error'),
               message: state.message,
               onRetry: () => context.read<ModifyRdvBloc>().add(
-                ModifyRdvLoadRequested(appointmentId),
-              ),
+                    ModifyRdvLoadRequested(appointmentId),
+                  ),
             );
           }
           if (state is ModifyRdvLoaded) {
@@ -164,7 +163,10 @@ class _CurrentAppointmentCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${appointment.practitionerName} · ${appointment.practitionerSpecialty}',
+            // #3825 : pas de « · » pendant quand la spécialité est vide.
+            appointment.practitionerSpecialty.isEmpty
+                ? appointment.practitionerName
+                : '${appointment.practitionerName} · ${appointment.practitionerSpecialty}',
             style: textTheme.titleSmall,
           ),
           const SizedBox(height: 2),
@@ -222,12 +224,12 @@ class _SlotsByDay extends StatelessWidget {
                     state: !slot.isAvailable
                         ? SlotChipState.unavailable
                         : selectedSlot?.id == slot.id
-                        ? SlotChipState.selected
-                        : SlotChipState.available,
+                            ? SlotChipState.selected
+                            : SlotChipState.available,
                     onTap: slot.isAvailable
                         ? () => context.read<ModifyRdvBloc>().add(
-                            ModifyRdvSlotSelected(slot),
-                          )
+                              ModifyRdvSlotSelected(slot),
+                            )
                         : null,
                   ),
                 ),
@@ -276,8 +278,8 @@ class _ConfirmPanel extends StatelessWidget {
               onPressed: state.submitting
                   ? null
                   : () => context.read<ModifyRdvBloc>().add(
-                      const ModifyRdvConfirmRequested(),
-                    ),
+                        const ModifyRdvConfirmRequested(),
+                      ),
             ),
           ),
         ],
