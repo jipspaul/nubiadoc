@@ -113,6 +113,10 @@ async fn select_context_valid_returns_200_with_token() {
         "cookie name must be nubia_jwt"
     );
     assert!(cookie_val.contains("HttpOnly"), "cookie must be HttpOnly");
+    assert!(
+        cookie_val.contains("Secure"),
+        "cookie must be Secure (#3846)"
+    );
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
@@ -229,6 +233,10 @@ async fn select_context_multicontext_jwt_contains_cabinet_and_role() {
         "cookie name must be nubia_jwt"
     );
     assert!(cookie_val.contains("HttpOnly"), "cookie must be HttpOnly");
+    assert!(
+        cookie_val.contains("Secure"),
+        "cookie must be Secure (#3846)"
+    );
 
     // Décode le JWT retourné et vérifie cabinet_id + role.
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
