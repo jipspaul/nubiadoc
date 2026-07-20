@@ -353,7 +353,12 @@ class _ConversationsSkeleton extends StatelessWidget {
 }
 
 /// Horodatage court : `HH:mm` si aujourd'hui, sinon `jj/MM`.
-String _formatTimestamp(DateTime dt) {
+///
+/// #3857 (jumeau #3856) : `dt` vient de DateTime.parse() sur un ISO avec
+/// offset +00:00 → isUtc == true. Lire .hour/.minute/.day bruts affichait
+/// l'heure UTC au lieu de l'heure locale (-2h été/-1h hiver Europe/Paris).
+String _formatTimestamp(DateTime utc) {
+  final dt = utc.toLocal();
   final now = DateTime.now();
   final isToday =
       dt.year == now.year && dt.month == now.month && dt.day == now.day;
