@@ -4231,10 +4231,25 @@ pub struct PutAvatarBody {
 const AVATAR_MAX_BYTES: usize = 300 * 1024;
 const AVATAR_MIMES: [&str; 3] = ["image/jpeg", "image/png", "image/webp"];
 
+/// Vérifie que `bytes` commence par la signature (« magic bytes ») attendue
+/// pour `mime` (#3820) : seuls le MIME déclaré et la taille étaient
+/// contrôlés, un contenu arbitraire (ex. texte brut) était accepté et
+/// reservi tel quel avec `Content-Type: image/<mime>`. `mime` est déjà
+/// vérifié appartenir à [`AVATAR_MIMES`] par l'appelant.
+fn has_valid_image_signature(mime: &str, bytes: &[u8]) -> bool {
+    match mime {
+        "image/png" => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "image/jpeg" => bytes.starts_with(b"\xff\xd8\xff"),
+        "image/webp" => bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP",
+        _ => false,
+    }
+}
+
 /// `PUT /v1/account/avatar` — pose la photo de profil du compte patient.
 ///
 /// Token `kind:"patient"` requis. RLS `account_self_update` via
-/// `app.current_account_id`. MIME hors liste ou image > 300 Ko → 422.
+/// `app.current_account_id`. MIME hors liste, signature (magic bytes)
+/// incohérente avec le MIME déclaré, ou image > 300 Ko → 422.
 pub async fn put_account_avatar(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -4248,6 +4263,9 @@ pub async fn put_account_avatar(
         .decode(body.data_base64.trim())
         .map_err(|_| AppError::ValidationError)?;
     if bytes.is_empty() || bytes.len() > AVATAR_MAX_BYTES {
+        return Err(AppError::ValidationError);
+    }
+    if !has_valid_image_signature(&body.mime, &bytes) {
         return Err(AppError::ValidationError);
     }
 
