@@ -288,6 +288,128 @@ async fn coverage_patch_empty_mutuelle_amc_returns_422_and_preserves_existing() 
         .ok();
 }
 
+// ── Test 1c : changer de mutuelle sans replateforme → plateforme remise à NULL (#3817) ──
+
+#[tokio::test]
+async fn coverage_patch_mutuelle_change_resets_stale_plateforme() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("cov-patch-plateforme+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Dupont')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // 1) Pose MutA + plateforme Viamedis.
+    let resp1 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "mutuelle": {"amc": "MutA", "numero_adherent": "AAA", "plateforme": "Viamedis"}
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), StatusCode::OK);
+
+    // 2) Change pour MutB sans repréciser plateforme.
+    let resp2 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "mutuelle": {"amc": "MutB", "numero_adherent": "BBB"}
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp2.status(), StatusCode::OK);
+    let b2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&b2).unwrap();
+    assert_eq!(v2["amc"], "MutB");
+    assert_eq!(v2["numero_adherent"], "BBB");
+    assert!(
+        v2["plateforme"].is_null(),
+        "plateforme doit être remise à NULL en changeant d'organisme, pas hériter de Viamedis : {v2}"
+    );
+
+    // 3) GET confirme la persistance.
+    let get_resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let gb = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let gv: serde_json::Value = serde_json::from_slice(&gb).unwrap();
+    assert_eq!(gv["amc"], "MutB");
+    assert!(gv["plateforme"].is_null());
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 2 : token pro → 403 ─────────────────────────────────────────────────
 
 #[tokio::test]
