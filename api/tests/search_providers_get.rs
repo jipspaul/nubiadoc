@@ -455,6 +455,80 @@ async fn search_providers_default_pagination() {
     );
 }
 
+// ── Test (#3840) : total indépendant de la page demandée (page hors plage) ──
+// COUNT(*) OVER() était porté par les LIGNES PAGINÉES elles-mêmes : une page
+// hors plage (OFFSET > nb de résultats) renvoie 0 ligne, donc total retombait
+// à 0 au lieu du vrai total.
+
+#[tokio::test]
+async fn search_providers_total_stable_on_out_of_range_page() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let provider_id = insert_provider(&db, &suffix).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Page 1 : le provider est visible, total=1.
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/v1/search/providers?q={}&page=1&per_page=5",
+                    suffix
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["page"]["total"].as_i64(), Some(1));
+
+    // Page 1000 (hors plage) : data vide, mais total doit rester 1.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/v1/search/providers?q={}&page=1000&per_page=5",
+                    suffix
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    assert!(data.is_empty(), "page hors plage → data vide");
+    assert_eq!(
+        v["page"]["total"].as_i64(),
+        Some(1),
+        "total doit rester 1, indépendamment de la page demandée"
+    );
+
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test (#3753) : `place` filtre géographiquement via le lookup statique ────
 // Repro exacte de l'issue : "dentiste à Paris" ne doit pas renvoyer un
 // praticien de Lyon. `place=Paris` doit borner les résultats à la même zone
