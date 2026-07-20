@@ -17,6 +17,7 @@ pub use realtime::WsHub;
 pub use reminder_dispatch::{
     dispatch_pending_reminders, run_dispatch_loop, ReminderDispatchError, ReminderDispatchSummary,
 };
+pub use twilio_sms::TwilioSmsSender;
 
 mod appointments;
 mod auth;
@@ -50,6 +51,7 @@ mod reminders;
 mod reviews;
 mod scheduling;
 mod treatment_plans;
+mod twilio_sms;
 mod waiting_list;
 mod webhooks;
 
@@ -82,6 +84,19 @@ pub struct StubMailer;
 impl Mailer for StubMailer {
     fn send_password_reset(&self, _to: &str, _token: &str) {}
     fn send_invite(&self, _to: &str, _token: &str) {}
+}
+
+/// Trait d'envoi de SMS — swappable (stub en test, Twilio en prod). #4036.
+pub trait SmsSender: Send + Sync {
+    /// Envoie un SMS. Ne doit jamais bloquer ni paniquer.
+    fn send(&self, to: &str, body: &str);
+}
+
+/// Implémentation no-op pour les tests et le dev local.
+pub struct StubSmsSender;
+
+impl SmsSender for StubSmsSender {
+    fn send(&self, _to: &str, _body: &str) {}
 }
 
 /// Trait d'enqueue de jobs apalis — swappable (stub en test, apalis en prod).
