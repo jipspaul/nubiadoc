@@ -117,6 +117,108 @@ async fn dependent_post_happy_path_returns_201_with_id() {
     Uuid::parse_str(dep_id).expect("dependent_account_id must be a valid UUID");
 }
 
+// ── Test 1b : coverage.tiers_payant/plateforme persistés à la création (#3860) ──
+
+#[tokio::test]
+async fn dependent_post_coverage_tiers_payant_and_plateforme_persist() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!("guardian-post-cov+{}@nubia.test", guardian_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Gardien')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(guardian_user_id, guardian_account_id);
+
+    let body = json!({
+        "first_name": "QACov",
+        "last_name": "Dubois",
+        "birth_date": "2017-02-02",
+        "relationship": "enfant",
+        "coverage": {
+            "regime_obligatoire": "regime_general",
+            "amc": "MGEN",
+            "numero_adherent": "12345",
+            "tiers_payant": true,
+            "plateforme": "almerys"
+        }
+    });
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/dependents")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let created: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let dep_id = created["dependent_account_id"].as_str().unwrap();
+
+    let get_response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/account/dependents/{}", dep_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_response.status(), StatusCode::OK);
+    let get_bytes = axum::body::to_bytes(get_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let dependent: serde_json::Value = serde_json::from_slice(&get_bytes).unwrap();
+
+    assert_eq!(
+        dependent["coverage"]["tiers_payant"], true,
+        "tiers_payant fourni à la création ne doit pas retomber à false : {dependent}"
+    );
+    assert_eq!(dependent["coverage"]["plateforme"], "almerys");
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(guardian_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 2 : relationship invalide → 422 ─────────────────────────────────────
 
 #[tokio::test]
