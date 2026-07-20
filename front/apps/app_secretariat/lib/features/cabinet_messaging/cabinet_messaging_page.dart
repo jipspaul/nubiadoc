@@ -162,8 +162,12 @@ String _initials(String name) {
   return trimmed.isNotEmpty ? trimmed[0].toUpperCase() : '?';
 }
 
-String? _formatTimestamp(DateTime? dt) {
-  if (dt == null) return null;
+// #3857 (jumeau #3856) : l'entrée vient de DateTime.parse() sur un ISO avec
+// offset +00:00 → isUtc == true. Lire .hour/.minute/.day bruts affichait
+// l'heure UTC au lieu de l'heure locale (-2h été/-1h hiver Europe/Paris).
+String? _formatTimestamp(DateTime? utc) {
+  if (utc == null) return null;
+  final dt = utc.toLocal();
   const months = [
     'jan',
     'fév',
