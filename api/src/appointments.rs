@@ -234,6 +234,9 @@ pub async fn patch_appointment(
             name: cabinet_name,
             address: cabinet_address,
         },
+        // Non lu/reporté ici (retiming ne touche pas callback_requested_at) —
+        // GET /appointments/:id reste la source de vérité pour ce champ.
+        callback_requested_at: None,
     }))
 }
 
@@ -550,6 +553,12 @@ pub struct AppointmentItem {
     pub status: String,
     pub motif: Option<String>,
     pub provider: ProviderSummary,
+    /// #3845 : restitue la demande de rappel (colonne persistée, jusqu'ici
+    /// write-only côté patient — le POST confirmait l'enregistrement mais
+    /// aucune lecture ne le montrait, rendant la demande invisible au
+    /// rafraîchissement).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback_requested_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -641,7 +650,7 @@ pub async fn list_appointments(
 
     let sql = format!(
         "SELECT \
-             a.id, a.starts_at, a.ends_at, a.status, a.motif, \
+             a.id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
              (SELECT p.display_name FROM provider p \
               WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
               AS provider_display_name, \
@@ -707,6 +716,9 @@ pub async fn list_appointments(
         let specialty: Option<String> = row
             .try_get("provider_specialty")
             .map_err(|_| AppError::Internal)?;
+        let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
+            .try_get("callback_requested_at")
+            .map_err(|_| AppError::Internal)?;
 
         last_starts_at = Some(starts_at);
         last_id = Some(id);
@@ -721,6 +733,7 @@ pub async fn list_appointments(
                 display_name,
                 specialty,
             },
+            callback_requested_at: callback_requested_at.map(|dt| dt.to_rfc3339()),
         });
     }
 
@@ -767,6 +780,9 @@ pub struct AppointmentDetail {
     pub motif: Option<String>,
     pub provider: ProviderDetail,
     pub cabinet: CabinetInfo,
+    /// #3845 : restitue la demande de rappel (voir AppointmentItem).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callback_requested_at: Option<String>,
 }
 
 /// `GET /v1/appointments/:id` — détail d'un RDV du patient connecté.
@@ -791,7 +807,8 @@ pub async fn get_appointment(
 
     // Fetch appointment — RLS garantit l'ownership (404 si autre patient ou inexistant).
     let row = sqlx::query(
-        "SELECT id, starts_at, ends_at, status, motif, cabinet_id, practitioner_id \
+        "SELECT id, starts_at, ends_at, status, motif, cabinet_id, practitioner_id, \
+                callback_requested_at \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -811,6 +828,9 @@ pub async fn get_appointment(
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
+        .map_err(|_| AppError::Internal)?;
+    let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
+        .try_get("callback_requested_at")
         .map_err(|_| AppError::Internal)?;
 
     // Scope cabinet pour provider_cabinet_manage + tenant_isolation (cabinet) + audit_log.
@@ -882,6 +902,7 @@ pub async fn get_appointment(
             name: cabinet_name,
             address: cabinet_address,
         },
+        callback_requested_at: callback_requested_at.map(|dt| dt.to_rfc3339()),
     }))
 }
 
@@ -1301,7 +1322,12 @@ pub struct CallbackRequestResponse {
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
 /// Vérifie status IN ('requested','confirmed') → sinon `409 {"error":"invalid_status"}`.
-/// Idempotent : si une demande existe déjà, retourne `callback_requested`.
+/// `callback_requested_at` ne change PAS `appointment.status` — la réponse renvoie
+/// le statut réel de l'entité (#3845 : "callback_requested" n'a jamais été un
+/// statut du modèle RDV, sa présence dans cette réponse contredisait tout GET
+/// ultérieur). `callback_requested_at` est désormais aussi restitué par
+/// `GET /appointments/:id` et la liste, pour rester visible au rafraîchissement.
+/// Idempotent : si une demande existe déjà, renvoie l'horodatage existant.
 /// Audité (`callback_request`) dans `audit_log`.
 /// Notifie le cabinet via job apalis (stub pour MVP).
 pub async fn callback_appointment(
@@ -1341,13 +1367,13 @@ pub async fn callback_appointment(
         return Err(AppError::InvalidStatus);
     }
 
-    // Idempotent : si déjà demandé, retourne callback_requested sans ré-écrire.
+    // Idempotent : si déjà demandé, renvoie l'horodatage existant sans ré-écrire.
     if let Some(ts) = existing {
         tx.commit().await.map_err(|_| AppError::Internal)?;
         return Ok(Json(CallbackRequestResponse {
             appointment_id: id,
             callback_requested_at: ts.to_rfc3339(),
-            status: "callback_requested".to_string(),
+            status,
         }));
     }
 
@@ -1402,7 +1428,7 @@ pub async fn callback_appointment(
     Ok(Json(CallbackRequestResponse {
         appointment_id: id,
         callback_requested_at: callback_requested_at.to_rfc3339(),
-        status: "callback_requested".to_string(),
+        status,
     }))
 }
 
@@ -1746,6 +1772,8 @@ pub async fn create_appointment(
                         name: cab_name,
                         address: cab_addr,
                     },
+                    // Création (idempotent hit inclus) : jamais de rappel demandé.
+                    callback_requested_at: None,
                 }),
             ));
         }
@@ -1922,6 +1950,8 @@ pub async fn create_appointment(
                 name: cabinet_name,
                 address: cabinet_address,
             },
+            // Nouvel appointment : jamais de rappel demandé.
+            callback_requested_at: None,
         }),
     ))
 }
