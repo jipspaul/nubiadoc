@@ -24,6 +24,7 @@ import '../features/devis/devis_detail_page.dart';
 import '../features/devis/devis_page.dart';
 import '../features/login/login_page.dart';
 import '../features/onboarding/onboarding_page.dart';
+import '../features/patients/patient_quick_create_page.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/patients/patients_page.dart';
 import '../features/stock/stock_bloc.dart';
@@ -46,6 +47,7 @@ class AppRouter {
   static const salleAttente = '/salle-attente';
 
   static const patients = '/patients';
+  static const patientNew = '/patients/new';
   static const appointments = '/appointments';
   static const listeAttente = '/liste-attente';
   static const devis = '/devis';
@@ -120,6 +122,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<PatientsBloc>(),
             child: const PatientsPage(),
+          ),
+        ),
+        GoRoute(
+          path: patientNew,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<PatientsBloc>(),
+            child: const PatientQuickCreatePage(),
           ),
         ),
         GoRoute(

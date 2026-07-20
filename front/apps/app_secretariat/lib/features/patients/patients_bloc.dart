@@ -8,11 +8,16 @@ import 'patients_state.dart';
 class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
     with SafeEmitMixin<PatientsState> {
   final ListCabinetPatientsUseCase _list;
+  final CreateCabinetPatientUseCase _create;
 
-  PatientsBloc({required ListCabinetPatientsUseCase listPatients})
-      : _list = listPatients,
+  PatientsBloc({
+    required ListCabinetPatientsUseCase listPatients,
+    required CreateCabinetPatientUseCase createPatient,
+  })  : _list = listPatients,
+        _create = createPatient,
         super(const PatientsInitial()) {
     on<PatientsLoadRequested>(_onLoad);
+    on<PatientsCreateRequested>(_onCreate);
   }
 
   Future<void> _onLoad(
@@ -28,6 +33,27 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
       );
     } catch (_) {
       safeEmit(const PatientsError('Erreur de chargement.'));
+    }
+  }
+
+  Future<void> _onCreate(
+    PatientsCreateRequested event,
+    Emitter<PatientsState> emit,
+  ) async {
+    emit(const PatientsCreating());
+    try {
+      final result = await _create(
+        firstName: event.firstName,
+        lastName: event.lastName,
+        phone: event.phone,
+        birthDate: event.birthDate,
+      );
+      result.fold(
+        (failure) => safeEmit(PatientsCreateError(failure.message)),
+        (patient) => safeEmit(PatientsCreateSuccess(patient)),
+      );
+    } catch (_) {
+      safeEmit(const PatientsCreateError('Erreur de création.'));
     }
   }
 }

@@ -400,6 +400,10 @@ fn build_router(
             get(clinical::list_cabinet_patients).post(clinical::create_cabinet_patient),
         )
         .route(
+            "/v1/cabinet/patients/quick",
+            post(clinical::quick_create_patient),
+        )
+        .route(
             "/v1/cabinet/patients/:id",
             get(clinical::get_cabinet_patient),
         )

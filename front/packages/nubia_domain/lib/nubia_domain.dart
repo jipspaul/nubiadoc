@@ -168,6 +168,7 @@ export 'src/usecases/cabinet_appointments/list_cabinet_appointments_use_case.dar
 export 'src/usecases/cabinet_appointments/create_cabinet_appointment_use_case.dart';
 export 'src/usecases/cabinet_appointments/reschedule_appointment_use_case.dart';
 // cabinet patients pro
+export 'src/usecases/cabinet_patients/create_cabinet_patient_use_case.dart';
 export 'src/usecases/cabinet_patients/list_cabinet_patients_use_case.dart';
 export 'src/usecases/cabinet_patients/get_cabinet_patient_use_case.dart';
 export 'src/usecases/cabinet_patients/update_patient_notes_use_case.dart';

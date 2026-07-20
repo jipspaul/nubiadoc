@@ -25,10 +25,24 @@ class CabinetPatientsApi {
     return CabinetPatientDto.fromJson(response.data!);
   }
 
-  Future<CabinetPatientDto> create(CabinetPatient patient) async {
+  /// `POST /v1/cabinet/patients/quick` — création rapide sans compte
+  /// plateforme (#4038). Distinct de `POST /cabinet/patients` (rattachement
+  /// d'un `patient_account_id` déjà existant, `api/src/clinical.rs`
+  /// `create_cabinet_patient`) : sémantique différente, pas réutilisable ici.
+  Future<CabinetPatientDto> create({
+    required String firstName,
+    required String lastName,
+    String? phone,
+    DateTime? birthDate,
+  }) async {
     final response = await _dio.post<Map<String, dynamic>>(
-      '/cabinet/patients',
-      data: CabinetPatientDto.fromDomain(patient).toJson(),
+      '/cabinet/patients/quick',
+      data: {
+        'first_name': firstName,
+        'last_name': lastName,
+        if (phone != null && phone.isNotEmpty) 'phone': phone,
+        if (birthDate != null) 'birth_date': _formatDate(birthDate),
+      },
     );
     return CabinetPatientDto.fromJson(response.data!);
   }
@@ -51,3 +65,8 @@ class CabinetPatientsApi {
     return CabinetPatientDto.fromJson(response.data!);
   }
 }
+
+/// "YYYY-MM-DD" — format attendu par `birth_date` côté API (`chrono::NaiveDate`).
+String _formatDate(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';

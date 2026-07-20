@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'patients_bloc.dart';
 import 'patients_event.dart';
 import 'patients_state.dart';
@@ -41,6 +43,18 @@ class _PatientsPageState extends State<PatientsPage> {
                 context.read<PatientsBloc>().add(const PatientsLoadRequested()),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        key: const Key('patients_new_button'),
+        tooltip: 'Nouveau patient',
+        onPressed: () async {
+          final created =
+              await context.push<CabinetPatient>(AppRouter.patientNew);
+          if (created != null && context.mounted) {
+            context.read<PatientsBloc>().add(const PatientsLoadRequested());
+          }
+        },
+        child: const Icon(Icons.person_add),
       ),
       body: BlocBuilder<PatientsBloc, PatientsState>(
         builder: (context, state) {

@@ -52,3 +52,41 @@ class PatientsError extends PatientsState {
   @override
   int get hashCode => message.hashCode;
 }
+
+/// Soumission du formulaire de création en cours (#4038).
+class PatientsCreating extends PatientsState {
+  const PatientsCreating();
+
+  @override
+  bool operator ==(Object other) => other is PatientsCreating;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+}
+
+/// Création réussie — le patient créé est renvoyé pour navigation/feedback.
+class PatientsCreateSuccess extends PatientsState {
+  const PatientsCreateSuccess(this.patient);
+
+  final CabinetPatient patient;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PatientsCreateSuccess && other.patient == patient;
+
+  @override
+  int get hashCode => patient.hashCode;
+}
+
+class PatientsCreateError extends PatientsState {
+  const PatientsCreateError(this.message);
+
+  final String message;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PatientsCreateError && other.message == message;
+
+  @override
+  int get hashCode => message.hashCode;
+}
