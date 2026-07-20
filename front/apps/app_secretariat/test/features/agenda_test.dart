@@ -358,6 +358,71 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // #3896 — nom/motif du patient visibles sur mobile pour un RDV « À confirmer ».
+  // -------------------------------------------------------------------------
+
+  group('carte RDV mobile (#3896)', () {
+    testWidgets(
+        'nom du patient visible sur un viewport mobile 390px, RDV à confirmer',
+        (tester) async {
+      final entry = AgendaEntry(
+        id: 'm-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Hugo Marin',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientId: 'pat-1',
+        patientName: 'Marc Dubois',
+        motif: 'Contrôle',
+        isFree: false,
+        status: 'requested',
+      );
+
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+          ));
+
+      // Viewport mobile 390x844 — repro exacte de l'issue (le nom s'affichait
+      // normalement à 1280px mais était clippé à ~0px de largeur à 390px,
+      // avant que la pastille+bouton « Confirmer » soit sortie du Row Expanded).
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('Marc Dubois'),
+        findsOneWidget,
+        reason: 'le nom du patient doit rester visible à 390px de large, '
+            'pas clippé par la pastille/bouton Confirmer',
+      );
+      expect(find.textContaining('Contrôle'), findsOneWidget);
+      expect(find.byKey(const Key('confirm_m-1')), findsOneWidget);
+
+      await gi.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Filtre praticien (dropdown)
   // -------------------------------------------------------------------------
 

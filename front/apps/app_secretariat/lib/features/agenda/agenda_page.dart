@@ -497,100 +497,117 @@ class _EntryCard extends StatelessWidget {
       entry.practitionerName,
     ];
 
+    // Bloc statut (+ action Confirmer) séparé de la ligne nom/motif (#3896) :
+    // avant ce fix, pastille + bouton partageaient le même Row que la colonne
+    // nom (Expanded) — sur un viewport étroit (mobile 390px), leur largeur
+    // intrinsèque non-flex ne laissait plus de place à l'Expanded, qui
+    // retombait à ~0px et clippait le nom/motif à vide malgré une donnée
+    // bien présente (confirmation « à l'aveugle » au comptoir).
+    final Widget statusRow = entry.isFree
+        ? const StatusPill(label: 'Libre', variant: StatusPillVariant.info)
+        : entry.isConfirmed
+            // RDV confirmé : plus d'action (un re-clic donnerait 409).
+            ? const StatusPill(
+                label: 'Confirmé',
+                variant: StatusPillVariant.success,
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const StatusPill(
+                    label: 'À confirmer',
+                    variant: StatusPillVariant.warning,
+                  ),
+                  const SizedBox(width: 12),
+                  NubiaButton(
+                    key: Key('confirm_${entry.id}'),
+                    label: 'Confirmer',
+                    size: NubiaButtonSize.sm,
+                    variant: NubiaButtonVariant.secondary,
+                    onPressed: () => context.read<AgendaBloc>().add(
+                          AgendaAppointmentConfirmRequested(
+                              appointmentId: entry.id),
+                        ),
+                  ),
+                ],
+              );
+
     return Padding(
       key: Key('entry_${entry.id}'),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: NubiaCard(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              width: 56,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    time,
-                    style: textTheme.titleMedium?.copyWith(
-                      color: cs.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  Text(
-                    endTime,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            NubiaAvatar(
-              initials: entry.isFree ? '+' : _initialsFrom(entry.patientName),
-              radius: 18,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.isFree
-                        ? 'Créneau libre'
-                        : (entry.patientName ?? 'Patient'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.titleMedium?.copyWith(
-                      color: cs.onSurface,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (subtitleParts.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitleParts.join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 56,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        time,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
-                    ),
-                  ],
-                ],
-              ),
+                      Text(
+                        endTime,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                NubiaAvatar(
+                  initials:
+                      entry.isFree ? '+' : _initialsFrom(entry.patientName),
+                  radius: 18,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.isFree
+                            ? 'Créneau libre'
+                            : (entry.patientName ?? 'Patient'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      if (subtitleParts.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitleParts.join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            if (entry.isFree)
-              const StatusPill(label: 'Libre', variant: StatusPillVariant.info)
-            else if (entry.isConfirmed)
-              // RDV confirmé : plus d'action (un re-clic donnerait 409).
-              const StatusPill(
-                label: 'Confirmé',
-                variant: StatusPillVariant.success,
-              )
-            else ...[
-              const StatusPill(
-                label: 'À confirmer',
-                variant: StatusPillVariant.warning,
-              ),
-              const SizedBox(width: 12),
-              NubiaButton(
-                key: Key('confirm_${entry.id}'),
-                label: 'Confirmer',
-                size: NubiaButtonSize.sm,
-                variant: NubiaButtonVariant.secondary,
-                onPressed: () => context.read<AgendaBloc>().add(
-                      AgendaAppointmentConfirmRequested(
-                          appointmentId: entry.id),
-                    ),
-              ),
-            ],
+            const SizedBox(height: 12),
+            Align(alignment: Alignment.centerRight, child: statusRow),
           ],
         ),
       ),
