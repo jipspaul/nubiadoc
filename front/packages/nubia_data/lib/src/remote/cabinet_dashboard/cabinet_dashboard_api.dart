@@ -16,8 +16,7 @@ class CabinetDashboardApi {
   /// générique alors que les autres compteurs étaient disponibles).
   Future<CabinetDashboardDto> getSummary() async {
     final today = DateTime.now();
-    final todayIso =
-        '${today.year.toString().padLeft(4, '0')}-'
+    final todayIso = '${today.year.toString().padLeft(4, '0')}-'
         '${today.month.toString().padLeft(2, '0')}-'
         '${today.day.toString().padLeft(2, '0')}';
 
@@ -25,9 +24,14 @@ class CabinetDashboardApi {
       _fetchList('/cabinet/appointments', queryParameters: {'date': todayIso}),
       _fetchList('/cabinet/waiting-room'),
       _fetchList('/cabinet/conversations'),
+      // #3861 : sans `date`, comptait TOUS les requested toutes dates
+      // confondues — RDV périmés de 2021/2025 inclus (105 au lieu de 11
+      // réellement actionnables aujourd'hui). Même borne que le 1er appel
+      // (`todayIso`), cohérent avec le correctif du dashboard secrétariat
+      // (#3855) qui exclut aussi les RDV non pertinents du jour.
       _fetchList(
         '/cabinet/appointments',
-        queryParameters: {'status': 'requested'},
+        queryParameters: {'status': 'requested', 'date': todayIso},
       ),
     ]);
 
