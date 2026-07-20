@@ -2460,6 +2460,24 @@ pub struct CoverageResponse {
     pub tiers_payant: bool,
 }
 
+/// Valide le format d'un NSS fourni explicitement au PATCH (#3847) :
+/// 13-15 chiffres (espaces tolérés, comme `mask_nss`), rejette toute autre
+/// forme — chaîne vide, texte non numérique, longueur invalide. Avant ce
+/// fix, `body.nss` n'était jamais validé (contrairement à
+/// `regime_obligatoire` juste à côté) : une valeur invalide était acceptée
+/// (200), écrasait le NSS existant via `COALESCE`, puis devenait illisible
+/// via `mask_nss` (< 13 chiffres → `None`) — perte silencieuse d'un PII critique.
+fn validate_nss(value: &Option<String>) -> Result<(), AppError> {
+    if let Some(v) = value {
+        let digits: String = v.chars().filter(|c| c.is_ascii_digit()).collect();
+        let non_digit_non_space = v.chars().any(|c| !c.is_ascii_digit() && !c.is_whitespace());
+        if non_digit_non_space || !(13..=15).contains(&digits.len()) {
+            return Err(AppError::ValidationError);
+        }
+    }
+    Ok(())
+}
+
 /// Masque un NSS : conserve sexe, année, mois + 2 derniers chiffres.
 /// Entrée : chaîne quelconque (espaces tolérés). Retourne `None` si < 13 chiffres.
 /// Exemple : "291037511607805" → "2 91 03 …05"
@@ -2607,6 +2625,8 @@ pub async fn patch_account_coverage(
             return Err(AppError::ValidationError);
         }
     }
+
+    validate_nss(&body.nss)?;
 
     // dev/test : bytes UTF-8 du NSS plaintext (KMS AES-256-GCM à partir de NUB-T3).
     let nss_encrypted: Option<Vec<u8>> = body.nss.as_deref().map(|s| s.as_bytes().to_vec());

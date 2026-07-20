@@ -170,6 +170,146 @@ async fn coverage_patch_nss_returns_200_and_nss_masked() {
         .ok();
 }
 
+// ── Test 1a2 : nss invalide/vide → 422, NSS existant non écrasé (#3847) ─────
+
+#[tokio::test]
+async fn coverage_patch_invalid_nss_returns_422_and_preserves_existing() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("cov-patch-nss-invalid+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Dupont')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // 1) Pose un NSS valide.
+    let resp1 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"nss": "291037511607805"})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), StatusCode::OK);
+    let body1 = axum::body::to_bytes(resp1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_slice(&body1).unwrap();
+    let original_masked = v1["nss_masked"]
+        .as_str()
+        .expect("nss_masked doit être présent")
+        .to_string();
+
+    // 2) PATCH avec un NSS non numérique → 422, NSS existant préservé.
+    let resp2 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"nss": "NOT-A-NUMBER"})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp2.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un NSS non numérique doit être rejeté (422), pas écraser silencieusement"
+    );
+
+    // 3) PATCH avec un NSS vide → 422 également.
+    let resp3 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"nss": ""})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp3.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 4) GET : le NSS original doit toujours être lisible (pas écrasé/corrompu).
+    let get_response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/coverage")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_response.status(), StatusCode::OK);
+    let get_body = axum::body::to_bytes(get_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let gv: serde_json::Value = serde_json::from_slice(&get_body).unwrap();
+    assert_eq!(
+        gv["nss_masked"], original_masked,
+        "le NSS valide ne doit pas avoir été écrasé/corrompu par les PATCH invalides"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 1b : mutuelle.amc vide → 422, valeur existante non écrasée (#3797) ──
 
 #[tokio::test]
