@@ -246,7 +246,10 @@ class _AppointmentCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${appointment.motif} · ${appointment.practitionerSpecialty}',
+                        // #3825 : pas de « · » pendant quand la spécialité est vide.
+                        appointment.practitionerSpecialty.isEmpty
+                            ? appointment.motif
+                            : '${appointment.motif} · ${appointment.practitionerSpecialty}',
                         style: textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
