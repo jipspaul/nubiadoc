@@ -16,17 +16,38 @@ class MessagingApi {
         .toList();
   }
 
+  /// GET /v1/conversations/:id/messages — récupère TOUT le fil.
+  ///
+  /// L'API pagine en avant (`created_at ASC`, curseur `page.next_cursor`) :
+  /// la 1re page ne renvoie que les messages les plus ANCIENS. Un unique
+  /// appel sans suivre `next_cursor` laissait donc les réponses récentes du
+  /// praticien et les envois du patient invisibles dès qu'un fil dépasse la
+  /// taille de page (#3848). On suit le curseur jusqu'à épuisement, avec
+  /// `limit=100` (max serveur) pour minimiser les allers-retours.
   Future<List<MessageDto>> getMessages(String conversationId) async {
-    // GET /v1/conversations/:id/messages → { data: [...], page }
-    final response = await _dio
-        .get<Map<String, dynamic>>('/conversations/$conversationId/messages');
-    final data = (response.data?['data'] as List<dynamic>? ?? []);
-    return data
-        .map((e) => MessageDto.fromJson(
-              e as Map<String, dynamic>,
-              conversationId: conversationId,
-            ))
-        .toList();
+    final messages = <MessageDto>[];
+    String? cursor;
+    while (true) {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/conversations/$conversationId/messages',
+        queryParameters: {
+          'limit': 100,
+          if (cursor != null) 'cursor': cursor,
+        },
+      );
+      final data = (response.data?['data'] as List<dynamic>? ?? []);
+      messages.addAll(
+        data.map(
+          (e) => MessageDto.fromJson(
+            e as Map<String, dynamic>,
+            conversationId: conversationId,
+          ),
+        ),
+      );
+      cursor = response.data?['page']?['next_cursor'] as String?;
+      if (cursor == null) break;
+    }
+    return messages;
   }
 
   Future<MessageDto> send({
