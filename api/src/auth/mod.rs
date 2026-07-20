@@ -3187,6 +3187,10 @@ pub struct PatchNotificationPreferencesBody {
     push_messagerie: Option<bool>,
     email_rappels: Option<bool>,
     push_rappels: Option<bool>,
+    email_documents: Option<bool>,
+    push_documents: Option<bool>,
+    email_paiement: Option<bool>,
+    push_paiement: Option<bool>,
 }
 
 /// Réponse de `GET /v1/account/notification-preferences`.
@@ -3199,6 +3203,10 @@ pub struct NotificationPreferenceResponse {
     push_messagerie: bool,
     email_rappels: bool,
     push_rappels: bool,
+    email_documents: bool,
+    push_documents: bool,
+    email_paiement: bool,
+    push_paiement: bool,
 }
 
 /// `GET /v1/account/notification-preferences` — retourne les préférences de notification du patient.
@@ -3220,7 +3228,9 @@ pub async fn get_account_notification_preferences(
     let row = sqlx::query(
         "SELECT email_rdv, sms_rdv, push_rdv, \
                 email_messagerie, push_messagerie, \
-                email_rappels, push_rappels \
+                email_rappels, push_rappels, \
+                email_documents, push_documents, \
+                email_paiement, push_paiement \
          FROM notification_preference \
          WHERE patient_account_id = $1 AND channel IS NULL AND type IS NULL",
     )
@@ -3240,6 +3250,10 @@ pub async fn get_account_notification_preferences(
             push_messagerie: true,
             email_rappels: true,
             push_rappels: true,
+            email_documents: true,
+            push_documents: true,
+            email_paiement: true,
+            push_paiement: true,
         },
         Some(r) => NotificationPreferenceResponse {
             email_rdv: r.try_get("email_rdv").map_err(|_| AppError::Internal)?,
@@ -3253,6 +3267,16 @@ pub async fn get_account_notification_preferences(
                 .map_err(|_| AppError::Internal)?,
             email_rappels: r.try_get("email_rappels").map_err(|_| AppError::Internal)?,
             push_rappels: r.try_get("push_rappels").map_err(|_| AppError::Internal)?,
+            email_documents: r
+                .try_get("email_documents")
+                .map_err(|_| AppError::Internal)?,
+            push_documents: r
+                .try_get("push_documents")
+                .map_err(|_| AppError::Internal)?,
+            email_paiement: r
+                .try_get("email_paiement")
+                .map_err(|_| AppError::Internal)?,
+            push_paiement: r.try_get("push_paiement").map_err(|_| AppError::Internal)?,
         },
     };
 
@@ -3285,10 +3309,12 @@ pub async fn patch_account_notification_preferences(
     let row = sqlx::query(
         "INSERT INTO notification_preference \
            (patient_account_id, email_rdv, sms_rdv, push_rdv, \
-            email_messagerie, push_messagerie, email_rappels, push_rappels) \
+            email_messagerie, push_messagerie, email_rappels, push_rappels, \
+            email_documents, push_documents, email_paiement, push_paiement) \
          VALUES ($1, \
            COALESCE($2, true), COALESCE($3, true), COALESCE($4, true), \
-           COALESCE($5, true), COALESCE($6, true), COALESCE($7, true), COALESCE($8, true)) \
+           COALESCE($5, true), COALESCE($6, true), COALESCE($7, true), COALESCE($8, true), \
+           COALESCE($9, true), COALESCE($10, true), COALESCE($11, true), COALESCE($12, true)) \
          ON CONFLICT (patient_account_id) \
            WHERE channel IS NULL AND type IS NULL \
          DO UPDATE SET \
@@ -3306,10 +3332,20 @@ pub async fn patch_account_notification_preferences(
                                    ELSE notification_preference.email_rappels END, \
            push_rappels     = CASE WHEN $8 IS NOT NULL THEN $8 \
                                    ELSE notification_preference.push_rappels END, \
+           email_documents  = CASE WHEN $9 IS NOT NULL THEN $9 \
+                                   ELSE notification_preference.email_documents END, \
+           push_documents   = CASE WHEN $10 IS NOT NULL THEN $10 \
+                                   ELSE notification_preference.push_documents END, \
+           email_paiement   = CASE WHEN $11 IS NOT NULL THEN $11 \
+                                   ELSE notification_preference.email_paiement END, \
+           push_paiement    = CASE WHEN $12 IS NOT NULL THEN $12 \
+                                   ELSE notification_preference.push_paiement END, \
            updated_at       = now() \
          RETURNING email_rdv, sms_rdv, push_rdv, \
                    email_messagerie, push_messagerie, \
-                   email_rappels, push_rappels",
+                   email_rappels, push_rappels, \
+                   email_documents, push_documents, \
+                   email_paiement, push_paiement",
     )
     .bind(claims.account_id)
     .bind(body.email_rdv)
@@ -3319,6 +3355,10 @@ pub async fn patch_account_notification_preferences(
     .bind(body.push_messagerie)
     .bind(body.email_rappels)
     .bind(body.push_rappels)
+    .bind(body.email_documents)
+    .bind(body.push_documents)
+    .bind(body.email_paiement)
+    .bind(body.push_paiement)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -3345,6 +3385,18 @@ pub async fn patch_account_notification_preferences(
             .map_err(|_| AppError::Internal)?,
         push_rappels: row
             .try_get("push_rappels")
+            .map_err(|_| AppError::Internal)?,
+        email_documents: row
+            .try_get("email_documents")
+            .map_err(|_| AppError::Internal)?,
+        push_documents: row
+            .try_get("push_documents")
+            .map_err(|_| AppError::Internal)?,
+        email_paiement: row
+            .try_get("email_paiement")
+            .map_err(|_| AppError::Internal)?,
+        push_paiement: row
+            .try_get("push_paiement")
             .map_err(|_| AppError::Internal)?,
     }))
 }

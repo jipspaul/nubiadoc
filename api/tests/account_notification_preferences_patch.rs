@@ -138,6 +138,97 @@ async fn patch_notification_preferences_partial_updates_only_given_fields() {
     assert_eq!(get_json["email_rdv"], true);
 }
 
+// ── Test 1b : PATCH documents/paiement persistent réellement (#3829) ────────
+
+#[tokio::test]
+async fn patch_notification_preferences_documents_and_paiement_persist() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-patch-doc+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Test', 'DocPaiement')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(user_id, account_id);
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/notification-preferences")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"email_documents": false, "push_documents": false, "email_paiement": false, "push_paiement": false}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let patch_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(patch_json["email_documents"], false);
+    assert_eq!(patch_json["push_documents"], false);
+    assert_eq!(patch_json["email_paiement"], false);
+    assert_eq!(patch_json["push_paiement"], false);
+    // Champs non touchés par ce PATCH : inchangés (défaut true).
+    assert_eq!(patch_json["email_messagerie"], true);
+
+    // Un GET ultérieur doit refléter la même persistance (pas de reset au défaut true).
+    let get_response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/notification-preferences")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(get_response.status(), StatusCode::OK);
+    let get_body = axum::body::to_bytes(get_response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let get_json: serde_json::Value = serde_json::from_slice(&get_body).unwrap();
+
+    assert_eq!(get_json["email_documents"], false);
+    assert_eq!(get_json["push_documents"], false);
+    assert_eq!(get_json["email_paiement"], false);
+    assert_eq!(get_json["push_paiement"], false);
+}
+
 // ── Test 2 : pas de JWT → 401 ─────────────────────────────────────────────────
 
 #[tokio::test]
