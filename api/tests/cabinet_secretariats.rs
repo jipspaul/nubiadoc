@@ -327,6 +327,70 @@ async fn post_secretariat_member_non_admin_returns_403() {
         .ok();
 }
 
+// ── Test 7b : POST member déjà présent → 409 member_already_exists, pas verification_pending (#3828) ──
+
+#[tokio::test]
+async fn post_secretariat_member_duplicate_returns_member_already_exists() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("sec_memb_dup_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, account_id, _) = register_pro(db.clone(), &email).await;
+
+    let secretariat_id = create_secretariat(db.clone(), &token).await;
+    let body = json!({ "user_id": account_id, "role": "secretary" });
+
+    let first = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/secretariats/{}/members",
+                    secretariat_id
+                ))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    let second = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/secretariats/{}/members",
+                    secretariat_id
+                ))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+
+    let bytes = axum::body::to_bytes(second.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        v["code"], "member_already_exists",
+        "un doublon de membre ne doit jamais renvoyer le code verification_pending"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
+
 // ── R13 — POST /v1/cabinet/secretariats/:id/staff ───────────────────────────
 
 /// Crée un secrétariat pour les tests R13 et retourne son id.
