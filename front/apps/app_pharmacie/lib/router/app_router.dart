@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../features/home/pharma_home_page.dart';
 import '../features/login/login_page.dart';
@@ -30,6 +31,20 @@ class AppRouter {
         splashRoute: splash,
         authRoutes: const {login, splash},
         guestOnlyRoutes: const {login, splash},
+      ),
+      // Route inconnue (deep-link périmé, bookmark cassé) : sans errorBuilder,
+      // go_router affiche son écran par défaut avec l'exception brute
+      // (« GoException: no routes for location: … ») — #3894.
+      errorBuilder: (context, state) => Scaffold(
+        body: NubiaEmptyState(
+          icon: Icons.search_off,
+          title: 'Page introuvable',
+          subtitle: 'Le lien que vous avez suivi n\'existe plus ou a changé.',
+          action: FilledButton(
+            onPressed: () => context.go(orders),
+            child: const Text('Retour à l\'accueil'),
+          ),
+        ),
       ),
       routes: [
         GoRoute(
