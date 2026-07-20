@@ -188,11 +188,16 @@ class _LoadedViewState extends State<_LoadedView> {
                           ),
                           const SizedBox(width: 8),
                           StatusPill(
-                            label:
-                                session.isCompleted ? 'Terminée' : 'En cours',
-                            variant: session.isCompleted
-                                ? StatusPillVariant.success
-                                : StatusPillVariant.info,
+                            label: session.isCancelled
+                                ? 'Annulée'
+                                : session.isCompleted
+                                    ? 'Terminée'
+                                    : 'En cours',
+                            variant: session.isCancelled
+                                ? StatusPillVariant.warning
+                                : session.isCompleted
+                                    ? StatusPillVariant.success
+                                    : StatusPillVariant.info,
                           ),
                         ],
                       ),
@@ -213,7 +218,7 @@ class _LoadedViewState extends State<_LoadedView> {
                   size: NubiaButtonSize.sm,
                   icon: Icons.check,
                   label: 'Terminer',
-                  onPressed: state.actionInProgress || session.isCompleted
+                  onPressed: state.actionInProgress || session.isFinished
                       ? null
                       : () => context.read<ConsultationCliniqueBloc>().add(
                             const ConsultationCliniqueCompleteRequested(),
@@ -363,8 +368,8 @@ class _HistoriqueViewState extends State<_HistoriqueView> {
       label: Text('Terminée'),
     ),
     ButtonSegment<String>(
-      value: 'interrupted',
-      label: Text('Interrompue'),
+      value: 'cancelled',
+      label: Text('Annulée'),
     ),
   ];
 
@@ -420,8 +425,8 @@ class _HistoriqueTile extends StatelessWidget {
         return 'Terminée';
       case 'in_progress':
         return 'En cours';
-      case 'interrupted':
-        return 'Interrompue';
+      case 'cancelled':
+        return 'Annulée';
       default:
         return session.status;
     }
@@ -442,7 +447,7 @@ class _HistoriqueTile extends StatelessWidget {
         return StatusPillVariant.success;
       case 'in_progress':
         return StatusPillVariant.info;
-      case 'interrupted':
+      case 'cancelled':
         return StatusPillVariant.warning;
       default:
         return StatusPillVariant.info;

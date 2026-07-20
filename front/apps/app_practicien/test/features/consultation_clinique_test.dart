@@ -35,10 +35,10 @@ const _sessionInProgress = ClinicalSession(
   acts: [],
 );
 
-const _sessionInterrupted = ClinicalSession(
+const _sessionCancelled = ClinicalSession(
   id: 'h3',
   appointmentId: 'a3',
-  status: 'interrupted',
+  status: 'cancelled',
   acts: [],
 );
 
@@ -101,8 +101,7 @@ class _HistoriqueTestViewState extends State<_HistoriqueTestView> {
             ButtonSegment<String>(
                 value: 'in_progress', label: Text('En cours')),
             ButtonSegment<String>(value: 'completed', label: Text('Terminée')),
-            ButtonSegment<String>(
-                value: 'interrupted', label: Text('Interrompue')),
+            ButtonSegment<String>(value: 'cancelled', label: Text('Annulée')),
           ],
           selected: _selection,
           onSelectionChanged: (s) => setState(() => _selection = s),
@@ -151,7 +150,7 @@ void main() {
           sessions: [
             _sessionCompleted,
             _sessionInProgress,
-            _sessionInterrupted,
+            _sessionCancelled,
           ],
         ),
       );
@@ -162,7 +161,7 @@ void main() {
       expect(find.byKey(const Key('historique_filter')), findsOneWidget);
       expect(find.text('En cours'), findsOneWidget);
       expect(find.text('Terminée'), findsOneWidget);
-      expect(find.text('Interrompue'), findsOneWidget);
+      expect(find.text('Annulée'), findsOneWidget);
       // Toutes les sessions visibles par défaut (aucun filtre actif)
       expect(find.byKey(const Key('historique_h1')), findsOneWidget);
       expect(find.byKey(const Key('historique_h2')), findsOneWidget);
@@ -177,7 +176,7 @@ void main() {
           sessions: [
             _sessionCompleted,
             _sessionInProgress,
-            _sessionInterrupted,
+            _sessionCancelled,
           ],
         ),
       );
@@ -200,7 +199,7 @@ void main() {
           sessions: [
             _sessionCompleted,
             _sessionInProgress,
-            _sessionInterrupted,
+            _sessionCancelled,
           ],
         ),
       );
@@ -228,7 +227,7 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Interrompue'));
+      await tester.tap(find.text('Annulée'));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('historique_empty')), findsOneWidget);
