@@ -114,6 +114,75 @@ async fn insert_fixture(
     (cabinet_id, prac_id, patient_id, appt_id)
 }
 
+/// Variante de `insert_fixture` avec `starts_at`/`checkin_at` d'un jour passé
+/// (cul-de-sac résiduel type #3858 : RDV `checked_in`/`in_progress` jamais
+/// terminé). Retourne (cabinet_id, prac_id, patient_id, appt_id).
+async fn insert_stale_fixture(
+    db: &PgPool,
+    prac_user_id: Uuid,
+    patient_account_id: Uuid,
+    status: &str,
+) -> (Uuid, Uuid, Uuid, Uuid) {
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let appt_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet QueueStale {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Test', 'QueueStale', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(patient_account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) \
+         VALUES ($1, $2, $3, $4, \
+           now() - interval '13 days', now() - interval '13 days' + interval '30 min', \
+           $5, 'test', now() - interval '13 days')",
+    )
+    .bind(appt_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .bind(status)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    (cabinet_id, prac_id, patient_id, appt_id)
+}
+
 /// Insère un RDV supplémentaire (autre patient) avec checkin_at passé pour simuler file d'attente.
 async fn insert_extra_appt(
     db: &PgPool,
@@ -517,6 +586,107 @@ async fn get_queue_position_3_when_two_prior_checkins() {
         "est_wait_min doit être null en MVP"
     );
     assert_eq!(v["status"], "waiting");
+
+    cleanup(&db, cabinet_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 3 : RDV in_progress d'un jour passé → not_checked_in (#3869) ────────
+
+#[tokio::test]
+async fn get_queue_stale_in_progress_from_past_day_returns_not_checked_in() {
+    if !db_available() {
+        return;
+    }
+    let db = seed_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("queue-stale+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Queue', 'Stale')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("queue-stale-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // RDV in_progress mais starts_at/checkin_at 13 jours dans le passé —
+    // cul-de-sac résiduel (#3858) : ne fait plus partie de la file DU JOUR.
+    let (cabinet_id, _prac_id, _patient_id, appt_id) =
+        insert_stale_fixture(&db, prac_user_id, patient_account_id, "in_progress").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}/queue", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    // Avant #3869 : status="in_progress", position=1 (« c'est votre tour »)
+    // pour un RDV invisible de la waiting-room cabinet (scope jour courant).
+    assert_eq!(
+        v["status"], "not_checked_in",
+        "un RDV in_progress d'un jour passé ne doit plus être présenté comme actif"
+    );
+    assert!(
+        v["position"].is_null(),
+        "pas de position pour un RDV hors file du jour"
+    );
 
     cleanup(&db, cabinet_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")

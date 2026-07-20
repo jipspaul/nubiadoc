@@ -1464,6 +1464,9 @@ pub struct QueueResponse {
 /// `est_wait_min` reste `null` (pas d'estimation de temps d'attente en MVP).
 /// Si le patient n'est pas encore checké (`status` ni `checked_in` ni `in_progress`), `position`
 /// vaut `null` et `status` vaut `"not_checked_in"` : le patient n'est pas dans la file d'attente.
+/// Même si `status` est `checked_in`/`in_progress`, un RDV dont `starts_at` n'est pas le jour
+/// courant renvoie aussi `"not_checked_in"` (#3869) : la file du jour est la seule référence
+/// pertinente, cohérente avec la waiting-room cabinet vue par le personnel.
 pub async fn get_appointment_queue(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -1479,7 +1482,9 @@ pub async fn get_appointment_queue(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, status, checkin_at, practitioner_id, cabinet_id \
+        "SELECT id, status, checkin_at, practitioner_id, cabinet_id, \
+                (starts_at >= date_trunc('day', now()) \
+                 AND starts_at < date_trunc('day', now()) + interval '1 day') AS is_today \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -1497,6 +1502,7 @@ pub async fn get_appointment_queue(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
+    let is_today: bool = row.try_get("is_today").map_err(|_| AppError::Internal)?;
 
     // Scope cabinet pour les requêtes soumises à la RLS tenant_isolation.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1562,9 +1568,15 @@ pub async fn get_appointment_queue(
     //   checked_in  → "waiting"       (en salle d'attente)
     //   sinon       → "not_checked_in" (pas encore en salle d'attente : confirmed/requested/
     //                                   cancelled/no_show/completed, etc.)
+    // Garde jour (#3869) : un RDV checked_in/in_progress resté bloqué un jour
+    // passé (cul-de-sac résiduel, cf #3858) n'est plus dans la file du jour —
+    // même borne que le COUNT de position ci-dessus et que la waiting-room
+    // cabinet (scheduling::get_waiting_room). Sans cette garde, le patient
+    // recevait indéfiniment « c'est votre tour » pour un RDV invisible du
+    // personnel (waiting-room cabinet déjà vide).
     let queue_status = match status.as_str() {
-        "in_progress" => "in_progress",
-        "checked_in" => "waiting",
+        "in_progress" if is_today => "in_progress",
+        "checked_in" if is_today => "waiting",
         _ => "not_checked_in",
     };
 
