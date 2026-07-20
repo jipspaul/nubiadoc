@@ -109,6 +109,7 @@ pub(crate) struct ProClaims {
 }
 
 /// Erreur HTTP renvoyée au client.
+#[derive(Debug)]
 pub(crate) enum AppError {
     Unauthorized,
     Unauthenticated,

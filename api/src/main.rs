@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
-use nubia_api::{app, AppState, StubMailer};
+use nubia_api::{app, run_dispatch_loop, AppState, StubJobDispatcher, StubMailer};
 use sqlx::PgPool;
 
 #[tokio::main]
@@ -44,6 +44,19 @@ async fn main() {
         mllp_task.await;
         eprintln!("listener MLLP arrêté (configuration absente ou invalide)");
     });
+
+    // Worker de dispatch des rappels RDV (#4034) : même pattern que le
+    // listener MLLP ci-dessus (tokio::spawn dans le même binaire,
+    // ADR-002/ADR-012 — pas de job queue apalis dans ce dépôt à ce jour, cf.
+    // doc de module reminder_dispatch.rs). StubJobDispatcher : comme tous les
+    // autres call sites enqueue_push_notification de ce dépôt, en attendant
+    // une implémentation JobDispatcher réelle (aucune n'existe encore).
+    const REMINDER_DISPATCH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
+    tokio::spawn(run_dispatch_loop(
+        state.db.clone(),
+        std::sync::Arc::new(StubJobDispatcher),
+        REMINDER_DISPATCH_INTERVAL,
+    ));
 
     let http_task = axum::serve(
         listener,
