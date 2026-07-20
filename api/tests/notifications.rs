@@ -46,6 +46,39 @@ fn make_jwt(user_id: Uuid) -> String {
     .unwrap()
 }
 
+/// Insère une notification avec `data` (JSONB) explicite — pour vérifier la
+/// restitution de `data`/`deep_link` (#3863).
+async fn insert_notification_with_data(
+    app_db: &PgPool,
+    user_id: Uuid,
+    kind: &str,
+    title: &str,
+    data: serde_json::Value,
+) -> Uuid {
+    let id = Uuid::new_v4();
+    let mut tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO notification \
+         (id, app_user_id, kind, title, body_ciphertext, body_key_ref, data) \
+         VALUES ($1, $2, $3, $4, '\\x00'::bytea, 'stub', $5)",
+    )
+    .bind(id)
+    .bind(user_id)
+    .bind(kind)
+    .bind(title)
+    .bind(data)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    id
+}
+
 /// Insère une notification via nubia_app (RLS : current_user_id = app_user_id).
 async fn insert_notification(
     app_db: &PgPool,
@@ -471,6 +504,96 @@ async fn notifications_malformed_cursor_returns_422() {
             bad_cursor
         );
     }
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 6 : data/deep_link restitués (#3863) ─────────────────────────────────
+
+#[tokio::test]
+async fn notifications_list_restitutes_data_and_deep_link() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-data+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let order_id = Uuid::new_v4();
+    insert_notification_with_data(
+        &app_db,
+        user_id,
+        "order_received",
+        "Nouvelle commande reçue",
+        json!({ "order_id": order_id, "status": "received" }),
+    )
+    .await;
+
+    let entry_id = Uuid::new_v4();
+    insert_notification_with_data(
+        &app_db,
+        user_id,
+        "waiting_list_slot_offered",
+        "Un créneau vous est proposé",
+        json!({ "waiting_list_entry_id": entry_id, "proposed_at": "2026-07-25T10:00:00Z" }),
+    )
+    .await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/notifications")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let items = v["data"].as_array().unwrap();
+    assert_eq!(items.len(), 2);
+
+    // ORDER DESC : waiting_list_slot_offered inséré en dernier → items[0].
+    let offered = &items[0];
+    assert_eq!(offered["kind"], "waiting_list_slot_offered");
+    assert_eq!(
+        offered["data"]["waiting_list_entry_id"],
+        entry_id.to_string()
+    );
+    assert_eq!(offered["data"]["proposed_at"], "2026-07-25T10:00:00Z");
+    // Pas de page de détail patient pour ce kind (#3863) : pas de deep_link inventé.
+    assert!(offered["deep_link"].is_null());
+
+    let order = &items[1];
+    assert_eq!(order["kind"], "order_received");
+    assert_eq!(order["data"]["order_id"], order_id.to_string());
+    assert_eq!(order["deep_link"], format!("/pharmacy/orders/{order_id}"));
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)
