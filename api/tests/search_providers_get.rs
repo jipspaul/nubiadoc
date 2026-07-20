@@ -530,3 +530,51 @@ async fn search_providers_place_filters_by_known_city() {
         .await
         .ok();
 }
+
+// ── Régression #3796 : recherche insensible aux accents ──────────────────────
+// q="amelie" (sans accent, clavier courant) doit matcher un provider nommé
+// "Dr Providers Amélie" (avec accent) — comme /ccam/acts le fait déjà.
+
+#[tokio::test]
+async fn search_providers_accent_insensitive_match() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let provider_id = insert_provider(&db, "Amélie").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?q=amelie")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    assert!(
+        data.iter()
+            .any(|p| p["provider_id"].as_str() == Some(&provider_id.to_string())),
+        "q=amelie (sans accent) doit matcher 'Dr Providers Amélie'"
+    );
+
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+}

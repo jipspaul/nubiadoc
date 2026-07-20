@@ -226,3 +226,39 @@ async fn suggest_dentiste_returns_profession() {
         .to_lowercase()
         .contains("dentiste")));
 }
+
+/// Régression #3796 : "detartrage" (sans accent) doit matcher l'acte
+/// "Détartrage" — comme /ccam/acts le fait déjà (repli d'accents).
+#[tokio::test]
+async fn suggest_detartrage_without_accent_matches_act() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/suggest?q=detartrage")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let acts = v["acts"].as_array().unwrap();
+    assert!(
+        !acts.is_empty(),
+        "q=detartrage (sans accent) doit matcher au moins un acte (Détartrage)"
+    );
+}
