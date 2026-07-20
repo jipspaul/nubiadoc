@@ -50,11 +50,26 @@ class CabinetPatientsRepositoryImpl implements CabinetPatientsRepository {
   }
 
   @override
-  Future<Either<Failure, CabinetPatient>> create(CabinetPatient patient) async {
+  Future<Either<Failure, CabinetPatient>> create({
+    required String firstName,
+    required String lastName,
+    String? phone,
+    DateTime? birthDate,
+  }) async {
     try {
-      final dto = await _api.create(patient);
+      final dto = await _api.create(
+        firstName: firstName,
+        lastName: lastName,
+        phone: phone,
+        birthDate: birthDate,
+      );
       return Right(dto.toDomain());
     } on DioException catch (e) {
+      if (e.response?.statusCode == 422) {
+        return const Left(
+          ValidationFailure(message: 'Nom et prénom sont obligatoires.'),
+        );
+      }
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }

@@ -76,6 +76,7 @@ void main() {
   group('PatientsBloc', () {
     late _MockCabinetPatientsRepository repo;
     late ListCabinetPatientsUseCase listUseCase;
+    late CreateCabinetPatientUseCase createUseCase;
 
     final patients = [
       CabinetPatient(
@@ -91,6 +92,7 @@ void main() {
     setUp(() {
       repo = _MockCabinetPatientsRepository();
       listUseCase = ListCabinetPatientsUseCase(repo);
+      createUseCase = CreateCabinetPatientUseCase(repo);
     });
 
     blocTest<PatientsBloc, PatientsState>(
@@ -98,7 +100,8 @@ void main() {
       build: () {
         when(() => repo.list(page: any(named: 'page')))
             .thenAnswer((_) async => Right(patients));
-        return PatientsBloc(listPatients: listUseCase);
+        return PatientsBloc(
+            listPatients: listUseCase, createPatient: createUseCase);
       },
       act: (bloc) => bloc.add(const PatientsLoadRequested()),
       expect: () => [
@@ -113,7 +116,8 @@ void main() {
         when(() => repo.list(page: any(named: 'page'))).thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
-        return PatientsBloc(listPatients: listUseCase);
+        return PatientsBloc(
+            listPatients: listUseCase, createPatient: createUseCase);
       },
       act: (bloc) => bloc.add(const PatientsLoadRequested()),
       expect: () => [
@@ -127,7 +131,8 @@ void main() {
       build: () {
         when(() => repo.list(page: any(named: 'page')))
             .thenAnswer((_) async => Right(patients));
-        return PatientsBloc(listPatients: listUseCase);
+        return PatientsBloc(
+            listPatients: listUseCase, createPatient: createUseCase);
       },
       act: (bloc) => bloc.add(const PatientsLoadRequested()),
       verify: (bloc) {
@@ -139,6 +144,74 @@ void main() {
           // garantie structurelle par le type (pas de getter correspondant).
         }
       },
+    );
+
+    // ── Création (#4038) ────────────────────────────────────────────────────
+
+    final created = CabinetPatient(
+      id: 'p-new',
+      cabinetId: 'c1',
+      firstName: 'Nouveau',
+      lastName: 'Patient',
+      createdAt: DateTime(2026, 1, 1),
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
+      'émet Creating puis CreateSuccess et appelle le use case de création',
+      build: () {
+        when(() => repo.create(
+              firstName: any(named: 'firstName'),
+              lastName: any(named: 'lastName'),
+              phone: any(named: 'phone'),
+              birthDate: any(named: 'birthDate'),
+            )).thenAnswer((_) async => Right(created));
+        return PatientsBloc(
+            listPatients: listUseCase, createPatient: createUseCase);
+      },
+      act: (bloc) => bloc.add(const PatientsCreateRequested(
+        firstName: 'Nouveau',
+        lastName: 'Patient',
+        phone: '0600000000',
+      )),
+      expect: () => [
+        const PatientsCreating(),
+        PatientsCreateSuccess(created),
+      ],
+      verify: (_) {
+        verify(() => repo.create(
+              firstName: 'Nouveau',
+              lastName: 'Patient',
+              phone: '0600000000',
+              birthDate: null,
+            )).called(1);
+      },
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
+      'émet Creating puis CreateError sur échec',
+      build: () {
+        when(() => repo.create(
+              firstName: any(named: 'firstName'),
+              lastName: any(named: 'lastName'),
+              phone: any(named: 'phone'),
+              birthDate: any(named: 'birthDate'),
+            )).thenAnswer(
+          (_) async => Left(
+            const ValidationFailure(
+                message: 'Nom et prénom sont obligatoires.'),
+          ),
+        );
+        return PatientsBloc(
+            listPatients: listUseCase, createPatient: createUseCase);
+      },
+      act: (bloc) => bloc.add(const PatientsCreateRequested(
+        firstName: '',
+        lastName: '',
+      )),
+      expect: () => [
+        const PatientsCreating(),
+        const PatientsCreateError('Nom et prénom sont obligatoires.'),
+      ],
     );
   });
 

@@ -431,6 +431,140 @@ pub async fn create_cabinet_patient(
     ))
 }
 
+// ── POST /v1/cabinet/patients/quick ─────────────────────────────────────────
+
+/// Corps de la requête `POST /v1/cabinet/patients/quick`.
+#[derive(Deserialize)]
+pub struct QuickCreatePatientBody {
+    pub first_name: String,
+    pub last_name: String,
+    pub phone: Option<String>,
+    /// ISO 8601 "YYYY-MM-DD".
+    pub birth_date: Option<String>,
+}
+
+/// Réponse de `POST /v1/cabinet/patients/quick`.
+#[derive(Serialize)]
+pub struct QuickCreatePatientResponse {
+    pub id: Uuid,
+    pub cabinet_id: Uuid,
+    pub first_name: String,
+    pub last_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub birth_date: Option<String>,
+    pub created_at: String,
+}
+
+/// `POST /v1/cabinet/patients/quick` — création rapide d'un dossier patient
+/// SANS compte plateforme (#4038, écran accueil secrétariat).
+///
+/// Distinct de `POST /v1/cabinet/patients` (`AttachPatientBody`) : ce dernier
+/// RATTACHE un `patient_account` déjà existant (garde cloisonnement #3872,
+/// exige une relation RDV déjà tracée) — inadapté au cas patient jamais
+/// inscrit sur la plateforme (walk-in, pris par téléphone hors ligne). Cette
+/// route crée directement une ligne `patient` avec `patient_account_id = NULL`
+/// (colonne nullable, migration 0009) : le rattachement à un compte, s'il est
+/// créé plus tard, se fait par un autre flux (hors scope ici).
+///
+/// Token pro requis (secretary, practitioner, admin) — patient → 403.
+/// `cabinet_id` extrait du JWT, jamais du body. `first_name`/`last_name`
+/// vides (après trim) → `422 {"code":"validation_error"}`. Auditée
+/// (`quick_create_patient`) dans `audit_log`.
+pub async fn quick_create_patient(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Json(body): Json<QuickCreatePatientBody>,
+) -> Result<(StatusCode, Json<QuickCreatePatientResponse>), AppError> {
+    let first_name = body.first_name.trim().to_string();
+    let last_name = body.last_name.trim().to_string();
+    if first_name.is_empty() || last_name.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
+    let birth_date: Option<chrono::NaiveDate> = body
+        .birth_date
+        .as_deref()
+        .map(|s| s.parse::<chrono::NaiveDate>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+
+    let phone = body
+        .phone
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+
+    // contact JSONB : { tel? } — même clé que le reste du modèle (cf.
+    // CabinetPatientDto.fromJson côté front, `contact->>'tel'`).
+    let contact: serde_json::Value = match phone {
+        Some(tel) => serde_json::json!({ "tel": tel }),
+        None => serde_json::json!({}),
+    };
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "INSERT INTO patient (cabinet_id, first_name, last_name, birth_date, contact) \
+         VALUES ($1, $2, $3, $4, $5) \
+         RETURNING id, created_at",
+    )
+    .bind(claims.cabinet_id)
+    .bind(&first_name)
+    .bind(&last_name)
+    .bind(birth_date)
+    .bind(&contact)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let patient_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, $3, 'quick_create_patient', 'patient', $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(&claims.role)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        patient_id = %patient_id,
+        "cabinet patient quick-created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(QuickCreatePatientResponse {
+            id: patient_id,
+            cabinet_id: claims.cabinet_id,
+            first_name,
+            last_name,
+            phone: phone.map(str::to_string),
+            birth_date: birth_date.map(|d| d.to_string()),
+            created_at: created_at.to_rfc3339(),
+        }),
+    ))
+}
+
 // ── GET /v1/cabinet/patients/:id/notes ───────────────────────────────────────
 
 #[derive(Deserialize)]

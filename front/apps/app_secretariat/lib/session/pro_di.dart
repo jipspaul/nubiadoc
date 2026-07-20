@@ -44,7 +44,10 @@ void registerPro(GetIt gi) {
       ),
     )
     ..registerFactory<PatientsBloc>(
-      () => PatientsBloc(listPatients: gi<ListCabinetPatientsUseCase>()),
+      () => PatientsBloc(
+        listPatients: gi<ListCabinetPatientsUseCase>(),
+        createPatient: gi<CreateCabinetPatientUseCase>(),
+      ),
     )
     ..registerFactory<WaitingListBloc>(
       () => WaitingListBloc(
