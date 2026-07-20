@@ -1413,6 +1413,10 @@ pub struct UploadPatientDocumentResponse {
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. Patient hors cabinet → 404.
 ///
+/// §14 : catégorie clinique (ordonnance, radio, cbct, photo, cr, consigne,
+/// passeport_implantaire, consentement) demandée par un non-praticien → 403
+/// (même garde que `list_patient_documents` côté lecture).
+///
 /// Champs multipart :
 /// - `file` : binaire requis (PDF / JPEG / PNG ≤ 20 Mo). MIME déclaré vérifié → 422 sinon.
 /// - `category` : enum strict requis → 422 si absent ou invalide.
@@ -1466,6 +1470,16 @@ pub async fn upload_patient_document(
     let category = category_raw.ok_or(AppError::ValidationError)?;
     if !VALID_CATEGORIES.contains(&category.as_str()) {
         return Err(AppError::ValidationError);
+    }
+
+    // §14 : garde manquante côté écriture (#3834) — le GET (list_patient_documents)
+    // interdit déjà aux non-praticiens (secretary, admin) toute catégorie clinique
+    // faute de relation de soin possible ; le POST laissait passer TOUTES les
+    // catégories, permettant à une secrétaire de créer une ordonnance/radio/cbct/
+    // cr/consentement qu'elle ne peut ensuite même pas relire. Même garde ici,
+    // avant toute écriture DB.
+    if !is_practitioner && !NON_CLINICAL_CATEGORIES.contains(&category.as_str()) {
+        return Err(AppError::Forbidden);
     }
 
     let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
