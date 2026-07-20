@@ -105,7 +105,10 @@ void registerPatient(GetIt gi) {
   );
 
   gi.registerFactory<CoverageSetupCubit>(
-    () => CoverageSetupCubit(updateCoverage: gi<UpdateCoverageUseCase>()),
+    () => CoverageSetupCubit(
+      getCoverage: gi<GetCoverageUseCase>(),
+      updateCoverage: gi<UpdateCoverageUseCase>(),
+    ),
   );
 
   gi.registerFactory<DashboardBloc>(

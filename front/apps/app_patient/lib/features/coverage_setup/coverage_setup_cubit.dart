@@ -18,6 +18,15 @@ final class CoverageSetupLoading extends CoverageSetupState {
   const CoverageSetupLoading();
 }
 
+/// Couverture existante chargée — préremplit le formulaire (#3842).
+final class CoverageSetupLoaded extends CoverageSetupState {
+  final HealthCoverage coverage;
+  const CoverageSetupLoaded(this.coverage);
+
+  @override
+  List<Object?> get props => [coverage];
+}
+
 final class CoverageSetupSuccess extends CoverageSetupState {
   const CoverageSetupSuccess();
 }
@@ -32,11 +41,30 @@ final class CoverageSetupFailure extends CoverageSetupState {
 
 class CoverageSetupCubit extends Cubit<CoverageSetupState>
     with SafeEmitMixin<CoverageSetupState> {
-  CoverageSetupCubit({required UpdateCoverageUseCase updateCoverage})
-      : _updateCoverage = updateCoverage,
+  CoverageSetupCubit({
+    required GetCoverageUseCase getCoverage,
+    required UpdateCoverageUseCase updateCoverage,
+  })  : _getCoverage = getCoverage,
+        _updateCoverage = updateCoverage,
         super(const CoverageSetupIdle());
 
+  final GetCoverageUseCase _getCoverage;
   final UpdateCoverageUseCase _updateCoverage;
+
+  /// Charge la couverture existante (#3842) — cet écran est réutilisé pour
+  /// l'onboarding (aucune couverture, formulaire vierge légitime) ET pour
+  /// l'édition depuis le Profil (couverture réelle à précharger, sinon un
+  /// « Enregistrer » écrase silencieusement la vraie couverture par les
+  /// valeurs vides par défaut). Échec de lecture → formulaire vierge
+  /// (dégradation gracieuse, pas de blocage de l'onboarding).
+  Future<void> load() async {
+    emit(const CoverageSetupLoading());
+    final result = await _getCoverage();
+    result.fold(
+      (_) => safeEmit(const CoverageSetupIdle()),
+      (coverage) => safeEmit(CoverageSetupLoaded(coverage)),
+    );
+  }
 
   Future<void> submit({
     required HealthInsuranceRegime regime,
