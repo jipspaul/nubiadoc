@@ -274,7 +274,9 @@ async fn full_lifecycle_received_to_picked_up() {
     let token = token_body["token"].as_str().unwrap().to_string();
     assert!(token.len() >= 64);
 
-    // Régénération : le premier token est invalidé.
+    // #3812 : un GET est safe/idempotent — un ré-appel dans la fenêtre de
+    // validité renvoie le MÊME token (pas de re-render/retry qui invalide le
+    // QR déjà affiché).
     let (status, token_body2) = call(
         "GET",
         &format!("/v1/account/orders/{}/pickup-token", fx.order_id),
@@ -284,18 +286,9 @@ async fn full_lifecycle_received_to_picked_up() {
     .await;
     assert_eq!(status, StatusCode::OK);
     let token2 = token_body2["token"].as_str().unwrap().to_string();
-    assert_ne!(token, token2);
+    assert_eq!(token, token2, "un GET répété doit renvoyer le même token");
 
-    let (status, _) = call(
-        "POST",
-        "/v1/pharmacy/orders/pickup-scan",
-        &pharma,
-        Some(json!({"token": token})),
-    )
-    .await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "ancien token invalidé");
-
-    // Scan du token courant : ready → picked_up.
+    // Scan avec le token (identique aux deux appels) : ready → picked_up.
     let (status, order) = call(
         "POST",
         "/v1/pharmacy/orders/pickup-scan",
@@ -316,6 +309,58 @@ async fn full_lifecycle_received_to_picked_up() {
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
+}
+
+// ── #3812 : GET pickup-token safe/idempotent ──────────────────────────────────
+
+#[tokio::test]
+async fn pickup_token_repeated_get_returns_identical_token_and_expiry() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharma = pharma_jwt(fx.pharmacy_id, "preparator");
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+
+    call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/accept", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+
+    let mut tokens = Vec::new();
+    let mut expiries = Vec::new();
+    for _ in 0..3 {
+        let (status, body) = call(
+            "GET",
+            &format!("/v1/account/orders/{}/pickup-token", fx.order_id),
+            &patient,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        tokens.push(body["token"].as_str().unwrap().to_string());
+        expiries.push(body["expires_at"].as_str().unwrap().to_string());
+    }
+
+    assert!(
+        tokens.iter().all(|t| t == &tokens[0]),
+        "3 GET consécutifs doivent renvoyer le même token : {tokens:?}"
+    );
+    assert!(
+        expiries.iter().all(|e| e == &expiries[0]),
+        "expires_at ne doit pas bouger tant que le token précédent est valide"
+    );
 }
 
 // ── Transitions illégales ─────────────────────────────────────────────────────
