@@ -249,6 +249,15 @@ pub struct SearchProvidersQuery {
     pub sort: Option<String>,
     pub page: Option<i64>,
     pub per_page: Option<i64>,
+    /// `/search/slots` uniquement (#3885) : restreint à un praticien précis.
+    /// `Option<String>` (pas `Option<Uuid>`) et validé manuellement dans le
+    /// handler, comme `near`/`bbox` ci-dessus — un `Option<Uuid>` typé ferait
+    /// échouer la désérialisation Query AVANT le handler, avec le rejet 400
+    /// par défaut d'axum au lieu du `422 validation_error` attendu ici.
+    pub provider_id: Option<String>,
+    /// `/search/slots` uniquement (#3885) : restreint aux créneaux d'une
+    /// journée précise, format `YYYY-MM-DD`.
+    pub date: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -406,7 +415,10 @@ fn resolve_geo_filter(
 
 /// `GET /v1/search/slots` — prochains créneaux disponibles par praticien (docs/12 §12.1).
 ///
-/// Route publique, pas de JWT. Mêmes filtres que `/v1/search/providers`.
+/// Route publique, pas de JWT. Mêmes filtres que `/v1/search/providers`, PLUS
+/// `provider_id` (restreint à un praticien) et `date` (format `YYYY-MM-DD`,
+/// restreint aux créneaux de ce jour) — #3885, valeur syntaxiquement invalide
+/// → `422 validation_error`.
 /// Retourne uniquement les créneaux `status='open'` et `online_booking=true`
 /// (RLS `slot_public_read`), triés par `first_slot_at` ascendant.
 pub async fn search_slots(
@@ -468,10 +480,30 @@ pub async fn search_slots(
 
     let available_clause = available_time_clause(params.available.as_deref());
 
+    // provider_id/date (#3885) : acceptés par la query string mais jusque-là
+    // jamais appliqués au SQL (aucune colonne de filtre correspondante) —
+    // silencieusement ignorés, 200 même sur une valeur syntaxiquement invalide.
+    // Parsés manuellement (comme near/bbox ci-dessus) plutôt que typés
+    // Option<Uuid>/Option<NaiveDate> sur la query struct : un champ typé
+    // ferait échouer la désérialisation Query AVANT le handler, avec le rejet
+    // 400 par défaut d'axum au lieu du 422 validation_error attendu ici.
+    let provider_id_filter: Option<Uuid> = params
+        .provider_id
+        .as_deref()
+        .map(Uuid::parse_str)
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+    let date_filter: Option<chrono::NaiveDate> = params
+        .date
+        .as_deref()
+        .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
     // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
-    // $15=tiers_payant
+    // $15=tiers_payant  $16=provider_id  $17=date
     let sql = format!(
         "SELECT \
              p.id AS provider_id, \
@@ -512,6 +544,8 @@ pub async fn search_slots(
                       AND ST_Within(p.geo::geometry, \
                           ST_MakeEnvelope($11, $12, $13, $14, 4326)))) \
              AND ($15::boolean IS NULL OR p.tiers_payant = $15) \
+             AND ($16::uuid IS NULL OR p.id = $16) \
+             AND ($17::date IS NULL OR sl.starts_at::date = $17) \
              {available_clause} \
          ORDER BY sl.starts_at ASC"
     );
@@ -532,6 +566,8 @@ pub async fn search_slots(
         .bind(bbox_max_lng) // $13
         .bind(bbox_max_lat) // $14
         .bind(params.tiers_payant) // $15
+        .bind(provider_id_filter) // $16
+        .bind(date_filter) // $17
         .fetch_all(&state.db)
         .await
         .map_err(|_| AppError::Internal)?;
