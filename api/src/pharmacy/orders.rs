@@ -1019,19 +1019,26 @@ pub struct PickupTokenResponse {
 
 /// `GET /v1/account/orders/{id}/pickup-token` — token opaque du QR de retrait.
 ///
-/// Zéro PII, zéro id métier : le QR ne contient que ce token aléatoire
-/// (~244 bits). Seul le hash SHA-256 est stocké (pattern refresh_token).
-/// Autorisé uniquement quand la commande est prête (409 sinon) ; chaque appel
-/// régénère le token et invalide le précédent. Expiration 24 h.
+/// #3812 : un GET doit être *safe* (RFC 9110 §9.2.1) — un ré-appel ne doit
+/// pas invalider le QR déjà affiché/screenshoté (re-render, retry réseau,
+/// pull-to-refresh). Le token est donc dérivé de façon DÉTERMINISTE
+/// (HMAC-SHA256 clé = jwt_secret, message = id||expires_at) au lieu d'un
+/// tirage aléatoire : tant que `pickup_token_expires_at` en base n'a pas
+/// changé, le même `(id, expires_at)` reproduit exactement le même token,
+/// donc le même hash — aucune écriture DB sur un ré-appel dans la fenêtre de
+/// validité. La rotation (nouveau `expires_at`, donc nouveau token) ne se
+/// produit que si aucun token n'existe encore ou que le précédent a expiré.
+/// Seul le hash SHA-256 du token reste stocké (`pickup_token_hash`,
+/// recherché par `pickup_scan` — schéma inchangé) ; sans `jwt_secret`, un
+/// accès DB seul ne permet toujours pas de reconstruire le token.
 pub async fn get_pickup_token(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PickupTokenResponse>, AppError> {
+    use hmac::{Hmac, Mac};
     use sha2::{Digest, Sha256};
-
-    let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-    let token_hash = hex::encode(Sha256::digest(token.as_bytes()));
+    type HmacSha256 = Hmac<Sha256>;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
@@ -1040,35 +1047,55 @@ pub async fn get_pickup_token(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(
-        "UPDATE pharmacy_order \
-         SET pickup_token_hash = $2, pickup_token_expires_at = now() + interval '24 hours' \
-         WHERE id = $1 AND status = 'ready' \
-         RETURNING pickup_token_expires_at",
-    )
-    .bind(id)
-    .bind(&token_hash)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    let Some(row) = row else {
-        let exists = sqlx::query("SELECT 1 FROM pharmacy_order WHERE id = $1")
+    let row =
+        sqlx::query("SELECT status, pickup_token_expires_at FROM pharmacy_order WHERE id = $1")
             .bind(id)
             .fetch_optional(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
-        tx.rollback().await.ok();
-        return Err(if exists.is_none() {
-            AppError::NotFound
-        } else {
-            AppError::InvalidStatus
-        });
-    };
 
-    let expires_at: chrono::DateTime<chrono::Utc> = row
+    let Some(row) = row else {
+        tx.rollback().await.ok();
+        return Err(AppError::NotFound);
+    };
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    if status != "ready" {
+        tx.rollback().await.ok();
+        return Err(AppError::InvalidStatus);
+    }
+    let existing_expires_at: Option<chrono::DateTime<chrono::Utc>> = row
         .try_get("pickup_token_expires_at")
         .map_err(|_| AppError::Internal)?;
+
+    let now = chrono::Utc::now();
+    let expires_at = match existing_expires_at {
+        Some(exp) if exp > now => exp,
+        _ => now + chrono::Duration::hours(24),
+    };
+
+    let mut mac =
+        HmacSha256::new_from_slice(state.jwt_secret.as_bytes()).map_err(|_| AppError::Internal)?;
+    mac.update(id.to_string().as_bytes());
+    mac.update(b"|");
+    mac.update(expires_at.to_rfc3339().as_bytes());
+    let token = hex::encode(mac.finalize().into_bytes());
+    let token_hash = hex::encode(Sha256::digest(token.as_bytes()));
+
+    // Écriture UNIQUEMENT si le token est neuf/renouvelé (expires_at a changé) —
+    // un ré-appel dans la fenêtre de validité ne touche pas la DB.
+    if existing_expires_at != Some(expires_at) {
+        sqlx::query(
+            "UPDATE pharmacy_order \
+             SET pickup_token_hash = $2, pickup_token_expires_at = $3 \
+             WHERE id = $1 AND status = 'ready'",
+        )
+        .bind(id)
+        .bind(&token_hash)
+        .bind(expires_at)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
     Ok(Json(PickupTokenResponse {
