@@ -328,7 +328,12 @@ pub async fn add_secretariat_member(
     .await
     .map_err(|e| {
         if is_unique_violation(&e) {
-            AppError::Conflict
+            // #3828 : la violation d'unicité ici est un doublon de membre,
+            // pas une vérification RPPS en attente — AppError::Conflict
+            // rend {"code":"verification_pending"}, un contrat trompeur.
+            // Les fonctions sœurs de ce fichier (provision_staff) mappent
+            // déjà ce même cas sur MemberAlreadyExists.
+            AppError::MemberAlreadyExists
         } else {
             AppError::Internal
         }
