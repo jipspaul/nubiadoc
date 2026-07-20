@@ -249,6 +249,15 @@ pub struct SearchProvidersQuery {
     pub sort: Option<String>,
     pub page: Option<i64>,
     pub per_page: Option<i64>,
+    /// `/search/slots` uniquement (#3885) : restreint à un praticien précis.
+    /// `Option<String>` (pas `Option<Uuid>`) et validé manuellement dans le
+    /// handler, comme `near`/`bbox` ci-dessus — un `Option<Uuid>` typé ferait
+    /// échouer la désérialisation Query AVANT le handler, avec le rejet 400
+    /// par défaut d'axum au lieu du `422 validation_error` attendu ici.
+    pub provider_id: Option<String>,
+    /// `/search/slots` uniquement (#3885) : restreint aux créneaux d'une
+    /// journée précise, format `YYYY-MM-DD`.
+    pub date: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -408,10 +417,13 @@ fn resolve_geo_filter(
 /// `GET /v1/search/slots` — prochains créneaux disponibles par praticien (docs/12 §12.1).
 ///
 /// Route publique, pas de JWT. Mêmes filtres que `/v1/search/providers`, PLUS
-/// `page`/`per_page`/`sort` désormais appliqués (#3871) : pagination au grain
-/// PRATICIEN (pas au grain créneau — une page de 20 praticiens peut contenir
-/// un nombre variable de créneaux chacun), même sémantique `sort` que
-/// `/search/providers` (`distance`, `rating`, `next_slot`, défaut chronologique).
+/// `provider_id` (restreint à un praticien) et `date` (format `YYYY-MM-DD`,
+/// restreint aux créneaux de ce jour) — #3885, valeur syntaxiquement invalide
+/// → `422 validation_error`. `page`/`per_page`/`sort` désormais appliqués
+/// (#3871) : pagination au grain PRATICIEN (pas au grain créneau — une page
+/// de 20 praticiens peut contenir un nombre variable de créneaux chacun),
+/// même sémantique `sort` que `/search/providers` (`distance`, `rating`,
+/// `next_slot`, défaut chronologique).
 /// Retourne uniquement les créneaux `status='open'` et `online_booking=true`
 /// (RLS `slot_public_read`) ; au sein d'un praticien, les créneaux restent
 /// triés par `starts_at` ascendant.
@@ -474,6 +486,26 @@ pub async fn search_slots(
 
     let available_clause = available_time_clause(params.available.as_deref());
 
+    // provider_id/date (#3885) : acceptés par la query string mais jusque-là
+    // jamais appliqués au SQL (aucune colonne de filtre correspondante) —
+    // silencieusement ignorés, 200 même sur une valeur syntaxiquement invalide.
+    // Parsés manuellement (comme near/bbox ci-dessus) plutôt que typés
+    // Option<Uuid>/Option<NaiveDate> sur la query struct : un champ typé
+    // ferait échouer la désérialisation Query AVANT le handler, avec le rejet
+    // 400 par défaut d'axum au lieu du 422 validation_error attendu ici.
+    let provider_id_filter: Option<Uuid> = params
+        .provider_id
+        .as_deref()
+        .map(Uuid::parse_str)
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+    let date_filter: Option<chrono::NaiveDate> = params
+        .date
+        .as_deref()
+        .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
@@ -499,7 +531,7 @@ pub async fn search_slots(
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
     // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
-    // $15=tiers_payant
+    // $15=tiers_payant  $16=provider_id  $17=date
     let from_where_clause = format!(
         "FROM availability_slot sl \
          JOIN provider p ON p.id = sl.provider_id \
@@ -532,6 +564,8 @@ pub async fn search_slots(
                       AND ST_Within(p.geo::geometry, \
                           ST_MakeEnvelope($11, $12, $13, $14, 4326)))) \
              AND ($15::boolean IS NULL OR p.tiers_payant = $15) \
+             AND ($16::uuid IS NULL OR p.id = $16) \
+             AND ($17::date IS NULL OR sl.starts_at::date = $17) \
              {available_clause}"
     );
 
@@ -548,7 +582,7 @@ pub async fn search_slots(
          {from_where_clause} \
          GROUP BY p.id \
          ORDER BY {sort_clause} \
-         LIMIT $16 OFFSET $17"
+         LIMIT $18 OFFSET $19"
     );
 
     let total: i64 = sqlx::query(&count_sql)
@@ -567,6 +601,8 @@ pub async fn search_slots(
         .bind(bbox_max_lng) // $13
         .bind(bbox_max_lat) // $14
         .bind(params.tiers_payant) // $15
+        .bind(provider_id_filter) // $16
+        .bind(date_filter) // $17
         .fetch_one(&state.db)
         .await
         .map_err(|_| AppError::Internal)?
@@ -589,8 +625,10 @@ pub async fn search_slots(
         .bind(bbox_max_lng) // $13
         .bind(bbox_max_lat) // $14
         .bind(params.tiers_payant) // $15
-        .bind(per_page) // $16
-        .bind(offset) // $17
+        .bind(provider_id_filter) // $16
+        .bind(date_filter) // $17
+        .bind(per_page) // $18
+        .bind(offset) // $19
         .fetch_all(&state.db)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -616,8 +654,10 @@ pub async fn search_slots(
 
     // Créneaux des praticiens de CETTE page uniquement — mêmes filtres au
     // grain créneau que from_where_clause (déjà appliqués côté praticien,
-    // mais status/deleted_at/online_booking/starts_at/available_clause
-    // restent nécessaires ici pour ne récupérer que les créneaux éligibles).
+    // mais status/deleted_at/online_booking/starts_at/available_clause/date
+    // restent nécessaires ici pour ne récupérer que les créneaux éligibles :
+    // un provider peut passer le filtre `date` via un autre créneau que ceux
+    // listés ici, donc `date` doit être réappliqué au grain créneau (#3885).
     if !provider_ids.is_empty() {
         let slots_sql = format!(
             "SELECT sl.id AS slot_id, sl.provider_id, sl.starts_at \
@@ -627,11 +667,13 @@ pub async fn search_slots(
                  AND sl.deleted_at IS NULL \
                  AND sl.online_booking = true \
                  AND sl.starts_at > now() \
+                 AND ($2::date IS NULL OR sl.starts_at::date = $2) \
                  {available_clause} \
              ORDER BY sl.starts_at ASC"
         );
         let slot_rows = sqlx::query(&slots_sql)
             .bind(&provider_ids)
+            .bind(date_filter)
             .fetch_all(&state.db)
             .await
             .map_err(|_| AppError::Internal)?;

@@ -54,6 +54,14 @@ class _MockGetAgenda extends Mock implements GetCabinetAgendaUseCase {}
 
 class _MockListWaitingList extends Mock implements ListWaitingListUseCase {}
 
+/// Ancre un DateTime à midi le jour de `base` + `daysOffset` — évite toute
+/// dépendance à l'heure d'exécution du test. `now.add(Duration(hours: N))`
+/// traverse minuit si le test tourne dans les N heures précédant minuit,
+/// faisant "sauter" une entrée censée être aujourd'hui au jour suivant —
+/// flake CI observé sur front-test (#3855 : todayCount attendu 2, obtenu 1).
+DateTime _atNoon(DateTime base, {int daysOffset = 0}) =>
+    DateTime(base.year, base.month, base.day + daysOffset, 12);
+
 AgendaEntry _entry(
   String id,
   DateTime startsAt, {
@@ -91,9 +99,9 @@ void main() {
         final now = DateTime.now();
         when(() => getAgenda(any(), includePast: any(named: 'includePast')))
             .thenAnswer((_) async => Right([
-                  _entry('a1', now.add(const Duration(hours: 1))),
-                  _entry('a2', now.add(const Duration(days: 1))),
-                  _entry('libre', now, isFree: true),
+                  _entry('a1', _atNoon(now)),
+                  _entry('a2', _atNoon(now, daysOffset: 1)),
+                  _entry('libre', _atNoon(now), isFree: true),
                 ]));
         when(() => listWaitingList()).thenAnswer(
           (_) async => Right([
@@ -129,21 +137,18 @@ void main() {
                   // Aujourd'hui : 1 requested (compte), 1 confirmed (ne
                   // compte pas comme pending, mais compte dans todayCount),
                   // 1 cancelled (ne compte NULLE PART).
-                  _entry('req-today', now.add(const Duration(hours: 1)),
-                      status: 'requested'),
-                  _entry('conf-today', now.add(const Duration(hours: 2)),
-                      status: 'confirmed'),
-                  _entry('cancel-today', now.add(const Duration(hours: 3)),
-                      status: 'cancelled'),
+                  _entry('req-today', _atNoon(now), status: 'requested'),
+                  _entry('conf-today', _atNoon(now), status: 'confirmed'),
+                  _entry('cancel-today', _atNoon(now), status: 'cancelled'),
                   // Un autre jour : done/no_show/requested, ne comptent pas
                   // dans todayCount ; seul le requested compte en pending.
-                  _entry('done-later', now.add(const Duration(days: 2)),
+                  _entry('done-later', _atNoon(now, daysOffset: 2),
                       status: 'done'),
-                  _entry('noshow-later', now.add(const Duration(days: 2)),
+                  _entry('noshow-later', _atNoon(now, daysOffset: 2),
                       status: 'no_show'),
-                  _entry('req-later', now.add(const Duration(days: 2)),
+                  _entry('req-later', _atNoon(now, daysOffset: 2),
                       status: 'requested'),
-                  _entry('libre', now, isFree: true),
+                  _entry('libre', _atNoon(now), isFree: true),
                 ]));
         when(() => listWaitingList()).thenAnswer((_) async => const Right([]));
         return DashboardBloc(

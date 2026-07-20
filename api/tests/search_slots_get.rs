@@ -567,3 +567,119 @@ async fn search_slots_held_slot_excluded() {
         .await
         .ok();
 }
+
+// ── Test 6 : provider_id restreint réellement la liste (#3885) ───────────────
+
+#[tokio::test]
+async fn search_slots_provider_id_filters_to_single_provider() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let provider_a = insert_provider(&db, &format!("A-{}", Uuid::new_v4())).await;
+    let provider_b = insert_provider(&db, &format!("B-{}", Uuid::new_v4())).await;
+
+    for provider_id in [provider_a, provider_b] {
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, $2, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open', true)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!("/v1/search/slots?provider_id={provider_a}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    assert!(
+        data.iter()
+            .any(|e| e["provider_id"].as_str() == Some(&provider_a.to_string())),
+        "provider_id filtré doit apparaître dans data"
+    );
+    assert!(
+        !data
+            .iter()
+            .any(|e| e["provider_id"].as_str() == Some(&provider_b.to_string())),
+        "l'autre provider ne doit PAS apparaître quand provider_id restreint la recherche"
+    );
+
+    // Nettoyage
+    for provider_id in [provider_a, provider_b] {
+        sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
+            .bind(provider_id)
+            .execute(&db)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&db)
+            .await
+            .ok();
+    }
+}
+
+// ── Test 7 : provider_id/date syntaxiquement invalides → 422 (#3885) ─────────
+
+#[tokio::test]
+async fn search_slots_invalid_provider_id_or_date_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/slots?provider_id=not-a-uuid")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let state2 = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+    let response2 = app(state2)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/slots?date=not-a-date")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response2.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
