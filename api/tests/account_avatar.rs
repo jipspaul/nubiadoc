@@ -116,7 +116,9 @@ async fn put_then_get_roundtrip() {
     let owner = owner_pool().await;
     let (user_id, account_id) = insert_account(&owner).await;
     let token = make_patient_token(user_id, account_id);
-    let pixels: Vec<u8> = vec![0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4];
+    // Signature PNG complète (8 octets, #3820 exige un magic-byte valide),
+    // le reste est arbitraire (le handler ne décode pas l'image).
+    let pixels: Vec<u8> = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4];
     let b64 = base64::engine::general_purpose::STANDARD.encode(&pixels);
 
     let put = app(state_sync(app_pool().await))
@@ -187,6 +189,61 @@ async fn invalid_payloads_return_422() {
             .unwrap();
         assert_eq!(put.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
+
+    cleanup_account(&owner, user_id, account_id).await;
+}
+
+// ── Test 2b : octets non-image avec MIME autorisé déclaré → 422 (#3820) ──────
+// Avant le fix : seuls le MIME (liste blanche) et la taille étaient
+// contrôlés — du texte brut déclaré "image/png" était accepté (204) puis
+// reservi tel quel en Content-Type: image/png.
+
+#[tokio::test]
+async fn non_image_bytes_with_allowed_mime_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let (user_id, account_id) = insert_account(&owner).await;
+    let token = make_patient_token(user_id, account_id);
+
+    let not_an_image =
+        base64::engine::general_purpose::STANDARD.encode(b"hello world not an image");
+    for mime in ["image/png", "image/jpeg", "image/webp"] {
+        let put = app(state_sync(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/v1/account/avatar")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(
+                        r#"{{"mime":"{mime}","data_base64":"{not_an_image}"}}"#
+                    )))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            put.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "mime={mime} : contenu non-image (aucun magic byte valide) doit être rejeté"
+        );
+    }
+
+    // Confirme qu'aucun avatar non-image n'a été stocké (pas de 404→200 accidentel).
+    let get = app(state_sync(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/avatar")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get.status(), StatusCode::NOT_FOUND);
 
     cleanup_account(&owner, user_id, account_id).await;
 }
