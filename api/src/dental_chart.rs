@@ -35,16 +35,41 @@ pub struct PutDentalChartBody {
     pub teeth: Value,
 }
 
+/// États d'odontogramme connus (référence : valeurs déjà attestées dans le
+/// repo avant #3838 — `db/seed/seed.sql` : "sain", "a_extraire", "implant" ;
+/// `api/tests/dental_chart.rs::put_dental_chart_persists_teeth_jsonb` :
+/// "present", "carie"). Complété par le vocabulaire dentaire FR standard.
+/// `status` et `plan` (traitement futur planifié) partagent cet enum.
+const TOOTH_STATUSES: &[&str] = &[
+    "sain",
+    "present",
+    "carie",
+    "obture",
+    "couronne",
+    "bridge",
+    "implant",
+    "absent",
+    "a_extraire",
+    "devitalise",
+    "fracture",
+];
+
 /// Valide le contrat `teeth` : objet position→état, clés = codes dent ISO 3950.
 ///
 /// ISO 3950 (notation FDI) : `<quadrant><dent>` où quadrant 1-4 (dentition
 /// permanente, dents 1-8) ou quadrant 5-8 (dentition temporaire, dents 1-5).
 /// Rejette tout scalaire (chaîne/entier/tableau) ainsi que les clés hors
 /// numérotation ISO 3950 — cf. #3680.
+///
+/// Chaque valeur doit être un objet `{"status": <enum>, "plan"?: <enum>}` —
+/// forme de référence `db/seed/seed.sql` (`{"status":"a_extraire","plan":"implant"}`).
+/// Avant #3838, seules les CLÉS (codes dent) étaient validées : une valeur
+/// scalaire, un statut inconnu ou un objet aux clés arbitraires étaient
+/// acceptés et persistés tels quels (round-trip garbage).
 fn validate_teeth(teeth: &Value) -> Result<(), AppError> {
     let map = teeth.as_object().ok_or(AppError::ValidationError)?;
 
-    for key in map.keys() {
+    for (key, value) in map {
         let is_valid_tooth_code = key.len() == 2 && key.chars().all(|c| c.is_ascii_digit()) && {
             let quadrant = key.as_bytes()[0] - b'0';
             let tooth = key.as_bytes()[1] - b'0';
@@ -58,6 +83,45 @@ fn validate_teeth(teeth: &Value) -> Result<(), AppError> {
         if !is_valid_tooth_code {
             return Err(AppError::ValidationError);
         }
+
+        validate_tooth_value(value)?;
+    }
+
+    Ok(())
+}
+
+/// Valide la valeur d'une dent : objet `{status: <enum>, plan?: <enum>,
+/// notes?: <string>}`, sans clé additionnelle. `notes` reste texte libre
+/// (annotation clinique), non contraint à l'enum contrairement à `status`/`plan`.
+fn validate_tooth_value(value: &Value) -> Result<(), AppError> {
+    let obj = value.as_object().ok_or(AppError::ValidationError)?;
+
+    let status = obj
+        .get("status")
+        .and_then(Value::as_str)
+        .ok_or(AppError::ValidationError)?;
+    if !TOOTH_STATUSES.contains(&status) {
+        return Err(AppError::ValidationError);
+    }
+
+    if let Some(plan) = obj.get("plan") {
+        let plan_str = plan.as_str().ok_or(AppError::ValidationError)?;
+        if !TOOTH_STATUSES.contains(&plan_str) {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    if let Some(notes) = obj.get("notes") {
+        if notes.as_str().is_none() {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let allowed_keys = obj
+        .keys()
+        .all(|k| k == "status" || k == "plan" || k == "notes");
+    if !allowed_keys {
+        return Err(AppError::ValidationError);
     }
 
     Ok(())

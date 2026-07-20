@@ -343,3 +343,49 @@ async fn put_dental_chart_persists_teeth_jsonb() {
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
+
+// ── Test 4 : PUT valeur de dent invalide → 422 (#3838) ───────────────────────
+
+#[tokio::test]
+async fn put_dental_chart_invalid_tooth_value_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    let bad_bodies = [
+        // Statut inconnu (chaîne libre).
+        json!({"teeth": {"11": {"status": "TOTALLY_BOGUS_STATUS_XYZ"}}}),
+        // Valeur scalaire au lieu d'un objet {status}.
+        json!({"teeth": {"22": 99999}}),
+        // Objet sans clé "status" du tout.
+        json!({"teeth": {"33": {"nested": [1, 2, 3]}}}),
+        // Clé additionnelle non reconnue.
+        json!({"teeth": {"11": {"status": "sain", "unknown_field": "x"}}}),
+    ];
+
+    for body in bad_bodies {
+        let resp = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/v1/cabinet/patients/{}/dental-chart", patient_id))
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "body accepté à tort : {body}"
+        );
+    }
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
