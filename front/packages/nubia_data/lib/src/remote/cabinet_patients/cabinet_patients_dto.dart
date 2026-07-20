@@ -25,19 +25,29 @@ class CabinetPatientDto {
     required this.createdAt,
   });
 
-  factory CabinetPatientDto.fromJson(Map<String, dynamic> json) =>
-      CabinetPatientDto(
-        id: json['id'] as String,
-        cabinetId: (json['cabinet_id'] as String?) ?? '',
-        firstName: (json['first_name'] as String?) ?? '',
-        lastName: (json['last_name'] as String?) ?? '',
-        birthDate: json['birth_date'] as String?,
-        email: json['email'] as String?,
-        phone: json['phone'] as String?,
-        socialSecurityNumber: json['social_security_number'] as String?,
-        lastVisitAt: json['last_visit_at'] as String?,
-        createdAt: json['created_at'] as String,
-      );
+  factory CabinetPatientDto.fromJson(Map<String, dynamic> json) {
+    // `GET /v1/cabinet/patients/:id` imbrique les coordonnées sous `contact`
+    // (`api/src/clinical.rs` `PatientAdminSection`, colonne JSONB `contact` :
+    // "email, tel, adresse") — jamais de clés top-level `phone`/`email`. Le
+    // DTO lisait des clés plates absentes ⇒ toujours null ⇒ ligne Téléphone/
+    // E-mail masquée côté fiche patient praticien, alors que la donnée existe
+    // (#3832). N° sécu : aucun champ backend ne le porte nulle part (ni
+    // top-level ni dans `contact`) — reste volontairement non lu ici tant
+    // qu'aucune donnée réelle n'existe à mapper.
+    final contact = json['contact'] as Map<String, dynamic>? ?? const {};
+    return CabinetPatientDto(
+      id: json['id'] as String,
+      cabinetId: (json['cabinet_id'] as String?) ?? '',
+      firstName: (json['first_name'] as String?) ?? '',
+      lastName: (json['last_name'] as String?) ?? '',
+      birthDate: json['birth_date'] as String?,
+      email: (contact['email'] as String?) ?? (json['email'] as String?),
+      phone: (contact['tel'] as String?) ?? (json['phone'] as String?),
+      socialSecurityNumber: json['social_security_number'] as String?,
+      lastVisitAt: json['last_visit_at'] as String?,
+      createdAt: json['created_at'] as String,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
