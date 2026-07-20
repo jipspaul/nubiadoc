@@ -100,7 +100,9 @@ async fn search_slots_happy_path_returns_grouped_slots() {
     let response = app(state)
         .oneshot(
             Request::builder()
-                .uri("/v1/search/slots")
+                // per_page=100 : isole du plafond de pagination par défaut (#3871),
+                // le test cherche son propre provider dans data sans tester la pagination.
+                .uri("/v1/search/slots?per_page=100")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -256,7 +258,9 @@ async fn search_slots_past_slot_excluded() {
     let response = app(state)
         .oneshot(
             Request::builder()
-                .uri("/v1/search/slots")
+                // per_page=100 : isole du plafond de pagination par défaut (#3871),
+                // le test cherche son propre provider dans data sans tester la pagination.
+                .uri("/v1/search/slots?per_page=100")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -347,7 +351,7 @@ async fn search_slots_q_matches_profession_label() {
     let response = app(state)
         .oneshot(
             Request::builder()
-                .uri("/v1/search/slots?q=dentiste")
+                .uri("/v1/search/slots?q=dentiste&per_page=100")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -393,6 +397,108 @@ async fn search_slots_q_matches_profession_label() {
         .ok();
 }
 
+// ── Test 6 : page/per_page réellement appliqués, total stable (#3871) ────────
+
+#[tokio::test]
+async fn search_slots_pagination_applied_and_total_stable() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    // Marqueur unique dans display_name pour isoler ces 3 fixtures de tout
+    // autre provider présent dans la base de test partagée.
+    let marker = format!("ZzPag{}", Uuid::new_v4().simple());
+    let mut provider_ids = Vec::with_capacity(3);
+    // Insérés dans le désordre chronologique : si le tri par défaut
+    // (next_slot_at ASC) n'était pas réellement appliqué avant #3871
+    // (ORDER BY sl.starts_at ASC déjà en place), l'ordre resterait fortuit ;
+    // ici on vérifie surtout que per_page/page bornent réellement `data`.
+    for (i, days) in [(0, 3), (1, 1), (2, 2)] {
+        let provider_id = insert_provider(&db, &format!("{marker}-{i}")).await;
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, $2, now() + ($3 || ' days')::interval, \
+                     now() + ($3 || ' days')::interval + interval '30 minutes', 'open', true)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(provider_id)
+        .bind(days.to_string())
+        .execute(&db)
+        .await
+        .unwrap();
+        provider_ids.push(provider_id);
+    }
+
+    let q = marker.to_lowercase();
+    let pool = app_pool().await;
+    let fetch = |uri: String| {
+        let pool = pool.clone();
+        async move {
+            let state = AppState {
+                db: pool,
+                jwt_secret: "test-secret".into(),
+                mailer: Arc::new(StubMailer),
+            };
+            let response = app(state)
+                .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap()
+        }
+    };
+
+    // Page 1/2 : 2 des 3 providers, mais total reflète les 3.
+    let page1 = fetch(format!("/v1/search/slots?q={q}&per_page=2&page=1")).await;
+    assert_eq!(
+        page1["data"].as_array().unwrap().len(),
+        2,
+        "per_page=2 doit borner data à 2 entrées, pas les 3"
+    );
+    assert_eq!(
+        page1["page"]["total"], 3,
+        "total doit refléter les 3 providers"
+    );
+    assert_eq!(page1["page"]["per_page"], 2);
+
+    // Page 2/2 : le provider restant.
+    let page2 = fetch(format!("/v1/search/slots?q={q}&per_page=2&page=2")).await;
+    assert_eq!(page2["data"].as_array().unwrap().len(), 1);
+    assert_eq!(page2["page"]["total"], 3);
+
+    // Page hors plage : data vide mais total stable à 3 (pas 0, même classe
+    // que #3840/#3864 — vérifié ici pour la pagination au grain praticien).
+    let page99 = fetch(format!("/v1/search/slots?q={q}&per_page=2&page=99")).await;
+    assert_eq!(
+        page99["data"].as_array().unwrap().len(),
+        0,
+        "page hors plage doit renvoyer data vide"
+    );
+    assert_eq!(
+        page99["page"]["total"], 3,
+        "total doit rester 3 sur une page hors plage, pas retomber à 0"
+    );
+
+    // Nettoyage.
+    for provider_id in provider_ids {
+        sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
+            .bind(provider_id)
+            .execute(&db)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&db)
+            .await
+            .ok();
+    }
+}
+
 // ── Test 5 : slot `held` exclu — status != 'open' → absent de data ────────────
 
 #[tokio::test]
@@ -423,7 +529,9 @@ async fn search_slots_held_slot_excluded() {
     let response = app(state)
         .oneshot(
             Request::builder()
-                .uri("/v1/search/slots")
+                // per_page=100 : isole du plafond de pagination par défaut (#3871),
+                // le test cherche son propre provider dans data sans tester la pagination.
+                .uri("/v1/search/slots?per_page=100")
                 .body(Body::empty())
                 .unwrap(),
         )
