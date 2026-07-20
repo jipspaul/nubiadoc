@@ -30,8 +30,37 @@ pub struct NotificationItem {
     pub title: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
+    /// Métadonnées d'action non-PII (type, deeplink, ids) — cf. migration 0053.
+    /// Toujours renvoyées : contrairement à `body`, `data` n'est jamais chiffrée.
+    pub data: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deep_link: Option<String>,
     pub is_read: bool,
     pub created_at: String,
+}
+
+/// Dérive le deep-link relatif d'une notification à partir de son `kind` et
+/// de son `data`, pour les kinds dont le front a déjà une route établie
+/// (cf. `NotificationDeepLinkHandler._resolveRoute`,
+/// front/apps/app_patient/lib/features/notifications). `None` pour les
+/// autres kinds plutôt que d'inventer une route qui n'existe pas encore
+/// (ex. `waiting_list_slot_offered` : pas de page de détail patient, #3863).
+fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<String> {
+    match kind {
+        "order_received"
+        | "order_status_changed"
+        | "pharmacy_order_preparing"
+        | "pharmacy_order_ready"
+        | "pharmacy_order_picked_up" => {
+            let id = data.get("order_id")?.as_str()?;
+            Some(format!("/pharmacy/orders/{id}"))
+        }
+        "waiting_room_called" => {
+            let id = data.get("appointment_id")?.as_str()?;
+            Some(format!("/appointments/{id}"))
+        }
+        _ => None,
+    }
 }
 
 /// Métadonnées de pagination.
@@ -65,6 +94,8 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// Pagination cursor-based (`?cursor=`, `?limit=` défaut 20, max 100).
 /// Filtre optionnel `?unread_only=true`.
 /// `body` déchiffré côté serveur (core/crypto KMS) ; `null` tant que NUB-T3 n'est pas livré.
+/// `data` (JSONB non-PII) et `deep_link` dérivé sont eux toujours restitués (#3863) —
+/// `data` n'a jamais été chiffrée, aucune raison de la filtrer en attendant NUB-T3.
 /// Pas de PII dans les logs.
 pub async fn list_notifications(
     State(state): State<AppState>,
@@ -95,7 +126,7 @@ pub async fn list_notifications(
     };
 
     let sql = format!(
-        "SELECT id, kind, title, is_read, created_at \
+        "SELECT id, kind, title, data, is_read, created_at \
          FROM notification \
          WHERE app_user_id = $2\
          {unread_clause}\
@@ -149,12 +180,14 @@ pub async fn list_notifications(
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
         let kind: String = row.try_get("kind").map_err(|_| AppError::Internal)?;
         let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
+        let item_data: serde_json::Value = row.try_get("data").map_err(|_| AppError::Internal)?;
         let is_read: bool = row.try_get("is_read").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
         // Déchiffrement KMS (core/crypto NUB-T3) — non implémenté → body null.
         let body: Option<String> = None;
+        let deep_link = derive_deep_link(&kind, &item_data);
 
         last_created_at = Some(created_at);
         last_id = Some(id);
@@ -164,6 +197,8 @@ pub async fn list_notifications(
             kind,
             title,
             body,
+            data: item_data,
+            deep_link,
             is_read,
             created_at: created_at.to_rfc3339(),
         });
