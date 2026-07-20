@@ -13,6 +13,9 @@ use uuid::Uuid;
 
 pub use realtime::channels;
 pub use realtime::WsHub;
+pub use reminder_dispatch::{
+    dispatch_pending_reminders, run_dispatch_loop, ReminderDispatchError, ReminderDispatchSummary,
+};
 
 mod appointments;
 mod auth;
@@ -40,6 +43,7 @@ mod pharmacy;
 mod prescriptions;
 mod provider_secretariat;
 mod realtime;
+mod reminder_dispatch;
 mod reminders;
 mod reviews;
 mod scheduling;
