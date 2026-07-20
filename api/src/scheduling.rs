@@ -1364,6 +1364,121 @@ pub async fn confirm_appointment(
     }))
 }
 
+// ── No-show ────────────────────────────────────────────────────────────────────
+
+/// Corps optionnel de `POST /v1/cabinet/appointments/:id/no-show`.
+#[derive(Deserialize, Default)]
+pub struct NoShowBody {
+    pub reason: Option<String>,
+}
+
+/// Réponse de `POST /v1/cabinet/appointments/:id/no-show`.
+#[derive(Serialize)]
+pub struct NoShowResponse {
+    pub appointment_id: Uuid,
+    pub status: String,
+}
+
+/// `POST /v1/cabinet/appointments/:id/no-show` — marque explicitement un RDV
+/// manqué (#4037). Route dédiée, alias RESTful de
+/// `PATCH /v1/cabinet/appointments/:id {"status":"no_show"}` — même transition
+/// et même périmètre de statuts sources (#3670/#3733/#3858 : `requested`,
+/// `confirmed`, `checked_in`, `in_progress` couvrent « jamais vu » et « vu
+/// puis parti »), pour un back-office qui veut poser cette transition sans
+/// passer par le PATCH générique.
+///
+/// Token pro requis (secretary+). `cabinet_id` extrait du JWT — jamais du body.
+/// RLS scopé via `app.current_cabinet_id` : 404 si le RDV n'appartient pas au cabinet.
+/// Statut source hors `requested|confirmed|checked_in|in_progress` (ex. déjà
+/// `cancelled`/`done`) → `409 invalid_status`. Libère le créneau associé.
+/// Auditée (`no_show_appointment`) dans `audit_log`.
+pub async fn no_show_appointment(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(appt_id): Path<Uuid>,
+    body: Option<Json<NoShowBody>>,
+) -> Result<Json<NoShowResponse>, AppError> {
+    let reason = body.and_then(|Json(b)| b.reason);
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, status, slot_id FROM appointment \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(appt_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
+
+    if status != "requested"
+        && status != "confirmed"
+        && status != "checked_in"
+        && status != "in_progress"
+    {
+        return Err(AppError::InvalidStatus);
+    }
+
+    sqlx::query(
+        "UPDATE appointment \
+         SET status = 'no_show', cancelled_at = now(), \
+             cancel_reason = COALESCE($2, cancel_reason), updated_at = now() \
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(reason.as_deref())
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(sid) = slot_id {
+        sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+            .bind(sid)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id) \
+         VALUES ($1, $2, $3, 'no_show_appointment', 'appointment', $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(&claims.role)
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %id,
+        "appointment marked no_show"
+    );
+
+    Ok(Json(NoShowResponse {
+        appointment_id: id,
+        status: "no_show".to_string(),
+    }))
+}
+
 // ── Cabinet PATCH appointment ─────────────────────────────────────────────────
 
 /// Corps de la requête `PATCH /v1/cabinet/appointments/:id`.
