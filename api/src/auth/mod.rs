@@ -370,6 +370,10 @@ pub(crate) struct MeClaims {
     pub(crate) kind: String,
     /// Présent uniquement dans les tokens patient.
     pub(crate) account_id: Option<Uuid>,
+    /// Présents uniquement dans les tokens `kind:"pharma"` (émis par
+    /// `select-pharmacy-context`) — #3853.
+    pub(crate) pharmacy_id: Option<Uuid>,
+    pub(crate) role: Option<String>,
 }
 
 /// Appartenance à un cabinet.
@@ -399,11 +403,15 @@ pub struct MeResponse {
     pharmacy_memberships: Vec<PharmacyMembership>,
 }
 
-/// `GET /v1/me` — retourne le profil du porteur du token (patient ou pro).
+/// `GET /v1/me` — retourne le profil du porteur du token (patient, pro ou pharma).
 ///
 /// Pour les tokens pro portant un `cabinet_id` (émis par `POST /v1/pro/register`),
 /// interroge `cabinet_membership` via RLS (SET LOCAL). Pour les tokens pro sans
 /// `cabinet_id` (émis par `POST /v1/auth/login`), `memberships` est vide.
+/// Pour un token `kind:"pharma"` déjà scopé (émis par `select-pharmacy-context`),
+/// `pharmacy_memberships` est dérivé directement de ses propres claims (#3853) —
+/// sans cette dérivation, un restore de session sur un token pharma persisté
+/// obtenait une liste vide et déclenchait une déconnexion silencieuse.
 /// Toujours auditée (`read_profile` sur `app_user`, cabinet_id nil UUID sentinel).
 pub async fn me(
     State(state): State<AppState>,
@@ -463,6 +471,14 @@ pub async fn me(
     // login `kind == "pro"`, résolus via user_pharmacy_memberships() (SECURITY
     // DEFINER — contourne la RLS pharmacy-scoped). Permet au front pharmacie de
     // savoir quel contexte proposer avant POST /v1/auth/select-pharmacy-context.
+    //
+    // `kind == "pharma"` (#3853) : le token DÉJÀ scopé porte pharmacy_id/role
+    // dans ses propres claims — pas besoin de requête, on les redérive tels
+    // quels. Avant ce fix, `pharmacy_memberships` restait vide pour ce kind :
+    // au restore de session (reload de page), le front persiste le DERNIER
+    // token (celui de select-pharmacy-context, kind=pharma, jamais kind=pro),
+    // relit `/me`, obtient `pharmacy_memberships:[]`, et déconnecte
+    // silencieusement le pharmacien en effaçant son token pourtant valide.
     let pharmacy_memberships = if claims.kind == "pro" {
         let rows = sqlx::query("SELECT pharmacy_id, role FROM user_pharmacy_memberships($1)")
             .bind(claims.sub)
@@ -476,6 +492,11 @@ pub async fn me(
                 Ok(PharmacyMembership { pharmacy_id, role })
             })
             .collect::<Result<Vec<_>, AppError>>()?
+    } else if claims.kind == "pharma" {
+        match (claims.pharmacy_id, claims.role.clone()) {
+            (Some(pharmacy_id), Some(role)) => vec![PharmacyMembership { pharmacy_id, role }],
+            _ => vec![],
+        }
     } else {
         vec![]
     };
