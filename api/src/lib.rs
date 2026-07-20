@@ -476,6 +476,10 @@ fn build_router(
             post(scheduling::start_consultation),
         )
         .route(
+            "/v1/cabinet/appointments/:id/no-show",
+            post(scheduling::no_show_appointment),
+        )
+        .route(
             "/v1/cabinet/appointments/:id",
             patch(scheduling::patch_cabinet_appointment),
         )
