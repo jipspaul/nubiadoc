@@ -44,16 +44,20 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
       agendaResult.fold(
         (failure) => safeEmit(DashboardError(message: failure.message)),
         (entries) {
-          final booked = entries.where((e) => !e.isFree);
+          // #3855 : `booked` (tout créneau non-libre) comptait aussi les RDV
+          // confirmed/done/no_show/cancelled comme « à confirmer » — un
+          // secrétaire voyait 69 « demandes à confirmer » dont 13 annulés et
+          // 22 terminés, au lieu des 23 réellement en attente (status
+          // 'requested'). Même exclusion des annulés que l'écran Agenda
+          // (agenda_page.dart : `!isFree && status != 'cancelled'`).
+          final booked = entries.where((e) => !e.isFree && !e.isCancelled);
           final todayCount = booked
               .where((e) =>
                   e.startsAt.year == now.year &&
                   e.startsAt.month == now.month &&
                   e.startsAt.day == now.day)
               .length;
-          // Même définition que l'écran Agenda : tout RDV réservé est
-          // « À confirmer » (aucun statut plus fin dans AgendaEntry).
-          final pendingCount = booked.length;
+          final pendingCount = entries.where((e) => e.isPending).length;
           final waitingCount =
               waitingResult.fold((_) => 0, (list) => list.length);
 

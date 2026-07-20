@@ -54,7 +54,12 @@ class _MockGetAgenda extends Mock implements GetCabinetAgendaUseCase {}
 
 class _MockListWaitingList extends Mock implements ListWaitingListUseCase {}
 
-AgendaEntry _entry(String id, DateTime startsAt, {bool isFree = false}) =>
+AgendaEntry _entry(
+  String id,
+  DateTime startsAt, {
+  bool isFree = false,
+  String status = 'requested',
+}) =>
     AgendaEntry(
       id: id,
       cabinetId: 'cab',
@@ -63,6 +68,7 @@ AgendaEntry _entry(String id, DateTime startsAt, {bool isFree = false}) =>
       startsAt: startsAt,
       endsAt: startsAt.add(const Duration(minutes: 30)),
       isFree: isFree,
+      status: isFree ? '' : status,
     );
 
 void main() {
@@ -111,6 +117,47 @@ void main() {
       expect: () => [
         const DashboardLoading(),
         const DashboardLoaded(todayCount: 1, pendingCount: 2, waitingCount: 1),
+      ],
+    );
+
+    blocTest<DashboardBloc, DashboardState>(
+      '#3855 : pendingCount ne compte que status=requested, todayCount exclut cancelled',
+      build: () {
+        final now = DateTime.now();
+        when(() => getAgenda(any(), includePast: any(named: 'includePast')))
+            .thenAnswer((_) async => Right([
+                  // Aujourd'hui : 1 requested (compte), 1 confirmed (ne
+                  // compte pas comme pending, mais compte dans todayCount),
+                  // 1 cancelled (ne compte NULLE PART).
+                  _entry('req-today', now.add(const Duration(hours: 1)),
+                      status: 'requested'),
+                  _entry('conf-today', now.add(const Duration(hours: 2)),
+                      status: 'confirmed'),
+                  _entry('cancel-today', now.add(const Duration(hours: 3)),
+                      status: 'cancelled'),
+                  // Un autre jour : done/no_show/requested, ne comptent pas
+                  // dans todayCount ; seul le requested compte en pending.
+                  _entry('done-later', now.add(const Duration(days: 2)),
+                      status: 'done'),
+                  _entry('noshow-later', now.add(const Duration(days: 2)),
+                      status: 'no_show'),
+                  _entry('req-later', now.add(const Duration(days: 2)),
+                      status: 'requested'),
+                  _entry('libre', now, isFree: true),
+                ]));
+        when(() => listWaitingList()).thenAnswer((_) async => const Right([]));
+        return DashboardBloc(
+          getAgenda: getAgenda,
+          listWaitingList: listWaitingList,
+        );
+      },
+      act: (bloc) => bloc.add(const DashboardLoadRequested()),
+      expect: () => [
+        const DashboardLoading(),
+        // todayCount = req-today + conf-today (2) — cancel-today exclu.
+        // pendingCount = req-today + req-later (2) — confirmed/done/
+        // no_show/cancelled tous exclus (avant #3855 : 5, tout non-libre).
+        const DashboardLoaded(todayCount: 2, pendingCount: 2, waitingCount: 0),
       ],
     );
 
