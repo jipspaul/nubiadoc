@@ -903,6 +903,12 @@ pub struct PatientAdminSection {
     pub birth_date: Option<String>,
     pub contact: Value,
     pub mutuelle: Value,
+    /// Solde restant dû (US-4.6.2, #4044), en centimes — devis signés du
+    /// patient moins paiements déjà engagés (`pending`/`paid`, jamais
+    /// `failed`/`refunded`), même formule que `remaining_due_cents`
+    /// (`create_payment_intent`, `billing.rs`) mais agrégée au patient
+    /// (tous ses devis signés) plutôt qu'à un seul devis.
+    pub balance_due_cents: i64,
     pub created_at: String,
 }
 
@@ -1052,6 +1058,32 @@ pub async fn get_cabinet_patient(
             .map_err(|_| AppError::Internal)?;
     }
 
+    // Solde restant dû (US-4.6.2, #4044) : somme des devis SIGNÉS (seuls les
+    // devis signés engagent le patient — draft/sent/refused/expired ne sont
+    // pas une dette) moins somme des paiements pending/paid (jamais
+    // failed/refunded, qui n'engagent aucune somme — même exclusion que
+    // `create_payment_intent`, billing.rs). RLS tenant_isolation déjà
+    // satisfaite par le GUC app.current_cabinet_id positionné plus haut.
+    let balance_row = sqlx::query(
+        "SELECT (( \
+           COALESCE((SELECT SUM(total_amount) FROM quote \
+                     WHERE patient_id = $1 AND cabinet_id = $2 \
+                       AND status = 'signed' AND deleted_at IS NULL), 0) \
+           - \
+           COALESCE((SELECT SUM(amount) FROM payment \
+                     WHERE patient_id = $1 AND cabinet_id = $2 \
+                       AND status IN ('pending', 'paid')), 0) \
+         ) * 100)::bigint AS balance_due_cents",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let balance_due_cents: i64 = balance_row
+        .try_get("balance_due_cents")
+        .map_err(|_| AppError::Internal)?;
+
     let admin = PatientAdminSection {
         id,
         first_name,
@@ -1059,6 +1091,7 @@ pub async fn get_cabinet_patient(
         birth_date: birth_date.map(|d| d.to_string()),
         contact,
         mutuelle,
+        balance_due_cents,
         created_at: created_at.to_rfc3339(),
     };
 
