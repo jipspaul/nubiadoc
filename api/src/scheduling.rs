@@ -1567,9 +1567,9 @@ pub async fn start_consultation(
 /// Token pro requis (secretary+). `cabinet_id` extrait du JWT. 404 si le RDV
 /// n'appartient pas au cabinet (RLS). Statut valide pour modification :
 /// `requested` ou `confirmed` → `409 invalid_status` sinon.
-/// `status: "no_show"` : clôture cabinet d'un RDV `checked_in` (seule
-/// transition acceptée en entrée) → `409 invalid_status` si le RDV n'est pas
-/// `checked_in`, `422`/`400 validation_error` si une autre valeur est fournie.
+/// `status: "no_show"` : clôture cabinet d'un RDV `requested`, `confirmed`,
+/// `checked_in` ou `in_progress` → `409 invalid_status` si le RDV est dans un
+/// autre état, `422`/`400 validation_error` si une autre valeur est fournie.
 /// Nouveau `starts_at` : doit être dans le futur et correspondre à un
 /// `availability_slot` `open` du praticien → `409 slot_unavailable` sinon
 /// (même garde que `patch_appointment` côté patient, #3558).
@@ -1624,11 +1624,23 @@ pub async fn patch_cabinet_appointment(
     // cabinet ne pouvait ni no_show (réservé à checked_in) ni cancel (aucune
     // transition cabinet n'existait), et le patient se heurtait à la fenêtre
     // des 2h. `no_show` couvre les deux cas : « vu puis parti » ET « jamais vu ».
+    //
+    // Étendu à `in_progress` (#3858) : call_next_patient (waiting-room) fait
+    // passer checked_in → in_progress SANS créer de consultation_session (elle
+    // n'existe qu'après /start) — un patient appelé puis absent était bloqué
+    // dans un cul-de-sac : ni no_show (réservé à checked_in) ni cancel
+    // (appointments.rs n'accepte pas in_progress), seule sortie possible =
+    // fabriquer une consultation start→complete→done (no-show comptabilisé
+    // comme consultation réalisée).
     if let Some(target_status) = body.status.as_deref() {
         if target_status != "no_show" {
             return Err(AppError::ValidationError);
         }
-        if status != "checked_in" && status != "requested" && status != "confirmed" {
+        if status != "checked_in"
+            && status != "requested"
+            && status != "confirmed"
+            && status != "in_progress"
+        {
             return Err(AppError::InvalidStatus);
         }
 

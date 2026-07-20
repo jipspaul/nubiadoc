@@ -317,6 +317,44 @@ async fn noshow_from_requested_returns_200() {
     .await;
 }
 
+/// Repro exacte de #3858 : un RDV `in_progress` (appelé via call-next, sans
+/// consultation_session — le patient ne s'est jamais présenté) doit pouvoir
+/// être clôturé no_show, au lieu du cul-de-sac où la seule sortie était de
+/// fabriquer une consultation start→complete→done (no-show comptabilisé à
+/// tort comme consultation réalisée).
+#[tokio::test]
+async fn noshow_from_in_progress_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+        insert_fixture(&seed_db, "in_progress").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let (status, body) = patch_status(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["status"], "no_show");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
 /// Un RDV déjà terminal (`cancelled`) reste refusé — pas de réouverture.
 #[tokio::test]
 async fn noshow_from_cancelled_returns_409() {
