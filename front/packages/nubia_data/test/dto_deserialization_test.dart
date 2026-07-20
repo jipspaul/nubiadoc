@@ -364,6 +364,34 @@ void main() {
       expect(d.fileSizeBytes, 0);
     });
 
+    test(
+        'DocumentDto.fromUploadResponse : parse la réponse 201 sans id/mime_type/created_at (#3831)',
+        () {
+      // api/src/documents.rs UploadDocumentResponse : {document_id, category,
+      // filename, size_bytes, sha256} — pas de id/mime_type/created_at.
+      // DocumentDto.fromJson levait un TypeError sur ce payload (ParseFailure
+      // générique → snackbar erreur sur un upload pourtant réussi, #3831).
+      final d = DocumentDto.fromUploadResponse(
+        {
+          'document_id': '2cf0c976-0a9d-4cbf-b41a-0be5913b31d0',
+          'category': 'facture',
+          'filename': 'QA-verify-doc.pdf',
+          'size_bytes': 44,
+          'sha256': '5685efbc',
+        },
+        filename: 'QA-verify-doc.pdf',
+        mimeType: 'application/pdf',
+      );
+      expect(d.id, '2cf0c976-0a9d-4cbf-b41a-0be5913b31d0');
+      expect(d.category, 'facture');
+      expect(d.filename, 'QA-verify-doc.pdf');
+      expect(d.mimeType, 'application/pdf');
+      expect(d.fileSizeBytes, 44);
+      expect(d.sha256, '5685efbc');
+      // toDomain() ne doit pas lever (createdAt dérivé, pas absent).
+      expect(() => d.toDomain(), returnsNormally);
+    });
+
     test('QuoteDto.fromSummaryJson : liste devis (total_amount_cents)', () {
       final q = QuoteDto.fromSummaryJson({
         'id': 'q1',
