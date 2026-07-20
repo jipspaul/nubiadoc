@@ -11,6 +11,7 @@ use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
+pub use brevo_mailer::BrevoMailer;
 pub use realtime::channels;
 pub use realtime::WsHub;
 pub use reminder_dispatch::{
@@ -21,6 +22,7 @@ mod appointments;
 mod auth;
 mod billing;
 mod bookings;
+mod brevo_mailer;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_secretariats;

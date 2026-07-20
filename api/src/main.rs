@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
-use nubia_api::{app, run_dispatch_loop, AppState, StubJobDispatcher, StubMailer};
+use nubia_api::{app, run_dispatch_loop, AppState, BrevoMailer, StubJobDispatcher};
 use sqlx::PgPool;
 
 #[tokio::main]
@@ -15,7 +15,9 @@ async fn main() {
     let state = AppState {
         db: pool.clone(),
         jwt_secret: std::env::var("JWT_SECRET").unwrap_or_default(),
-        mailer: Arc::new(StubMailer),
+        // BrevoMailer en prod (#4035) ; StubMailer reste utilisé par les
+        // tests d'intégration, qui construisent leur propre AppState.
+        mailer: Arc::new(BrevoMailer::from_env()),
     };
 
     let port: u16 = std::env::var("APP_PORT")
