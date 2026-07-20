@@ -135,7 +135,13 @@ class _ConversationsList extends StatelessWidget {
     return 'Appuyez pour ouvrir la conversation';
   }
 
-  String _formatTimestamp(DateTime dt) {
+  String _formatTimestamp(DateTime utc) {
+    // #3856 : `dt` vient de DateTime.parse() sur un ISO avec offset +00:00→
+    // isUtc == true. Lire .hour/.minute bruts affichait l'heure UTC au lieu
+    // de l'heure locale (-2h en été/-1h en hiver pour Europe/Paris) ; la
+    // comparaison sameDay confrontait aussi un instant UTC à un
+    // DateTime.now() local, faussée autour de minuit.
+    final dt = utc.toLocal();
     const months = [
       'jan',
       'fév',
