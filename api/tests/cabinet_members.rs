@@ -831,6 +831,76 @@ async fn post_cabinet_members_admin_returns_201() {
         .ok();
 }
 
+// ── Test : POST /v1/cabinet/members email malformé → 422, rien persisté (#3879) ──
+
+#[tokio::test]
+async fn post_cabinet_members_malformed_email_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let admin_email = format!("post422_admin_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &admin_email).await;
+
+    for bad_email in [
+        "not-an-email",
+        "missing-domain@",
+        "@missing-local.test",
+        "no-at-sign.test",
+    ] {
+        let body = json!({
+            "email": bad_email,
+            "role": "secretary",
+            "first_name": "Bad",
+            "last_name": "Email"
+        });
+
+        let resp = app(make_state(db.clone()))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/cabinet/members")
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "email '{bad_email}' doit être rejeté en 422"
+        );
+    }
+
+    // owner_pool (nubia_owner) contourne RLS — app_pool renverrait toujours 0
+    // sans app.current_user_id posé (fail-closed, policy user_self_select),
+    // ce qui rendrait cette assertion vraie même en cas de régression.
+    let owner = owner_pool().await;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_user WHERE email = ANY($1)")
+        .bind(vec![
+            "not-an-email".to_string(),
+            "missing-domain@".to_string(),
+            "@missing-local.test".to_string(),
+            "no-at-sign.test".to_string(),
+        ])
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucun compte orphelin ne doit être créé pour un email malformé"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&admin_email)
+        .execute(&owner)
+        .await
+        .ok();
+}
+
 // ── Test 12 : POST /v1/cabinet/members manager → 201 ─────────────────────────
 
 #[tokio::test]

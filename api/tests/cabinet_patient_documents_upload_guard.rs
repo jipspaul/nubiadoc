@@ -65,6 +65,16 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
+fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    encode(
+        &Header::default(),
+        &json!({"sub": sub, "kind": "pro", "cabinet_id": cabinet_id, "role": "practitioner",
+                "exp": exp()}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 /// Insère les fixtures minimales (cabinet + app_user secrétaire + patient).
 /// Retourne `(cabinet_id, user_id, patient_id)`.
 async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
@@ -144,6 +154,18 @@ async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_
 }
 
 async fn upload(patient_id: Uuid, token: &str, category: &str, db: PgPool) -> StatusCode {
+    upload_with_file(patient_id, token, category, "%PDF-stub", db).await
+}
+
+/// Variante avec contenu de fichier explicite — `file_content` vide (`""`)
+/// reproduit le repro #3875 (upload cabinet d'un fichier 0 octet).
+async fn upload_with_file(
+    patient_id: Uuid,
+    token: &str,
+    category: &str,
+    file_content: &str,
+    db: PgPool,
+) -> StatusCode {
     let boundary = "----TestBoundary3834";
     let body_bytes = format!(
         "--{boundary}\r\n\
@@ -152,7 +174,7 @@ async fn upload(patient_id: Uuid, token: &str, category: &str, db: PgPool) -> St
          --{boundary}\r\n\
          Content-Disposition: form-data; name=\"file\"; filename=\"doc.pdf\"\r\n\
          Content-Type: application/pdf\r\n\r\n\
-         %PDF-stub\r\n\
+         {file_content}\r\n\
          --{boundary}--\r\n"
     );
     let resp = app(make_state(db))
@@ -222,6 +244,37 @@ async fn upload_non_clinical_category_by_secretary_returns_201() {
         status,
         StatusCode::CREATED,
         "une catégorie administrative (devis) doit rester autorisée à une secrétaire"
+    );
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
+
+// ── Test : fichier 0 octet → 422, aucun document persisté (#3875) ────────────
+
+#[tokio::test]
+async fn upload_empty_file_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    let status = upload_with_file(patient_id, &token, "ordonnance", "", app_pool().await).await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un fichier de 0 octet doit être rejeté, comme le coffre patient (#3653)"
+    );
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM document WHERE patient_id = $1")
+        .bind(patient_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucun document vide ne doit avoir été persisté dans le dossier"
     );
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;

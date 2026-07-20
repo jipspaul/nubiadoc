@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_a2ui/nubia_a2ui.dart';
 import 'package:nubia_core/nubia_core.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
@@ -107,6 +108,20 @@ class AppRouter {
         // renvoyer vers home entre-temps (course avec le listener du
         // RouterNotifier — même fix que praticien/register-pro, #3195).
         guestOnlyRoutes: const {login, splash},
+      ),
+      // Route inconnue (deep-link périmé, bookmark cassé) : sans errorBuilder,
+      // go_router affiche son écran par défaut avec l'exception brute
+      // (« GoException: no routes for location: … ») — #3894.
+      errorBuilder: (context, state) => Scaffold(
+        body: NubiaEmptyState(
+          icon: Icons.search_off,
+          title: 'Page introuvable',
+          subtitle: 'Le lien que vous avez suivi n\'existe plus ou a changé.',
+          action: FilledButton(
+            onPressed: () => context.go(home),
+            child: const Text('Retour à l\'accueil'),
+          ),
+        ),
       ),
       routes: [
         GoRoute(

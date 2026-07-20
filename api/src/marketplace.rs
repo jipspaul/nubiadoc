@@ -319,6 +319,7 @@ pub struct SlotProviderItem {
 #[derive(Serialize)]
 pub struct SearchSlotsResponse {
     pub data: Vec<SlotProviderItem>,
+    pub page: SearchPageInfo,
 }
 
 /// Fragment SQL du filtre `available` sur `sl.starts_at` (constantes hardcodées,
@@ -418,9 +419,14 @@ fn resolve_geo_filter(
 /// Route publique, pas de JWT. Mêmes filtres que `/v1/search/providers`, PLUS
 /// `provider_id` (restreint à un praticien) et `date` (format `YYYY-MM-DD`,
 /// restreint aux créneaux de ce jour) — #3885, valeur syntaxiquement invalide
-/// → `422 validation_error`.
+/// → `422 validation_error`. `page`/`per_page`/`sort` désormais appliqués
+/// (#3871) : pagination au grain PRATICIEN (pas au grain créneau — une page
+/// de 20 praticiens peut contenir un nombre variable de créneaux chacun),
+/// même sémantique `sort` que `/search/providers` (`distance`, `rating`,
+/// `next_slot`, défaut chronologique).
 /// Retourne uniquement les créneaux `status='open'` et `online_booking=true`
-/// (RLS `slot_public_read`), triés par `first_slot_at` ascendant.
+/// (RLS `slot_public_read`) ; au sein d'un praticien, les créneaux restent
+/// triés par `starts_at` ascendant.
 pub async fn search_slots(
     State(state): State<AppState>,
     Query(params): Query<SearchProvidersQuery>,
@@ -500,20 +506,34 @@ pub async fn search_slots(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
 
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
+    let offset = (page - 1) * per_page;
+
+    // Sort clause — mêmes clés que /search/providers, alias du SELECT ci-dessous
+    // (functional dependency sur p.id, clé primaire de provider — autorise de
+    // sélectionner p.display_name/p.geo sans les mettre dans GROUP BY).
+    let sort_clause = match params.sort.as_deref() {
+        Some("distance") if near_lat.is_some() => "distance_m ASC NULLS LAST, p.display_name ASC",
+        Some("rating") => "rating_avg DESC NULLS LAST, p.display_name ASC",
+        _ => "next_slot_at ASC NULLS LAST, p.display_name ASC",
+    };
+
+    // from_where_clause partagé entre le COUNT, la page de praticiens et la
+    // requête de créneaux (#3871) : `page`/`per_page`/`sort` étaient acceptés
+    // par la query string mais jamais appliqués — aucun LIMIT/OFFSET, tri
+    // `sl.starts_at ASC` codé en dur — 2800 créneaux renvoyés d'un bloc quel
+    // que soit `page`. Pagination au grain PRATICIEN (comme /search/providers) :
+    // une page de résultats regroupe tous les créneaux des praticiens de cette
+    // page, pas un simple LIMIT sur les lignes créneau (qui couperait un
+    // praticien au milieu de sa liste de créneaux).
+    //
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
     // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
     // $15=tiers_payant  $16=provider_id  $17=date
-    let sql = format!(
-        "SELECT \
-             p.id AS provider_id, \
-             p.display_name, \
-             CASE WHEN $1::double precision IS NOT NULL AND $2::double precision IS NOT NULL \
-                  THEN ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) \
-                  ELSE NULL END AS distance_m, \
-             sl.id AS slot_id, \
-             sl.starts_at \
-         FROM availability_slot sl \
+    let from_where_clause = format!(
+        "FROM availability_slot sl \
          JOIN provider p ON p.id = sl.provider_id \
          LEFT JOIN specialty s ON s.id = p.specialty_id \
          LEFT JOIN profession pr ON pr.id = s.profession_id \
@@ -546,11 +566,50 @@ pub async fn search_slots(
              AND ($15::boolean IS NULL OR p.tiers_payant = $15) \
              AND ($16::uuid IS NULL OR p.id = $16) \
              AND ($17::date IS NULL OR sl.starts_at::date = $17) \
-             {available_clause} \
-         ORDER BY sl.starts_at ASC"
+             {available_clause}"
     );
 
-    let rows = sqlx::query(&sql)
+    let count_sql = format!("SELECT COUNT(DISTINCT p.id) AS total_count {from_where_clause}");
+
+    let providers_sql = format!(
+        "SELECT p.id AS provider_id, p.display_name, \
+             CASE WHEN $1::double precision IS NOT NULL AND $2::double precision IS NOT NULL \
+                  THEN ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) \
+                  ELSE NULL END AS distance_m, \
+             MIN(sl.starts_at) AS next_slot_at, \
+             (SELECT avg(rating)::double precision FROM review \
+              WHERE provider_id = p.id AND status = 'published') AS rating_avg \
+         {from_where_clause} \
+         GROUP BY p.id \
+         ORDER BY {sort_clause} \
+         LIMIT $18 OFFSET $19"
+    );
+
+    let total: i64 = sqlx::query(&count_sql)
+        .bind(near_lat) // $1
+        .bind(near_lng) // $2
+        .bind(radius_m) // $3
+        .bind(q_norm.as_deref()) // $4
+        .bind(params.specialty) // $5
+        .bind(params.sector.as_deref()) // $6
+        .bind(params.teleconsult) // $7
+        .bind(params.pmr) // $8
+        .bind(params.accepts_new) // $9
+        .bind(lang_filter.clone()) // $10
+        .bind(bbox_min_lng) // $11
+        .bind(bbox_min_lat) // $12
+        .bind(bbox_max_lng) // $13
+        .bind(bbox_max_lat) // $14
+        .bind(params.tiers_payant) // $15
+        .bind(provider_id_filter) // $16
+        .bind(date_filter) // $17
+        .fetch_one(&state.db)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .try_get("total_count")
+        .map_err(|_| AppError::Internal)?;
+
+    let provider_rows = sqlx::query(&providers_sql)
         .bind(near_lat) // $1
         .bind(near_lng) // $2
         .bind(radius_m) // $3
@@ -568,37 +627,78 @@ pub async fn search_slots(
         .bind(params.tiers_payant) // $15
         .bind(provider_id_filter) // $16
         .bind(date_filter) // $17
+        .bind(per_page) // $18
+        .bind(offset) // $19
         .fetch_all(&state.db)
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Group by provider, preserving first-slot order (rows already sorted ASC by starts_at)
-    let mut data: Vec<SlotProviderItem> = Vec::new();
-    for row in &rows {
+    let mut data: Vec<SlotProviderItem> = Vec::with_capacity(provider_rows.len());
+    let mut provider_ids: Vec<Uuid> = Vec::with_capacity(provider_rows.len());
+    for row in &provider_rows {
         let provider_id: Uuid = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
-        let starts_at: chrono::DateTime<chrono::Utc> =
-            row.try_get("starts_at").map_err(|_| AppError::Internal)?;
-        let slot_ref = SlotRef {
-            slot_id: row.try_get("slot_id").map_err(|_| AppError::Internal)?,
-            starts_at: starts_at.to_rfc3339(),
-        };
-        if let Some(entry) = data.iter_mut().find(|e| e.provider_id == provider_id) {
-            entry.slots.push(slot_ref);
-        } else {
-            let distance_m: Option<f64> = row.try_get("distance_m").unwrap_or(None);
-            data.push(SlotProviderItem {
-                provider_id,
-                display_name: row
-                    .try_get("display_name")
-                    .map_err(|_| AppError::Internal)?,
-                distance_m,
-                first_slot_at: starts_at.to_rfc3339(),
-                slots: vec![slot_ref],
-            });
+        let next_slot_at: chrono::DateTime<chrono::Utc> = row
+            .try_get("next_slot_at")
+            .map_err(|_| AppError::Internal)?;
+        provider_ids.push(provider_id);
+        data.push(SlotProviderItem {
+            provider_id,
+            display_name: row
+                .try_get("display_name")
+                .map_err(|_| AppError::Internal)?,
+            distance_m: row.try_get("distance_m").unwrap_or(None),
+            first_slot_at: next_slot_at.to_rfc3339(),
+            slots: Vec::new(),
+        });
+    }
+
+    // Créneaux des praticiens de CETTE page uniquement — mêmes filtres au
+    // grain créneau que from_where_clause (déjà appliqués côté praticien,
+    // mais status/deleted_at/online_booking/starts_at/available_clause/date
+    // restent nécessaires ici pour ne récupérer que les créneaux éligibles :
+    // un provider peut passer le filtre `date` via un autre créneau que ceux
+    // listés ici, donc `date` doit être réappliqué au grain créneau (#3885).
+    if !provider_ids.is_empty() {
+        let slots_sql = format!(
+            "SELECT sl.id AS slot_id, sl.provider_id, sl.starts_at \
+             FROM availability_slot sl \
+             WHERE sl.provider_id = ANY($1) \
+                 AND sl.status = 'open' \
+                 AND sl.deleted_at IS NULL \
+                 AND sl.online_booking = true \
+                 AND sl.starts_at > now() \
+                 AND ($2::date IS NULL OR sl.starts_at::date = $2) \
+                 {available_clause} \
+             ORDER BY sl.starts_at ASC"
+        );
+        let slot_rows = sqlx::query(&slots_sql)
+            .bind(&provider_ids)
+            .bind(date_filter)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+        for row in &slot_rows {
+            let provider_id: Uuid = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
+            let starts_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+            if let Some(entry) = data.iter_mut().find(|e| e.provider_id == provider_id) {
+                entry.slots.push(SlotRef {
+                    slot_id: row.try_get("slot_id").map_err(|_| AppError::Internal)?,
+                    starts_at: starts_at.to_rfc3339(),
+                });
+            }
         }
     }
 
-    Ok(Json(SearchSlotsResponse { data }))
+    Ok(Json(SearchSlotsResponse {
+        data,
+        page: SearchPageInfo {
+            page,
+            per_page,
+            total,
+        },
+    }))
 }
 
 /// `GET /v1/search/providers` — annuaire public de praticiens (docs/12 §12.1).
