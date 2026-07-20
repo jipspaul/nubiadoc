@@ -2314,7 +2314,11 @@ pub struct SlotOnlineResponse {
 /// `PUT /v1/cabinet/slots/:id/online` — bascule le flag `online_booking` (§13).
 ///
 /// Corps : `{ "online_booking": true|false }`. RBAC : secretary+.
-/// `cabinet_id` extrait du JWT.
+/// `cabinet_id` extrait du JWT. Créneau `booked` → `409 invalid_status`, même
+/// garde que `patch_cabinet_slot` (#3892) : sans elle, un créneau réservé pour
+/// un patient pouvait être basculé « réservable en ligne », effet différé
+/// visible dès la libération du créneau (annulation/no_show → status='open'
+/// mais online_booking resté true, réapparaît dans /search/slots).
 #[derive(Deserialize)]
 pub struct PutSlotOnlineBody {
     pub online_booking: bool,
@@ -2337,6 +2341,22 @@ pub async fn put_cabinet_slot_online(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    let existing = sqlx::query(
+        "SELECT status FROM availability_slot \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(slot_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let current_status: String = existing.try_get("status").map_err(|_| AppError::Internal)?;
+    if current_status == "booked" {
+        return Err(AppError::InvalidStatus);
+    }
 
     let row = sqlx::query(
         "UPDATE availability_slot \

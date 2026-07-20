@@ -499,3 +499,62 @@ async fn put_slot_online_practitioner_returns_403() {
 
     cleanup(&db, f.cabinet_id, f.user_id).await;
 }
+
+// ── Test : PUT .../online sur créneau booked → 409 (#3892) ──────────────────
+
+#[tokio::test]
+async fn put_slot_online_booked_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let f = insert_slot_fixture(&db, &suffix).await;
+
+    sqlx::query("UPDATE availability_slot SET status = 'booked' WHERE id = $1")
+        .bind(f.slot_id)
+        .execute(&db)
+        .await
+        .unwrap();
+
+    let token = make_admin_token(f.user_id, f.cabinet_id);
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/v1/cabinet/slots/{}/online", f.slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({"online_booking": true})).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::CONFLICT,
+        "un créneau booked ne doit pas pouvoir basculer online_booking, même garde que PATCH"
+    );
+
+    let online_booking: bool =
+        sqlx::query_scalar("SELECT online_booking FROM availability_slot WHERE id = $1")
+            .bind(f.slot_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert!(
+        !online_booking,
+        "online_booking ne doit pas avoir été modifié"
+    );
+
+    cleanup(&db, f.cabinet_id, f.user_id).await;
+}
