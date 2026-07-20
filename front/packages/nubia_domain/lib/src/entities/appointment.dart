@@ -1,6 +1,14 @@
 import 'package:equatable/equatable.dart';
 
-enum AppointmentStatus { requested, confirmed, cancelled, completed, noShow }
+enum AppointmentStatus {
+  requested,
+  confirmed,
+  checkedIn,
+  inProgress,
+  cancelled,
+  completed,
+  noShow,
+}
 
 enum AppointmentType { inPerson, teleconsult }
 
@@ -37,8 +45,35 @@ class Appointment extends Equatable {
 
   bool get isUpcoming =>
       startsAt.isAfter(DateTime.now()) && status == AppointmentStatus.confirmed;
-  bool get canCancel => isUpcoming;
-  bool get canModify => isUpcoming;
+
+  /// #3804 : le backend autorise l'annulation tant que le statut est
+  /// requested/confirmed/checkedIn (la classe majoritaire des RDV patient
+  /// est `requested`, or `canCancel` ne couvrait avant que `confirmed`) —
+  /// bloquée uniquement dans la fenêtre des 2h précédant le RDV, sauf si
+  /// déjà `checkedIn` (sortie de file possible à tout moment) — cf.
+  /// `cancel_appointment` (api/src/appointments.rs).
+  bool get canCancel {
+    final cancellableStatus = status == AppointmentStatus.requested ||
+        status == AppointmentStatus.confirmed ||
+        status == AppointmentStatus.checkedIn;
+    if (!cancellableStatus) return false;
+    if (status == AppointmentStatus.checkedIn) return true;
+    final now = DateTime.now();
+    final tooLate = now.isBefore(startsAt) &&
+        !now.isBefore(startsAt.subtract(const Duration(hours: 2)));
+    return !tooLate;
+  }
+
+  /// #3804 : le backend autorise la reprogrammation tant que le statut est
+  /// requested/confirmed, bloquée à moins de 24h du RDV — cf.
+  /// `reschedule_appointment` (api/src/appointments.rs).
+  bool get canModify {
+    final modifiableStatus = status == AppointmentStatus.requested ||
+        status == AppointmentStatus.confirmed;
+    if (!modifiableStatus) return false;
+    return DateTime.now()
+        .isBefore(startsAt.subtract(const Duration(hours: 24)));
+  }
 
   @override
   List<Object?> get props => [id, status, startsAt];
