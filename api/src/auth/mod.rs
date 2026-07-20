@@ -3178,7 +3178,15 @@ pub async fn put_account_consent(
 }
 
 /// Corps de la requête `PATCH /v1/account/notification-preferences`.
+///
+/// `deny_unknown_fields` (#3839) : un opt-out de consentement ne doit jamais
+/// être « accepté » (200) puis silencieusement jeté. Avant ce garde-fou, une
+/// clé de canal inconnue ou mal orthographiée (ex. `push_prevention` — le
+/// champ réel est `push_rappels`) était ignorée par serde sans erreur ; le
+/// PATCH renvoyait 200 sans avoir rien changé, laissant croire à tort que
+/// l'opt-out avait été pris en compte.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PatchNotificationPreferencesBody {
     email_rdv: Option<bool>,
     sms_rdv: Option<bool>,
