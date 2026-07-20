@@ -1418,7 +1418,8 @@ pub struct UploadPatientDocumentResponse {
 /// (même garde que `list_patient_documents` côté lecture).
 ///
 /// Champs multipart :
-/// - `file` : binaire requis (PDF / JPEG / PNG ≤ 20 Mo). MIME déclaré vérifié → 422 sinon.
+/// - `file` : binaire requis, non vide (PDF / JPEG / PNG ≤ 20 Mo). MIME déclaré
+///   vérifié → 422 sinon ; 0 octet → 422 aussi (#3875, symétrique de documents.rs).
 /// - `category` : enum strict requis → 422 si absent ou invalide.
 /// - `filename` : optionnel.
 ///
@@ -1483,6 +1484,12 @@ pub async fn upload_patient_document(
     }
 
     let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
+    // Fichier 0 octet → 422, comme le coffre patient depuis #3653 (documents.rs) :
+    // sans cette garde, un document clinique fantôme (size_bytes=0, illisible)
+    // était persisté et listé dans le dossier du patient (#3875).
+    if file_bytes.is_empty() {
+        return Err(AppError::ValidationError);
+    }
     let file_mime = file_mime.ok_or(AppError::ValidationError)?;
     if !ALLOWED_CABINET_DOC_MIMES.contains(&file_mime.as_str()) {
         return Err(AppError::ValidationError);
