@@ -24,31 +24,39 @@ class NotificationPreferencesDto {
     required this.prevention,
   });
 
+  /// Un type d'événement (topic) n'a pas de champ booléen unique côté API :
+  /// chaque topic a 1-3 canaux (`email_x`/`push_x`[/`sms_x`]). Un interrupteur
+  /// de catégorie est considéré "actif" seulement si TOUS ses canaux le sont
+  /// (#3829 — avant ce fix, `appointments`/`documents`/`payments`/`prevention`
+  /// étaient des clés inventées, absentes du contrat API, silencieusement
+  /// droppées par serde côté PATCH et jamais renvoyées par le GET).
+  static bool _allTrue(Map<String, dynamic> json, List<String> keys) =>
+      keys.every((k) => (json[k] as bool?) ?? true);
+
   factory NotificationPreferencesDto.fromJson(Map<String, dynamic> json) =>
       NotificationPreferencesDto(
-        // API uses *_rdv suffix; accept both forms for forward-compat
-        pushEnabled:
-            (json['push_rdv'] ?? json['push_enabled']) as bool? ?? true,
-        emailEnabled:
-            (json['email_rdv'] ?? json['email_enabled']) as bool? ?? true,
-        smsEnabled: (json['sms_rdv'] ?? json['sms_enabled']) as bool? ?? true,
-        appointments: json['appointments'] as bool? ?? true,
-        documents: json['documents'] as bool? ?? true,
-        messages:
-            (json['email_messagerie'] ?? json['messages']) as bool? ?? true,
-        payments: json['payments'] as bool? ?? true,
-        prevention: json['prevention'] as bool? ?? true,
+        pushEnabled: json['push_rdv'] as bool? ?? true,
+        emailEnabled: json['email_rdv'] as bool? ?? true,
+        smsEnabled: json['sms_rdv'] as bool? ?? true,
+        appointments: _allTrue(json, ['push_rdv', 'email_rdv', 'sms_rdv']),
+        documents: _allTrue(json, ['email_documents', 'push_documents']),
+        messages: _allTrue(json, ['email_messagerie', 'push_messagerie']),
+        payments: _allTrue(json, ['email_paiement', 'push_paiement']),
+        prevention: _allTrue(json, ['email_rappels', 'push_rappels']),
       );
 
   Map<String, dynamic> toJson() => {
-        'push_rdv': pushEnabled,
-        'email_rdv': emailEnabled,
-        'sms_rdv': smsEnabled,
-        'appointments': appointments,
-        'documents': documents,
+        'push_rdv': pushEnabled && appointments,
+        'email_rdv': emailEnabled && appointments,
+        'sms_rdv': smsEnabled && appointments,
+        'email_documents': documents,
+        'push_documents': documents,
         'email_messagerie': messages,
-        'payments': payments,
-        'prevention': prevention,
+        'push_messagerie': messages,
+        'email_paiement': payments,
+        'push_paiement': payments,
+        'email_rappels': prevention,
+        'push_rappels': prevention,
       };
 
   NotificationPreferences toDomain() => NotificationPreferences(
