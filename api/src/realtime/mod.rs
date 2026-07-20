@@ -159,6 +159,9 @@ fn verify_jwt(token: &str, secret: &str) -> Option<WsSession> {
 /// - `{"op":"ping"}` → `{"op":"pong","ts":"<iso8601>"}`
 /// - `{"op":"subscribe","channel":"waiting_room"}` → abonné si pro (cabinet_id présent),
 ///   sinon `{"error":"forbidden","channel":"waiting_room"}`
+/// - Un socket peut être abonné à plusieurs canaux en parallèle (un bridge de
+///   relais par canal, cf. `spawn_bridge`, #3870) — s'abonner à un 2e canal
+///   ne coupe plus les précédents.
 /// - Tout autre op → `{"error":"unknown_op"}`
 /// - Timeout idle 60 s.
 pub async fn ws_handshake(
@@ -208,9 +211,16 @@ async fn handle_socket(
         "ws connected"
     );
 
-    // Canal mpsc : le bridge task y écrit les messages broadcast à relayer.
+    // Canal mpsc : les bridge tasks y écrivent les messages broadcast à relayer.
+    // Une task PAR canal abonné (#3870) : un socket peut suivre plusieurs
+    // canaux simultanément (conversation + patient_queue par ex.) — un unique
+    // slot `Option<JoinHandle>` faisait que chaque nouvel abonnement tuait le
+    // relais du précédent, le rendant muet malgré l'ACK "subscribed" reçu par
+    // le client. Clé = nom du canal : un ré-abonnement au MÊME canal remplace
+    // proprement son unique bridge (pas de double-livraison), sans affecter
+    // les autres canaux.
     let (bc_tx, mut bc_rx) = tokio::sync::mpsc::channel::<String>(64);
-    let mut bc_task: Option<tokio::task::JoinHandle<()>> = None;
+    let mut bc_tasks: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
 
     const IDLE: Duration = Duration::from_secs(60);
 
@@ -230,7 +240,7 @@ async fn handle_socket(
                             &hub,
                             &db,
                             &bc_tx,
-                            &mut bc_task,
+                            &mut bc_tasks,
                         )
                         .await;
                         if socket.send(Message::Text(reply)).await.is_err() {
@@ -251,7 +261,7 @@ async fn handle_socket(
         }
     }
 
-    if let Some(task) = bc_task {
+    for task in bc_tasks.into_values() {
         task.abort();
     }
 }
@@ -263,7 +273,7 @@ async fn handle_client_op(
     hub: &Arc<WsHub>,
     db: &sqlx::PgPool,
     bc_tx: &tokio::sync::mpsc::Sender<String>,
-    bc_task: &mut Option<tokio::task::JoinHandle<()>>,
+    bc_tasks: &mut HashMap<String, tokio::task::JoinHandle<()>>,
 ) -> String {
     let v = match serde_json::from_str::<serde_json::Value>(text) {
         Ok(v) => v,
@@ -289,7 +299,8 @@ async fn handle_client_op(
                     return json!({"error": "forbidden", "channel": channel}).to_string();
                 };
                 spawn_bridge(
-                    bc_task,
+                    bc_tasks,
+                    channel,
                     bc_tx,
                     BridgeSource::Cabinet(hub.subscribe(cabinet_id)),
                 );
@@ -305,7 +316,8 @@ async fn handle_client_op(
                     return json!({"error": "forbidden", "channel": channel}).to_string();
                 }
                 spawn_bridge(
-                    bc_task,
+                    bc_tasks,
+                    channel,
                     bc_tx,
                     BridgeSource::Named(hub.subscribe_named(channel)),
                 );
@@ -321,7 +333,8 @@ async fn handle_client_op(
                     return json!({"error": "forbidden", "channel": channel}).to_string();
                 }
                 spawn_bridge(
-                    bc_task,
+                    bc_tasks,
+                    channel,
                     bc_tx,
                     BridgeSource::Named(hub.subscribe_named(channel)),
                 );
@@ -337,7 +350,8 @@ async fn handle_client_op(
                     return json!({"error": "forbidden", "channel": channel}).to_string();
                 }
                 spawn_bridge(
-                    bc_task,
+                    bc_tasks,
+                    channel,
                     bc_tx,
                     BridgeSource::Named(hub.subscribe_named(channel)),
                 );
@@ -353,7 +367,8 @@ async fn handle_client_op(
                     return json!({"error": "forbidden", "channel": channel}).to_string();
                 }
                 spawn_bridge(
-                    bc_task,
+                    bc_tasks,
+                    channel,
                     bc_tx,
                     BridgeSource::Named(hub.subscribe_named(channel)),
                 );
@@ -373,20 +388,24 @@ enum BridgeSource {
     Named(broadcast::Receiver<String>),
 }
 
-/// (Re)lance la task qui relaie un Receiver broadcast vers le client WS.
+/// (Re)lance la task qui relaie un Receiver broadcast vers le client WS, pour
+/// le canal `channel`. Un socket peut avoir une task par canal abonné (#3870) :
+/// seul le bridge du MÊME `channel` est remplacé (ré-abonnement idempotent),
+/// les bridges des autres canaux déjà abonnés restent actifs.
 fn spawn_bridge(
-    bc_task: &mut Option<tokio::task::JoinHandle<()>>,
+    bc_tasks: &mut HashMap<String, tokio::task::JoinHandle<()>>,
+    channel: &str,
     bc_tx: &tokio::sync::mpsc::Sender<String>,
     source: BridgeSource,
 ) {
-    if let Some(old) = bc_task.take() {
+    if let Some(old) = bc_tasks.remove(channel) {
         old.abort();
     }
     let mut receiver = match source {
         BridgeSource::Cabinet(r) | BridgeSource::Named(r) => r,
     };
     let tx_clone = bc_tx.clone();
-    *bc_task = Some(tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         use tokio::sync::broadcast::error::RecvError;
         loop {
             match receiver.recv().await {
@@ -399,7 +418,8 @@ fn spawn_bridge(
                 Err(RecvError::Closed) => break,
             }
         }
-    }));
+    });
+    bc_tasks.insert(channel.to_owned(), task);
 }
 
 /// Le porteur du token peut-il écouter `conversation:<id>` ?

@@ -336,6 +336,157 @@ async fn conversation_pro_cabinet_scoping() {
     .await;
 }
 
+/// Fixture : cabinet + compte patient + patient + DEUX conversations (même
+/// patient) — pour tester l'abonnement multi-canal sur un même socket (#3870).
+/// Retourne `(cabinet_id, account_user_id, account_id, patient_id, conv1_id, conv2_id)`.
+async fn insert_two_conversations_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid, Uuid) {
+    let cabinet_id = Uuid::new_v4();
+    let account_user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let conv1_id = Uuid::new_v4();
+    let conv2_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(account_user_id)
+    .bind(format!("ws-multichan+{}@nubia.test", account_user_id))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) \
+         VALUES ($1, 'Cabinet WS MultiChan', 'dentaire')",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Ws', 'MultiChan')",
+    )
+    .bind(account_id)
+    .bind(account_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, patient_account_id, first_name, last_name) \
+         VALUES ($1, $2, $3, 'Ws', 'MultiChan')",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+        .bind(conv1_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO conversation (id, cabinet_id, patient_id) VALUES ($1, $2, $3)")
+        .bind(conv2_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    tx.commit().await.unwrap();
+    (
+        cabinet_id,
+        account_user_id,
+        account_id,
+        patient_id,
+        conv1_id,
+        conv2_id,
+    )
+}
+
+// ── Test 5 : 2 canaux sur le même socket → aucun n'est coupé (#3870) ─────────
+
+#[tokio::test]
+async fn subscribing_second_channel_keeps_first_alive() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let (cabinet_id, account_user_id, account_id, patient_id, conv1_id, conv2_id) =
+        insert_two_conversations_fixture(&owner).await;
+
+    let hub = Arc::new(WsHub::new());
+    let addr = spawn_server(hub.clone()).await;
+    let channel1 = format!("conversation:{conv1_id}");
+    let channel2 = format!("conversation:{conv2_id}");
+    let token = make_patient_token(account_id);
+
+    // Un seul socket : abonnement à channel1, PUIS channel2 (même connexion).
+    let (mut ws, reply1) = subscribe(addr, &token, &channel1).await;
+    assert_eq!(reply1["op"], "subscribed", "reply1: {reply1}");
+
+    ws.send(tungstenite::Message::Text(
+        json!({"op": "subscribe", "channel": channel2}).to_string(),
+    ))
+    .await
+    .unwrap();
+    let reply2 = tokio::time::timeout(Duration::from_secs(2), ws.next())
+        .await
+        .expect("réponse subscribe channel2 dans les 2 s")
+        .unwrap()
+        .unwrap();
+    let reply2: serde_json::Value = serde_json::from_str(reply2.to_text().unwrap()).unwrap();
+    assert_eq!(reply2["op"], "subscribed", "reply2: {reply2}");
+
+    // Avant #3870 : ce publish sur channel1 (le 1er abonné) n'était plus
+    // relayé, le bridge ayant été aborté par l'abonnement à channel2.
+    hub.publish_named(
+        &channel1,
+        json!({"channel": channel1, "event": "message_created", "data": {}}).to_string(),
+    );
+
+    let msg = tokio::time::timeout(Duration::from_secs(2), ws.next())
+        .await
+        .expect("event broadcast sur channel1 reçu en < 2 s malgré l'abonnement à channel2")
+        .unwrap()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+    assert_eq!(v["channel"], channel1);
+    assert_eq!(v["event"], "message_created");
+
+    // conv2 d'abord (pas géré par cleanup_fixture, qui n'en connaît qu'une) —
+    // sinon le DELETE cabinet de cleanup_fixture échoue sur la FK restante.
+    sqlx::query("DELETE FROM conversation WHERE id = $1")
+        .bind(conv2_id)
+        .execute(&owner)
+        .await
+        .ok();
+    cleanup_fixture(
+        &owner,
+        cabinet_id,
+        account_user_id,
+        account_id,
+        patient_id,
+        conv1_id,
+    )
+    .await;
+}
+
 // ── Test 4 : canal inconnu → unknown_channel ──────────────────────────────────
 
 #[tokio::test]
