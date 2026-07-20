@@ -245,6 +245,150 @@ async fn consent_put_idempotent_double_grant() {
     cleanup(&db, user_id).await;
 }
 
+// ── Test 3bis : ré-affirmer granted=true déjà accordé ne bouge pas granted_at
+// (#3876 — l'upsert doit être vraiment idempotent, pas juste dédupliquer la ligne) ──
+
+#[tokio::test]
+async fn consent_put_reaffirm_granted_true_keeps_granted_at_stable() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id) = setup_patient(&db).await;
+
+    let make_state = || AppState {
+        db: {
+            let url = std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+            PgPool::connect_lazy(&url).unwrap()
+        },
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let put_grant = || {
+        Request::builder()
+            .method("PUT")
+            .uri("/v1/account/consents/marketing")
+            .header("Content-Type", "application/json")
+            .header(
+                "Authorization",
+                format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+            )
+            .body(Body::from(r#"{"granted":true}"#))
+            .unwrap()
+    };
+
+    let r1 = app(make_state()).oneshot(put_grant()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+
+    let granted_at_1: chrono::DateTime<chrono::Utc> = sqlx::query(
+        "SELECT granted_at FROM consent_record \
+         WHERE patient_account_id = $1 AND purpose = 'marketing'",
+    )
+    .bind(account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap()
+    .try_get("granted_at")
+    .unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    // Ré-affirme le MÊME état (granted:true, déjà accordé) — no-op logique.
+    let r2 = app(make_state()).oneshot(put_grant()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+
+    let granted_at_2: chrono::DateTime<chrono::Utc> = sqlx::query(
+        "SELECT granted_at FROM consent_record \
+         WHERE patient_account_id = $1 AND purpose = 'marketing'",
+    )
+    .bind(account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap()
+    .try_get("granted_at")
+    .unwrap();
+
+    assert_eq!(
+        granted_at_1, granted_at_2,
+        "granted_at doit rester stable sur une ré-affirmation idempotente, \
+         pas être réécrit à chaque PUT granted:true"
+    );
+
+    cleanup(&db, user_id).await;
+}
+
+// ── Test 3ter : symétrique côté révocation (#3876) ────────────────────────────
+
+#[tokio::test]
+async fn consent_put_reaffirm_revoked_keeps_revoked_at_stable() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id) = setup_patient(&db).await;
+
+    let make_state = || AppState {
+        db: {
+            let url = std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+            PgPool::connect_lazy(&url).unwrap()
+        },
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let put_revoke = || {
+        Request::builder()
+            .method("PUT")
+            .uri("/v1/account/consents/marketing")
+            .header("Content-Type", "application/json")
+            .header(
+                "Authorization",
+                format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+            )
+            .body(Body::from(r#"{"granted":false}"#))
+            .unwrap()
+    };
+
+    let r1 = app(make_state()).oneshot(put_revoke()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+
+    let revoked_at_1: chrono::DateTime<chrono::Utc> = sqlx::query(
+        "SELECT revoked_at FROM consent_record \
+         WHERE patient_account_id = $1 AND purpose = 'marketing'",
+    )
+    .bind(account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap()
+    .try_get("revoked_at")
+    .unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    // Ré-affirme le MÊME état (granted:false, déjà révoqué) — no-op logique.
+    let r2 = app(make_state()).oneshot(put_revoke()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+
+    let revoked_at_2: chrono::DateTime<chrono::Utc> = sqlx::query(
+        "SELECT revoked_at FROM consent_record \
+         WHERE patient_account_id = $1 AND purpose = 'marketing'",
+    )
+    .bind(account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap()
+    .try_get("revoked_at")
+    .unwrap();
+
+    assert_eq!(
+        revoked_at_1, revoked_at_2,
+        "revoked_at doit rester stable sur une ré-affirmation idempotente"
+    );
+
+    cleanup(&db, user_id).await;
+}
+
 // ── Test 4 : sans JWT → 401 ───────────────────────────────────────────────────
 
 #[tokio::test]

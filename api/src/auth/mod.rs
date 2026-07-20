@@ -3167,9 +3167,17 @@ pub async fn put_account_consent(
                  CASE WHEN NOT $3 THEN now() ELSE NULL END)
          ON CONFLICT (patient_account_id, purpose) DO UPDATE SET
            granted    = EXCLUDED.granted,
-           granted_at = CASE WHEN EXCLUDED.granted THEN now()
+           -- Idempotent (#3876) : granted_at/revoked_at ne bougent que sur une
+           -- vraie TRANSITION (révoqué→accordé ou accordé→révoqué), jamais sur
+           -- une ré-affirmation de l'état déjà en place — sinon chaque PUT
+           -- granted:true répété écrase l'horodatage RGPD de recueil d'origine
+           -- (preuve légale du moment du consentement), en contradiction avec
+           -- le contrat « Upsert idempotent » documenté ci-dessus.
+           granted_at = CASE WHEN EXCLUDED.granted AND NOT consent_record.granted THEN now()
                               ELSE consent_record.granted_at END,
-           revoked_at = CASE WHEN NOT EXCLUDED.granted THEN now() ELSE NULL END
+           revoked_at = CASE WHEN NOT EXCLUDED.granted AND consent_record.granted THEN now()
+                              WHEN NOT EXCLUDED.granted THEN consent_record.revoked_at
+                              ELSE NULL END
          RETURNING purpose, granted,
                    COALESCE(revoked_at, granted_at, created_at) AS updated_at",
     )
