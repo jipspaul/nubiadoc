@@ -600,3 +600,75 @@ async fn get_provider_reviews_pagination_per_page_1() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+// ── Test 7 : page hors plage → total reste stable, pas 0 (#3864) ─────────────
+
+#[tokio::test]
+async fn get_provider_reviews_total_stable_on_out_of_range_page() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db, "outofrange").await;
+
+    insert_review(
+        &db,
+        f.provider_id,
+        f.patient_account_id,
+        f.appointment_id,
+        5,
+        "published",
+    )
+    .await;
+    insert_review(
+        &db,
+        f.provider_id,
+        f.patient_account_id,
+        f.appointment2_id,
+        3,
+        "published",
+    )
+    .await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/v1/providers/{}/reviews?page=999&per_page=1",
+                    f.provider_id
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    // page hors plage → data vide, mais total reflète le décompte global (2),
+    // pas 0 (avant #3864 : COUNT(*) OVER() porté par les lignes paginées,
+    // aucune ligne renvoyée sur une page hors plage → total retombait à 0).
+    assert_eq!(
+        v["data"].as_array().unwrap().len(),
+        0,
+        "data doit être vide sur une page hors plage"
+    );
+    assert_eq!(
+        v["page"]["total"].as_i64().unwrap(),
+        2,
+        "total doit rester 2 (décompte global stable), pas 0"
+    );
+
+    cleanup_fixture(&db, &f).await;
+}

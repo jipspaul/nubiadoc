@@ -240,10 +240,25 @@ pub async fn list_provider_reviews(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
+    // Requête de comptage séparée de la requête paginée (#3864, même classe que
+    // #3840 sur marketplace.rs::search_providers) : `COUNT(*) OVER()` est porté
+    // par les LIGNES RETOURNÉES elles-mêmes — une page hors plage (OFFSET ≥ nb
+    // d'avis) ne renvoie aucune ligne, donc `total` retombait à 0 au lieu du
+    // vrai décompte global, indépendamment de la page demandée.
+    let total: i64 = sqlx::query(
+        "SELECT COUNT(*) AS total_count FROM review \
+         WHERE provider_id = $1 AND status = 'published'",
+    )
+    .bind(provider_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .try_get("total_count")
+    .map_err(|_| AppError::Internal)?;
+
     let rows = sqlx::query(
         "SELECT id, provider_id, rating, comment, \
-                created_at, author_display, status, \
-                COUNT(*) OVER() AS total_count \
+                created_at, author_display, status \
          FROM review \
          WHERE provider_id = $1 AND status = 'published' \
          ORDER BY created_at DESC \
@@ -257,12 +272,8 @@ pub async fn list_provider_reviews(
     .map_err(|_| AppError::Internal)?;
 
     let mut data: Vec<ReviewItem> = Vec::with_capacity(rows.len());
-    let mut total: i64 = 0;
 
     for row in &rows {
-        if let Ok(n) = row.try_get::<i64, _>("total_count") {
-            total = n;
-        }
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
         let provider_id: Uuid = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
         let rating: i32 = row.try_get("rating").map_err(|_| AppError::Internal)?;
