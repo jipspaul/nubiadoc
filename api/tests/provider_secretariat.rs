@@ -318,6 +318,78 @@ async fn put_provider_secretariats_replaces_assignments() {
         .ok();
 }
 
+// ── Test 3b : secretariat_id en doublon dans le body → 200 idempotent, pas 500 (#3827) ──
+
+#[tokio::test]
+async fn put_provider_secretariats_dup_id_returns_200_idempotent() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("r11_put_dup_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let owner_db = owner_pool().await;
+    let (token, _, _, provider_id) = register_pro(db.clone(), &email).await;
+
+    let sec_id = create_secretariat(db.clone(), &token).await;
+
+    // Le même id deux fois dans le body — plus qu'un INSERT viole la
+    // contrainte unique (provider_id, secretariat_id) → 500 avant le fix.
+    let body = json!({ "secretariat_ids": [sec_id, sec_id] });
+    let resp = app(make_state(db.clone()))
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!(
+                    "/v1/cabinet/providers/{}/secretariats",
+                    provider_id
+                ))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "un id en doublon dans le body ne doit jamais provoquer un 500"
+    );
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let arr: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        arr.as_array().unwrap().len(),
+        1,
+        "le doublon doit être dédupliqué dans la réponse"
+    );
+
+    // L'assignation légitime (non dupliquée) doit être effectivement posée —
+    // avant le fix, le rollback intégral de la transaction laissait [].
+    let row = sqlx::query(
+        "SELECT COUNT(*) AS n FROM provider_secretariat \
+         WHERE provider_id = $1 AND secretariat_id = $2 AND active = true",
+    )
+    .bind(provider_id)
+    .bind(sec_id)
+    .fetch_one(&owner_db)
+    .await
+    .unwrap();
+    let count: i64 = row.try_get("n").unwrap();
+    assert_eq!(
+        count, 1,
+        "l'assignation doit être posée une seule fois malgré le doublon du body"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_db)
+        .await
+        .ok();
+}
+
 // ── Test 4 : PUT secretary → 403 ─────────────────────────────────────────────
 
 #[tokio::test]
