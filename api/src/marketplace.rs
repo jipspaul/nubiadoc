@@ -661,26 +661,14 @@ pub async fn search_providers(
     // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
     // $15=tiers_payant  $16=per_page  $17=offset
-    let sql = format!(
-        "SELECT \
-             p.id AS provider_id, \
-             p.display_name, \
-             s.label AS specialty, \
-             p.sector, \
-             CASE WHEN $1::double precision IS NOT NULL AND $2::double precision IS NOT NULL \
-                  THEN ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) \
-                  ELSE NULL END AS distance_m, \
-             (SELECT min(sl.starts_at) FROM availability_slot sl \
-              WHERE sl.provider_id = p.id AND sl.status = 'open' \
-              AND sl.deleted_at IS NULL AND sl.online_booking = true \
-              AND sl.starts_at > now()) AS next_slot_at, \
-             (SELECT avg(rating)::double precision FROM review \
-              WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
-             ST_Y(p.geo::geometry) AS geo_lat, \
-             ST_X(p.geo::geometry) AS geo_lng, \
-             p.is_listed, \
-             COUNT(*) OVER() AS total_count \
-         FROM provider p \
+    //
+    // from_where_clause est partagé entre la requête paginée et le COUNT
+    // dédié ci-dessous (#3840) : COUNT(*) OVER() portait le total par les
+    // LIGNES PAGINÉES elles-mêmes — une page hors plage (OFFSET > nb de
+    // résultats) renvoie 0 ligne, donc total retombait à 0 au lieu du vrai
+    // total, indépendamment de la page demandée.
+    let from_where_clause = format!(
+        "FROM provider p \
          LEFT JOIN specialty s ON s.id = p.specialty_id \
          LEFT JOIN profession pr ON pr.id = s.profession_id \
          WHERE p.is_listed = true \
@@ -706,10 +694,55 @@ pub async fn search_providers(
                       AND ST_Within(p.geo::geometry, \
                           ST_MakeEnvelope($11, $12, $13, $14, 4326)))) \
              AND ($15::boolean IS NULL OR p.tiers_payant = $15) \
-             {available_clause} \
+             {available_clause}"
+    );
+
+    let sql = format!(
+        "SELECT \
+             p.id AS provider_id, \
+             p.display_name, \
+             s.label AS specialty, \
+             p.sector, \
+             CASE WHEN $1::double precision IS NOT NULL AND $2::double precision IS NOT NULL \
+                  THEN ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) \
+                  ELSE NULL END AS distance_m, \
+             (SELECT min(sl.starts_at) FROM availability_slot sl \
+              WHERE sl.provider_id = p.id AND sl.status = 'open' \
+              AND sl.deleted_at IS NULL AND sl.online_booking = true \
+              AND sl.starts_at > now()) AS next_slot_at, \
+             (SELECT avg(rating)::double precision FROM review \
+              WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
+             ST_Y(p.geo::geometry) AS geo_lat, \
+             ST_X(p.geo::geometry) AS geo_lng, \
+             p.is_listed \
+         {from_where_clause} \
          ORDER BY {sort_clause} \
          LIMIT $16 OFFSET $17"
     );
+
+    let count_sql = format!("SELECT COUNT(*) AS total_count {from_where_clause}");
+
+    let total: i64 = sqlx::query(&count_sql)
+        .bind(near_lat) // $1
+        .bind(near_lng) // $2
+        .bind(radius_m) // $3
+        .bind(q_norm.as_deref()) // $4
+        .bind(params.specialty) // $5
+        .bind(params.sector.as_deref()) // $6
+        .bind(params.teleconsult) // $7
+        .bind(params.pmr) // $8
+        .bind(params.accepts_new) // $9
+        .bind(lang_filter.clone()) // $10
+        .bind(bbox_min_lng) // $11
+        .bind(bbox_min_lat) // $12
+        .bind(bbox_max_lng) // $13
+        .bind(bbox_max_lat) // $14
+        .bind(params.tiers_payant) // $15
+        .fetch_one(&state.db)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .try_get("total_count")
+        .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(&sql)
         .bind(near_lat) // $1
@@ -734,12 +767,8 @@ pub async fn search_providers(
         .map_err(|_| AppError::Internal)?;
 
     let mut data: Vec<ProviderItem> = Vec::with_capacity(rows.len());
-    let mut total: i64 = 0;
 
     for row in &rows {
-        if let Ok(n) = row.try_get::<i64, _>("total_count") {
-            total = n;
-        }
         let geo_lat: Option<f64> = row.try_get("geo_lat").unwrap_or(None);
         let geo_lng: Option<f64> = row.try_get("geo_lng").unwrap_or(None);
         let geo = match (geo_lat, geo_lng) {
