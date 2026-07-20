@@ -231,6 +231,80 @@ async fn patch_slot_retime_to_past_returns_422() {
     cleanup(&db, f.cabinet_id, f.user_id).await;
 }
 
+// ── Test : PATCH mono-champ qui inverse l'intervalle → 422, pas 500 (#3841) ──
+// La garde de cohérence n'exigeait auparavant QUE les deux champs fournis
+// ensemble ; un champ seul comparé implicitement à la borne opposée EXISTANTE
+// en base faisait éclater le CHECK SQL (23514, non mappé) → 500.
+
+#[tokio::test]
+async fn patch_slot_single_field_inverting_interval_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let f = insert_slot_fixture(&db, &suffix).await;
+
+    let token = make_admin_token(f.user_id, f.cabinet_id);
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // starts_at seul, placé APRÈS ends_at existant (now + 5 jours 30 min).
+    let resp = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/slots/{}", f.slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "starts_at": (chrono::Utc::now() + chrono::Duration::days(6)).to_rfc3339(),
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "starts_at seul après ends_at existant doit être rejeté (422), pas planter en 500"
+    );
+
+    // ends_at seul, placé AVANT starts_at existant (now + 5 jours).
+    let resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/slots/{}", f.slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "ends_at": (chrono::Utc::now() + chrono::Duration::days(4)).to_rfc3339(),
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "ends_at seul avant starts_at existant doit être rejeté (422), pas planter en 500"
+    );
+
+    cleanup(&db, f.cabinet_id, f.user_id).await;
+}
+
 // ── Test : retime d'un créneau `held` → 409 (#3743) ──────────────────────────
 // Repro : un créneau tenu par un patient (hold en cours) ne doit pas pouvoir
 // être retimé — sinon /bookings crée le RDV à une heure jamais sélectionnée.

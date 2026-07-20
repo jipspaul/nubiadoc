@@ -2103,11 +2103,6 @@ pub async fn patch_cabinet_slot(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
 
-    if let (Some(sa), Some(ea)) = (new_starts_at, new_ends_at) {
-        if ea <= sa {
-            return Err(AppError::ValidationError);
-        }
-    }
     if let Some(sa) = new_starts_at {
         if sa <= chrono::Utc::now() {
             return Err(AppError::StartAtNotFuture);
@@ -2129,7 +2124,7 @@ pub async fn patch_cabinet_slot(
         .map_err(|_| AppError::Internal)?;
 
     let existing = sqlx::query(
-        "SELECT id, status FROM availability_slot \
+        "SELECT id, status, starts_at, ends_at FROM availability_slot \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(slot_id)
@@ -2142,6 +2137,24 @@ pub async fn patch_cabinet_slot(
     let current_status: String = existing.try_get("status").map_err(|_| AppError::Internal)?;
     if current_status == "booked" {
         return Err(AppError::InvalidStatus);
+    }
+
+    // Garde de cohérence temporelle (#3841) : un PATCH mono-champ (starts_at
+    // OU ends_at seul) ne comparait jamais la nouvelle borne à la borne
+    // EXISTANTE en base — seul le cas des deux champs fournis ensemble était
+    // validé. L'UPDATE COALESCE(...) appliquait alors une borne isolée,
+    // produisant un intervalle inversé rejeté par le CHECK SQL
+    // (availability_slot_time_order, 23514) non mappé → 500 au lieu de 422.
+    let existing_starts_at: chrono::DateTime<chrono::Utc> = existing
+        .try_get("starts_at")
+        .map_err(|_| AppError::Internal)?;
+    let existing_ends_at: chrono::DateTime<chrono::Utc> = existing
+        .try_get("ends_at")
+        .map_err(|_| AppError::Internal)?;
+    let effective_starts_at = new_starts_at.unwrap_or(existing_starts_at);
+    let effective_ends_at = new_ends_at.unwrap_or(existing_ends_at);
+    if effective_ends_at <= effective_starts_at {
+        return Err(AppError::ValidationError);
     }
     // Un créneau `held` est tenu par un patient (hold en cours) : retimer ses
     // heures pendant qu'il est tenu décale silencieusement le RDV créé ensuite
