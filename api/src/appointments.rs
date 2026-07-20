@@ -389,8 +389,10 @@ pub struct CheckinResponse {
 /// `POST /v1/appointments/:id/checkin` — patient signale son arrivée.
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
-/// Vérifie status = 'confirmed' → sinon `409 {"error":"invalid_status"}`.
-/// Vérifie la fenêtre starts_at ± 30 min / + 60 min → sinon `409 {"error":"out_of_window"}`.
+/// Vérifie status = 'confirmed' → sinon `409 {"code":"invalid_status"}`.
+/// Vérifie la fenêtre starts_at ± 60 min → sinon `409 {"code":"too_early"}`
+/// (trop tôt) ou `409 {"code":"out_of_window"}` (trop tard) — #3844 : les
+/// deux bords de la même garde renvoient désormais le même statut HTTP.
 pub async fn checkin_appointment(
     State(state): State<AppState>,
     Extension(hub): Extension<std::sync::Arc<crate::realtime::WsHub>>,

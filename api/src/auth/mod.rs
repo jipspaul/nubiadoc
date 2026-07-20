@@ -228,11 +228,14 @@ impl IntoResponse for AppError {
                 Json(json!({"code": "invalid_status"})),
             )
                 .into_response(),
-            AppError::OutOfWindow => (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(json!({"code": "out_of_window"})),
-            )
-                .into_response(),
+            // #3844 : "hors fenêtre" est un conflit d'état/temps (comme
+            // too_early/too_late/invalid_status, tous en 409), pas une erreur
+            // de validation de payload. Avant ce fix, la même garde ±60min
+            // renvoyait 409 (trop tôt) mais 422 (trop tard) — incohérence
+            // contredisant la doc du handler qui promettait 409.
+            AppError::OutOfWindow => {
+                (StatusCode::CONFLICT, Json(json!({"code": "out_of_window"}))).into_response()
+            }
             AppError::TooEarly => {
                 (StatusCode::CONFLICT, Json(json!({"code": "too_early"}))).into_response()
             }

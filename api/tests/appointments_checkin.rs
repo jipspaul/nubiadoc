@@ -341,10 +341,12 @@ async fn post_checkin_invalid_status_returns_409() {
         .ok();
 }
 
-// ── Test 3 : trop tard (starts_at il y a 2 h, fenêtre expirée) → 422 ────────
+// ── Test 3 : trop tard (starts_at il y a 2 h, fenêtre expirée) → 409 (#3844) ─
+// Même garde de fenêtre que "trop tôt" (test 4 ci-dessous) : un seul et même
+// code HTTP pour "hors fenêtre" — avant #3844, trop tôt=409 mais trop tard=422.
 
 #[tokio::test]
-async fn post_checkin_too_late_returns_422() {
+async fn post_checkin_too_late_returns_409() {
     if !db_available() {
         return;
     }
@@ -418,7 +420,7 @@ async fn post_checkin_too_late_returns_422() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(response.status(), StatusCode::CONFLICT);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
