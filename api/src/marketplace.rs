@@ -115,6 +115,9 @@ pub struct SuggestItem {
 pub struct SuggestResponse {
     pub specialties: Vec<SuggestItem>,
     pub acts: Vec<SuggestItem>,
+    /// #3788 : la profession est le terme de recherche n°1 (« dentiste ») —
+    /// `parse`/`search/providers` la reconnaissaient déjà, l'autocomplétion non.
+    pub professions: Vec<SuggestItem>,
 }
 
 struct SuggestRow {
@@ -122,7 +125,7 @@ struct SuggestRow {
     label: String,
 }
 
-/// `GET /v1/search/suggest` — autocomplete spécialités + actes (docs/12 §12.1).
+/// `GET /v1/search/suggest` — autocomplete professions + spécialités + actes (docs/12 §12.1).
 ///
 /// Route publique, pas de JWT. `q` min 2 chars → 422. Score fixé à 1.0 au MVP.
 /// Garde-fou réglementaire : labels d'orientation uniquement, jamais de diagnostic (07 §8).
@@ -157,6 +160,17 @@ pub async fn suggest_search(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    let profession_rows = sqlx::query_as!(
+        SuggestRow,
+        "SELECT id, label FROM profession \
+         WHERE label ILIKE '%' || $1 || '%' \
+         ORDER BY label LIMIT 5",
+        params.q
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     let specialties = specialty_rows
         .into_iter()
         .map(|r| SuggestItem {
@@ -173,8 +187,20 @@ pub async fn suggest_search(
             score: 1.0,
         })
         .collect();
+    let professions = profession_rows
+        .into_iter()
+        .map(|r| SuggestItem {
+            id: r.id,
+            label: r.label,
+            score: 1.0,
+        })
+        .collect();
 
-    Ok(Json(SuggestResponse { specialties, acts }))
+    Ok(Json(SuggestResponse {
+        specialties,
+        acts,
+        professions,
+    }))
 }
 
 /// `GET /v1/professions` — liste exhaustive des professions de santé (docs/12 §12.1).
