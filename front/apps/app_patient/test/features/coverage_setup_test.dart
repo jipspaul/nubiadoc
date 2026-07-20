@@ -16,6 +16,8 @@ import 'package:app_patient/features/coverage_setup/coverage_setup_page.dart';
 
 class MockUpdateCoverageUseCase extends Mock implements UpdateCoverageUseCase {}
 
+class MockGetCoverageUseCase extends Mock implements GetCoverageUseCase {}
+
 class MockCoverageSetupCubit extends MockCubit<CoverageSetupState>
     implements CoverageSetupCubit {}
 
@@ -53,13 +55,50 @@ void main() {
 
   group('CoverageSetupCubit', () {
     late MockUpdateCoverageUseCase mockUseCase;
+    late MockGetCoverageUseCase mockGetUseCase;
 
     setUp(() {
       mockUseCase = MockUpdateCoverageUseCase();
+      mockGetUseCase = MockGetCoverageUseCase();
     });
 
-    CoverageSetupCubit makeCubit() =>
-        CoverageSetupCubit(updateCoverage: mockUseCase);
+    CoverageSetupCubit makeCubit() => CoverageSetupCubit(
+          getCoverage: mockGetUseCase,
+          updateCoverage: mockUseCase,
+        );
+
+    // Régression #3842 : cet écran est réutilisé pour éditer une couverture
+    // existante depuis le Profil (pas seulement l'onboarding) — il doit
+    // charger et préremplir la couverture réelle, pas afficher un formulaire
+    // vierge qui écraserait silencieusement les données au premier submit.
+    blocTest<CoverageSetupCubit, CoverageSetupState>(
+      'load émet [Loading, Loaded(coverage)] quand le GET réussit',
+      build: () {
+        when(() => mockGetUseCase())
+            .thenAnswer((_) async => const Right(_coverage));
+        return makeCubit();
+      },
+      act: (c) => c.load(),
+      expect: () => [
+        isA<CoverageSetupLoading>(),
+        isA<CoverageSetupLoaded>().having(
+          (s) => s.coverage,
+          'coverage',
+          _coverage,
+        ),
+      ],
+    );
+
+    blocTest<CoverageSetupCubit, CoverageSetupState>(
+      'load émet [Loading, Idle] quand le GET échoue (dégradation gracieuse)',
+      build: () {
+        when(() => mockGetUseCase())
+            .thenAnswer((_) async => const Left(NetworkFailure()));
+        return makeCubit();
+      },
+      act: (c) => c.load(),
+      expect: () => [isA<CoverageSetupLoading>(), isA<CoverageSetupIdle>()],
+    );
 
     blocTest<CoverageSetupCubit, CoverageSetupState>(
       'skip émet [Success] sans appeler le use case',
@@ -159,6 +198,7 @@ void main() {
     setUp(() {
       cubit = MockCoverageSetupCubit();
       when(() => cubit.state).thenReturn(const CoverageSetupIdle());
+      when(() => cubit.load()).thenAnswer((_) async {});
       whenListen(
         cubit,
         Stream<CoverageSetupState>.empty(),
@@ -175,6 +215,14 @@ void main() {
       expect(find.text('CSS'), findsOneWidget);
     });
 
+    testWidgets('appelle load() au chargement de l\'écran (#3842)',
+        (tester) async {
+      await tester.pumpWidget(_wrap(cubit));
+      await tester.pump();
+
+      verify(() => cubit.load()).called(1);
+    });
+
     testWidgets('CoverageSetupFailure → snackbar affiché', (tester) async {
       whenListen(
         cubit,
@@ -188,6 +236,29 @@ void main() {
       await tester.pump();
 
       expect(find.text('Erreur serveur.'), findsOneWidget);
+    });
+
+    // Régression #3842 : la fiche patient chargeait le formulaire vierge
+    // (Régime général, mutuelle/numéro vides) même quand une couverture
+    // réelle existait côté serveur — un « Enregistrer » sans y toucher
+    // écrasait silencieusement la vraie couverture.
+    testWidgets('CoverageSetupLoaded → préremplit régime + mutuelle + numéro',
+        (tester) async {
+      whenListen(
+        cubit,
+        Stream.fromIterable([const CoverageSetupLoaded(_coverage)]),
+        initialState: const CoverageSetupIdle(),
+      );
+
+      await tester.pumpWidget(_wrap(cubit));
+      await tester.pump();
+
+      expect(find.text('MGEN'), findsOneWidget);
+      expect(find.text('123456'), findsOneWidget);
+      final radio = tester.widget<RadioGroup<HealthInsuranceRegime>>(
+        find.byType(RadioGroup<HealthInsuranceRegime>),
+      );
+      expect(radio.groupValue, HealthInsuranceRegime.regimeGeneral);
     });
   });
 }

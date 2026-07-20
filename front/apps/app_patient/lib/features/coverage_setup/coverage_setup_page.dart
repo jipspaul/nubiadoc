@@ -19,11 +19,24 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
   final _amc = TextEditingController();
   final _numeroAdherent = TextEditingController();
 
+  // #3842 : cet écran est réutilisé pour l'onboarding (jamais de couverture
+  // existante → formulaire vierge légitime) ET pour l'édition depuis le
+  // Profil (couverture réelle à précharger). `_initialized` distingue le
+  // chargement initial (spinner plein écran) du re-chargement déclenché par
+  // `submit()` (spinner du bouton seulement, formulaire déjà affiché).
+  bool _initialized = false;
+
   static String _regimeLabel(HealthInsuranceRegime r) => switch (r) {
         HealthInsuranceRegime.regimeGeneral => 'Régime général',
         HealthInsuranceRegime.ame => 'AME',
         HealthInsuranceRegime.css => 'CSS',
       };
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<CoverageSetupCubit>().load();
+  }
 
   @override
   void dispose() {
@@ -46,8 +59,26 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
               if (state is CoverageSetupSuccess) {
                 context.go(AppRouter.home);
               }
+              if (state is CoverageSetupLoaded) {
+                final coverage = state.coverage;
+                _regime = coverage.regime;
+                _amc.text = coverage.insuranceName ?? '';
+                _numeroAdherent.text = coverage.memberNumber ?? '';
+                setState(() => _initialized = true);
+              }
+              // Échec du GET initial (ou aucune couverture existante) :
+              // formulaire vierge — dégradation gracieuse, pas de blocage.
+              if (state is CoverageSetupIdle && !_initialized) {
+                setState(() => _initialized = true);
+              }
             },
             builder: (context, state) {
+              if (!_initialized && state is CoverageSetupLoading) {
+                return const Center(
+                  key: Key('coverage_setup_loading'),
+                  child: CircularProgressIndicator(),
+                );
+              }
               final loading = state is CoverageSetupLoading;
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -70,9 +101,7 @@ class _CoverageSetupPageState extends State<CoverageSetupPage> {
                         key: const Key('coverage_setup_error_banner'),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .errorContainer,
+                          color: Theme.of(context).colorScheme.errorContainer,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
