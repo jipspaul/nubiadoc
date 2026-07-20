@@ -2593,6 +2593,9 @@ pub struct PatchCoverageBody {
 /// en dev/test les octets UTF-8 sont stockés directement.
 /// Upsert `ON CONFLICT (patient_account_id)` : création ou mise à jour atomique.
 /// Champs absents du body = valeurs existantes conservées (COALESCE / CASE).
+/// Exception : `mutuelle` fournie sans `plateforme` remet la plateforme à
+/// NULL (#3817) — `mutuelle` porte une identité complète, la plateforme
+/// tiers-payant de l'ancien organisme ne doit jamais lui survivre.
 /// Réponse `200` avec coverage mise à jour (nss masqué via `mask_nss`).
 pub async fn patch_account_coverage(
     State(state): State<AppState>,
@@ -2608,6 +2611,12 @@ pub async fn patch_account_coverage(
     // dev/test : bytes UTF-8 du NSS plaintext (KMS AES-256-GCM à partir de NUB-T3).
     let nss_encrypted: Option<Vec<u8>> = body.nss.as_deref().map(|s| s.as_bytes().to_vec());
 
+    // #3817 : `mutuelle` porte une identité COMPLÈTE (amc+numero_adherent
+    // obligatoires sur le sous-objet) — un PATCH qui la fournit réaffirme
+    // TOUJOURS l'organisme, y compris sa plateforme tiers-payant (absente =
+    // explicitement remise à NULL, jamais héritée de l'ancien organisme).
+    // Distinct d'un PATCH qui omet `mutuelle` entièrement (ne touche à rien).
+    let mutuelle_provided = body.mutuelle.is_some();
     let (mutuelle_amc, mutuelle_numero, mutuelle_plateforme) = match body.mutuelle {
         Some(m) => {
             if m.amc.trim().is_empty() || m.numero_adherent.trim().is_empty() {
@@ -2636,7 +2645,7 @@ pub async fn patch_account_coverage(
            nss_encrypted      = COALESCE($3, patient_coverage.nss_encrypted), \
            amc                = COALESCE($4, patient_coverage.amc), \
            numero_adherent    = COALESCE($5, patient_coverage.numero_adherent), \
-           plateforme         = COALESCE($6, patient_coverage.plateforme), \
+           plateforme         = CASE WHEN $8 THEN $6 ELSE patient_coverage.plateforme END, \
            tiers_payant       = CASE WHEN $7 IS NOT NULL \
                                      THEN $7 \
                                      ELSE patient_coverage.tiers_payant END, \
@@ -2650,6 +2659,7 @@ pub async fn patch_account_coverage(
     .bind(&mutuelle_numero)
     .bind(&mutuelle_plateforme)
     .bind(body.tiers_payant)
+    .bind(mutuelle_provided)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
