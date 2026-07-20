@@ -27,7 +27,7 @@ class ClinicalAct extends Equatable {
 class ClinicalSession extends Equatable {
   final String id;
   final String appointmentId;
-  final String status; // 'in_progress' | 'completed'
+  final String status; // 'in_progress' | 'completed' | 'cancelled'
   final List<ClinicalAct> acts;
 
   /// Note de séance (chiffrée côté serveur). `null` si aucune note enregistrée.
@@ -56,6 +56,14 @@ class ClinicalSession extends Equatable {
   });
 
   bool get isCompleted => status == 'completed';
+
+  bool get isCancelled => status == 'cancelled';
+
+  /// Séance qui n'est plus actionnable (ni "Terminer" ni autre action de
+  /// séance en cours) : `completed` OU `cancelled` (#3833 — `isCompleted`
+  /// seul traitait `cancelled` comme non-terminé, laissant le bouton
+  /// « Terminer » actif sur une séance annulée → 409 `invalid_status`).
+  bool get isFinished => isCompleted || isCancelled;
 
   @override
   List<Object?> get props => [
