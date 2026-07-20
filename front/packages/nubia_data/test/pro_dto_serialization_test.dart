@@ -59,6 +59,26 @@ void main() {
       final domain = dto.toDomain();
       expect(domain.lastVisitAt, isNotNull);
     });
+
+    test(
+        'fromJson lit le téléphone/e-mail imbriqués sous contact (contrat réel #3832)',
+        () {
+      // api/src/clinical.rs GET /v1/cabinet/patients/:id : {"contact":
+      // {"tel": "+33600000001"}} — jamais de clé top-level phone/email.
+      final json = {
+        'id': 'd0000000-0000-0000-0000-0000000000d1',
+        'first_name': 'Marc',
+        'last_name': 'Dubois',
+        'birth_date': '1979-03-14',
+        'contact': {'tel': '+33600000001', 'email': 'marc@example.com'},
+        'mutuelle': null,
+        'created_at': '2026-06-21T10:24:38.232439+00:00',
+      };
+      final dto = CabinetPatientDto.fromJson(json);
+      expect(dto.phone, '+33600000001',
+          reason: 'contact.tel doit être lu, pas seulement phone top-level');
+      expect(dto.email, 'marc@example.com');
+    });
   });
 
   group('AgendaEntryDto (GET /v1/cabinet/agenda)', () {
