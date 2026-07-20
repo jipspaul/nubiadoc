@@ -1684,6 +1684,25 @@ pub struct PostCabinetMemberBody {
     rpps: Option<String>,
 }
 
+/// Validation de format email minimale (syntaxique, pas de vérification DNS/MX) :
+/// exactement un `@`, partie locale et domaine non vides, domaine contenant un
+/// point, aucun espace. Suffisant pour rejeter les fautes de frappe grossières
+/// (#3879 : "not-an-email" créait un compte pro orphelin + gaspillait le slot
+/// UNIQUE(email)) sans dépendance externe — pas une validation RFC 5322 complète.
+fn is_valid_email_format(email: &str) -> bool {
+    let email = email.trim();
+    if email.is_empty() || email.chars().any(char::is_whitespace) {
+        return false;
+    }
+    let Some((local, domain)) = email.split_once('@') else {
+        return false;
+    };
+    if local.is_empty() || domain.is_empty() || domain.contains('@') {
+        return false;
+    }
+    domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
+}
+
 /// `POST /v1/cabinet/members` — crée un compte collaborateur et l'invite par email.
 ///
 /// Si l'email est inconnu : crée `app_user` (password_hash NULL) + token invite 72 h
@@ -1691,7 +1710,7 @@ pub struct PostCabinetMemberBody {
 /// cabinet (adhésion inactive) : réactive l'adhésion existante (`200`) plutôt que de
 /// heurter l'unicité de l'email (#3878). Si l'email est déjà membre ACTIF du même
 /// cabinet → `409`. Si `rpps` est fourni et `role=practitioner` → crée une entrée
-/// `provider`. Rôle `admin` requis.
+/// `provider`. `email` syntaxiquement invalide → `422` (#3879). Rôle `admin` requis.
 pub async fn post_cabinet_members(
     State(state): State<AppState>,
     claims: ProAdminOrManagerClaims,
@@ -1701,6 +1720,9 @@ pub async fn post_cabinet_members(
     // `manager` est un rôle de secrétariat, pas de cabinet ; le rôle
     // praticien s'appelle `practitioner` (pas `doctor`).
     if !["practitioner", "secretary", "admin"].contains(&body.role.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+    if !is_valid_email_format(&body.email) {
         return Err(AppError::ValidationError);
     }
 
