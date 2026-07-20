@@ -100,6 +100,35 @@ void main() {
     });
   });
 
+  group('ReferringDoctorDto (GET/PUT /v1/account/referring-doctor)', () {
+    // Régression #3843 : l'API ne renvoie JAMAIS name/phone/address — un
+    // médecin hors annuaire est renvoyé sous free_name/free_phone/
+    // free_address. `json['name'] as String` (cast non-nullable) levait un
+    // TypeError sur ce contrat réel ⇒ écran cassé « Erreur de décodage »
+    // alors que la requête répondait 200 avec des données valides.
+    test('fromJson décode la forme free_* (médecin hors annuaire)', () {
+      final dto = ReferringDoctorDto.fromJson({
+        'free_name': 'Dr Hors Base',
+        'free_phone': '0102030405',
+        'free_address': '1 rue X',
+      });
+      expect(dto.name, 'Dr Hors Base');
+      expect(dto.phone, '0102030405');
+      expect(dto.address, '1 rue X');
+      expect(dto.providerId, isNull);
+    });
+
+    test('fromJson préfère name/phone/address si présents (rétrocompat)', () {
+      final dto = ReferringDoctorDto.fromJson({
+        'name': 'Dr Annuaire',
+        'phone': '0600000000',
+        'free_name': 'Ignoré',
+      });
+      expect(dto.name, 'Dr Annuaire');
+      expect(dto.phone, '0600000000');
+    });
+  });
+
   group('QuoteSignedDto (POST /v1/quotes/:id/sign response)', () {
     test('fromJson désérialise le contrat réel (signature synchrone, stub)',
         () {

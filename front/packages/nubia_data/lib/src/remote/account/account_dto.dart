@@ -149,14 +149,22 @@ class ReferringDoctorDto {
     this.address,
   });
 
+  /// `GET/PUT /v1/account/referring-doctor` — l'API n'émet JAMAIS les clés
+  /// `name`/`phone`/`address` : un médecin hors annuaire ("free") est renvoyé
+  /// sous `free_name`/`free_phone`/`free_address` (`api/src/auth/mod.rs`
+  /// `ReferringDoctorResponse`). `json['name'] as String` (cast non-nullable)
+  /// levait un `TypeError` sur ce contrat réel → « Erreur de décodage de la
+  /// réponse » plein écran, cul-de-sac « Réessayer » (#3843). Le cas
+  /// `provider_id` seul (médecin de l'annuaire, sans nom résolu par l'API)
+  /// reste un gap backend distinct, suivi par #3798.
   factory ReferringDoctorDto.fromJson(Map<String, dynamic> json) =>
       ReferringDoctorDto(
         providerId: json['provider_id'] as String?,
-        name: json['name'] as String,
+        name: (json['name'] ?? json['free_name']) as String? ?? '',
         specialty: json['specialty'] as String?,
-        phone: json['phone'] as String?,
+        phone: (json['phone'] ?? json['free_phone']) as String?,
         email: json['email'] as String?,
-        address: json['address'] as String?,
+        address: (json['address'] ?? json['free_address']) as String?,
       );
 
   ReferringDoctor toDomain() => ReferringDoctor(
