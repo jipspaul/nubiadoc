@@ -3046,6 +3046,19 @@ pub struct ConsentUpdateResponse {
     updated_at: String,
 }
 
+/// Référentiel canonique des `purpose` de consentement RGPD gérables (octroi
+/// ET retrait) — partagé entre `put_account_consent` et `get_account_consents`
+/// (#3819 : GET exposait des purposes historiques/hors-référentiel comme
+/// `data_processing`, non gérables via PUT — cul-de-sac RGPD, un consentement
+/// affiché `granted=true` doit toujours rester révocable, art. 7-3).
+const CONSENT_PURPOSES: [&str; 5] = [
+    "soins",
+    "ia_scribe",
+    "marketing",
+    "partage_confrere",
+    "partage_pharmacie",
+];
+
 /// `PUT /v1/account/consents/{purpose}` — donne ou révoque un consentement RGPD.
 ///
 /// Upsert idempotent : `granted_at` posé si accordé, `revoked_at` si révoqué.
@@ -3056,15 +3069,7 @@ pub async fn put_account_consent(
     Path(purpose): Path<String>,
     Json(body): Json<PutConsentBody>,
 ) -> Result<Json<ConsentUpdateResponse>, AppError> {
-    if ![
-        "soins",
-        "ia_scribe",
-        "marketing",
-        "partage_confrere",
-        "partage_pharmacie",
-    ]
-    .contains(&purpose.as_str())
-    {
+    if !CONSENT_PURPOSES.contains(&purpose.as_str()) {
         return Err(AppError::ValidationError);
     }
 
@@ -3320,6 +3325,10 @@ pub async fn patch_account_notification_preferences(
 ///
 /// Lecture seule. Scoped par `patient_account_id = claims.account_id`.
 /// RLS scoped par `app.current_account_id` (migration 0048).
+/// Filtré au référentiel canonique [`CONSENT_PURPOSES`] (#3819) : une ligne
+/// historique/hors-référentiel (ex. `data_processing`, runs QA antérieurs)
+/// ne doit jamais être affichée `granted=true` sans pouvoir être retirée via
+/// `PUT /account/consents/{purpose}`, qui n'accepte que ce même référentiel.
 pub async fn get_account_consents(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -3335,10 +3344,11 @@ pub async fn get_account_consents(
     let rows = sqlx::query(
         "SELECT purpose, granted, granted_at, revoked_at \
          FROM consent_record \
-         WHERE patient_account_id = $1 \
+         WHERE patient_account_id = $1 AND purpose = ANY($2) \
          ORDER BY created_at ASC",
     )
     .bind(claims.account_id)
+    .bind(&CONSENT_PURPOSES[..])
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

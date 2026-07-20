@@ -137,6 +137,105 @@ async fn consents_two_records_returns_array_of_two() {
         .ok();
 }
 
+// ── Test 1b : purpose hors référentiel canonique masqué (#3819) ──────────────
+// GET ne doit exposer que les purposes gérables via PUT — un purpose
+// historique/hors-référentiel (ex. data_processing) affiché granted=true
+// serait autrement un cul-de-sac RGPD (impossible à retirer via PUT, qui
+// rejette ce même purpose en 422).
+
+#[tokio::test]
+async fn consents_non_canonical_purpose_excluded_from_get() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("consents-noncanon+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Dupont')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO consent_record (patient_account_id, app_user_id, purpose, granted) VALUES ($1, $2, 'soins', true)",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Purpose historique hors référentiel canonique (ex. data_processing) —
+    // scopé à ce patient uniquement (app_user_id nullable, migration 0050).
+    sqlx::query(
+        "INSERT INTO consent_record (patient_account_id, purpose, granted) VALUES ($1, 'data_processing', true)",
+    )
+    .bind(account_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/consents")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let arr = v.as_array().expect("réponse doit être un tableau");
+
+    assert!(
+        arr.iter().any(|e| e["purpose"] == "soins"),
+        "le purpose canonique 'soins' doit apparaître"
+    );
+    assert!(
+        !arr.iter().any(|e| e["purpose"] == "data_processing"),
+        "un purpose hors référentiel (non révocable via PUT) ne doit jamais \
+         apparaître granted=true dans GET : {arr:?}"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 2 : patient sans consentement → 200 + tableau vide ──────────────────
 
 #[tokio::test]
