@@ -66,3 +66,4 @@ tokio-tungstenite = "0.24"
 futures-util      = { version = "0.3", default-features = false, features = ["sink"] }
 rcgen             = "0.14"
 rustls            = { version = "0.23.41", default-features = false, features = ["std", "tls12", "ring"] }
+wiremock          = "0.6"
