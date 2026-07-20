@@ -95,6 +95,12 @@ class CabinetAppointmentDto {
         status: _parseStatus(status),
       );
 
+  // #3826 : le back envoie 'done' (jamais 'completed', statut inexistant côté
+  // DB — db/migrations/0010_hifi_extensions.sql) — un RDV terminé retombait
+  // silencieusement sur `requested` (pill « En attente »), indistinguable
+  // d'un RDV réellement en attente de confirmation. Même famille que #3804
+  // (appointment_dto.dart, app patient), fichier distinct (cabinet_appointments_dto.dart,
+  // apps secrétariat/praticien) — un fix de l'un ne corrige pas l'autre.
   static CabinetAppointmentStatus _parseStatus(String value) {
     switch (value) {
       case 'requested':
@@ -103,6 +109,7 @@ class CabinetAppointmentDto {
         return CabinetAppointmentStatus.confirmed;
       case 'in_progress':
         return CabinetAppointmentStatus.inProgress;
+      case 'done':
       case 'completed':
         return CabinetAppointmentStatus.completed;
       case 'cancelled':
