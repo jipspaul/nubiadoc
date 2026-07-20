@@ -1061,7 +1061,6 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 #[derive(Debug, Deserialize)]
 pub(crate) struct ProAdminClaims {
     pub(crate) sub: Uuid,
-    kind: String,
     /// `cabinet_id` porté par le token (jamais du body/query — invariant tenancy).
     pub(crate) cabinet_id: Uuid,
     role: String,
@@ -1087,13 +1086,24 @@ impl FromRequestParts<AppState> for ProAdminClaims {
         let mut validation = Validation::default();
         validation.validate_exp = true;
 
+        // Première passe : extrait `kind` pour renvoyer 403 (pas 401)
+        // si le token est valide mais n'appartient pas à un pro (ex. token
+        // patient) — #3806, décoder directement ProAdminClaims (cabinet_id/role
+        // obligatoires, absents d'un token patient) faisait échouer serde
+        // avant même le test kind, retombant sur 401 Unauthorized.
+        let basic = decode::<KindClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if basic.kind != "pro" {
+            return Err(AppError::Forbidden);
+        }
+
+        // Deuxième passe : décode les champs pro obligatoires (cabinet_id, role).
         let claims = decode::<ProAdminClaims>(token, &key, &validation)
             .map(|d| d.claims)
             .map_err(|_| AppError::Unauthorized)?;
 
-        if claims.kind != "pro" {
-            return Err(AppError::Forbidden);
-        }
         if claims.role != "admin" {
             return Err(AppError::Forbidden);
         }
@@ -1108,7 +1118,6 @@ impl FromRequestParts<AppState> for ProAdminClaims {
 #[derive(Debug, Deserialize)]
 pub(crate) struct ProAdminOrManagerClaims {
     pub(crate) sub: Uuid,
-    kind: String,
     pub(crate) cabinet_id: Uuid,
     role: String,
 }
@@ -1133,13 +1142,22 @@ impl FromRequestParts<AppState> for ProAdminOrManagerClaims {
         let mut validation = Validation::default();
         validation.validate_exp = true;
 
+        // Première passe : extrait `kind` pour renvoyer 403 (pas 401) — #3806,
+        // même défaut que ProAdminClaims (décoder directement échouait la
+        // désérialisation serde pour un token patient, avant le test kind).
+        let basic = decode::<KindClaims>(token, &key, &validation)
+            .map(|d| d.claims)
+            .map_err(|_| AppError::Unauthorized)?;
+
+        if basic.kind != "pro" {
+            return Err(AppError::Forbidden);
+        }
+
+        // Deuxième passe : décode les champs pro obligatoires (cabinet_id, role).
         let claims = decode::<ProAdminOrManagerClaims>(token, &key, &validation)
             .map(|d| d.claims)
             .map_err(|_| AppError::Unauthorized)?;
 
-        if claims.kind != "pro" {
-            return Err(AppError::Forbidden);
-        }
         if claims.role != "admin" && claims.role != "manager" {
             return Err(AppError::Forbidden);
         }

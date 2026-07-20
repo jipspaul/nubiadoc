@@ -4,9 +4,11 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
 use sqlx::PgPool;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -161,4 +163,49 @@ async fn put_listing_online_rpps_not_verified_returns_409() {
         .execute(&owner_pool().await)
         .await
         .ok();
+}
+
+// ── Test 3 : token patient VALIDE → 403, pas 401 (#3806) ──────────────────────
+// ProAdminClaims décodait la struct pro complète (cabinet_id/role obligatoires,
+// absents d'un token patient) AVANT de tester `kind` -> échec serde -> 401,
+// indistinguable d'un token corrompu/expiré côté front.
+
+#[tokio::test]
+async fn put_listing_patient_token_returns_403_not_401() {
+    if !db_available() {
+        return;
+    }
+    let db = app_pool().await;
+
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600;
+    let patient_token = encode(
+        &Header::default(),
+        &json!({"sub": Uuid::new_v4(), "kind": "patient", "account_id": Uuid::new_v4(), "exp": exp}),
+        &EncodingKey::from_secret("test-secret".as_bytes()),
+    )
+    .unwrap();
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/cabinet/provider/listing")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .body(Body::from(json!({"online": true}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "un token patient VALIDE (mauvais kind) doit renvoyer 403, pas 401 \
+         (401 pousse le front à ré-authentifier comme si le token était corrompu)"
+    );
 }
