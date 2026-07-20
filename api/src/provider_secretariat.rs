@@ -101,8 +101,17 @@ pub async fn put_provider_secretariats(
     State(state): State<AppState>,
     claims: ProAdminOrManagerClaims,
     Path(provider_id): Path<Uuid>,
-    Json(body): Json<PutProviderSecretatriatsBody>,
+    Json(mut body): Json<PutProviderSecretatriatsBody>,
 ) -> Result<Json<Vec<ProviderSecretariatItem>>, AppError> {
+    // #3827 : dédup en amont — un secretariat_id en doublon dans le body
+    // faisait échouer le 2e INSERT (contrainte unique provider_id+secretariat_id,
+    // Postgres 23505) mappé en 500, transaction annulée dans son intégralité
+    // (même l'affectation légitime non dupliquée n'était pas posée). Idempotent
+    // par construction plutôt que rejeté : un doublon de body est une entrée
+    // client plausible, pas une erreur qui justifie un 422.
+    let mut seen = std::collections::HashSet::new();
+    body.secretariat_ids.retain(|id| seen.insert(*id));
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
