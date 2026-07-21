@@ -155,5 +155,55 @@ void main() {
         const ConsultationCliniqueLoaded(session: _empty),
       ],
     );
+
+    blocTest<ConsultationCliniqueBloc, ConsultationCliniqueState>(
+      '409 clinical_risk_warning → clinicalRiskWarning, pas actionError (#4057/#4058)',
+      build: () {
+        when(() => addAct.call(
+              consultationId: any(named: 'consultationId'),
+              ccamCode: any(named: 'ccamCode'),
+              label: any(named: 'label'),
+              tooth: any(named: 'tooth'),
+              amountCents: any(named: 'amountCents'),
+              included: any(named: 'included'),
+            )).thenAnswer((_) async => const Left(
+              ClinicalRiskWarningFailure(
+                'Patient sous anticoagulants — vérifier le risque hémorragique.',
+              ),
+            ));
+        return buildBloc();
+      },
+      seed: () => const ConsultationCliniqueLoaded(session: _empty),
+      act: (bloc) => bloc.add(const ConsultationCliniqueActAddRequested(
+        ccamCode: 'HBLD724',
+        label: 'Avulsion',
+        tooth: '46',
+        amountCents: 3348,
+      )),
+      expect: () => [
+        const ConsultationCliniqueLoaded(
+            session: _empty, actionInProgress: true),
+        const ConsultationCliniqueLoaded(
+          session: _empty,
+          clinicalRiskWarning:
+              'Patient sous anticoagulants — vérifier le risque hémorragique.',
+        ),
+      ],
+      verify: (_) => verifyNever(() => getSession.call(any())),
+    );
+
+    blocTest<ConsultationCliniqueBloc, ConsultationCliniqueState>(
+      'consommation de l\'alerte clinique → efface clinicalRiskWarning (#4058)',
+      build: buildBloc,
+      seed: () => const ConsultationCliniqueLoaded(
+        session: _empty,
+        clinicalRiskWarning: 'Patient sous anticoagulants.',
+      ),
+      act: (bloc) =>
+          bloc.add(const ConsultationCliniqueClinicalRiskWarningConsumed()),
+      expect: () => [
+        const ConsultationCliniqueLoaded(session: _empty),
+      ],
+    );
   });
 }

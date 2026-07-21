@@ -37,6 +37,12 @@ class ConsultationCliniqueBloc
         emit(current.copyWith(clearActionError: true));
       }
     });
+    on<ConsultationCliniqueClinicalRiskWarningConsumed>((event, emit) {
+      final current = state;
+      if (current is ConsultationCliniqueLoaded) {
+        emit(current.copyWith(clearClinicalRiskWarning: true));
+      }
+    });
   }
 
   Future<void> _onLoad(
@@ -72,12 +78,22 @@ class ConsultationCliniqueBloc
         included: event.included,
       );
       await result.fold(
-        // #3403 — surface l'erreur (ex. 403 sur séance d'un confrère) au lieu
-        // d'un échec silencieux : on porte le message pour le snackbar.
-        (failure) async => safeEmit(current.copyWith(
-          actionInProgress: false,
-          actionError: failure.message,
-        )),
+        // #4057/#4058 — alerte clinique bloquante : dialogue dédié, pas un
+        // snackbar (l'acte n'a pas été enregistré).
+        (failure) async => safeEmit(
+          failure is ClinicalRiskWarningFailure
+              ? current.copyWith(
+                  actionInProgress: false,
+                  clinicalRiskWarning: failure.message,
+                )
+              // #3403 — surface l'erreur (ex. 403 sur séance d'un confrère)
+              // au lieu d'un échec silencieux : on porte le message pour le
+              // snackbar.
+              : current.copyWith(
+                  actionInProgress: false,
+                  actionError: failure.message,
+                ),
+        ),
         // #3401 — recharge la séance après un ajout réussi pour rafraîchir la
         // liste des actes et le total (sinon l'écran reste « 0 acte · 0.00 € »).
         (_) async {

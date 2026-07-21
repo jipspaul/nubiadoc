@@ -24,10 +24,16 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
   /// #3403). Affiché via snackbar puis consommé, sans quitter l'écran.
   final String? actionError;
 
+  /// Alerte clinique bloquante (#4057/#4058) — distincte de [actionError] :
+  /// affichée via un dialogue bloquant (pas un snackbar), l'acte n'a PAS été
+  /// enregistré (le back a refusé la requête, 409 clinical_risk_warning).
+  final String? clinicalRiskWarning;
+
   const ConsultationCliniqueLoaded({
     required this.session,
     this.actionInProgress = false,
     this.actionError,
+    this.clinicalRiskWarning,
   });
 
   ConsultationCliniqueLoaded copyWith({
@@ -35,16 +41,22 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
     bool? actionInProgress,
     String? actionError,
     bool clearActionError = false,
+    String? clinicalRiskWarning,
+    bool clearClinicalRiskWarning = false,
   }) =>
       ConsultationCliniqueLoaded(
         session: session ?? this.session,
         actionInProgress: actionInProgress ?? this.actionInProgress,
         actionError:
             clearActionError ? null : (actionError ?? this.actionError),
+        clinicalRiskWarning: clearClinicalRiskWarning
+            ? null
+            : (clinicalRiskWarning ?? this.clinicalRiskWarning),
       );
 
   @override
-  List<Object?> get props => [session, actionInProgress, actionError];
+  List<Object?> get props =>
+      [session, actionInProgress, actionError, clinicalRiskWarning];
 }
 
 class ConsultationCliniqueError extends ConsultationCliniqueState {

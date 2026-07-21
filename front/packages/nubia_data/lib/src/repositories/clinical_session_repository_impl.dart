@@ -129,6 +129,16 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
           statusCode: 403,
         ));
       }
+      // #4057/#4058 — alerte clinique bloquante (moteur d'alertes API) :
+      // 409 { code: "clinical_risk_warning", message: "..." }. Distingué de
+      // ServerFailure pour que l'UI affiche un dialogue bloquant dédié.
+      if (e.response?.statusCode == 409 &&
+          e.response?.data is Map &&
+          (e.response?.data as Map)['code'] == 'clinical_risk_warning') {
+        final message = (e.response?.data as Map)['message'] as String? ??
+            'Alerte clinique : acte bloqué.';
+        return Left(ClinicalRiskWarningFailure(message));
+      }
       return Left(ServerFailure(
         message: "Impossible d'ajouter l'acte.",
         statusCode: e.response?.statusCode,

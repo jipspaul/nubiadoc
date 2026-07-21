@@ -55,3 +55,10 @@ class ConsultationCliniqueActionErrorConsumed
     extends ConsultationCliniqueEvent {
   const ConsultationCliniqueActionErrorConsumed();
 }
+
+/// Consomme l'alerte clinique bloquante après acquittement du dialogue —
+/// #4057/#4058.
+class ConsultationCliniqueClinicalRiskWarningConsumed
+    extends ConsultationCliniqueEvent {
+  const ConsultationCliniqueClinicalRiskWarningConsumed();
+}
