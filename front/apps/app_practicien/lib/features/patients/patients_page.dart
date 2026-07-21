@@ -8,6 +8,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'patient_fiche.dart' show PatientDocumentsSection, PatientTagsSection;
 import 'patients_bloc.dart';
 import 'patients_event.dart';
 import 'patients_state.dart';
@@ -299,11 +300,31 @@ class _DetailViewState extends State<_DetailView> {
                     ),
                   ),
                 ],
+                if (p.balanceDueCents != null) ...[
+                  const SizedBox(height: 12),
+                  _InfoRow(
+                    icon: Icons.account_balance_wallet_outlined,
+                    child: Text(
+                      'Solde : ${_formatBalance(p.balanceDueCents!)}',
+                      key: const Key('patient_balance'),
+                      style: p.balanceDueCents! > 0
+                          ? TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                              fontWeight: FontWeight.w600,
+                            )
+                          : null,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 24),
           _AppointmentsHistory(appointments: widget.state.appointments),
+          const SizedBox(height: 24),
+          PatientTagsSection(patientId: p.id),
+          const SizedBox(height: 24),
+          PatientDocumentsSection(patientId: p.id),
           const SizedBox(height: 24),
           Text('Notes', style: textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -348,6 +369,10 @@ class _DetailViewState extends State<_DetailView> {
 
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  /// Centimes → "12,34 €" (#4045).
+  String _formatBalance(int cents) =>
+      '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
 }
 
 // ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ class CabinetPatientDto {
   final String? socialSecurityNumber;
   final String? lastVisitAt;
   final String createdAt;
+  final int? balanceDueCents;
 
   const CabinetPatientDto({
     required this.id,
@@ -23,6 +24,7 @@ class CabinetPatientDto {
     this.socialSecurityNumber,
     this.lastVisitAt,
     required this.createdAt,
+    this.balanceDueCents,
   });
 
   factory CabinetPatientDto.fromJson(Map<String, dynamic> json) {
@@ -46,6 +48,9 @@ class CabinetPatientDto {
       socialSecurityNumber: json['social_security_number'] as String?,
       lastVisitAt: json['last_visit_at'] as String?,
       createdAt: json['created_at'] as String,
+      // Absent de la liste paginée (`GET /cabinet/patients`), présent
+      // uniquement sur `GET /cabinet/patients/:id` (#4044).
+      balanceDueCents: json['balance_due_cents'] as int?,
     );
   }
 
@@ -73,6 +78,7 @@ class CabinetPatientDto {
         socialSecurityNumber: socialSecurityNumber,
         lastVisitAt: lastVisitAt != null ? DateTime.parse(lastVisitAt!) : null,
         createdAt: DateTime.parse(createdAt),
+        balanceDueCents: balanceDueCents,
       );
 
   factory CabinetPatientDto.fromDomain(CabinetPatient p) => CabinetPatientDto(
