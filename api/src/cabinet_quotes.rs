@@ -216,11 +216,19 @@ pub struct CabinetQuoteItem {
     pub created_at: String,
 }
 
+/// Valeurs valides de `quote.status` (CHECK, migration 0006). `cancelled`
+/// n'en fait PAS partie côté back malgré `CabinetQuoteStatus.cancelled` côté
+/// Flutter (incohérence préexistante, hors scope #4066).
+const VALID_QUOTE_STATUSES: [&str; 5] = ["draft", "sent", "signed", "refused", "expired"];
+
 /// `GET /v1/cabinet/quotes` — liste les devis du cabinet courant.
 ///
 /// Token pro requis (secretary, practitioner, admin, manager). `cabinet_id`
 /// extrait du JWT, RLS scopée via `app.current_cabinet_id` (fail-closed).
-/// Filtre optionnel `?status=`. Tri `created_at DESC`.
+/// Filtre optionnel `?status=`, doit être une valeur de `VALID_QUOTE_STATUSES`
+/// sinon `400 invalid_status_filter` (#4066 : avant, une valeur hors énum
+/// (ex. `pending`/`paid`, boutons factices côté web-console) passait telle
+/// quelle en SQL et renvoyait silencieusement `[]`). Tri `created_at DESC`.
 pub async fn list_cabinet_quotes(
     State(state): State<AppState>,
     claims: crate::auth::ProSecretaryPlusClaims,
@@ -228,6 +236,11 @@ pub async fn list_cabinet_quotes(
 ) -> Result<Json<Vec<CabinetQuoteItem>>, AppError> {
     if params.page.is_some() {
         return Err(AppError::UnsupportedPageParam);
+    }
+    if let Some(ref status) = params.status {
+        if !VALID_QUOTE_STATUSES.contains(&status.as_str()) {
+            return Err(AppError::InvalidQuoteStatusFilter);
+        }
     }
     let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
     let offset: i64 = params.offset.unwrap_or(0).max(0);
