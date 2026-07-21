@@ -427,6 +427,10 @@ fn build_router(
             post(treatment_plans::create_treatment_plan),
         )
         .route(
+            "/v1/cabinet/patients/:id/treatment-plans",
+            get(treatment_plans::list_cabinet_treatment_plans),
+        )
+        .route(
             "/v1/cabinet/treatment-plans/:id/phases",
             post(treatment_phases::create_treatment_phase),
         )

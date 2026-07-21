@@ -363,6 +363,14 @@ class _DetailViewState extends State<_DetailView> {
           ),
           const SizedBox(height: 12),
           NubiaButton(
+            key: const Key('btn_treatment_plans'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.assignment_outlined,
+            label: 'Plan de traitement',
+            onPressed: () => context.push('/patients/${p.id}/treatment-plans'),
+          ),
+          const SizedBox(height: 12),
+          NubiaButton(
             key: const Key('btn_export_pdf'),
             variant: NubiaButtonVariant.secondary,
             icon: Icons.picture_as_pdf_outlined,
