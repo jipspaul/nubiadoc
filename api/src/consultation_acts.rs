@@ -23,10 +23,21 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
+    ccam_acts::select_applicable_tariff,
     consultations::ConsultationActItem,
     medical_record::decrypt_stub,
     AppState,
 };
+
+/// Seuil de sous-cotation (#4162, Pilier 5 §4.2) : un `amount_cents` saisi
+/// sous 80% du tarif de référence applicable (`select_applicable_tariff`,
+/// OPTAM-aware) déclenche un avertissement NON BLOQUANT dans la réponse.
+/// Seuil produit choisi (non spécifié par l'issue) — 20% en-dessous reste au
+/// pouvoir d'appréciation du praticien (dépassement d'honoraires négatif
+/// légitime dans certains cas), l'objectif est d'attirer l'attention sur une
+/// saisie probablement erronée (faute de frappe, oubli d'un zéro), pas de
+/// bloquer une décision tarifaire assumée.
+const UNDERQUOTE_WARNING_THRESHOLD_PCT: f64 = 0.20;
 
 /// Mots-clés (sous-chaînes, recherche insensible à la casse) indiquant un
 /// traitement anticoagulant dans `medical_record.treatments` (#4057, v1).
@@ -89,6 +100,11 @@ pub struct AddActBody {
 #[derive(Serialize)]
 pub struct AddActResponse {
     pub act_id: Uuid,
+    /// Avertissement de sous-cotation (#4162) — NON bloquant, l'acte est créé
+    /// normalement. `null` si `amount_cents` absent/nul, code CCAM inconnu du
+    /// référentiel, ou montant saisi au-dessus du seuil.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<String>,
 }
 
 /// `POST /v1/cabinet/consultations/:id/acts` — ajoute un acte CCAM à la séance.
@@ -207,6 +223,53 @@ pub async fn add_consultation_act(
 
     let amount_cents = body.amount_cents.unwrap_or(0);
 
+    // Avertissement de sous-cotation (#4162) — non bloquant : compare
+    // amount_cents au tarif applicable (OPTAM-aware) du référentiel CCAM.
+    let warning = if amount_cents > 0 {
+        let optam_row =
+            sqlx::query("SELECT conventions FROM practitioner WHERE id = $1 AND cabinet_id = $2")
+                .bind(practitioner_id)
+                .bind(claims.cabinet_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        let is_optam = optam_row
+            .and_then(|r| r.try_get::<serde_json::Value, _>("conventions").ok())
+            .and_then(|c| c.get("optam").and_then(serde_json::Value::as_bool))
+            .unwrap_or(false);
+
+        let tariff_row = sqlx::query(
+            "SELECT tarif_cents, secteur1_cents, optam_cents \
+             FROM ccam_act WHERE code = $1",
+        )
+        .bind(ccam_code_trimmed)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        tariff_row.and_then(|row| {
+            let tarif_cents: Option<i32> = row.try_get("tarif_cents").ok();
+            let secteur1_cents: Option<i32> = row.try_get("secteur1_cents").ok();
+            let optam_cents: Option<i32> = row.try_get("optam_cents").ok();
+            let applicable =
+                select_applicable_tariff(is_optam, tarif_cents, secteur1_cents, optam_cents)?;
+            let threshold =
+                (f64::from(applicable) * (1.0 - UNDERQUOTE_WARNING_THRESHOLD_PCT)).round() as i32;
+            if amount_cents < threshold {
+                Some(format!(
+                    "Montant saisi ({:.2} €) significativement inférieur au tarif de \
+                     référence ({:.2} €) pour l'acte {ccam_code_trimmed}.",
+                    f64::from(amount_cents) / 100.0,
+                    f64::from(applicable) / 100.0,
+                ))
+            } else {
+                None
+            }
+        })
+    } else {
+        None
+    };
+
     let act_row = sqlx::query(
         "INSERT INTO consultation_act \
          (cabinet_id, appointment_id, patient_id, practitioner_id, \
@@ -238,7 +301,10 @@ pub async fn add_consultation_act(
         "consultation act added"
     );
 
-    Ok((StatusCode::CREATED, Json(AddActResponse { act_id })))
+    Ok((
+        StatusCode::CREATED,
+        Json(AddActResponse { act_id, warning }),
+    ))
 }
 
 // ── GET /v1/cabinet/consultations/:id/acts ────────────────────────────────────
