@@ -1,5 +1,5 @@
 //! Agrégat de satisfaction patient (#4161) — appelé par
-//! `clinical::get_cabinet_patient` (`PatientAdminSection.satisfaction`).
+//! `patient_detail::get_cabinet_patient` (`PatientAdminSection.satisfaction`).
 //!
 //! Quoi : note moyenne + dernier avis laissés par un patient, scopés au
 //! cabinet courant (un `review` est rattaché à un `provider`, qui appartient

@@ -59,6 +59,7 @@ mod messaging;
 mod ngap_acts;
 mod notifications;
 mod notify;
+mod patient_detail;
 mod patient_satisfaction;
 mod patient_tags;
 mod permissions;
@@ -493,7 +494,7 @@ fn build_router(
         )
         .route(
             "/v1/cabinet/patients/:id",
-            get(clinical::get_cabinet_patient),
+            get(patient_detail::get_cabinet_patient),
         )
         .route(
             "/v1/cabinet/patients/:id/notes",

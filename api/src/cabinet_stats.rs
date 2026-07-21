@@ -154,7 +154,7 @@ pub struct BillingStatsResponse {
     /// Impayé courant (solde actuel, PAS borné par `from`/`to`) : somme des
     /// devis `signed` moins les paiements `pending`/`paid` (jamais
     /// `failed`/`refunded`) — même formule que `balance_due_cents`
-    /// (`clinical.rs::get_cabinet_patient`, US-4.6.2/#4044), agrégée au
+    /// (`patient_detail::get_cabinet_patient`, US-4.6.2/#4044), agrégée au
     /// cabinet entier plutôt qu'à un seul patient.
     pub outstanding_cents: i64,
     /// `signed_count / sent_total` sur la période (`quote.created_at`) —
