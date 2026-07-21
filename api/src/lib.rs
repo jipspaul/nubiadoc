@@ -29,6 +29,7 @@ mod bookings;
 mod brevo_mailer;
 mod cabinet_info;
 mod cabinet_messaging;
+mod cabinet_quote_item_parts;
 mod cabinet_quotes;
 mod cabinet_quotes_patch;
 mod cabinet_secretariats;
@@ -733,6 +734,10 @@ fn build_router(
         .route(
             "/v1/cabinet/quotes/:id/send",
             post(cabinet_quotes::send_cabinet_quote),
+        )
+        .route(
+            "/v1/cabinet/quotes/:id/items/:item_id/parts",
+            patch(cabinet_quote_item_parts::patch_quote_item_parts),
         )
         .route(
             "/v1/cabinet/prescriptions",
