@@ -532,6 +532,10 @@ fn build_router(
             get(medical_questionnaire::get_cabinet_medical_questionnaire),
         )
         .route(
+            "/v1/cabinet/patients/:id/medical-questionnaire/review",
+            post(medical_questionnaire::review_medical_questionnaire),
+        )
+        .route(
             "/v1/cabinet/treatment-plans",
             post(treatment_plans::create_treatment_plan),
         )

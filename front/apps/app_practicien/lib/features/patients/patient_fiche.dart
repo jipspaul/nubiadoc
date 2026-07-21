@@ -5,6 +5,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'medical_questionnaire_review_section.dart';
 import 'patient_fiche_bloc.dart';
 
 class PatientFiche extends StatelessWidget {
@@ -97,6 +98,8 @@ class _PatientFicheScaffold extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (state.showClinical) ClinicalSection(patient: patient),
+                const SizedBox(height: 16),
+                MedicalQuestionnaireReviewSection(patientId: patient.id),
                 const SizedBox(height: 16),
                 PatientTagsSection(patientId: patient.id),
                 const SizedBox(height: 16),

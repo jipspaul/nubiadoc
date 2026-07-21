@@ -194,6 +194,11 @@ async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM medical_record WHERE patient_id = $1")
+        .bind(f.patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
@@ -538,6 +543,247 @@ async fn get_cabinet_medical_questionnaire_no_appointment_returns_403() {
                 .method("GET")
                 .uri(format!(
                     "/v1/cabinet/patients/{}/medical-questionnaire",
+                    f.patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 8 : review importe dans medical_record et passe reviewed ───────────
+
+#[tokio::test]
+async fn review_medical_questionnaire_imports_and_marks_reviewed() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, true).await;
+    let patient_token = make_patient_token(f.patient_user_id, f.account_id);
+    let prac_token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+    let state = make_state(app_pool().await);
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "cabinet_id": f.cabinet_id,
+                        "payload": {
+                            "antecedents": "Diabète type 2",
+                            "allergies": "Pénicilline",
+                            "traitements_en_cours": "Metformine",
+                            "ald": true
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({"cabinet_id": f.cabinet_id, "submit": true}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let review_resp = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-questionnaire/review",
+                    f.patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(review_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(review_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["status"], "reviewed");
+
+    let record_resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    f.patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(record_resp.status(), StatusCode::OK);
+    let record_bytes = axum::body::to_bytes(record_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let record: serde_json::Value = serde_json::from_slice(&record_bytes).unwrap();
+    assert!(record["history"]
+        .as_str()
+        .unwrap()
+        .contains("Diabète type 2"));
+    assert_eq!(record["allergies"][0]["text"], "Pénicilline");
+    assert_eq!(record["treatments"][0]["text"], "Metformine");
+    assert_eq!(record["medico_legal"]["ald"], true);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 9 : review d'une soumission déjà reviewed → 409 ────────────────────
+
+#[tokio::test]
+async fn review_medical_questionnaire_already_reviewed_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, true).await;
+    let patient_token = make_patient_token(f.patient_user_id, f.account_id);
+    let prac_token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+    let state = make_state(app_pool().await);
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({"cabinet_id": f.cabinet_id, "payload": {}}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({"cabinet_id": f.cabinet_id, "submit": true}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let review_uri = format!(
+        "/v1/cabinet/patients/{}/medical-questionnaire/review",
+        f.patient_id
+    );
+    let first = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&review_uri)
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+
+    let second = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&review_uri)
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 10 : review sans soumission visible → 404 ───────────────────────────
+
+#[tokio::test]
+async fn review_medical_questionnaire_no_submission_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, true).await;
+    let prac_token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-questionnaire/review",
+                    f.patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", prac_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 11 : review sans RDV avec ce praticien → 403 ────────────────────────
+
+#[tokio::test]
+async fn review_medical_questionnaire_no_appointment_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, false).await;
+    let prac_token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-questionnaire/review",
                     f.patient_id
                 ))
                 .header("Authorization", format!("Bearer {}", prac_token))
