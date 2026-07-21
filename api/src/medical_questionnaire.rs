@@ -1,13 +1,18 @@
 //! Handlers du questionnaire médical patient pré-consultation (#4108, table
 //! `medical_questionnaire_submission`, migration 0180).
 //!
-//! Trois routes :
+//! Quatre routes :
 //! - `POST /v1/account/medical-questionnaire` (patient) : crée un brouillon.
 //! - `PATCH /v1/account/medical-questionnaire` (patient) : modifie le
 //!   brouillon existant, et/ou le soumet (`submit: true`).
 //! - `GET /v1/cabinet/patients/:id/medical-questionnaire` (praticien) : lit
 //!   la dernière soumission — RLS (`medical_questionnaire_submission_cabinet_read`,
 //!   migration 0180) masque déjà les brouillons, non soumis au cabinet.
+//! - `POST /v1/cabinet/patients/:id/medical-questionnaire/review` (#4110,
+//!   praticien) : valide ET importe la soumission dans `medical_record` —
+//!   passe `status` à `reviewed` dans la même transaction. Revue humaine
+//!   obligatoire : cette route n'est déclenchée que par un clic explicite
+//!   côté praticien (bouton "Valider et importer"), jamais automatiquement.
 //!
 //! Un seul brouillon actif par (patient_account_id, cabinet_id) — pas de
 //! contrainte d'unicité en base (aucune demandée par l'issue), garde
@@ -31,6 +36,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
+    medical_record::{decrypt_stub, encrypt_stub, MedicoLegalFlags},
     AppState,
 };
 
@@ -302,4 +308,208 @@ pub async fn get_cabinet_medical_questionnaire(
     );
 
     Ok(Json(row_to_response(row)?))
+}
+
+// ── POST /v1/cabinet/patients/:id/medical-questionnaire/review ──────────
+
+/// `antecedents` → ajouté à `history` (préfixé, jamais un remplacement — le
+/// texte saisi par le praticien ne doit jamais être écrasé silencieusement).
+/// `allergies`/`traitements_en_cours` → ajoutés comme nouvelle entrée aux
+/// tableaux `allergies[]`/`treatments[]` (mêmes tableaux libres que
+/// `medical_record.rs`, une entrée de plus n'efface rien d'existant).
+/// `ald` → OR logique avec le flag existant (ne redescend jamais un flag
+/// déjà à `true` à `false` sur la foi d'une case non cochée côté patient).
+fn merge_questionnaire_into_record(existing: &Value, payload: &Value) -> Value {
+    let existing_history = existing["history"].as_str().unwrap_or("").to_string();
+    let antecedents = payload["antecedents"].as_str().unwrap_or("").trim();
+    let merged_history = if antecedents.is_empty() {
+        if existing_history.is_empty() {
+            None
+        } else {
+            Some(existing_history)
+        }
+    } else {
+        let addition = format!("[Questionnaire patient] {antecedents}");
+        Some(if existing_history.is_empty() {
+            addition
+        } else {
+            format!("{existing_history}\n\n{addition}")
+        })
+    };
+
+    let mut allergies = existing["allergies"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let allergies_text = payload["allergies"].as_str().unwrap_or("").trim();
+    if !allergies_text.is_empty() {
+        allergies
+            .push(serde_json::json!({"text": allergies_text, "source": "questionnaire_patient"}));
+    }
+
+    let mut treatments = existing["treatments"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let traitements_text = payload["traitements_en_cours"]
+        .as_str()
+        .unwrap_or("")
+        .trim();
+    if !traitements_text.is_empty() {
+        treatments
+            .push(serde_json::json!({"text": traitements_text, "source": "questionnaire_patient"}));
+    }
+
+    let mut medico_legal: MedicoLegalFlags = existing
+        .get("medico_legal")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    medico_legal.ald = medico_legal.ald || payload["ald"].as_bool().unwrap_or(false);
+
+    serde_json::json!({
+        "allergies": allergies,
+        "treatments": treatments,
+        "history": merged_history,
+        "medico_legal": medico_legal,
+    })
+}
+
+/// `POST /v1/cabinet/patients/:id/medical-questionnaire/review` (#4110) —
+/// valide et importe la dernière soumission dans `medical_record`, dans la
+/// même transaction que le passage de `status` à `reviewed`.
+///
+/// `409` si la dernière soumission visible est déjà `reviewed` (rien à
+/// valider). `404` si aucune soumission visible n'existe pour ce patient.
+pub async fn review_medical_questionnaire(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<MedicalQuestionnaireResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let patient_account_id =
+        ensure_practitioner_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub)
+            .await?;
+
+    let submission_row = sqlx::query(
+        "SELECT id, payload, status FROM medical_questionnaire_submission \
+         WHERE patient_account_id = $1 AND cabinet_id = $2 \
+         ORDER BY submitted_at DESC LIMIT 1",
+    )
+    .bind(patient_account_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(submission_row) = submission_row else {
+        return Err(AppError::NotFound);
+    };
+
+    let submission_id: Uuid = submission_row
+        .try_get("id")
+        .map_err(|_| AppError::Internal)?;
+    let status: String = submission_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    let payload: Value = submission_row
+        .try_get("payload")
+        .map_err(|_| AppError::Internal)?;
+
+    if status != "submitted" {
+        return Err(AppError::InvalidStatus);
+    }
+
+    let existing_record_row = sqlx::query(
+        "SELECT id, data_ciphertext FROM medical_record \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+         ORDER BY updated_at DESC LIMIT 1",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let (existing_record_id, existing_data) = match existing_record_row {
+        None => (None, serde_json::json!({})),
+        Some(row) => {
+            let record_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let ciphertext: Vec<u8> = row
+                .try_get("data_ciphertext")
+                .map_err(|_| AppError::Internal)?;
+            let data = decrypt_stub(&ciphertext).unwrap_or_else(|| serde_json::json!({}));
+            (Some(record_id), data)
+        }
+    };
+
+    let merged = merge_questionnaire_into_record(&existing_data, &payload);
+    let ciphertext = encrypt_stub(&merged);
+
+    if let Some(record_id) = existing_record_id {
+        sqlx::query(
+            "UPDATE medical_record \
+             SET data_ciphertext = $1, data_key_ref = 'stub-key-ref', updated_at = now() \
+             WHERE id = $2",
+        )
+        .bind(&ciphertext)
+        .bind(record_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    } else {
+        sqlx::query(
+            "INSERT INTO medical_record \
+             (cabinet_id, patient_id, data_ciphertext, data_key_ref) \
+             VALUES ($1, $2, $3, 'stub-key-ref')",
+        )
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .bind(&ciphertext)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
+    let reviewed_row = sqlx::query(
+        "UPDATE medical_questionnaire_submission \
+         SET status = 'reviewed', updated_at = now() \
+         WHERE id = $1 \
+         RETURNING id, cabinet_id, payload, status, submitted_at",
+    )
+    .bind(submission_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'practitioner', 'import_medical_questionnaire', 'medical_record', $3, $4)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .bind(patient_id)
+    .bind(serde_json::json!({"submission_id": submission_id}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        patient_id = %patient_id,
+        submission_id = %submission_id,
+        "medical questionnaire reviewed and imported"
+    );
+
+    Ok(Json(row_to_response(reviewed_row)?))
 }

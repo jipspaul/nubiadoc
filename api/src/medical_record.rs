@@ -70,7 +70,10 @@ pub struct PatchMedicalRecordBody {
 
 /// Stub : `STUB_ENC:` + JSON sérialisé.
 /// À NUB-T3 : remplacé par AES-256-GCM + envelope KMS Scaleway (`core/crypto`).
-fn encrypt_stub(data: &serde_json::Value) -> Vec<u8> {
+///
+/// `pub(crate)` — réutilisé par `medical_questionnaire.rs` (#4110) pour
+/// écrire le dossier médical importé depuis un questionnaire patient soumis.
+pub(crate) fn encrypt_stub(data: &serde_json::Value) -> Vec<u8> {
     let mut out = b"STUB_ENC:".to_vec();
     out.extend_from_slice(data.to_string().as_bytes());
     out

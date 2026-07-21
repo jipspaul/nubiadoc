@@ -1,0 +1,13 @@
+import 'package:dartz/dartz.dart';
+import 'package:nubia_domain/src/error/failure.dart';
+import 'package:nubia_domain/src/entities/medical_questionnaire.dart';
+import 'package:nubia_domain/src/repositories/cabinet_medical_questionnaire_repository.dart';
+
+class GetCabinetMedicalQuestionnaireUseCase {
+  final CabinetMedicalQuestionnaireRepository _repository;
+
+  const GetCabinetMedicalQuestionnaireUseCase(this._repository);
+
+  Future<Either<Failure, MedicalQuestionnaire?>> call(String patientId) =>
+      _repository.get(patientId);
+}

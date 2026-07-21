@@ -13,6 +13,9 @@ class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
 class _MockListPatientDocuments extends Mock
     implements ListPatientDocumentsUseCase {}
 
+class _MockGetCabinetMedicalQuestionnaire extends Mock
+    implements GetCabinetMedicalQuestionnaireUseCase {}
+
 final _patient = CabinetPatient(
   id: 'pat-1',
   cabinetId: 'cab-1',
@@ -33,6 +36,13 @@ void main() {
     when(() => listDocuments(any())).thenAnswer((_) async => const Right([]));
     GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
       () => listDocuments,
+    );
+
+    final getQuestionnaire = _MockGetCabinetMedicalQuestionnaire();
+    when(() => getQuestionnaire(any()))
+        .thenAnswer((_) async => const Right(null));
+    GetIt.instance.registerFactory<GetCabinetMedicalQuestionnaireUseCase>(
+      () => getQuestionnaire,
     );
 
     addTearDown(GetIt.instance.reset);
