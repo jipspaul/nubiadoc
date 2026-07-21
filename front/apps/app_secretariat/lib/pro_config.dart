@@ -72,6 +72,11 @@ class ProConfig {
         route: '/messages',
       ),
       shell.ProNavDestination(
+        label: 'Motifs de RDV',
+        icon: Icons.event_note_outlined,
+        route: '/appointment-motifs',
+      ),
+      shell.ProNavDestination(
         label: 'Membres',
         icon: Icons.group_outlined,
         route: membersRoute,
