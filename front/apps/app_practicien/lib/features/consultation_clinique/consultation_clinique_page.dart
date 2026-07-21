@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'ccam_picker.dart';
+import '../dental_chart/tooth_grid.dart';
 import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
@@ -128,6 +129,31 @@ class _LoadedView extends StatefulWidget {
 
 class _LoadedViewState extends State<_LoadedView> {
   late final TextEditingController _noteController;
+
+  /// Dent sélectionnée pour le prochain acte CCAM (#4048) — pré-remplit
+  /// `CcamPicker`/`CcamActEditorDialog` au lieu de la saisie texte libre.
+  String? _selectedTooth;
+
+  Future<void> _pickTooth() async {
+    final tooth = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: ToothGrid(
+          quadrants: FdiQuadrants.permanent,
+          keyPrefix: 'act_tooth_picker',
+          colorFor: (code) => code == _selectedTooth
+              ? Theme.of(ctx).colorScheme.primary
+              : Colors.grey.shade100,
+          onTap: (code) => Navigator.of(ctx).pop(code),
+        ),
+      ),
+    );
+    if (tooth != null) {
+      setState(() => _selectedTooth = tooth);
+    }
+  }
 
   @override
   void initState() {
@@ -265,9 +291,38 @@ class _LoadedViewState extends State<_LoadedView> {
             ),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  key: const Key('act_tooth_picker_button'),
+                  onPressed: _pickTooth,
+                  icon: const Icon(Icons.grid_view_outlined, size: 18),
+                  label: Text(
+                    _selectedTooth == null
+                        ? 'Choisir une dent'
+                        : 'Dent $_selectedTooth',
+                  ),
+                ),
+              ),
+              if (_selectedTooth != null)
+                IconButton(
+                  key: const Key('act_tooth_picker_clear'),
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Retirer la dent sélectionnée',
+                  onPressed: () => setState(() => _selectedTooth = null),
+                ),
+            ],
+          ),
+        ),
         CcamPicker(
           key: const Key('ccam_picker'),
           useCase: GetIt.instance<GetActsUseCase>(),
+          // #4048 — la dent choisie via le schéma dentaire pré-remplit
+          // l'éditeur d'acte au lieu de la saisie texte libre.
+          selectedTooth: _selectedTooth,
           // #3402 — l'éditeur d'acte fournit la dent + le montant, transmis au
           // POST .../acts (le total reflète alors la somme des montants).
           onActSubmitted: ({

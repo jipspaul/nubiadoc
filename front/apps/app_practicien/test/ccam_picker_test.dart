@@ -29,13 +29,15 @@ class _Submitted {
 
 Widget _wrap(
   GetActsUseCase useCase,
-  void Function(_Submitted) onSubmitted,
-) =>
+  void Function(_Submitted) onSubmitted, {
+  String? selectedTooth,
+}) =>
     MaterialApp(
       theme: NubiaTheme.light,
       home: Scaffold(
         body: CcamPicker(
           useCase: useCase,
+          selectedTooth: selectedTooth,
           onActSubmitted: ({
             required String code,
             required String label,
@@ -155,6 +157,39 @@ void main() {
 
       expect(find.byKey(const Key('act_editor')), findsNothing);
       expect(submitted, isEmpty);
+    });
+
+    testWidgets(
+        'selectedTooth (#4048) → pré-remplit le champ dent de l\'éditeur',
+        (tester) async {
+      when(() => useCase.search(any()))
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester
+          .pumpWidget(_wrap(useCase, submitted.add, selectedTooth: '26'));
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'déta');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ccam_act_HBLD001')));
+      await tester.pumpAndSettle();
+
+      final field = tester
+          .widget<TextField>(find.descendant(
+            of: find.byKey(const Key('act_editor_tooth_field')),
+            matching: find.byType(TextField),
+          ))
+          .controller;
+      expect(field?.text, '26');
+
+      // Reste modifiable : soumission directe (dent pré-remplie) envoie bien
+      // '26' une fois le montant saisi.
+      await tester.enterText(
+          find.byKey(const Key('act_editor_amount_field')), '10,00');
+      await tester.tap(find.byKey(const Key('act_editor_submit')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, hasLength(1));
+      expect(submitted.first.tooth, '26');
     });
 
     testWidgets('aucun résultat → empty state affiché', (tester) async {
