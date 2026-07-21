@@ -64,6 +64,7 @@ mod patient_guardianship;
 mod patient_merge;
 mod patient_satisfaction;
 mod patient_tags;
+mod periodontal_chart;
 mod permissions;
 mod pharmacy;
 mod prescription_templates;
@@ -514,6 +515,11 @@ fn build_router(
         .route(
             "/v1/cabinet/patients/:id/dental-chart",
             get(dental_chart::get_dental_chart).put(dental_chart::put_dental_chart),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/periodontal-chart",
+            get(periodontal_chart::get_periodontal_chart)
+                .put(periodontal_chart::put_periodontal_chart),
         )
         .route(
             "/v1/cabinet/treatment-plans",
