@@ -289,12 +289,88 @@ class _PatientSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            PatientBalanceSection(patientId: patient.id),
+            const SizedBox(height: 16),
             PatientTagsSection(patientId: patient.id),
             const SizedBox(height: 16),
             PatientDocumentsSection(patientId: patient.id),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Solde restant dû du patient (US-4.6.2, #4044/#4045). Fetch dédié via
+/// `GetCabinetPatientUseCase` : la liste (`PatientsLoaded`, source de
+/// `_PatientSheet`) n'expose pas `balanceDueCents`, seul le détail
+/// (`GET /cabinet/patients/:id`) le renvoie.
+class PatientBalanceSection extends StatefulWidget {
+  const PatientBalanceSection({super.key, required this.patientId});
+
+  final String patientId;
+
+  @override
+  State<PatientBalanceSection> createState() => _PatientBalanceSectionState();
+}
+
+class _PatientBalanceSectionState extends State<PatientBalanceSection> {
+  int? _balanceCents;
+  String? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final result =
+        await GetIt.instance<GetCabinetPatientUseCase>()(widget.patientId);
+    if (!mounted) return;
+    result.fold(
+      (failure) => setState(() {
+        _error = failure.message;
+        _loading = false;
+      }),
+      (patient) => setState(() {
+        _balanceCents = patient.balanceDueCents;
+        _loading = false;
+      }),
+    );
+  }
+
+  /// Centimes → "12,34 €" (#4045).
+  String _formatBalance(int cents) =>
+      '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (_loading) {
+      return const NubiaSkeletonLoader(height: 20, borderRadius: 4);
+    }
+    if (_error != null) {
+      // Best-effort : une fiche patient reste consultable même si le solde
+      // ne charge pas (ex. hors-ligne) — pas de blocage de l'écran.
+      return const SizedBox.shrink();
+    }
+    final cents = _balanceCents ?? 0;
+    return Row(
+      children: [
+        Icon(Icons.account_balance_wallet_outlined,
+            size: 18, color: cs.onSurfaceVariant),
+        const SizedBox(width: 10),
+        Text(
+          'Solde : ${_formatBalance(cents)}',
+          key: const Key('patient_balance'),
+          style: cents > 0
+              ? TextStyle(color: cs.error, fontWeight: FontWeight.w600)
+              : null,
+        ),
+      ],
     );
   }
 }
