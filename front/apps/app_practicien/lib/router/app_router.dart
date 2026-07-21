@@ -10,6 +10,7 @@ import '../features/agenda/agenda_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/consultation_clinique/consultation_clinique_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/dental_chart/dental_chart_page.dart';
 import '../features/devis/devis_page.dart';
 import '../features/ordonnances/ordonnance_new_page.dart';
 import '../features/ordonnances/ordonnances_page.dart';
@@ -108,6 +109,14 @@ class AppRouter {
                   patientId: state.pathParameters['id']!,
                 ),
               ),
+              routes: [
+                GoRoute(
+                  path: 'dental-chart',
+                  builder: (_, state) => DentalChartPage(
+                    patientId: state.pathParameters['id']!,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
