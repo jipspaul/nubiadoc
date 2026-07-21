@@ -1,14 +1,22 @@
 //! `GET /v1/ccam/acts` — recherche dans le référentiel CCAM (#3226).
 //!
+//! #4056 : sélectionne le tarif applicable (`applicable_tariff_cents`) selon
+//! le secteur conventionnel du praticien appelant — OPTAM → `optam_cents`,
+//! sinon `secteur1_cents` (repli sur `tarif_cents` si non classifié, cf.
+//! `ccam_act` #4054 : catalogue partiel). Adhésion OPTAM lue depuis
+//! `practitioner.conventions` (jsonb, colonne posée par la migration 0002,
+//! jusqu'ici jamais lue/écrite — `{"optam": true}` ; absente ou `false` par
+//! défaut). `panier_sante` passthrough (`null` si non classifié).
+//!
 //! Extrait de `consultations.rs` (refactor de taille, cf. #4056 / CLAUDE.md
-//! plafond 700 lignes) — module autonome, mêmes handlers/contrats, aucun
-//! changement fonctionnel. Symétrique à `ngap_acts.rs`.
+//! plafond 700 lignes) — module autonome, symétrique à `ngap_acts.rs`.
 
 use axum::{
     extract::{Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use sqlx::Row;
 
 use crate::{
@@ -23,6 +31,30 @@ pub struct CcamActItem {
     pub label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tarif_cents: Option<i32>,
+    /// Tarif applicable au praticien appelant (#4056) : `optam_cents` s'il a
+    /// adhéré à l'OPTAM, sinon `secteur1_cents` — repli sur `tarif_cents` si
+    /// la ligne n'est pas encore classifiée (#4054/#4055). `null` seulement
+    /// si aucune des trois colonnes n'a de valeur.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub applicable_tariff_cents: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub panier_sante: Option<String>,
+}
+
+/// `optam_cents` si `is_optam`, sinon `secteur1_cents` — repli sur
+/// `tarif_cents` dans les deux cas si la colonne préférée est `NULL` (acte
+/// non classifié, cf. #4054/#4055).
+fn select_applicable_tariff(
+    is_optam: bool,
+    tarif_cents: Option<i32>,
+    secteur1_cents: Option<i32>,
+    optam_cents: Option<i32>,
+) -> Option<i32> {
+    if is_optam {
+        optam_cents.or(secteur1_cents).or(tarif_cents)
+    } else {
+        secteur1_cents.or(tarif_cents)
+    }
 }
 
 /// Réponse de `GET /v1/ccam/acts`.
@@ -45,7 +77,7 @@ pub struct CcamActsQuery {
 /// et libellé ; sans `q`, retourne le début du catalogue. Limité à 25 lignes.
 pub async fn search_ccam_acts(
     State(state): State<AppState>,
-    _claims: ProPractitionerClaims,
+    claims: ProPractitionerClaims,
     Query(query): Query<CcamActsQuery>,
 ) -> Result<Json<CcamActsResponse>, AppError> {
     // q normalisée (trim + minuscules) ; la normalisation des accents se fait
@@ -53,8 +85,27 @@ pub async fn search_ccam_acts(
     // « detartrage » sur « Détartrage ».
     let q = query.q.as_deref().map(|s| s.trim().to_lowercase());
 
+    // Adhésion OPTAM du praticien appelant (#4056) — `practitioner.conventions`
+    // jsonb, `{"optam": true}` ; absente/false par défaut (non-adhérent).
+    let conventions: Option<JsonValue> =
+        sqlx::query("SELECT conventions FROM practitioner WHERE user_id = $1 AND cabinet_id = $2")
+            .bind(claims.sub)
+            .bind(claims.cabinet_id)
+            .fetch_optional(&state.db)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .map(|r| r.try_get("conventions"))
+            .transpose()
+            .map_err(|_| AppError::Internal)?;
+    let is_optam = conventions
+        .as_ref()
+        .and_then(|c| c.get("optam"))
+        .and_then(JsonValue::as_bool)
+        .unwrap_or(false);
+
     let rows = sqlx::query(
-        "SELECT code, label, tarif_cents FROM ccam_act \
+        "SELECT code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante \
+         FROM ccam_act \
          WHERE active = true \
            AND ($1::text IS NULL \
                 OR translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
@@ -71,10 +122,24 @@ pub async fn search_ccam_acts(
     let data = rows
         .into_iter()
         .map(|r| {
+            let tarif_cents: Option<i32> =
+                r.try_get("tarif_cents").map_err(|_| AppError::Internal)?;
+            let secteur1_cents: Option<i32> = r
+                .try_get("secteur1_cents")
+                .map_err(|_| AppError::Internal)?;
+            let optam_cents: Option<i32> =
+                r.try_get("optam_cents").map_err(|_| AppError::Internal)?;
             Ok(CcamActItem {
                 code: r.try_get("code").map_err(|_| AppError::Internal)?,
                 label: r.try_get("label").map_err(|_| AppError::Internal)?,
-                tarif_cents: r.try_get("tarif_cents").map_err(|_| AppError::Internal)?,
+                tarif_cents,
+                applicable_tariff_cents: select_applicable_tariff(
+                    is_optam,
+                    tarif_cents,
+                    secteur1_cents,
+                    optam_cents,
+                ),
+                panier_sante: r.try_get("panier_sante").map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;

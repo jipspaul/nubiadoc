@@ -377,3 +377,185 @@ async fn cabinet_quote_detail_returns_200_with_items() {
         .await
         .ok();
 }
+
+// ── Test 5 : panier_sante exposé par ligne, via ccam_code (#4056) ────────────
+
+#[tokio::test]
+async fn cabinet_quote_detail_exposes_panier_sante_per_line() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+    const TEST_CODE: &str = "TEST4056Q";
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("cq-detail-panier+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO ccam_act (code, label, tarif_cents, panier_sante, active) \
+         VALUES ($1, 'Acte de test #4056', 1000, 'rac0', true) \
+         ON CONFLICT (code) DO UPDATE SET panier_sante = EXCLUDED.panier_sante, active = true",
+    )
+    .bind(TEST_CODE)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet CQ Panier {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Ana', 'Panier')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, $3, 'draft', 20.00, 'EUR')",
+        )
+        .bind(quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Ligne avec ccam_code classifié (rac0) et ligne sans ccam_code (null attendu).
+        sqlx::query(
+            "INSERT INTO quote_item (cabinet_id, quote_id, label, ccam_code, qty, unit_amount) \
+             VALUES ($1, $2, 'Acte classifié', $3, 1, 10.00)",
+        )
+        .bind(cabinet_id)
+        .bind(quote_id)
+        .bind(TEST_CODE)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+             VALUES ($1, $2, 'Ligne libre sans code', 1, 10.00)",
+        )
+        .bind(cabinet_id)
+        .bind(quote_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/quotes/{}", quote_id))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_jwt(user_id, cabinet_id, "secretary")),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    // Cloisonnement R.4127-72 : aucun ccam_code exposé, seulement le libellé.
+    let items = v["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    assert!(items.iter().all(|i| i.get("ccam_code").is_none()));
+
+    let classified = items
+        .iter()
+        .find(|i| i["label"] == "Acte classifié")
+        .unwrap();
+    assert_eq!(classified["panier_sante"], "rac0");
+
+    let unclassified = items
+        .iter()
+        .find(|i| i["label"] == "Ligne libre sans code")
+        .unwrap();
+    assert!(unclassified.get("panier_sante").is_none());
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote_item WHERE quote_id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote WHERE id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM ccam_act WHERE code = $1")
+        .bind(TEST_CODE)
+        .execute(&db)
+        .await
+        .ok();
+}
