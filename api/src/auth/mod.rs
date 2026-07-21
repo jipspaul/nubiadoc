@@ -181,6 +181,11 @@ pub(crate) enum AppError {
     /// déjà pour ce cabinet — le client doit utiliser `PATCH` plutôt que de
     /// créer un doublon (pas de contrainte d'unicité en base, garde applicative).
     MedicalQuestionnaireDraftExists,
+    /// `POST /v1/cabinet/practitioners/me/favorite-acts` (#4112) : cet acte
+    /// CCAM est déjà dans les favoris de ce praticien (pré-vérifié, la table
+    /// a bien `UNIQUE (practitioner_id, ccam_code)` mais l'app évite de
+    /// laisser remonter une violation de contrainte brute en 500).
+    FavoriteActAlreadyExists,
 }
 
 impl IntoResponse for AppError {
@@ -386,6 +391,11 @@ impl IntoResponse for AppError {
             AppError::MedicalQuestionnaireDraftExists => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "medical_questionnaire_draft_exists"})),
+            )
+                .into_response(),
+            AppError::FavoriteActAlreadyExists => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "favorite_act_already_exists"})),
             )
                 .into_response(),
         }

@@ -1,5 +1,11 @@
 //! `GET /v1/ccam/acts` — recherche dans le référentiel CCAM (#3226).
 //!
+//! #4112 : quand `q` est vide, les actes favoris du praticien appelant
+//! (`practitioner_favorite_act`, migration 0181) remontent en tête de
+//! liste, triés par `position` — seulement quand `q` est vide, une
+//! recherche texte reste un filtre pur (pas de biais favoris qui masquerait
+//! un résultat pertinent hors favoris).
+//!
 //! #4056 : sélectionne le tarif applicable (`applicable_tariff_cents`) selon
 //! le secteur conventionnel du praticien appelant — OPTAM → `optam_cents`,
 //! sinon `secteur1_cents` (repli sur `tarif_cents` si non classifié, cf.
@@ -91,37 +97,77 @@ pub async fn search_ccam_acts(
 
     // Adhésion OPTAM du praticien appelant (#4056) — `practitioner.conventions`
     // jsonb, `{"optam": true}` ; absente/false par défaut (non-adhérent).
-    let conventions: Option<JsonValue> =
-        sqlx::query("SELECT conventions FROM practitioner WHERE user_id = $1 AND cabinet_id = $2")
-            .bind(claims.sub)
-            .bind(claims.cabinet_id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|_| AppError::Internal)?
-            .map(|r| r.try_get("conventions"))
-            .transpose()
-            .map_err(|_| AppError::Internal)?;
+    // `id` récupéré dans la même requête pour les favoris (#4112).
+    let practitioner = sqlx::query(
+        "SELECT id, conventions FROM practitioner WHERE user_id = $1 AND cabinet_id = $2",
+    )
+    .bind(claims.sub)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Option<uuid::Uuid> = practitioner
+        .as_ref()
+        .map(|r| r.try_get("id"))
+        .transpose()
+        .map_err(|_| AppError::Internal)?;
+    let conventions: Option<JsonValue> = practitioner
+        .map(|r| r.try_get("conventions"))
+        .transpose()
+        .map_err(|_| AppError::Internal)?;
     let is_optam = conventions
         .as_ref()
         .and_then(|c| c.get("optam"))
         .and_then(JsonValue::as_bool)
         .unwrap_or(false);
 
-    let rows = sqlx::query(
-        "SELECT code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante \
-         FROM ccam_act \
-         WHERE active = true \
-           AND ($1::text IS NULL \
-                OR translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                     LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
-                OR lower(code) LIKE '%' || $1 || '%') \
-         ORDER BY label \
-         LIMIT 25",
-    )
-    .bind(q.as_deref())
-    .fetch_all(&state.db)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let mut rows = Vec::new();
+    if q.is_none() {
+        if let Some(practitioner_id) = practitioner_id {
+            let favorite_rows = sqlx::query(
+                "SELECT c.code, c.label, c.tarif_cents, c.secteur1_cents, c.optam_cents, c.panier_sante \
+                 FROM practitioner_favorite_act f \
+                 JOIN ccam_act c ON c.code = f.ccam_code AND c.active = true \
+                 WHERE f.practitioner_id = $1 \
+                 ORDER BY f.position \
+                 LIMIT 25",
+            )
+            .bind(practitioner_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|_| AppError::Internal)?;
+            rows.extend(favorite_rows);
+        }
+    }
+
+    let remaining = 25 - rows.len() as i64;
+    if remaining > 0 {
+        let favorite_codes: Vec<String> = rows
+            .iter()
+            .map(|r| r.try_get::<String, _>("code"))
+            .collect::<Result<_, _>>()
+            .map_err(|_| AppError::Internal)?;
+
+        let more_rows = sqlx::query(
+            "SELECT code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante \
+             FROM ccam_act \
+             WHERE active = true \
+               AND NOT (code = ANY($2)) \
+               AND ($1::text IS NULL \
+                    OR translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                         LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                    OR lower(code) LIKE '%' || $1 || '%') \
+             ORDER BY label \
+             LIMIT $3",
+        )
+        .bind(q.as_deref())
+        .bind(&favorite_codes)
+        .bind(remaining)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        rows.extend(more_rows);
+    }
 
     let data = rows
         .into_iter()

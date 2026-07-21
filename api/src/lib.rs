@@ -68,6 +68,7 @@ mod patient_tags;
 mod periodontal_chart;
 mod permissions;
 mod pharmacy;
+mod practitioner_favorite_acts;
 mod prescription_templates;
 mod prescriptions;
 mod provider_secretariat;
@@ -741,6 +742,15 @@ fn build_router(
         .route("/v1/specialties", get(marketplace::list_specialties))
         .route("/v1/acts", get(marketplace::list_acts))
         .route("/v1/ccam/acts", get(ccam_acts::search_ccam_acts))
+        .route(
+            "/v1/cabinet/practitioners/me/favorite-acts",
+            get(practitioner_favorite_acts::list_favorite_acts)
+                .post(practitioner_favorite_acts::create_favorite_act),
+        )
+        .route(
+            "/v1/cabinet/practitioners/me/favorite-acts/:ccam_code",
+            delete(practitioner_favorite_acts::delete_favorite_act),
+        )
         .route("/v1/ngap/acts", get(ngap_acts::search_ngap_acts))
         .route("/v1/search/suggest", get(marketplace::suggest_search))
         .route("/v1/search/parse", post(marketplace::parse_search))
