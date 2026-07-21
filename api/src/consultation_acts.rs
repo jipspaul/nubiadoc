@@ -1,6 +1,13 @@
 //! Handlers `/v1/cabinet/consultations/:id/acts` — CRUD des actes CCAM d'une
 //! séance au fauteuil.
 //!
+//! #4057 : `add_consultation_act` bloque (409) l'ajout d'un acte invasif à
+//! risque hémorragique si le dossier médical du patient mentionne un
+//! traitement anticoagulant — table de correspondance v1 simple (mots-clés
+//! et liste de codes CCAM), PAS un moteur d'interaction médicamenteuse.
+//! Aucune garantie d'exhaustivité clinique ; sert de garde-fou minimal
+//! documenté comme tel (§3.4, risque médico-légal identifié pour ce cas précis).
+//!
 //! Extrait de `consultations.rs` (refactor de taille, cf. #4056 / CLAUDE.md
 //! plafond 700 lignes) — module autonome, mêmes handlers/contrats, aucun
 //! changement fonctionnel.
@@ -17,8 +24,49 @@ use uuid::Uuid;
 use crate::{
     auth::{AppError, ProPractitionerClaims},
     consultations::ConsultationActItem,
+    medical_record::decrypt_stub,
     AppState,
 };
+
+/// Mots-clés (sous-chaînes, recherche insensible à la casse) indiquant un
+/// traitement anticoagulant dans `medical_record.treatments` (#4057, v1).
+/// Liste non exhaustive — anticoagulants oraux directs + AVK les plus
+/// courants en France. À enrichir/remplacer par un référentiel médicamenteux
+/// structuré (ex. base Vidal/ANSM) dans une version ultérieure.
+const ANTICOAGULANT_KEYWORDS: &[&str] = &[
+    "anticoagul",
+    "warfarine",
+    "previscan",
+    "sintrom",
+    "xarelto",
+    "eliquis",
+    "pradaxa",
+    "coumadine",
+    "fluindione",
+];
+
+/// Codes CCAM considérés invasifs/à risque hémorragique (avulsions, chirurgie
+/// osseuse, surfaçage radiculaire, gingivectomie) — table de correspondance
+/// v1 simple (#4057), volontairement restreinte aux actes du catalogue
+/// `ccam_act` seedé (migration 0119) les plus manifestement à risque.
+const RISKY_CCAM_CODES_UNDER_ANTICOAGULANTS: &[&str] = &[
+    "HBLD724", // Avulsion d'une dent permanente sur arcade
+    "HBGD047", // Avulsion de dent de sagesse incluse
+    "HBBD002", // Greffe osseuse pré-implantaire
+    "HBFD001", // Surfaçage radiculaire, un sextant
+    "HBFD002", // Gingivectomie, un sextant
+    "HBLD001", // Pose d'un implant dentaire
+];
+
+/// `true` si le JSON `treatments` (tel que stocké par `medical_record.rs`,
+/// `Vec<serde_json::Value>` libre) contient un mot-clé anticoagulant connu.
+/// Représentation JSON entière convertie en texte pour matcher aussi bien
+/// des entrées chaînes (`"Warfarine"`) que des objets (`{"name": "..."}`)
+/// sans imposer un schéma strict à `treatments`.
+fn treatments_mention_anticoagulants(treatments: &serde_json::Value) -> bool {
+    let text = treatments.to_string().to_lowercase();
+    ANTICOAGULANT_KEYWORDS.iter().any(|kw| text.contains(kw))
+}
 
 // ── POST /v1/cabinet/consultations/:id/acts ───────────────────────────────────
 
@@ -53,6 +101,9 @@ pub struct AddActResponse {
 /// - Retourne `201 { act_id }`.
 /// - Body invalide (ccam_code vide, amount_cents < 0) → 422.
 /// - Séance inexistante ou hors tenant → 404.
+/// - Acte invasif à risque hémorragique + dossier médical mentionnant un
+///   traitement anticoagulant → `409 clinical_risk_warning` bloquant (#4057,
+///   table de correspondance v1 simple — voir constantes en tête de module).
 pub async fn add_consultation_act(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -123,6 +174,35 @@ pub async fn add_consultation_act(
     // La séance doit être en cours pour accepter de nouveaux actes.
     if session_status != "in_progress" {
         return Err(AppError::InvalidStatus);
+    }
+
+    // Alerte clinique bloquante (#4057) : acte invasif + patient sous
+    // anticoagulants d'après le dossier médical → 409, pas d'insertion.
+    let ccam_code_trimmed = body.ccam_code.trim();
+    if RISKY_CCAM_CODES_UNDER_ANTICOAGULANTS.contains(&ccam_code_trimmed) {
+        let record_row = sqlx::query(
+            "SELECT data_ciphertext FROM medical_record \
+             WHERE patient_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+             ORDER BY updated_at DESC LIMIT 1",
+        )
+        .bind(patient_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let at_risk = record_row
+            .and_then(|row| row.try_get::<Option<Vec<u8>>, _>("data_ciphertext").ok())
+            .flatten()
+            .and_then(|ct| decrypt_stub(&ct))
+            .is_some_and(|data| treatments_mention_anticoagulants(&data["treatments"]));
+
+        if at_risk {
+            return Err(AppError::ClinicalRiskWarning(format!(
+                "Patient sous anticoagulants (dossier médical) — vérifier le \
+                 risque hémorragique avant l'acte {ccam_code_trimmed} (invasif)."
+            )));
+        }
     }
 
     let amount_cents = body.amount_cents.unwrap_or(0);

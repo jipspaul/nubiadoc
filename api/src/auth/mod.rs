@@ -152,6 +152,12 @@ pub(crate) enum AppError {
     /// aucun `availability_slot` ouvert du praticien (ou dans le passé) → 409
     /// (#3558 : reprogrammation vers un créneau inexistant / date passée).
     SlotUnavailable,
+    /// `POST /v1/cabinet/consultations/:id/acts` : le `ccam_code` soumis est
+    /// à risque au vu d'un flag du dossier médical du patient (#4057, table
+    /// de correspondance v1 simple) → 409 bloquant. Le `String` porte le
+    /// message d'alerte affiché au praticien (ex. "Anticoagulants —
+    /// vérifier le risque hémorragique avant un acte invasif").
+    ClinicalRiskWarning(String),
 }
 
 impl IntoResponse for AppError {
@@ -325,6 +331,11 @@ impl IntoResponse for AppError {
             AppError::SlotUnavailable => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "slot_unavailable"})),
+            )
+                .into_response(),
+            AppError::ClinicalRiskWarning(message) => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "clinical_risk_warning", "message": message})),
             )
                 .into_response(),
         }
