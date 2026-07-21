@@ -51,6 +51,7 @@ mod reminder_dispatch;
 mod reminders;
 mod reviews;
 mod scheduling;
+mod treatment_phases;
 mod treatment_plans;
 mod twilio_sms;
 mod waiting_list;
@@ -424,6 +425,10 @@ fn build_router(
         .route(
             "/v1/cabinet/treatment-plans",
             post(treatment_plans::create_treatment_plan),
+        )
+        .route(
+            "/v1/cabinet/treatment-plans/:id/phases",
+            post(treatment_phases::create_treatment_phase),
         )
         .route(
             "/v1/cabinet/patients/:id/documents",
