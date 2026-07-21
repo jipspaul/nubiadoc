@@ -68,6 +68,7 @@ mod reminder_dispatch;
 mod reminders;
 mod reviews;
 mod scheduling;
+mod support;
 mod treatment_phases;
 mod treatment_plans;
 mod twilio_sms;
@@ -569,6 +570,10 @@ fn build_router(
         .route(
             "/v1/cabinet/conversations/:id/convert-to-appointment",
             post(cabinet_conversation_convert::convert_conversation_to_appointment),
+        )
+        .route(
+            "/v1/support/conversations",
+            post(support::open_support_conversation),
         )
         .route(
             "/v1/cabinet/messages",
