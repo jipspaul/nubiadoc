@@ -654,6 +654,10 @@ fn build_router(
             get(cabinet_stats::get_cabinet_activity_stats),
         )
         .route(
+            "/v1/cabinet/stats/billing",
+            get(cabinet_stats::get_cabinet_billing_stats),
+        )
+        .route(
             "/v1/cabinet/quotes/:id",
             get(cabinet_quotes::get_cabinet_quote).patch(cabinet_quotes_patch::patch_cabinet_quote),
         )
