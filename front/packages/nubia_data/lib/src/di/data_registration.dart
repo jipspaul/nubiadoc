@@ -425,7 +425,9 @@ void _registerClinical(GetIt gi) {
     // prescription use cases
     ..registerFactory(() => CreatePrescriptionUseCase(gi()))
     ..registerFactory(() => SignPrescriptionUseCase(gi()))
-    ..registerFactory(() => SendPrescriptionToPharmacyUseCase(gi()));
+    ..registerFactory(() => SendPrescriptionToPharmacyUseCase(gi()))
+    ..registerFactory(() => ListPrescriptionTemplatesUseCase(gi()))
+    ..registerFactory(() => ApplyPrescriptionTemplateUseCase(gi()));
 }
 
 /// Registers the pro/cabinet data stack.

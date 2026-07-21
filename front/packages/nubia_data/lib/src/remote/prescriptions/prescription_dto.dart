@@ -1,4 +1,5 @@
 import 'package:nubia_domain/src/entities/prescription.dart';
+import 'package:nubia_domain/src/entities/prescription_template.dart';
 
 class PrescriptionItemDto {
   final String label;
@@ -86,5 +87,51 @@ class PrescriptionDto {
           _ => PrescriptionStatus.draft,
         },
         createdAt: DateTime.parse(createdAt),
+      );
+}
+
+class PrescriptionTemplateDto {
+  final String id;
+  final String label;
+  final List<PrescriptionItem> items;
+  final bool isGlobal;
+
+  const PrescriptionTemplateDto({
+    required this.id,
+    required this.label,
+    required this.items,
+    required this.isGlobal,
+  });
+
+  /// Contrat réel (`prescription_templates.rs`) : `items` est un tableau
+  /// jsonb libre côté back (`{label, form, posology, duration, quantity}`),
+  /// `quantity` peut être `null` (contrairement à
+  /// `PrescriptionItemDto.fromJson` qui suppose `quantity` toujours présent
+  /// sur une ordonnance déjà créée) — repli sur chaîne vide plutôt qu'un
+  /// cast qui planterait sur un modèle sans quantité renseignée.
+  factory PrescriptionTemplateDto.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'] as List<dynamic>? ?? [];
+    return PrescriptionTemplateDto(
+      id: json['id'] as String,
+      label: json['label'] as String,
+      isGlobal: json['is_global'] as bool? ?? false,
+      items: rawItems.map((e) {
+        final m = e as Map<String, dynamic>;
+        return PrescriptionItem(
+          label: m['label'] as String? ?? '',
+          form: m['form'] as String?,
+          posology: m['posology'] as String? ?? '',
+          duration: m['duration'] as String? ?? '',
+          quantity: m['quantity'] as String? ?? '',
+        );
+      }).toList(),
+    );
+  }
+
+  PrescriptionTemplate toDomain() => PrescriptionTemplate(
+        id: id,
+        label: label,
+        items: items,
+        isGlobal: isGlobal,
       );
 }

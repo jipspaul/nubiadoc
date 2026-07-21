@@ -34,6 +34,18 @@ class OrdonnancesSigningInProgress extends OrdonnancesState {
   List<Object?> get props => [prescription];
 }
 
+/// Application d'un modèle en cours (#4074) : garde l'écran de relecture du
+/// brouillon monté (contrairement à [OrdonnancesLoading], qui remplacerait
+/// tout l'écran) le temps de l'appel `apply-template` + re-fetch.
+class OrdonnancesApplyingTemplate extends OrdonnancesState {
+  final Prescription prescription;
+
+  const OrdonnancesApplyingTemplate(this.prescription);
+
+  @override
+  List<Object?> get props => [prescription];
+}
+
 class OrdonnancesSigned extends OrdonnancesState {
   final Prescription prescription;
 

@@ -29,3 +29,18 @@ class OrdonnancesSignRequested extends OrdonnancesEvent {
   @override
   List<Object?> get props => [prescriptionId];
 }
+
+/// Applique un modèle (#4074) : préremplit un brouillon avec les lignes du
+/// modèle `templateId` via `POST /v1/cabinet/prescriptions/{id}/apply-template`.
+class OrdonnancesApplyTemplateRequested extends OrdonnancesEvent {
+  final String prescriptionId;
+  final String templateId;
+
+  const OrdonnancesApplyTemplateRequested({
+    required this.prescriptionId,
+    required this.templateId,
+  });
+
+  @override
+  List<Object?> get props => [prescriptionId, templateId];
+}

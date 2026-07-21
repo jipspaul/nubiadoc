@@ -44,4 +44,33 @@ class PrescriptionApi {
     );
     return PrescriptionDto.fromJson(response.data!);
   }
+
+  /// GET /v1/cabinet/prescriptions/{id} — utilisé pour re-fetch l'ordonnance
+  /// après application d'un modèle (#4074) : la route apply-template ne
+  /// renvoie que le nombre de lignes créées, pas les lignes elles-mêmes.
+  Future<PrescriptionDto> getPrescription(String id) async {
+    final response =
+        await _dio.get<Map<String, dynamic>>('/cabinet/prescriptions/$id');
+    return PrescriptionDto.fromJson(response.data!);
+  }
+
+  /// GET /v1/cabinet/prescription-templates (#4074).
+  Future<List<PrescriptionTemplateDto>> listPrescriptionTemplates() async {
+    final response =
+        await _dio.get<List<dynamic>>('/cabinet/prescription-templates');
+    return (response.data ?? [])
+        .map((e) => PrescriptionTemplateDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// POST /v1/cabinet/prescriptions/{id}/apply-template (#4074).
+  Future<void> applyPrescriptionTemplate({
+    required String prescriptionId,
+    required String templateId,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/cabinet/prescriptions/$prescriptionId/apply-template',
+      data: {'template_id': templateId},
+    );
+  }
 }
