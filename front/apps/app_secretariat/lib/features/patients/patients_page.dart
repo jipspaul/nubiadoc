@@ -317,6 +317,7 @@ class PatientBalanceSection extends StatefulWidget {
 class _PatientBalanceSectionState extends State<PatientBalanceSection> {
   int? _balanceCents;
   int? _noShowCount;
+  List<GuardianshipLink>? _guardians;
   String? _error;
   bool _loading = true;
 
@@ -337,8 +338,9 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
       }),
       (patient) => setState(() {
         _balanceCents = patient.balanceDueCents;
-        // Même fetch que le solde (#4090) — pas d'appel réseau dédié.
+        // Même fetch que le solde (#4090/#4091) — pas d'appel réseau dédié.
         _noShowCount = patient.noShowCount;
+        _guardians = patient.guardians;
         _loading = false;
       }),
     );
@@ -362,6 +364,7 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
     }
     final cents = _balanceCents ?? 0;
     final noShowCount = _noShowCount;
+    final guardians = _guardians ?? const [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -392,6 +395,19 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
                 style: noShowCount > 0
                     ? TextStyle(color: cs.error, fontWeight: FontWeight.w600)
                     : null,
+              ),
+            ],
+          ),
+        ],
+        if (guardians.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.shield_outlined, size: 18, color: cs.onSurfaceVariant),
+              const SizedBox(width: 10),
+              Text(
+                'Tuteur : ${guardians.map((g) => g.fullName).join(', ')}',
+                key: const Key('patient_guardians'),
               ),
             ],
           ),
