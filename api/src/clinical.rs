@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
+    patient_satisfaction::{aggregate_patient_satisfaction, PatientSatisfactionSummary},
     AppState, StorageClient,
 };
 
@@ -909,6 +910,11 @@ pub struct PatientAdminSection {
     /// (`create_payment_intent`, `billing.rs`) mais agrégée au patient
     /// (tous ses devis signés) plutôt qu'à un seul devis.
     pub balance_due_cents: i64,
+    /// Note moyenne + dernier avis publié laissé par ce patient envers un
+    /// praticien de CE cabinet (#4161) — `null` si aucun avis. Jamais les
+    /// avis laissés dans un autre cabinet (cloisonnement tenant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub satisfaction: Option<PatientSatisfactionSummary>,
     pub created_at: String,
 }
 
@@ -1084,6 +1090,15 @@ pub async fn get_cabinet_patient(
         .try_get("balance_due_cents")
         .map_err(|_| AppError::Internal)?;
 
+    // Satisfaction (#4161) : nécessite un compte plateforme lié (les avis
+    // sont rattachés à patient_account, pas à patient) — None sinon.
+    let satisfaction = match patient_account_id {
+        Some(account_id) => {
+            aggregate_patient_satisfaction(&mut tx, account_id, claims.cabinet_id).await?
+        }
+        None => None,
+    };
+
     let admin = PatientAdminSection {
         id,
         first_name,
@@ -1092,6 +1107,7 @@ pub async fn get_cabinet_patient(
         contact,
         mutuelle,
         balance_due_cents,
+        satisfaction,
         created_at: created_at.to_rfc3339(),
     };
 
