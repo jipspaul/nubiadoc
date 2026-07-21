@@ -56,6 +56,41 @@ void main() {
       expect(find.text('Signé'), findsOneWidget);
     });
 
+    testWidgets('affiche la sous-ligne detail quand fournie (#4063)',
+        (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const QuoteCard(
+            title: 'Devis',
+            status: QuoteCardStatus.sent,
+            lines: [
+              QuoteLine(
+                label: 'Couronne céramique',
+                amount: '600 €',
+                detail: 'Part AMO : 84,00 €',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('Part AMO : 84,00 €'), findsOneWidget);
+    });
+
+    testWidgets('n\'affiche aucune sous-ligne sans detail', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const QuoteCard(
+            title: 'Devis',
+            status: QuoteCardStatus.sent,
+            lines: _lines,
+          ),
+        ),
+      );
+
+      expect(find.textContaining('Part AMO'), findsNothing);
+    });
+
     testWidgets('déclenche le CTA principal', (tester) async {
       var tapped = false;
       await tester.pumpWidget(

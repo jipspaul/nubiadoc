@@ -243,6 +243,32 @@ void main() {
           findsOneWidget);
     });
 
+    testWidgets('affiche la ventilation Part AMO / Part AMC par ligne (#4063)',
+        (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_quoteWithModereItem]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_quoteWithModereItem));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-modere'));
+      await tester.pumpAndSettle();
+
+      // item-1 : amoShareCents=10000 (100 €), amcShareCents=5000 (50 €).
+      expect(find.textContaining('Part AMO : 100 €'), findsOneWidget);
+      expect(find.textContaining('Part AMC : 50 €'), findsOneWidget);
+    });
+
     testWidgets(
         'n\'affiche pas l\'encart alternative RAC 0 sans ligne panier=modere',
         (tester) async {

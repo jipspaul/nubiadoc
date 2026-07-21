@@ -29,13 +29,17 @@ enum QuoteCardStatus {
 /// Une ligne d'acte d'un devis : libellé + montant formaté.
 @immutable
 class QuoteLine {
-  const QuoteLine({required this.label, required this.amount});
+  const QuoteLine({required this.label, required this.amount, this.detail});
 
   /// Libellé de l'acte (aligné à gauche).
   final String label;
 
   /// Montant formaté (ex. « 1 200 € »), aligné à droite en tabulaire.
   final String amount;
+
+  /// Sous-ligne optionnelle sous le libellé (ex. « Part AMO : 70,00 € »,
+  /// #4063 : ventilation AMO/AMC par acte). `null` = pas de sous-ligne.
+  final String? detail;
 }
 
 /// Carte devis du WEDGE financier.
@@ -124,27 +128,41 @@ class QuoteCard extends StatelessWidget {
               Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 11),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: Text(
-                      lines[i].label,
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          lines[i].label,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        lines[i].amount,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w500,
+                          fontFeatures: _tabular,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (lines[i].detail != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      lines[i].detail!,
+                      style: theme.textTheme.bodySmall?.copyWith(
                         color: cs.onSurfaceVariant,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    lines[i].amount,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurface,
-                      fontWeight: FontWeight.w500,
-                      fontFeatures: _tabular,
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
