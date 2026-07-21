@@ -17,3 +17,24 @@ class ApiGetActsUseCase implements GetActsUseCase {
         .toList();
   }
 }
+
+/// Implémentation réelle de [FavoriteActsUseCase] (#4112/#4113).
+class ApiFavoriteActsUseCase implements FavoriteActsUseCase {
+  final ClinicalSessionApi _api;
+  const ApiFavoriteActsUseCase(this._api);
+
+  @override
+  Future<List<CcamAct>> list() async {
+    final acts = await _api.listFavoriteActs();
+    return acts
+        .map((a) =>
+            CcamAct(code: a.code, label: a.label, tarifCents: a.tarifCents))
+        .toList();
+  }
+
+  @override
+  Future<void> add(String ccamCode) => _api.addFavoriteAct(ccamCode);
+
+  @override
+  Future<void> remove(String ccamCode) => _api.removeFavoriteAct(ccamCode);
+}

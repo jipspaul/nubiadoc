@@ -21,6 +21,8 @@ class MockConsultationCliniqueBloc
 
 class MockGetActsUseCase extends Mock implements GetActsUseCase {}
 
+class MockFavoriteActsUseCase extends Mock implements FavoriteActsUseCase {}
+
 const _session = ClinicalSession(
   id: 's1',
   appointmentId: 'a1',
@@ -34,6 +36,9 @@ void main() {
   setUp(() {
     bloc = MockConsultationCliniqueBloc();
     GetIt.instance.registerFactory<GetActsUseCase>(() => MockGetActsUseCase());
+    final favoriteActs = MockFavoriteActsUseCase();
+    when(() => favoriteActs.list()).thenAnswer((_) async => []);
+    GetIt.instance.registerFactory<FavoriteActsUseCase>(() => favoriteActs);
     addTearDown(GetIt.instance.reset);
   });
 

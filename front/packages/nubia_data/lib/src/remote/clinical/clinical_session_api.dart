@@ -30,6 +30,40 @@ class ClinicalSessionApi {
         .toList();
   }
 
+  /// GET /v1/cabinet/practitioners/me/favorite-acts — actes CCAM favoris du
+  /// praticien appelant, triés par position (#4113).
+  Future<List<({String code, String label, int? tarifCents})>>
+      listFavoriteActs() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/practitioners/me/favorite-acts',
+    );
+    final data = (response.data?['data'] as List<dynamic>? ?? []);
+    return data
+        .map(
+          (e) => (
+            code: (e as Map<String, dynamic>)['ccam_code'] as String,
+            label: e['label'] as String,
+            tarifCents: (e['tarif_cents'] as num?)?.toInt(),
+          ),
+        )
+        .toList();
+  }
+
+  /// POST /v1/cabinet/practitioners/me/favorite-acts
+  Future<void> addFavoriteAct(String ccamCode) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/cabinet/practitioners/me/favorite-acts',
+      data: {'ccam_code': ccamCode},
+    );
+  }
+
+  /// DELETE /v1/cabinet/practitioners/me/favorite-acts/{ccamCode}
+  Future<void> removeFavoriteAct(String ccamCode) async {
+    await _dio.delete<void>(
+      '/cabinet/practitioners/me/favorite-acts/$ccamCode',
+    );
+  }
+
   /// POST /v1/cabinet/appointments/{appointmentId}/start
   Future<ClinicalSessionDto> startSession(String appointmentId) async {
     final response = await _dio.post<Map<String, dynamic>>(

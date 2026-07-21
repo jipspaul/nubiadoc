@@ -35,8 +35,21 @@ abstract class GetActsUseCase {
   Future<List<CcamAct>> search(String prefix);
 }
 
+/// Gestion des actes CCAM favoris du praticien (#4112/#4113) — épingler
+/// depuis les résultats de recherche, désépingler depuis la section favoris.
+abstract class FavoriteActsUseCase {
+  Future<List<CcamAct>> list();
+  Future<void> add(String ccamCode);
+  Future<void> remove(String ccamCode);
+}
+
 class CcamPicker extends StatefulWidget {
   final GetActsUseCase useCase;
+
+  /// `null` : pas de section favoris affichée (usages hors contexte
+  /// praticien connecté — non applicable ici en pratique, mais garde le
+  /// widget testable sans dépendance obligatoire, #4113).
+  final FavoriteActsUseCase? favoritesUseCase;
 
   /// Dent pré-sélectionnée (#4048, schéma dentaire → tap sur une dent) — pré-
   /// remplit le champ dent de l'éditeur au lieu de la saisie texte libre.
@@ -57,6 +70,7 @@ class CcamPicker extends StatefulWidget {
     required this.useCase,
     required this.onActSubmitted,
     this.selectedTooth,
+    this.favoritesUseCase,
   });
 
   @override
@@ -66,11 +80,40 @@ class CcamPicker extends StatefulWidget {
 class _CcamPickerState extends State<CcamPicker> {
   final _controller = TextEditingController();
   List<CcamAct>? _suggestions;
+  List<CcamAct>? _favorites;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavorites();
+  }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadFavorites() async {
+    final useCase = widget.favoritesUseCase;
+    if (useCase == null) return;
+    final favorites = await useCase.list();
+    if (!mounted) return;
+    setState(() => _favorites = favorites);
+  }
+
+  bool _isFavorite(String code) =>
+      _favorites?.any((f) => f.code == code) ?? false;
+
+  Future<void> _toggleFavorite(CcamAct act) async {
+    final useCase = widget.favoritesUseCase;
+    if (useCase == null) return;
+    if (_isFavorite(act.code)) {
+      await useCase.remove(act.code);
+    } else {
+      await useCase.add(act.code);
+    }
+    await _loadFavorites();
   }
 
   Future<void> _onChanged(String value) async {
@@ -104,12 +147,49 @@ class _CcamPickerState extends State<CcamPicker> {
     );
   }
 
+  Widget _favoriteToggleButton(CcamAct act) {
+    final isFavorite = _isFavorite(act.code);
+    return IconButton(
+      key: Key('ccam_favorite_toggle_${act.code}'),
+      icon: Icon(isFavorite ? Icons.push_pin : Icons.push_pin_outlined),
+      tooltip: isFavorite ? 'Désépingler' : 'Épingler en favori',
+      onPressed: () => _toggleFavorite(act),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final suggestions = _suggestions;
+    final favorites = _favorites;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (favorites != null && favorites.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Favoris',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+          ),
+          ListView.builder(
+            key: const Key('ccam_favorites'),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: favorites.length,
+            itemBuilder: (context, i) => ListRow(
+              key: Key('ccam_favorite_${favorites[i].code}'),
+              leading: const Icon(Icons.star, size: 22),
+              title: favorites[i].label,
+              subtitle: favorites[i].code,
+              trailing: _favoriteToggleButton(favorites[i]),
+              onTap: () => _select(favorites[i]),
+            ),
+          ),
+        ],
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
           child: NubiaTextField(
@@ -142,6 +222,9 @@ class _CcamPickerState extends State<CcamPicker> {
                     leading: const Icon(Icons.add_circle_outline, size: 22),
                     title: suggestions[i].label,
                     subtitle: suggestions[i].code,
+                    trailing: widget.favoritesUseCase == null
+                        ? null
+                        : _favoriteToggleButton(suggestions[i]),
                     onTap: () => _select(suggestions[i]),
                   ),
                 ),

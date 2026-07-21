@@ -81,6 +81,9 @@ void registerPro(GetIt gi) {
   gi.registerFactory<GetActsUseCase>(
     () => ApiGetActsUseCase(gi<ClinicalSessionApi>()),
   );
+  gi.registerFactory<FavoriteActsUseCase>(
+    () => ApiFavoriteActsUseCase(gi<ClinicalSessionApi>()),
+  );
 
   gi.registerFactory<ConsultationCliniqueBloc>(
     () => ConsultationCliniqueBloc(

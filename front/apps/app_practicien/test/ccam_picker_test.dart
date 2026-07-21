@@ -11,6 +11,8 @@ import 'package:app_practicien/features/consultation_clinique/ccam_picker.dart';
 
 class MockGetActsUseCase extends Mock implements GetActsUseCase {}
 
+class MockFavoriteActsUseCase extends Mock implements FavoriteActsUseCase {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -31,12 +33,14 @@ Widget _wrap(
   GetActsUseCase useCase,
   void Function(_Submitted) onSubmitted, {
   String? selectedTooth,
+  FavoriteActsUseCase? favoritesUseCase,
 }) =>
     MaterialApp(
       theme: NubiaTheme.light,
       home: Scaffold(
         body: CcamPicker(
           useCase: useCase,
+          favoritesUseCase: favoritesUseCase,
           selectedTooth: selectedTooth,
           onActSubmitted: ({
             required String code,
@@ -203,6 +207,110 @@ void main() {
 
       expect(find.byKey(const Key('ccam_no_results')), findsOneWidget);
       expect(find.byKey(const Key('ccam_suggestions')), findsNothing);
+    });
+  });
+
+  group('CcamPicker — favoris (#4113)', () {
+    late MockGetActsUseCase useCase;
+    late MockFavoriteActsUseCase favoritesUseCase;
+    late List<_Submitted> submitted;
+
+    setUp(() {
+      useCase = MockGetActsUseCase();
+      favoritesUseCase = MockFavoriteActsUseCase();
+      submitted = [];
+    });
+
+    testWidgets('affiche la section favoris avant la recherche',
+        (tester) async {
+      when(() => favoritesUseCase.list())
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester.pumpWidget(
+        _wrap(useCase, submitted.add, favoritesUseCase: favoritesUseCase),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Favoris'), findsOneWidget);
+      expect(
+        find.byKey(const Key('ccam_favorite_HBLD001')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('aucun favori → section favoris absente', (tester) async {
+      when(() => favoritesUseCase.list()).thenAnswer((_) async => []);
+
+      await tester.pumpWidget(
+        _wrap(useCase, submitted.add, favoritesUseCase: favoritesUseCase),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Favoris'), findsNothing);
+      expect(find.byKey(const Key('ccam_favorites')), findsNothing);
+    });
+
+    testWidgets('tap sur un favori ouvre l\'éditeur d\'acte', (tester) async {
+      when(() => favoritesUseCase.list())
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester.pumpWidget(
+        _wrap(useCase, submitted.add, favoritesUseCase: favoritesUseCase),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('ccam_favorite_HBLD001')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('act_editor')), findsOneWidget);
+    });
+
+    testWidgets('désépingler un favori appelle remove() et recharge la liste',
+        (tester) async {
+      when(() => favoritesUseCase.list())
+          .thenAnswer((_) async => [_actDetartrage]);
+      when(() => favoritesUseCase.remove('HBLD001')).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        _wrap(useCase, submitted.add, favoritesUseCase: favoritesUseCase),
+      );
+      await tester.pumpAndSettle();
+
+      when(() => favoritesUseCase.list()).thenAnswer((_) async => []);
+      await tester.tap(find.byKey(const Key('ccam_favorite_toggle_HBLD001')));
+      await tester.pumpAndSettle();
+
+      verify(() => favoritesUseCase.remove('HBLD001')).called(1);
+      expect(find.text('Favoris'), findsNothing);
+    });
+
+    testWidgets(
+        'épingler un résultat de recherche appelle add() et recharge la liste',
+        (tester) async {
+      when(() => favoritesUseCase.list()).thenAnswer((_) async => []);
+      when(() => useCase.search(any()))
+          .thenAnswer((_) async => [_actDetartrage]);
+      when(() => favoritesUseCase.add('HBLD001')).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        _wrap(useCase, submitted.add, favoritesUseCase: favoritesUseCase),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'déta');
+      await tester.pumpAndSettle();
+
+      when(() => favoritesUseCase.list())
+          .thenAnswer((_) async => [_actDetartrage]);
+      await tester.tap(find.byKey(const Key('ccam_favorite_toggle_HBLD001')));
+      await tester.pumpAndSettle();
+
+      verify(() => favoritesUseCase.add('HBLD001')).called(1);
+      // Épingler depuis la recherche n'ouvre pas l'éditeur d'acte (tap sur
+      // le bouton épingle uniquement, pas sur la ligne).
+      expect(find.byKey(const Key('act_editor')), findsNothing);
+      expect(find.text('Favoris'), findsOneWidget);
     });
   });
 }
