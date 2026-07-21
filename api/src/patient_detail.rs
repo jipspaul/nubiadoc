@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
+    patient_guardianship::{aggregate_guardianship, GuardianshipLink},
     patient_satisfaction::{aggregate_patient_satisfaction, PatientSatisfactionSummary},
     AppState,
 };
@@ -46,6 +47,11 @@ pub struct PatientAdminSection {
     /// Nombre de RDV en statut `no_show` de ce patient dans ce cabinet
     /// (#4090) — aucun agrégat n'existait avant cette issue.
     pub no_show_count: i64,
+    /// Tuteurs légaux de ce patient (#4091) — vide si aucun compte
+    /// plateforme lié, ou si aucun lien de tutelle actif.
+    pub guardians: Vec<GuardianshipLink>,
+    /// Proches gérés par ce patient (#4091) — même conditions.
+    pub dependents: Vec<GuardianshipLink>,
     pub created_at: String,
 }
 
@@ -256,6 +262,13 @@ pub async fn get_cabinet_patient(
         .try_get("no_show_count")
         .map_err(|_| AppError::Internal)?;
 
+    // Tuteurs/dépendants (#4091) : entité plateforme, nécessite un compte
+    // lié (comme satisfaction/coverage ci-dessus) — vides sinon.
+    let (guardians, dependents) = match patient_account_id {
+        Some(account_id) => aggregate_guardianship(&mut tx, account_id).await?,
+        None => (Vec::new(), Vec::new()),
+    };
+
     let admin = PatientAdminSection {
         id,
         first_name,
@@ -266,6 +279,8 @@ pub async fn get_cabinet_patient(
         balance_due_cents,
         satisfaction,
         no_show_count,
+        guardians,
+        dependents,
         created_at: created_at.to_rfc3339(),
     };
 

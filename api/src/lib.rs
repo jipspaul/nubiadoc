@@ -60,6 +60,7 @@ mod ngap_acts;
 mod notifications;
 mod notify;
 mod patient_detail;
+mod patient_guardianship;
 mod patient_satisfaction;
 mod patient_tags;
 mod permissions;
