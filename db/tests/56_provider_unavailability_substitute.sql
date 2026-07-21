@@ -14,10 +14,18 @@ INSERT INTO cabinet (id, raison_sociale)
   VALUES ('05600000-0000-0000-0000-000000000001', 'Cabinet 56-substitute')
   ON CONFLICT DO NOTHING;
 
-INSERT INTO provider (id, cabinet_id, display_name)
+INSERT INTO app_user (id, email, password_hash, kind)
   VALUES
-    ('05600000-0000-0000-0000-0000000000a1', '05600000-0000-0000-0000-000000000001', 'Dr Absent 56'),
-    ('05600000-0000-0000-0000-0000000000a2', '05600000-0000-0000-0000-000000000001', 'Dr Remplaçant 56')
+    ('05600000-0000-0000-0000-0000000000c1', 'dr.absent.56@nubia.test', '$argon2id$fixture', 'pro'),
+    ('05600000-0000-0000-0000-0000000000c2', 'dr.remplacant.56@nubia.test', '$argon2id$fixture', 'pro')
+  ON CONFLICT DO NOTHING;
+
+INSERT INTO provider (id, cabinet_id, user_id, display_name)
+  VALUES
+    ('05600000-0000-0000-0000-0000000000a1', '05600000-0000-0000-0000-000000000001',
+     '05600000-0000-0000-0000-0000000000c1', 'Dr Absent 56'),
+    ('05600000-0000-0000-0000-0000000000a2', '05600000-0000-0000-0000-000000000001',
+     '05600000-0000-0000-0000-0000000000c2', 'Dr Remplaçant 56')
   ON CONFLICT DO NOTHING;
 
 -- NULL accepté (comportement historique).
