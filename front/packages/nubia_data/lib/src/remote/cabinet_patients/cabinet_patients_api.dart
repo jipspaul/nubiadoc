@@ -8,10 +8,13 @@ class CabinetPatientsApi {
 
   CabinetPatientsApi(ApiClient client) : _dio = client.dio;
 
-  Future<List<CabinetPatientDto>> list({int page = 1}) async {
+  Future<List<CabinetPatientDto>> list({int page = 1, String? q}) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/cabinet/patients',
-      queryParameters: {'page': page},
+      queryParameters: {
+        'page': page,
+        if (q != null && q.isNotEmpty) 'q': q,
+      },
     );
     final data = (response.data!['data'] as List<dynamic>?) ?? [];
     return data

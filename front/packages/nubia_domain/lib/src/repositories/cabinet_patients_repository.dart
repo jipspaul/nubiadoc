@@ -3,7 +3,15 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/cabinet_patient.dart';
 
 abstract class CabinetPatientsRepository {
-  Future<Either<Failure, List<CabinetPatient>>> list({int page = 1});
+  /// `q` : recherche serveur (`GET /v1/cabinet/patients?q=`, #4043) — filtre
+  /// `ILIKE` nom/prénom côté API (`list_cabinet_patients`, `clinical.rs`).
+  /// Remplace le filtrage en mémoire (ne scale plus au-delà de quelques
+  /// centaines de dossiers). Téléphone/n° dossier : hors scope ici, la
+  /// requête SQL de `q` ne les couvre pas encore côté API.
+  Future<Either<Failure, List<CabinetPatient>>> list({
+    int page = 1,
+    String? q,
+  });
   Future<Either<Failure, CabinetPatient>> getById(String id);
 
   /// Création rapide d'un dossier patient (sans compte plateforme requis) —

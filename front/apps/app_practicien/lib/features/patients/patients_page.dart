@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -36,6 +38,24 @@ class _PatientsBody extends StatefulWidget {
 
 class _PatientsBodyState extends State<_PatientsBody> {
   String _query = '';
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  /// Recherche serveur débattue (#4043) — remplace le filtrage en mémoire,
+  /// qui ne scale plus au-delà de quelques centaines de dossiers. 350 ms,
+  /// même délai que les autres écrans de recherche du monorepo.
+  void _onSearchChanged(String value) {
+    setState(() => _query = value);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      context.read<PatientsBloc>().add(PatientsSearchChanged(value));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,17 +70,13 @@ class _PatientsBodyState extends State<_PatientsBody> {
           );
         }
         if (state is PatientsLoaded) {
-          if (state.patients.isEmpty) {
+          if (state.patients.isEmpty && _query.isEmpty) {
             return const NubiaEmptyState(
               key: Key('patients_empty'),
               icon: Icons.groups_outlined,
               title: 'Aucun patient',
             );
           }
-          final filtered = state.patients
-              .where((p) =>
-                  p.fullName.toLowerCase().contains(_query.toLowerCase()))
-              .toList();
           return Column(
             children: [
               Padding(
@@ -69,10 +85,10 @@ class _PatientsBodyState extends State<_PatientsBody> {
                   key: const Key('patients_search'),
                   variant: NubiaTextFieldVariant.search,
                   hint: 'Rechercher un patient',
-                  onChanged: (value) => setState(() => _query = value),
+                  onChanged: _onSearchChanged,
                 ),
               ),
-              if (filtered.isEmpty)
+              if (state.patients.isEmpty)
                 const Expanded(
                   child: NubiaEmptyState(
                     key: Key('patients_search_empty'),
@@ -86,9 +102,9 @@ class _PatientsBodyState extends State<_PatientsBody> {
                   child: ListView.builder(
                     key: const Key('patients_list'),
                     padding: const EdgeInsets.only(bottom: 8),
-                    itemCount: filtered.length,
+                    itemCount: state.patients.length,
                     itemBuilder: (context, i) {
-                      final p = filtered[i];
+                      final p = state.patients[i];
                       return ListRow(
                         key: Key('patient_${p.id}'),
                         leading: NubiaAvatar(initials: _initials(p.fullName)),

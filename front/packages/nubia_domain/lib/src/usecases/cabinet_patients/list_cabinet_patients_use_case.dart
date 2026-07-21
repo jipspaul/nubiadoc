@@ -10,6 +10,7 @@ class ListCabinetPatientsUseCase {
 
   Future<Either<Failure, List<CabinetPatient>>> call({
     int page = 1,
+    String? q,
   }) =>
-      _repository.list(page: page);
+      _repository.list(page: page, q: q);
 }
