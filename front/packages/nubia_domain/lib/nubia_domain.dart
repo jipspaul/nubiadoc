@@ -234,6 +234,10 @@ export 'src/usecases/cabinet_messaging/convert_conversation_to_appointment_use_c
 // cabinet info pro
 export 'src/repositories/cabinet_repository.dart';
 export 'src/usecases/cabinet_info/update_cabinet_use_case.dart';
+// medical record pro (#4076)
+export 'src/entities/medical_record_summary.dart';
+export 'src/repositories/medical_record_repository.dart';
+export 'src/usecases/medical_record/get_medical_record_use_case.dart';
 // cabinet dashboard pro
 export 'src/repositories/cabinet_dashboard_repository.dart';
 export 'src/usecases/cabinet_dashboard/get_pro_dashboard_summary_use_case.dart';

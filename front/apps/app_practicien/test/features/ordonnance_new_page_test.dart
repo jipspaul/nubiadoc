@@ -27,6 +27,25 @@ class _StubDirectoryRepository extends Mock
 class _StubPrescriptionRepository extends Mock
     implements PrescriptionRepository {}
 
+class _MockMedicalRecordRepository extends Mock
+    implements MedicalRecordRepository {}
+
+final _medicalRecordRepo = _MockMedicalRecordRepository();
+
+/// `_PrescriptionFormState` résout `GetMedicalRecordUseCase` via GetIt
+/// (#4076, même pattern que `SendToPharmacyCubit` ci-dessus) — un mock
+/// partagé, re-stubbable par test (`when` écrase la stub précédente).
+void registerMedicalRecordStub() {
+  when(() => _medicalRecordRepo.getMedicalRecord(any())).thenAnswer(
+    (_) async =>
+        const Right(MedicalRecordSummary(allergies: [], treatments: [])),
+  );
+  if (GetIt.instance.isRegistered<GetMedicalRecordUseCase>()) return;
+  GetIt.instance.registerFactory<GetMedicalRecordUseCase>(
+    () => GetMedicalRecordUseCase(_medicalRecordRepo),
+  );
+}
+
 /// La confirmation de signature monte SendToPharmacyCubit via GetIt (F9) :
 /// on enregistre un cubit réel branché sur des stubs sans pharmacie déclarée.
 void registerSendToPharmacyStub() {
@@ -119,6 +138,7 @@ void main() {
   setUp(() {
     bloc = MockOrdonnancesBloc();
     when(() => bloc.state).thenReturn(const OrdonnancesInitial());
+    registerMedicalRecordStub();
   });
 
   group('OrdonnanceNewBody', () {
@@ -141,6 +161,62 @@ void main() {
         ),
       );
       expect(button.onPressed, isNull);
+    });
+
+    testWidgets('patient avec allergie renseignée → bandeau affiché (#4076)',
+        (tester) async {
+      when(() => _medicalRecordRepo.getMedicalRecord('patient-1')).thenAnswer(
+        (_) async => const Right(
+          MedicalRecordSummary(allergies: ['Pénicilline'], treatments: []),
+        ),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('allergies_banner')), findsOneWidget);
+      expect(find.text('Pénicilline'), findsOneWidget);
+    });
+
+    testWidgets('patient sans allergie → aucun bandeau affiché (#4076)',
+        (tester) async {
+      when(() => _medicalRecordRepo.getMedicalRecord('patient-1')).thenAnswer(
+        (_) async =>
+            const Right(MedicalRecordSummary(allergies: [], treatments: [])),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('allergies_banner')), findsNothing);
+    });
+
+    testWidgets(
+        'patient avec allergie → aucun champ de saisie désactivé (#4076)',
+        (tester) async {
+      when(() => _medicalRecordRepo.getMedicalRecord('patient-1')).thenAnswer(
+        (_) async => const Right(
+          MedicalRecordSummary(allergies: ['Pénicilline'], treatments: []),
+        ),
+      );
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('allergies_banner')), findsOneWidget);
+      // La saisie reste pleinement utilisable : les champs sont éditables et
+      // le bouton "Ajouter un médicament" reste actif.
+      final addButton =
+          tester.widget<NubiaButton>(find.byKey(const Key('add_item_button')));
+      expect(addButton.onPressed, isNotNull);
+      await _fillItem(tester, 0);
+      final submitButton = tester.widget<FilledButton>(
+        find.descendant(
+          of: find.byKey(const Key('submit_ordonnance_button')),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(submitButton.onPressed, isNotNull);
     });
 
     testWidgets(
