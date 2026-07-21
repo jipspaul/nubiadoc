@@ -56,6 +56,7 @@ mod messaging;
 mod ngap_acts;
 mod notifications;
 mod notify;
+mod patient_satisfaction;
 mod patient_tags;
 mod pharmacy;
 mod prescription_templates;
