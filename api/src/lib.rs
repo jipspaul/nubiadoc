@@ -22,12 +22,16 @@ pub use twilio_sms::TwilioSmsSender;
 mod appointments;
 mod auth;
 mod billing;
+mod billing_payments;
 mod bookings;
 mod brevo_mailer;
 mod cabinet_info;
 mod cabinet_messaging;
+mod cabinet_quotes;
 mod cabinet_secretariats;
+mod ccam_acts;
 mod clinical;
+mod consultation_acts;
 mod consultations;
 mod dashboard;
 mod dental_chart;
@@ -457,12 +461,13 @@ fn build_router(
         )
         .route(
             "/v1/cabinet/consultations/:id/acts",
-            get(consultations::list_consultation_acts).post(consultations::add_consultation_act),
+            get(consultation_acts::list_consultation_acts)
+                .post(consultation_acts::add_consultation_act),
         )
         .route(
             "/v1/cabinet/consultations/:id/acts/:act_id",
-            patch(consultations::patch_consultation_act)
-                .delete(consultations::delete_consultation_act),
+            patch(consultation_acts::patch_consultation_act)
+                .delete(consultation_acts::delete_consultation_act),
         )
         .route(
             "/v1/cabinet/consultations/:id/complete",
@@ -545,8 +550,14 @@ fn build_router(
         )
         .route("/v1/payments", get(billing::list_payments))
         .route("/v1/quotes", get(billing::list_quotes))
-        .route("/v1/cabinet/quotes", get(billing::list_cabinet_quotes))
-        .route("/v1/cabinet/quotes/:id", get(billing::get_cabinet_quote))
+        .route(
+            "/v1/cabinet/quotes",
+            get(cabinet_quotes::list_cabinet_quotes),
+        )
+        .route(
+            "/v1/cabinet/quotes/:id",
+            get(cabinet_quotes::get_cabinet_quote),
+        )
         .route("/v1/quotes/:id", get(billing::get_quote))
         .route("/v1/quotes/:id/sign", post(billing::sign_quote))
         // Alias contractuel (docs/12 §10) : la console et l'app appellent
@@ -566,16 +577,16 @@ fn build_router(
         )
         .route(
             "/v1/payments/intent",
-            axum::routing::post(billing::create_payment_intent),
+            axum::routing::post(billing_payments::create_payment_intent),
         )
         .route(
             "/v1/payments/pharmacy-quote-intent",
-            axum::routing::post(billing::create_pharmacy_quote_payment_intent),
+            axum::routing::post(billing_payments::create_pharmacy_quote_payment_intent),
         )
         .route("/v1/professions", get(marketplace::list_professions))
         .route("/v1/specialties", get(marketplace::list_specialties))
         .route("/v1/acts", get(marketplace::list_acts))
-        .route("/v1/ccam/acts", get(consultations::search_ccam_acts))
+        .route("/v1/ccam/acts", get(ccam_acts::search_ccam_acts))
         .route("/v1/ngap/acts", get(ngap_acts::search_ngap_acts))
         .route("/v1/search/suggest", get(marketplace::suggest_search))
         .route("/v1/search/parse", post(marketplace::parse_search))
@@ -634,10 +645,13 @@ fn build_router(
             post(notifications::mark_notification_read),
         )
         .route("/v1/reminders", get(reminders::list_reminders))
-        .route("/v1/cabinet/quotes", post(billing::create_cabinet_quote))
+        .route(
+            "/v1/cabinet/quotes",
+            post(cabinet_quotes::create_cabinet_quote),
+        )
         .route(
             "/v1/cabinet/quotes/:id/send",
-            post(billing::send_cabinet_quote),
+            post(cabinet_quotes::send_cabinet_quote),
         )
         .route(
             "/v1/cabinet/prescriptions",
