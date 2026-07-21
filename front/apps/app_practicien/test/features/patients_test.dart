@@ -235,6 +235,25 @@ void main() {
     );
   });
 
+  group('PatientsBloc — recherche serveur (#4043)', () {
+    blocTest<PatientsBloc, PatientsState>(
+      'PatientsSearchChanged appelle le use case avec q=<texte>',
+      build: () {
+        when(() => mockList(q: any(named: 'q')))
+            .thenAnswer((_) async => Right([_patient]));
+        return _makeBloc(list: mockList, get: mockGet, update: mockUpdate);
+      },
+      act: (b) => b.add(const PatientsSearchChanged('dupont')),
+      expect: () => [
+        const PatientsLoading(),
+        PatientsLoaded([_patient]),
+      ],
+      verify: (_) {
+        verify(() => mockList(q: 'dupont')).called(1);
+      },
+    );
+  });
+
   group('PatientsBloc — détail', () {
     blocTest<PatientsBloc, PatientsState>(
       'émet Loading puis PatientDetailLoaded',

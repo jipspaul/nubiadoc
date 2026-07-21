@@ -27,6 +27,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
         _listAppointments = listAppointments,
         super(const PatientsInitial()) {
     on<PatientsLoadRequested>(_onLoad);
+    on<PatientsSearchChanged>(_onSearch);
     on<PatientsDetailLoadRequested>(_onDetailLoad);
     on<PatientsNotesUpdateRequested>(_onNotesUpdate);
     on<PatientExportPdfRequested>(_onExportPdf);
@@ -45,6 +46,22 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
       );
     } catch (_) {
       safeEmit(const PatientsError('Erreur de chargement.'));
+    }
+  }
+
+  Future<void> _onSearch(
+    PatientsSearchChanged event,
+    Emitter<PatientsState> emit,
+  ) async {
+    emit(const PatientsLoading());
+    try {
+      final result = await _list(q: event.query);
+      result.fold(
+        (failure) => safeEmit(PatientsError(failure.message)),
+        (patients) => safeEmit(PatientsLoaded(patients)),
+      );
+    } catch (_) {
+      safeEmit(const PatientsError('Erreur de recherche.'));
     }
   }
 

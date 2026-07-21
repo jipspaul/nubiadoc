@@ -98,7 +98,7 @@ void main() {
     blocTest<PatientsBloc, PatientsState>(
       'émet Loading puis Loaded sur succès',
       build: () {
-        when(() => repo.list(page: any(named: 'page')))
+        when(() => repo.list(page: any(named: 'page'), q: any(named: 'q')))
             .thenAnswer((_) async => Right(patients));
         return PatientsBloc(
             listPatients: listUseCase, createPatient: createUseCase);
@@ -113,7 +113,8 @@ void main() {
     blocTest<PatientsBloc, PatientsState>(
       'émet Loading puis Error sur échec',
       build: () {
-        when(() => repo.list(page: any(named: 'page'))).thenAnswer(
+        when(() => repo.list(page: any(named: 'page'), q: any(named: 'q')))
+            .thenAnswer(
           (_) async => Left(const NetworkFailure('Erreur réseau')),
         );
         return PatientsBloc(
@@ -126,10 +127,30 @@ void main() {
       ],
     );
 
+    // ── Recherche serveur (#4043) ───────────────────────────────────────────
+
+    blocTest<PatientsBloc, PatientsState>(
+      'PatientsSearchChanged appelle le repository avec q=<texte>',
+      build: () {
+        when(() => repo.list(page: any(named: 'page'), q: any(named: 'q')))
+            .thenAnswer((_) async => Right(patients));
+        return PatientsBloc(
+            listPatients: listUseCase, createPatient: createUseCase);
+      },
+      act: (bloc) => bloc.add(const PatientsSearchChanged('mar')),
+      expect: () => [
+        const PatientsLoading(),
+        PatientsLoaded(patients),
+      ],
+      verify: (_) {
+        verify(() => repo.list(page: 1, q: 'mar')).called(1);
+      },
+    );
+
     blocTest<PatientsBloc, PatientsState>(
       'les patients chargés n\'exposent aucun champ clinique',
       build: () {
-        when(() => repo.list(page: any(named: 'page')))
+        when(() => repo.list(page: any(named: 'page'), q: any(named: 'q')))
             .thenAnswer((_) async => Right(patients));
         return PatientsBloc(
             listPatients: listUseCase, createPatient: createUseCase);
@@ -279,7 +300,35 @@ void main() {
       expect(find.text('Erreur de connexion'), findsOneWidget);
     });
 
-    testWidgets('filtre les patients par nom via la barre de recherche',
+    testWidgets(
+        'saisie dans la barre de recherche déclenche PatientsSearchChanged '
+        '(#4043, recherche serveur débattue — 350 ms)', (tester) async {
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'ali');
+      // Avant le délai de debounce : aucun event dispatché.
+      await tester.pump(const Duration(milliseconds: 100));
+      verifyNever(() => bloc.add(const PatientsSearchChanged('ali')));
+
+      // Après le délai de debounce (350 ms) : l'event part avec q='ali'.
+      await tester.pump(const Duration(milliseconds: 300));
+      verify(() => bloc.add(const PatientsSearchChanged('ali'))).called(1);
+    });
+
+    testWidgets(
+        'liste rendue reflète directement state.patients (pas de filtre local)',
         (tester) async {
       when(() => bloc.state).thenReturn(
         PatientsLoaded([
@@ -297,26 +346,14 @@ void main() {
             lastName: 'Dupont',
             createdAt: DateTime(2026, 1, 1),
           ),
-          CabinetPatient(
-            id: 'p3',
-            cabinetId: 'c1',
-            firstName: 'Charlie',
-            lastName: 'Bernard',
-            createdAt: DateTime(2026, 1, 1),
-          ),
         ]),
       );
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
-      expect(find.byType(ListRow), findsNWidgets(3));
-
-      await tester.enterText(find.byType(TextField), 'ali');
-      await tester.pump();
-
+      expect(find.byType(ListRow), findsNWidgets(2));
       expect(find.text('Alice Martin'), findsOneWidget);
-      expect(find.text('Bob Dupont'), findsNothing);
-      expect(find.text('Charlie Bernard'), findsNothing);
+      expect(find.text('Bob Dupont'), findsOneWidget);
     });
   });
 }

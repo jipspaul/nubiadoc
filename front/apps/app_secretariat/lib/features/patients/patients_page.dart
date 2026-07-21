@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -24,11 +26,29 @@ class PatientsPage extends StatefulWidget {
 
 class _PatientsPageState extends State<PatientsPage> {
   String _query = '';
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     context.read<PatientsBloc>().add(const PatientsLoadRequested());
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  /// Recherche serveur débattue (#4043) — 350 ms, même délai que les autres
+  /// écrans de recherche du monorepo (referring_doctor_search_page.dart,
+  /// pharmacy_search_page.dart).
+  void _onSearchChanged(String value) {
+    setState(() => _query = value);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      context.read<PatientsBloc>().add(PatientsSearchChanged(value));
+    });
   }
 
   @override
@@ -60,17 +80,13 @@ class _PatientsPageState extends State<PatientsPage> {
       body: BlocBuilder<PatientsBloc, PatientsState>(
         builder: (context, state) {
           if (state is PatientsLoaded) {
-            if (state.patients.isEmpty) {
+            if (state.patients.isEmpty && _query.isEmpty) {
               return const NubiaEmptyState(
                 icon: Icons.person_outline,
                 title: 'Aucun patient',
                 subtitle: NubiaL10n.noPatients,
               );
             }
-            final filtered = state.patients
-                .where((p) =>
-                    p.fullName.toLowerCase().contains(_query.toLowerCase()))
-                .toList();
             return Column(
               children: [
                 Padding(
@@ -80,16 +96,27 @@ class _PatientsPageState extends State<PatientsPage> {
                       prefixIcon: Icon(Icons.search),
                       hintText: 'Rechercher un patient',
                     ),
-                    onChanged: (value) => setState(() => _query = value),
+                    onChanged: _onSearchChanged,
                   ),
                 ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    itemCount: filtered.length,
-                    itemBuilder: (_, i) => _PatientRow(patient: filtered[i]),
+                if (state.patients.isEmpty)
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'Aucun patient ne correspond à « $_query ».',
+                        key: const Key('patients_search_no_results'),
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      itemCount: state.patients.length,
+                      itemBuilder: (_, i) =>
+                          _PatientRow(patient: state.patients[i]),
+                    ),
                   ),
-                ),
               ],
             );
           }
