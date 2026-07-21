@@ -929,3 +929,286 @@ async fn add_act_db_state_row_exists_after_201() {
     )
     .await;
 }
+
+// ── Test 10 : acte invasif + patient sous anticoagulants → 409 bloquant (#4057) ─
+
+#[tokio::test]
+async fn add_act_risky_code_with_anticoagulant_treatment_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let ciphertext = format!(
+        "STUB_ENC:{}",
+        serde_json::json!({
+            "allergies": [],
+            "treatments": ["Warfarine 5mg, 1cp/jour"],
+            "history": null
+        })
+    );
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO medical_record (cabinet_id, patient_id, data_ciphertext, data_key_ref) \
+             VALUES ($1, $2, $3, 'stub-key-ref')",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(ciphertext.as_bytes())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // HBLD724 = avulsion, dans la table de correspondance à risque (#4057).
+    let body = serde_json::json!({
+        "ccam_code": "HBLD724",
+        "label": "Avulsion dent 46",
+        "tooth": "46",
+        "amount_cents": 3348
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "clinical_risk_warning");
+    assert!(v["message"].as_str().unwrap().contains("anticoagulant"));
+
+    // Vérifie qu'aucun acte n'a été inséré (bloquant, pas juste un avertissement).
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM consultation_act WHERE appointment_id = $1")
+            .bind(appt_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(count, 0);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM medical_record WHERE patient_id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test 11 : acte invasif SANS mention anticoagulant → 201 (pas de faux positif) ─
+
+#[tokio::test]
+async fn add_act_risky_code_without_anticoagulant_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Aucun medical_record pour ce patient → pas de flag → pas de blocage.
+    let body = serde_json::json!({
+        "ccam_code": "HBLD724",
+        "label": "Avulsion dent 46",
+        "tooth": "46",
+        "amount_cents": 3348
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test 12 : acte non-invasif + patient sous anticoagulants → 201 (pas concerné) ─
+
+#[tokio::test]
+async fn add_act_non_risky_code_with_anticoagulant_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let ciphertext = format!(
+        "STUB_ENC:{}",
+        serde_json::json!({
+            "allergies": [],
+            "treatments": ["Xarelto 20mg"],
+            "history": null
+        })
+    );
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO medical_record (cabinet_id, patient_id, data_ciphertext, data_key_ref) \
+             VALUES ($1, $2, $3, 'stub-key-ref')",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(ciphertext.as_bytes())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // HBLD001 n'est PAS dans la table de correspondance à risque de ce fichier de test.
+    let body = serde_json::json!({
+        "ccam_code": "HBQK002",
+        "label": "Examen bucco-dentaire",
+        "amount_cents": 2300
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM medical_record WHERE patient_id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}

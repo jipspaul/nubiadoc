@@ -49,7 +49,10 @@ fn encrypt_stub(data: &serde_json::Value) -> Vec<u8> {
 
 /// Stub : vérifie le préfixe `STUB_ENC:` et désérialise.
 /// Retourne `None` si le ciphertext est malformé ou vide.
-fn decrypt_stub(ciphertext: &[u8]) -> Option<serde_json::Value> {
+/// `pub(crate)` — réutilisé par `consultation_acts.rs` (#4057, moteur
+/// d'alertes cliniques) pour lire `medical_record.treatments` sans dupliquer
+/// le format `{ "allergies": [...], "treatments": [...], "history": "..." }`.
+pub(crate) fn decrypt_stub(ciphertext: &[u8]) -> Option<serde_json::Value> {
     let s = std::str::from_utf8(ciphertext).ok()?;
     let json_str = s.strip_prefix("STUB_ENC:")?;
     serde_json::from_str(json_str).ok()
