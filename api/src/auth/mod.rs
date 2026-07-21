@@ -2754,6 +2754,21 @@ pub async fn patch_account_coverage(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Régime avant modification (#4095) — capturé avant l'upsert pour
+    // journaliser l'ancien/nouveau régime dans audit_log. `None` si aucune
+    // ligne patient_coverage n'existait encore (première déclaration).
+    let old_regime_obligatoire: Option<String> = sqlx::query(
+        "SELECT regime_obligatoire FROM patient_coverage WHERE patient_account_id = $1",
+    )
+    .bind(claims.account_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .map(|r| r.try_get("regime_obligatoire"))
+    .transpose()
+    .map_err(|_: sqlx::Error| AppError::Internal)?
+    .flatten();
+
     let row = sqlx::query(
         "INSERT INTO patient_coverage \
            (patient_account_id, regime_obligatoire, nss_encrypted, \
@@ -2790,6 +2805,14 @@ pub async fn patch_account_coverage(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Nouveau régime (#4095) : relu depuis `row` (RETURNING) plutôt que
+    // `body.regime_obligatoire`, qui est `None` si le champ était absent du
+    // PATCH (champ non modifié, mais le régime existant reste pertinent à
+    // journaliser comme "nouveau" — c'est la valeur effective post-upsert).
+    let new_regime_obligatoire: Option<String> = row
+        .try_get("regime_obligatoire")
+        .map_err(|_| AppError::Internal)?;
+
     sqlx::query(
         "INSERT INTO audit_log \
          (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
@@ -2798,7 +2821,10 @@ pub async fn patch_account_coverage(
     .bind(Uuid::nil())
     .bind(claims.sub)
     .bind(claims.account_id)
-    .bind(json!({"regime_obligatoire": body.regime_obligatoire}))
+    .bind(json!({
+        "old_regime_obligatoire": old_regime_obligatoire,
+        "new_regime_obligatoire": new_regime_obligatoire,
+    }))
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
