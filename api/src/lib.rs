@@ -29,6 +29,7 @@ mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_quotes;
 mod cabinet_secretariats;
+mod cabinet_team_messages;
 mod ccam_acts;
 mod clinical;
 mod consultation_acts;
@@ -489,6 +490,11 @@ fn build_router(
         .route(
             "/v1/cabinet/conversations/:id/read",
             post(cabinet_messaging::mark_cabinet_conversation_read),
+        )
+        .route(
+            "/v1/cabinet/messages",
+            get(cabinet_team_messages::list_cabinet_team_messages)
+                .post(cabinet_team_messages::send_cabinet_team_message),
         )
         .route("/v1/cabinet/agenda", get(scheduling::get_cabinet_agenda))
         .route(
