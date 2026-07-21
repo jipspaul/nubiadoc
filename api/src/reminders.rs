@@ -142,6 +142,58 @@ async fn fetch_sent_quotes(
     Ok(out)
 }
 
+/// Libellé FR pour `reminder.kind` (migration 0085, CHECK
+/// `rdv_rappel|rdv_confirmation|rdv_follow_up`).
+fn reminder_kind_title(kind: &str) -> &'static str {
+    match kind {
+        "rdv_confirmation" => "Confirmation de rendez-vous requise",
+        "rdv_follow_up" => "Suivi après votre rendez-vous",
+        _ => "Rappel de rendez-vous",
+    }
+}
+
+/// Rappels planifiés réels (#4077) : table `reminder` (migration 0085),
+/// jusqu'ici jamais interrogée par ce handler (données mockées). RLS scoped
+/// via `app.patient_account_id` (policy `reminder_patient_read`, migration
+/// 0171, cross-cabinet comme `fetch_next_appointment`/`fetch_sent_quotes`).
+/// Seuls les rappels `pending` sont exposés (envoyés/échoués/annulés ne sont
+/// pas des rappels à venir). Isolé pour un appel BEST-EFFORT.
+async fn fetch_scheduled_reminders(
+    state: &AppState,
+    account_id: Uuid,
+) -> Result<Vec<ReminderItem>, sqlx::Error> {
+    let mut tx = state.db.begin().await?;
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(account_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+
+    let rows = sqlx::query(
+        "SELECT id, kind, scheduled_at FROM reminder \
+         WHERE status = 'pending' \
+         ORDER BY scheduled_at ASC",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let id: Uuid = row.try_get("id")?;
+        let kind: String = row.try_get("kind")?;
+        let scheduled_at: chrono::DateTime<chrono::Utc> = row.try_get("scheduled_at")?;
+        out.push(ReminderItem {
+            id,
+            title: reminder_kind_title(&kind).to_string(),
+            kind,
+            due_at: scheduled_at.to_rfc3339(),
+            status: "pending".to_string(),
+            metadata: None,
+        });
+    }
+    Ok(out)
+}
+
 pub async fn list_reminders(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -188,6 +240,20 @@ pub async fn list_reminders(
             metadata: Some(serde_json::json!({ "quote_id": quote_id })),
         });
     }
+
+    // BEST-EFFORT : une DB indisponible ou une requête rappels en échec ne
+    // doit pas faire échouer tout l'écran (#4077).
+    match fetch_scheduled_reminders(&state, claims.account_id).await {
+        Ok(items) => data.extend(items),
+        Err(err) => {
+            tracing::warn!(%err, "list_reminders: rappels planifiés indisponibles (best-effort)");
+        }
+    }
+
+    // Tri global par due_at ASC (plus urgents en premier) — trois sources
+    // désormais mélangées (appointment/quote/reminder), chacune déjà triée
+    // individuellement mais pas entre elles avant ce tri final (#4077).
+    data.sort_by(|a, b| a.due_at.cmp(&b.due_at));
 
     Ok(Json(RemindersResponse { data }))
 }
