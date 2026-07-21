@@ -6,6 +6,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../features/a2ui_demo/a2ui_demo_page.dart';
+import '../features/cabinet_team_messages/cabinet_team_messages_page.dart';
 import '../features/agenda/agenda_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/consultation_clinique/consultation_clinique_page.dart';
@@ -38,6 +39,7 @@ class AppRouter {
   static const waitingRoom = '/waiting-room';
   static const patients = '/patients';
   static const messages = '/messages';
+  static const teamMessages = '/team-messages';
   static const consultation = '/consultation';
   static const ordonnances = '/ordonnances';
   static const devis = '/devis';
@@ -177,6 +179,10 @@ class AppRouter {
           ),
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
+        GoRoute(
+          path: teamMessages,
+          builder: (_, __) => const CabinetTeamMessagesPage(),
+        ),
         GoRoute(
           path: registerPro,
           builder: (_, __) => BlocProvider(

@@ -15,6 +15,7 @@ import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
 import '../features/bookable_slots/bookable_slots_page.dart';
+import '../features/cabinet_team_messages/cabinet_team_messages_page.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_event.dart';
 import '../features/cabinet_messaging/cabinet_messaging_page.dart';
@@ -54,6 +55,7 @@ class AppRouter {
   static const devisDetail = '/devis/:id';
   static const stock = '/stock';
   static const messages = '/messages';
+  static const teamMessages = '/team-messages';
   static const adminMembres = '/admin-membres';
   static const adminSecretariats = '/admin-secretariats';
 
@@ -103,6 +105,10 @@ class AppRouter {
           builder: (_, __) => const Scaffold(body: AgendaPage()),
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
+        GoRoute(
+          path: teamMessages,
+          builder: (_, __) => const CabinetTeamMessagesPage(),
+        ),
         GoRoute(
           path: salleAttente,
           builder: (_, __) => BlocProvider(

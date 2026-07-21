@@ -9,6 +9,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../pro_config.dart';
+import '../../router/app_router.dart';
 import '../../session/pro_auth_cubit.dart';
 import '../admin_membres/admin_membres_bloc.dart';
 import '../admin_membres/admin_membres_page.dart';
@@ -147,6 +148,12 @@ class DashboardPage extends StatelessWidget {
         );
       },
       trailingActions: [
+        IconButton(
+          key: const Key('nav_team_messages'),
+          tooltip: 'Messagerie interne',
+          icon: const Icon(Icons.forum_outlined),
+          onPressed: () => context.push(AppRouter.teamMessages),
+        ),
         // Playground A2UI : artefact de dev, jamais visible en production.
         if (kDebugMode)
           IconButton(
