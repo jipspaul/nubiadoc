@@ -416,3 +416,314 @@ async fn reminders_sent_quote_has_quote_type_and_quote_id() {
         .await
         .ok();
 }
+
+// ── Test 8 : rappels réels de `reminder` (#4077) — triés + cross-tenant ─────
+// Insère 2 lignes `reminder` (passée + future) pour un patient : GET
+// /v1/reminders doit renvoyer les deux, triées par due_at ASC. Un autre
+// patient (compte différent) ne doit voir aucune des deux (RLS
+// reminder_patient_read, migration 0171).
+
+#[tokio::test]
+async fn reminders_real_reminder_rows_returned_sorted_and_cross_tenant_isolated() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let patient_user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let appointment_id = Uuid::new_v4();
+    let reminder_past_id = Uuid::new_v4();
+    let reminder_future_id = Uuid::new_v4();
+
+    // Autre patient (compte distinct), sans aucun rappel — vérifie le
+    // cloisonnement cross-tenant.
+    let other_patient_user_id = Uuid::new_v4();
+    let other_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("reminders-real+{patient_user_id}@nubia.test"))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(other_patient_user_id)
+    .bind(format!(
+        "reminders-real-other+{other_patient_user_id}@nubia.test"
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("reminders-real-prac+{prac_user_id}@nubia.test"))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'RealReminders')",
+    )
+    .bind(account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Bob', 'OtherPatient')",
+    )
+    .bind(other_account_id)
+    .bind(other_patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Reminders Real {cabinet_id}"))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Alice', 'RealReminders', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() + interval '3 days', \
+                 now() + interval '3 days' + interval '30 minutes', 'confirmed')",
+    )
+    .bind(appointment_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // Rappel PASSÉ (scheduled_at déjà écoulé) — doit apparaître en premier
+    // (due_at ASC).
+    sqlx::query(
+        "INSERT INTO reminder \
+         (id, cabinet_id, appointment_id, patient_id, scheduled_at, kind, channel, status) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 day', 'rdv_confirmation', 'push', 'pending')",
+    )
+    .bind(reminder_past_id)
+    .bind(cabinet_id)
+    .bind(appointment_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // Rappel FUTUR — doit apparaître en second.
+    sqlx::query(
+        "INSERT INTO reminder \
+         (id, cabinet_id, appointment_id, patient_id, scheduled_at, kind, channel, status) \
+         VALUES ($1, $2, $3, $4, now() + interval '2 days', 'rdv_rappel', 'push', 'pending')",
+    )
+    .bind(reminder_future_id)
+    .bind(cabinet_id)
+    .bind(appointment_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let make_token = |user_id: Uuid, account: Uuid| {
+        encode(
+            &Header::default(),
+            &json!({
+                "sub": user_id, "kind": "patient", "account_id": account,
+                "exp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + 3600
+            }),
+            &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+        )
+        .unwrap()
+    };
+
+    async fn app_pool() -> PgPool {
+        PgPool::connect(
+            &std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+        )
+        .await
+        .unwrap()
+    }
+
+    // Patient propriétaire : les deux rappels, triés par due_at ASC (le
+    // passé avant le futur).
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/reminders")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_token(patient_user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let items = v["data"].as_array().unwrap();
+
+    let positions: Vec<usize> = [reminder_past_id, reminder_future_id]
+        .iter()
+        .map(|id| {
+            items
+                .iter()
+                .position(|i| i["id"].as_str() == Some(&id.to_string()))
+                .unwrap_or_else(|| panic!("rappel {id} attendu dans la réponse"))
+        })
+        .collect();
+    assert!(
+        positions[0] < positions[1],
+        "le rappel passé doit apparaître avant le rappel futur (due_at ASC), positions: {positions:?}"
+    );
+
+    // Autre patient : ni l'un ni l'autre rappel ne doit être visible.
+    let state2 = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let response2 = app(state2)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/reminders")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_token(other_patient_user_id, other_account_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response2.status(), StatusCode::OK);
+    let body2 = axum::body::to_bytes(response2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
+    let items2 = v2["data"].as_array().unwrap();
+    assert!(
+        !items2
+            .iter()
+            .any(|i| i["id"].as_str() == Some(&reminder_past_id.to_string())
+                || i["id"].as_str() == Some(&reminder_future_id.to_string())),
+        "un autre patient ne doit voir aucun des deux rappels (RLS reminder_patient_read)"
+    );
+
+    // Cleanup
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM reminder WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE id = $1")
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(other_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(patient_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(other_patient_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
