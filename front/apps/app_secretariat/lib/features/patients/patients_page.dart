@@ -263,6 +263,8 @@ class _PatientSheet extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             PatientTagsSection(patientId: patient.id),
+            const SizedBox(height: 16),
+            PatientDocumentsSection(patientId: patient.id),
           ],
         ),
       ),
@@ -414,6 +416,94 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
                   label: tag.label,
                   variant: NubiaChipVariant.input,
                   onRemove: () => _removeTag(tag.id),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+/// Documents du dossier patient (GED, §4.4, #4042) — liste vide/remplie.
+/// Upload hors scope ici : `POST .../documents` déjà exposé côté API,
+/// reste à câbler dans un futur écran dédié si besoin.
+class PatientDocumentsSection extends StatefulWidget {
+  const PatientDocumentsSection({super.key, required this.patientId});
+
+  final String patientId;
+
+  @override
+  State<PatientDocumentsSection> createState() =>
+      _PatientDocumentsSectionState();
+}
+
+class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
+  List<PatientDocument>? _documents;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final result =
+        await GetIt.instance<ListPatientDocumentsUseCase>()(widget.patientId);
+    if (!mounted) return;
+    result.fold(
+      (failure) => setState(() => _error = failure.message),
+      (documents) => setState(() {
+        _documents = documents;
+        _error = null;
+      }),
+    );
+  }
+
+  IconData _iconFor(String mimeType) {
+    if (mimeType.startsWith('image/')) return Icons.image_outlined;
+    if (mimeType == 'application/pdf') return Icons.picture_as_pdf_outlined;
+    return Icons.insert_drive_file_outlined;
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes o';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(0)} Ko';
+    return '${(kb / 1024).toStringAsFixed(1)} Mo';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final documents = _documents;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Documents', style: textTheme.titleSmall),
+        const SizedBox(height: 8),
+        if (_error != null)
+          Text(_error!, style: TextStyle(color: cs.error))
+        else if (documents == null)
+          const NubiaSkeletonLoader(height: 48, borderRadius: 8)
+        else if (documents.isEmpty)
+          Text(
+            'Aucun document.',
+            key: const Key('patient_documents_empty'),
+            style: textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          )
+        else
+          Column(
+            key: const Key('patient_documents_list'),
+            children: [
+              for (final doc in documents)
+                ListRow(
+                  key: Key('patient_document_${doc.id}'),
+                  leading: Icon(_iconFor(doc.mimeType), color: cs.primary),
+                  title: doc.filename,
+                  subtitle: '${doc.category} · ${_formatSize(doc.sizeBytes)}',
                 ),
             ],
           ),

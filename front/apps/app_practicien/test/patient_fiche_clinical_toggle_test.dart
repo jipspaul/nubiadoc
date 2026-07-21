@@ -10,6 +10,9 @@ import 'package:app_practicien/features/patients/patient_fiche.dart';
 
 class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
 
+class _MockListPatientDocuments extends Mock
+    implements ListPatientDocumentsUseCase {}
+
 final _patient = CabinetPatient(
   id: 'pat-1',
   cabinetId: 'cab-1',
@@ -25,6 +28,13 @@ void main() {
     final listTags = _MockListPatientTags();
     when(() => listTags(any())).thenAnswer((_) async => const Right([]));
     GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
+
+    final listDocuments = _MockListPatientDocuments();
+    when(() => listDocuments(any())).thenAnswer((_) async => const Right([]));
+    GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
+      () => listDocuments,
+    );
+
     addTearDown(GetIt.instance.reset);
   });
 
