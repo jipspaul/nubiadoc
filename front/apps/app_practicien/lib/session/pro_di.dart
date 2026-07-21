@@ -102,6 +102,8 @@ void registerPro(GetIt gi) {
     () => OrdonnancesBloc(
       create: gi<CreatePrescriptionUseCase>(),
       sign: gi<SignPrescriptionUseCase>(),
+      listTemplates: gi<ListPrescriptionTemplatesUseCase>(),
+      applyTemplate: gi<ApplyPrescriptionTemplateUseCase>(),
     ),
   );
 

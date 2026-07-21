@@ -58,6 +58,31 @@ final _prescription = Prescription(
   createdAt: DateTime(2026, 7, 2),
 );
 
+const _templateItem = PrescriptionItem(
+  label: 'Paracétamol 1 g',
+  form: 'comprimé',
+  posology: '1 cp x 3/jour si douleur',
+  duration: '5 jours',
+  quantity: 'QSP 15 cp',
+);
+
+const _template = PrescriptionTemplate(
+  id: 'tmpl-1',
+  label: 'Antalgique post-opératoire palier 1',
+  items: [_templateItem],
+  isGlobal: true,
+);
+
+/// Devis (ordonnance) tel que renvoyé après application du modèle #4074 :
+/// mêmes lignes que le modèle, `id`/`patientId` inchangés.
+final _prescriptionWithTemplateItems = Prescription(
+  id: 'presc-1',
+  patientId: 'patient-1',
+  items: const [_templateItem],
+  status: PrescriptionStatus.draft,
+  createdAt: DateTime(2026, 7, 2),
+);
+
 Widget _wrap(OrdonnancesBloc bloc, {String? patientId = 'patient-1'}) =>
     MaterialApp(
       theme: NubiaTheme.light,
@@ -161,6 +186,69 @@ void main() {
       await tester.tap(find.byKey(const Key('sign_ordonnance_button')));
       verify(() => bloc.add(const OrdonnancesSignRequested('presc-1')))
           .called(1);
+    });
+
+    testWidgets(
+        'OrdonnancesCreated → sélectionner un modèle préremplit les lignes affichées (#4075)',
+        (tester) async {
+      // État initial : un brouillon existant (une ligne).
+      when(() => bloc.state).thenReturn(OrdonnancesCreated(_prescription));
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_template]);
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('use_template_button')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('use_template_button')));
+      await tester.pumpAndSettle();
+
+      // Le picker affiche le modèle (catalogue global).
+      expect(find.byKey(const Key('prescription_template_picker')),
+          findsOneWidget);
+      expect(find.byKey(const Key('prescription_template_tmpl-1')),
+          findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('prescription_template_tmpl-1')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const OrdonnancesApplyTemplateRequested(
+            prescriptionId: 'presc-1',
+            templateId: 'tmpl-1',
+          ))).called(1);
+    });
+
+    testWidgets(
+        'OrdonnancesCreated avec les lignes du modèle appliqué → label/posologie/durée affichés',
+        (tester) async {
+      // Simule l'état APRÈS application réussie du modèle (bloc mis à jour) :
+      // les lignes affichées doivent être celles du modèle, pas du brouillon initial.
+      when(() => bloc.state)
+          .thenReturn(OrdonnancesCreated(_prescriptionWithTemplateItems));
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.text('Paracétamol 1 g'), findsOneWidget);
+      expect(find.text('1 cp x 3/jour si douleur — 5 jours'), findsOneWidget);
+    });
+
+    testWidgets(
+        'OrdonnancesApplyingTemplate → relecture brouillon, bouton modèle en chargement',
+        (tester) async {
+      when(() => bloc.state)
+          .thenReturn(OrdonnancesApplyingTemplate(_prescription));
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('ordonnance_draft_review')), findsOneWidget);
+      final signButton = tester.widget<FilledButton>(
+        find.descendant(
+          of: find.byKey(const Key('sign_ordonnance_button')),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(signButton.onPressed, isNull,
+          reason:
+              'Signer doit être désactivé pendant l\'application du modèle');
     });
 
     testWidgets('OrdonnancesSigned → confirmation', (tester) async {

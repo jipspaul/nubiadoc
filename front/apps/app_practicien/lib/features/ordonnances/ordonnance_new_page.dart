@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'send_to_pharmacy_cubit.dart';
+import 'widgets/prescription_template_picker.dart';
 import 'widgets/send_to_pharmacy_card.dart';
 import 'ordonnances_bloc.dart';
 import 'ordonnances_event.dart';
@@ -57,13 +58,18 @@ class OrdonnanceNewBody extends StatelessWidget {
           return _SignedConfirmation(prescription: state.prescription);
         }
         if (state is OrdonnancesCreated ||
-            state is OrdonnancesSigningInProgress) {
-          final prescription = state is OrdonnancesCreated
-              ? state.prescription
-              : (state as OrdonnancesSigningInProgress).prescription;
+            state is OrdonnancesSigningInProgress ||
+            state is OrdonnancesApplyingTemplate) {
+          final prescription = switch (state) {
+            OrdonnancesCreated(:final prescription) => prescription,
+            OrdonnancesSigningInProgress(:final prescription) => prescription,
+            OrdonnancesApplyingTemplate(:final prescription) => prescription,
+            _ => throw StateError('unreachable'),
+          };
           return _DraftReview(
             prescription: prescription,
             signing: state is OrdonnancesSigningInProgress,
+            applyingTemplate: state is OrdonnancesApplyingTemplate,
           );
         }
         // Initial, Loading, Error : le formulaire reste monté pour ne pas
@@ -275,14 +281,20 @@ class _ItemCard extends StatelessWidget {
 
 /// Ordonnance créée (brouillon) : relecture des lignes + signature.
 class _DraftReview extends StatelessWidget {
-  const _DraftReview({required this.prescription, required this.signing});
+  const _DraftReview({
+    required this.prescription,
+    required this.signing,
+    required this.applyingTemplate,
+  });
   final Prescription prescription;
   final bool signing;
+  final bool applyingTemplate;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final busy = signing || applyingTemplate;
 
     return Column(
       key: const Key('ordonnance_draft_review'),
@@ -312,11 +324,33 @@ class _DraftReview extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 NubiaButton(
+                  key: const Key('use_template_button'),
+                  label: 'Utiliser un modèle',
+                  variant: NubiaButtonVariant.secondary,
+                  icon: Icons.description_outlined,
+                  isLoading: applyingTemplate,
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final bloc = context.read<OrdonnancesBloc>();
+                          final template =
+                              await PrescriptionTemplatePicker.show(context,
+                                  loadTemplates: bloc.loadTemplates);
+                          if (template != null) {
+                            bloc.add(OrdonnancesApplyTemplateRequested(
+                              prescriptionId: prescription.id,
+                              templateId: template.id,
+                            ));
+                          }
+                        },
+                ),
+                const SizedBox(height: 8),
+                NubiaButton(
                   key: const Key('sign_ordonnance_button'),
                   label: 'Signer l\'ordonnance',
                   icon: Icons.draw_outlined,
                   isLoading: signing,
-                  onPressed: signing
+                  onPressed: busy
                       ? null
                       : () => context
                           .read<OrdonnancesBloc>()

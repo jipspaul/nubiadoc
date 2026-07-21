@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/prescriptions/prescription_api.dart';
 import 'package:nubia_domain/src/entities/prescription.dart';
+import 'package:nubia_domain/src/entities/prescription_template.dart';
 import 'package:nubia_domain/src/repositories/prescription_repository.dart';
 
 class PrescriptionRepositoryImpl implements PrescriptionRepository {
@@ -69,6 +70,52 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
       }
       return Left(ServerFailure(
         message: "Impossible d'envoyer l'ordonnance à la pharmacie.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<PrescriptionTemplate>>>
+      listPrescriptionTemplates() async {
+    try {
+      final dtos = await _api.listPrescriptionTemplates();
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de charger les modèles.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, Prescription>> applyPrescriptionTemplate({
+    required String prescriptionId,
+    required String templateId,
+  }) async {
+    try {
+      await _api.applyPrescriptionTemplate(
+        prescriptionId: prescriptionId,
+        templateId: templateId,
+      );
+      // apply-template ne renvoie que le nombre de lignes créées : re-fetch
+      // pour obtenir l'ordonnance avec ses lignes à jour.
+      final dto = await _api.getPrescription(prescriptionId);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible d'appliquer le modèle.",
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {

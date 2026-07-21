@@ -22,6 +22,12 @@ class MockCreatePrescriptionUseCase extends Mock
 class MockSignPrescriptionUseCase extends Mock
     implements SignPrescriptionUseCase {}
 
+class MockListPrescriptionTemplatesUseCase extends Mock
+    implements ListPrescriptionTemplatesUseCase {}
+
+class MockApplyPrescriptionTemplateUseCase extends Mock
+    implements ApplyPrescriptionTemplateUseCase {}
+
 class MockOrdonnancesBloc extends MockBloc<OrdonnancesEvent, OrdonnancesState>
     implements OrdonnancesBloc {}
 
@@ -70,8 +76,15 @@ final _prescriptionSigned = Prescription(
 OrdonnancesBloc _makeBloc({
   required MockCreatePrescriptionUseCase create,
   required MockSignPrescriptionUseCase sign,
+  MockListPrescriptionTemplatesUseCase? listTemplates,
+  MockApplyPrescriptionTemplateUseCase? applyTemplate,
 }) =>
-    OrdonnancesBloc(create: create, sign: sign);
+    OrdonnancesBloc(
+      create: create,
+      sign: sign,
+      listTemplates: listTemplates ?? MockListPrescriptionTemplatesUseCase(),
+      applyTemplate: applyTemplate ?? MockApplyPrescriptionTemplateUseCase(),
+    );
 
 Widget _wrap(OrdonnancesBloc bloc) => MaterialApp(
       home: BlocProvider.value(
