@@ -28,6 +28,7 @@ mod billing_payments;
 mod bookings;
 mod brevo_mailer;
 mod cabinet_cash_register;
+mod cabinet_conversation_convert;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_payments_manual;
@@ -563,6 +564,10 @@ fn build_router(
         .route(
             "/v1/cabinet/conversations/:id/read",
             post(cabinet_messaging::mark_cabinet_conversation_read),
+        )
+        .route(
+            "/v1/cabinet/conversations/:id/convert-to-appointment",
+            post(cabinet_conversation_convert::convert_conversation_to_appointment),
         )
         .route(
             "/v1/cabinet/messages",
