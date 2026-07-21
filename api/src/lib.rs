@@ -28,6 +28,7 @@ mod brevo_mailer;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_quotes;
+mod cabinet_quotes_patch;
 mod cabinet_secretariats;
 mod cabinet_team_messages;
 mod ccam_acts;
@@ -562,7 +563,7 @@ fn build_router(
         )
         .route(
             "/v1/cabinet/quotes/:id",
-            get(cabinet_quotes::get_cabinet_quote),
+            get(cabinet_quotes::get_cabinet_quote).patch(cabinet_quotes_patch::patch_cabinet_quote),
         )
         .route("/v1/quotes/:id", get(billing::get_quote))
         .route("/v1/quotes/:id/sign", post(billing::sign_quote))

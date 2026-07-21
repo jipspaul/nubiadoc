@@ -50,6 +50,39 @@ pub struct CreateCabinetQuoteResponse {
     pub total_amount_cents: i64,
 }
 
+/// Plafond métier réaliste (#3762) : sans borne haute, un `amount_cents`
+/// débordant la précision de la colonne `numeric(12,2)` (quote/quote_item)
+/// provoquait une erreur SQL avalée par `.map_err(|_| AppError::Internal)` →
+/// 500 au lieu d'un 422 propre. 100 000 000 cents = 1 000 000,00 € par ligne,
+/// largement suffisant pour un acte dentaire/médical le plus lourd.
+pub(crate) const MAX_ITEM_AMOUNT_CENTS: i64 = 100_000_000;
+
+/// Valide les lignes d'un devis (partagé entre `create_cabinet_quote` et
+/// `cabinet_quotes_patch::patch_cabinet_quote`, #4065) : non vide,
+/// `amount_cents` dans `]0, MAX_ITEM_AMOUNT_CENTS]`, libellé non vide/blanc
+/// (#3770), `amo_part_cents`/`amc_part_cents` non négatifs (#4060).
+pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppError> {
+    if items.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    if items
+        .iter()
+        .any(|i| i.amount_cents <= 0 || i.amount_cents > MAX_ITEM_AMOUNT_CENTS)
+    {
+        return Err(AppError::ValidationError);
+    }
+    if items.iter().any(|i| i.label.trim().is_empty()) {
+        return Err(AppError::ValidationError);
+    }
+    if items
+        .iter()
+        .any(|i| i.amo_part_cents.is_some_and(|v| v < 0) || i.amc_part_cents.is_some_and(|v| v < 0))
+    {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
+}
+
 /// `POST /v1/cabinet/quotes` — crée un devis (statut `draft`) avec ses lignes.
 ///
 /// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403, patient → 403.
@@ -68,37 +101,7 @@ pub async fn create_cabinet_quote(
     claims: ProPractitionerClaims,
     Json(body): Json<CreateCabinetQuoteBody>,
 ) -> Result<(StatusCode, Json<CreateCabinetQuoteResponse>), AppError> {
-    if body.items.is_empty() {
-        return Err(AppError::ValidationError);
-    }
-    // Plafond métier réaliste (#3762) : sans borne haute, un amount_cents
-    // débordant la précision de la colonne `numeric(12,2)` (quote/quote_item)
-    // provoquait une erreur SQL avalée par `.map_err(|_| AppError::Internal)`
-    // → 500 au lieu d'un 422 propre. 100 000 000 cents = 1 000 000,00 € par
-    // ligne, largement suffisant pour un acte dentaire/médical le plus lourd.
-    const MAX_ITEM_AMOUNT_CENTS: i64 = 100_000_000;
-    if body
-        .items
-        .iter()
-        .any(|i| i.amount_cents <= 0 || i.amount_cents > MAX_ITEM_AMOUNT_CENTS)
-    {
-        return Err(AppError::ValidationError);
-    }
-    // Libellé vide/blanc → 422 (#3770), comme create_prescription (prescriptions.rs)
-    // et add_consultation_act : un devis présenté/signé par le patient ne doit
-    // pas contenir de ligne facturable sans libellé.
-    if body.items.iter().any(|i| i.label.trim().is_empty()) {
-        return Err(AppError::ValidationError);
-    }
-    // amo_part_cents/amc_part_cents négatifs n'ont pas de sens (part prise en
-    // charge) — même borne basse que amount_cents (#4060).
-    if body
-        .items
-        .iter()
-        .any(|i| i.amo_part_cents.is_some_and(|v| v < 0) || i.amc_part_cents.is_some_and(|v| v < 0))
-    {
-        return Err(AppError::ValidationError);
-    }
+    validate_quote_items(&body.items)?;
     if let Some(pct) = body.deposit_pct {
         if !(0.0..=100.0).contains(&pct) {
             return Err(AppError::ValidationError);
