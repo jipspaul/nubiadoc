@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
-    app, run_dispatch_loop, AppState, BrevoMailer, StubJobDispatcher, TwilioSmsSender,
+    app_with_quote_signature_client, run_dispatch_loop, AppState, BrevoMailer, StubJobDispatcher,
+    TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
 
@@ -82,7 +83,9 @@ async fn main() {
 /// modifier la signature de `build_router`/`app` (utilisée par de nombreux
 /// tests d'intégration existants).
 fn app_with_hl7v2_status(state: AppState, mllp_status: Hl7v2ListenerStatus) -> axum::Router {
-    app(state)
+    // YousignClient en prod (#4064) ; StubQuoteSignatureClient reste utilisé
+    // par app(state)/les tests d'intégration qui construisent leur propre routeur.
+    app_with_quote_signature_client(state, std::sync::Arc::new(YousignClient::from_env()))
         .route("/v1/interop/hl7v2/health", axum::routing::get(hl7v2_health))
         .layer(axum::Extension(mllp_status))
 }

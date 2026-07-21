@@ -158,6 +158,10 @@ pub(crate) enum AppError {
     /// trigger `enforce_quote_immutable` (migration 0051, SQLSTATE `P0001`)
     /// en `409 quote_locked` (contrat documenté doc12 §16, #4065).
     QuoteLocked,
+    /// `POST /v1/quotes/:id/signature` (#4064) : provider de signature
+    /// (Yousign) injoignable ou en erreur → `502`, jamais une session
+    /// fabriquée côté API.
+    UpstreamUnavailable,
     /// `PATCH /v1/appointments/:id` avec un `starts_at` qui ne correspond à
     /// aucun `availability_slot` ouvert du praticien (ou dans le passé) → 409
     /// (#3558 : reprogrammation vers un créneau inexistant / date passée).
@@ -350,6 +354,11 @@ impl IntoResponse for AppError {
             AppError::QuoteLocked => {
                 (StatusCode::CONFLICT, Json(json!({"code": "quote_locked"}))).into_response()
             }
+            AppError::UpstreamUnavailable => (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({"code": "upstream_unavailable"})),
+            )
+                .into_response(),
             AppError::SlotUnavailable => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "slot_unavailable"})),

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use axum::{
     http::{header, StatusCode},
     response::{IntoResponse, Response},
@@ -18,6 +19,7 @@ pub use reminder_dispatch::{
     dispatch_pending_reminders, run_dispatch_loop, ReminderDispatchError, ReminderDispatchSummary,
 };
 pub use twilio_sms::TwilioSmsSender;
+pub use yousign_client::YousignClient;
 
 mod appointments;
 mod auth;
@@ -53,6 +55,7 @@ mod patient_tags;
 mod pharmacy;
 mod prescriptions;
 mod provider_secretariat;
+mod quote_signature;
 mod realtime;
 mod reminder_dispatch;
 mod reminders;
@@ -63,6 +66,7 @@ mod treatment_plans;
 mod twilio_sms;
 mod waiting_list;
 mod webhooks;
+mod yousign_client;
 
 /// Trait de génération d'URL signées Object Storage — swappable (stub en test, MinIO/Scaleway en prod).
 pub trait StorageClient: Send + Sync {
@@ -211,6 +215,45 @@ impl SignatureClient for StubSignatureClient {
     }
 }
 
+/// Session de signature retournée par [`QuoteSignatureClient::create_session`]
+/// (#4064). `redirect_url` (parcours web) et/ou `embed_token` (parcours
+/// intégré) — le contrat documenté (doc12 §10) autorise l'un ou l'autre.
+pub struct QuoteSignatureSession {
+    pub external_id: String,
+    pub redirect_url: Option<String>,
+    pub embed_token: Option<String>,
+}
+
+/// Client de démarrage de signature eIDAS pour un **devis** — swappable
+/// (stub en test, Yousign réel en prod, `yousign_client.rs`). #4064.
+///
+/// Distinct de [`SignatureClient`] (prescriptions, `fire-and-forget`-style
+/// synchrone) : ce trait est `async` et appelé de façon **synchrone dans le
+/// handler HTTP** — le patient attend `redirect_url`/`embed_token` dans la
+/// même réponse (`202`), la confirmation `signed` arrivant plus tard par
+/// webhook (`webhooks::yousign`).
+#[async_trait]
+pub trait QuoteSignatureClient: Send + Sync {
+    /// Démarre une session de signature pour `quote_id`. `Err` = provider
+    /// injoignable/refus — jamais de panic, jamais de valeur fabriquée.
+    async fn create_session(&self, quote_id: Uuid) -> Result<QuoteSignatureSession, String>;
+}
+
+/// Implémentation stub : session fixe, pour les tests et le dev local sans
+/// clé Yousign.
+pub struct StubQuoteSignatureClient;
+
+#[async_trait]
+impl QuoteSignatureClient for StubQuoteSignatureClient {
+    async fn create_session(&self, quote_id: Uuid) -> Result<QuoteSignatureSession, String> {
+        Ok(QuoteSignatureSession {
+            external_id: format!("stub-sig-{quote_id}"),
+            redirect_url: Some(format!("https://signature.stub/{quote_id}")),
+            embed_token: None,
+        })
+    }
+}
+
 /// État partagé injecté dans les handlers via `State<AppState>`.
 #[derive(Clone)]
 pub struct AppState {
@@ -239,6 +282,7 @@ pub fn app(state: AppState) -> Router {
         Arc::new(StubJobDispatcher),
         Arc::new(StubStorageSigner),
         Arc::new(WsHub::new()),
+        Arc::new(StubQuoteSignatureClient),
     )
 }
 
@@ -248,7 +292,13 @@ pub fn app_with_dispatcher(
     dispatcher: Arc<dyn JobDispatcher>,
     signer: Arc<dyn StorageSigner>,
 ) -> Router {
-    build_router(state, dispatcher, signer, Arc::new(WsHub::new()))
+    build_router(
+        state,
+        dispatcher,
+        signer,
+        Arc::new(WsHub::new()),
+        Arc::new(StubQuoteSignatureClient),
+    )
 }
 
 /// Variante pour les tests qui injectent un hub WS précis (broadcast tests).
@@ -258,6 +308,22 @@ pub fn app_with_hub(state: AppState, hub: Arc<WsHub>) -> Router {
         Arc::new(StubJobDispatcher),
         Arc::new(StubStorageSigner),
         hub,
+        Arc::new(StubQuoteSignatureClient),
+    )
+}
+
+/// Variante pour les tests qui injectent un `QuoteSignatureClient` personnalisé
+/// (#4064 : pointer vers un serveur HTTP mock plutôt que le stub).
+pub fn app_with_quote_signature_client(
+    state: AppState,
+    quote_signature_client: Arc<dyn QuoteSignatureClient>,
+) -> Router {
+    build_router(
+        state,
+        Arc::new(StubJobDispatcher),
+        Arc::new(StubStorageSigner),
+        Arc::new(WsHub::new()),
+        quote_signature_client,
     )
 }
 
@@ -266,6 +332,7 @@ fn build_router(
     dispatcher: Arc<dyn JobDispatcher>,
     signer: Arc<dyn StorageSigner>,
     hub: Arc<WsHub>,
+    quote_signature_client: Arc<dyn QuoteSignatureClient>,
 ) -> Router {
     Router::new()
         .route("/v1/health", get(health::health))
@@ -566,10 +633,17 @@ fn build_router(
             get(cabinet_quotes::get_cabinet_quote).patch(cabinet_quotes_patch::patch_cabinet_quote),
         )
         .route("/v1/quotes/:id", get(billing::get_quote))
+        // `/sign` : stub historique synchrone (sent → signed immédiat),
+        // toujours utilisé par app_patient Flutter (#3705) — INCHANGÉ.
         .route("/v1/quotes/:id/sign", post(billing::sign_quote))
-        // Alias contractuel (docs/12 §10) : la console et l'app appellent
-        // `/signature` ; on garde `/sign` pour rétro-compatibilité.
-        .route("/v1/quotes/:id/signature", post(billing::sign_quote))
+        // `/signature` (#4064) : contrat réel doc12 §10 — démarre une
+        // session Yousign (202 + redirect_url/embed_token), le devis reste
+        // `sent` jusqu'au webhook. web-console appelle déjà ce contrat exact
+        // (endpoints.ts, tests/flows/EP5+EX3.flow.spec.ts).
+        .route(
+            "/v1/quotes/:id/signature",
+            post(quote_signature::initiate_quote_signature),
+        )
         // Alias patient BR5 : `/v1/billing/quotes/*` (front patient) → handlers existants.
         // Décision : option (a) alias côté backend (diff minimal, pas de refactor Flutter).
         .route("/v1/billing/quotes", get(billing::list_quotes))
@@ -888,6 +962,7 @@ fn build_router(
         .layer(Extension(
             Arc::new(StubSignatureClient) as Arc<dyn SignatureClient>
         ))
+        .layer(Extension(quote_signature_client))
         .layer(Extension(StripeWebhookSecret(
             std::env::var("STRIPE_WEBHOOK_SECRET").unwrap_or_default(),
         )))
