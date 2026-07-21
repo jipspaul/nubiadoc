@@ -355,6 +355,14 @@ class _DetailViewState extends State<_DetailView> {
             ),
           const SizedBox(height: 12),
           NubiaButton(
+            key: const Key('btn_dental_chart'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.grid_view_outlined,
+            label: 'Schéma dentaire',
+            onPressed: () => context.push('/patients/${p.id}/dental-chart'),
+          ),
+          const SizedBox(height: 12),
+          NubiaButton(
             key: const Key('btn_export_pdf'),
             variant: NubiaButtonVariant.secondary,
             icon: Icons.picture_as_pdf_outlined,
