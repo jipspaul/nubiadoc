@@ -38,6 +38,11 @@ abstract class GetActsUseCase {
 class CcamPicker extends StatefulWidget {
   final GetActsUseCase useCase;
 
+  /// Dent pré-sélectionnée (#4048, schéma dentaire → tap sur une dent) — pré-
+  /// remplit le champ dent de l'éditeur au lieu de la saisie texte libre.
+  /// Reste modifiable dans l'éditeur (l'utilisateur peut corriger).
+  final String? selectedTooth;
+
   /// Appelé une fois l'acte pleinement saisi (code + dent + montant) via
   /// l'éditeur (#3402). Le montant est en centimes ; la dent est facultative.
   final void Function({
@@ -51,6 +56,7 @@ class CcamPicker extends StatefulWidget {
     super.key,
     required this.useCase,
     required this.onActSubmitted,
+    this.selectedTooth,
   });
 
   @override
@@ -82,7 +88,10 @@ class _CcamPickerState extends State<CcamPicker> {
   Future<void> _select(CcamAct act) async {
     final draft = await showDialog<CcamActDraft>(
       context: context,
-      builder: (_) => CcamActEditorDialog(act: act),
+      builder: (_) => CcamActEditorDialog(
+        act: act,
+        initialTooth: widget.selectedTooth,
+      ),
     );
     if (!mounted || draft == null) return;
     _controller.clear();
@@ -147,7 +156,10 @@ class _CcamPickerState extends State<CcamPicker> {
 class CcamActEditorDialog extends StatefulWidget {
   final CcamAct act;
 
-  const CcamActEditorDialog({super.key, required this.act});
+  /// Pré-remplissage du champ dent (#4048) — voir `CcamPicker.selectedTooth`.
+  final String? initialTooth;
+
+  const CcamActEditorDialog({super.key, required this.act, this.initialTooth});
 
   @override
   State<CcamActEditorDialog> createState() => _CcamActEditorDialogState();
@@ -161,7 +173,8 @@ class _CcamActEditorDialogState extends State<CcamActEditorDialog> {
   @override
   void initState() {
     super.initState();
-    _toothController = TextEditingController();
+    // Pré-remplissage de la dent (#4048) — reste modifiable par l'utilisateur.
+    _toothController = TextEditingController(text: widget.initialTooth ?? '');
     // Pré-remplissage du montant avec le tarif de référence (#3402).
     final tarif = widget.act.tarifCents;
     _amountController = TextEditingController(

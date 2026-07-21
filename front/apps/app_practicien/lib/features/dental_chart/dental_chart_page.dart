@@ -8,6 +8,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'dental_chart_cubit.dart';
+import 'tooth_grid.dart';
 
 /// Vocabulaire fermé côté API (`TOOTH_STATUSES`, `api/src/dental_chart.rs`).
 const kToothStatuses = [
@@ -51,18 +52,6 @@ const Map<String, Color> kToothStatusColors = {
   'devitalise': Color(0xFF92400E),
   'fracture': Color(0xFF991B1B),
 };
-
-// Quadrants FDI : Q1 haut-droit, Q2 haut-gauche, Q3 bas-gauche, Q4 bas-droit
-// (permanent, 1-4) ; Q5-Q8 mêmes positions en denture lait.
-const _permanentUpperRight = ['18', '17', '16', '15', '14', '13', '12', '11'];
-const _permanentUpperLeft = ['21', '22', '23', '24', '25', '26', '27', '28'];
-const _permanentLowerRight = ['48', '47', '46', '45', '44', '43', '42', '41'];
-const _permanentLowerLeft = ['31', '32', '33', '34', '35', '36', '37', '38'];
-
-const _primaryUpperRight = ['55', '54', '53', '52', '51'];
-const _primaryUpperLeft = ['61', '62', '63', '64', '65'];
-const _primaryLowerRight = ['85', '84', '83', '82', '81'];
-const _primaryLowerLeft = ['71', '72', '73', '74', '75'];
 
 class DentalChartPage extends StatelessWidget {
   const DentalChartPage({super.key, required this.patientId});
@@ -132,10 +121,7 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
     bool dirty,
     bool saving,
   ) {
-    final upperRight = _adulte ? _permanentUpperRight : _primaryUpperRight;
-    final upperLeft = _adulte ? _permanentUpperLeft : _primaryUpperLeft;
-    final lowerRight = _adulte ? _permanentLowerRight : _primaryLowerRight;
-    final lowerLeft = _adulte ? _permanentLowerLeft : _primaryLowerLeft;
+    final quadrants = _adulte ? FdiQuadrants.permanent : FdiQuadrants.primary;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -163,11 +149,17 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
             ],
           ),
           const SizedBox(height: 24),
-          _ToothRow(codes: upperRight, teeth: teeth, onTap: _pickStatus),
-          _ToothRow(codes: upperLeft, teeth: teeth, onTap: _pickStatus),
-          const SizedBox(height: 16),
-          _ToothRow(codes: lowerRight, teeth: teeth, onTap: _pickStatus),
-          _ToothRow(codes: lowerLeft, teeth: teeth, onTap: _pickStatus),
+          ToothGrid(
+            quadrants: quadrants,
+            keyPrefix: 'dental_chart_tooth',
+            colorFor: (code) {
+              final status = teeth[code]?.status;
+              return status != null
+                  ? kToothStatusColors[status] ?? Colors.grey.shade300
+                  : Colors.grey.shade100;
+            },
+            onTap: _pickStatus,
+          ),
           const SizedBox(height: 24),
           const _Legend(),
           const SizedBox(height: 24),
@@ -209,71 +201,6 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
     if (status != null) {
       cubit.setToothStatus(toothCode, status);
     }
-  }
-}
-
-class _ToothRow extends StatelessWidget {
-  const _ToothRow({
-    required this.codes,
-    required this.teeth,
-    required this.onTap,
-  });
-
-  final List<String> codes;
-  final Map<String, ToothState> teeth;
-  final void Function(String toothCode) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (final code in codes)
-          Padding(
-            padding: const EdgeInsets.all(2),
-            child: _ToothButton(
-              code: code,
-              status: teeth[code]?.status,
-              onTap: () => onTap(code),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ToothButton extends StatelessWidget {
-  const _ToothButton({
-    required this.code,
-    required this.status,
-    required this.onTap,
-  });
-
-  final String code;
-  final String? status;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = status != null
-        ? kToothStatusColors[status] ?? Colors.grey.shade300
-        : Colors.grey.shade100;
-    return InkWell(
-      key: Key('dental_chart_tooth_$code'),
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: color,
-          border: Border.all(color: Colors.grey.shade400),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        alignment: Alignment.center,
-        child: Text(code, style: const TextStyle(fontSize: 11)),
-      ),
-    );
   }
 }
 
