@@ -1,9 +1,14 @@
+import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/patients/patient_fiche.dart';
+
+class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
 
 final _patient = CabinetPatient(
   id: 'pat-1',
@@ -16,6 +21,13 @@ final _patient = CabinetPatient(
 );
 
 void main() {
+  setUp(() {
+    final listTags = _MockListPatientTags();
+    when(() => listTags(any())).thenAnswer((_) async => const Right([]));
+    GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
+    addTearDown(GetIt.instance.reset);
+  });
+
   group('PatientFiche — toggle notes cliniques', () {
     testWidgets('tap masque la section clinique', (tester) async {
       await tester.pumpWidget(

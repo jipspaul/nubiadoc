@@ -14,6 +14,7 @@ import '../remote/cabinet_appointments/cabinet_appointments_api.dart';
 import '../remote/cabinet_dashboard/cabinet_dashboard_api.dart';
 import '../remote/cabinet_messaging/cabinet_messaging_api.dart';
 import '../remote/cabinet_patients/cabinet_patients_api.dart';
+import '../remote/patient_tags/patient_tags_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/clinical/clinical_session_api.dart';
 import '../remote/consultation/consultation_api.dart';
@@ -47,6 +48,7 @@ import '../repositories/cabinet_appointments_repository_impl.dart';
 import '../repositories/cabinet_dashboard_repository_impl.dart';
 import '../repositories/cabinet_message_repository_impl.dart';
 import '../repositories/cabinet_patients_repository_impl.dart';
+import '../repositories/patient_tags_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/cached_appointments_repository_impl.dart';
 import '../repositories/clinical_session_repository_impl.dart';
@@ -434,6 +436,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetPatientsApi>(
       () => CabinetPatientsApi(gi()),
     )
+    ..registerLazySingleton<PatientTagsApi>(
+      () => PatientTagsApi(gi()),
+    )
     ..registerLazySingleton<CabinetAgendaApi>(
       () => CabinetAgendaApi(gi()),
     )
@@ -467,6 +472,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<CabinetPatientsRepository>(
       () => CabinetPatientsRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PatientTagsRepository>(
+      () => PatientTagsRepositoryImpl(gi()),
     )
     ..registerLazySingleton<CabinetAgendaRepository>(
       () => CabinetAgendaRepositoryImpl(gi()),
@@ -512,6 +520,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => RescheduleAppointmentUseCase(gi()))
     ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
     ..registerFactory(() => CreateCabinetPatientUseCase(gi()))
+    ..registerFactory(() => ListPatientTagsUseCase(gi()))
+    ..registerFactory(() => CreatePatientTagUseCase(gi()))
+    ..registerFactory(() => DeletePatientTagUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))
     ..registerFactory(() => UpdatePatientNotesUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
