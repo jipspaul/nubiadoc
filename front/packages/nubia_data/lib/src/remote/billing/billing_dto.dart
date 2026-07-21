@@ -9,6 +9,7 @@ class QuoteLineItemDto {
   final int amoShareCents;
   final int amcShareCents;
   final int patientShareCents;
+  final String? panierSante;
 
   const QuoteLineItemDto({
     required this.id,
@@ -19,11 +20,13 @@ class QuoteLineItemDto {
     required this.amoShareCents,
     required this.amcShareCents,
     required this.patientShareCents,
+    this.panierSante,
   });
 
   /// Contrat réel (api/src/billing.rs) : {id, label, ccam_code, tooth,
-  /// unit_amount_cents, amo_part_cents?, amc_part_cents?}. Le reste à charge
-  /// patient = montant - remboursements (0 si part inconnue).
+  /// unit_amount_cents, amo_part_cents?, amc_part_cents?, panier_sante?
+  /// (#4060)}. Le reste à charge patient = montant - remboursements (0 si
+  /// part inconnue).
   factory QuoteLineItemDto.fromJson(Map<String, dynamic> json) {
     final total =
         (json['unit_amount_cents'] ?? json['total_cents'] ?? 0 as num).toInt();
@@ -38,6 +41,7 @@ class QuoteLineItemDto {
       amoShareCents: amo,
       amcShareCents: amc,
       patientShareCents: (total - amo - amc).clamp(0, total),
+      panierSante: json['panier_sante'] as String?,
     );
   }
 
@@ -50,6 +54,7 @@ class QuoteLineItemDto {
         amoShareCents: amoShareCents,
         amcShareCents: amcShareCents,
         patientShareCents: patientShareCents,
+        panierSante: PanierSante.fromApi(panierSante),
       );
 }
 

@@ -2,6 +2,26 @@ import 'package:equatable/equatable.dart';
 
 enum QuoteStatus { draft, sent, signed, expired, cancelled }
 
+/// Classification 100% Santé d'un acte (`ccam_act.panier_sante`, #4055).
+/// `null`/[unknown] si la ligne n'a pas de code CCAM ou n'est pas encore
+/// classifiée : ne JAMAIS déduire `rac0` par défaut d'une valeur absente
+/// (obligation conventionnelle de présenter l'alternative RAC 0, #4061).
+enum PanierSante {
+  rac0,
+  modere,
+  libre,
+  horsNomenclature,
+  unknown;
+
+  static PanierSante fromApi(String? raw) => switch (raw) {
+        'rac0' => PanierSante.rac0,
+        'modere' => PanierSante.modere,
+        'libre' => PanierSante.libre,
+        'hors_nomenclature' => PanierSante.horsNomenclature,
+        _ => PanierSante.unknown,
+      };
+}
+
 class QuoteLineItem extends Equatable {
   final String id;
   final String label;
@@ -11,6 +31,7 @@ class QuoteLineItem extends Equatable {
   final int amoShareCents; // Remboursement Sécu
   final int amcShareCents; // Remboursement Mutuelle
   final int patientShareCents; // Reste à charge
+  final PanierSante panierSante;
 
   const QuoteLineItem({
     required this.id,
@@ -21,6 +42,7 @@ class QuoteLineItem extends Equatable {
     required this.amoShareCents,
     required this.amcShareCents,
     required this.patientShareCents,
+    this.panierSante = PanierSante.unknown,
   });
 
   @override
