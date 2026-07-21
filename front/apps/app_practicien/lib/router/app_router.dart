@@ -12,6 +12,7 @@ import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/consultation_clinique/consultation_clinique_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/dental_chart/dental_chart_page.dart';
+import '../features/periodontal_chart/periodontal_chart_page.dart';
 import '../features/treatment_plans/treatment_plans_page.dart';
 import '../features/devis/devis_page.dart';
 import '../features/ordonnances/ordonnance_new_page.dart';
@@ -116,6 +117,12 @@ class AppRouter {
                 GoRoute(
                   path: 'dental-chart',
                   builder: (_, state) => DentalChartPage(
+                    patientId: state.pathParameters['id']!,
+                  ),
+                ),
+                GoRoute(
+                  path: 'periodontal-chart',
+                  builder: (_, state) => PeriodontalChartPage(
                     patientId: state.pathParameters['id']!,
                   ),
                 ),
