@@ -21,6 +21,7 @@ pub use reminder_dispatch::{
 pub use twilio_sms::TwilioSmsSender;
 pub use yousign_client::YousignClient;
 
+mod appointment_motifs;
 mod appointments;
 mod auth;
 mod billing;
@@ -610,6 +611,16 @@ fn build_router(
         .route(
             "/v1/cabinet/waiting-room/call-next",
             post(scheduling::call_next_patient),
+        )
+        .route(
+            "/v1/cabinet/appointment-motifs",
+            get(appointment_motifs::list_appointment_motifs)
+                .post(appointment_motifs::create_appointment_motif),
+        )
+        .route(
+            "/v1/cabinet/appointment-motifs/:id",
+            patch(appointment_motifs::update_appointment_motif)
+                .delete(appointment_motifs::delete_appointment_motif),
         )
         .route(
             "/v1/cabinet/waiting-list",
