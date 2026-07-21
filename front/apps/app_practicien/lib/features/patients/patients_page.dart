@@ -477,6 +477,11 @@ class _AppointmentsHistory extends StatelessWidget {
                     title:
                         '${_formatDateTime(a.startsAt)} · ${a.practitionerName}',
                     subtitle: a.motif,
+                    trailing: NubiaBadge.label(
+                      key: Key('patient_appt_status_${a.id}'),
+                      label: _statusLabel(a.status),
+                      variant: _statusVariant(a.status),
+                    ),
                     showDivider: i != appointments.take(10).length - 1,
                   ),
               ],
@@ -493,5 +498,38 @@ class _AppointmentsHistory extends StatelessWidget {
     final hh = d.hour.toString().padLeft(2, '0');
     final min = d.minute.toString().padLeft(2, '0');
     return '$dd/$mm/${d.year} $hh:$min';
+  }
+
+  static String _statusLabel(CabinetAppointmentStatus status) {
+    switch (status) {
+      case CabinetAppointmentStatus.requested:
+        return 'Demandé';
+      case CabinetAppointmentStatus.confirmed:
+        return 'Confirmé';
+      case CabinetAppointmentStatus.inProgress:
+        return 'En cours';
+      case CabinetAppointmentStatus.completed:
+        return 'Honoré';
+      case CabinetAppointmentStatus.cancelled:
+        return 'Annulé';
+      case CabinetAppointmentStatus.noShow:
+        return 'Non venu';
+    }
+  }
+
+  static NubiaBadgeVariant _statusVariant(CabinetAppointmentStatus status) {
+    switch (status) {
+      case CabinetAppointmentStatus.requested:
+        return NubiaBadgeVariant.neutral;
+      case CabinetAppointmentStatus.confirmed:
+        return NubiaBadgeVariant.info;
+      case CabinetAppointmentStatus.inProgress:
+        return NubiaBadgeVariant.warning;
+      case CabinetAppointmentStatus.completed:
+        return NubiaBadgeVariant.success;
+      case CabinetAppointmentStatus.cancelled:
+      case CabinetAppointmentStatus.noShow:
+        return NubiaBadgeVariant.error;
+    }
   }
 }
