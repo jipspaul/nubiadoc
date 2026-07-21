@@ -379,6 +379,15 @@ class _DetailViewState extends State<_DetailView> {
           ),
           const SizedBox(height: 12),
           NubiaButton(
+            key: const Key('btn_periodontal_chart'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.query_stats_outlined,
+            label: 'Bilan parodontal',
+            onPressed: () =>
+                context.push('/patients/${p.id}/periodontal-chart'),
+          ),
+          const SizedBox(height: 12),
+          NubiaButton(
             key: const Key('btn_treatment_plans'),
             variant: NubiaButtonVariant.secondary,
             icon: Icons.assignment_outlined,
