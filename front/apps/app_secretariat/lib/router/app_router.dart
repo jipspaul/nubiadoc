@@ -11,6 +11,8 @@ import '../features/admin_membres/admin_membres_bloc.dart';
 import '../features/admin_membres/admin_membres_page.dart';
 import '../features/admin_secretariats/admin_secretariats_bloc.dart';
 import '../features/admin_secretariats/admin_secretariats_page.dart';
+import '../features/appointment_motifs/appointment_motifs_bloc.dart';
+import '../features/appointment_motifs/appointment_motifs_page.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
@@ -58,6 +60,7 @@ class AppRouter {
   static const teamMessages = '/team-messages';
   static const adminMembres = '/admin-membres';
   static const adminSecretariats = '/admin-secretariats';
+  static const appointmentMotifs = '/appointment-motifs';
 
   static GoRouter create(RouterNotifier notifier) {
     return GoRouter(
@@ -189,6 +192,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<AdminMembresBloc>(),
             child: const AdminMembresPage(),
+          ),
+        ),
+        GoRoute(
+          path: appointmentMotifs,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
+            child: const AppointmentMotifsPage(),
           ),
         ),
         GoRoute(

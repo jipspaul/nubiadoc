@@ -16,6 +16,8 @@ import '../admin_membres/admin_membres_page.dart';
 import '../admin_membres/members_access_cubit.dart';
 import '../admin_secretariats/admin_secretariats_bloc.dart';
 import '../admin_secretariats/admin_secretariats_page.dart';
+import '../appointment_motifs/appointment_motifs_bloc.dart';
+import '../appointment_motifs/appointment_motifs_page.dart';
 import '../agenda/agenda_page.dart';
 import '../bookable_slots/bookable_slots_bloc.dart';
 import '../bookable_slots/bookable_slots_page.dart';
@@ -130,6 +132,11 @@ class DashboardPage extends StatelessWidget {
           body = BlocProvider(
             create: (_) => GetIt.instance<AdminMembresBloc>(),
             child: const AdminMembresPage(),
+          );
+        } else if (destination.route == '/appointment-motifs') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
+            child: const AppointmentMotifsPage(),
           );
         } else {
           body = Center(

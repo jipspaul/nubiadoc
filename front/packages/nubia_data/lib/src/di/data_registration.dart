@@ -6,6 +6,7 @@ import '../cache/appointments_cache.dart';
 import '../cache/drift/drift_appointments_cache.dart';
 import '../cache/drift/nubia_database.dart';
 import '../remote/account/account_api.dart';
+import '../remote/appointment_motifs/appointment_motifs_api.dart';
 import '../remote/auth/auth_api.dart';
 import '../remote/billing/billing_api.dart';
 import '../remote/cabinet_info/cabinet_info_api.dart';
@@ -43,6 +44,7 @@ import '../remote/slots/slots_api.dart';
 import '../remote/today_notes/today_notes_api.dart';
 import '../remote/waiting_room/waiting_room_api.dart';
 import '../repositories/account_repository_impl.dart';
+import '../repositories/appointment_motifs_repository_impl.dart';
 import '../repositories/search_repository_impl.dart';
 import '../repositories/appointment_repository_impl.dart';
 import '../repositories/auth_repository_impl.dart';
@@ -454,6 +456,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<PatientTagsApi>(
       () => PatientTagsApi(gi()),
     )
+    ..registerLazySingleton<AppointmentMotifsApi>(
+      () => AppointmentMotifsApi(gi()),
+    )
     ..registerLazySingleton<PatientDocumentsApi>(
       () => PatientDocumentsApi(gi()),
     )
@@ -505,6 +510,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<PatientTagsRepository>(
       () => PatientTagsRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<AppointmentMotifsRepository>(
+      () => AppointmentMotifsRepositoryImpl(gi()),
     )
     ..registerLazySingleton<PatientDocumentsRepository>(
       () => PatientDocumentsRepositoryImpl(gi()),
@@ -565,6 +573,10 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListPatientTagsUseCase(gi()))
     ..registerFactory(() => CreatePatientTagUseCase(gi()))
     ..registerFactory(() => DeletePatientTagUseCase(gi()))
+    ..registerFactory(() => ListAppointmentMotifsUseCase(gi()))
+    ..registerFactory(() => CreateAppointmentMotifUseCase(gi()))
+    ..registerFactory(() => UpdateAppointmentMotifUseCase(gi()))
+    ..registerFactory(() => DeleteAppointmentMotifUseCase(gi()))
     ..registerFactory(() => ListPatientDocumentsUseCase(gi()))
     ..registerFactory(() => GetDentalChartUseCase(gi()))
     ..registerFactory(() => PutDentalChartUseCase(gi()))
