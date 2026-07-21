@@ -439,3 +439,136 @@ pub async fn create_treatment_plan(
         Json(CreateTreatmentPlanResponse { plan_id }),
     ))
 }
+
+// ---------------------------------------------------------------------------
+// GET /v1/cabinet/patients/:id/treatment-plans
+// ---------------------------------------------------------------------------
+
+/// Phase imbriquée dans `CabinetTreatmentPlanItem` (§4.1, écran praticien #4051).
+#[derive(Serialize)]
+pub struct CabinetTreatmentPhaseItem {
+    pub id: Uuid,
+    pub position: i32,
+    pub title: String,
+    pub status: String,
+}
+
+/// Plan de traitement d'un patient, avec ses phases (écran praticien #4051).
+#[derive(Serialize)]
+pub struct CabinetTreatmentPlanItem {
+    pub id: Uuid,
+    pub title: String,
+    pub status: String,
+    pub created_at: String,
+    pub phases: Vec<CabinetTreatmentPhaseItem>,
+}
+
+/// Réponse de `GET /v1/cabinet/patients/:id/treatment-plans`.
+#[derive(Serialize)]
+pub struct ListCabinetTreatmentPlansResponse {
+    pub data: Vec<CabinetTreatmentPlanItem>,
+}
+
+/// `GET /v1/cabinet/patients/:id/treatment-plans` — plans de traitement d'un
+/// patient, avec leurs phases (écran praticien #4051 : liste + création).
+///
+/// Praticien uniquement (via `ProPractitionerClaims`). `cabinet_id` extrait du
+/// JWT, jamais du path (invariant tenancy). Patient inexistant ou hors tenant
+/// → 404. Tri des plans par `created_at DESC`, des phases par `position ASC`.
+pub async fn list_cabinet_treatment_plans(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<ListCabinetTreatmentPlansResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le patient appartient au cabinet (RLS garantit le cloisonnement).
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let plan_rows = sqlx::query(
+        "SELECT id, title, status, created_at FROM treatment_plan \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+         ORDER BY created_at DESC",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let phase_rows = sqlx::query(
+        "SELECT tph.id, tph.plan_id, tph.position, tph.title, tph.status \
+         FROM treatment_phase tph \
+         JOIN treatment_plan tp ON tp.id = tph.plan_id \
+         WHERE tp.patient_id = $1 AND tp.cabinet_id = $2 AND tp.deleted_at IS NULL \
+         ORDER BY tph.position ASC",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut phases_by_plan: std::collections::HashMap<Uuid, Vec<CabinetTreatmentPhaseItem>> =
+        std::collections::HashMap::new();
+    for row in &phase_rows {
+        let plan_id: Uuid = row.try_get("plan_id").map_err(|_| AppError::Internal)?;
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let position: i32 = row.try_get("position").map_err(|_| AppError::Internal)?;
+        let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
+        let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        phases_by_plan
+            .entry(plan_id)
+            .or_default()
+            .push(CabinetTreatmentPhaseItem {
+                id,
+                position,
+                title,
+                status,
+            });
+    }
+
+    let mut data = Vec::with_capacity(plan_rows.len());
+    for row in &plan_rows {
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let title: String = row.try_get("title").map_err(|_| AppError::Internal)?;
+        let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        let created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        data.push(CabinetTreatmentPlanItem {
+            phases: phases_by_plan.remove(&id).unwrap_or_default(),
+            id,
+            title,
+            status,
+            created_at: created_at.to_rfc3339(),
+        });
+    }
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        patient_id = %patient_id,
+        count = data.len(),
+        "cabinet treatment plans listed"
+    );
+
+    Ok(Json(ListCabinetTreatmentPlansResponse { data }))
+}
