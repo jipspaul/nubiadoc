@@ -225,6 +225,44 @@ Ces scénarios listent ce qu'il faut prouver avant de pouvoir dire "production".
 
 ---
 
+## G. Parcours clinique dentaire (P0)
+
+> Le métier réel du produit (dentaire), pas l'infra transactionnelle générique
+> (A-F couvrent RDV/paiement/messagerie mais aucun scénario ne joue le cœur
+> clinique). Ajouté 2026-07-22 après un audit du référentiel fonctionnel
+> Veasy/Desmos qui a fait remonter ~136 gaps sur le domaine dentaire (schéma
+> dentaire, actes CCAM, plan de traitement) — G1/G2 valident bout-en-bout ce
+> qui vient d'être livré côté API + Flutter pour ce domaine.
+
+### G1 — Consultation dentaire complète → devis patient
+
+| Étape | Acteur | Action | Assert |
+|---|---|---|---|
+| 1 | D | Login `praticien.doc.nubia-link.com` | dashboard chargé |
+| 2 | D | `/patients/:id` → ouvre le schéma dentaire (odontogramme) | notation FDI affichée, `GET /v1/cabinet/patients/:id/dental-chart` 200 |
+| 3 | D | Clique une dent → choisit un état (ex. "à traiter") → enregistre | `PUT /v1/cabinet/patients/:id/dental-chart` 200, la dent change de couleur à l'écran sans refresh |
+| 4 | D | Démarre une consultation → recherche un acte CCAM (ex. détartrage) depuis le schéma (dent pré-remplie) → l'ajoute | `POST /v1/cabinet/consultations/:id/acts` 201, `tooth` correspond à la dent cliquée en step 3 |
+| 5 | D | Clôture la séance | `POST /v1/cabinet/consultations/:id/complete` 200, un devis est généré (`quote_id` retourné) |
+| 6 | D | `/devis/:id` (ou équivalent app_practicien) | devis affiche l'acte CCAM saisi, montant correct, part AMO/AMC si calculée |
+| 7 | P | Login patient → écran devis | même devis visible, même montant, même acte |
+
+**Invariant** : le montant du devis correspond exactement à la somme des actes saisis pendant la séance — aucune désynchronisation schéma dentaire ↔ acte ↔ devis.
+
+**Si un maillon manque** (pas d'écran schéma dentaire, pas de route de création de plan, etc.) : ne pas inventer — suivre la règle persona "harnais/écran absent" (issue `[e2e] INFRA-MISSING`), le run continue sur G2 si indépendant.
+
+### G2 — Plan de traitement multi-étapes
+
+| Étape | Acteur | Action | Assert |
+|---|---|---|---|
+| 1 | D | `/patients/:id` → "Nouveau plan de traitement" | `POST /v1/cabinet/treatment-plans` 201 |
+| 2 | D | Ajoute 2 phases, rattache un acte CCAM à chacune | `POST /v1/cabinet/treatment-plans/:id/phases` 201 ×2 |
+| 3 | P | Login patient → écran plan de traitement | les 2 phases visibles, actes + statut par phase |
+| 4 | D | Marque la phase 1 réalisée | phase 1 passe "réalisée" côté D, et côté P après refresh (ou WS si branché) |
+
+**Invariant** : un plan de traitement sans aucune phase ne doit jamais être facturable — les quote_item se rattachent à une phase existante, pas au plan directement.
+
+---
+
 ## Format d'issue E2E
 
 Quand un scénario échoue, l'agent crée :
@@ -292,5 +330,6 @@ Format pour les **PASS** (silencieux — pas d'issue, juste log Matrix `[e2e] A1
 4. **B1 Wedge devis→signature→paiement** — flux monétisable
 5. **D3 Messagerie cabinet temps réel** — cross-rôle simple à tester
 6. **C1 + C2 Cloisonnement RLS** — conformité (peut être test API direct + screenshot UI)
+7. **G1 Consultation dentaire → devis** — cœur métier du produit, valide le lot de fixes dentaire livré 2026-07-22
 
-Le reste (A2, A3, B2, B3, D1, D2, E*, F*) à itérer après que les 5 premiers tournent vert.
+Le reste (A2, A3, B2, B3, D1, D2, E*, F*, G2) à itérer après que les 6 premiers tournent vert.
