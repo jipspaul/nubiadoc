@@ -1,6 +1,40 @@
 import 'package:nubia_domain/src/entities/consent.dart';
+import 'package:nubia_domain/src/entities/medical_questionnaire.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
 import 'package:nubia_domain/src/entities/referring_doctor.dart';
+
+class MedicalQuestionnaireDto {
+  final String id;
+  final String cabinetId;
+  final Map<String, dynamic> payload;
+  final String status;
+  final String? submittedAt;
+
+  const MedicalQuestionnaireDto({
+    required this.id,
+    required this.cabinetId,
+    required this.payload,
+    required this.status,
+    this.submittedAt,
+  });
+
+  factory MedicalQuestionnaireDto.fromJson(Map<String, dynamic> json) =>
+      MedicalQuestionnaireDto(
+        id: json['id'] as String,
+        cabinetId: json['cabinet_id'] as String,
+        payload: (json['payload'] as Map<String, dynamic>?) ?? const {},
+        status: json['status'] as String,
+        submittedAt: json['submitted_at'] as String?,
+      );
+
+  MedicalQuestionnaire toDomain() => MedicalQuestionnaire(
+        id: id,
+        cabinetId: cabinetId,
+        payload: payload,
+        status: status,
+        submittedAt: submittedAt != null ? DateTime.parse(submittedAt!) : null,
+      );
+}
 
 class HealthCoverageDto {
   final String regime;

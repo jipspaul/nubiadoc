@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/consent.dart';
+import 'package:nubia_domain/src/entities/medical_questionnaire.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
 import 'package:nubia_domain/src/entities/referring_doctor.dart';
 
@@ -74,6 +75,22 @@ abstract class AccountRepository {
     String? phone,
     String? email,
     String? address,
+  });
+
+  /// POST /v1/account/medical-questionnaire — crée un brouillon pour
+  /// [cabinetId]. `ServerFailure(statusCode: 409)` si un brouillon existe déjà.
+  Future<Either<Failure, MedicalQuestionnaire>> createMedicalQuestionnaire({
+    required String cabinetId,
+    required Map<String, dynamic> payload,
+  });
+
+  /// PATCH /v1/account/medical-questionnaire — modifie le brouillon existant
+  /// pour [cabinetId] et/ou le soumet (`submit: true`).
+  /// `NotFoundFailure` si aucun brouillon n'existe pour ce cabinet.
+  Future<Either<Failure, MedicalQuestionnaire>> patchMedicalQuestionnaire({
+    required String cabinetId,
+    Map<String, dynamic>? payload,
+    bool submit = false,
   });
 }
 

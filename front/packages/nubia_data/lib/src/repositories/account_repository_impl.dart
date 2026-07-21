@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/account/account_api.dart';
 import 'package:nubia_domain/src/entities/consent.dart';
+import 'package:nubia_domain/src/entities/medical_questionnaire.dart';
 import 'package:nubia_domain/src/entities/patient_account.dart';
 import 'package:nubia_domain/src/entities/referring_doctor.dart';
 import 'package:nubia_domain/src/repositories/account_repository.dart';
@@ -208,6 +209,67 @@ class AccountRepositoryImpl implements AccountRepository {
     } catch (e) {
       return const Left(ParseFailure());
     }
+  }
+
+  @override
+  Future<Either<Failure, MedicalQuestionnaire>> createMedicalQuestionnaire({
+    required String cabinetId,
+    required Map<String, dynamic> payload,
+  }) async {
+    try {
+      final dto = await _api.createMedicalQuestionnaire({
+        'cabinet_id': cabinetId,
+        'payload': payload,
+      });
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapMedicalQuestionnaireError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, MedicalQuestionnaire>> patchMedicalQuestionnaire({
+    required String cabinetId,
+    Map<String, dynamic>? payload,
+    bool submit = false,
+  }) async {
+    try {
+      final dto = await _api.patchMedicalQuestionnaire({
+        'cabinet_id': cabinetId,
+        if (payload != null) 'payload': payload,
+        'submit': submit,
+      });
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapMedicalQuestionnaireError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  /// `409`/`404` sont des signaux de contrôle attendus (brouillon
+  /// existant/absent, cf. `MedicalQuestionnaireCubit`) — distincts d'une
+  /// vraie erreur serveur, contrairement à `_mapError`.
+  Failure _mapMedicalQuestionnaireError(DioException e) {
+    final statusCode = e.response?.statusCode;
+    if (statusCode == 401) return const UnauthorizedFailure();
+    if (statusCode == 404) return const NotFoundFailure();
+    if (statusCode == 409) {
+      return const ServerFailure(
+        message: 'Un brouillon existe déjà.',
+        statusCode: 409,
+      );
+    }
+    if (e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout) {
+      return const NetworkFailure();
+    }
+    return ServerFailure(
+      message: 'Erreur serveur lors de l\'enregistrement du questionnaire.',
+      statusCode: statusCode,
+    );
   }
 
   Failure _mapError(DioException e) {

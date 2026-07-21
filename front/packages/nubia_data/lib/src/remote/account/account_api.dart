@@ -114,8 +114,8 @@ class AccountApi {
   /// GET /v1/account/referring-doctor — null si 404 (aucun médecin déclaré).
   Future<ReferringDoctorDto?> getReferringDoctor() async {
     try {
-      final response = await _dio
-          .get<Map<String, dynamic>>('/account/referring-doctor');
+      final response =
+          await _dio.get<Map<String, dynamic>>('/account/referring-doctor');
       final data = response.data;
       if (data == null || data.isEmpty) return null;
       return ReferringDoctorDto.fromJson(data);
@@ -132,5 +132,23 @@ class AccountApi {
       data: body,
     );
     return ReferringDoctorDto.fromJson(response.data!);
+  }
+
+  Future<MedicalQuestionnaireDto> createMedicalQuestionnaire(
+      Map<String, dynamic> body) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/account/medical-questionnaire',
+      data: body,
+    );
+    return MedicalQuestionnaireDto.fromJson(response.data!);
+  }
+
+  Future<MedicalQuestionnaireDto> patchMedicalQuestionnaire(
+      Map<String, dynamic> body) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/account/medical-questionnaire',
+      data: body,
+    );
+    return MedicalQuestionnaireDto.fromJson(response.data!);
   }
 }

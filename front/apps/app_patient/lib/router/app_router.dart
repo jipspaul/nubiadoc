@@ -19,6 +19,7 @@ import '../features/account_setup/account_setup_cubit.dart';
 import '../features/account_setup/account_setup_page.dart';
 import '../features/coverage_setup/coverage_setup_cubit.dart';
 import '../features/coverage_setup/coverage_setup_page.dart';
+import '../features/medical_questionnaire/medical_questionnaire_page.dart';
 import '../features/login/login_page.dart';
 import '../features/forgot_password/forgot_password_cubit.dart';
 import '../features/forgot_password/forgot_password_page.dart';
@@ -82,6 +83,7 @@ class AppRouter {
   static const notifications = '/notifications';
   static const oubliettes = '/oubliettes';
   static const prepareRdv = '/rdv/:id/prepare';
+  static const medicalQuestionnaire = '/questionnaire-medical/:cabinetId';
   static const modifyRdv = '/rdv/:id/modifier';
   static const book = '/book';
 
@@ -316,6 +318,12 @@ class AppRouter {
           path: modifyRdv,
           builder: (_, state) =>
               ModifyRdvPage(appointmentId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: medicalQuestionnaire,
+          builder: (_, state) => MedicalQuestionnairePage(
+            cabinetId: state.pathParameters['cabinetId']!,
+          ),
         ),
         GoRoute(path: book, builder: (_, __) => const BookAppointmentPage()),
       ],
