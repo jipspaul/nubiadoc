@@ -37,6 +37,7 @@ mod cabinet_quotes;
 mod cabinet_quotes_export;
 mod cabinet_quotes_patch;
 mod cabinet_secretariats;
+mod cabinet_stats;
 mod cabinet_team_messages;
 mod ccam_acts;
 mod clinical;
@@ -647,6 +648,10 @@ fn build_router(
         .route(
             "/v1/cabinet/quotes/export.csv",
             get(cabinet_quotes_export::export_cabinet_quotes_csv),
+        )
+        .route(
+            "/v1/cabinet/stats/activity",
+            get(cabinet_stats::get_cabinet_activity_stats),
         )
         .route(
             "/v1/cabinet/quotes/:id",
