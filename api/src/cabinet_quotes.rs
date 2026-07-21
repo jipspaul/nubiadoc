@@ -222,7 +222,11 @@ pub struct CabinetQuoteItem {
 /// Valeurs valides de `quote.status` (CHECK, migration 0006). `cancelled`
 /// n'en fait PAS partie côté back malgré `CabinetQuoteStatus.cancelled` côté
 /// Flutter (incohérence préexistante, hors scope #4066).
-const VALID_QUOTE_STATUSES: [&str; 5] = ["draft", "sent", "signed", "refused", "expired"];
+///
+/// `pub(crate)` : réutilisée par `cabinet_quotes_export::export_cabinet_quotes_csv`
+/// (#4154) pour valider le même filtre `?status=`.
+pub(crate) const VALID_QUOTE_STATUSES: [&str; 5] =
+    ["draft", "sent", "signed", "refused", "expired"];
 
 /// `GET /v1/cabinet/quotes` — liste les devis du cabinet courant.
 ///
