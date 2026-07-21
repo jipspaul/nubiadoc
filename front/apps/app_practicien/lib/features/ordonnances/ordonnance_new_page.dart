@@ -124,8 +124,28 @@ class _PrescriptionForm extends StatefulWidget {
 
 class _PrescriptionFormState extends State<_PrescriptionForm> {
   final List<_ItemDraft> _items = [_ItemDraft()];
+  List<String> _allergies = const [];
 
   bool get _formValid => _items.isNotEmpty && _items.every((i) => i.isValid);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAllergies();
+  }
+
+  /// Affichage passif uniquement (#4076, ADR-009 §8.6) : jamais de blocage
+  /// ni de suggestion d'alternative — un échec de chargement laisse
+  /// simplement le bandeau absent, la saisie n'est jamais impactée.
+  Future<void> _loadAllergies() async {
+    final result =
+        await GetIt.instance<GetMedicalRecordUseCase>()(widget.patientId);
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (record) => setState(() => _allergies = record.allergies),
+    );
+  }
 
   @override
   void dispose() {
@@ -157,6 +177,10 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_allergies.isNotEmpty) ...[
+                _AllergiesBanner(allergies: _allergies),
+                const SizedBox(height: 16),
+              ],
               Text('Médicaments à prescrire',
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 16),
@@ -190,6 +214,58 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Bandeau passif (#4076, ADR-009 §8.6) : affiche les allergies connues du
+/// dossier médical. Jamais bloquant, ne désactive aucun champ, ne suggère
+/// aucune alternative — hors périmètre MDR (dispositif médical exclu).
+class _AllergiesBanner extends StatelessWidget {
+  const _AllergiesBanner({required this.allergies});
+  final List<String> allergies;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      key: const Key('allergies_banner'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.warningBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 20, color: tokens.warningFg),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Allergies connues',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: tokens.warningFg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  allergies.join(', '),
+                  style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
