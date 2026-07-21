@@ -21,12 +21,38 @@ use crate::{
 
 // ── Structures ────────────────────────────────────────────────────────────────
 
+/// Flags médico-légaux structurés (#4103) — jusqu'ici, `allergies[]`/
+/// `treatments[]`/`history` étaient du JSON libre non structuré, sans champ
+/// dédié pour ces signaux, pourtant nécessaires au moteur d'alertes
+/// bloquantes (`consultation_acts.rs`, #4057) qui devait auparavant chercher
+/// des mots-clés dans `treatments` en texte libre (fragile — un praticien
+/// écrivant "AOD" au lieu de "anticoagulant" passait inaperçu).
+///
+/// `Default` = tout à `false` — un dossier créé avant cette issue (ou dont
+/// le body PATCH omet `medico_legal`) n'a aucun de ces facteurs de risque
+/// tant qu'un praticien ne les coche pas explicitement (jamais déduits).
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct MedicoLegalFlags {
+    /// Affection de Longue Durée (prise en charge à 100%, Assurance Maladie).
+    #[serde(default)]
+    pub ald: bool,
+    #[serde(default)]
+    pub anticoagulants: bool,
+    #[serde(default)]
+    pub bisphosphonates: bool,
+    /// Risque d'endocardite infectieuse (antécédent cardiaque à risque —
+    /// antibioprophylaxie requise avant certains actes invasifs).
+    #[serde(default)]
+    pub risque_endocardite: bool,
+}
+
 /// Réponse de `GET /v1/cabinet/patients/:id/medical-record`.
 #[derive(Serialize)]
 pub struct MedicalRecordResponse {
     pub allergies: Vec<serde_json::Value>,
     pub treatments: Vec<serde_json::Value>,
     pub history: Option<String>,
+    pub medico_legal: MedicoLegalFlags,
 }
 
 /// Corps de `PATCH /v1/cabinet/patients/:id/medical-record`.
@@ -35,6 +61,9 @@ pub struct PatchMedicalRecordBody {
     pub allergies: Option<Vec<serde_json::Value>>,
     pub treatments: Option<Vec<serde_json::Value>>,
     pub history: Option<String>,
+    /// Remplace l'objet entier si fourni (même granularité que les autres
+    /// champs de ce body — pas de merge flag-par-flag).
+    pub medico_legal: Option<MedicoLegalFlags>,
 }
 
 // ── Helpers chiffrement (stub dev) ────────────────────────────────────────────
@@ -131,24 +160,32 @@ pub async fn get_medical_record(
             allergies: vec![],
             treatments: vec![],
             history: None,
+            medico_legal: MedicoLegalFlags::default(),
         },
         Some(row) => {
             let ciphertext: Vec<u8> = row
                 .try_get("data_ciphertext")
                 .map_err(|_| AppError::Internal)?;
             // Déchiffrement stub → JSON object attendu :
-            // { "allergies": [...], "treatments": [...], "history": "..." }
+            // { "allergies": [...], "treatments": [...], "history": "...",
+            //   "medico_legal": { "ald": bool, ... } }
             let data = decrypt_stub(&ciphertext)
                 .unwrap_or_else(|| json!({"allergies": [], "treatments": [], "history": null}));
 
             let allergies = data["allergies"].as_array().cloned().unwrap_or_default();
             let treatments = data["treatments"].as_array().cloned().unwrap_or_default();
             let history = data["history"].as_str().map(|s| s.to_string());
+            // Absent sur les dossiers créés avant #4103 : tout à false (Default).
+            let medico_legal = data
+                .get("medico_legal")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
 
             MedicalRecordResponse {
                 allergies,
                 treatments,
                 history,
+                medico_legal,
             }
         }
     };
@@ -276,6 +313,9 @@ pub async fn patch_medical_record(
         "history": body.history
             .map(|s| json!(s))
             .unwrap_or_else(|| existing_data["history"].clone()),
+        "medico_legal": body.medico_legal
+            .map(|v| json!(v))
+            .unwrap_or_else(|| existing_data["medico_legal"].clone()),
     });
 
     let ciphertext = encrypt_stub(&merged);
@@ -313,6 +353,10 @@ pub async fn patch_medical_record(
     let allergies = merged["allergies"].as_array().cloned().unwrap_or_default();
     let treatments = merged["treatments"].as_array().cloned().unwrap_or_default();
     let history = merged["history"].as_str().map(|s| s.to_string());
+    let medico_legal = merged
+        .get("medico_legal")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
@@ -325,5 +369,6 @@ pub async fn patch_medical_record(
         allergies,
         treatments,
         history,
+        medico_legal,
     }))
 }
