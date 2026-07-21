@@ -33,6 +33,7 @@ mod cabinet_messaging;
 mod cabinet_payments_manual;
 mod cabinet_quote_item_parts;
 mod cabinet_quotes;
+mod cabinet_quotes_export;
 mod cabinet_quotes_patch;
 mod cabinet_secretariats;
 mod cabinet_team_messages;
@@ -631,6 +632,10 @@ fn build_router(
         .route(
             "/v1/cabinet/quotes",
             get(cabinet_quotes::list_cabinet_quotes),
+        )
+        .route(
+            "/v1/cabinet/quotes/export.csv",
+            get(cabinet_quotes_export::export_cabinet_quotes_csv),
         )
         .route(
             "/v1/cabinet/quotes/:id",
