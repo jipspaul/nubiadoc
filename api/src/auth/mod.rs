@@ -177,6 +177,10 @@ pub(crate) enum AppError {
     /// message d'alerte affiché au praticien (ex. "Anticoagulants —
     /// vérifier le risque hémorragique avant un acte invasif").
     ClinicalRiskWarning(String),
+    /// `POST /v1/account/medical-questionnaire` (#4108) : un brouillon existe
+    /// déjà pour ce cabinet — le client doit utiliser `PATCH` plutôt que de
+    /// créer un doublon (pas de contrainte d'unicité en base, garde applicative).
+    MedicalQuestionnaireDraftExists,
 }
 
 impl IntoResponse for AppError {
@@ -377,6 +381,11 @@ impl IntoResponse for AppError {
             AppError::ClinicalRiskWarning(message) => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "clinical_risk_warning", "message": message})),
+            )
+                .into_response(),
+            AppError::MedicalQuestionnaireDraftExists => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "medical_questionnaire_draft_exists"})),
             )
                 .into_response(),
         }

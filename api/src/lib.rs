@@ -54,6 +54,7 @@ pub mod hl7v2;
 mod implant_passport;
 mod interop;
 mod marketplace;
+mod medical_questionnaire;
 mod medical_record;
 mod messaging;
 mod ngap_acts;
@@ -416,6 +417,11 @@ fn build_router(
         )
         .route("/v1/account/coverage/card", post(auth::post_coverage_card))
         .route(
+            "/v1/account/medical-questionnaire",
+            post(medical_questionnaire::create_medical_questionnaire)
+                .patch(medical_questionnaire::patch_medical_questionnaire),
+        )
+        .route(
             "/v1/account/referring-doctor",
             get(auth::get_account_referring_doctor).put(auth::put_account_referring_doctor),
         )
@@ -520,6 +526,10 @@ fn build_router(
             "/v1/cabinet/patients/:id/periodontal-chart",
             get(periodontal_chart::get_periodontal_chart)
                 .put(periodontal_chart::put_periodontal_chart),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/medical-questionnaire",
+            get(medical_questionnaire::get_cabinet_medical_questionnaire),
         )
         .route(
             "/v1/cabinet/treatment-plans",
