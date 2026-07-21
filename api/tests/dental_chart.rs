@@ -389,3 +389,58 @@ async fn put_dental_chart_invalid_tooth_value_returns_422() {
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
+
+// ── Test 5 : PUT code de dent hors notation FDI → 422 (#4046) ────────────────
+//
+// `validate_teeth` (dental_chart.rs) valide déjà les clés (couverte
+// uniquement côté valeurs par le test 4) : quadrant 1-4 → dent 1-8 (FDI
+// permanente, 11-48), quadrant 5-8 → dent 1-5 (FDI lait, 51-85). Ce test
+// comble ce trou de couverture ciblé par l'issue #4046, la validation
+// elle-même existant déjà (#3838) — pas de changement fonctionnel requis.
+#[tokio::test]
+async fn put_dental_chart_invalid_tooth_code_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    let bad_bodies = [
+        // Quadrant 0 : hors FDI (1-8 uniquement).
+        json!({"teeth": {"01": {"status": "sain"}}}),
+        // Quadrant 9 : hors FDI.
+        json!({"teeth": {"91": {"status": "sain"}}}),
+        // Quadrant permanent (1-4) mais dent 9 : hors 1-8.
+        json!({"teeth": {"19": {"status": "sain"}}}),
+        // Quadrant lait (5-8) mais dent 6 : hors 1-5.
+        json!({"teeth": {"56": {"status": "sain"}}}),
+        // Longueur ≠ 2.
+        json!({"teeth": {"111": {"status": "sain"}}}),
+        // Non numérique.
+        json!({"teeth": {"AB": {"status": "sain"}}}),
+    ];
+
+    for body in bad_bodies {
+        let resp = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/v1/cabinet/patients/{}/dental-chart", patient_id))
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            resp.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "code dent accepté à tort : {body}"
+        );
+    }
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
