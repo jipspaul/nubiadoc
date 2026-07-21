@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
+    patient_guardianship::aggregate_guardianship,
     AppState,
 };
 
@@ -119,9 +120,12 @@ pub async fn create_cabinet_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le patient appartient au cabinet (RLS garantit le tenant).
-    let patient_exists = sqlx::query(
-        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    // Vérifie que le patient appartient au cabinet (RLS garantit le tenant),
+    // récupère patient_account_id pour la résolution du responsable légal
+    // (#4098, ci-dessous).
+    let patient_row = sqlx::query(
+        "SELECT patient_account_id FROM patient \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(body.patient_id)
     .bind(claims.cabinet_id)
@@ -129,21 +133,40 @@ pub async fn create_cabinet_quote(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    if patient_exists.is_none() {
+    let Some(patient_row) = patient_row else {
         return Err(AppError::NotFound);
-    }
+    };
+    let patient_account_id: Option<Uuid> = patient_row
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Responsable légal (#4098) : si le bénéficiaire des soins a un compte
+    // plateforme lié et qu'un tuteur actif lui est rattaché
+    // (account_guardianship), le devis lui est aussi facturable — premier
+    // tuteur trouvé s'il y en a plusieurs (aucun critère de priorité connu
+    // pour en choisir un en particulier). NULL si pas de compte lié ou pas
+    // de tuteur : comportement inchangé (facturé au bénéficiaire des soins).
+    let billed_to_account_id = match patient_account_id {
+        Some(account_id) => {
+            let (guardians, _dependents) = aggregate_guardianship(&mut tx, account_id).await?;
+            guardians.into_iter().next().map(|g| g.account_id)
+        }
+        None => None,
+    };
 
     // Insère le devis.
     let quote_row = sqlx::query(
         "INSERT INTO quote \
-         (cabinet_id, patient_id, status, total_amount, currency, deposit_pct) \
-         VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR', $4) \
+         (cabinet_id, patient_id, status, total_amount, currency, deposit_pct, \
+          billed_to_account_id) \
+         VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR', $4, $5) \
          RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(body.patient_id)
     .bind(total_cents)
     .bind(body.deposit_pct)
+    .bind(billed_to_account_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
