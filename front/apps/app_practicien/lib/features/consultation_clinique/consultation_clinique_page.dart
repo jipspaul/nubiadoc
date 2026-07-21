@@ -350,6 +350,7 @@ class _LoadedViewState extends State<_LoadedView> {
         CcamPicker(
           key: const Key('ccam_picker'),
           useCase: GetIt.instance<GetActsUseCase>(),
+          favoritesUseCase: GetIt.instance<FavoriteActsUseCase>(),
           // #4048 — la dent choisie via le schéma dentaire pré-remplit
           // l'éditeur d'acte au lieu de la saisie texte libre.
           selectedTooth: _selectedTooth,
