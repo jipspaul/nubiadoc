@@ -24,6 +24,9 @@ class MockGetCabinetConversationUseCase extends Mock
 class MockSendMessageCabinetUseCase extends Mock
     implements SendMessageCabinetUseCase {}
 
+class MockConvertConversationToAppointmentUseCase extends Mock
+    implements ConvertConversationToAppointmentUseCase {}
+
 class MockCabinetMessagingBloc
     extends MockBloc<CabinetMessagingEvent, CabinetMessagingState>
     implements CabinetMessagingBloc {}
@@ -52,11 +55,14 @@ CabinetMessagingBloc _makeBloc({
   required MockListCabinetConversationsUseCase list,
   required MockGetCabinetConversationUseCase getMessages,
   required MockSendMessageCabinetUseCase send,
+  MockConvertConversationToAppointmentUseCase? convertToAppointment,
 }) =>
     CabinetMessagingBloc(
       listConversations: list,
       getMessages: getMessages,
       sendMessage: send,
+      convertToAppointment:
+          convertToAppointment ?? MockConvertConversationToAppointmentUseCase(),
     );
 
 Widget _wrap(CabinetMessagingBloc bloc) => MaterialApp(
@@ -245,6 +251,87 @@ void main() {
         CabinetMessagingThreadLoaded(
           conversation: _conversation,
           messages: [_message],
+        ),
+      ],
+    );
+
+    blocTest<CabinetMessagingBloc, CabinetMessagingState>(
+      'convertit la conversation en RDV (#4159/#4160)',
+      build: () {
+        final mockConvert = MockConvertConversationToAppointmentUseCase();
+        when(() => mockConvert(
+              conversationId: _conversation.id,
+              slotId: 'slot-1',
+            )).thenAnswer((_) async => const Right(
+              ConversationAppointmentConversion(
+                appointmentId: 'appt-1',
+                status: 'requested',
+              ),
+            ));
+        return _makeBloc(
+          list: mockList,
+          getMessages: mockGetMessages,
+          send: mockSend,
+          convertToAppointment: mockConvert,
+        );
+      },
+      seed: () => CabinetMessagingThreadLoaded(
+        conversation: _conversation,
+        messages: const [],
+      ),
+      act: (bloc) => bloc.add(const CabinetMessagingConvertToAppointmentRequested(
+        conversationId: 'conv-1',
+        slotId: 'slot-1',
+      )),
+      expect: () => [
+        CabinetMessagingThreadLoaded(
+          conversation: _conversation,
+          messages: const [],
+          converting: true,
+        ),
+        CabinetMessagingThreadLoaded(
+          conversation: _conversation,
+          messages: const [],
+        ),
+      ],
+    );
+
+    blocTest<CabinetMessagingBloc, CabinetMessagingState>(
+      'conversion en RDV échouée — reste dans le thread avec une erreur',
+      build: () {
+        final mockConvert = MockConvertConversationToAppointmentUseCase();
+        when(() => mockConvert(
+              conversationId: _conversation.id,
+              slotId: 'slot-1',
+            )).thenAnswer(
+          (_) async =>
+              const Left(ValidationFailure(message: 'Ce créneau vient d\'être réservé, choisissez-en un autre.')),
+        );
+        return _makeBloc(
+          list: mockList,
+          getMessages: mockGetMessages,
+          send: mockSend,
+          convertToAppointment: mockConvert,
+        );
+      },
+      seed: () => CabinetMessagingThreadLoaded(
+        conversation: _conversation,
+        messages: const [],
+      ),
+      act: (bloc) => bloc.add(const CabinetMessagingConvertToAppointmentRequested(
+        conversationId: 'conv-1',
+        slotId: 'slot-1',
+      )),
+      expect: () => [
+        CabinetMessagingThreadLoaded(
+          conversation: _conversation,
+          messages: const [],
+          converting: true,
+        ),
+        CabinetMessagingThreadLoaded(
+          conversation: _conversation,
+          messages: const [],
+          conversionError: 'Ce créneau vient d\'être réservé, choisissez-en un autre.',
         ),
       ],
     );

@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -19,6 +20,30 @@ class _MockCabinetMessageRepository extends Mock
 class _MockCabinetMessagingBloc
     extends MockBloc<CabinetMessagingEvent, CabinetMessagingState>
     implements CabinetMessagingBloc {}
+
+class _MockListBookableSlotsUseCase extends Mock
+    implements ListBookableSlotsUseCase {}
+
+final _slot = Slot(
+  id: 'slot-1',
+  cabinetId: 'cab-1',
+  practitionerId: 'prac-1',
+  startsAt: DateTime(2026, 8, 10, 9),
+  endsAt: DateTime(2026, 8, 10, 9, 30),
+  isAvailable: true,
+);
+
+/// Reproduit le formatage privé `AppointmentSlotPicker._slotLabel`.
+String _expectedSlotLabel(DateTime d) {
+  const weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const months = [
+    'jan.', 'fév.', 'mar.', 'avr.', 'mai', 'juin', //
+    'juil.', 'août', 'sep.', 'oct.', 'nov.', 'déc.',
+  ];
+  final h = '${d.hour.toString().padLeft(2, '0')}:'
+      '${d.minute.toString().padLeft(2, '0')}';
+  return '${weekdays[d.weekday - 1]} ${d.day} ${months[d.month - 1]} – $h';
+}
 
 void main() {
   // --- Cloisonnement invariant --------------------------------------------------
@@ -102,6 +127,7 @@ void main() {
           listConversations: listConversations,
           getMessages: getMessages,
           sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
         );
       },
       act: (bloc) =>
@@ -122,6 +148,7 @@ void main() {
           listConversations: listConversations,
           getMessages: getMessages,
           sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
         );
       },
       act: (bloc) =>
@@ -142,6 +169,7 @@ void main() {
           listConversations: listConversations,
           getMessages: getMessages,
           sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
         );
       },
       act: (bloc) => bloc.add(
@@ -178,6 +206,7 @@ void main() {
           listConversations: listConversations,
           getMessages: getMessages,
           sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
         );
       },
       act: (bloc) =>
@@ -192,6 +221,62 @@ void main() {
           // garantie structurelle par le type.
         }
       },
+    );
+
+    blocTest<CabinetMessagingBloc, CabinetMessagingState>(
+      'convertit la conversation en RDV (#4159/#4160)',
+      build: () {
+        when(() => repo.convertToAppointment(
+              conversationId: 'conv1',
+              slotId: 'slot-1',
+            )).thenAnswer((_) async => const Right(
+              ConversationAppointmentConversion(
+                appointmentId: 'appt-1',
+                status: 'requested',
+              ),
+            ));
+        return CabinetMessagingBloc(
+          listConversations: listConversations,
+          getMessages: getMessages,
+          sendMessage: sendMessage,
+          convertToAppointment: ConvertConversationToAppointmentUseCase(repo),
+        );
+      },
+      seed: () => const CabinetMessagingThreadLoaded(
+        conversation: CabinetConversation(
+          id: 'conv1',
+          patientId: 'p1',
+          patientName: 'Marie Curie',
+          unreadCount: 0,
+        ),
+        messages: [],
+      ),
+      act: (bloc) =>
+          bloc.add(const CabinetMessagingConvertToAppointmentRequested(
+        conversationId: 'conv1',
+        slotId: 'slot-1',
+      )),
+      expect: () => [
+        const CabinetMessagingThreadLoaded(
+          conversation: CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          messages: [],
+          converting: true,
+        ),
+        const CabinetMessagingThreadLoaded(
+          conversation: CabinetConversation(
+            id: 'conv1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            unreadCount: 0,
+          ),
+          messages: [],
+        ),
+      ],
     );
   });
 
@@ -462,6 +547,128 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Erreur de chargement du thread'), findsOneWidget);
+    });
+
+    group('Créer un RDV (#4159/#4160)', () {
+      late _MockListBookableSlotsUseCase mockSlots;
+
+      setUp(() {
+        mockSlots = _MockListBookableSlotsUseCase();
+        if (GetIt.instance.isRegistered<ListBookableSlotsUseCase>()) {
+          GetIt.instance.unregister<ListBookableSlotsUseCase>();
+        }
+        GetIt.instance.registerFactory<ListBookableSlotsUseCase>(
+          () => mockSlots,
+        );
+      });
+
+      tearDown(() => GetIt.instance.reset());
+
+      testWidgets(
+        'thread → "Créer un RDV" → choix du créneau → dispatch '
+        'CabinetMessagingConvertToAppointmentRequested',
+        (tester) async {
+          when(() => bloc.state).thenReturn(
+            const CabinetMessagingThreadLoaded(
+              conversation: CabinetConversation(
+                id: 'conv1',
+                patientId: 'p1',
+                patientName: 'Marie Curie',
+                unreadCount: 0,
+              ),
+              messages: [],
+            ),
+          );
+          when(() => mockSlots()).thenAnswer((_) async => Right([_slot]));
+
+          await tester.pumpWidget(buildPage());
+          await tester.pump();
+
+          expect(
+            find.byKey(const Key('create_appointment_from_conversation')),
+            findsOneWidget,
+          );
+          await tester.tap(
+            find.byKey(const Key('create_appointment_from_conversation')),
+          );
+          await tester.pumpAndSettle();
+
+          expect(
+            find.byKey(const Key('appointment_slot_picker')),
+            findsOneWidget,
+          );
+          await tester.tap(find.byKey(const Key('appointment_slot_dropdown')));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(_expectedSlotLabel(_slot.startsAt)).last);
+          await tester.pumpAndSettle();
+
+          await tester
+              .tap(find.byKey(const Key('appointment_slot_picker_confirm')));
+          await tester.pumpAndSettle();
+
+          verify(() => bloc.add(
+                const CabinetMessagingConvertToAppointmentRequested(
+                  conversationId: 'conv1',
+                  slotId: 'slot-1',
+                ),
+              )).called(1);
+        },
+      );
+
+      testWidgets(
+        'converting: true — bouton remplacé par un indicateur de chargement',
+        (tester) async {
+          when(() => bloc.state).thenReturn(
+            const CabinetMessagingThreadLoaded(
+              conversation: CabinetConversation(
+                id: 'conv1',
+                patientId: 'p1',
+                patientName: 'Marie Curie',
+                unreadCount: 0,
+              ),
+              messages: [],
+              converting: true,
+            ),
+          );
+          await tester.pumpWidget(buildPage());
+          await tester.pump();
+
+          expect(
+            find.byKey(const Key('create_appointment_from_conversation')),
+            findsNothing,
+          );
+          expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        },
+      );
+
+      testWidgets('conversionError — bannière d\'erreur affichée',
+          (tester) async {
+        when(() => bloc.state).thenReturn(
+          const CabinetMessagingThreadLoaded(
+            conversation: CabinetConversation(
+              id: 'conv1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              unreadCount: 0,
+            ),
+            messages: [],
+            conversionError:
+                'Ce créneau vient d\'être réservé, choisissez-en un autre.',
+          ),
+        );
+        await tester.pumpWidget(buildPage());
+        await tester.pump();
+
+        expect(
+          find.byKey(const Key('conversion_error_banner')),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+              'Ce créneau vient d\'être réservé, choisissez-en un autre.'),
+          findsOneWidget,
+        );
+      });
     });
   });
 }

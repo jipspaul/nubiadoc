@@ -47,4 +47,16 @@ class CabinetMessagingApi {
     );
     return MessageDto.fromJson(response.data!);
   }
+
+  /// `POST $basePath/conversations/{id}/convert-to-appointment` (#4159/#4160).
+  Future<ConversationAppointmentConversionDto> convertToAppointment({
+    required String conversationId,
+    required String slotId,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$basePath/conversations/$conversationId/convert-to-appointment',
+      data: {'slot_id': slotId},
+    );
+    return ConversationAppointmentConversionDto.fromJson(response.data!);
+  }
 }
