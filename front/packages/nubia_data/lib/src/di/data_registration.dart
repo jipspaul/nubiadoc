@@ -18,6 +18,7 @@ import '../remote/patient_tags/patient_tags_api.dart';
 import '../remote/patient_documents/patient_documents_api.dart';
 import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/treatment_plans/treatment_plans_api.dart';
+import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/clinical/clinical_session_api.dart';
 import '../remote/consultation/consultation_api.dart';
@@ -55,6 +56,7 @@ import '../repositories/patient_tags_repository_impl.dart';
 import '../repositories/patient_documents_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/treatment_plans_repository_impl.dart';
+import '../repositories/cabinet_team_messages_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/cached_appointments_repository_impl.dart';
 import '../repositories/clinical_session_repository_impl.dart';
@@ -454,6 +456,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<TreatmentPlansApi>(
       () => TreatmentPlansApi(gi()),
     )
+    ..registerLazySingleton<CabinetTeamMessagesApi>(
+      () => CabinetTeamMessagesApi(gi()),
+    )
     ..registerLazySingleton<CabinetAgendaApi>(
       () => CabinetAgendaApi(gi()),
     )
@@ -499,6 +504,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<TreatmentPlansRepository>(
       () => TreatmentPlansRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CabinetTeamMessagesRepository>(
+      () => CabinetTeamMessagesRepositoryImpl(gi()),
     )
     ..registerLazySingleton<CabinetAgendaRepository>(
       () => CabinetAgendaRepositoryImpl(gi()),
@@ -553,6 +561,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListTreatmentPlansUseCase(gi()))
     ..registerFactory(() => CreateTreatmentPlanUseCase(gi()))
     ..registerFactory(() => CreateTreatmentPhaseUseCase(gi()))
+    ..registerFactory(() => ListCabinetTeamMessagesUseCase(gi()))
+    ..registerFactory(() => SendCabinetTeamMessageUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))
     ..registerFactory(() => UpdatePatientNotesUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))

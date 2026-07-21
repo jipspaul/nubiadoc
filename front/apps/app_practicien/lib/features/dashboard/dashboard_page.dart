@@ -116,6 +116,12 @@ class DashboardPage extends StatelessWidget {
       },
       trailingActions: [
         IconButton(
+          key: const Key('nav_team_messages'),
+          tooltip: 'Messagerie interne',
+          icon: const Icon(Icons.forum_outlined),
+          onPressed: () => context.push(AppRouter.teamMessages),
+        ),
+        IconButton(
           tooltip: 'Démo A2UI',
           icon: const Icon(Icons.auto_awesome_outlined),
           onPressed: () => context.push('/a2ui-demo'),
