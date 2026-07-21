@@ -20,10 +20,19 @@ use crate::{
 // ── POST /v1/cabinet/quotes ──────────────────────────────────────────────────
 
 /// Un item du devis dans le body de création.
+///
+/// `ccam_code`/`tooth`/`amo_part_cents`/`amc_part_cents` alignent le contrat
+/// avec `docs/12-api-reference.md` §16 (#4060) : avant, `QuoteItemInput`
+/// n'exposait que `label`+`amount_cents` et ces champs étaient silencieusement
+/// ignorés côté API bien que documentés.
 #[derive(Deserialize)]
 pub struct QuoteItemInput {
     pub label: String,
     pub amount_cents: i64,
+    pub ccam_code: Option<String>,
+    pub tooth: Option<String>,
+    pub amo_part_cents: Option<i64>,
+    pub amc_part_cents: Option<i64>,
 }
 
 /// Body de `POST /v1/cabinet/quotes`.
@@ -49,6 +58,8 @@ pub struct CreateCabinetQuoteResponse {
 /// - `amount_cents` de chaque ligne doit être dans `]0, 100_000_000]` (1M€) → 422 sinon (#3762).
 /// - `label` de chaque ligne ne doit pas être vide/blanc (trim) → 422 sinon (#3770).
 /// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
+/// - `ccam_code`/`tooth`/`amo_part_cents`/`amc_part_cents` optionnels par ligne,
+///   persistés tels quels (#4060) ; `amo_part_cents`/`amc_part_cents` négatifs → 422.
 /// - `total_amount` calculé depuis les items (`sum(amount_cents) / 100`).
 /// - Insert `quote` + N `quote_item` dans une transaction RLS-scopée.
 /// - Retourne `201 { quote_id, total_amount_cents }`.
@@ -77,6 +88,15 @@ pub async fn create_cabinet_quote(
     // et add_consultation_act : un devis présenté/signé par le patient ne doit
     // pas contenir de ligne facturable sans libellé.
     if body.items.iter().any(|i| i.label.trim().is_empty()) {
+        return Err(AppError::ValidationError);
+    }
+    // amo_part_cents/amc_part_cents négatifs n'ont pas de sens (part prise en
+    // charge) — même borne basse que amount_cents (#4060).
+    if body
+        .items
+        .iter()
+        .any(|i| i.amo_part_cents.is_some_and(|v| v < 0) || i.amc_part_cents.is_some_and(|v| v < 0))
+    {
         return Err(AppError::ValidationError);
     }
     if let Some(pct) = body.deposit_pct {
@@ -127,17 +147,23 @@ pub async fn create_cabinet_quote(
 
     let quote_id: Uuid = quote_row.try_get("id").map_err(|_| AppError::Internal)?;
 
-    // Insère les lignes.
+    // Insère les lignes. ccam_code/tooth/amo_part/amc_part alignent l'INSERT
+    // sur le contrat documenté (docs/12-api-reference.md §16, #4060) — avant,
+    // seuls label+unit_amount étaient persistés.
     for item in &body.items {
         sqlx::query(
             "INSERT INTO quote_item \
-             (cabinet_id, quote_id, label, unit_amount) \
-             VALUES ($1, $2, $3, $4::numeric / 100)",
+             (cabinet_id, quote_id, label, unit_amount, ccam_code, tooth, amo_part, amc_part) \
+             VALUES ($1, $2, $3, $4::numeric / 100, $5, $6, $7::numeric / 100, $8::numeric / 100)",
         )
         .bind(claims.cabinet_id)
         .bind(quote_id)
         .bind(&item.label)
         .bind(item.amount_cents)
+        .bind(&item.ccam_code)
+        .bind(&item.tooth)
+        .bind(item.amo_part_cents)
+        .bind(item.amc_part_cents)
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
