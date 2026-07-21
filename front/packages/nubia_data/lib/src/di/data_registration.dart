@@ -365,6 +365,8 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => UpdateAccountUseCase(gi()))
     ..registerFactory(() => GetCoverageUseCase(gi()))
     ..registerFactory(() => UpdateCoverageUseCase(gi()))
+    ..registerFactory(() => CreateMedicalQuestionnaireUseCase(gi()))
+    ..registerFactory(() => PatchMedicalQuestionnaireUseCase(gi()))
     ..registerFactory(() => GetNotificationPreferencesUseCase(gi()))
     ..registerFactory(() => ListConsentsUseCase(gi()))
     ..registerFactory(() => ListDependentsUseCase(gi()))

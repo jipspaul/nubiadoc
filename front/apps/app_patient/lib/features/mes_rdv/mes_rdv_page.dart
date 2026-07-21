@@ -349,6 +349,17 @@ class _ActionButtons extends StatelessWidget {
                 .read<MesRdvBloc>()
                 .add(MesRdvCheckinRequested(appointment.id)),
           ),
+        if (appointment.isUpcoming)
+          NubiaButton(
+            key: Key('questionnaire_${appointment.id}'),
+            label: 'Questionnaire médical',
+            variant: NubiaButtonVariant.secondary,
+            size: NubiaButtonSize.sm,
+            icon: Icons.assignment_outlined,
+            onPressed: () => context.push(
+              '/questionnaire-medical/${appointment.cabinetId}',
+            ),
+          ),
         if (appointment.canModify)
           NubiaButton(
             key: Key('modify_${appointment.id}'),
