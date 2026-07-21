@@ -13,6 +13,7 @@ export 'src/entities/notification_preferences.dart';
 export 'src/entities/parsed_search.dart';
 export 'src/entities/patient_account.dart';
 export 'src/entities/patient_prescription.dart';
+export 'src/entities/patient_tag.dart';
 export 'src/entities/pharmacy.dart';
 export 'src/entities/pharmacy_order.dart';
 export 'src/entities/pharmacy_quote.dart';
@@ -56,6 +57,7 @@ export 'src/repositories/signature_repository.dart';
 export 'src/repositories/cabinet_agenda_repository.dart';
 export 'src/repositories/cabinet_appointments_repository.dart';
 export 'src/repositories/cabinet_patients_repository.dart';
+export 'src/repositories/patient_tags_repository.dart';
 export 'src/repositories/cabinet_quotes_repository.dart';
 export 'src/repositories/consultation_repository.dart';
 export 'src/repositories/members_repository.dart';
@@ -169,6 +171,9 @@ export 'src/usecases/cabinet_appointments/create_cabinet_appointment_use_case.da
 export 'src/usecases/cabinet_appointments/reschedule_appointment_use_case.dart';
 // cabinet patients pro
 export 'src/usecases/cabinet_patients/create_cabinet_patient_use_case.dart';
+export 'src/usecases/patient_tags/list_patient_tags_use_case.dart';
+export 'src/usecases/patient_tags/create_patient_tag_use_case.dart';
+export 'src/usecases/patient_tags/delete_patient_tag_use_case.dart';
 export 'src/usecases/cabinet_patients/list_cabinet_patients_use_case.dart';
 export 'src/usecases/cabinet_patients/get_cabinet_patient_use_case.dart';
 export 'src/usecases/cabinet_patients/update_patient_notes_use_case.dart';
