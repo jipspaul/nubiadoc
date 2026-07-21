@@ -154,6 +154,10 @@ pub(crate) enum AppError {
     /// `WHERE q.status = $2` et renvoyait silencieusement une liste vide au
     /// lieu d'un 400 (#4066).
     InvalidQuoteStatusFilter,
+    /// `PATCH /v1/cabinet/quotes/:id` sur un devis déjà signé — remonte le
+    /// trigger `enforce_quote_immutable` (migration 0051, SQLSTATE `P0001`)
+    /// en `409 quote_locked` (contrat documenté doc12 §16, #4065).
+    QuoteLocked,
     /// `PATCH /v1/appointments/:id` avec un `starts_at` qui ne correspond à
     /// aucun `availability_slot` ouvert du praticien (ou dans le passé) → 409
     /// (#3558 : reprogrammation vers un créneau inexistant / date passée).
@@ -343,6 +347,9 @@ impl IntoResponse for AppError {
                 })),
             )
                 .into_response(),
+            AppError::QuoteLocked => {
+                (StatusCode::CONFLICT, Json(json!({"code": "quote_locked"}))).into_response()
+            }
             AppError::SlotUnavailable => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "slot_unavailable"})),
