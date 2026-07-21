@@ -1,5 +1,6 @@
 //! Tests widget : `PatientBalanceSection` (#4045) — solde=0 et solde>0,
-//! (#4090) — compteur de lapins (`noShowCount`) 0 et 3, même fetch.
+//! (#4090) — compteur de lapins (`noShowCount`) 0 et 3, même fetch,
+//! (#4092) — indicateur tuteur, patient avec vs sans tuteur déclaré.
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +14,11 @@ import 'package:app_secretariat/features/patients/patients_page.dart';
 
 class _MockGetCabinetPatient extends Mock implements GetCabinetPatientUseCase {}
 
-CabinetPatient _patient({int? balanceDueCents, int? noShowCount}) =>
+CabinetPatient _patient({
+  int? balanceDueCents,
+  int? noShowCount,
+  List<GuardianshipLink>? guardians,
+}) =>
     CabinetPatient(
       id: 'patient-1',
       cabinetId: 'c1',
@@ -22,6 +27,7 @@ CabinetPatient _patient({int? balanceDueCents, int? noShowCount}) =>
       createdAt: DateTime(2026, 1, 1),
       balanceDueCents: balanceDueCents,
       noShowCount: noShowCount,
+      guardians: guardians,
     );
 
 void main() {
@@ -95,5 +101,35 @@ void main() {
         tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
     final cs = Theme.of(tester.element(find.byType(Scaffold))).colorScheme;
     expect(text.style?.color, cs.error);
+  });
+
+  testWidgets('tuteur déclaré : affiché avec son nom (#4092)', (tester) async {
+    when(() => getPatient('patient-1')).thenAnswer(
+      (_) async => Right(_patient(guardians: const [
+        GuardianshipLink(
+          accountId: 'guardian-1',
+          firstName: 'Paul',
+          lastName: 'Tuteur',
+          relationship: 'parent',
+        ),
+      ])),
+    );
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_guardians')), findsOneWidget);
+    expect(find.text('Tuteur : Paul Tuteur'), findsOneWidget);
+  });
+
+  testWidgets('aucun tuteur : indicateur absent (#4092)', (tester) async {
+    when(() => getPatient('patient-1')).thenAnswer(
+      (_) async => Right(_patient(guardians: const [])),
+    );
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_guardians')), findsNothing);
   });
 }

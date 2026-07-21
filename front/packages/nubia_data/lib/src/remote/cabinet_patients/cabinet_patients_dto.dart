@@ -13,6 +13,8 @@ class CabinetPatientDto {
   final String createdAt;
   final int? balanceDueCents;
   final int? noShowCount;
+  final List<GuardianshipLink>? guardians;
+  final List<GuardianshipLink>? dependents;
 
   const CabinetPatientDto({
     required this.id,
@@ -27,6 +29,8 @@ class CabinetPatientDto {
     required this.createdAt,
     this.balanceDueCents,
     this.noShowCount,
+    this.guardians,
+    this.dependents,
   });
 
   factory CabinetPatientDto.fromJson(Map<String, dynamic> json) {
@@ -39,6 +43,20 @@ class CabinetPatientDto {
     // top-level ni dans `contact`) — reste volontairement non lu ici tant
     // qu'aucune donnée réelle n'existe à mapper.
     final contact = json['contact'] as Map<String, dynamic>? ?? const {};
+    List<GuardianshipLink>? parseLinks(String key) {
+      final raw = json[key] as List<dynamic>?;
+      if (raw == null) return null;
+      return raw
+          .map((e) => e as Map<String, dynamic>)
+          .map((e) => GuardianshipLink(
+                accountId: e['account_id'] as String,
+                firstName: e['first_name'] as String,
+                lastName: e['last_name'] as String,
+                relationship: e['relationship'] as String,
+              ))
+          .toList();
+    }
+
     return CabinetPatientDto(
       id: json['id'] as String,
       cabinetId: (json['cabinet_id'] as String?) ?? '',
@@ -55,6 +73,11 @@ class CabinetPatientDto {
       balanceDueCents: json['balance_due_cents'] as int?,
       // Idem (#4090).
       noShowCount: json['no_show_count'] as int?,
+      // Idem (#4091) — toujours des tableaux (jamais absents) sur le
+      // détail ; `null` seulement si la clé n'existe pas du tout dans la
+      // réponse (liste paginée).
+      guardians: parseLinks('guardians'),
+      dependents: parseLinks('dependents'),
     );
   }
 
@@ -84,6 +107,8 @@ class CabinetPatientDto {
         createdAt: DateTime.parse(createdAt),
         balanceDueCents: balanceDueCents,
         noShowCount: noShowCount,
+        guardians: guardians,
+        dependents: dependents,
       );
 
   factory CabinetPatientDto.fromDomain(CabinetPatient p) => CabinetPatientDto(
