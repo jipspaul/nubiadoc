@@ -297,6 +297,7 @@ class _DetailView extends StatelessWidget {
                     for (final item in items)
                       QuoteLine(
                         label: _lineLabel(item),
+                        detail: _lineDetail(item),
                         amount: _formatCents(item.totalCents),
                       ),
                   ],
@@ -498,6 +499,18 @@ String _lineLabel(QuoteLineItem item) {
     if (item.ccamCode != null && item.ccamCode!.isNotEmpty) item.ccamCode!,
   ];
   return meta.isEmpty ? item.label : '${item.label} · ${meta.join(' · ')}';
+}
+
+/// Sous-ligne de ventilation AMO/AMC (#4063). `null` si les deux parts sont
+/// nulles (rien renseigné côté back — pas de sous-ligne « 0,00 € » trompeuse).
+String? _lineDetail(QuoteLineItem item) {
+  final parts = <String>[
+    if (item.amoShareCents != 0)
+      'Part AMO : ${_formatCents(item.amoShareCents)}',
+    if (item.amcShareCents != 0)
+      'Part AMC : ${_formatCents(item.amcShareCents)}',
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
 }
 
 /// Mapping statut cabinet → statut carte [QuoteCard].

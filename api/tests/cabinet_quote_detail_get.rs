@@ -340,6 +340,9 @@ async fn cabinet_quote_detail_returns_200_with_items() {
     assert_eq!(items[0]["label"], "Couronne céramique");
     assert_eq!(items[0]["total_amount"], 30000i64);
     assert_eq!(items[0]["patient_share_cents"], 15000i64);
+    // Ventilation AMO/AMC par ligne (#4063) : 100.00/50.00 EUR saisis en fixture.
+    assert_eq!(items[0]["amo_share_cents"], 10000i64);
+    assert_eq!(items[0]["amc_share_cents"], 5000i64);
 
     // Cleanup
     {

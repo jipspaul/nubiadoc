@@ -329,12 +329,18 @@ pub async fn list_cabinet_quotes(
 /// de présenter l'alternative RAC 0 dans le devis (#4055/#4056). `null` si la
 /// ligne n'a pas de `ccam_code` ou si l'acte n'est pas encore classifié
 /// (`ccam_act.panier_sante`, #4055 : catalogue partiel, cf. #4054).
+/// `amo_share_cents`/`amc_share_cents` (#4063) : ventilation du reste à
+/// charge, comme `patient_share_cents` déjà exposé — un montant de
+/// remboursement n'est pas une donnée clinique, le cloisonnement ci-dessus ne
+/// s'y applique pas.
 #[derive(Serialize)]
 pub struct CabinetQuoteLineItem {
     pub id: Uuid,
     pub label: String,
     pub total_amount: i64,
     pub patient_share_cents: i64,
+    pub amo_share_cents: i64,
+    pub amc_share_cents: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub panier_sante: Option<String>,
 }
@@ -402,6 +408,8 @@ pub async fn get_cabinet_quote(
                 ((qi.qty * qi.unit_amount \
                   - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100)::bigint \
                   AS patient_share_cents, \
+                (coalesce(qi.amo_part, 0) * 100)::bigint AS amo_share_cents, \
+                (coalesce(qi.amc_part, 0) * 100)::bigint AS amc_share_cents, \
                 ca.panier_sante \
          FROM quote_item qi \
          LEFT JOIN ccam_act ca ON ca.code = qi.ccam_code \
@@ -448,6 +456,12 @@ pub async fn get_cabinet_quote(
         let patient_share_cents: i64 = row
             .try_get("patient_share_cents")
             .map_err(|_| AppError::Internal)?;
+        let amo_share_cents: i64 = row
+            .try_get("amo_share_cents")
+            .map_err(|_| AppError::Internal)?;
+        let amc_share_cents: i64 = row
+            .try_get("amc_share_cents")
+            .map_err(|_| AppError::Internal)?;
         let panier_sante: Option<String> = row
             .try_get("panier_sante")
             .map_err(|_| AppError::Internal)?;
@@ -457,6 +471,8 @@ pub async fn get_cabinet_quote(
             label,
             total_amount,
             patient_share_cents,
+            amo_share_cents,
+            amc_share_cents,
             panier_sante,
         });
     }

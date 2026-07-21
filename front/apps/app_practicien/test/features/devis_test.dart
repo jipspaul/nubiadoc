@@ -164,10 +164,9 @@ void main() {
       'émet SendInProgress puis SendFailure si l\'envoi échoue',
       build: () {
         final mockSend = MockSendCabinetQuoteUseCase();
-        when(() => mockSend(any()))
-            .thenAnswer((_) async => Left(ServerFailure(
-                  message: 'Envoi impossible.',
-                )));
+        when(() => mockSend(any())).thenAnswer((_) async => Left(ServerFailure(
+              message: 'Envoi impossible.',
+            )));
         return _makeBloc(list: mockList, getById: mockGet, send: mockSend);
       },
       seed: () => DevisDetailLoaded(_draftQuote),
@@ -220,6 +219,16 @@ void main() {
       expect(find.byType(AmountHeader), findsOneWidget);
       expect(find.byType(QuoteCard), findsOneWidget);
       expect(find.byKey(const Key('btn_send_devis')), findsOneWidget);
+    });
+
+    testWidgets('affiche la ventilation Part AMO / Part AMC par ligne (#4063)',
+        (tester) async {
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_draftQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      // _line : amoShareCents=8400 (84 €), amcShareCents=20000 (200 €).
+      expect(find.textContaining('Part AMO : 84 €'), findsOneWidget);
+      expect(find.textContaining('Part AMC : 200 €'), findsOneWidget);
     });
 
     testWidgets('masque le CTA Envoyer pour un devis déjà envoyé',

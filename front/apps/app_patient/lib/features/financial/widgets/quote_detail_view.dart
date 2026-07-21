@@ -233,37 +233,58 @@ class _LineItemRow extends StatelessWidget {
           Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 11),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        item.label,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(color: cs.onSurfaceVariant),
-                      ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            item.label,
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                        ),
+                        if (item.panierSante != PanierSante.unknown &&
+                            item.panierSante !=
+                                PanierSante.horsNomenclature) ...[
+                          const SizedBox(width: 8),
+                          PanierBadge(panier: item.panierSante),
+                        ],
+                      ],
                     ),
-                    if (item.panierSante != PanierSante.unknown &&
-                        item.panierSante != PanierSante.horsNomenclature) ...[
-                      const SizedBox(width: 8),
-                      PanierBadge(panier: item.panierSante),
-                    ],
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    formatQuoteCents(item.totalCents),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w500,
+                      fontFeatures: tabularFigures,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Text(
-                formatQuoteCents(item.totalCents),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w500,
-                  fontFeatures: tabularFigures,
+              // Ventilation AMO/AMC (#4063) : pas de sous-ligne si les deux
+              // parts sont nulles (rien renseigné côté back).
+              if (item.amoShareCents != 0 || item.amcShareCents != 0) ...[
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (item.amoShareCents != 0)
+                      'Part AMO : ${formatQuoteCents(item.amoShareCents)}',
+                    if (item.amcShareCents != 0)
+                      'Part AMC : ${formatQuoteCents(item.amcShareCents)}',
+                  ].join(' · '),
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
                 ),
-              ),
+              ],
             ],
           ),
         ),
