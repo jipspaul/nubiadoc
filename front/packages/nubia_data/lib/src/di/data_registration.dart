@@ -584,6 +584,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
     ..registerFactory(() => SendMessageCabinetUseCase(gi()))
+    ..registerFactory(() => ConvertConversationToAppointmentUseCase(gi()))
     ..registerFactory(() => GetTodayNotesUseCase(gi()));
 
   // Demandes de stock vers les pharmacies (émission côté cabinet, lot B5).

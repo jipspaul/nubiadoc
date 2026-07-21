@@ -38,3 +38,19 @@ final class CabinetMessagingSendRequested extends CabinetMessagingEvent {
 final class CabinetMessagingBackRequested extends CabinetMessagingEvent {
   const CabinetMessagingBackRequested();
 }
+
+/// Convertit la conversation en RDV (#4159/#4160) : `slotId` choisi via le
+/// sélecteur de créneau, `patientId`/`motif` déduits du fil côté back.
+final class CabinetMessagingConvertToAppointmentRequested
+    extends CabinetMessagingEvent {
+  final String conversationId;
+  final String slotId;
+
+  const CabinetMessagingConvertToAppointmentRequested({
+    required this.conversationId,
+    required this.slotId,
+  });
+
+  @override
+  List<Object?> get props => [conversationId, slotId];
+}

@@ -225,10 +225,12 @@ export 'src/usecases/cabinet_quotes/send_cabinet_quote_use_case.dart';
 // cabinet appointments pro — use cases are in agenda/ (create + reschedule)
 // cabinet messaging pro
 export 'src/entities/cabinet_conversation.dart';
+export 'src/entities/conversation_appointment_conversion.dart';
 export 'src/repositories/cabinet_message_repository.dart';
 export 'src/usecases/cabinet_messaging/list_cabinet_conversations_use_case.dart';
 export 'src/usecases/cabinet_messaging/get_cabinet_conversation_use_case.dart';
 export 'src/usecases/cabinet_messaging/send_message_cabinet_use_case.dart';
+export 'src/usecases/cabinet_messaging/convert_conversation_to_appointment_use_case.dart';
 // cabinet info pro
 export 'src/repositories/cabinet_repository.dart';
 export 'src/usecases/cabinet_info/update_cabinet_use_case.dart';

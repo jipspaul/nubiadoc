@@ -6,6 +6,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'cabinet_messaging_bloc.dart';
 import 'cabinet_messaging_event.dart';
 import 'cabinet_messaging_state.dart';
+import 'widgets/appointment_slot_picker.dart';
 
 /// Écran "Messages" côté secrétariat — liste des conversations patient + thread.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
@@ -265,9 +266,21 @@ class _ThreadViewState extends State<_ThreadView> {
     _controller.clear();
   }
 
+  Future<void> _createAppointment() async {
+    final slot = await AppointmentSlotPicker.show(context);
+    if (slot == null || !mounted) return;
+    context.read<CabinetMessagingBloc>().add(
+          CabinetMessagingConvertToAppointmentRequested(
+            conversationId: widget.state.conversation.id,
+            slotId: slot.id,
+          ),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Material(
@@ -292,10 +305,36 @@ class _ThreadViewState extends State<_ThreadView> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                state.converting
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : TextButton.icon(
+                        key: const Key('create_appointment_from_conversation'),
+                        onPressed: _createAppointment,
+                        icon: const Icon(Icons.event_available_outlined),
+                        label: const Text('Créer un RDV'),
+                      ),
               ],
             ),
           ),
         ),
+        if (state.conversionError != null)
+          Container(
+            key: const Key('conversion_error_banner'),
+            width: double.infinity,
+            color: cs.errorContainer,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              state.conversionError!,
+              style: TextStyle(color: cs.onErrorContainer),
+            ),
+          ),
         Expanded(
           child: state.messages.isEmpty
               ? const Center(

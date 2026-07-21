@@ -11,19 +11,23 @@ class CabinetMessagingBloc
   final ListCabinetConversationsUseCase _listConversations;
   final GetCabinetConversationUseCase _getMessages;
   final SendMessageCabinetUseCase _sendMessage;
+  final ConvertConversationToAppointmentUseCase _convertToAppointment;
 
   CabinetMessagingBloc({
     required ListCabinetConversationsUseCase listConversations,
     required GetCabinetConversationUseCase getMessages,
     required SendMessageCabinetUseCase sendMessage,
+    required ConvertConversationToAppointmentUseCase convertToAppointment,
   })  : _listConversations = listConversations,
         _getMessages = getMessages,
         _sendMessage = sendMessage,
+        _convertToAppointment = convertToAppointment,
         super(const CabinetMessagingInitial()) {
     on<CabinetMessagingConversationsLoadRequested>(_onConversationsLoad);
     on<CabinetMessagingThreadOpened>(_onThreadOpened);
     on<CabinetMessagingSendRequested>(_onSend);
     on<CabinetMessagingBackRequested>(_onBack);
+    on<CabinetMessagingConvertToAppointmentRequested>(_onConvertToAppointment);
   }
 
   Future<void> _onConversationsLoad(
@@ -110,6 +114,35 @@ class CabinetMessagingBloc
     } catch (_) {
       safeEmit(
           const CabinetMessagingConversationsError('Erreur de chargement.'));
+    }
+  }
+
+  Future<void> _onConvertToAppointment(
+    CabinetMessagingConvertToAppointmentRequested event,
+    Emitter<CabinetMessagingState> emit,
+  ) async {
+    final current = state;
+    if (current is! CabinetMessagingThreadLoaded) return;
+
+    emit(current.copyWith(converting: true, clearConversionError: true));
+    try {
+      final result = await _convertToAppointment(
+        conversationId: event.conversationId,
+        slotId: event.slotId,
+      );
+      result.fold(
+        (failure) => safeEmit(current.copyWith(
+          converting: false,
+          conversionError: failure.message,
+        )),
+        (_) => safeEmit(
+            current.copyWith(converting: false, clearConversionError: true)),
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(
+        converting: false,
+        conversionError: 'Erreur lors de la conversion en rendez-vous.',
+      ));
     }
   }
 }

@@ -74,6 +74,7 @@ void registerPro(GetIt gi) {
       listConversations: gi<ListCabinetConversationsUseCase>(),
       getMessages: gi<GetCabinetConversationUseCase>(),
       sendMessage: gi<SendMessageCabinetUseCase>(),
+      convertToAppointment: gi<ConvertConversationToAppointmentUseCase>(),
     ),
   );
 

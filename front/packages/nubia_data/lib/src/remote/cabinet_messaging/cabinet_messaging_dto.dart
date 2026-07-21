@@ -1,4 +1,5 @@
 import 'package:nubia_domain/src/entities/cabinet_conversation.dart';
+import 'package:nubia_domain/src/entities/conversation_appointment_conversion.dart';
 import 'package:nubia_domain/src/entities/message.dart';
 import '../messaging/messaging_dto.dart';
 
@@ -54,5 +55,30 @@ class CabinetConversationDto {
         triageFlag: triageFlag == 'urgent'
             ? MessageUrgency.urgent
             : MessageUrgency.normal,
+      );
+}
+
+/// Réponse de `POST /v1/cabinet/conversations/{id}/convert-to-appointment`
+/// (#4159/#4160) : `{ appointment_id, status }`.
+class ConversationAppointmentConversionDto {
+  final String appointmentId;
+  final String status;
+
+  const ConversationAppointmentConversionDto({
+    required this.appointmentId,
+    required this.status,
+  });
+
+  factory ConversationAppointmentConversionDto.fromJson(
+          Map<String, dynamic> json) =>
+      ConversationAppointmentConversionDto(
+        appointmentId: json['appointment_id'] as String,
+        status: json['status'] as String,
+      );
+
+  ConversationAppointmentConversion toDomain() =>
+      ConversationAppointmentConversion(
+        appointmentId: appointmentId,
+        status: status,
       );
 }
