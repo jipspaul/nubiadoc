@@ -162,6 +162,11 @@ pub(crate) enum AppError {
     /// (Yousign) injoignable ou en erreur → `502`, jamais une session
     /// fabriquée côté API.
     UpstreamUnavailable,
+    /// `POST /v1/cabinet/cash-register/closing` (#4071) : une clôture existe
+    /// déjà pour ce cabinet+jour (`UNIQUE (cabinet_id, closing_date)`,
+    /// migration 0165) — pré-vérifiée explicitement plutôt que de laisser
+    /// la contrainte remonter en 500.
+    CashRegisterAlreadyClosed,
     /// `PATCH /v1/appointments/:id` avec un `starts_at` qui ne correspond à
     /// aucun `availability_slot` ouvert du praticien (ou dans le passé) → 409
     /// (#3558 : reprogrammation vers un créneau inexistant / date passée).
@@ -357,6 +362,11 @@ impl IntoResponse for AppError {
             AppError::UpstreamUnavailable => (
                 StatusCode::BAD_GATEWAY,
                 Json(json!({"code": "upstream_unavailable"})),
+            )
+                .into_response(),
+            AppError::CashRegisterAlreadyClosed => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "cash_register_already_closed"})),
             )
                 .into_response(),
             AppError::SlotUnavailable => (

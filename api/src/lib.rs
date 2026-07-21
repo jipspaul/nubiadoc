@@ -27,6 +27,7 @@ mod billing;
 mod billing_payments;
 mod bookings;
 mod brevo_mailer;
+mod cabinet_cash_register;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_payments_manual;
@@ -743,6 +744,10 @@ fn build_router(
         .route(
             "/v1/cabinet/payments/manual",
             post(cabinet_payments_manual::create_manual_payment),
+        )
+        .route(
+            "/v1/cabinet/cash-register/closing",
+            post(cabinet_cash_register::close_cash_register),
         )
         .route(
             "/v1/cabinet/prescriptions",
