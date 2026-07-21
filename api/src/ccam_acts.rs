@@ -44,7 +44,11 @@ pub struct CcamActItem {
 /// `optam_cents` si `is_optam`, sinon `secteur1_cents` — repli sur
 /// `tarif_cents` dans les deux cas si la colonne préférée est `NULL` (acte
 /// non classifié, cf. #4054/#4055).
-fn select_applicable_tariff(
+///
+/// `pub(crate)` : réutilisée par `consultation_acts::add_consultation_act`
+/// (#4162) pour l'avertissement de sous-cotation — même notion de "tarif
+/// applicable à CE praticien" que celle déjà exposée par `GET /v1/ccam/acts`.
+pub(crate) fn select_applicable_tariff(
     is_optam: bool,
     tarif_cents: Option<i32>,
     secteur1_cents: Option<i32>,
