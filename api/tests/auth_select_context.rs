@@ -643,3 +643,173 @@ async fn select_context_secretariat_from_other_cabinet_returns_403() {
         .await
         .ok();
 }
+
+// ── Test 5 : membership avec valid_until dans le passé → 403 no_membership ───
+// #4157 : accès borné dans le temps (remplaçants). user_all_memberships()
+// (migration 0162) exclut un membership expiré — même chemin d'erreur que
+// « non-membre » (le membership n'existe simplement plus, du point de vue de
+// l'authentification).
+
+#[tokio::test]
+async fn select_context_expired_valid_until_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("sc-expired+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) \
+         VALUES ($1, 'Cabinet Remplacant Expire', 'dentiste')",
+    )
+    .bind(cabinet_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Remplaçant dont l'accès a expiré hier.
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active, valid_until) \
+         VALUES ($1, $2, 'practitioner', true, now() - interval '1 day')",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/select-context")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
+                .body(Body::from(json!({"cabinet_id": cabinet_id}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(
+        response.headers().get("set-cookie").is_none(),
+        "pas de cookie nubia_jwt émis quand l'accès du remplaçant a expiré"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "no_membership");
+
+    sqlx::query("DELETE FROM cabinet_membership WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 6 : membership avec valid_until dans le futur → 200 (accès encore valide) ─
+
+#[tokio::test]
+async fn select_context_future_valid_until_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("sc-future+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) \
+         VALUES ($1, 'Cabinet Remplacant Valide', 'dentiste')",
+    )
+    .bind(cabinet_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Remplaçant dont l'accès expire demain — encore valide aujourd'hui.
+    sqlx::query(
+        "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active, valid_until) \
+         VALUES ($1, $2, 'practitioner', true, now() + interval '1 day')",
+    )
+    .bind(cabinet_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/select-context")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", make_pro_jwt(user_id)))
+                .body(Body::from(json!({"cabinet_id": cabinet_id}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    sqlx::query("DELETE FROM cabinet_membership WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
