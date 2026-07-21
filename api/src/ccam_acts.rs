@@ -51,7 +51,7 @@ pub struct CcamActItem {
 /// `tarif_cents` dans les deux cas si la colonne préférée est `NULL` (acte
 /// non classifié, cf. #4054/#4055).
 ///
-/// `pub(crate)` : réutilisée par `consultation_acts::add_consultation_act`
+/// `pub(crate)` : réutilisée par `consultation_act_create::add_consultation_act`
 /// (#4162) pour l'avertissement de sous-cotation — même notion de "tarif
 /// applicable à CE praticien" que celle déjà exposée par `GET /v1/ccam/acts`.
 pub(crate) fn select_applicable_tariff(

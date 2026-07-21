@@ -43,6 +43,7 @@ mod cabinet_stats;
 mod cabinet_team_messages;
 mod ccam_acts;
 mod clinical;
+mod consultation_act_create;
 mod consultation_acts;
 mod consultations;
 mod dashboard;
@@ -571,7 +572,7 @@ fn build_router(
         .route(
             "/v1/cabinet/consultations/:id/acts",
             get(consultation_acts::list_consultation_acts)
-                .post(consultation_acts::add_consultation_act),
+                .post(consultation_act_create::add_consultation_act),
         )
         .route(
             "/v1/cabinet/consultations/:id/acts/:act_id",
