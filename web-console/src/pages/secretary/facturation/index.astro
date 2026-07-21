@@ -23,9 +23,11 @@ if (role !== 'secretary' && role !== 'admin' && role !== 'practitioner') {
     <fieldset id="filter-bar">
       <legend class="sr-only">Filtrer par statut</legend>
       <button type="button" class="filter-btn active" data-status="">Tous</button>
-      <button type="button" class="filter-btn" data-status="pending">En attente</button>
+      <button type="button" class="filter-btn" data-status="draft">Brouillon</button>
+      <button type="button" class="filter-btn" data-status="sent">Envoyé</button>
       <button type="button" class="filter-btn" data-status="signed">Signé</button>
-      <button type="button" class="filter-btn" data-status="paid">Payé</button>
+      <button type="button" class="filter-btn" data-status="refused">Refusé</button>
+      <button type="button" class="filter-btn" data-status="expired">Expiré</button>
     </fieldset>
 
     <div id="quotes-status" role="status" aria-live="polite"></div>

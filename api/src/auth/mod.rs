@@ -148,6 +148,12 @@ pub(crate) enum AppError {
     /// liste qui pagine via `limit`/`offset`). Renvoie un 400 explicite plutôt
     /// que d'ignorer silencieusement le paramètre (#3521).
     UnsupportedPageParam,
+    /// `?status=` hors de l'énum `quote.status` (CHECK, migration 0006) sur
+    /// `GET /v1/cabinet/quotes` — avant, une valeur comme `pending`/`paid`
+    /// (boutons factices côté web-console) passait telle quelle dans
+    /// `WHERE q.status = $2` et renvoyait silencieusement une liste vide au
+    /// lieu d'un 400 (#4066).
+    InvalidQuoteStatusFilter,
     /// `PATCH /v1/appointments/:id` avec un `starts_at` qui ne correspond à
     /// aucun `availability_slot` ouvert du praticien (ou dans le passé) → 409
     /// (#3558 : reprogrammation vers un créneau inexistant / date passée).
@@ -325,6 +331,15 @@ impl IntoResponse for AppError {
                     "code": "unsupported_pagination_param",
                     "message": "Le paramètre `page` n'est pas supporté sur cet endpoint ; \
                                 utilisez `limit` et `offset` pour paginer.",
+                })),
+            )
+                .into_response(),
+            AppError::InvalidQuoteStatusFilter => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "code": "invalid_status_filter",
+                    "message": "`status` doit être l'une des valeurs : \
+                                draft, sent, signed, refused, expired.",
                 })),
             )
                 .into_response(),
