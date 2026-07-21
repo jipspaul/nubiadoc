@@ -61,6 +61,7 @@ mod notifications;
 mod notify;
 mod patient_detail;
 mod patient_guardianship;
+mod patient_merge;
 mod patient_satisfaction;
 mod patient_tags;
 mod permissions;
@@ -496,6 +497,10 @@ fn build_router(
         .route(
             "/v1/cabinet/patients/:id",
             get(patient_detail::get_cabinet_patient),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/merge",
+            post(patient_merge::merge_cabinet_patient),
         )
         .route(
             "/v1/cabinet/patients/:id/notes",
