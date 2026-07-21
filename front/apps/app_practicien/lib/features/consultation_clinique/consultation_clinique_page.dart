@@ -45,10 +45,40 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
     return BlocConsumer<ConsultationCliniqueBloc, ConsultationCliniqueState>(
       // #3403 — surface l'erreur d'action (ex. 403 « Action non autorisée »)
       // via snackbar, puis consomme le message pour éviter les doublons.
+      // #4057/#4058 — alerte clinique bloquante : dialogue dédié (pas un
+      // snackbar), affiché avant tout retour à la saisie.
       listenWhen: (_, current) =>
-          current is ConsultationCliniqueLoaded && current.actionError != null,
-      listener: (context, state) {
-        if (state is ConsultationCliniqueLoaded && state.actionError != null) {
+          current is ConsultationCliniqueLoaded &&
+          (current.actionError != null || current.clinicalRiskWarning != null),
+      listener: (context, state) async {
+        if (state is! ConsultationCliniqueLoaded) return;
+        if (state.clinicalRiskWarning != null) {
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) => AlertDialog(
+              key: const Key('clinical_risk_warning_dialog'),
+              icon: Icon(Icons.warning_amber_rounded,
+                  color: Theme.of(dialogContext).colorScheme.error),
+              title: const Text('Alerte clinique'),
+              content: Text(state.clinicalRiskWarning!),
+              actions: [
+                NubiaButton(
+                  key: const Key('clinical_risk_warning_dismiss'),
+                  label: 'Compris',
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+              ],
+            ),
+          );
+          if (context.mounted) {
+            context
+                .read<ConsultationCliniqueBloc>()
+                .add(const ConsultationCliniqueClinicalRiskWarningConsumed());
+          }
+          return;
+        }
+        if (state.actionError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               key: const Key('consultation_action_error'),

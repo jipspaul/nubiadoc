@@ -15,6 +15,14 @@ class NetworkFailure extends Failure {
       [super.message = 'Erreur réseau. Vérifiez votre connexion.']);
 }
 
+/// Alerte clinique bloquante (#4057/#4058) : l'API a refusé (409
+/// `clinical_risk_warning`) l'ajout d'un acte à risque au vu du dossier
+/// médical du patient. Distinct de `ServerFailure` pour que l'UI affiche un
+/// dialogue bloquant dédié plutôt qu'un simple snackbar d'erreur.
+class ClinicalRiskWarningFailure extends Failure {
+  const ClinicalRiskWarningFailure(super.message);
+}
+
 class ServerFailure extends Failure {
   final int? statusCode;
   final String? code; // machine-stable error code from RFC 9457
