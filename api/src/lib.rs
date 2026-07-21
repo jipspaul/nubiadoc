@@ -40,6 +40,7 @@ mod interop;
 mod marketplace;
 mod medical_record;
 mod messaging;
+mod ngap_acts;
 mod notifications;
 mod notify;
 mod patient_tags;
@@ -575,6 +576,7 @@ fn build_router(
         .route("/v1/specialties", get(marketplace::list_specialties))
         .route("/v1/acts", get(marketplace::list_acts))
         .route("/v1/ccam/acts", get(consultations::search_ccam_acts))
+        .route("/v1/ngap/acts", get(ngap_acts::search_ngap_acts))
         .route("/v1/search/suggest", get(marketplace::suggest_search))
         .route("/v1/search/parse", post(marketplace::parse_search))
         .route("/v1/search/providers", get(marketplace::search_providers))
