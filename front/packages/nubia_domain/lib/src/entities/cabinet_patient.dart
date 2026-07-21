@@ -19,6 +19,10 @@ class CabinetPatient extends Equatable {
   /// paginée (`GET /cabinet/patients`) ne l'expose pas.
   final int? balanceDueCents;
 
+  /// Nombre de RDV honorés en `no_show` (#4090). Même disponibilité que
+  /// [balanceDueCents] — uniquement sur `GET /cabinet/patients/:id`.
+  final int? noShowCount;
+
   const CabinetPatient({
     required this.id,
     required this.cabinetId,
@@ -31,6 +35,7 @@ class CabinetPatient extends Equatable {
     this.lastVisitAt,
     required this.createdAt,
     this.balanceDueCents,
+    this.noShowCount,
   });
 
   String get fullName => '$firstName $lastName';

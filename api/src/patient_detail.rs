@@ -43,6 +43,9 @@ pub struct PatientAdminSection {
     /// avis laissés dans un autre cabinet (cloisonnement tenant).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub satisfaction: Option<PatientSatisfactionSummary>,
+    /// Nombre de RDV en statut `no_show` de ce patient dans ce cabinet
+    /// (#4090) — aucun agrégat n'existait avant cette issue.
+    pub no_show_count: i64,
     pub created_at: String,
 }
 
@@ -236,6 +239,23 @@ pub async fn get_cabinet_patient(
         None => None,
     };
 
+    // Compteur de lapins (#4090) : aucun agrégat n'existait avant cette
+    // issue. RLS tenant_isolation déjà satisfaite par le GUC positionné
+    // plus haut ; filtre explicite patient_id + cabinet_id en défense en
+    // profondeur (même pattern que balance_due_cents ci-dessus).
+    let no_show_row = sqlx::query(
+        "SELECT count(*)::bigint AS no_show_count FROM appointment \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND status = 'no_show'",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let no_show_count: i64 = no_show_row
+        .try_get("no_show_count")
+        .map_err(|_| AppError::Internal)?;
+
     let admin = PatientAdminSection {
         id,
         first_name,
@@ -245,6 +265,7 @@ pub async fn get_cabinet_patient(
         mutuelle,
         balance_due_cents,
         satisfaction,
+        no_show_count,
         created_at: created_at.to_rfc3339(),
     };
 

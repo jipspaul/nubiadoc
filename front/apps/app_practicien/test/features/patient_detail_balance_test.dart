@@ -28,13 +28,15 @@ class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
 class _MockListPatientDocuments extends Mock
     implements ListPatientDocumentsUseCase {}
 
-CabinetPatient _patient({int? balanceDueCents}) => CabinetPatient(
+CabinetPatient _patient({int? balanceDueCents, int? noShowCount}) =>
+    CabinetPatient(
       id: 'pat-1',
       cabinetId: 'cab-1',
       firstName: 'Jean',
       lastName: 'Dupont',
       createdAt: DateTime(2026, 1, 1),
       balanceDueCents: balanceDueCents,
+      noShowCount: noShowCount,
     );
 
 void main() {
@@ -112,5 +114,44 @@ void main() {
 
     expect(find.text('Étiquettes'), findsOneWidget);
     expect(find.text('Documents'), findsOneWidget);
+  });
+
+  testWidgets('0 lapin : affiché sans mise en avant (#4090)', (tester) async {
+    when(() => bloc.state).thenReturn(
+      PatientDetailLoaded(_patient(noShowCount: 0)),
+    );
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lapins : 0'), findsOneWidget);
+    final text =
+        tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
+    expect(text.style?.color, isNull);
+  });
+
+  testWidgets('3 lapins : affiché en évidence (couleur error) (#4090)',
+      (tester) async {
+    when(() => bloc.state).thenReturn(
+      PatientDetailLoaded(_patient(noShowCount: 3)),
+    );
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lapins : 3'), findsOneWidget);
+    final text =
+        tester.widget<Text>(find.byKey(const Key('patient_no_show_count')));
+    expect(text.style?.color,
+        Theme.of(tester.element(find.byType(Scaffold))).colorScheme.error);
+  });
+
+  testWidgets('noShowCount null : la ligne lapins est absente (#4090)',
+      (tester) async {
+    when(() => bloc.state).thenReturn(
+      PatientDetailLoaded(_patient(noShowCount: null)),
+    );
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_no_show_count')), findsNothing);
   });
 }
