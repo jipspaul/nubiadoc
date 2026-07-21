@@ -316,6 +316,7 @@ class PatientBalanceSection extends StatefulWidget {
 
 class _PatientBalanceSectionState extends State<PatientBalanceSection> {
   int? _balanceCents;
+  int? _noShowCount;
   String? _error;
   bool _loading = true;
 
@@ -336,6 +337,8 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
       }),
       (patient) => setState(() {
         _balanceCents = patient.balanceDueCents;
+        // Même fetch que le solde (#4090) — pas d'appel réseau dédié.
+        _noShowCount = patient.noShowCount;
         _loading = false;
       }),
     );
@@ -358,18 +361,41 @@ class _PatientBalanceSectionState extends State<PatientBalanceSection> {
       return const SizedBox.shrink();
     }
     final cents = _balanceCents ?? 0;
-    return Row(
+    final noShowCount = _noShowCount;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.account_balance_wallet_outlined,
-            size: 18, color: cs.onSurfaceVariant),
-        const SizedBox(width: 10),
-        Text(
-          'Solde : ${_formatBalance(cents)}',
-          key: const Key('patient_balance'),
-          style: cents > 0
-              ? TextStyle(color: cs.error, fontWeight: FontWeight.w600)
-              : null,
+        Row(
+          children: [
+            Icon(Icons.account_balance_wallet_outlined,
+                size: 18, color: cs.onSurfaceVariant),
+            const SizedBox(width: 10),
+            Text(
+              'Solde : ${_formatBalance(cents)}',
+              key: const Key('patient_balance'),
+              style: cents > 0
+                  ? TextStyle(color: cs.error, fontWeight: FontWeight.w600)
+                  : null,
+            ),
+          ],
         ),
+        if (noShowCount != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.person_off_outlined,
+                  size: 18, color: cs.onSurfaceVariant),
+              const SizedBox(width: 10),
+              Text(
+                'Lapins : $noShowCount',
+                key: const Key('patient_no_show_count'),
+                style: noShowCount > 0
+                    ? TextStyle(color: cs.error, fontWeight: FontWeight.w600)
+                    : null,
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

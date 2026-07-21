@@ -316,6 +316,22 @@ class _DetailViewState extends State<_DetailView> {
                     ),
                   ),
                 ],
+                if (p.noShowCount != null) ...[
+                  const SizedBox(height: 12),
+                  _InfoRow(
+                    icon: Icons.person_off_outlined,
+                    child: Text(
+                      'Lapins : ${p.noShowCount}',
+                      key: const Key('patient_no_show_count'),
+                      style: p.noShowCount! > 0
+                          ? TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                              fontWeight: FontWeight.w600,
+                            )
+                          : null,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
