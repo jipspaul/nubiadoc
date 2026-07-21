@@ -59,6 +59,7 @@ mod notifications;
 mod notify;
 mod patient_satisfaction;
 mod patient_tags;
+mod permissions;
 mod pharmacy;
 mod prescription_templates;
 mod prescriptions;

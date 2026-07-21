@@ -236,9 +236,13 @@ pub(crate) const VALID_QUOTE_STATUSES: [&str; 5] =
 /// sinon `400 invalid_status_filter` (#4066 : avant, une valeur hors énum
 /// (ex. `pending`/`paid`, boutons factices côté web-console) passait telle
 /// quelle en SQL et renvoyait silencieusement `[]`). Tri `created_at DESC`.
+/// `ProBillingClaims` (#4081) : `403` supplémentaire si
+/// `cabinet_membership.permissions->>'billing' = false` pour cet utilisateur,
+/// même si son rôle autorise normalement l'accès (route billing pilote pour
+/// la consommation du champ `permissions`, cf. `permissions.rs`).
 pub async fn list_cabinet_quotes(
     State(state): State<AppState>,
-    claims: crate::auth::ProSecretaryPlusClaims,
+    claims: crate::permissions::ProBillingClaims,
     Query(params): Query<ListCabinetQuotesQuery>,
 ) -> Result<Json<Vec<CabinetQuoteItem>>, AppError> {
     if params.page.is_some() {
