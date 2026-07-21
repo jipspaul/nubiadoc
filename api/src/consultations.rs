@@ -334,6 +334,31 @@ pub async fn complete_consultation(
 
         let quote_id: Uuid = quote_row.try_get("id").map_err(|_| AppError::Internal)?;
 
+        // Tarifs de référence des codes CCAM présents (#4062) : une seule
+        // requête plutôt qu'un lookup par ligne. ccam_act est non-tenant
+        // (migration 0119), pas de scope RLS requis ici.
+        let ccam_codes: Vec<String> = act_rows
+            .iter()
+            .filter_map(|row| row.try_get::<Option<String>, _>("ccam_code").ok().flatten())
+            .collect();
+        let tarif_rows = if ccam_codes.is_empty() {
+            Vec::new()
+        } else {
+            sqlx::query("SELECT code, tarif_cents FROM ccam_act WHERE code = ANY($1)")
+                .bind(&ccam_codes)
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?
+        };
+        let tarifs: std::collections::HashMap<String, i32> = tarif_rows
+            .iter()
+            .filter_map(|row| {
+                let code: String = row.try_get("code").ok()?;
+                let tarif: Option<i32> = row.try_get("tarif_cents").ok()?;
+                tarif.map(|t| (code, t))
+            })
+            .collect();
+
         // Crée les lignes du devis.
         for row in &act_rows {
             let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
@@ -344,10 +369,28 @@ pub async fn complete_consultation(
                 .try_get("amount_cents")
                 .map_err(|_| AppError::Internal)?;
 
+            // Part AMO estimée (#4062) : taux dentaire standard appliqué au
+            // tarif de référence CCAM (base de remboursement indicative,
+            // PAS le montant facturé) — première approximation explicitement
+            // demandée par l'issue, en l'absence de grille de remboursement
+            // réelle par acte. `None` (jamais 0) si le code est absent ou non
+            // référencé dans le catalogue : ne pas fabriquer un reste à
+            // charge sur une donnée qu'on n'a pas (même principe que
+            // panier_sante, #4055). Plafonné à amount_cents : l'AMO ne peut
+            // pas rembourser plus que le montant réellement facturé.
+            const AMO_RATE_DENTAIRE: f64 = 0.70;
+            let amo_part_cents: Option<i64> = ccam_code
+                .as_deref()
+                .and_then(|code| tarifs.get(code))
+                .map(|&tarif_cents| {
+                    let estimated = (f64::from(tarif_cents) * AMO_RATE_DENTAIRE).round() as i64;
+                    estimated.min(i64::from(amount_cents))
+                });
+
             sqlx::query(
                 "INSERT INTO quote_item \
-                 (cabinet_id, quote_id, label, ccam_code, tooth, qty, unit_amount) \
-                 VALUES ($1, $2, $3, $4, $5, 1, $6::numeric / 100)",
+                 (cabinet_id, quote_id, label, ccam_code, tooth, qty, unit_amount, amo_part) \
+                 VALUES ($1, $2, $3, $4, $5, 1, $6::numeric / 100, $7::numeric / 100)",
             )
             .bind(claims.cabinet_id)
             .bind(quote_id)
@@ -355,6 +398,7 @@ pub async fn complete_consultation(
             .bind(&ccam_code)
             .bind(&tooth)
             .bind(i64::from(amount_cents))
+            .bind(amo_part_cents)
             .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
