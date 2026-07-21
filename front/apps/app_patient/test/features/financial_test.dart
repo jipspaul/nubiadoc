@@ -43,6 +43,30 @@ final _quote = Quote(
   createdAt: DateTime(2026, 6, 1),
 );
 
+/// Devis avec une ligne classifiée `modere` (#4061) : doit déclencher
+/// l'encart d'alternative RAC 0 sur l'écran détail.
+final _quoteWithModereItem = Quote(
+  id: 'q-modere',
+  cabinetId: 'cab-1',
+  practitionerName: 'Dr Lemaire',
+  items: const [
+    QuoteLineItem(
+      id: 'item-1',
+      label: 'Couronne céramo-métallique',
+      totalCents: 30000,
+      amoShareCents: 10000,
+      amcShareCents: 5000,
+      patientShareCents: 15000,
+      panierSante: PanierSante.modere,
+    ),
+  ],
+  totalCents: 30000,
+  patientShareCents: 15000,
+  depositCents: 0,
+  status: QuoteStatus.sent,
+  createdAt: DateTime(2026, 6, 1),
+);
+
 FinancialBloc _makeBloc({
   required MockGetPendingQuotesUseCase getPendingQuotes,
   required MockGetQuoteByIdUseCase getQuoteById,
@@ -189,6 +213,59 @@ void main() {
 
       expect(find.byKey(const Key('financial_error')), findsOneWidget);
       expect(find.text('Erreur réseau.'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche l\'encart alternative RAC 0 quand une ligne est panier=modere (#4061)',
+        (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_quoteWithModereItem]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_quoteWithModereItem));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-modere'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('rac0_alternative_banner')), findsOneWidget);
+      expect(find.byKey(const Key('panier_badge_modere')), findsOneWidget);
+      expect(find.text('Alternative reste à charge zéro disponible'),
+          findsOneWidget);
+    });
+
+    testWidgets(
+        'n\'affiche pas l\'encart alternative RAC 0 sans ligne panier=modere',
+        (tester) async {
+      when(() => mockGetPendingQuotes())
+          .thenAnswer((_) async => Right([_quote]));
+      when(() => mockGetQuoteById(any()))
+          .thenAnswer((_) async => Right(_quote));
+
+      final bloc = _makeBloc(
+        getPendingQuotes: mockGetPendingQuotes,
+        getQuoteById: mockGetQuoteById,
+        initiateSignature: mockInitiateSignature,
+        initiateDeposit: mockInitiateDeposit,
+      );
+      bloc.add(const FinancialLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      bloc.add(const FinancialQuoteSelected('q-1'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('rac0_alternative_banner')), findsNothing);
     });
   });
 
