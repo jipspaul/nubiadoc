@@ -342,3 +342,130 @@ async fn get_medical_record_practitioner_returns_200_and_audit() {
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
+
+// ── Test 4 : GET sans dossier existant → medico_legal tout à false (#4103) ──
+
+#[tokio::test]
+async fn get_medical_record_no_record_defaults_medico_legal_false() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        v["medico_legal"],
+        serde_json::json!({
+            "ald": false,
+            "anticoagulants": false,
+            "bisphosphonates": false,
+            "risque_endocardite": false
+        }),
+        "aucun dossier existant : tous les flags médico-légaux à false"
+    );
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
+
+// ── Test 5 : PATCH medico_legal persiste et est relu par GET (#4103) ────────
+
+#[tokio::test]
+async fn patch_medical_record_medico_legal_persists() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(user_id, cabinet_id);
+    let state = make_state(app_pool().await);
+
+    let patch_resp = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "medico_legal": {
+                            "ald": true,
+                            "anticoagulants": true,
+                            "bisphosphonates": false,
+                            "risque_endocardite": false
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(patch_resp.status(), StatusCode::OK);
+    let patch_bytes = axum::body::to_bytes(patch_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let patch_body: serde_json::Value = serde_json::from_slice(&patch_bytes).unwrap();
+    assert_eq!(patch_body["medico_legal"]["ald"], true);
+    assert_eq!(patch_body["medico_legal"]["anticoagulants"], true);
+
+    // Relecture GET : les flags doivent avoir persisté (chiffrement stub round-trip).
+    let get_resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let get_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let get_body: serde_json::Value = serde_json::from_slice(&get_bytes).unwrap();
+    assert_eq!(
+        get_body["medico_legal"],
+        serde_json::json!({
+            "ald": true,
+            "anticoagulants": true,
+            "bisphosphonates": false,
+            "risque_endocardite": false
+        }),
+        "les flags médico-légaux doivent persister entre PATCH et GET"
+    );
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
