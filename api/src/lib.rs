@@ -22,6 +22,7 @@ pub use twilio_sms::TwilioSmsSender;
 pub use yousign_client::YousignClient;
 
 mod appointment_motifs;
+mod appointment_series;
 mod appointments;
 mod auth;
 mod billing;
@@ -591,6 +592,10 @@ fn build_router(
         .route(
             "/v1/cabinet/appointments",
             get(scheduling::get_cabinet_appointments).post(scheduling::create_cabinet_appointment),
+        )
+        .route(
+            "/v1/cabinet/appointments/series",
+            post(appointment_series::create_appointment_series),
         )
         .route(
             "/v1/cabinet/appointments/:id/confirm",
