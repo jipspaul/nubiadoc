@@ -197,6 +197,12 @@ pub async fn list_quotes(
 }
 
 /// Ligne d'un devis (réponse détail).
+///
+/// `panier_sante` (#4060) : classification 100% Santé de l'acte
+/// (`ccam_act.panier_sante`, #4055), `null` si la ligne n'a pas de
+/// `ccam_code` ou si l'acte n'est pas encore classifié. Contrairement à
+/// `CabinetQuoteLineItem` (côté secrétariat), cette route patient expose déjà
+/// `ccam_code`/`tooth` — pas de cloisonnement R.4127-72 supplémentaire ici.
 #[derive(Serialize)]
 pub struct QuoteLineItem {
     pub id: Uuid,
@@ -207,6 +213,8 @@ pub struct QuoteLineItem {
     pub unit_amount_cents: i64,
     pub amc_part_cents: Option<i64>,
     pub amo_part_cents: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub panier_sante: Option<String>,
 }
 
 /// Réponse de `GET /v1/quotes/:id`.
@@ -278,8 +286,10 @@ pub async fn get_quote(
                 (qi.qty * 100)::bigint AS qty_cents, \
                 (qi.unit_amount * 100)::bigint AS unit_amount_cents, \
                 (qi.amc_part * 100)::bigint AS amc_part_cents, \
-                (qi.amo_part * 100)::bigint AS amo_part_cents \
+                (qi.amo_part * 100)::bigint AS amo_part_cents, \
+                ca.panier_sante \
          FROM quote_item qi \
+         LEFT JOIN ccam_act ca ON ca.code = qi.ccam_code \
          WHERE qi.quote_id = $1 \
          ORDER BY qi.id",
     )
@@ -333,6 +343,9 @@ pub async fn get_quote(
         let amo_part_cents: Option<i64> = row
             .try_get("amo_part_cents")
             .map_err(|_| AppError::Internal)?;
+        let panier_sante: Option<String> = row
+            .try_get("panier_sante")
+            .map_err(|_| AppError::Internal)?;
         items.push(QuoteLineItem {
             id: item_id,
             label,
@@ -342,6 +355,7 @@ pub async fn get_quote(
             unit_amount_cents,
             amc_part_cents,
             amo_part_cents,
+            panier_sante,
         });
     }
 
