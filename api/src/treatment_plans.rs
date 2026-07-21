@@ -2,13 +2,14 @@
 //! GET /v1/treatment-plans — liste paginée des plans de traitement.
 
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, PatientAccountClaims},
+    auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
     AppState,
 };
 
@@ -338,4 +339,103 @@ pub async fn get_treatment_plan(
         amc_part_cents: total_amc_cents,
         phases,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// POST /v1/cabinet/treatment-plans
+// ---------------------------------------------------------------------------
+
+/// Corps de `POST /v1/cabinet/treatment-plans`.
+#[derive(Deserialize)]
+pub struct CreateTreatmentPlanBody {
+    pub patient_id: Uuid,
+    pub title: String,
+}
+
+/// Réponse de `POST /v1/cabinet/treatment-plans`.
+#[derive(Serialize)]
+pub struct CreateTreatmentPlanResponse {
+    pub plan_id: Uuid,
+}
+
+/// `POST /v1/cabinet/treatment-plans` — création d'un plan de traitement (§4.1).
+///
+/// Praticien uniquement (via `ProPractitionerClaims`). `cabinet_id` extrait du
+/// JWT, jamais du body (invariant tenancy) — mêmes garanties que `dental_chart.rs`.
+/// Patient inexistant ou hors tenant → 404. `title` vide → 422.
+/// `practitioner_id` résolu depuis le JWT (`user_id` → ligne `practitioner` du
+/// cabinet) ; laissé `NULL` si le praticien n'a pas de ligne `practitioner`
+/// (ex. compte migré) — cohérent avec la colonne nullable en base.
+/// Statut initial : `draft`. Réponse `201 { plan_id }`.
+pub async fn create_treatment_plan(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Json(body): Json<CreateTreatmentPlanBody>,
+) -> Result<(StatusCode, Json<CreateTreatmentPlanResponse>), AppError> {
+    let title = body.title.trim().to_string();
+    if title.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le patient appartient au cabinet (RLS garantit le cloisonnement).
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(body.patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let practitioner_id: Option<Uuid> =
+        sqlx::query("SELECT id FROM practitioner WHERE user_id = $1 AND cabinet_id = $2")
+            .bind(claims.sub)
+            .bind(claims.cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .map(|r| r.try_get("id"))
+            .transpose()
+            .map_err(|_| AppError::Internal)?;
+
+    let plan_id: Uuid = sqlx::query(
+        "INSERT INTO treatment_plan (cabinet_id, patient_id, practitioner_id, title, status) \
+         VALUES ($1, $2, $3, $4, 'draft') RETURNING id",
+    )
+    .bind(claims.cabinet_id)
+    .bind(body.patient_id)
+    .bind(practitioner_id)
+    .bind(&title)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .try_get("id")
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        patient_id = %body.patient_id,
+        plan_id = %plan_id,
+        "treatment plan created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateTreatmentPlanResponse { plan_id }),
+    ))
 }

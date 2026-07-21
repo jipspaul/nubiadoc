@@ -422,6 +422,10 @@ fn build_router(
             get(dental_chart::get_dental_chart).put(dental_chart::put_dental_chart),
         )
         .route(
+            "/v1/cabinet/treatment-plans",
+            post(treatment_plans::create_treatment_plan),
+        )
+        .route(
             "/v1/cabinet/patients/:id/documents",
             get(clinical::list_patient_documents).post(clinical::upload_patient_document),
         )
