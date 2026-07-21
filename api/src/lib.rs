@@ -56,6 +56,7 @@ mod notifications;
 mod notify;
 mod patient_tags;
 mod pharmacy;
+mod prescription_templates;
 mod prescriptions;
 mod provider_secretariat;
 mod quote_signature;
@@ -764,6 +765,15 @@ fn build_router(
         .route(
             "/v1/cabinet/prescriptions/:id/send",
             post(prescriptions::send_prescription),
+        )
+        .route(
+            "/v1/cabinet/prescriptions/:id/apply-template",
+            post(prescription_templates::apply_prescription_template),
+        )
+        .route(
+            "/v1/cabinet/prescription-templates",
+            get(prescription_templates::list_prescription_templates)
+                .post(prescription_templates::create_prescription_template),
         )
         .route(
             "/v1/cabinet/patients/:id/pharmacy",
