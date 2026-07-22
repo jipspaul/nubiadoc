@@ -176,6 +176,11 @@ async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_
         .execute(&mut *tx)
         .await
         .ok();
+    sqlx::query("DELETE FROM dental_chart_history WHERE patient_id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM dental_chart WHERE patient_id = $1")
         .bind(patient_id)
         .execute(&mut *tx)
@@ -441,6 +446,120 @@ async fn put_dental_chart_invalid_tooth_code_returns_422() {
             "code dent accepté à tort : {body}"
         );
     }
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
+
+// ── Test 6 : premier PUT (aucune ligne existante) → aucun snapshot (#4121) ──
+
+#[tokio::test]
+async fn put_dental_chart_first_write_creates_no_history_row() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/v1/cabinet/patients/{}/dental-chart", patient_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({"teeth": {"11": {"status": "sain"}}}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM dental_chart_history WHERE patient_id = $1")
+            .bind(patient_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        count, 0,
+        "rien à historiser au tout premier PUT (aucun état précédent)"
+    );
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
+
+// ── Test 7 : deuxième PUT → snapshote l'état PRÉCÉDENT (#4121) ───────────────
+
+#[tokio::test]
+async fn put_dental_chart_overwrite_snapshots_previous_state() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+    let token = make_practitioner_token(user_id, cabinet_id);
+    let state = make_state(app_pool().await);
+
+    let first_teeth = json!({"11": {"status": "sain"}});
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/v1/cabinet/patients/{}/dental-chart", patient_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(json!({"teeth": first_teeth}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let second_teeth = json!({"11": {"status": "carie"}});
+    let resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(format!("/v1/cabinet/patients/{}/dental-chart", patient_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(json!({"teeth": second_teeth}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let rows = sqlx::query("SELECT teeth_status FROM dental_chart_history WHERE patient_id = $1")
+        .bind(patient_id)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    assert_eq!(rows.len(), 1, "un seul snapshot après le 2e PUT");
+    let snapshot: serde_json::Value = rows[0].try_get("teeth_status").unwrap();
+    assert_eq!(
+        snapshot, first_teeth,
+        "le snapshot doit capturer l'état PRÉCÉDENT (avant écrasement), pas le nouveau"
+    );
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }

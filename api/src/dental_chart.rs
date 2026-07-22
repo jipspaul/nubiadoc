@@ -5,6 +5,12 @@
 //! PUT atomique : remplace intégralement `teeth_status` jsonb.
 //! `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
 //! RLS `tenant_isolation` scoped via `app.current_cabinet_id`.
+//!
+//! #4121 : avant chaque écrasement, l'état PRÉCÉDENT de `teeth_status` (s'il
+//! existe) est snapshoté dans `dental_chart_history` (migration 0185,
+//! append-only) — permet de reconstituer l'odontogramme à une date passée.
+//! Contrat du PUT inchangé (même body, même réponse) : c'est un effet de
+//! bord interne, pas une nouvelle donnée exposée par cette route.
 
 use axum::{
     extract::{Path, State},
@@ -278,6 +284,32 @@ pub async fn put_dental_chart(
 
     if has_appointment.is_none() {
         return Err(AppError::Forbidden);
+    }
+
+    // #4121 : snapshot de l'état PRÉCÉDENT avant écrasement — seulement s'il
+    // existait déjà une ligne (rien à historiser au tout premier PUT).
+    let existing = sqlx::query(
+        "SELECT teeth_status FROM dental_chart WHERE patient_id = $1 AND cabinet_id = $2",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if let Some(existing) = existing {
+        let previous_teeth: Value = existing
+            .try_get("teeth_status")
+            .map_err(|_| AppError::Internal)?;
+        sqlx::query(
+            "INSERT INTO dental_chart_history (cabinet_id, patient_id, teeth_status) \
+             VALUES ($1, $2, $3)",
+        )
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .bind(&previous_teeth)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
     }
 
     // UPSERT atomique : remplace intégralement teeth_status.
