@@ -62,6 +62,7 @@ mod messaging;
 mod ngap_acts;
 mod notifications;
 mod notify;
+mod orthodontics;
 mod patient_detail;
 mod patient_guardianship;
 mod patient_merge;
@@ -535,6 +536,15 @@ fn build_router(
             "/v1/cabinet/patients/:id/periodontal-chart",
             get(periodontal_chart::get_periodontal_chart)
                 .put(periodontal_chart::put_periodontal_chart),
+        )
+        .route(
+            "/v1/cabinet/patients/:id/orthodontics",
+            get(orthodontics::list_orthodontic_treatments)
+                .post(orthodontics::create_orthodontic_treatment),
+        )
+        .route(
+            "/v1/cabinet/orthodontics/:id/steps",
+            post(orthodontics::add_orthodontic_step),
         )
         .route(
             "/v1/cabinet/patients/:id/medical-questionnaire",

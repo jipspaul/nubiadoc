@@ -186,6 +186,11 @@ pub(crate) enum AppError {
     /// a bien `UNIQUE (practitioner_id, ccam_code)` mais l'app évite de
     /// laisser remonter une violation de contrainte brute en 500).
     FavoriteActAlreadyExists,
+    /// `POST /v1/cabinet/orthodontics/:id/steps` (#4135) : `step_number`
+    /// déjà utilisé pour ce traitement (index unique `(treatment_id,
+    /// step_number)`, migration 0189) — même choix que
+    /// `FavoriteActAlreadyExists`, pas de violation brute en 500.
+    StepNumberTaken,
     /// `POST /v1/cabinet/consultations/:id/acts` (#4117) : le code CCAM
     /// soumis figure dans `ccam_act_incompatibility` avec un acte déjà
     /// présent dans la séance — `422` (erreur de saisie côté praticien,
@@ -403,6 +408,11 @@ impl IntoResponse for AppError {
             AppError::FavoriteActAlreadyExists => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "favorite_act_already_exists"})),
+            )
+                .into_response(),
+            AppError::StepNumberTaken => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "step_number_taken"})),
             )
                 .into_response(),
             AppError::IncompatibleActs(reason) => (
