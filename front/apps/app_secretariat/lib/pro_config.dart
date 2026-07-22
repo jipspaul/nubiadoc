@@ -86,6 +86,11 @@ class ProConfig {
         icon: Icons.business_outlined,
         route: '/admin-secretariats',
       ),
+      shell.ProNavDestination(
+        label: 'Statistiques',
+        icon: Icons.bar_chart_outlined,
+        route: '/cabinet-stats',
+      ),
     ],
   );
 

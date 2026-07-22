@@ -95,13 +95,26 @@ class _ProShellState extends State<ProShell> {
     int index,
     ProNavDestination current,
   ) {
+    // `NavigationRail` ne défile pas ses propres destinations : au-delà
+    // d'un certain nombre d'entrées (ex. app_secretariat, #4153, 12
+    // destinations), `NavigationRailLabelType.all` (icône + libellé empilés
+    // par destination) déborde verticalement sur les écrans/viewports plus
+    // petits. Bascule automatique en mode compact (libellé visible
+    // uniquement pour l'entrée sélectionnée) au-delà du seuil — recommandé
+    // par Flutter lui-même pour les rails à nombreuses destinations, aucune
+    // action requise côté apps consommatrices.
+    const maxDestinationsForFullLabels = 9;
+    final labelType = destinations.length > maxDestinationsForFullLabels
+        ? NavigationRailLabelType.selected
+        : NavigationRailLabelType.all;
+
     return Scaffold(
       body: Row(
         children: [
           NavigationRail(
             selectedIndex: index,
             onDestinationSelected: (i) => setState(() => _index = i),
-            labelType: NavigationRailLabelType.all,
+            labelType: labelType,
             // Monogramme Nubia — le FlutterLogo par défaut faisait
             // « démo non finie » (#3363/#3375).
             leading: Padding(

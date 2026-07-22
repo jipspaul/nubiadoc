@@ -21,6 +21,9 @@ import '../appointment_motifs/appointment_motifs_page.dart';
 import '../agenda/agenda_page.dart';
 import '../bookable_slots/bookable_slots_bloc.dart';
 import '../bookable_slots/bookable_slots_page.dart';
+import '../cabinet_stats/cabinet_stats_bloc.dart';
+import '../cabinet_stats/cabinet_stats_event.dart';
+import '../cabinet_stats/cabinet_stats_page.dart';
 import '../cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../cabinet_messaging/cabinet_messaging_event.dart';
 import '../cabinet_messaging/cabinet_messaging_page.dart';
@@ -137,6 +140,12 @@ class DashboardPage extends StatelessWidget {
           body = BlocProvider(
             create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
             child: const AppointmentMotifsPage(),
+          );
+        } else if (destination.route == '/cabinet-stats') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<CabinetStatsBloc>()
+              ..add(const CabinetStatsLoadRequested()),
+            child: const CabinetStatsBody(),
           );
         } else {
           body = Center(
