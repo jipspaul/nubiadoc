@@ -34,12 +34,12 @@ La RLS n'est efficace **que** sous un rôle **non-superuser qui ne bypass pas** 
 | Rôle | Usage | Privilèges |
 |---|---|---|
 | `nubia_owner` | **Propriétaire** du schéma : exécute les **migrations** (DDL). | `CREATE`/`ALTER`/`DROP`. **Jamais** utilisé par l'app runtime. |
-| `nubia_app` | **Rôle applicatif runtime** (API + worker). | `SELECT/INSERT/UPDATE` sur le métier ; **`INSERT` seul** sur `audit_log` (append-only) ; **NOSUPERUSER**, **`NOBYPASSRLS`**. |
+| `nubia_app` | **Rôle applicatif runtime** (API + worker). | `SELECT/INSERT/UPDATE` sur le métier ; **`SELECT`/`INSERT`** (jamais `UPDATE`/`DELETE`) sur `audit_log` (append-only, lecture ajoutée #4155 pour `GET /v1/cabinet/audit-log`) ; **NOSUPERUSER**, **`NOBYPASSRLS`**. |
 | `nubia_seed` | Chargement du **seed démo** (données fictives). | Écriture, isolé ; **jamais en prod sur données réelles**. |
 
 Règles :
 - L'app se connecte **toujours** en `nubia_app` (vérifié en CI). Se connecter en `postgres`/owner **désactiverait de fait la RLS** → interdit en runtime.
-- `audit_log` : `GRANT INSERT` uniquement à `nubia_app` (pas d'`UPDATE`/`DELETE`) → **append-only garanti par privilège** (`../docs/05` §6, `../docs/07` §2.9).
+- `audit_log` : `GRANT SELECT, INSERT` à `nubia_app` (pas d'`UPDATE`/`DELETE`, jamais) → **append-only garanti par privilège** (`../docs/05` §6, `../docs/07` §2.9). Lecture ajoutée en migration 0195 (#4155) pour `GET /v1/cabinet/audit-log` — l'immutabilité n'est pas affectée (SELECT n'autorise aucune modification).
 - Les migrations et le seed s'exécutent avec un **rôle dédié explicite**, jamais `nubia_app`.
 
 ## 4. Multi-tenant — Row-Level Security (ADR-003)
@@ -74,7 +74,7 @@ Chiffrés : INS / n° sécu, contenu `clinical_note`, `medical_record` (antécé
 - **Purge** : job planifié **apalis** marque/purge selon politique, en **journalisant chaque purge** dans l'audit. Référence : `../docs/05` §4, `../docs/07`.
 
 ## 7. Audit & append-only
-- `audit_log` : `bigint GENERATED ALWAYS AS IDENTITY`, **partitionné `RANGE (occurred_at)`** (partitions mensuelles), `metadata jsonb` **sans PII en clair**. `nubia_app` n'a que `INSERT`.
+- `audit_log` : `bigint GENERATED ALWAYS AS IDENTITY`, **partitionné `RANGE (occurred_at)`** (partitions mensuelles), `metadata jsonb` **sans PII en clair**. `nubia_app` a `SELECT`/`INSERT`, jamais `UPDATE`/`DELETE` (lecture pour `GET /v1/cabinet/audit-log`, #4155 — admin uniquement côté API).
 - Tout accès/écriture sur donnée de santé → une entrée (`read_record`, `update_quote`, `sign`, `login`, `purge`…). Voir matrice d'actions dans `../docs/12` (par route).
 - `consent_record` : consentements **tracés et révocables** (`purpose`, `granted`, `revoked_at`, `evidence`).
 

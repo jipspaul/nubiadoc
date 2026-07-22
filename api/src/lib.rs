@@ -24,6 +24,7 @@ pub use yousign_client::YousignClient;
 mod appointment_motifs;
 mod appointment_series;
 mod appointments;
+mod audit_log;
 mod auth;
 mod billing;
 mod billing_payments;
