@@ -11,6 +11,7 @@ import '../features/appointment_motifs/appointment_motifs_bloc.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
+import '../features/cabinet_stats/cabinet_stats_bloc.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/stock/stock_bloc.dart';
@@ -113,6 +114,12 @@ void registerPro(GetIt gi) {
       () => StockBloc(
         list: gi<ListStockRequestsUseCase>(),
         create: gi<CreateStockRequestUseCase>(),
+      ),
+    )
+    ..registerFactory<CabinetStatsBloc>(
+      () => CabinetStatsBloc(
+        getActivityStats: gi<GetCabinetActivityStatsUseCase>(),
+        getBillingStats: gi<GetCabinetBillingStatsUseCase>(),
       ),
     );
 }

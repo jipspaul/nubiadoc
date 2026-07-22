@@ -34,6 +34,9 @@ import '../features/stock/stock_bloc.dart';
 import '../features/stock/stock_page.dart';
 import '../features/waiting_list/waiting_list_bloc.dart';
 import '../features/waiting_list/waiting_list_page.dart';
+import '../features/cabinet_stats/cabinet_stats_bloc.dart';
+import '../features/cabinet_stats/cabinet_stats_event.dart';
+import '../features/cabinet_stats/cabinet_stats_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 
@@ -48,6 +51,7 @@ class AppRouter {
   static const bookableSlots = '/bookable-slots';
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
+  static const cabinetStats = '/cabinet-stats';
 
   static const patients = '/patients';
   static const patientNew = '/patients/new';
@@ -117,6 +121,14 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<WaitingRoomBloc>(),
             child: const WaitingRoomPage(),
+          ),
+        ),
+        GoRoute(
+          path: cabinetStats,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<CabinetStatsBloc>()
+              ..add(const CabinetStatsLoadRequested()),
+            child: const CabinetStatsPage(),
           ),
         ),
         GoRoute(
