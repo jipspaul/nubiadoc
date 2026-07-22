@@ -30,4 +30,34 @@ class PatientDocumentsRepositoryImpl implements PatientDocumentsRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, String>> upload(
+    String patientId, {
+    required List<int> bytes,
+    required String filename,
+    required String mimeType,
+    required String category,
+  }) async {
+    try {
+      final documentId = await _api.upload(
+        patientId,
+        bytes: bytes,
+        filename: filename,
+        mimeType: mimeType,
+        category: category,
+      );
+      return Right(documentId);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible d'envoyer le document.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }

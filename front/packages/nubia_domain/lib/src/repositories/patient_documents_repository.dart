@@ -7,4 +7,14 @@ abstract class PatientDocumentsRepository {
     String patientId, {
     String? category,
   });
+
+  /// POST /v1/cabinet/patients/:id/documents (#4133). Renvoie l'id du
+  /// document créé.
+  Future<Either<Failure, String>> upload(
+    String patientId, {
+    required List<int> bytes,
+    required String filename,
+    required String mimeType,
+    required String category,
+  });
 }

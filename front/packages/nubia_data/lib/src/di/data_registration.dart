@@ -603,6 +603,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => UpdateAppointmentMotifUseCase(gi()))
     ..registerFactory(() => DeleteAppointmentMotifUseCase(gi()))
     ..registerFactory(() => ListPatientDocumentsUseCase(gi()))
+    ..registerFactory(() => UploadPatientDocumentUseCase(gi()))
     ..registerFactory(() => GetDentalChartUseCase(gi()))
     ..registerFactory(() => PutDentalChartUseCase(gi()))
     ..registerFactory(() => GetPeriodontalChartUseCase(gi()))

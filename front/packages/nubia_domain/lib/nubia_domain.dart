@@ -201,6 +201,7 @@ export 'src/usecases/appointment_motifs/create_appointment_motif_use_case.dart';
 export 'src/usecases/appointment_motifs/update_appointment_motif_use_case.dart';
 export 'src/usecases/appointment_motifs/delete_appointment_motif_use_case.dart';
 export 'src/usecases/patient_documents/list_patient_documents_use_case.dart';
+export 'src/usecases/patient_documents/upload_patient_document_use_case.dart';
 export 'src/usecases/dental_chart/get_dental_chart_use_case.dart';
 export 'src/usecases/dental_chart/put_dental_chart_use_case.dart';
 export 'src/usecases/periodontal_chart/get_periodontal_chart_use_case.dart';

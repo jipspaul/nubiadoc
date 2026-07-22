@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
@@ -21,12 +22,35 @@ class PatientFiche extends StatelessWidget {
   }
 }
 
-class _PatientFicheScaffold extends StatelessWidget {
+/// #4133 — deux onglets : Résumé (contenu historique inchangé) et
+/// Documents (GED, #4042, désormais avec filtre catégorie + upload).
+class _PatientFicheScaffold extends StatefulWidget {
   final CabinetPatient patient;
   const _PatientFicheScaffold({required this.patient});
 
   @override
+  State<_PatientFicheScaffold> createState() => _PatientFicheScaffoldState();
+}
+
+class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final patient = widget.patient;
     return BlocConsumer<PatientFicheBloc, PatientFicheState>(
       listenWhen: (prev, curr) =>
           (prev.pdfBytes == null && curr.pdfBytes != null) ||
@@ -91,21 +115,36 @@ class _PatientFicheScaffold extends StatelessWidget {
                     .add(const ToggleClinicalVisibility()),
               ),
             ],
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (state.showClinical) ClinicalSection(patient: patient),
-                const SizedBox(height: 16),
-                MedicalQuestionnaireReviewSection(patientId: patient.id),
-                const SizedBox(height: 16),
-                PatientTagsSection(patientId: patient.id),
-                const SizedBox(height: 16),
-                PatientDocumentsSection(patientId: patient.id),
+            bottom: TabBar(
+              key: const Key('patient_fiche_tabs'),
+              controller: _tabController,
+              tabs: const [
+                Tab(text: 'Résumé'),
+                Tab(text: 'Documents'),
               ],
             ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (state.showClinical) ClinicalSection(patient: patient),
+                    const SizedBox(height: 16),
+                    MedicalQuestionnaireReviewSection(patientId: patient.id),
+                    const SizedBox(height: 16),
+                    PatientTagsSection(patientId: patient.id),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: PatientDocumentsSection(patientId: patient.id),
+              ),
+            ],
           ),
         );
       },
@@ -328,9 +367,30 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
   }
 }
 
-/// Documents du dossier patient (GED, §4.4, #4042) — liste vide/remplie.
-/// Upload hors scope ici : `POST .../documents` déjà exposé côté API,
-/// reste à câbler dans un futur écran dédié si besoin.
+/// Catégories acceptées par l'API (`VALID_CATEGORIES`, `api/src/clinical.rs`)
+/// — libellé français + icône, mêmes valeurs brutes que `PatientDocument.category`
+/// (pas le `DocumentCategory` du coffre-fort patient, dont le mapping diffère).
+const _kDocumentCategories = <(String, String, IconData)>[
+  ('devis', 'Devis', Icons.request_quote_outlined),
+  ('facture', 'Facture', Icons.receipt_long_outlined),
+  ('ordonnance', 'Ordonnance', Icons.medication_outlined),
+  ('radio', 'Radio', Icons.image_outlined),
+  ('cbct', 'CBCT', Icons.view_in_ar_outlined),
+  ('photo', 'Photo', Icons.photo_camera_outlined),
+  ('cr', 'Compte-rendu', Icons.description_outlined),
+  ('consigne', 'Consigne', Icons.assignment_outlined),
+  ('attestation', 'Attestation', Icons.verified_outlined),
+  ('carte_mutuelle', 'Carte mutuelle', Icons.badge_outlined),
+  ('passeport_implantaire', 'Passeport implantaire', Icons.badge_outlined),
+  ('consentement', 'Consentement', Icons.verified_user_outlined),
+];
+
+/// Documents du dossier patient (GED, §4.4, #4042/#4133) — liste filtrable
+/// par catégorie + upload. `POST .../documents` (#4133) câblé ; la
+/// prévisualisation/téléchargement du contenu (ex. image radio) reste hors
+/// scope : aucune route backend ne sert le contenu d'un document côté
+/// cabinet aujourd'hui (`GET /v1/documents/:id/download` est réservé au
+/// patient lui-même) — signalé séparément (#4286).
 class PatientDocumentsSection extends StatefulWidget {
   const PatientDocumentsSection({super.key, required this.patientId});
 
@@ -344,6 +404,8 @@ class PatientDocumentsSection extends StatefulWidget {
 class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
   List<PatientDocument>? _documents;
   String? _error;
+  String? _categoryFilter;
+  bool _uploading = false;
 
   @override
   void initState() {
@@ -352,8 +414,10 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
   }
 
   Future<void> _load() async {
-    final result =
-        await GetIt.instance<ListPatientDocumentsUseCase>()(widget.patientId);
+    final result = await GetIt.instance<ListPatientDocumentsUseCase>()(
+      widget.patientId,
+      category: _categoryFilter,
+    );
     if (!mounted) return;
     result.fold(
       (failure) => setState(() => _error = failure.message),
@@ -361,6 +425,61 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
         _documents = documents;
         _error = null;
       }),
+    );
+  }
+
+  void _setFilter(String? category) {
+    setState(() {
+      _categoryFilter = category;
+      _documents = null;
+    });
+    _load();
+  }
+
+  Future<void> _pickAndUpload() async {
+    final file = await GetIt.instance<FilePickerService>().pickFile();
+    if (file == null || !mounted) return;
+
+    final category = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: 0.75,
+          child: ListView(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Type de document'),
+              ),
+              for (final (value, label, icon) in _kDocumentCategories)
+                ListTile(
+                  key: Key('upload_cat_$value'),
+                  leading: Icon(icon),
+                  title: Text(label),
+                  onTap: () => Navigator.pop(ctx, value),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (category == null || !mounted) return;
+
+    setState(() => _uploading = true);
+    final result = await GetIt.instance<UploadPatientDocumentUseCase>()(
+      widget.patientId,
+      bytes: file.bytes,
+      filename: file.name,
+      mimeType: file.mimeType,
+      category: category,
+    );
+    if (!mounted) return;
+    setState(() => _uploading = false);
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure.message))),
+      (_) => _load(),
     );
   }
 
@@ -392,7 +511,49 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
               Icon(Icons.folder_outlined, size: 20, color: cs.primary),
               const SizedBox(width: 8),
               Text('Documents', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              IconButton(
+                key: const Key('patient_documents_upload_button'),
+                icon: _uploading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.upload_file_outlined),
+                tooltip: 'Envoyer un document',
+                onPressed: _uploading ? null : _pickAndUpload,
+              ),
             ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 36,
+            child: ListView(
+              key: const Key('patient_documents_filters'),
+              scrollDirection: Axis.horizontal,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    key: const Key('patient_documents_filter_all'),
+                    label: const Text('Tous'),
+                    selected: _categoryFilter == null,
+                    onSelected: (_) => _setFilter(null),
+                  ),
+                ),
+                for (final (value, label, _) in _kDocumentCategories)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      key: Key('patient_documents_filter_$value'),
+                      label: Text(label),
+                      selected: _categoryFilter == value,
+                      onSelected: (_) => _setFilter(value),
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           if (_error != null)
