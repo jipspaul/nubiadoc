@@ -70,6 +70,11 @@ class ProConfig {
         route: '/stock-inventory',
       ),
       shell.ProNavDestination(
+        label: 'Labo',
+        icon: Icons.local_shipping_outlined,
+        route: '/lab-work-orders',
+      ),
+      shell.ProNavDestination(
         label: 'Messages',
         icon: Icons.chat_bubble_outline,
         route: '/messages',

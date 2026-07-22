@@ -21,6 +21,8 @@ import '../ordonnances/ordonnances_bloc.dart';
 import '../ordonnances/ordonnances_page.dart';
 import '../patients/patients_page.dart';
 import '../stock/stock_bloc.dart';
+import '../lab_work/lab_work_orders_bloc.dart';
+import '../lab_work/lab_work_orders_page.dart';
 import '../stock/stock_inventory_bloc.dart';
 import '../stock/stock_inventory_page.dart';
 import '../stock/stock_page.dart';
@@ -110,6 +112,12 @@ class DashboardPage extends StatelessWidget {
           return BlocProvider(
             create: (_) => GetIt.instance<StockInventoryBloc>(),
             child: const StockInventoryPage(),
+          );
+        }
+        if (destination.route == '/lab-work-orders') {
+          return BlocProvider(
+            create: (_) => GetIt.instance<LabWorkOrdersBloc>(),
+            child: const LabWorkOrdersPage(),
           );
         }
         if (destination.route == '/messages') {
