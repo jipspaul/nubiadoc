@@ -221,7 +221,58 @@ async fn pouch_can_be_added_to_non_conforme_cycle() {
     cleanup(&db, &f).await;
 }
 
-// ── Test 2 : scan hors tenant → 404 ──────────────────────────────────────────
+// ── Test 2 : code déjà scanné dans ce cabinet → 409 ──────────────────────────
+
+#[tokio::test]
+async fn duplicate_pouch_code_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        Some(json!({
+            "autoclave_ref": "Autoclave-1",
+            "cycle_number": 1,
+            "test_kind": "helix",
+            "test_result": "virage complet",
+            "status": "conforme"
+        })),
+    )
+    .await;
+    let cycle_id = created["cycle_id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/sterilization-cycles/{cycle_id}/pouches"),
+        &token,
+        Some(json!({"code": "DM-DUP-001"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/sterilization-cycles/{cycle_id}/pouches"),
+        &token,
+        Some(json!({"code": "DM-DUP-001"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(resp["code"], "pouch_code_already_used");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 3 : scan hors tenant → 404 ──────────────────────────────────────────
 
 #[tokio::test]
 async fn scan_from_other_cabinet_returns_404() {

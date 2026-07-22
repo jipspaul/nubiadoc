@@ -194,6 +194,8 @@ pub struct AddPouchResponse {
 /// sinon (FK composite (id, cabinet_id), migration 0190 — pré-vérifié pour
 /// ne pas laisser remonter la contrainte en 500, cf. précédent
 /// `prescriptions.rs`).
+/// `code` déjà scanné dans ce cabinet → `409 pouch_code_already_used`
+/// (index unique `(cabinet_id, code)`, migration 0191, #4139).
 pub async fn add_sterilized_pouch(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -247,7 +249,12 @@ pub async fn add_sterilized_pouch(
     .bind(body.consultation_act_id)
     .fetch_one(&mut *tx)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|e| match &e {
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
+            AppError::PouchCodeAlreadyUsed
+        }
+        _ => AppError::Internal,
+    })?;
 
     let pouch_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 

@@ -1,17 +1,19 @@
 -- 79_sterilization_cycle.sql
--- pgTAP : sterilization_cycle / sterilized_pouch (#4137, migration 0190).
+-- pgTAP : sterilization_cycle / sterilized_pouch (#4137, migration 0190 ;
+-- #4139, migration 0191 — unicité du code par cabinet).
 --   SC1. Cabinet A crée un cycle + une pochette associée à son propre acte.
 --   SC2. Associer une pochette à un consultation_act d'un AUTRE cabinet échoue (23503).
 --   SC3. test_kind hors énum refusé (CHECK).
 --   SC4. RLS sterilization_cycle : cabinet B ne voit PAS le cycle de A.
 --   SC5. RLS sterilized_pouch : cabinet B ne voit PAS la pochette de A.
 --   SC6. Fail-closed : sans GUC → 0 ligne sur les deux tables.
+--   SC7. Code déjà utilisé dans le même cabinet refusé (23505, #4139).
 -- Exécuté par pg_prove sous nubia_app (NOSUPERUSER, NOBYPASSRLS).
 -- Fixtures auto-contenues (BEGIN…ROLLBACK). Préfixe UUID 41370000.
 -- Issue : #4137
 
 BEGIN;
-SELECT plan(6);
+SELECT plan(7);
 
 -- ===========================================================================
 -- Fixtures : 2 cabinets, cabinet A avec patient/practitioner/appointment/acte.
@@ -118,6 +120,18 @@ SELECT is(
   (SELECT count(*)::int FROM sterilized_pouch),
   0,
   '⭐ SC6 fail-closed : 0 ligne sans GUC positionné (sterilization_cycle + sterilized_pouch)');
+
+-- ===========================================================================
+-- SC7. Code déjà utilisé dans le même cabinet refusé (23505, #4139) — le
+-- code de SC1 ('DM-000001') a déjà été inséré pour cabinet A.
+-- ===========================================================================
+SET LOCAL app.current_cabinet_id = '41370000-0000-0000-0000-000000000c01';
+SELECT throws_ok(
+  $$ INSERT INTO sterilized_pouch (cabinet_id, cycle_id, code)
+     VALUES ('41370000-0000-0000-0000-000000000c01',
+             '41370000-0000-0000-0000-000000000d01', 'DM-000001') $$,
+  '23505', NULL,
+  'SC7 sterilized_pouch_cabinet_code_uniq : code déjà utilisé refusé (23505)');
 
 SELECT * FROM finish();
 ROLLBACK;
