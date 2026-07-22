@@ -424,6 +424,20 @@
 
 ---
 
+## 16bis. Back-office — inventaire cabinet (`stock_item`/`stock_movement`, #4143/#4144)
+> Tâche opérationnelle du cabinet, pas une décision clinique — `secretary+` (practitioner/admin/manager également autorisés).
+
+| Méthode | Chemin | Rôle | Description |
+|---|---|---|---|
+| GET | `/v1/cabinet/stock-items` | secretary+ | Articles d'inventaire du cabinet, par référence. |
+| POST | `/v1/cabinet/stock-items` | secretary+ | Créer un article (`quantity_on_hand` démarre à 0). |
+| POST | `/v1/cabinet/stock-items/{id}/movements` | secretary+ | Mouvement (`reception`/`consumption`/`adjustment`/`peremption`) — met à jour `quantity_on_hand` atomiquement. |
+
+`POST /v1/cabinet/stock-items` — body : `{ reference, label, unit, alert_threshold? }`. → `201 { item_id }`. `reference` déjà utilisée dans ce cabinet → `409 stock_reference_already_used`.
+`POST /v1/cabinet/stock-items/{id}/movements` — body : `{ delta, reason, expiry_date?, consultation_act_id? }`. → `201 { movement_id, quantity_on_hand }`. Article/acte hors tenant → `404`.
+
+---
+
 ## 17. Back-office — ordonnance (`prescription`)
 > US-D11, `06` E4.8. `practitioner` only. 🚨 **Hors dispositif médical (MDR, `07` §8.6).**
 

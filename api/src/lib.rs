@@ -85,6 +85,7 @@ mod reviews;
 mod routes;
 mod scheduling;
 mod sterilization;
+mod stock_items;
 mod support;
 mod treatment_phases;
 mod treatment_plans;
