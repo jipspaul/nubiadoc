@@ -87,6 +87,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             post(treatment_phases::create_treatment_phase),
         )
         .route(
+            "/v1/cabinet/treatment-plans/:id/phases/:phase_id",
+            patch(treatment_phases::patch_treatment_phase),
+        )
+        .route(
             "/v1/cabinet/patients/:id/documents",
             get(clinical::list_patient_documents).post(clinical::upload_patient_document),
         )
