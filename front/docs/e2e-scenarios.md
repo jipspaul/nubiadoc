@@ -233,6 +233,14 @@ Ces scénarios listent ce qu'il faut prouver avant de pouvoir dire "production".
 > Veasy/Desmos qui a fait remonter ~136 gaps sur le domaine dentaire (schéma
 > dentaire, actes CCAM, plan de traitement) — G1/G2 valident bout-en-bout ce
 > qui vient d'être livré côté API + Flutter pour ce domaine.
+>
+> Corrigé 2026-07-22 (écriture du harnais g1/g2) : G1 step 5 attendait
+> `quote_id`, l'API renvoie `invoice_id` (`CompleteConsultationResponse`,
+> `api/src/consultations.rs`) — corrigé ci-dessous. Le template d'issue
+> `data-testid` en fin de fichier était également obsolète (aucun spec réel
+> n'utilise `data-testid` — Flutter web rend sur canvas, `getByText`/
+> `getByRole` sur l'arbre sémantique sont les seuls sélecteurs qui
+> fonctionnent, cf. `front/test/e2e/fixtures/login.ts`) — corrigé également.
 
 ### G1 — Consultation dentaire complète → devis patient
 
@@ -242,7 +250,7 @@ Ces scénarios listent ce qu'il faut prouver avant de pouvoir dire "production".
 | 2 | D | `/patients/:id` → ouvre le schéma dentaire (odontogramme) | notation FDI affichée, `GET /v1/cabinet/patients/:id/dental-chart` 200 |
 | 3 | D | Clique une dent → choisit un état (ex. "à traiter") → enregistre | `PUT /v1/cabinet/patients/:id/dental-chart` 200, la dent change de couleur à l'écran sans refresh |
 | 4 | D | Démarre une consultation → recherche un acte CCAM (ex. détartrage) depuis le schéma (dent pré-remplie) → l'ajoute | `POST /v1/cabinet/consultations/:id/acts` 201, `tooth` correspond à la dent cliquée en step 3 |
-| 5 | D | Clôture la séance | `POST /v1/cabinet/consultations/:id/complete` 200, un devis est généré (`quote_id` retourné) |
+| 5 | D | Clôture la séance | `POST /v1/cabinet/consultations/:id/complete` 200, un devis est généré (`invoice_id` retourné — `CompleteConsultationResponse`, pas `quote_id`) |
 | 6 | D | `/devis/:id` (ou équivalent app_practicien) | devis affiche l'acte CCAM saisi, montant correct, part AMO/AMC si calculée |
 | 7 | P | Login patient → écran devis | même devis visible, même montant, même acte |
 
@@ -281,7 +289,9 @@ step 3 [S login]                         OK    0.9s
 step 4 [S see RDV in /agenda day=today]  ❌    waited 5s, agenda vide
 
 ## Évidence
-- selector attendu : [data-testid="agenda-event-42"]
+- selector attendu : page.getByText('Marc Dubois') (Flutter web rend sur
+  canvas — aucun data-testid n'existe, on cible l'arbre sémantique via
+  getByText/getByRole, cf. front/test/e2e/fixtures/login.ts)
 - screenshot       : artifacts/a1-step4-agenda-empty.png
 - network          : GET /v1/cabinet/appointments?date=2026-06-27 → 200, body=[]
 - console errors   : 0

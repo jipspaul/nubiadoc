@@ -218,6 +218,21 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO checkin_event (id, cabinet_id, appointment_id, mode, occurred_at) VALUES
   ('ac000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','aa000000-0000-0000-0000-000000000001','qr_app','2026-06-03 08:55+00')
 ON CONFLICT (id) DO NOTHING;
+
+-- RDV dédié e2e G1 (front/docs/e2e-scenarios.md §G1) : status 'checked_in'
+-- distinct de aa...0001 (déjà 'in_progress', donc sans le bouton "Démarrer"
+-- côté agenda — agenda_page.dart n'affiche l'action que pour
+-- isConfirmed/isCheckedIn, cf. #4047). Même patient/praticien que aa...0001
+-- (Marc Dubois / Dr Marin) pour satisfaire la garde relation-de-soin
+-- E.2.16.c sans dépendre d'un créneau réservé le jour du run (les slots du
+-- seed sont régénérés à J+1..J+30, cf. seed_slots.sql — jamais "aujourd'hui").
+INSERT INTO appointment (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) VALUES
+  ('aa000000-0000-0000-0000-000000000004','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d1','c0000000-0000-0000-0000-0000000000c1','2026-06-03 14:00+00','2026-06-03 14:45+00','checked_in','Consultation e2e G1','2026-06-03 13:55+00')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO checkin_event (id, cabinet_id, appointment_id, mode, occurred_at) VALUES
+  ('ac000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','aa000000-0000-0000-0000-000000000004','qr_app','2026-06-03 13:55+00')
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO waiting_list_entry (id, cabinet_id, patient_id, desired_window, score, status) VALUES
   ('ad000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d5','{"from":"2026-06-04","to":"2026-06-10"}', 12.5,'active')
 ON CONFLICT (id) DO NOTHING;

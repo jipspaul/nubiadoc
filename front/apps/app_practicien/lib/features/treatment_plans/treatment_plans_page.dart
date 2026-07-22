@@ -51,6 +51,7 @@ class _TreatmentPlansBody extends StatelessWidget {
           floatingActionButton: state is TreatmentPlansLoaded
               ? FloatingActionButton(
                   key: const Key('treatment_plans_new_plan_fab'),
+                  tooltip: 'Nouveau plan de traitement',
                   onPressed: () => _promptNewPlan(context),
                   child: const Icon(Icons.add),
                 )

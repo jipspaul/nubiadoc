@@ -12,6 +12,8 @@
     "test:a1": "playwright test --config=e2e.config.ts scenarios/a1-booking-confirmation.spec.ts",
     "test:b1": "playwright test --config=e2e.config.ts scenarios/b1-wedge-quote-sign-pay.spec.ts",
     "test:d3": "playwright test --config=e2e.config.ts scenarios/d3-messaging-realtime.spec.ts",
-    "test:a4": "playwright test --config=e2e.config.ts scenarios/a4-waiting-room-realtime.spec.ts"
+    "test:a4": "playwright test --config=e2e.config.ts scenarios/a4-waiting-room-realtime.spec.ts",
+    "test:g1": "playwright test --config=e2e.config.ts scenarios/g1-consultation-to-quote.spec.ts",
+    "test:g2": "playwright test --config=e2e.config.ts scenarios/g2-treatment-plan-multi-phase.spec.ts"
   }
 }
