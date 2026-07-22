@@ -328,3 +328,43 @@ async fn patch_parts_of_other_cabinet_returns_404() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 5 : somme amo+amc dépasse le montant de la ligne -> 422 (#4309) ────
+//
+// Seed : amount=10000, amo=7000, amc=2000 (somme 9000 <= 10000). Patch
+// amo_part_cents=9000 sans toucher amc (reste 2000, valeur INCHANGÉE) :
+// somme effective 9000+2000=11000 > 10000 → doit être rejeté, PAS accepté
+// avec un reste à charge négatif (-1000).
+
+#[tokio::test]
+async fn patch_parts_exceeding_item_amount_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, "draft").await;
+    let user_id = Uuid::new_v4();
+
+    let (status, _) = patch_parts(
+        state_with(app_pool().await),
+        f.quote_id,
+        f.item_id,
+        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        json!({ "amo_part_cents": 9000 }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Doit rester inchangé (pas d'écriture partielle).
+    let item_row =
+        sqlx::query("SELECT (amo_part * 100)::bigint AS amo_cents FROM quote_item WHERE id = $1")
+            .bind(f.item_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    let amo_cents: i64 = item_row.try_get("amo_cents").unwrap();
+    assert_eq!(amo_cents, 7000, "aucune écriture ne doit avoir eu lieu");
+
+    cleanup(&db, &f).await;
+}

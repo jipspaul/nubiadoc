@@ -50,6 +50,9 @@ pub struct PatchQuoteItemPartsResponse {
 /// - Auth JWT pro `practitioner`/`secretary`/`admin`/`manager` requis.
 /// - `cabinet_id` extrait du JWT, RLS scopée via `app.current_cabinet_id`.
 /// - Au moins un des deux champs doit être fourni, tous deux ≥ 0 → 422 sinon.
+/// - Leur somme (après application, l'autre champ non fourni gardant sa
+///   valeur actuelle) ne doit pas dépasser le montant de la ligne → 422
+///   sinon (#4309) — sinon le reste à charge patient devient négatif.
 /// - Ligne inexistante, hors devis (`:id`) ou hors cabinet → 404.
 /// - Fonctionne quel que soit `quote.status` (y compris `signed`) : voir
 ///   commentaire de module.
@@ -78,7 +81,8 @@ pub async fn patch_quote_item_parts(
 
     let before = sqlx::query(
         "SELECT (amo_part * 100)::bigint AS amo_part_cents, \
-                (amc_part * 100)::bigint AS amc_part_cents \
+                (amc_part * 100)::bigint AS amc_part_cents, \
+                (qty * unit_amount * 100)::bigint AS amount_cents \
          FROM quote_item \
          WHERE id = $1 AND quote_id = $2 AND cabinet_id = $3",
     )
@@ -92,6 +96,21 @@ pub async fn patch_quote_item_parts(
 
     let old_amo_part_cents: Option<i64> = before.try_get("amo_part_cents").ok();
     let old_amc_part_cents: Option<i64> = before.try_get("amc_part_cents").ok();
+    let amount_cents: i64 = before
+        .try_get("amount_cents")
+        .map_err(|_| AppError::Internal)?;
+
+    // #4309 : la somme effective (champ patché ou valeur inchangée pour
+    // l'autre) ne doit pas dépasser le montant de la ligne.
+    let effective_amo = body
+        .amo_part_cents
+        .unwrap_or(old_amo_part_cents.unwrap_or(0));
+    let effective_amc = body
+        .amc_part_cents
+        .unwrap_or(old_amc_part_cents.unwrap_or(0));
+    if effective_amo + effective_amc > amount_cents {
+        return Err(AppError::ValidationError);
+    }
 
     let updated = sqlx::query(
         "UPDATE quote_item \
