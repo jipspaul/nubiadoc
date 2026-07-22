@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'ccam_picker.dart';
 import 'cr_template_picker.dart';
+import 'sterilization_scan_page.dart';
 import '../dental_chart/tooth_grid.dart';
 import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
@@ -403,6 +404,28 @@ class _LoadedViewState extends State<_LoadedView> {
                     ),
                   ),
         ),
+        if (session.acts.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                key: const Key('sterilization_scan_button'),
+                icon: const Icon(Icons.qr_code_scanner_outlined, size: 18),
+                label: const Text('Scanner une pochette stérilisée'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SterilizationScanPage(
+                      // Dernier acte ajouté = "l'acte en cours" (#4139),
+                      // même convention que _pickCrTemplate (session.acts
+                      // trié created_at ASC côté back).
+                      consultationActId: session.acts.last.id,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         const SizedBox(height: 8),
         Expanded(
           child: session.acts.isEmpty
