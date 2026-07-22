@@ -86,7 +86,8 @@ void main() {
   // --- ProConfig.shellConfigFor : filtrage de la nav -------------------------
   group('ProConfig.shellConfigFor', () {
     test('canManageMembers=true : conserve l\'entrée « Membres »', () {
-      final config = ProConfig.shellConfigFor(canManageMembers: true);
+      final config = ProConfig.shellConfigFor(
+          canManageMembers: true, canViewAuditLog: true);
       expect(
         config.destinations.where((d) => d.route == ProConfig.membersRoute),
         isNotEmpty,
@@ -96,7 +97,8 @@ void main() {
     });
 
     test('canManageMembers=false : masque l\'entrée « Membres »', () {
-      final config = ProConfig.shellConfigFor(canManageMembers: false);
+      final config = ProConfig.shellConfigFor(
+          canManageMembers: false, canViewAuditLog: true);
       expect(
         config.destinations.where((d) => d.route == ProConfig.membersRoute),
         isEmpty,
@@ -113,7 +115,8 @@ void main() {
           .where((d) => d.route != ProConfig.membersRoute)
           .map((d) => d.route)
           .toList();
-      final filtered = ProConfig.shellConfigFor(canManageMembers: false)
+      final filtered = ProConfig.shellConfigFor(
+              canManageMembers: false, canViewAuditLog: true)
           .destinations
           .map((d) => d.route)
           .toList();
@@ -132,8 +135,10 @@ void main() {
     Widget buildShell({required bool canManageMembers}) => MaterialApp(
           theme: NubiaTheme.light,
           home: shell.ProShell(
-            config:
-                ProConfig.shellConfigFor(canManageMembers: canManageMembers),
+            config: ProConfig.shellConfigFor(
+              canManageMembers: canManageMembers,
+              canViewAuditLog: true,
+            ),
             session: session,
           ),
         );
