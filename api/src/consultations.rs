@@ -21,7 +21,8 @@ use crate::{
 /// Réponse de `POST /v1/cabinet/consultations/:id/complete`.
 #[derive(Serialize)]
 pub struct CompleteConsultationResponse {
-    /// Id de la facture/devis créé en draft, si des actes CCAM étaient présents.
+    /// Id de la facture/devis créé (statut `sent`, #4260), si des actes CCAM
+    /// étaient présents.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invoice_id: Option<Uuid>,
     /// Prochaine étape suggérée (ex. "sign_quote", "no_action").
@@ -37,8 +38,10 @@ pub struct CompleteConsultationResponse {
 /// - Passe `appointment.status` en `done` et pose `appointment.completed_at`.
 /// - Crée une notification `review_request` pour le patient (RDV honoré,
 ///   #4152) — silencieuse si le patient n'a pas de compte app.
-/// - Si des actes CCAM existent pour ce RDV, crée un `quote` en `draft`
-///   avec les `quote_item` correspondants et retourne `invoice_id`.
+/// - Si des actes CCAM existent pour ce RDV, crée un `quote` en `sent`
+///   (#4260 — visible immédiatement côté patient, RLS `quote_patient_read`
+///   exige status <> 'draft') avec les `quote_item` correspondants et
+///   retourne `invoice_id`.
 /// - Séance déjà `completed` ou `cancelled` → `409 invalid_status`.
 /// - Séance inexistante ou hors tenant → `404`.
 pub async fn complete_consultation(
@@ -179,11 +182,18 @@ pub async fn complete_consultation(
             total_cents += i64::from(cents);
         }
 
-        // Crée le devis en draft.
+        // Crée le devis déjà envoyé (#4260) : la policy RLS quote_patient_read
+        // (migrations 0134/0175) exige status <> 'draft' pour qu'un patient
+        // puisse lire son devis — un devis créé en 'draft' à la clôture de
+        // consultation restait donc invisible côté patient tant qu'aucun
+        // POST .../quotes/:id/send explicite n'était appelé (aucune séance de
+        // ce flux n'en déclenche un). Aucun autre effet de bord à 'sent'
+        // (cf. cabinet_quotes.rs::send_cabinet_quote — simple UPDATE status,
+        // pas de génération PDF/notification ici).
         let quote_row = sqlx::query(
             "INSERT INTO quote \
              (cabinet_id, patient_id, status, total_amount, currency) \
-             VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR') \
+             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR') \
              RETURNING id",
         )
         .bind(claims.cabinet_id)
