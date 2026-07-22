@@ -49,7 +49,10 @@ pub struct CloseCashRegisterResponse {
 ///
 /// - Auth JWT pro `secretary`/`practitioner`/`admin`/`manager` requis.
 /// - `cabinet_id` extrait du JWT, RLS scopée via `app.current_cabinet_id`.
-/// - `closing_date` optionnel, défaut aujourd'hui (UTC).
+/// - `closing_date` optionnel, défaut aujourd'hui (UTC). Ne peut pas être
+///   dans le futur (`> aujourd'hui`) → `422` sinon (#4313) : une clôture de
+///   caisse est par nature « la caisse du jour », une date future est un
+///   enregistrement comptable incohérent.
 /// - Clôture déjà existante pour ce cabinet+jour → `409
 ///   cash_register_already_closed` (pas de double clôture — une correction
 ///   explicite reste hors scope #4071).
@@ -68,6 +71,13 @@ pub async fn close_cash_register(
         }
         None => chrono::Utc::now().date_naive(),
     };
+
+    // #4313 : une clôture de caisse est « la caisse du jour » — aucune borne
+    // haute ne bloquait une date future (ex. 2099-12-31), enregistrement
+    // comptable incohérent.
+    if closing_date > chrono::Utc::now().date_naive() {
+        return Err(AppError::ValidationError);
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

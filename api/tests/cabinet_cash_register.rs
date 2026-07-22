@@ -59,16 +59,29 @@ struct Fixture {
     cabinet_id: Uuid,
     patient_id: Uuid,
     quote_id: Uuid,
+    secretary_user_id: Uuid,
 }
 
-/// Seed : cabinet + patient + devis + 4 paiements aujourd'hui
-/// (manual/cash=30.00 paid, stripe/card=50.00 paid, gocardless/sepa=20.00
-/// paid, stripe/card=99.00 PENDING — ne doit PAS être agrégé) + 1 paiement
-/// d'hier (manual/cash=1000.00 paid — ne doit PAS être agrégé, hors jour).
+/// Seed : cabinet + secrétaire (app_user, requis par la FK
+/// `cash_register_closing.closed_by`) + patient + devis + 4 paiements
+/// aujourd'hui (manual/cash=30.00 paid, stripe/card=50.00 paid,
+/// gocardless/sepa=20.00 paid, stripe/card=99.00 PENDING — ne doit PAS être
+/// agrégé) + 1 paiement d'hier (manual/cash=1000.00 paid — ne doit PAS être
+/// agrégé, hors jour).
 async fn seed(db: &PgPool) -> Fixture {
     let cabinet_id = Uuid::new_v4();
+    let secretary_user_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
     let quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(secretary_user_id)
+    .bind(format!("secretary-ccr+{secretary_user_id}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
 
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -141,6 +154,7 @@ async fn seed(db: &PgPool) -> Fixture {
         cabinet_id,
         patient_id,
         quote_id,
+        secretary_user_id,
     }
 }
 
@@ -177,6 +191,12 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .await
         .ok();
     tx.commit().await.ok();
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(f.secretary_user_id)
+        .execute(db)
+        .await
+        .ok();
 }
 
 fn state_with(db: PgPool) -> AppState {
@@ -221,11 +241,10 @@ async fn close_cash_register_aggregates_todays_paid_payments_by_method() {
     }
     let db = owner_pool().await;
     let f = seed(&db).await;
-    let user_id = Uuid::new_v4();
 
     let (status, resp) = close_register(
         state_with(app_pool().await),
-        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary"),
         json!({}),
     )
     .await;
@@ -266,11 +285,10 @@ async fn close_cash_register_twice_same_day_returns_409() {
     }
     let db = owner_pool().await;
     let f = seed(&db).await;
-    let user_id = Uuid::new_v4();
 
     let (first_status, _) = close_register(
         state_with(app_pool().await),
-        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary"),
         json!({}),
     )
     .await;
@@ -278,12 +296,65 @@ async fn close_cash_register_twice_same_day_returns_409() {
 
     let (second_status, second_body) = close_register(
         state_with(app_pool().await),
-        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary"),
         json!({}),
     )
     .await;
     assert_eq!(second_status, StatusCode::CONFLICT);
     assert_eq!(second_body["code"], "cash_register_already_closed");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 3 : closing_date future → 422 (#4313) ───────────────────────────────
+
+#[tokio::test]
+async fn close_cash_register_future_date_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+
+    let (status, _) = close_register(
+        state_with(app_pool().await),
+        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary"),
+        json!({ "closing_date": "2099-12-31" }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM cash_register_closing WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(count, 0, "aucune clôture ne doit avoir été créée");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 4 : closing_date = aujourd'hui → toujours accepté (régression) ─────
+
+#[tokio::test]
+async fn close_cash_register_today_explicit_date_still_succeeds() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let today = chrono::Utc::now().date_naive().to_string();
+
+    let (status, _) = close_register(
+        state_with(app_pool().await),
+        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary"),
+        json!({ "closing_date": today }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED);
 
     cleanup(&db, &f).await;
 }
