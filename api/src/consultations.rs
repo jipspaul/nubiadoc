@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
-    AppState,
+    notify, AppState,
 };
 
 /// Un acte CCAM réalisé pendant la séance.
@@ -208,6 +208,8 @@ pub struct CompleteConsultationResponse {
 /// RLS tenant-scoped via `app.current_cabinet_id`.
 /// - Passe `consultation_session.status` en `completed` et pose `completed_at`.
 /// - Passe `appointment.status` en `done` et pose `appointment.completed_at`.
+/// - Crée une notification `review_request` pour le patient (RDV honoré,
+///   #4152) — silencieuse si le patient n'a pas de compte app.
 /// - Si des actes CCAM existent pour ce RDV, crée un `quote` en `draft`
 ///   avec les `quote_item` correspondants et retourne `invoice_id`.
 /// - Séance déjà `completed` ou `cancelled` → `409 invalid_status`.
@@ -287,6 +289,38 @@ pub async fn complete_consultation(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // Demande d'avis (#4152) : RDV honoré → notification in-app au patient,
+    // deeplink vers POST /v1/reviews. Via app_user_id direct sinon via le
+    // compte patient rattaché — même pattern que
+    // scheduling.rs::call_next_patient. Patient sans compte (ni app_user_id
+    // ni patient_account_id) → silencieusement aucune notification, pas une
+    // erreur (cas normal d'un patient walk-in).
+    let patient_row = sqlx::query(
+        "SELECT p.app_user_id, p.patient_account_id \
+         FROM appointment a \
+         JOIN patient p ON p.id = a.patient_id \
+         WHERE a.id = $1",
+    )
+    .bind(appointment_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if let Some(row) = patient_row {
+        let patient_app_user_id: Option<Uuid> =
+            row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+        let patient_account_id: Option<Uuid> = row
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+        let title = "Comment s'est passé votre rendez-vous ?";
+        let data = serde_json::json!({ "appointment_id": appointment_id });
+        if let Some(uid) = patient_app_user_id {
+            notify::notify_user(&mut tx, uid, "review_request", title, data).await?;
+        } else if let Some(account_id) = patient_account_id {
+            notify::notify_patient_account(&mut tx, account_id, "review_request", title, data)
+                .await?;
+        }
+    }
 
     // Récupère les actes CCAM pour ce RDV.
     let act_rows = sqlx::query(
