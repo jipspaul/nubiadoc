@@ -37,6 +37,9 @@ import '../features/waiting_list/waiting_list_page.dart';
 import '../features/cabinet_stats/cabinet_stats_bloc.dart';
 import '../features/cabinet_stats/cabinet_stats_event.dart';
 import '../features/cabinet_stats/cabinet_stats_page.dart';
+import '../features/audit_log/audit_log_bloc.dart';
+import '../features/audit_log/audit_log_event.dart';
+import '../features/audit_log/audit_log_page.dart';
 import '../features/waiting_room/waiting_room_bloc.dart';
 import '../features/waiting_room/waiting_room_page.dart';
 
@@ -52,6 +55,7 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
   static const cabinetStats = '/cabinet-stats';
+  static const auditLog = '/audit-log';
 
   static const patients = '/patients';
   static const patientNew = '/patients/new';
@@ -129,6 +133,14 @@ class AppRouter {
             create: (_) => GetIt.instance<CabinetStatsBloc>()
               ..add(const CabinetStatsLoadRequested()),
             child: const CabinetStatsPage(),
+          ),
+        ),
+        GoRoute(
+          path: auditLog,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<AuditLogBloc>()
+              ..add(const AuditLogLoadRequested()),
+            child: const AuditLogPage(),
           ),
         ),
         GoRoute(

@@ -22,6 +22,11 @@ class ProConfig {
   /// `GET /v1/cabinet/members`, cf. #3468) via [shellConfigFor].
   static const String membersRoute = '/admin-membres';
 
+  /// Route du « Journal d'accès » — réservé admin/manager côté back
+  /// (`ProAdminOrManagerClaims`). Masquée pour un rôle insuffisant (403 sur
+  /// `GET /v1/cabinet/audit-log`, #4155) via [shellConfigFor].
+  static const String auditLogRoute = '/audit-log';
+
   static const shell.ProConfig shellConfig = shell.ProConfig(
     appTitle: appTitle,
     spaceLabel: spaceLabel,
@@ -91,24 +96,36 @@ class ProConfig {
         icon: Icons.bar_chart_outlined,
         route: '/cabinet-stats',
       ),
+      shell.ProNavDestination(
+        label: "Journal d'accès",
+        icon: Icons.history_outlined,
+        route: auditLogRoute,
+      ),
     ],
   );
 
-  /// Config de navigation filtrée selon l'accès admin aux membres.
+  /// Config de navigation filtrée selon l'accès admin aux membres et au
+  /// journal d'accès.
   ///
-  /// L'entrée « Membres » n'est conservée que lorsque [canManageMembers] est
-  /// vrai (secrétaire-admin). Pour un secrétaire simple,
-  /// `GET /v1/cabinet/members` renvoie 403 : l'onglet serait une impasse
-  /// (#3468). Les autres destinations gardent leur ordre relatif — on retire
-  /// l'entrée de la liste plutôt que de la neutraliser, donc pas de trou
-  /// d'index côté [shell.ProShell].
-  static shell.ProConfig shellConfigFor({required bool canManageMembers}) {
-    if (canManageMembers) return shellConfig;
+  /// Les entrées « Membres »/« Journal d'accès » ne sont conservées que
+  /// lorsque l'accès correspondant est confirmé (secrétaire-admin ou
+  /// admin/manager) — sondé via 403 sur leurs endpoints respectifs
+  /// (`GET /v1/cabinet/members` #3468, `GET /v1/cabinet/audit-log` #4155).
+  /// Les autres destinations gardent leur ordre relatif — on retire l'entrée
+  /// de la liste plutôt que de la neutraliser, donc pas de trou d'index côté
+  /// [shell.ProShell].
+  static shell.ProConfig shellConfigFor({
+    required bool canManageMembers,
+    required bool canViewAuditLog,
+  }) {
+    if (canManageMembers && canViewAuditLog) return shellConfig;
     return shell.ProConfig(
       appTitle: appTitle,
       spaceLabel: spaceLabel,
       destinations: shellConfig.destinations
-          .where((d) => d.route != membersRoute)
+          .where((d) =>
+              (canManageMembers || d.route != membersRoute) &&
+              (canViewAuditLog || d.route != auditLogRoute))
           .toList(),
     );
   }

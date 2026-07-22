@@ -19,6 +19,10 @@ import '../admin_secretariats/admin_secretariats_page.dart';
 import '../appointment_motifs/appointment_motifs_bloc.dart';
 import '../appointment_motifs/appointment_motifs_page.dart';
 import '../agenda/agenda_page.dart';
+import '../audit_log/audit_log_access_cubit.dart';
+import '../audit_log/audit_log_bloc.dart';
+import '../audit_log/audit_log_event.dart';
+import '../audit_log/audit_log_page.dart';
 import '../bookable_slots/bookable_slots_bloc.dart';
 import '../bookable_slots/bookable_slots_page.dart';
 import '../cabinet_stats/cabinet_stats_bloc.dart';
@@ -60,14 +64,18 @@ class DashboardPage extends StatelessWidget {
         ),
     };
 
-    // Sonde l'accès admin aux membres dès l'ouverture : l'app fixe le rôle
-    // `secretary`, seul le 403 sur `GET /v1/cabinet/members` distingue le
-    // secrétaire-admin du secrétaire simple (#3468). L'entrée de nav « Membres »
-    // est masquée dès que ce 403 confirme le non-admin.
+    // Sonde l'accès admin aux membres et au journal d'accès dès l'ouverture :
+    // l'app fixe le rôle `secretary`, seul le 403 sur leurs endpoints
+    // respectifs distingue le secrétaire-admin/manager du secrétaire simple
+    // (#3468, #4155). Les entrées de nav correspondantes sont masquées dès
+    // que le 403 confirme le rôle insuffisant.
     return BlocProvider<MembersAccessCubit>(
       create: (_) => GetIt.instance<MembersAccessCubit>()..probe(),
-      child: Builder(
-        builder: (context) => _buildShell(context, session),
+      child: BlocProvider<AuditLogAccessCubit>(
+        create: (_) => GetIt.instance<AuditLogAccessCubit>()..probe(),
+        child: Builder(
+          builder: (context) => _buildShell(context, session),
+        ),
       ),
     );
   }
@@ -75,8 +83,13 @@ class DashboardPage extends StatelessWidget {
   Widget _buildShell(BuildContext context, AuthSession session) {
     final canManageMembers =
         context.watch<MembersAccessCubit>().canManageMembers;
+    final canViewAuditLog =
+        context.watch<AuditLogAccessCubit>().canViewAuditLog;
     return ProShell(
-      config: ProConfig.shellConfigFor(canManageMembers: canManageMembers),
+      config: ProConfig.shellConfigFor(
+        canManageMembers: canManageMembers,
+        canViewAuditLog: canViewAuditLog,
+      ),
       session: session,
       bodyBuilder: (ctx, destination) {
         final Widget body;
@@ -146,6 +159,12 @@ class DashboardPage extends StatelessWidget {
             create: (_) => GetIt.instance<CabinetStatsBloc>()
               ..add(const CabinetStatsLoadRequested()),
             child: const CabinetStatsBody(),
+          );
+        } else if (destination.route == ProConfig.auditLogRoute) {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<AuditLogBloc>()
+              ..add(const AuditLogLoadRequested()),
+            child: const AuditLogBody(),
           );
         } else {
           body = Center(
