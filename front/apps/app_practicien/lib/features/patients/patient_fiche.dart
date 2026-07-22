@@ -137,6 +137,8 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                     MedicalQuestionnaireReviewSection(patientId: patient.id),
                     const SizedBox(height: 16),
                     PatientTagsSection(patientId: patient.id),
+                    const SizedBox(height: 16),
+                    PatientOrthodonticsSection(patientId: patient.id),
                   ],
                 ),
               ),
@@ -358,6 +360,192 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
                     label: tag.label,
                     variant: NubiaChipVariant.input,
                     onRemove: () => _removeTag(tag.id),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Libellé français par valeur de `kind` (bague/contention/gouttiere,
+/// `VALID_STEP_KINDS` côté back, `api/src/orthodontics.rs`).
+const _kOrthodonticStepKinds = <(String, String)>[
+  ('bague', 'Bague'),
+  ('contention', 'Contention'),
+  ('gouttiere', 'Gouttière'),
+];
+
+/// Suivi orthodontique (#4135/#4136) : étapes du premier traitement en
+/// cours (`status = 'in_progress'`, sinon le premier traitement listé),
+/// triées par `step_number`, avec ajout d'étape. La création d'un
+/// traitement orthodontique lui-même n'est pas couverte par cette section
+/// (hors scope de #4136, aucun écran de création demandé).
+class PatientOrthodonticsSection extends StatefulWidget {
+  const PatientOrthodonticsSection({super.key, required this.patientId});
+
+  final String patientId;
+
+  @override
+  State<PatientOrthodonticsSection> createState() =>
+      _PatientOrthodonticsSectionState();
+}
+
+class _PatientOrthodonticsSectionState
+    extends State<PatientOrthodonticsSection> {
+  List<OrthodonticTreatment>? _treatments;
+  String? _error;
+  bool _adding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final result = await GetIt.instance<ListOrthodonticTreatmentsUseCase>()(
+      widget.patientId,
+    );
+    if (!mounted) return;
+    result.fold(
+      (failure) => setState(() => _error = failure.message),
+      (treatments) => setState(() {
+        _treatments = treatments;
+        _error = null;
+      }),
+    );
+  }
+
+  /// Le traitement affiché : le premier `in_progress`, sinon le premier de
+  /// la liste (créé le plus tôt — l'API trie par `created_at ASC`).
+  OrthodonticTreatment? get _activeTreatment {
+    final treatments = _treatments;
+    if (treatments == null || treatments.isEmpty) return null;
+    return treatments.firstWhere(
+      (t) => t.status == 'in_progress',
+      orElse: () => treatments.first,
+    );
+  }
+
+  Future<void> _addStep() async {
+    final treatment = _activeTreatment;
+    if (treatment == null) return;
+
+    final kind = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Type d\'étape'),
+            ),
+            for (final (value, label) in _kOrthodonticStepKinds)
+              ListTile(
+                key: Key('ortho_step_kind_$value'),
+                title: Text(label),
+                onTap: () => Navigator.pop(ctx, value),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (kind == null || !mounted) return;
+
+    final nextStepNumber = treatment.steps.isEmpty
+        ? 1
+        : treatment.steps
+                .map((s) => s.stepNumber)
+                .reduce((a, b) => a > b ? a : b) +
+            1;
+
+    setState(() => _adding = true);
+    final result = await GetIt.instance<AddOrthodonticStepUseCase>()(
+      treatment.id,
+      stepNumber: nextStepNumber,
+      kind: kind,
+    );
+    if (!mounted) return;
+    setState(() => _adding = false);
+    result.fold(
+      (failure) => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure.message))),
+      (_) => _load(),
+    );
+  }
+
+  String _kindLabel(String kind) => _kOrthodonticStepKinds
+      .firstWhere((e) => e.$1 == kind, orElse: () => (kind, kind))
+      .$2;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final treatments = _treatments;
+    final treatment = _activeTreatment;
+
+    return NubiaCard(
+      key: const Key('patient_orthodontics_section'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.align_horizontal_center_outlined,
+                  size: 20, color: cs.primary),
+              const SizedBox(width: 8),
+              Text('Suivi orthodontique',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              if (treatment != null)
+                IconButton(
+                  key: const Key('patient_orthodontics_add_step_button'),
+                  icon: _adding
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add),
+                  tooltip: 'Ajouter une étape',
+                  onPressed: _adding ? null : _addStep,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_error != null)
+            Text(_error!, style: TextStyle(color: cs.error))
+          else if (treatments == null)
+            const NubiaSkeletonLoader(height: 48, borderRadius: 8)
+          else if (treatment == null)
+            Text(
+              'Aucun traitement orthodontique en cours.',
+              key: const Key('patient_orthodontics_empty'),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: cs.onSurfaceVariant),
+            )
+          else
+            Column(
+              key: const Key('patient_orthodontics_steps_list'),
+              children: [
+                // Trié défensivement ici plutôt que de dépendre uniquement
+                // de l'ordre déjà correct renvoyé par l'API (ORDER BY
+                // step_number, api/src/orthodontics.rs) — l'entité elle-même
+                // ne garantit pas cet ordre (ex. construite directement en
+                // test, ou après une future mutation en mémoire).
+                for (final step in [
+                  ...treatment.steps
+                ]..sort((a, b) => a.stepNumber.compareTo(b.stepNumber)))
+                  ListRow(
+                    key: Key('ortho_step_${step.id}'),
+                    leading: Icon(Icons.circle_outlined, color: cs.primary),
+                    title: '${step.stepNumber}. ${_kindLabel(step.kind)}',
+                    subtitle: step.conformityNotes,
                   ),
               ],
             ),

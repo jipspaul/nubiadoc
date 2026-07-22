@@ -18,6 +18,7 @@ import '../remote/cabinet_messaging/cabinet_messaging_api.dart';
 import '../remote/cabinet_patients/cabinet_patients_api.dart';
 import '../remote/patient_tags/patient_tags_api.dart';
 import '../remote/patient_documents/patient_documents_api.dart';
+import '../remote/orthodontics/orthodontics_api.dart';
 import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/periodontal_chart/periodontal_chart_api.dart';
 import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_api.dart';
@@ -61,6 +62,7 @@ import '../repositories/cabinet_message_repository_impl.dart';
 import '../repositories/cabinet_patients_repository_impl.dart';
 import '../repositories/patient_tags_repository_impl.dart';
 import '../repositories/patient_documents_repository_impl.dart';
+import '../repositories/orthodontics_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/periodontal_chart_repository_impl.dart';
 import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
@@ -475,6 +477,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<PatientDocumentsApi>(
       () => PatientDocumentsApi(gi()),
     )
+    ..registerLazySingleton<OrthodonticsApi>(
+      () => OrthodonticsApi(gi()),
+    )
     ..registerLazySingleton<DentalChartApi>(
       () => DentalChartApi(gi()),
     )
@@ -535,6 +540,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<PatientDocumentsRepository>(
       () => PatientDocumentsRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<OrthodonticsRepository>(
+      () => OrthodonticsRepositoryImpl(gi()),
     )
     ..registerLazySingleton<DentalChartRepository>(
       () => DentalChartRepositoryImpl(gi()),
@@ -604,6 +612,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => DeleteAppointmentMotifUseCase(gi()))
     ..registerFactory(() => ListPatientDocumentsUseCase(gi()))
     ..registerFactory(() => UploadPatientDocumentUseCase(gi()))
+    ..registerFactory(() => ListOrthodonticTreatmentsUseCase(gi()))
+    ..registerFactory(() => AddOrthodonticStepUseCase(gi()))
     ..registerFactory(() => GetDentalChartUseCase(gi()))
     ..registerFactory(() => PutDentalChartUseCase(gi()))
     ..registerFactory(() => GetPeriodontalChartUseCase(gi()))
