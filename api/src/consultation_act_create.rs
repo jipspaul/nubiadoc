@@ -26,6 +26,11 @@
 //! Extrait de `consultation_acts.rs` (refactor de taille, CLAUDE.md plafond
 //! 700 lignes — `consultation_acts.rs` approchait la limite avant l'ajout
 //! de #4115) — module autonome.
+//!
+//! #4145 : chaque acte inséré (mode `ccam_code` ou chaque item d'un bundle)
+//! déclenche `consultation_act_stock::apply_stock_consumption` — décrémente
+//! automatiquement le(s) `stock_item` mappés à ce code CCAM
+//! (`ccam_act_stock_consumption`, migration 0192), dans la même transaction.
 
 use axum::{
     extract::{Path, State},
@@ -39,6 +44,7 @@ use uuid::Uuid;
 use crate::{
     auth::{AppError, ProPractitionerClaims},
     ccam_acts::select_applicable_tariff,
+    consultation_act_stock::apply_stock_consumption,
     medical_record::decrypt_stub,
     AppState,
 };
@@ -311,6 +317,10 @@ async fn insert_one_act(
     .map_err(|_| AppError::Internal)?;
 
     let act_id: Uuid = act_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // Décrémentation automatique du stock mappé à ce code CCAM (#4145) —
+    // silencieuse si aucun mapping (`ccam_act_stock_consumption`) n'existe.
+    apply_stock_consumption(tx, cabinet_id, ccam_code, act_id).await?;
 
     Ok(AddActResponse { act_id, warning })
 }
