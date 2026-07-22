@@ -361,6 +361,23 @@ async fn pickup_token_repeated_get_returns_identical_token_and_expiry() {
         expiries.iter().all(|e| e == &expiries[0]),
         "expires_at ne doit pas bouger tant que le token précédent est valide"
     );
+
+    // #4273/QA-20260722-1 : le dernier token émis (pas seulement le premier)
+    // doit scanner en picked_up — repro exacte du bug (nanoseconde en mémoire
+    // vs microseconde en DB désynchronisant le HMAC du 2e appel).
+    let (scan_status, scan_body) = call(
+        "POST",
+        "/v1/pharmacy/orders/pickup-scan",
+        &pharma,
+        Some(json!({ "token": tokens.last().unwrap() })),
+    )
+    .await;
+    assert_eq!(
+        scan_status,
+        StatusCode::OK,
+        "le dernier token émis doit scanner en 200, pas 404 : {scan_body:?}"
+    );
+    assert_eq!(scan_body["status"], "picked_up");
 }
 
 // ── Transitions illégales ─────────────────────────────────────────────────────
@@ -402,7 +419,11 @@ async fn illegal_transitions_return_409() {
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
 
-    // reject après accept (preparing) → 409 : on ne refuse qu'à réception.
+    // reject après accept (preparing) → 200 : assertion corrigée (test
+    // périmé). #3723 a élargi `reject` à received|preparing|ready (une
+    // commande "ready" ne pouvait plus jamais être rejetée/annulée avant ce
+    // fix — cul-de-sac) sans que cette assertion, qui datait d'avant #3723,
+    // ait été mise à jour. Repéré en vérifiant #4273 (fichier voisin).
     let (status, _) = call(
         "POST",
         &format!("/v1/pharmacy/orders/{}/reject", fx.order_id),
@@ -410,7 +431,11 @@ async fn illegal_transitions_return_409() {
         Some(json!({"reason": "trop tard"})),
     )
     .await;
-    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "reject reste autorisé en preparing (#3723)"
+    );
 }
 
 // ── Refus ─────────────────────────────────────────────────────────────────────

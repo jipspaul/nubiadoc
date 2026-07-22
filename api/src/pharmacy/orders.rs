@@ -16,6 +16,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::SubsecRound;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::Row;
@@ -1067,7 +1068,13 @@ pub async fn get_pickup_token(
         .try_get("pickup_token_expires_at")
         .map_err(|_| AppError::Internal)?;
 
-    let now = chrono::Utc::now();
+    // Tronqué à la microseconde (#4273/QA-20260722-1) : `pickup_token_expires_at`
+    // est un `timestamptz` Postgres, qui tronque déjà à la microseconde à
+    // l'écriture — calculer le HMAC sur un `now()` en précision nanoseconde
+    // (chrono) produit un token qui ne correspond plus à ce qui sera relu au
+    // prochain appel (`existing_expires_at`, déjà tronqué), cassant la
+    // stabilité du token dans sa fenêtre de validité.
+    let now = chrono::Utc::now().trunc_subsecs(6);
     let expires_at = match existing_expires_at {
         Some(exp) if exp > now => exp,
         _ => now + chrono::Duration::hours(24),
