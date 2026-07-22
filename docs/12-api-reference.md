@@ -410,7 +410,7 @@
 | GET | `/v1/cabinet/treatment-plans` | practitioner | Plans du cabinet. |
 | POST | `/v1/cabinet/treatment-plans` | practitioner | Créer un plan (phases). |
 | POST | `/v1/cabinet/treatment-plans/{id}/phases` | practitioner | Ajouter une phase. |
-| GET | `/v1/cabinet/quotes` | pro | Suivi devis & paiements (`?status=`, relances). |
+| GET | `/v1/cabinet/quotes` | pro | Suivi devis & paiements (`?status=`, `?overdue=true` #4130, relances). |
 | POST | `/v1/cabinet/quotes` | practitioner | Créer un devis (lignes CCAM, AMO/AMC, dent). |
 | PATCH | `/v1/cabinet/quotes/{id}` | practitioner | Éditer tant que **non signé** (versioning). |
 | POST | `/v1/cabinet/quotes/{id}/send` | practitioner | Envoyer au patient pour signature. |
