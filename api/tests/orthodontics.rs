@@ -432,3 +432,75 @@ async fn duplicate_step_number_returns_409() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 4 : étape sur un traitement en statut terminal → 409 (#4308) ───────
+
+#[tokio::test]
+async fn add_step_on_completed_treatment_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let (status, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/patients/{}/orthodontics", f.patient_id),
+        &token,
+        Some(json!({"type": "aligner", "semester_count": 2, "status": "completed"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let treatment_id = created["treatment_id"].as_str().unwrap().to_string();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/orthodontics/{treatment_id}/steps"),
+        &token,
+        Some(json!({"step_number": 1, "kind": "gouttiere"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(resp["code"], "invalid_status");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 5 : étape sur un traitement discontinued → 409 (#4308) ─────────────
+
+#[tokio::test]
+async fn add_step_on_discontinued_treatment_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let (status, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/patients/{}/orthodontics", f.patient_id),
+        &token,
+        Some(json!({"type": "bagues", "semester_count": 3, "status": "discontinued"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let treatment_id = created["treatment_id"].as_str().unwrap().to_string();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/orthodontics/{treatment_id}/steps"),
+        &token,
+        Some(json!({"step_number": 1, "kind": "bague"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(resp["code"], "invalid_status");
+
+    cleanup(&db, &f).await;
+}
