@@ -228,7 +228,18 @@ pub struct ListCabinetQuotesQuery {
     /// Capté uniquement pour rejeter explicitement `?page` (non supporté ici :
     /// pagination via `limit`/`offset`). Avant #3521 : ignoré silencieusement.
     pub page: Option<String>,
+    /// `?overdue=true` (#4130) : ne garde que les devis `signed` dont le
+    /// solde restant dû est positif ET sans activité de paiement récente
+    /// (voir `OVERDUE_THRESHOLD_DAYS`). Implique `status = 'signed'` même si
+    /// `?status=` n'est pas fourni.
+    pub overdue: Option<bool>,
 }
+
+/// Délai (jours) au-delà duquel un devis `signed` sans activité de paiement
+/// récente est considéré en impayé (#4130). Pas de mécanisme de
+/// configuration par cabinet dans le schéma actuel — valeur fixe documentée
+/// ici plutôt qu'inventer un canal de configuration non demandé par l'issue.
+const OVERDUE_THRESHOLD_DAYS: i64 = 30;
 
 /// Un devis vu du cabinet. `total_amount` en **centimes** (conventions doc12 §1.7).
 #[derive(Serialize)]
@@ -263,6 +274,13 @@ pub(crate) const VALID_QUOTE_STATUSES: [&str; 5] =
 /// `cabinet_membership.permissions->>'billing' = false` pour cet utilisateur,
 /// même si son rôle autorise normalement l'accès (route billing pilote pour
 /// la consommation du champ `permissions`, cf. `permissions.rs`).
+///
+/// `?overdue=true` (#4130) : solde restant dû = `total_amount` moins les
+/// paiements `pending`/`paid` (même formule que `patient_detail::balance_due_cents`
+/// et `cabinet_stats::outstanding_cents`) ; "sans activité de paiement
+/// récente" = ni signature ni dernier paiement dans les
+/// `OVERDUE_THRESHOLD_DAYS` derniers jours (un devis jamais payé se
+/// rabat sur `signed_at`, seule date qui existe alors).
 pub async fn list_cabinet_quotes(
     State(state): State<AppState>,
     claims: crate::permissions::ProBillingClaims,
@@ -298,9 +316,27 @@ pub async fn list_cabinet_quotes(
              LEFT JOIN patient p ON p.id = q.patient_id \
              WHERE q.cabinet_id = $1";
 
+    // Aucune valeur utilisateur interpolée : uniquement une clause fixe,
+    // ajoutée ou non selon `overdue` (les $N restent liés via .bind()).
+    let overdue_sql = if params.overdue == Some(true) {
+        format!(
+            " AND q.status = 'signed' \
+              AND (q.total_amount * 100)::bigint > COALESCE(( \
+                  SELECT sum(amount * 100)::bigint FROM payment \
+                  WHERE quote_id = q.id AND status IN ('pending', 'paid') \
+              ), 0) \
+              AND GREATEST(q.signed_at, COALESCE(( \
+                  SELECT max(created_at) FROM payment \
+                  WHERE quote_id = q.id AND status IN ('pending', 'paid') \
+              ), q.signed_at)) < now() - interval '{OVERDUE_THRESHOLD_DAYS} days'"
+        )
+    } else {
+        String::new()
+    };
+
     let rows = if let Some(ref status) = params.status {
         sqlx::query(&format!(
-            "{base_sql} AND q.status = $2 ORDER BY q.created_at DESC LIMIT $3 OFFSET $4"
+            "{base_sql}{overdue_sql} AND q.status = $2 ORDER BY q.created_at DESC LIMIT $3 OFFSET $4"
         ))
         .bind(claims.cabinet_id)
         .bind(status)
@@ -311,7 +347,7 @@ pub async fn list_cabinet_quotes(
         .map_err(|_| AppError::Internal)?
     } else {
         sqlx::query(&format!(
-            "{base_sql} ORDER BY q.created_at DESC LIMIT $2 OFFSET $3"
+            "{base_sql}{overdue_sql} ORDER BY q.created_at DESC LIMIT $2 OFFSET $3"
         ))
         .bind(claims.cabinet_id)
         .bind(limit)
