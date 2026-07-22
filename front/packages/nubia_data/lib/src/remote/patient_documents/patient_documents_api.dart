@@ -22,4 +22,29 @@ class PatientDocumentsApi {
         .map((e) => PatientDocumentDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  /// `POST /cabinet/patients/:id/documents` (#4133) — mêmes champs multipart
+  /// que le coffre-fort patient (`DocumentApi.upload`, `category`+`file`).
+  /// Renvoie uniquement `document_id` (contrat back, `clinical.rs`).
+  Future<String> upload(
+    String patientId, {
+    required List<int> bytes,
+    required String filename,
+    required String mimeType,
+    required String category,
+  }) async {
+    final formData = FormData.fromMap({
+      'category': category,
+      'file': MultipartFile.fromBytes(
+        bytes,
+        filename: filename,
+        contentType: DioMediaType.parse(mimeType),
+      ),
+    });
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/patients/$patientId/documents',
+      data: formData,
+    );
+    return response.data!['document_id'] as String;
+  }
 }

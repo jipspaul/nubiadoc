@@ -33,7 +33,8 @@ void main() {
     GetIt.instance.registerFactory<ListPatientTagsUseCase>(() => listTags);
 
     final listDocuments = _MockListPatientDocuments();
-    when(() => listDocuments(any())).thenAnswer((_) async => const Right([]));
+    when(() => listDocuments(any(), category: any(named: 'category')))
+        .thenAnswer((_) async => const Right([]));
     GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
       () => listDocuments,
     );
