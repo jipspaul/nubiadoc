@@ -908,7 +908,12 @@ const VALID_CATEGORIES: &[&str] = &[
 // §14 — catégories administratives, accessibles sans relation de soin (secrétaire/admin).
 // Le reste (ordonnance, radio, cbct, photo, cr, consigne, passeport_implantaire,
 // consentement) est clinique et exige une relation de soin (praticien + appointment).
-const NON_CLINICAL_CATEGORIES: &[&str] = &["devis", "facture", "attestation", "carte_mutuelle"];
+//
+// `pub(crate)` : réutilisée par `cabinet_document_download` (#4286) pour appliquer
+// la même garde §14 à la route de téléchargement, symétrique à
+// `cabinet_quotes::VALID_QUOTE_STATUSES`.
+pub(crate) const NON_CLINICAL_CATEGORIES: &[&str] =
+    &["devis", "facture", "attestation", "carte_mutuelle"];
 
 #[derive(Deserialize)]
 pub struct ListPatientDocumentsQuery {
