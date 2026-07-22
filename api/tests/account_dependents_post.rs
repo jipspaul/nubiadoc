@@ -279,6 +279,84 @@ async fn dependent_post_invalid_relationship_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+// ── Test 2b : NSS malformé dans coverage → 422 (#4312, parité couverture perso) ──
+
+#[tokio::test]
+async fn dependent_post_invalid_nss_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("guardian-post-nss+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Gardien')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(user_id, account_id);
+
+    let body = json!({
+        "first_name": "QA",
+        "last_name": "DepNSS",
+        "relationship": "enfant",
+        "coverage": {
+            "regime_obligatoire": "regime_general",
+            "nss": "garbage!!!"
+        }
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/dependents")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Aucun dépendant ne doit avoir été créé (le NSS invalide doit bloquer
+    // avant toute écriture, pas seulement empêcher la couverture).
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM account_guardianship WHERE guardian_account_id = $1",
+    )
+    .bind(account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucun dépendant ne doit être créé si le NSS de sa couverture est invalide"
+    );
+}
+
 // ── Test 3 : pas de JWT → 401 ─────────────────────────────────────────────────
 
 #[tokio::test]
