@@ -525,6 +525,10 @@ fn build_router(
             get(dental_chart::get_dental_chart).put(dental_chart::put_dental_chart),
         )
         .route(
+            "/v1/cabinet/patients/:id/dental-chart/history",
+            get(dental_chart::get_dental_chart_history_at),
+        )
+        .route(
             "/v1/cabinet/patients/:id/periodontal-chart",
             get(periodontal_chart::get_periodontal_chart)
                 .put(periodontal_chart::put_periodontal_chart),
