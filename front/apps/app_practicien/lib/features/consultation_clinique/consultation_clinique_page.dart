@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'ccam_picker.dart';
+import 'cr_template_picker.dart';
 import '../dental_chart/tooth_grid.dart';
 import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
@@ -185,6 +186,26 @@ class _LoadedViewState extends State<_LoadedView> {
     }
   }
 
+  /// Ouvre le sélecteur de modèle de CR (#4125) et pré-remplit la note de
+  /// séance avec le corps du modèle choisi — trié par pertinence selon le
+  /// `ccam_code` du premier acte ajouté à la séance.
+  Future<void> _pickCrTemplate() async {
+    final firstActCcamCode = widget.state.session.acts.isEmpty
+        ? null
+        : widget.state.session.acts.first.ccamCode;
+    final template = await CrTemplatePicker.show(
+      context,
+      loadTemplates: () async {
+        final result = await GetIt.instance<ListCrTemplatesUseCase>().call();
+        return result.fold((_) => <CrTemplate>[], (templates) => templates);
+      },
+      firstActCcamCode: firstActCcamCode,
+    );
+    if (template != null) {
+      _noteController.text = template.bodyTemplate;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -290,7 +311,18 @@ class _LoadedViewState extends State<_LoadedView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Note de séance', style: textTheme.titleSmall),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Note de séance', style: textTheme.titleSmall),
+                    TextButton.icon(
+                      key: const Key('cr_template_picker_button'),
+                      onPressed: _pickCrTemplate,
+                      icon: const Icon(Icons.description_outlined, size: 18),
+                      label: const Text('Modèle'),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   key: const Key('consultation_note_field'),

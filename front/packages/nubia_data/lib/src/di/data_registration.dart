@@ -26,6 +26,7 @@ import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/clinical/clinical_session_api.dart';
 import '../remote/consultation/consultation_api.dart';
+import '../remote/cr_templates/cr_template_api.dart';
 import '../remote/dashboard/dashboard_api.dart';
 import '../remote/documents/document_api.dart';
 import '../remote/members/members_api.dart';
@@ -69,6 +70,7 @@ import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/cached_appointments_repository_impl.dart';
 import '../repositories/clinical_session_repository_impl.dart';
 import '../repositories/consultation_repository_impl.dart';
+import '../repositories/cr_template_repository_impl.dart';
 import '../repositories/dashboard_repository_impl.dart';
 import '../repositories/document_repository_impl.dart';
 import '../repositories/members_repository_impl.dart';
@@ -418,11 +420,15 @@ void _registerClinical(GetIt gi) {
   gi
     ..registerLazySingleton<ClinicalSessionApi>(() => ClinicalSessionApi(gi()))
     ..registerLazySingleton<PrescriptionApi>(() => PrescriptionApi(gi()))
+    ..registerLazySingleton<CrTemplateApi>(() => CrTemplateApi(gi()))
     ..registerLazySingleton<ClinicalSessionRepository>(
       () => ClinicalSessionRepositoryImpl(gi()),
     )
     ..registerLazySingleton<PrescriptionRepository>(
       () => PrescriptionRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<CrTemplateRepository>(
+      () => CrTemplateRepositoryImpl(gi()),
     )
     // clinical use cases
     ..registerFactory(() => AddActUseCase(gi()))
@@ -432,6 +438,7 @@ void _registerClinical(GetIt gi) {
     ..registerFactory(() => RemoveActUseCase(gi()))
     ..registerFactory(() => SaveNoteUseCase(gi()))
     ..registerFactory(() => StartSessionUseCase(gi()))
+    ..registerFactory(() => ListCrTemplatesUseCase(gi()))
     // prescription use cases
     ..registerFactory(() => CreatePrescriptionUseCase(gi()))
     ..registerFactory(() => SignPrescriptionUseCase(gi()))
