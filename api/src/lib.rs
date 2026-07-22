@@ -56,6 +56,7 @@ mod health;
 pub mod hl7v2;
 mod implant_passport;
 mod interop;
+mod lab_work_orders;
 mod marketplace;
 mod medical_questionnaire;
 mod medical_record;

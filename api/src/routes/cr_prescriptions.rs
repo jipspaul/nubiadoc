@@ -4,8 +4,8 @@
 use axum::{routing::get, Router};
 
 use crate::{
-    cr_templates, prescription_renew, prescription_send, prescription_templates, prescriptions,
-    sterilization, stock_items, AppState,
+    cr_templates, lab_work_orders, prescription_renew, prescription_send, prescription_templates,
+    prescriptions, sterilization, stock_items, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -64,5 +64,13 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/cabinet/cr-templates/:id",
             axum::routing::patch(cr_templates::patch_cr_template)
                 .delete(cr_templates::delete_cr_template),
+        )
+        .route(
+            "/v1/cabinet/lab-work-orders",
+            get(lab_work_orders::list_lab_work_orders).post(lab_work_orders::create_lab_work_order),
+        )
+        .route(
+            "/v1/cabinet/lab-work-orders/:id",
+            axum::routing::patch(lab_work_orders::patch_lab_work_order),
         )
 }
