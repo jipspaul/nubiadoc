@@ -83,6 +83,7 @@ mod reminder_dispatch;
 mod reminders;
 mod reviews;
 mod scheduling;
+mod sterilization;
 mod support;
 mod treatment_phases;
 mod treatment_plans;
@@ -846,6 +847,15 @@ fn build_router(
         .route(
             "/v1/cabinet/cash-register/closing",
             post(cabinet_cash_register::close_cash_register),
+        )
+        .route(
+            "/v1/cabinet/sterilization-cycles",
+            get(sterilization::list_sterilization_cycles)
+                .post(sterilization::create_sterilization_cycle),
+        )
+        .route(
+            "/v1/cabinet/sterilization-cycles/:id/pouches",
+            post(sterilization::add_sterilized_pouch),
         )
         .route(
             "/v1/cabinet/prescriptions",
