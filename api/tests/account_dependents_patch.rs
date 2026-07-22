@@ -162,6 +162,119 @@ async fn dependent_patch_happy_path_returns_200() {
     assert_eq!(json["coverage"]["tiers_payant"], true);
 }
 
+// ── Test 1b : NSS malformé dans coverage → 422 (#4312, parité couverture perso) ──
+
+#[tokio::test]
+async fn dependent_patch_invalid_nss_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+    let dependent_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!(
+        "guardian-patch-nss+{}@nubia.test",
+        guardian_user_id
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Guardian')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(dependent_user_id)
+    .bind(format!(
+        "dependent-patch-nss+{}@nubia.test",
+        dependent_user_id
+    ))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name, birth_date) \
+         VALUES ($1, $2, 'Bob', 'Proche', '2015-03-10')",
+    )
+    .bind(dependent_account_id)
+    .bind(dependent_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let rls_db = app_pool().await;
+        sqlx::query(
+            "INSERT INTO account_guardianship \
+             (guardian_account_id, dependent_account_id, relationship, active) \
+             VALUES ($1, $2, 'enfant', true)",
+        )
+        .bind(guardian_account_id)
+        .bind(dependent_account_id)
+        .execute(&rls_db)
+        .await
+        .unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(guardian_user_id, guardian_account_id);
+
+    let body = json!({
+        "coverage": {
+            "regime_obligatoire": "regime_general",
+            "nss": "@@@notdigits@@@"
+        }
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/account/dependents/{}", dependent_account_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM patient_coverage WHERE patient_account_id = $1")
+            .bind(dependent_account_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucune couverture ne doit être persistée si le NSS est invalide"
+    );
+}
+
 // ── Test 2 : proche hors tutelle → 404 ───────────────────────────────────────
 
 #[tokio::test]

@@ -4014,6 +4014,10 @@ pub async fn post_account_dependents(
         }
         validate_coverage_field_non_empty(&cov.amc)?;
         validate_coverage_field_non_empty(&cov.numero_adherent)?;
+        // #4312 : même contrôle de format que patch_account_coverage
+        // (couverture personnelle) — un NSS malformé n'était accepté (201)
+        // que côté dépendant, jamais côté soi (422).
+        validate_nss(&cov.nss)?;
 
         // patient_coverage est scopée par app.patient_account_id (migration 0023).
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
@@ -4192,6 +4196,10 @@ pub async fn patch_account_dependent(
         }
         validate_coverage_field_non_empty(&cov.amc)?;
         validate_coverage_field_non_empty(&cov.numero_adherent)?;
+        // #4312 : même contrôle de format que patch_account_coverage
+        // (couverture personnelle) — un NSS malformé n'était accepté (200)
+        // que côté dépendant, jamais côté soi (422).
+        validate_nss(&cov.nss)?;
 
         sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
             .bind(dependent_id.to_string())
