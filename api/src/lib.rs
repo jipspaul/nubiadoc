@@ -46,6 +46,7 @@ mod clinical;
 mod consultation_act_create;
 mod consultation_acts;
 mod consultations;
+mod cr_templates;
 mod dashboard;
 mod dental_chart;
 mod devices;
@@ -858,6 +859,14 @@ fn build_router(
             "/v1/cabinet/prescription-templates",
             get(prescription_templates::list_prescription_templates)
                 .post(prescription_templates::create_prescription_template),
+        )
+        .route(
+            "/v1/cabinet/cr-templates",
+            get(cr_templates::list_cr_templates).post(cr_templates::create_cr_template),
+        )
+        .route(
+            "/v1/cabinet/cr-templates/:id",
+            patch(cr_templates::patch_cr_template).delete(cr_templates::delete_cr_template),
         )
         .route(
             "/v1/cabinet/patients/:id/pharmacy",
