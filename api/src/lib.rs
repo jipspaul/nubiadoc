@@ -81,6 +81,7 @@ mod prescriptions;
 mod provider_secretariat;
 mod quote_signature;
 mod realtime;
+mod recall_campaigns;
 mod reminder_dispatch;
 mod reminders;
 mod reviews;
