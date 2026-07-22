@@ -31,6 +31,7 @@ import '../remote/consultation/consultation_api.dart';
 import '../remote/cr_templates/cr_template_api.dart';
 import '../remote/dashboard/dashboard_api.dart';
 import '../remote/documents/document_api.dart';
+import '../remote/implant_passport/implant_passport_api.dart';
 import '../remote/members/members_api.dart';
 import '../remote/messaging/messaging_api.dart';
 import '../remote/notifications/notification_api.dart';
@@ -63,6 +64,7 @@ import '../repositories/cabinet_message_repository_impl.dart';
 import '../repositories/cabinet_patients_repository_impl.dart';
 import '../repositories/patient_tags_repository_impl.dart';
 import '../repositories/patient_documents_repository_impl.dart';
+import '../repositories/implant_passport_repository_impl.dart';
 import '../repositories/orthodontics_repository_impl.dart';
 import '../repositories/sterilization_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
@@ -139,6 +141,7 @@ void registerData(
     ..registerLazySingleton<BillingApi>(() => BillingApi(gi()))
     ..registerLazySingleton<DashboardApi>(() => DashboardApi(gi()))
     ..registerLazySingleton<DocumentApi>(() => DocumentApi(gi()))
+    ..registerLazySingleton<ImplantPassportApi>(() => ImplantPassportApi(gi()))
     ..registerLazySingleton<MessagingApi>(() => MessagingApi(gi()))
     ..registerLazySingleton<NotificationApi>(() => NotificationApi(gi()))
     ..registerLazySingleton<ReviewApi>(() => ReviewApi(gi()))
@@ -180,6 +183,9 @@ void registerData(
     )
     ..registerLazySingleton<DocumentRepository>(
       () => DocumentRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<ImplantPassportRepository>(
+      () => ImplantPassportRepositoryImpl(gi()),
     )
     ..registerLazySingleton<MessageRepository>(
       () => MessageRepositoryImpl(gi(), gi()),
@@ -402,6 +408,9 @@ void _registerUseCases(GetIt gi) {
     ..registerFactory(() => GetDocumentSignedUrlUseCase(gi()))
     ..registerFactory(() => GetDocumentsUseCase(gi()))
     ..registerFactory(() => UploadDocumentUseCase(gi()))
+    // implant passport
+    ..registerFactory(() => ListImplantPassportUseCase(gi()))
+    ..registerFactory(() => ExportImplantPassportUseCase(gi()))
     // messaging
     ..registerFactory(() => GetConversationMessagesUseCase(gi()))
     ..registerFactory(() => GetConversationsUseCase(gi()))

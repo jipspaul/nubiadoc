@@ -188,6 +188,13 @@ class _ProfileContent extends StatelessWidget {
                 onTap: () => context.push(AppRouter.profileConsents),
               ),
               ListRow(
+                key: const Key('tile_implant_passport'),
+                leading: const Icon(Icons.medical_information_outlined),
+                title: 'Passeport implantaire',
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(AppRouter.implantPassport),
+              ),
+              ListRow(
                 key: const Key('tile_notifications'),
                 leading: const Icon(Icons.notifications_outlined),
                 title: 'Préférences notifications',
