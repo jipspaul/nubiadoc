@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
-    consultations::ConsultationActItem,
+    consultation_context::ConsultationActItem,
     AppState,
 };
 
