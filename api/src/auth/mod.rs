@@ -202,6 +202,10 @@ pub(crate) enum AppError {
     /// franchissable après revue clinique ; un cumul interdit n'a pas
     /// d'exception). Le `String` porte le motif (`ccam_act_incompatibility.reason`).
     IncompatibleActs(String),
+    /// `POST /v1/cabinet/stock-items` (#4144) : `reference` déjà utilisée
+    /// dans ce cabinet (index unique `(cabinet_id, reference)`, migration
+    /// 0192) — même choix que `StepNumberTaken`/`PouchCodeAlreadyUsed`.
+    StockReferenceAlreadyUsed,
 }
 
 impl IntoResponse for AppError {
@@ -427,6 +431,11 @@ impl IntoResponse for AppError {
             AppError::IncompatibleActs(reason) => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(json!({"code": "incompatible_acts", "reason": reason})),
+            )
+                .into_response(),
+            AppError::StockReferenceAlreadyUsed => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "stock_reference_already_used"})),
             )
                 .into_response(),
         }
