@@ -333,10 +333,20 @@ async fn initiate_signature_on_signed_quote_returns_409_without_calling_provider
     cleanup(&db, &f).await;
 }
 
-// ── Test 3 : devis draft (pas encore envoyé) → 409 invalid_status ───────────
+// ── Test 3 : devis draft (pas encore envoyé) → 404, masqué par la RLS ───────
+//
+// Assertion corrigée (dérive pré-existante, découverte en vérifiant contre
+// Postgres réel, sans lien avec le diff en cours) : la policy
+// `quote_patient_read` (migration 0134/#3487) exclut `status = 'draft'` de la
+// visibilité patient — un brouillon cabinet non encore envoyé. Le JOIN de
+// `initiate_quote_signature` est donc filtré par la RLS avant même d'évaluer
+// son propre contrôle de statut : un devis `draft` renvoie TOUJOURS 404, ne
+// peut structurellement jamais atteindre la branche `409 invalid_status`.
+// L'assertion originale (409) date d'avant la migration 0134 et n'avait
+// jamais été mise à jour.
 
 #[tokio::test]
-async fn initiate_signature_on_draft_quote_returns_409_invalid_status() {
+async fn initiate_signature_on_draft_quote_returns_404_hidden_by_rls() {
     if !db_available() {
         return;
     }
@@ -350,7 +360,7 @@ async fn initiate_signature_on_draft_quote_returns_409_invalid_status() {
         .mount(&mock_server)
         .await;
 
-    let (status, body) = initiate_signature(
+    let (status, _body) = initiate_signature(
         state_with(app_pool().await),
         &mock_server.uri(),
         f.quote_id,
@@ -358,8 +368,7 @@ async fn initiate_signature_on_draft_quote_returns_409_invalid_status() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::CONFLICT);
-    assert_eq!(body["code"], "invalid_status");
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     cleanup(&db, &f).await;
 }

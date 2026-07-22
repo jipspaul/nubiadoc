@@ -66,7 +66,11 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 ///
 /// Token `kind:"patient"` requis ; token pro → `403`.
 /// RLS via `app.patient_account_id` (policy `quote_patient_read`, migration 0029).
-/// Filtre optionnel `?status=` (draft|sent|signed|refused|expired).
+/// Filtre optionnel `?status=`, doit être une valeur de
+/// `cabinet_quotes::VALID_QUOTE_STATUSES` (draft|sent|signed|refused|expired)
+/// sinon `400 invalid_status_filter` (#4276 : avant, une valeur hors énum
+/// passait telle quelle en SQL et renvoyait silencieusement `{data:[]}`,
+/// symétrique au fix #4066 déjà appliqué côté cabinet).
 /// Pagination cursor-based (`limit` + `cursor`), tri `created_at DESC`.
 /// Montants exposés en centimes entiers (`amount_cents`).
 pub async fn list_quotes(
@@ -74,6 +78,15 @@ pub async fn list_quotes(
     claims: PatientAccountClaims,
     Query(params): Query<ListQuotesQuery>,
 ) -> Result<Json<ListQuotesResponse>, AppError> {
+    // #4276 : symétrique à cabinet_quotes::list_cabinet_quotes — une valeur
+    // hors énum passait telle quelle en SQL et renvoyait silencieusement
+    // `{data:[]}` au lieu de signaler l'erreur d'appel.
+    if let Some(ref status) = params.status {
+        if !crate::cabinet_quotes::VALID_QUOTE_STATUSES.contains(&status.as_str()) {
+            return Err(AppError::InvalidQuoteStatusFilter);
+        }
+    }
+
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
     let fetch_limit = limit + 1;
 
