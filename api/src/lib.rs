@@ -67,6 +67,7 @@ mod ngap_acts;
 mod notifications;
 mod notify;
 mod orthodontics;
+mod patient_alerts;
 mod patient_detail;
 mod patient_guardianship;
 mod patient_merge;
