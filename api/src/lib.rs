@@ -71,6 +71,7 @@ mod periodontal_chart;
 mod permissions;
 mod pharmacy;
 mod practitioner_favorite_acts;
+mod prescription_renew;
 mod prescription_send;
 mod prescription_templates;
 mod prescriptions;
@@ -851,6 +852,10 @@ fn build_router(
         .route(
             "/v1/cabinet/prescriptions/:id/send",
             post(prescription_send::send_prescription),
+        )
+        .route(
+            "/v1/cabinet/prescriptions/:id/renew",
+            post(prescription_renew::renew_prescription),
         )
         .route(
             "/v1/cabinet/prescriptions/:id/apply-template",

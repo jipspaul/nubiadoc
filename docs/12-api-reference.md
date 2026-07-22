@@ -431,6 +431,7 @@
 | PATCH | `/v1/cabinet/prescriptions/{id}` | practitioner | Éditer (brouillon). |
 | POST | `/v1/cabinet/prescriptions/{id}/sign` | practitioner | Signer (eIDAS) → PDF coffre-fort. |
 | POST | `/v1/cabinet/prescriptions/{id}/send` | practitioner | Envoyer (pharmacie au choix du patient). |
+| POST | `/v1/cabinet/prescriptions/{id}/renew` | practitioner | Renouveler (#4131) : copie les lignes dans un nouveau brouillon. |
 
 `POST /v1/cabinet/prescriptions` — body : `{ patient_id, items:[{ label, form?, posology, duration, quantity }] }`. → `201`.
 > 🚨 **L'API n'effectue AUCUN contrôle automatique** d'allergies/interactions/contre-indications et **ne suggère aucune alternative** (= aide à la décision = dispositif médical, **exclu**). Elle peut **afficher** en lecture les allergies que le praticien a saisies dans `medical_record`. Le praticien décide seul. `/sign` réutilise la brique signature du wedge ; `/send` génère un `document(category='ordonnance')`.
