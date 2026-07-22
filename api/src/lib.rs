@@ -71,6 +71,7 @@ mod periodontal_chart;
 mod permissions;
 mod pharmacy;
 mod practitioner_favorite_acts;
+mod prescription_send;
 mod prescription_templates;
 mod prescriptions;
 mod provider_secretariat;
@@ -849,7 +850,7 @@ fn build_router(
         )
         .route(
             "/v1/cabinet/prescriptions/:id/send",
-            post(prescriptions::send_prescription),
+            post(prescription_send::send_prescription),
         )
         .route(
             "/v1/cabinet/prescriptions/:id/apply-template",
