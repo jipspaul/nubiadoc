@@ -173,8 +173,68 @@ class _PatientRow extends StatelessWidget {
           NubiaAvatar(initials: _initialsFrom(patient.fullName), radius: 20),
       title: patient.fullName,
       subtitle: parts.isEmpty ? null : parts.join(' · '),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PatientAlertBadge(patientId: patient.id),
+          const Icon(Icons.chevron_right),
+        ],
+      ),
       onTap: () => _showPatientSheet(context, patient),
+    );
+  }
+}
+
+/// Badge d'alertes accueil (#4093/#4094) : icône + tooltip listant les
+/// messages, masqué (zéro largeur) si aucune alerte ou en cas d'erreur —
+/// même best-effort que `PatientBalanceSection` (une ligne/fiche patient
+/// reste consultable même si les alertes ne chargent pas). Fetch par ligne
+/// (pas d'endpoint bulk) : acceptable pour une liste secrétariat de taille
+/// bornée (dizaines, pas milliers, de patients par cabinet).
+class PatientAlertBadge extends StatefulWidget {
+  const PatientAlertBadge({super.key, required this.patientId});
+
+  final String patientId;
+
+  @override
+  State<PatientAlertBadge> createState() => _PatientAlertBadgeState();
+}
+
+class _PatientAlertBadgeState extends State<PatientAlertBadge> {
+  List<PatientAlert>? _alerts;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final result =
+        await GetIt.instance<ListPatientAlertsUseCase>()(widget.patientId);
+    if (!mounted) return;
+    result.fold(
+      (_) {}, // Best-effort : silencieux en cas d'erreur, pas de blocage.
+      (alerts) => setState(() => _alerts = alerts),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final alerts = _alerts;
+    if (alerts == null || alerts.isEmpty) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Tooltip(
+        message: alerts.map((a) => a.message).join('\n'),
+        child: Icon(
+          Icons.warning_amber_outlined,
+          key: const Key('patient_alert_badge'),
+          size: 20,
+          color: cs.error,
+        ),
+      ),
     );
   }
 }
@@ -241,6 +301,7 @@ class _PatientSheet extends StatelessWidget {
                     ),
                   ),
                 ),
+                PatientAlertBadge(patientId: patient.id),
               ],
             ),
             const SizedBox(height: 16),
