@@ -25,6 +25,19 @@ use crate::{
     AppState,
 };
 
+/// Un acte CCAM inline (#4263) : créé comme `quote_item` (nouveau devis
+/// `draft`) dans le même appel que la phase, plutôt que de nécessiter un
+/// devis pré-existant.
+#[derive(Deserialize)]
+pub struct InlineTreatmentPhaseAct {
+    pub label: String,
+    #[serde(default)]
+    pub ccam_code: Option<String>,
+    #[serde(default)]
+    pub tooth: Option<String>,
+    pub amount_cents: i32,
+}
+
 /// Corps de `POST /v1/cabinet/treatment-plans/:id/phases`.
 #[derive(Deserialize)]
 pub struct CreateTreatmentPhaseBody {
@@ -35,6 +48,13 @@ pub struct CreateTreatmentPhaseBody {
     /// autre tenant sont silencieusement ignorés (RLS/tenant isolation).
     #[serde(default)]
     pub quote_item_ids: Vec<Uuid>,
+    /// Actes CCAM à créer directement (#4263) — utile pour peupler une phase
+    /// dès la création du plan, quand aucun `quote_item` n'existe encore.
+    /// Crée un nouveau devis `draft` (total = somme des actes) et ses
+    /// `quote_item`, rattachés à cette phase. Combinable avec
+    /// `quote_item_ids` (les deux mécanismes sont indépendants).
+    #[serde(default)]
+    pub inline_acts: Vec<InlineTreatmentPhaseAct>,
 }
 
 /// Réponse de `POST /v1/cabinet/treatment-plans/:id/phases`.
@@ -46,7 +66,8 @@ pub struct CreateTreatmentPhaseResponse {
 /// `POST /v1/cabinet/treatment-plans/:id/phases` — ajoute une phase à un plan.
 ///
 /// Praticien uniquement (via `ProPractitionerClaims`). Plan inexistant ou
-/// hors tenant → 404. `title` vide → 422. Statut initial : `requested`.
+/// hors tenant → 404. `title` vide, ou un `inline_acts[].label` vide/
+/// `amount_cents` négatif → 422. Statut initial : `requested`.
 /// Réponse `201 { phase_id }`.
 pub async fn create_treatment_phase(
     State(state): State<AppState>,
@@ -58,6 +79,11 @@ pub async fn create_treatment_phase(
     if title.is_empty() {
         return Err(AppError::ValidationError);
     }
+    for act in &body.inline_acts {
+        if act.label.trim().is_empty() || act.amount_cents < 0 {
+            return Err(AppError::ValidationError);
+        }
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -67,9 +93,11 @@ pub async fn create_treatment_phase(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le plan appartient au cabinet (RLS garantit le cloisonnement).
-    let plan_exists = sqlx::query(
-        "SELECT 1 FROM treatment_plan WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    // Vérifie que le plan appartient au cabinet (RLS garantit le cloisonnement) ;
+    // récupère patient_id pour le devis inline (#4263), si besoin.
+    let plan_row = sqlx::query(
+        "SELECT patient_id FROM treatment_plan \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(plan_id)
     .bind(claims.cabinet_id)
@@ -77,9 +105,12 @@ pub async fn create_treatment_phase(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    if plan_exists.is_none() {
+    let Some(plan_row) = plan_row else {
         return Err(AppError::NotFound);
-    }
+    };
+    let patient_id: Uuid = plan_row
+        .try_get("patient_id")
+        .map_err(|_| AppError::Internal)?;
 
     let phase_id: Uuid = sqlx::query(
         "INSERT INTO treatment_phase (cabinet_id, plan_id, position, title, status) \
@@ -105,6 +136,45 @@ pub async fn create_treatment_phase(
             .map_err(|_| AppError::Internal)?;
     }
 
+    if !body.inline_acts.is_empty() {
+        let total_cents: i64 = body
+            .inline_acts
+            .iter()
+            .map(|act| i64::from(act.amount_cents))
+            .sum();
+
+        let quote_id: Uuid = sqlx::query(
+            "INSERT INTO quote (cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, 'draft', $3::numeric / 100, 'EUR') RETURNING id",
+        )
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .bind(total_cents)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .try_get("id")
+        .map_err(|_| AppError::Internal)?;
+
+        for act in &body.inline_acts {
+            sqlx::query(
+                "INSERT INTO quote_item \
+                 (cabinet_id, quote_id, phase_id, label, ccam_code, tooth, unit_amount) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7::numeric / 100)",
+            )
+            .bind(claims.cabinet_id)
+            .bind(quote_id)
+            .bind(phase_id)
+            .bind(act.label.trim())
+            .bind(&act.ccam_code)
+            .bind(&act.tooth)
+            .bind(act.amount_cents)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
+    }
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(
@@ -113,6 +183,7 @@ pub async fn create_treatment_phase(
         plan_id = %plan_id,
         phase_id = %phase_id,
         attached_items = body.quote_item_ids.len(),
+        inline_acts = body.inline_acts.len(),
         "treatment phase created"
     );
 
