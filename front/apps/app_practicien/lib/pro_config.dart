@@ -65,6 +65,11 @@ class ProConfig {
         route: '/stock',
       ),
       shell.ProNavDestination(
+        label: 'Inventaire',
+        icon: Icons.warehouse_outlined,
+        route: '/stock-inventory',
+      ),
+      shell.ProNavDestination(
         label: 'Messages',
         icon: Icons.chat_bubble_outline,
         route: '/messages',
