@@ -44,6 +44,7 @@ mod cabinet_team_messages;
 mod ccam_acts;
 mod clinical;
 mod consultation_act_create;
+mod consultation_act_stock;
 mod consultation_acts;
 mod consultations;
 mod cr_templates;
