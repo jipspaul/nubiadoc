@@ -6,6 +6,15 @@
 //! recherche texte reste un filtre pur (pas de biais favoris qui masquerait
 //! un résultat pertinent hors favoris).
 //!
+//! #4118 : `tooth` (numéro FDI, ex. "26") — quand `q` est vide, les codes
+//! CCAM les plus utilisés par CE praticien sur des dents de même type
+//! (incisive/canine/prémolaire/molaire, déduit du 2e chiffre FDI) remontent
+//! juste après les favoris. Historique lu dans `consultation_act` (pas de
+//! nouvelle table) : agrégation faite côté Rust plutôt qu'en SQL sur le
+//! dernier chiffre de `tooth`, la correspondance chiffre→type diffère entre
+//! denture permanente (quadrants 1-4) et denture de lait (quadrants 5-8),
+//! trop de cas particuliers pour une expression SQL lisible.
+//!
 //! #4056 : sélectionne le tarif applicable (`applicable_tariff_cents`) selon
 //! le secteur conventionnel du praticien appelant — OPTAM → `optam_cents`,
 //! sinon `secteur1_cents` (repli sur `tarif_cents` si non classifié, cf.
@@ -78,6 +87,44 @@ pub struct CcamActsResponse {
 pub struct CcamActsQuery {
     /// Filtre plein-texte sur le code OU le libellé (insensible à la casse).
     pub q: Option<String>,
+    /// Numéro de dent FDI (#4118) — surface les codes les plus utilisés par
+    /// ce praticien sur des dents de même type (voir doc de module).
+    pub tooth: Option<String>,
+}
+
+/// Type de dent déduit du 2e chiffre FDI (position dans le quadrant).
+/// Le 1er chiffre distingue denture permanente (1-4) de denture de lait
+/// (5-8) — la correspondance position→type diffère entre les deux (ex. « 4 »
+/// = prémolaire en permanent, mais 1re molaire de lait en denture primaire).
+/// `None` si `tooth` n'est pas exactement 2 chiffres FDI valides.
+fn fdi_tooth_type(tooth: &str) -> Option<&'static str> {
+    let tooth = tooth.trim();
+    if tooth.len() != 2 {
+        return None;
+    }
+    let mut chars = tooth.chars();
+    let quadrant = chars.next()?.to_digit(10)?;
+    let position = chars.next()?.to_digit(10)?;
+    if !(1..=8).contains(&quadrant) {
+        return None;
+    }
+    if quadrant >= 5 {
+        // Denture de lait (quadrants 5-8) : positions 1-5 seulement.
+        match position {
+            1 | 2 => Some("incisive"),
+            3 => Some("canine"),
+            4 | 5 => Some("molaire"),
+            _ => None,
+        }
+    } else {
+        match position {
+            1 | 2 => Some("incisive"),
+            3 => Some("canine"),
+            4 | 5 => Some("premolaire"),
+            6..=8 => Some("molaire"),
+            _ => None,
+        }
+    }
 }
 
 /// `GET /v1/ccam/acts?q=` — recherche dans le référentiel CCAM (#3226).
@@ -137,6 +184,74 @@ pub async fn search_ccam_acts(
             .await
             .map_err(|_| AppError::Internal)?;
             rows.extend(favorite_rows);
+        }
+    }
+
+    // Suggestion contextuelle par type de dent (#4118) — juste après les
+    // favoris, seulement quand q est vide (même garde que #4112 : une
+    // recherche texte reste un filtre pur).
+    if q.is_none() {
+        if let (Some(practitioner_id), Some(target_type)) = (
+            practitioner_id,
+            query.tooth.as_deref().and_then(fdi_tooth_type),
+        ) {
+            let existing_codes: Vec<String> = rows
+                .iter()
+                .map(|r| r.try_get::<String, _>("code"))
+                .collect::<Result<_, _>>()
+                .map_err(|_| AppError::Internal)?;
+
+            let history = sqlx::query(
+                "SELECT tooth, ccam_code FROM consultation_act \
+                 WHERE practitioner_id = $1 AND cabinet_id = $2 AND tooth IS NOT NULL",
+            )
+            .bind(practitioner_id)
+            .bind(claims.cabinet_id)
+            .fetch_all(&state.db)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+            let mut counts: std::collections::HashMap<String, i64> =
+                std::collections::HashMap::new();
+            for row in history {
+                let tooth: Option<String> = row.try_get("tooth").map_err(|_| AppError::Internal)?;
+                let code: String = row.try_get("ccam_code").map_err(|_| AppError::Internal)?;
+                if tooth.as_deref().and_then(fdi_tooth_type) == Some(target_type)
+                    && !existing_codes.contains(&code)
+                {
+                    *counts.entry(code).or_insert(0) += 1;
+                }
+            }
+
+            let mut ranked: Vec<(String, i64)> = counts.into_iter().collect();
+            ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+            let top_codes: Vec<String> = ranked
+                .into_iter()
+                .take((25 - rows.len() as i64).max(0) as usize)
+                .map(|(code, _)| code)
+                .collect();
+
+            if !top_codes.is_empty() {
+                let suggestion_rows = sqlx::query(
+                    "SELECT code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante \
+                     FROM ccam_act WHERE code = ANY($1) AND active = true",
+                )
+                .bind(&top_codes)
+                .fetch_all(&state.db)
+                .await
+                .map_err(|_| AppError::Internal)?;
+                // Réordonne selon top_codes (fetch_all ne garantit pas l'ordre de ANY()).
+                let mut by_code: std::collections::HashMap<String, sqlx::postgres::PgRow> =
+                    suggestion_rows
+                        .into_iter()
+                        .map(|r| (r.get::<String, _>("code"), r))
+                        .collect();
+                for code in &top_codes {
+                    if let Some(row) = by_code.remove(code) {
+                        rows.push(row);
+                    }
+                }
+            }
         }
     }
 
