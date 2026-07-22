@@ -20,6 +20,7 @@ import '../remote/patient_tags/patient_tags_api.dart';
 import '../remote/patient_documents/patient_documents_api.dart';
 import '../remote/orthodontics/orthodontics_api.dart';
 import '../remote/sterilization/sterilization_api.dart';
+import '../remote/stock_items/stock_items_api.dart';
 import '../remote/dental_chart/dental_chart_api.dart';
 import '../remote/periodontal_chart/periodontal_chart_api.dart';
 import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_api.dart';
@@ -67,6 +68,7 @@ import '../repositories/patient_documents_repository_impl.dart';
 import '../repositories/implant_passport_repository_impl.dart';
 import '../repositories/orthodontics_repository_impl.dart';
 import '../repositories/sterilization_repository_impl.dart';
+import '../repositories/stock_items_repository_impl.dart';
 import '../repositories/dental_chart_repository_impl.dart';
 import '../repositories/periodontal_chart_repository_impl.dart';
 import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
@@ -494,6 +496,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<SterilizationApi>(
       () => SterilizationApi(gi()),
     )
+    ..registerLazySingleton<StockItemsApi>(
+      () => StockItemsApi(gi()),
+    )
     ..registerLazySingleton<DentalChartApi>(
       () => DentalChartApi(gi()),
     )
@@ -560,6 +565,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<SterilizationRepository>(
       () => SterilizationRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<StockItemsRepository>(
+      () => StockItemsRepositoryImpl(gi()),
     )
     ..registerLazySingleton<DentalChartRepository>(
       () => DentalChartRepositoryImpl(gi()),
@@ -633,6 +641,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => AddOrthodonticStepUseCase(gi()))
     ..registerFactory(() => ListSterilizationCyclesUseCase(gi()))
     ..registerFactory(() => AddSterilizedPouchUseCase(gi()))
+    ..registerFactory(() => ListStockItemsUseCase(gi()))
+    ..registerFactory(() => AddStockMovementUseCase(gi()))
     ..registerFactory(() => GetDentalChartUseCase(gi()))
     ..registerFactory(() => PutDentalChartUseCase(gi()))
     ..registerFactory(() => GetPeriodontalChartUseCase(gi()))
