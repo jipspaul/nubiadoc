@@ -17,9 +17,11 @@
 //! contrat déjà écrit côté frontend, jamais honoré côté API jusqu'ici).
 //! Pourquoi : ne PAS toucher `/sign` (légacy, app patient) évite toute
 //! régression ; `/signature` diverge maintenant volontairement de `/sign`.
-//! Modes d'échec : devis signé → `409 quote_locked` ; devis
-//! draft/refused/expired → `409 invalid_status` ; devis inexistant/hors
-//! patient → `404` ; provider injoignable → `502`.
+//! Modes d'échec : devis signé → `409 quote_locked` ; devis refused/expired
+//! → `409 invalid_status` ; devis draft (masqué par `quote_patient_read`,
+//! migration 0134/#3487 — un brouillon cabinet n'est jamais visible du
+//! patient) / inexistant / hors patient → `404` ; provider injoignable →
+//! `502`.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -49,11 +51,13 @@ pub struct InitiateQuoteSignatureResponse {
 /// Token `kind:"patient"` requis ; token pro → `403`.
 /// RLS via `app.patient_account_id` (policy `quote_patient_read`, comme
 /// `billing::sign_quote`).
-/// - Devis inexistant / hors patient → `404`.
+/// - Devis inexistant / hors patient / `draft` → `404` (un brouillon cabinet
+///   pas encore envoyé est exclu de `quote_patient_read`, migration
+///   0134/#3487 — structurellement indistinguable d'un devis inexistant ici).
 /// - Devis `signed` → `409 quote_locked` (déjà immuable, pas de nouvelle
 ///   session à démarrer).
-/// - Devis `draft`/`refused`/`expired` → `409 invalid_status` (`sent` est
-///   l'étape obligatoire, même contrainte que `sign_quote`).
+/// - Devis `refused`/`expired` → `409 invalid_status` (`sent` est l'étape
+///   obligatoire, même contrainte que `sign_quote`).
 /// - Provider injoignable/refus → `502`.
 /// - Sinon : appelle le provider, crée une ligne `signature`, pose
 ///   `quote.signature_id` (le statut du devis, lui, **ne change pas**) et
