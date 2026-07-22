@@ -17,6 +17,12 @@
 //! montant saisi manuellement pour ce mode, donc pas d'avertissement de
 //! sous-cotation (rien à comparer à une saisie humaine).
 //!
+//! #4117 : chaque ligne insérée (mode `ccam_code` ou chaque item d'un
+//! bundle) est vérifiée contre `ccam_act_incompatibility` (migration 0183)
+//! par rapport aux actes déjà présents dans CETTE séance — `422` avec le
+//! motif si un cumul est interdit, avant même la garde clinique #4057
+//! (erreur de saisie, pas un conflit d'état franchissable).
+//!
 //! Extrait de `consultation_acts.rs` (refactor de taille, CLAUDE.md plafond
 //! 700 lignes — `consultation_acts.rs` approchait la limite avant l'ajout
 //! de #4115) — module autonome.
@@ -174,11 +180,47 @@ async fn applicable_tariff_for(
     }))
 }
 
+/// `422 IncompatibleActs` si `ccam_code` est incompatible (#4116, table
+/// `ccam_act_incompatibility`) avec un acte déjà présent dans CETTE séance —
+/// pas à l'échelle du cabinet/de la journée, non demandé par l'issue.
+/// `code_a`/`code_b` sont canonisés (`code_a < code_b`, migration 0183) :
+/// la jointure teste donc `LEAST`/`GREATEST` des deux codes, pas une égalité
+/// directe. En mode bundle, les items déjà insérés dans CETTE requête sont
+/// vus (même transaction, insertion séquentielle) : deux items du même
+/// bundle mutuellement incompatibles se bloquent aussi entre eux.
+async fn check_incompatibility(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cabinet_id: Uuid,
+    appointment_id: Uuid,
+    ccam_code: &str,
+) -> Result<(), AppError> {
+    let conflict = sqlx::query(
+        "SELECT i.reason FROM consultation_act a \
+         JOIN ccam_act_incompatibility i \
+           ON i.code_a = LEAST(a.ccam_code, $1) AND i.code_b = GREATEST(a.ccam_code, $1) \
+         WHERE a.appointment_id = $2 AND a.cabinet_id = $3 \
+         LIMIT 1",
+    )
+    .bind(ccam_code)
+    .bind(appointment_id)
+    .bind(cabinet_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(row) = conflict {
+        let reason: String = row.try_get("reason").map_err(|_| AppError::Internal)?;
+        return Err(AppError::IncompatibleActs(reason));
+    }
+    Ok(())
+}
+
 /// Insère une ligne `consultation_act`, avec la garde clinique anticoagulants
-/// (#4057) et, si `entered_amount_cents` est fourni (mode `ccam_code` avec
-/// montant saisi), l'avertissement de sous-cotation (#4162). En mode bundle,
-/// `entered_amount_cents` est `None` : le montant vient directement de
-/// `final_amount_cents` (déjà auto-calculé par l'appelant), sans avertissement.
+/// (#4057), la garde de cumul interdit (#4117) et, si `entered_amount_cents`
+/// est fourni (mode `ccam_code` avec montant saisi), l'avertissement de
+/// sous-cotation (#4162). En mode bundle, `entered_amount_cents` est `None` :
+/// le montant vient directement de `final_amount_cents` (déjà auto-calculé
+/// par l'appelant), sans avertissement.
 #[allow(clippy::too_many_arguments)]
 async fn insert_one_act(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -193,6 +235,11 @@ async fn insert_one_act(
     entered_amount_cents: Option<i32>,
     is_optam: bool,
 ) -> Result<AddActResponse, AppError> {
+    // Cumul interdit (#4117) : vérifié avant la garde clinique — un cumul
+    // interdit est une erreur de saisie (422), à signaler avant tout calcul
+    // de risque/tarif sur un acte qui ne sera de toute façon pas ajouté.
+    check_incompatibility(tx, cabinet_id, appointment_id, ccam_code).await?;
+
     // Alerte clinique bloquante (#4057) : acte invasif + patient sous
     // anticoagulants d'après le dossier médical → 409, pas d'insertion.
     if RISKY_CCAM_CODES_UNDER_ANTICOAGULANTS.contains(&ccam_code) {
