@@ -20,3 +20,6 @@ opencode.json
 
 # Artefacts de build du déploiement (infra/deploy)
 .deploy-artifacts/
+
+# Fichiers de travail du skill plan-issues (batches JSON, pas un artefact à committer)
+.claude/planning/
