@@ -61,7 +61,9 @@ pub(crate) const MAX_ITEM_AMOUNT_CENTS: i64 = 100_000_000;
 /// Valide les lignes d'un devis (partagé entre `create_cabinet_quote` et
 /// `cabinet_quotes_patch::patch_cabinet_quote`, #4065) : non vide,
 /// `amount_cents` dans `]0, MAX_ITEM_AMOUNT_CENTS]`, libellé non vide/blanc
-/// (#3770), `amo_part_cents`/`amc_part_cents` non négatifs (#4060).
+/// (#3770), `amo_part_cents`/`amc_part_cents` non négatifs (#4060), et leur
+/// somme ne dépasse pas `amount_cents` (#4309) — sinon le reste à charge
+/// patient (`amount_cents - amo_part - amc_part`) devient négatif.
 pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppError> {
     if items.is_empty() {
         return Err(AppError::ValidationError);
@@ -78,6 +80,12 @@ pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppEr
     if items
         .iter()
         .any(|i| i.amo_part_cents.is_some_and(|v| v < 0) || i.amc_part_cents.is_some_and(|v| v < 0))
+    {
+        return Err(AppError::ValidationError);
+    }
+    if items
+        .iter()
+        .any(|i| i.amo_part_cents.unwrap_or(0) + i.amc_part_cents.unwrap_or(0) > i.amount_cents)
     {
         return Err(AppError::ValidationError);
     }
