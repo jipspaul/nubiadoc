@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
-    AppState,
+    notify, AppState,
 };
 
 /// Ordre de progression légal — une transition n'est autorisée que vers un
@@ -240,6 +240,12 @@ pub struct PatchLabWorkOrderResponse {
 /// inférieur ou égal (retour arrière, statut inconnu) →
 /// `409 invalid_status` — la progression n'a pas besoin d'être séquentielle
 /// (`sent → returned` saute `try_in`), seulement croissante (#4148).
+///
+/// Passage à `returned` (#4165) : notification in-app au patient concerné
+/// ("votre prothèse est arrivée"), via `app_user_id` direct sinon via le
+/// compte patient rattaché — même pattern dual-path que
+/// `consultations.rs::complete_consultation` (#4152). Patient sans compte →
+/// silencieusement aucune notification, pas une erreur.
 pub async fn patch_lab_work_order(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -254,14 +260,17 @@ pub async fn patch_lab_work_order(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query("SELECT status FROM lab_work_order WHERE id = $1 AND cabinet_id = $2")
-        .bind(id)
-        .bind(claims.cabinet_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?
-        .ok_or(AppError::NotFound)?;
+    let row = sqlx::query(
+        "SELECT status, patient_id FROM lab_work_order WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
     let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
 
     if !is_forward_transition(&current_status, &body.status) {
         return Err(AppError::InvalidStatus);
@@ -274,6 +283,37 @@ pub async fn patch_lab_work_order(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    if body.status == "returned" {
+        let patient_row =
+            sqlx::query("SELECT app_user_id, patient_account_id FROM patient WHERE id = $1")
+                .bind(patient_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        if let Some(patient_row) = patient_row {
+            let patient_app_user_id: Option<Uuid> = patient_row
+                .try_get("app_user_id")
+                .map_err(|_| AppError::Internal)?;
+            let patient_account_id: Option<Uuid> = patient_row
+                .try_get("patient_account_id")
+                .map_err(|_| AppError::Internal)?;
+            let title = "Votre prothèse est arrivée au cabinet.";
+            let data = serde_json::json!({ "order_id": id });
+            if let Some(uid) = patient_app_user_id {
+                notify::notify_user(&mut tx, uid, "lab_work_returned", title, data).await?;
+            } else if let Some(account_id) = patient_account_id {
+                notify::notify_patient_account(
+                    &mut tx,
+                    account_id,
+                    "lab_work_returned",
+                    title,
+                    data,
+                )
+                .await?;
+            }
+        }
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
