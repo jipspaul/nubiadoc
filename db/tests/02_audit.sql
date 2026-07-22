@@ -1,5 +1,6 @@
 -- 02_audit.sql — Audit append-only garanti par privilège (db/README §3, §7 ; docs/05 §6).
--- nubia_app : INSERT seul. Aucun UPDATE/DELETE. audit_log partitionné par mois.
+-- nubia_app : INSERT + SELECT (#4155, GET /v1/cabinet/audit-log — consultation
+-- CNIL/patient). Aucun UPDATE/DELETE, jamais. audit_log partitionné par mois.
 BEGIN;
 SELECT * FROM no_plan();
 
@@ -31,13 +32,24 @@ SELECT throws_ok(
   $$ DELETE FROM audit_log $$,
   '42501', NULL, 'nubia_app ne peut PAS DELETE audit_log (append-only)');
 
--- la privilège INSERT existe, UPDATE/DELETE non (catalogue)
+-- la privilège INSERT+SELECT existe, UPDATE/DELETE non (catalogue, #4155)
 SELECT ok( has_table_privilege('nubia_app','audit_log','INSERT'),
   'nubia_app a INSERT sur audit_log');
+SELECT ok( has_table_privilege('nubia_app','audit_log','SELECT'),
+  'nubia_app a SELECT sur audit_log (#4155)');
 SELECT ok( NOT has_table_privilege('nubia_app','audit_log','UPDATE'),
   'nubia_app n''a PAS UPDATE sur audit_log');
 SELECT ok( NOT has_table_privilege('nubia_app','audit_log','DELETE'),
   'nubia_app n''a PAS DELETE sur audit_log');
+
+-- nubia_app : SELECT retrouve bien la ligne insérée ci-dessus, scopée au
+-- cabinet courant (RLS tenant_isolation, déjà FOR ALL donc déjà appliquée à
+-- SELECT sans changement de policy — seul le GRANT manquait, #4155).
+SELECT is(
+  (SELECT count(*)::int FROM audit_log
+   WHERE cabinet_id = 'a0000000-0000-0000-0000-000000000001' AND action = 'login'),
+  1,
+  '⭐ nubia_app peut relire son propre audit_log (#4155)');
 
 SELECT * FROM finish();
 ROLLBACK;

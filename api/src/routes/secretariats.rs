@@ -2,10 +2,14 @@
 
 use axum::{routing::get, Router};
 
-use crate::{cabinet_secretariats, provider_secretariat, AppState};
+use crate::{audit_log, cabinet_secretariats, provider_secretariat, AppState};
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
     router
+        .route(
+            "/v1/cabinet/audit-log",
+            get(audit_log::get_cabinet_audit_log),
+        )
         .route(
             "/v1/cabinet/providers/:id/secretariats",
             get(provider_secretariat::get_provider_secretariats)
