@@ -309,7 +309,10 @@ const VALID_STEP_KINDS: [&str; 3] = ["bague", "contention", "gouttiere"];
 /// §14 sur le patient du traitement. `kind` doit être une valeur de
 /// `VALID_STEP_KINDS`, `step_number > 0` → 422 sinon. `step_number` déjà
 /// utilisé pour ce traitement → 409 (index unique `(treatment_id,
-/// step_number)`, migration 0189).
+/// step_number)`, migration 0189). Traitement en statut terminal
+/// (`completed`/`discontinued`) → 409 invalid_status (#4308,
+/// QA-20260722-4) : un traitement terminé ne doit plus muter cliniquement,
+/// même garde que `lab_work_orders::is_forward_transition`.
 pub async fn add_orthodontic_step(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -335,7 +338,7 @@ pub async fn add_orthodontic_step(
         .map_err(|_| AppError::Internal)?;
 
     let treatment_row = sqlx::query(
-        "SELECT patient_id FROM orthodontic_treatment WHERE id = $1 AND cabinet_id = $2",
+        "SELECT patient_id, status FROM orthodontic_treatment WHERE id = $1 AND cabinet_id = $2",
     )
     .bind(treatment_id)
     .bind(claims.cabinet_id)
@@ -347,6 +350,15 @@ pub async fn add_orthodontic_step(
     let patient_id: Uuid = treatment_row
         .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
+    let treatment_status: String = treatment_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+
+    // #4308 : completed/discontinued sont des statuts terminaux — un
+    // traitement clos ne doit plus recevoir de nouvelle étape clinique.
+    if treatment_status == "completed" || treatment_status == "discontinued" {
+        return Err(AppError::InvalidStatus);
+    }
 
     ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
 
