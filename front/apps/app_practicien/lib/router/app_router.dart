@@ -24,6 +24,8 @@ import '../features/cabinet/cabinet_info_page.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/register/pro_register_page.dart';
 import '../features/consultation_clinique/consultation_clinique_bloc.dart';
+import '../features/lab_work/lab_work_orders_bloc.dart';
+import '../features/lab_work/lab_work_orders_page.dart';
 import '../features/stock/stock_bloc.dart';
 import '../features/stock/stock_inventory_bloc.dart';
 import '../features/stock/stock_inventory_page.dart';
@@ -48,6 +50,7 @@ class AppRouter {
   static const devis = '/devis';
   static const stock = '/stock';
   static const stockInventory = '/stock-inventory';
+  static const labWorkOrders = '/lab-work-orders';
   static const a2uiDemo = '/a2ui-demo';
   static const registerPro = '/register-pro';
   static const cabinetSetup = '/cabinet-setup';
@@ -193,6 +196,13 @@ class AppRouter {
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<StockInventoryBloc>(),
             child: const StockInventoryPage(),
+          ),
+        ),
+        GoRoute(
+          path: labWorkOrders,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<LabWorkOrdersBloc>(),
+            child: const LabWorkOrdersPage(),
           ),
         ),
         GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),
