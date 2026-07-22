@@ -133,6 +133,49 @@ fn validate_tooth_value(value: &Value) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Vérifie que le patient appartient au cabinet (404 sinon) et que le
+/// praticien appelant a eu au moins un `appointment` avec lui dans ce
+/// cabinet (403 sinon, RLS strict E.2.16.c — §14, accès schéma dentaire).
+/// Factorisé : dupliqué trois fois avant l'ajout de #4122 (GET/PUT/GET history).
+async fn ensure_care_relationship(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    patient_id: Uuid,
+    cabinet_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+           AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(user_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(())
+}
+
 // ── GET /v1/cabinet/patients/:id/dental-chart ─────────────────────────────────
 
 /// `GET /v1/cabinet/patients/:id/dental-chart` — odontogramme du patient.
@@ -155,38 +198,7 @@ pub async fn get_dental_chart(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le patient appartient au cabinet (RLS garantit le cloisonnement).
-    let patient_exists = sqlx::query(
-        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
-    )
-    .bind(patient_id)
-    .bind(claims.cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    if patient_exists.is_none() {
-        return Err(AppError::NotFound);
-    }
-
-    // RLS strict E.2.16.c : le praticien doit avoir eu au moins un appointment
-    // avec ce patient dans ce cabinet (§14 — accès schéma dentaire).
-    let has_appointment = sqlx::query(
-        "SELECT 1 FROM appointment a \
-         JOIN practitioner p ON p.id = a.practitioner_id \
-         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
-           AND p.user_id = $3 AND a.deleted_at IS NULL",
-    )
-    .bind(patient_id)
-    .bind(claims.cabinet_id)
-    .bind(claims.sub)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    if has_appointment.is_none() {
-        return Err(AppError::Forbidden);
-    }
+    ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
 
     let row = sqlx::query(
         "SELECT teeth_status, updated_at FROM dental_chart \
@@ -253,38 +265,7 @@ pub async fn put_dental_chart(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le patient appartient au cabinet (RLS garantit le cloisonnement).
-    let patient_exists = sqlx::query(
-        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
-    )
-    .bind(patient_id)
-    .bind(claims.cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    if patient_exists.is_none() {
-        return Err(AppError::NotFound);
-    }
-
-    // RLS strict E.2.16.c : le praticien doit avoir eu au moins un appointment
-    // avec ce patient dans ce cabinet (§14 — accès schéma dentaire).
-    let has_appointment = sqlx::query(
-        "SELECT 1 FROM appointment a \
-         JOIN practitioner p ON p.id = a.practitioner_id \
-         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
-           AND p.user_id = $3 AND a.deleted_at IS NULL",
-    )
-    .bind(patient_id)
-    .bind(claims.cabinet_id)
-    .bind(claims.sub)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
-    if has_appointment.is_none() {
-        return Err(AppError::Forbidden);
-    }
+    ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
 
     // #4121 : snapshot de l'état PRÉCÉDENT avant écrasement — seulement s'il
     // existait déjà une ligne (rien à historiser au tout premier PUT).
@@ -346,4 +327,123 @@ pub async fn put_dental_chart(
         teeth,
         updated_at: updated_at.to_rfc3339(),
     }))
+}
+
+// ── GET /v1/cabinet/patients/:id/dental-chart/history ─────────────────────────
+
+/// Query de `GET /v1/cabinet/patients/:id/dental-chart/history`.
+#[derive(Deserialize)]
+pub struct DentalChartHistoryQuery {
+    /// Date demandée (RFC3339) — requis, aucune valeur par défaut : sans
+    /// date, c'est `GET /dental-chart` (l'état courant) qu'il faut appeler.
+    pub at: String,
+}
+
+/// `GET /v1/cabinet/patients/:id/dental-chart/history?at=` — `teeth_status`
+/// le plus proche ANTÉRIEUR à `at` (#4122).
+///
+/// Praticien uniquement (R.4127-72) — secrétaire → 403.
+/// `cabinet_id` extrait du JWT (invariant tenancy). RLS `tenant_isolation`.
+/// `at` absent/invalide (non RFC3339) → 422.
+/// Patient inexistant ou hors tenant → 404.
+///
+/// Algorithme : `dental_chart_history.recorded_at` est l'instant où CETTE
+/// valeur a été remplacée (snapshot pris juste avant l'écrasement, #4121) —
+/// donc la ligne d'historique valide à `at` est celle dont `recorded_at` est
+/// le plus petit strictement supérieur à `at` (elle est restée en vigueur
+/// jusqu'à cet instant). Si aucune n'existe (aucun `PUT` postérieur à `at`),
+/// l'état courant de `dental_chart` est la réponse — à condition qu'il ait
+/// déjà été écrit avant `at` ; sinon (patient sans aucun dossier), 404.
+///
+/// Limite connue et documentée (pas un bug) : `dental_chart` n'a pas de
+/// colonne `created_at` — le système ne sait pas quand le tout premier état
+/// est apparu. Une requête pour une date antérieure à la plus ancienne
+/// transition connue renvoie donc quand même ce plus ancien état (au lieu
+/// d'un 404 "rien n'existait encore"), faute de pouvoir distinguer "aucune
+/// donnée" de "donnée jamais modifiée depuis". Non bloquant pour l'usage
+/// réel (consulter un état passé récent), mais à garder en tête pour des
+/// requêtes très antérieures à la création du dossier patient.
+pub async fn get_dental_chart_history_at(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(patient_id): Path<Uuid>,
+    axum::extract::Query(query): axum::extract::Query<DentalChartHistoryQuery>,
+) -> Result<Json<DentalChartResponse>, AppError> {
+    let at: chrono::DateTime<chrono::Utc> =
+        query.at.parse().map_err(|_| AppError::ValidationError)?;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
+
+    let history_row = sqlx::query(
+        "SELECT teeth_status, recorded_at FROM dental_chart_history \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND recorded_at > $3 \
+         ORDER BY recorded_at ASC LIMIT 1",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .bind(at)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let response = if let Some(row) = history_row {
+        let teeth: Value = row
+            .try_get("teeth_status")
+            .map_err(|_| AppError::Internal)?;
+        let recorded_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("recorded_at").map_err(|_| AppError::Internal)?;
+        DentalChartResponse {
+            teeth,
+            updated_at: recorded_at.to_rfc3339(),
+        }
+    } else {
+        let current_row = sqlx::query(
+            "SELECT teeth_status, updated_at FROM dental_chart \
+             WHERE patient_id = $1 AND cabinet_id = $2",
+        )
+        .bind(patient_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let Some(current_row) = current_row else {
+            return Err(AppError::NotFound);
+        };
+        let updated_at: chrono::DateTime<chrono::Utc> = current_row
+            .try_get("updated_at")
+            .map_err(|_| AppError::Internal)?;
+        if updated_at > at {
+            // Ne peut arriver structurellement (voir doc de fonction) sauf
+            // incohérence de données — traité comme "rien de connu à `at`".
+            return Err(AppError::NotFound);
+        }
+        let teeth: Value = current_row
+            .try_get("teeth_status")
+            .map_err(|_| AppError::Internal)?;
+        DentalChartResponse {
+            teeth,
+            updated_at: updated_at.to_rfc3339(),
+        }
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        patient_id = %patient_id,
+        at = %query.at,
+        "dental chart history read"
+    );
+
+    Ok(Json(response))
 }
