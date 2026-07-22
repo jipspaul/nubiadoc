@@ -1,7 +1,9 @@
-//! Tests d'intégration : POST /v1/cabinet/payments/manual (#4070)
+//! Tests d'intégration : POST /v1/cabinet/payments/manual (#4070, #4311)
 //!
 //! Encaissement manuel (espèces/chèque/virement) sans PaymentIntent
 //! Stripe/GoCardless : crée un `payment` `status='paid'` immédiat.
+//! #4311 : parité avec le chemin Stripe — devis `signed` requis, garde
+//! anti-sur-encaissement, idempotence via header `Idempotency-Key`.
 
 use axum::{
     body::Body,
@@ -61,8 +63,8 @@ struct Fixture {
     quote_id: Uuid,
 }
 
-/// Seed : cabinet + patient + devis `sent` (100.00 EUR).
-async fn seed(db: &PgPool) -> Fixture {
+/// Seed : cabinet + patient + devis au statut `status` (100.00 EUR).
+async fn seed(db: &PgPool, status: &str) -> Fixture {
     let cabinet_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
     let quote_id = Uuid::new_v4();
@@ -93,11 +95,12 @@ async fn seed(db: &PgPool) -> Fixture {
 
     sqlx::query(
         "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
-         VALUES ($1, $2, $3, 'sent', 100.00, 'EUR')",
+         VALUES ($1, $2, $3, $4, 100.00, 'EUR')",
     )
     .bind(quote_id)
     .bind(cabinet_id)
     .bind(patient_id)
+    .bind(status)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -139,6 +142,11 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .await
         .ok();
     tx.commit().await.ok();
+
+    sqlx::query("DELETE FROM idempotency_keys WHERE key LIKE 'test-cpm-%'")
+        .execute(db)
+        .await
+        .ok();
 }
 
 fn state_with(db: PgPool) -> AppState {
@@ -149,21 +157,23 @@ fn state_with(db: PgPool) -> AppState {
     }
 }
 
+/// `idem` est le header `Idempotency-Key` — `None` pour tester son absence.
 async fn create_manual(
     state: AppState,
     token: String,
+    idem: Option<&str>,
     body: serde_json::Value,
 ) -> (StatusCode, serde_json::Value) {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri("/v1/cabinet/payments/manual")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json");
+    if let Some(key) = idem {
+        builder = builder.header("Idempotency-Key", key);
+    }
     let response = app(state)
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/v1/cabinet/payments/manual")
-                .header("Authorization", format!("Bearer {token}"))
-                .header("Content-Type", "application/json")
-                .body(Body::from(body.to_string()))
-                .unwrap(),
-        )
+        .oneshot(builder.body(Body::from(body.to_string())).unwrap())
         .await
         .unwrap();
     let status = response.status();
@@ -174,7 +184,11 @@ async fn create_manual(
     (status, value)
 }
 
-// ── Test 1 : method='cash' -> paiement paid associé au bon devis/cabinet ────
+fn idem_key(test_name: &str) -> String {
+    format!("test-cpm-{test_name}-{}", Uuid::new_v4())
+}
+
+// ── Test 1 : method='cash', devis signed -> paiement paid associé au bon devis/cabinet ──
 
 #[tokio::test]
 async fn create_manual_payment_with_cash_creates_paid_payment() {
@@ -182,12 +196,14 @@ async fn create_manual_payment_with_cash_creates_paid_payment() {
         return;
     }
     let db = owner_pool().await;
-    let f = seed(&db).await;
+    let f = seed(&db, "signed").await;
     let user_id = Uuid::new_v4();
+    let key = idem_key("cash-happy");
 
     let (status, resp) = create_manual(
         state_with(app_pool().await),
         make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        Some(&key),
         json!({
             "patient_id": f.patient_id,
             "quote_id": f.quote_id,
@@ -237,13 +253,15 @@ async fn create_manual_payment_cross_tenant_patient_returns_404() {
         return;
     }
     let db = owner_pool().await;
-    let f = seed(&db).await;
+    let f = seed(&db, "signed").await;
     let other_cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
+    let key = idem_key("cross-tenant");
 
     let (status, _) = create_manual(
         state_with(app_pool().await),
         make_pro_jwt(user_id, other_cabinet_id, "secretary"),
+        Some(&key),
         json!({
             "patient_id": f.patient_id,
             "quote_id": f.quote_id,
@@ -274,12 +292,14 @@ async fn create_manual_payment_with_card_method_returns_422() {
         return;
     }
     let db = owner_pool().await;
-    let f = seed(&db).await;
+    let f = seed(&db, "signed").await;
     let user_id = Uuid::new_v4();
+    let key = idem_key("card-method");
 
     let (status, _) = create_manual(
         state_with(app_pool().await),
         make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        Some(&key),
         json!({
             "patient_id": f.patient_id,
             "quote_id": f.quote_id,
@@ -302,12 +322,14 @@ async fn create_manual_payment_with_zero_amount_returns_422() {
         return;
     }
     let db = owner_pool().await;
-    let f = seed(&db).await;
+    let f = seed(&db, "signed").await;
     let user_id = Uuid::new_v4();
+    let key = idem_key("zero-amount");
 
     let (status, _) = create_manual(
         state_with(app_pool().await),
         make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        Some(&key),
         json!({
             "patient_id": f.patient_id,
             "quote_id": f.quote_id,
@@ -322,7 +344,7 @@ async fn create_manual_payment_with_zero_amount_returns_422() {
     cleanup(&db, &f).await;
 }
 
-// ── Test 5 : token secretary -> 201 (autorisé), token patient -> 403 ────────
+// ── Test 5 : token practitioner -> 201 (autorisé) ────────────────────────────
 
 #[tokio::test]
 async fn create_manual_payment_with_practitioner_token_succeeds() {
@@ -330,12 +352,14 @@ async fn create_manual_payment_with_practitioner_token_succeeds() {
         return;
     }
     let db = owner_pool().await;
-    let f = seed(&db).await;
+    let f = seed(&db, "signed").await;
     let user_id = Uuid::new_v4();
+    let key = idem_key("practitioner-token");
 
     let (status, _) = create_manual(
         state_with(app_pool().await),
         make_pro_jwt(user_id, f.cabinet_id, "practitioner"),
+        Some(&key),
         json!({
             "patient_id": f.patient_id,
             "quote_id": f.quote_id,
@@ -346,6 +370,257 @@ async fn create_manual_payment_with_practitioner_token_succeeds() {
     .await;
 
     assert_eq!(status, StatusCode::CREATED);
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 6 : devis draft -> 409 invalid_status (#4311) ──────────────────────
+
+#[tokio::test]
+async fn create_manual_payment_on_draft_quote_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, "draft").await;
+    let user_id = Uuid::new_v4();
+    let key = idem_key("draft-quote");
+
+    let (status, resp) = create_manual(
+        state_with(app_pool().await),
+        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        Some(&key),
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 100000,
+            "method": "cash"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(resp["code"], "invalid_status");
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM payment WHERE quote_id = $1")
+        .bind(f.quote_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 0, "aucun paiement ne doit avoir été créé");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 7 : montant > reste dû -> 422 (#4311, anti-sur-encaissement) ───────
+
+#[tokio::test]
+async fn create_manual_payment_exceeding_remaining_due_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, "signed").await;
+    let user_id = Uuid::new_v4();
+    let key = idem_key("over-capture");
+
+    // Devis de 100.00 EUR (10000 cents) — tente d'encaisser 1000.00 EUR (20x).
+    let (status, resp) = create_manual(
+        state_with(app_pool().await),
+        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        Some(&key),
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 100000,
+            "method": "cash"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "resp={resp:?}");
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM payment WHERE quote_id = $1")
+        .bind(f.quote_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 0, "aucun paiement ne doit avoir été créé");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 8 : deuxième encaissement dépassant le reste dû -> 422 (cumul) ─────
+
+#[tokio::test]
+async fn create_manual_payment_second_call_exceeding_remaining_due_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, "signed").await;
+    let user_id = Uuid::new_v4();
+    let token = make_pro_jwt(user_id, f.cabinet_id, "secretary");
+
+    // Devis de 100.00 EUR : premier encaissement de 60.00 EUR (reste dû 40.00).
+    let (status1, _) = create_manual(
+        state_with(app_pool().await),
+        token.clone(),
+        Some(&idem_key("cumul-1")),
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 6000,
+            "method": "cash"
+        }),
+    )
+    .await;
+    assert_eq!(status1, StatusCode::CREATED);
+
+    // Deuxième encaissement de 60.00 EUR : dépasse le reste dû (40.00) même si
+    // chaque appel pris isolément est sous le total du devis.
+    let (status2, _) = create_manual(
+        state_with(app_pool().await),
+        token,
+        Some(&idem_key("cumul-2")),
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 6000,
+            "method": "cash"
+        }),
+    )
+    .await;
+    assert_eq!(status2, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM payment WHERE quote_id = $1")
+        .bind(f.quote_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 1, "seul le premier encaissement doit exister");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 9 : header Idempotency-Key absent -> 422 (#4311) ───────────────────
+
+#[tokio::test]
+async fn create_manual_payment_without_idempotency_key_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, "signed").await;
+    let user_id = Uuid::new_v4();
+
+    let (status, _) = create_manual(
+        state_with(app_pool().await),
+        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        None,
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 10000,
+            "method": "cash"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 10 : rejeu même clé + même requête -> même payment_id, pas de doublon (#4311) ──
+
+#[tokio::test]
+async fn create_manual_payment_replayed_with_same_key_is_idempotent() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, "signed").await;
+    let user_id = Uuid::new_v4();
+    let token = make_pro_jwt(user_id, f.cabinet_id, "secretary");
+    let key = idem_key("replay-same");
+    let body = json!({
+        "patient_id": f.patient_id,
+        "quote_id": f.quote_id,
+        "amount_cents": 10000,
+        "method": "cash"
+    });
+
+    let (status1, resp1) = create_manual(
+        state_with(app_pool().await),
+        token.clone(),
+        Some(&key),
+        body.clone(),
+    )
+    .await;
+    assert_eq!(status1, StatusCode::CREATED);
+    let payment_id1 = resp1["payment_id"].clone();
+
+    let (status2, resp2) =
+        create_manual(state_with(app_pool().await), token, Some(&key), body).await;
+    assert_eq!(status2, StatusCode::CREATED);
+    assert_eq!(
+        resp2["payment_id"], payment_id1,
+        "le rejeu doit renvoyer le même payment_id, pas en créer un nouveau"
+    );
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM payment WHERE quote_id = $1")
+        .bind(f.quote_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 1, "une seule ligne payment malgré les 2 appels");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 11 : même clé, requête différente -> 409 idempotency_key_conflict ──
+
+#[tokio::test]
+async fn create_manual_payment_same_key_different_amount_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, "signed").await;
+    let user_id = Uuid::new_v4();
+    let token = make_pro_jwt(user_id, f.cabinet_id, "secretary");
+    let key = idem_key("replay-conflict");
+
+    let (status1, _) = create_manual(
+        state_with(app_pool().await),
+        token.clone(),
+        Some(&key),
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 1000,
+            "method": "cash"
+        }),
+    )
+    .await;
+    assert_eq!(status1, StatusCode::CREATED);
+
+    // Même clé, montant différent — ne doit jamais renvoyer le paiement du 1er appel.
+    let (status2, resp2) = create_manual(
+        state_with(app_pool().await),
+        token,
+        Some(&key),
+        json!({
+            "patient_id": f.patient_id,
+            "quote_id": f.quote_id,
+            "amount_cents": 2000,
+            "method": "cash"
+        }),
+    )
+    .await;
+    assert_eq!(status2, StatusCode::CONFLICT);
+    assert_eq!(resp2["code"], "idempotency_key_conflict");
 
     cleanup(&db, &f).await;
 }
