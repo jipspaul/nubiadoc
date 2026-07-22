@@ -35,6 +35,7 @@ import '../remote/consultation/consultation_api.dart';
 import '../remote/cr_templates/cr_template_api.dart';
 import '../remote/dashboard/dashboard_api.dart';
 import '../remote/documents/document_api.dart';
+import '../remote/patient_treatment_plans/patient_treatment_plans_api.dart';
 import '../remote/implant_passport/implant_passport_api.dart';
 import '../remote/members/members_api.dart';
 import '../remote/messaging/messaging_api.dart';
@@ -87,6 +88,7 @@ import '../repositories/consultation_repository_impl.dart';
 import '../repositories/cr_template_repository_impl.dart';
 import '../repositories/dashboard_repository_impl.dart';
 import '../repositories/document_repository_impl.dart';
+import '../repositories/patient_treatment_plans_repository_impl.dart';
 import '../repositories/members_repository_impl.dart';
 import '../repositories/message_repository_impl.dart';
 import '../repositories/notification_repository_impl.dart';
@@ -149,6 +151,9 @@ void registerData(
     ..registerLazySingleton<BillingApi>(() => BillingApi(gi()))
     ..registerLazySingleton<DashboardApi>(() => DashboardApi(gi()))
     ..registerLazySingleton<DocumentApi>(() => DocumentApi(gi()))
+    ..registerLazySingleton<PatientTreatmentPlansApi>(
+      () => PatientTreatmentPlansApi(gi()),
+    )
     ..registerLazySingleton<ImplantPassportApi>(() => ImplantPassportApi(gi()))
     ..registerLazySingleton<MessagingApi>(() => MessagingApi(gi()))
     ..registerLazySingleton<NotificationApi>(() => NotificationApi(gi()))
@@ -191,6 +196,9 @@ void registerData(
     )
     ..registerLazySingleton<DocumentRepository>(
       () => DocumentRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PatientTreatmentPlansRepository>(
+      () => PatientTreatmentPlansRepositoryImpl(gi()),
     )
     ..registerLazySingleton<ImplantPassportRepository>(
       () => ImplantPassportRepositoryImpl(gi()),
@@ -415,6 +423,9 @@ void _registerUseCases(GetIt gi) {
     // documents
     ..registerFactory(() => GetDocumentSignedUrlUseCase(gi()))
     ..registerFactory(() => GetDocumentsUseCase(gi()))
+    // treatment plans (patient)
+    ..registerFactory(() => ListPatientTreatmentPlansUseCase(gi()))
+    ..registerFactory(() => GetPatientTreatmentPlanUseCase(gi()))
     ..registerFactory(() => UploadDocumentUseCase(gi()))
     // implant passport
     ..registerFactory(() => ListImplantPassportUseCase(gi()))

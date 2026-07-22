@@ -27,6 +27,7 @@ import '../features/referring_doctor/referring_doctor_cubit.dart';
 import '../features/referring_doctor/referring_doctor_search_cubit.dart';
 import '../features/pharmacy_orders/orders_bloc.dart';
 import '../features/pharmacy_orders/send_prescription_cubit.dart';
+import '../features/treatment_plans/treatment_plans_bloc.dart';
 import '../features/profile/profile_bloc.dart';
 import '../features/reviews/reviews_bloc.dart';
 import 'auth_cubit.dart';
@@ -65,6 +66,18 @@ void registerPatient(GetIt gi) {
       watch: gi<WatchPatientPharmacyOrderUseCase>(),
       pickupToken: gi<GetPickupTokenUseCase>(),
       cancel: gi<CancelPharmacyOrderUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<PatientTreatmentPlansBloc>(
+    () => PatientTreatmentPlansBloc(
+      list: gi<ListPatientTreatmentPlansUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<PatientTreatmentPlanDetailCubit>(
+    () => PatientTreatmentPlanDetailCubit(
+      get: gi<GetPatientTreatmentPlanUseCase>(),
     ),
   );
 
