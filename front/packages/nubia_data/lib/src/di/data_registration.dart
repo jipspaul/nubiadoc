@@ -17,6 +17,7 @@ import '../remote/cabinet_dashboard/cabinet_dashboard_api.dart';
 import '../remote/cabinet_messaging/cabinet_messaging_api.dart';
 import '../remote/cabinet_patients/cabinet_patients_api.dart';
 import '../remote/patient_tags/patient_tags_api.dart';
+import '../remote/patient_alerts/patient_alerts_api.dart';
 import '../remote/patient_documents/patient_documents_api.dart';
 import '../remote/orthodontics/orthodontics_api.dart';
 import '../remote/sterilization/sterilization_api.dart';
@@ -67,6 +68,7 @@ import '../repositories/cabinet_dashboard_repository_impl.dart';
 import '../repositories/cabinet_message_repository_impl.dart';
 import '../repositories/cabinet_patients_repository_impl.dart';
 import '../repositories/patient_tags_repository_impl.dart';
+import '../repositories/patient_alerts_repository_impl.dart';
 import '../repositories/patient_documents_repository_impl.dart';
 import '../repositories/implant_passport_repository_impl.dart';
 import '../repositories/orthodontics_repository_impl.dart';
@@ -490,6 +492,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<PatientTagsApi>(
       () => PatientTagsApi(gi()),
     )
+    ..registerLazySingleton<PatientAlertsApi>(
+      () => PatientAlertsApi(gi()),
+    )
     ..registerLazySingleton<AppointmentMotifsApi>(
       () => AppointmentMotifsApi(gi()),
     )
@@ -568,6 +573,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     )
     ..registerLazySingleton<PatientTagsRepository>(
       () => PatientTagsRepositoryImpl(gi()),
+    )
+    ..registerLazySingleton<PatientAlertsRepository>(
+      () => PatientAlertsRepositoryImpl(gi()),
     )
     ..registerLazySingleton<AppointmentMotifsRepository>(
       () => AppointmentMotifsRepositoryImpl(gi()),
@@ -653,6 +661,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListCabinetPatientsUseCase(gi()))
     ..registerFactory(() => CreateCabinetPatientUseCase(gi()))
     ..registerFactory(() => ListPatientTagsUseCase(gi()))
+    ..registerFactory(() => ListPatientAlertsUseCase(gi()))
     ..registerFactory(() => CreatePatientTagUseCase(gi()))
     ..registerFactory(() => DeletePatientTagUseCase(gi()))
     ..registerFactory(() => ListAppointmentMotifsUseCase(gi()))

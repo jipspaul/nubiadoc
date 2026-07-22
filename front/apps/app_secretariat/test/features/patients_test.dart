@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -18,6 +19,8 @@ class _MockCabinetPatientsRepository extends Mock
 
 class _MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
     implements PatientsBloc {}
+
+class _MockListPatientAlerts extends Mock implements ListPatientAlertsUseCase {}
 
 void main() {
   // --- Cloisonnement invariant --------------------------------------------------
@@ -242,6 +245,15 @@ void main() {
 
     setUp(() {
       bloc = _MockPatientsBloc();
+      // PatientAlertBadge (#4093/#4094) fetch son propre use case via GetIt,
+      // indépendamment du PatientsBloc mocké ci-dessus — sans ça, chaque
+      // ligne lève un GetIt StateError au premier build.
+      final listAlerts = _MockListPatientAlerts();
+      when(() => listAlerts(any())).thenAnswer((_) async => const Right([]));
+      GetIt.instance.registerFactory<ListPatientAlertsUseCase>(
+        () => listAlerts,
+      );
+      addTearDown(GetIt.instance.reset);
     });
 
     Widget buildPage() => MaterialApp(
