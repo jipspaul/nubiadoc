@@ -191,6 +191,10 @@ pub(crate) enum AppError {
     /// step_number)`, migration 0189) — même choix que
     /// `FavoriteActAlreadyExists`, pas de violation brute en 500.
     StepNumberTaken,
+    /// `POST /v1/cabinet/sterilization-cycles/:id/pouches` (#4139) : `code`
+    /// déjà scanné dans ce cabinet (index unique `(cabinet_id, code)`,
+    /// migration 0191) — même choix que `StepNumberTaken`.
+    PouchCodeAlreadyUsed,
     /// `POST /v1/cabinet/consultations/:id/acts` (#4117) : le code CCAM
     /// soumis figure dans `ccam_act_incompatibility` avec un acte déjà
     /// présent dans la séance — `422` (erreur de saisie côté praticien,
@@ -413,6 +417,11 @@ impl IntoResponse for AppError {
             AppError::StepNumberTaken => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "step_number_taken"})),
+            )
+                .into_response(),
+            AppError::PouchCodeAlreadyUsed => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "pouch_code_already_used"})),
             )
                 .into_response(),
             AppError::IncompatibleActs(reason) => (
