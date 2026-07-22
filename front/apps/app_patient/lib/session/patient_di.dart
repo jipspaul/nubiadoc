@@ -6,6 +6,7 @@ import '../features/account_setup/account_setup_cubit.dart';
 import '../features/coverage_setup/coverage_setup_cubit.dart';
 import '../features/dependents/dependents_cubit.dart';
 import '../features/consents/consents_cubit.dart';
+import '../features/implant_passport/implant_passport_cubit.dart';
 import '../features/notification_prefs/notification_prefs_cubit.dart';
 import '../features/appointments/appointments_bloc.dart';
 import '../features/dashboard/dashboard_bloc.dart';
@@ -161,6 +162,13 @@ void registerPatient(GetIt gi) {
     () => ConsentsCubit(
       list: gi<ListConsentsUseCase>(),
       set: gi<SetConsentUseCase>(),
+    ),
+  );
+
+  gi.registerFactory<ImplantPassportCubit>(
+    () => ImplantPassportCubit(
+      list: gi<ListImplantPassportUseCase>(),
+      export: gi<ExportImplantPassportUseCase>(),
     ),
   );
 

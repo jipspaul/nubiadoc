@@ -47,6 +47,7 @@ import '../features/pharmacy_orders/send_prescription_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/dependents/dependents_page.dart';
 import '../features/consents/consents_page.dart';
+import '../features/implant_passport/implant_passport_page.dart';
 import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/messaging/messaging_event.dart';
@@ -78,6 +79,7 @@ class AppRouter {
   static const profileConsents = '/profile/consents';
   static const profileNotifications = '/profile/notifications';
   static const profileReferringDoctor = '/profile/referring-doctor';
+  static const implantPassport = '/implant-passport';
   static const messaging = '/messaging';
   static const reviews = '/reviews';
   static const notifications = '/notifications';
@@ -256,6 +258,10 @@ class AppRouter {
         GoRoute(
           path: profileConsents,
           builder: (_, __) => const ConsentsPage(),
+        ),
+        GoRoute(
+          path: implantPassport,
+          builder: (_, __) => const ImplantPassportPage(),
         ),
         GoRoute(
           path: profileNotifications,
