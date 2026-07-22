@@ -186,6 +186,13 @@ pub(crate) enum AppError {
     /// a bien `UNIQUE (practitioner_id, ccam_code)` mais l'app évite de
     /// laisser remonter une violation de contrainte brute en 500).
     FavoriteActAlreadyExists,
+    /// `POST /v1/cabinet/consultations/:id/acts` (#4117) : le code CCAM
+    /// soumis figure dans `ccam_act_incompatibility` avec un acte déjà
+    /// présent dans la séance — `422` (erreur de saisie côté praticien,
+    /// pas un conflit d'état comme `ClinicalRiskWarning` qui, lui, reste
+    /// franchissable après revue clinique ; un cumul interdit n'a pas
+    /// d'exception). Le `String` porte le motif (`ccam_act_incompatibility.reason`).
+    IncompatibleActs(String),
 }
 
 impl IntoResponse for AppError {
@@ -396,6 +403,11 @@ impl IntoResponse for AppError {
             AppError::FavoriteActAlreadyExists => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "favorite_act_already_exists"})),
+            )
+                .into_response(),
+            AppError::IncompatibleActs(reason) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "incompatible_acts", "reason": reason})),
             )
                 .into_response(),
         }
