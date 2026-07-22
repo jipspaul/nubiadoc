@@ -32,6 +32,7 @@ mod bookings;
 mod brevo_mailer;
 mod cabinet_cash_register;
 mod cabinet_conversation_convert;
+mod cabinet_document_download;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_payments_manual;
