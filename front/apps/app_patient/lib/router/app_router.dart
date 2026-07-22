@@ -15,6 +15,8 @@ import '../features/financial/financial_bloc.dart';
 import '../features/financial/financial_event.dart';
 import '../features/financial/financial_page.dart';
 import '../features/documents/documents_page.dart';
+import '../features/treatment_plans/treatment_plan_detail_page.dart';
+import '../features/treatment_plans/treatment_plans_page.dart';
 import '../features/account_setup/account_setup_cubit.dart';
 import '../features/account_setup/account_setup_page.dart';
 import '../features/coverage_setup/coverage_setup_cubit.dart';
@@ -74,6 +76,7 @@ class AppRouter {
   static const mesRdv = '/mes-rdv';
   static const documents = '/documents';
   static const financial = '/financial';
+  static const treatmentPlans = '/treatment-plans';
   static const profile = '/profile';
   static const profileDependents = '/profile/dependents';
   static const profileConsents = '/profile/consents';
@@ -197,6 +200,16 @@ class AppRouter {
           path: '/pharmacy/orders/:id',
           builder: (_, state) =>
               PatientOrderDetailPage(orderId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: treatmentPlans,
+          builder: (_, __) => const PatientTreatmentPlansPage(),
+        ),
+        GoRoute(
+          path: '$treatmentPlans/:id',
+          builder: (_, state) => PatientTreatmentPlanDetailPage(
+            planId: state.pathParameters['id']!,
+          ),
         ),
         if (kDebugMode)
           GoRoute(path: a2uiDemo, builder: (_, __) => const A2uiDemoPage()),

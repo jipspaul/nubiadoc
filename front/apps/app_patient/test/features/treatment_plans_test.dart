@@ -1,0 +1,132 @@
+//! Tests widget : `PatientTreatmentPlansBody`/`PatientTreatmentPlanDetailBody`
+//! (#4261) — liste (avec/vide) et détail (phases + actes). Golden test
+//! indisponible dans ce monorepo (aucune infra golden_toolkit/goldens/
+//! n'existe ailleurs) — substitué par ces tests widget standard.
+//!
+//! `MockBloc`/`MockCubit` (état fixé directement) — pas de `bloc.close()`
+//! sur un Bloc/Cubit injecté via `BlocProvider.value` dans un test widget
+//! (piège documenté dans `stock_inventory_test.dart`, app_practicien —
+//! `.value` ne prend pas possession du cycle de vie, un `close()` explicite
+//! y bloque indéfiniment).
+
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:nubia_domain/nubia_domain.dart';
+import 'package:nubia_test_harness/nubia_test_harness.dart';
+
+import 'package:app_patient/features/treatment_plans/treatment_plan_detail_page.dart';
+import 'package:app_patient/features/treatment_plans/treatment_plans_bloc.dart';
+import 'package:app_patient/features/treatment_plans/treatment_plans_page.dart';
+
+class MockPatientTreatmentPlansBloc
+    extends MockBloc<PatientTreatmentPlansEvent, PatientTreatmentPlansState>
+    implements PatientTreatmentPlansBloc {}
+
+class MockPatientTreatmentPlanDetailCubit
+    extends MockCubit<PatientTreatmentPlanDetailState>
+    implements PatientTreatmentPlanDetailCubit {}
+
+const _plan = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+);
+
+const _planDetail = PatientTreatmentPlan(
+  id: 'plan-1',
+  title: 'Réhabilitation implantaire',
+  status: 'in_progress',
+  totalCostCents: 206000,
+  remainingCents: 61800,
+  amoPartCents: 40000,
+  amcPartCents: 104200,
+  phases: [
+    PatientTreatmentPlanPhase(
+      id: 'phase-1',
+      position: 1,
+      title: 'Phase 1 · Extraction',
+      status: 'done',
+      items: [
+        PatientTreatmentPlanItem(
+          label: 'Extraction 26',
+          ccamCode: 'HBGD036',
+          unitAmountCents: 8000,
+          amoPartCents: 5600,
+          amcPartCents: 2400,
+        ),
+      ],
+    ),
+    PatientTreatmentPlanPhase(
+      id: 'phase-2',
+      position: 2,
+      title: 'Phase 2 · Implant',
+      status: 'requested',
+    ),
+  ],
+);
+
+void main() {
+  group('PatientTreatmentPlansBody (liste)', () {
+    testWidgets('liste avec plans — affiche une ligne par plan',
+        (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state)
+          .thenReturn(const PatientTreatmentPlansLoaded([_plan]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('treatment_plans_loaded')), findsOneWidget);
+      expect(find.byKey(const Key('treatment_plan_plan-1')), findsOneWidget);
+      expect(find.text('Réhabilitation implantaire'), findsOneWidget);
+    });
+
+    testWidgets('liste vide — état vide affiché', (tester) async {
+      final bloc = MockPatientTreatmentPlansBloc();
+      when(() => bloc.state).thenReturn(const PatientTreatmentPlansLoaded([]));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlansBloc>.value(
+          value: bloc,
+          child: const PatientTreatmentPlansBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('treatment_plans_empty')), findsOneWidget);
+    });
+  });
+
+  group('PatientTreatmentPlanDetailBody (détail)', () {
+    testWidgets('affiche les phases avec leurs actes et le coût total',
+        (tester) async {
+      final cubit = MockPatientTreatmentPlanDetailCubit();
+      when(() => cubit.state)
+          .thenReturn(const PatientTreatmentPlanDetailLoaded(_planDetail));
+
+      await tester.pumpApp(
+        BlocProvider<PatientTreatmentPlanDetailCubit>.value(
+          value: cubit,
+          child: const PatientTreatmentPlanDetailBody(),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('treatment_plan_detail_loaded')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('treatment_plan_phase_phase-1')),
+          findsOneWidget);
+      expect(find.byKey(const Key('treatment_plan_phase_phase-2')),
+          findsOneWidget);
+      expect(find.text('Extraction 26'), findsOneWidget);
+      expect(find.text('2 060 €'), findsOneWidget);
+    });
+  });
+}
