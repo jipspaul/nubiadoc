@@ -3,7 +3,9 @@
 
 use axum::{routing::get, Router};
 
-use crate::{auth, devices, implant_passport, notifications, reminders, AppState};
+use crate::{
+    auth, devices, implant_passport, notifications, recall_campaigns, reminders, AppState,
+};
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
     router
@@ -44,4 +46,8 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             axum::routing::post(notifications::mark_notification_read),
         )
         .route("/v1/reminders", get(reminders::list_reminders))
+        .route(
+            "/v1/cabinet/recall-campaigns",
+            axum::routing::post(recall_campaigns::create_recall_campaign),
+        )
 }
