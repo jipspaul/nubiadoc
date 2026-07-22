@@ -5,12 +5,25 @@
 # Construire & charger dans le runner DinD : ./ci/db/load-into-runner.sh
 # (image locale, force_pull: false côté runner — comme flutter-ci / rust-ci).
 
-# Plateforme fixée à amd64 : runners Forgejo amd64 + image PostGIS amd64 (cohérence
-# d'architecture entre l'étape de build sqlx et l'image finale ; cf. notes ci-dessous).
+# Plateforme fixée à amd64 pour l'image FINALE : runners Forgejo amd64 + image
+# PostGIS amd64. L'étape de build sqlx, elle, tourne en natif (arch de la
+# machine qui build) et CROSS-compile vers x86_64 — ne PAS forcer
+# --platform=linux/amd64 dessus : exécuter un rustc amd64 sous émulation QEMU
+# sur un host arm64 (ex. Mac Apple Silicon) segfault de façon fiable (rustc -vV
+# seul crash déjà, SIGSEGV côté QEMU) — cargo install compile du code, la vraie
+# cross-compilation (host natif + target x86_64-unknown-linux-gnu + linker
+# croisé) l'évite entièrement puisque rustc tourne en natif et ne produit QUE
+# le binaire final en x86_64, jamais exécuté pendant le build.
 #
-# --- étape build : sqlx-cli (même arch + même glibc bullseye que l'image finale) ---
-FROM --platform=linux/amd64 rust:1-bullseye AS sqlx
-RUN cargo install sqlx-cli --version ^0.8 --no-default-features --features postgres,rustls --root /out
+# --- étape build : sqlx-cli, cross-compilé vers x86_64 (host natif, pas de QEMU) ---
+FROM rust:1-bullseye AS sqlx
+RUN rustup target add x86_64-unknown-linux-gnu \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends gcc-x86-64-linux-gnu libc6-dev-amd64-cross \
+ && rm -rf /var/lib/apt/lists/*
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc
+RUN cargo install sqlx-cli --version ^0.8 --no-default-features --features postgres,rustls \
+      --target x86_64-unknown-linux-gnu --root /out
 
 # --- image finale : PostGIS 16 + outils de test ---
 FROM --platform=linux/amd64 postgis/postgis:16-3.4
@@ -22,4 +35,7 @@ RUN apt-get update \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=sqlx /out/bin/sqlx /usr/local/bin/sqlx
-RUN sqlx --version && pg_prove --version && make --version | head -1
+# Pas de `sqlx --version` ici : exécuter le binaire x86_64 croisé pendant un
+# build fait sous QEMU (host arm64) est le même piège que ci-dessus. Il tourne
+# bien en prod : le runner Forgejo est un vrai amd64, aucune émulation là-bas.
+RUN pg_prove --version && make --version | head -1
