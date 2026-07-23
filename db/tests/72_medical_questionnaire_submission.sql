@@ -12,7 +12,7 @@
 -- Issue : #4107
 
 BEGIN;
-SELECT plan(7);
+SELECT plan(9);
 
 -- ===========================================================================
 -- Fixtures : 2 comptes patient (A, B) + 1 cabinet.
@@ -106,6 +106,52 @@ SELECT is(
    WHERE id = '41070000-0000-0000-0000-000000000010'),
   0,
   '⭐ MQ6 medical_questionnaire_submission_cabinet_read : fail-closed sans GUC cabinet');
+
+-- ===========================================================================
+-- MQ8. #4356/#4350 : le cabinet peut passer une soumission 'submitted' à
+-- 'reviewed' (policy _cabinet_review, migration 0199 — l'UPDATE ne
+-- matchait auparavant aucune policy, RowNotFound -> 500 applicatif).
+-- ===========================================================================
+SET LOCAL app.current_cabinet_id = '41070000-0000-0000-0000-000000000c01';
+UPDATE medical_questionnaire_submission
+  SET status = 'reviewed'
+  WHERE id = '41070000-0000-0000-0000-000000000010';
+SELECT is(
+  (SELECT status FROM medical_questionnaire_submission
+   WHERE id = '41070000-0000-0000-0000-000000000010'),
+  'reviewed',
+  '⭐ MQ8 medical_questionnaire_submission_cabinet_review : le cabinet passe submitted -> reviewed');
+RESET app.current_cabinet_id;
+
+-- ===========================================================================
+-- MQ9. Le cabinet NE PEUT PAS toucher un brouillon (status='draft') via
+-- cette policy — même garde-fou que l'application (défense en profondeur).
+-- ===========================================================================
+SET LOCAL app.patient_account_id = '41070000-0000-0000-0000-0000000000e1';
+INSERT INTO medical_questionnaire_submission (id, cabinet_id, patient_account_id, payload) VALUES
+  ('41070000-0000-0000-0000-000000000011',
+   '41070000-0000-0000-0000-000000000c01',
+   '41070000-0000-0000-0000-0000000000e1',
+   '{}'::jsonb);
+RESET app.patient_account_id;
+
+SET LOCAL app.current_cabinet_id = '41070000-0000-0000-0000-000000000c01';
+UPDATE medical_questionnaire_submission
+  SET status = 'reviewed'
+  WHERE id = '41070000-0000-0000-0000-000000000011';
+RESET app.current_cabinet_id;
+
+-- Vérifie via le patient (seul rôle qui voit ses propres brouillons) que le
+-- statut n'a PAS bougé : la policy _cabinet_read masque déjà les brouillons
+-- côté cabinet, donc une relecture sous app.current_cabinet_id donnerait 0
+-- ligne dans tous les cas (bloqué ou pas) — pas une preuve suffisante.
+SET LOCAL app.patient_account_id = '41070000-0000-0000-0000-0000000000e1';
+SELECT is(
+  (SELECT status FROM medical_questionnaire_submission
+   WHERE id = '41070000-0000-0000-0000-000000000011'),
+  'draft',
+  '⭐ MQ9 medical_questionnaire_submission_cabinet_review : brouillon inchangé, RLS bloque l''UPDATE cabinet');
+RESET app.patient_account_id;
 
 -- ===========================================================================
 -- MQ7. CHECK submitted_at : 'submitted' sans submitted_at refusé.
