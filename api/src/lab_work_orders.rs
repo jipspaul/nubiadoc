@@ -136,6 +136,10 @@ pub struct CreateLabWorkOrderResponse {
 /// `appointment_id` si fournis) doivent exister dans ce cabinet → 404 sinon
 /// (FK composite (id, cabinet_id), migration 0193 — pré-vérifié pour ne pas
 /// laisser remonter la contrainte en 500, cf. précédent `sterilization.rs`).
+/// `quote_item_id`/`appointment_id` doivent en plus appartenir au **même**
+/// `patient_id` que le bon → 404 sinon (#4353 — seul `cabinet_id` était
+/// contrôlé, un RDV/devis d'un AUTRE patient du cabinet était accepté et
+/// corrompait la traçabilité patient↔prothèse).
 pub async fn create_lab_work_order(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -163,25 +167,39 @@ pub async fn create_lab_work_order(
         return Err(AppError::NotFound);
     }
 
+    // #4353 : quote_item n'a pas de patient_id direct (lien via quote_id ->
+    // quote.patient_id) - jointure pour verifier que le devis appartient bien
+    // au patient du bon, pas seulement au cabinet.
     if let Some(quote_item_id) = body.quote_item_id {
-        let exists = sqlx::query("SELECT 1 FROM quote_item WHERE id = $1 AND cabinet_id = $2")
-            .bind(quote_item_id)
-            .bind(claims.cabinet_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+        let exists = sqlx::query(
+            "SELECT 1 FROM quote_item qi \
+             JOIN quote q ON q.id = qi.quote_id \
+             WHERE qi.id = $1 AND qi.cabinet_id = $2 AND q.patient_id = $3",
+        )
+        .bind(quote_item_id)
+        .bind(claims.cabinet_id)
+        .bind(body.patient_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
         if exists.is_none() {
             return Err(AppError::NotFound);
         }
     }
 
+    // #4353 : un appointment_id d'un AUTRE patient du meme cabinet passait la
+    // pre-verification (seul cabinet_id etait controle) - le bon persistait
+    // avec un couple (patient A, RDV de B) incoherent, sans erreur.
     if let Some(appointment_id) = body.appointment_id {
-        let exists = sqlx::query("SELECT 1 FROM appointment WHERE id = $1 AND cabinet_id = $2")
-            .bind(appointment_id)
-            .bind(claims.cabinet_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+        let exists = sqlx::query(
+            "SELECT 1 FROM appointment WHERE id = $1 AND cabinet_id = $2 AND patient_id = $3",
+        )
+        .bind(appointment_id)
+        .bind(claims.cabinet_id)
+        .bind(body.patient_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
         if exists.is_none() {
             return Err(AppError::NotFound);
         }
