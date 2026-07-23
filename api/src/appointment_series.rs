@@ -75,6 +75,11 @@ fn is_exclusion_violation(e: &sqlx::Error) -> bool {
 /// `scheduling.rs` et `create_booking` `bookings.rs`, qui gardent déjà le
 /// futur ; la série laissait passer des occurrences entièrement révolues).
 /// Patient ou praticien hors cabinet → 404.
+/// Toute occurrence chevauchant une indisponibilité praticien
+/// (`availability_slot.status='blocked'`) → 409 `slot_taken` (#4344 —
+/// parité avec `create_cabinet_appointment` `scheduling.rs`, qui exige un
+/// slot `status='open'` ; `appointment_no_overlap` ne connaît que les
+/// `appointment` entre eux, pas les `availability_slot`).
 /// Toute occurrence en conflit (23P01, `appointment_no_overlap`) → 409
 /// `slot_taken`, la transaction entière est abandonnée (aucun RDV créé).
 pub async fn create_appointment_series(
@@ -133,6 +138,29 @@ pub async fn create_appointment_series(
 
     for (i, occ) in occurrences.iter().enumerate() {
         let recurrence_index = (i + 1) as i32;
+
+        // #4344 : une occurrence ne doit pas chevaucher une indisponibilité
+        // praticien (availability_slot.status='blocked'), au meme titre que
+        // create_cabinet_appointment (scheduling.rs) qui exige un slot
+        // status='open'. appointment_no_overlap (EXCLUDE) ne connait que les
+        // appointment entre eux, pas les availability_slot.
+        let blocked = sqlx::query(
+            "SELECT 1 FROM availability_slot \
+             WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'blocked' \
+               AND deleted_at IS NULL \
+               AND tstzrange(starts_at, ends_at) && tstzrange($3, $4)",
+        )
+        .bind(claims.cabinet_id)
+        .bind(body.practitioner_id)
+        .bind(occ.starts_at)
+        .bind(occ.ends_at)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        if blocked.is_some() {
+            return Err(AppError::SlotTaken);
+        }
+
         let result = sqlx::query(
             "INSERT INTO appointment \
              (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, \
