@@ -420,3 +420,102 @@ async fn create_series_past_occurrence_returns_422_start_at_not_future() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+/// #4344 : une occurrence chevauchant une indisponibilité praticien
+/// (`availability_slot.status='blocked'`) → 409 `slot_taken`, aucun RDV créé.
+#[tokio::test]
+async fn create_series_overlapping_blocked_slot_returns_409_slot_taken() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixture(&db, "blocked").await;
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, NULL, $2, $3, '2027-09-09T14:00:00Z', '2027-09-09T15:00:00Z', 'blocked')",
+        )
+        .bind(Uuid::new_v4())
+        .bind(f.cabinet_id)
+        .bind(f.practitioner_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/appointments/series")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), f.cabinet_id, "secretary")
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "practitioner_id": f.practitioner_id,
+                        "patient_id": f.patient_id,
+                        "motif": "QA-overlap-blocked",
+                        "occurrences": [
+                            {"starts_at": "2027-09-09T14:15:00Z", "ends_at": "2027-09-09T14:45:00Z"}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "slot_taken");
+
+    let db_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM appointment WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(db_count, 0, "aucun RDV créé sur l'indisponibilité");
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.unwrap();
+    }
+
+    cleanup_fixture(&db, &f).await;
+}
