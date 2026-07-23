@@ -1,7 +1,8 @@
 //! Handlers traçabilité stérilisation (#4138), sur `sterilization_cycle`/
 //! `sterilized_pouch` (migration 0190, #4137) :
 //! - `GET/POST /v1/cabinet/sterilization-cycles`
-//! - `POST /v1/cabinet/sterilization-cycles/:id/pouches`
+//! - `GET/POST /v1/cabinet/sterilization-cycles/:id/pouches` (#4354 : le GET
+//!   manquait — la traçabilité était write-only, jamais relisible)
 //!
 //! `ProSecretaryPlusClaims` (secretary/practitioner/admin/manager) : la
 //! traçabilité de stérilisation est une tâche opérationnelle du cabinet,
@@ -269,4 +270,72 @@ pub async fn add_sterilized_pouch(
     );
 
     Ok((StatusCode::CREATED, Json(AddPouchResponse { pouch_id })))
+}
+
+// ── GET /v1/cabinet/sterilization-cycles/:id/pouches ─────────────────────────
+
+/// Une pochette stérilisée scannée.
+#[derive(Serialize)]
+pub struct SterilizedPouchDto {
+    pub id: Uuid,
+    pub code: String,
+    pub consultation_act_id: Option<Uuid>,
+}
+
+/// `GET /v1/cabinet/sterilization-cycles/:id/pouches` — liste les pochettes
+/// scannées pour un cycle (#4354 : la donnée était write-only, aucun
+/// endpoint ne la relisait, contrairement au but même du registre —
+/// traçabilité lot ↔ patient ↔ acte, migration 0190).
+///
+/// Cycle inexistant/hors tenant → 404.
+pub async fn list_sterilized_pouches(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(cycle_id): Path<Uuid>,
+) -> Result<Json<Vec<SterilizedPouchDto>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let cycle_exists =
+        sqlx::query("SELECT 1 FROM sterilization_cycle WHERE id = $1 AND cabinet_id = $2")
+            .bind(cycle_id)
+            .bind(claims.cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    if cycle_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let rows = sqlx::query(
+        "SELECT id, code, consultation_act_id FROM sterilized_pouch \
+         WHERE cycle_id = $1 AND cabinet_id = $2 ORDER BY code",
+    )
+    .bind(cycle_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let pouches = rows
+        .into_iter()
+        .map(|row| {
+            Ok(SterilizedPouchDto {
+                id: row.try_get("id").map_err(|_| AppError::Internal)?,
+                code: row.try_get("code").map_err(|_| AppError::Internal)?,
+                consultation_act_id: row
+                    .try_get("consultation_act_id")
+                    .map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(pouches))
 }

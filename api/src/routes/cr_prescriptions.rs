@@ -17,7 +17,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route(
             "/v1/cabinet/sterilization-cycles/:id/pouches",
-            axum::routing::post(sterilization::add_sterilized_pouch),
+            get(sterilization::list_sterilized_pouches).post(sterilization::add_sterilized_pouch),
         )
         .route(
             "/v1/cabinet/stock-items",
