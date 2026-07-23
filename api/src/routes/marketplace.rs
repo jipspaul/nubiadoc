@@ -59,6 +59,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             axum::routing::post(waiting_list::create_waiting_list_entry),
         )
         .route(
+            "/v1/account/waiting-list",
+            get(waiting_list::list_waiting_list_entries),
+        )
+        .route(
             "/v1/waiting-list/:id/cancel",
             axum::routing::post(waiting_list::cancel_waiting_list_entry),
         )

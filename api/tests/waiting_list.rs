@@ -280,6 +280,94 @@ async fn waiting_list_duplicate_returns_409() {
     cleanup_fixture(&db, &f).await;
 }
 
+// ── GET /v1/account/waiting-list : le patient relit ses inscriptions (#4357) ─
+
+#[tokio::test]
+async fn account_waiting_list_returns_own_entry_with_id() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db).await;
+
+    let make_state = || AppState {
+        db: PgPool::connect_lazy(
+            &std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+        )
+        .unwrap(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_patient_jwt(f.patient_user_id, f.patient_account_id);
+
+    let created = app(make_state())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/waiting-list")
+                .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(
+                    serde_json::to_string(&json!({ "provider_id": f.provider_id })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let created_bytes = axum::body::to_bytes(created.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let created_v: serde_json::Value = serde_json::from_slice(&created_bytes).unwrap();
+    let entry_id = created_v["id"].as_str().unwrap().to_string();
+
+    let list_resp = app(make_state())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/account/waiting-list")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        list_resp.status(),
+        StatusCode::OK,
+        "le GET patient doit exister (#4357, était 405/404)"
+    );
+    let list_bytes = axum::body::to_bytes(list_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let list_v: serde_json::Value = serde_json::from_slice(&list_bytes).unwrap();
+    let data = list_v["data"].as_array().expect("data[]");
+    assert_eq!(data.len(), 1);
+    assert_eq!(
+        data[0]["id"], entry_id,
+        "l'id retrouvé doit permettre le cancel"
+    );
+    assert_eq!(data[0]["status"], "active");
+    assert_eq!(data[0]["provider_id"], f.provider_id.to_string());
+
+    // L'id récupéré permet effectivement le cancel — boucle la traçabilité.
+    let cancel_resp = app(make_state())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/waiting-list/{entry_id}/cancel"))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(cancel_resp.status(), StatusCode::OK);
+
+    cleanup_fixture(&db, &f).await;
+}
+
 // ── GET /v1/cabinet/waiting-list : nom du patient (#3364) ────────────────────
 
 fn make_pro_token(cabinet_id: Uuid, role: &str) -> String {
