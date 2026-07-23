@@ -1,5 +1,8 @@
 //! Handlers `/v1/waiting-list` — inscription et annulation d'un patient sur la
-//! liste d'attente (US-P12).
+//! liste d'attente (US-P12), et `GET /v1/account/waiting-list` (#4357) —
+//! lecture des propres inscriptions du patient (jusque-là aucun GET patient
+//! n'existait, rendant l'`id` nécessaire au `cancel` irrécupérable dès que
+//! la réponse initiale du `POST` était perdue).
 
 use axum::{
     extract::{Path, State},
@@ -156,6 +159,75 @@ pub async fn create_waiting_list_entry(
         StatusCode::CREATED,
         Json(CreateWaitingListResponse { id, status }),
     ))
+}
+
+/// Une entrée de liste d'attente, vue patient.
+#[derive(Serialize)]
+pub struct WaitingListEntryItem {
+    pub id: Uuid,
+    pub cabinet_id: Uuid,
+    pub provider_id: Uuid,
+    pub desired_window: serde_json::Value,
+    pub status: String,
+    pub created_at: String,
+}
+
+/// Réponse de `GET /v1/account/waiting-list`.
+#[derive(Serialize)]
+pub struct ListWaitingListResponse {
+    pub data: Vec<WaitingListEntryItem>,
+}
+
+/// `GET /v1/account/waiting-list` — les inscriptions du patient sur les
+/// listes d'attente (#4357 : sans ce GET, un patient inscrit ne pouvait ni
+/// voir son inscription ni récupérer l'`id` requis par
+/// `POST /v1/waiting-list/:id/cancel` — cul-de-sac dès que le client perdait
+/// l'id de la réponse `POST` initiale).
+///
+/// Token `kind:"patient"` requis. Ownership via policy RLS
+/// `waiting_list_entry_patient_read` (migration 0146) — ne renvoie que les
+/// entrées liées à un `patient` du compte, toutes cabinets confondus, tous
+/// statuts (actif/annulé/honoré) pour un historique complet.
+pub async fn list_waiting_list_entries(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<Json<ListWaitingListResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT id, cabinet_id, provider_id, desired_window, status, created_at \
+         FROM waiting_list_entry \
+         ORDER BY created_at DESC",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut data = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        data.push(WaitingListEntryItem {
+            id: row.try_get("id").map_err(|_| AppError::Internal)?,
+            cabinet_id: row.try_get("cabinet_id").map_err(|_| AppError::Internal)?,
+            provider_id: row.try_get("provider_id").map_err(|_| AppError::Internal)?,
+            desired_window: row
+                .try_get("desired_window")
+                .map_err(|_| AppError::Internal)?,
+            status: row.try_get("status").map_err(|_| AppError::Internal)?,
+            created_at: created_at.to_rfc3339(),
+        });
+    }
+
+    Ok(Json(ListWaitingListResponse { data }))
 }
 
 /// Réponse de `POST /v1/waiting-list/:id/cancel`.
