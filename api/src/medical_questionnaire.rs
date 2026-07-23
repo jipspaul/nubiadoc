@@ -99,7 +99,10 @@ fn row_to_response(row: sqlx::postgres::PgRow) -> Result<MedicalQuestionnaireRes
 // ── POST /v1/account/medical-questionnaire ──────────────────────────────
 
 /// `POST /v1/account/medical-questionnaire` — crée un brouillon pour le
-/// cabinet donné. `409` si un brouillon existe déjà pour ce cabinet.
+/// cabinet donné. `cabinet_id` inexistant → `404` (#4343 — pré-vérifié
+/// plutôt que de laisser remonter la FK `medical_questionnaire_submission
+/// (cabinet_id)` en `23503`/500, même pattern que `lab_work_orders.rs`).
+/// `409` si un brouillon existe déjà pour ce cabinet.
 pub async fn create_medical_questionnaire(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -114,6 +117,15 @@ pub async fn create_medical_questionnaire(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    let cabinet_exists = sqlx::query("SELECT 1 FROM cabinet WHERE id = $1")
+        .bind(body.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    if cabinet_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
 
     let existing_draft = sqlx::query(
         "SELECT 1 FROM medical_questionnaire_submission \

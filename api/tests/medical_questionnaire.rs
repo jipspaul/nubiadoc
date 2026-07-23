@@ -317,6 +317,53 @@ async fn create_medical_questionnaire_duplicate_draft_returns_409() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 2b : POST avec un cabinet_id inexistant → 404 (#4343) ──────────────
+
+#[tokio::test]
+async fn create_medical_questionnaire_unknown_cabinet_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, true).await;
+    let token = make_patient_token(f.patient_user_id, f.account_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "cabinet_id": "deadbeef-0000-0000-0000-000000000000",
+                        "payload": {"allergies": "aucune"}
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let db_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM medical_questionnaire_submission WHERE patient_account_id = $1",
+    )
+    .bind(f.account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        db_count, 0,
+        "aucun brouillon créé pour un cabinet inexistant"
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 3 : PATCH met à jour puis soumet ───────────────────────────────────
 
 #[tokio::test]
