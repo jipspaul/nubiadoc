@@ -1,6 +1,6 @@
 //! Tests d'intégration : traçabilité stérilisation (#4138)
 //! - GET/POST /v1/cabinet/sterilization-cycles
-//! - POST /v1/cabinet/sterilization-cycles/{id}/pouches
+//! - GET/POST /v1/cabinet/sterilization-cycles/{id}/pouches
 
 use axum::{
     body::Body,
@@ -217,6 +217,96 @@ async fn pouch_can_be_added_to_non_conforme_cycle() {
     let cycles = list.as_array().unwrap();
     assert_eq!(cycles.len(), 1);
     assert_eq!(cycles[0]["status"], "non_conforme");
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 1b : GET liste les pochettes d'un cycle (#4354) ─────────────────────
+
+#[tokio::test]
+async fn list_pouches_for_cycle_returns_scanned_codes() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        Some(json!({
+            "autoclave_ref": "Autoclave-1",
+            "cycle_number": 42,
+            "test_kind": "helix",
+            "test_result": "virage complet",
+            "status": "conforme"
+        })),
+    )
+    .await;
+    let cycle_id = created["cycle_id"].as_str().unwrap().to_string();
+
+    for code in ["DM-LIST-1", "DM-LIST-2"] {
+        let (status, _) = call(
+            state_with(app_pool().await),
+            "POST",
+            &format!("/v1/cabinet/sterilization-cycles/{cycle_id}/pouches"),
+            &token,
+            Some(json!({"code": code})),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        &format!("/v1/cabinet/sterilization-cycles/{cycle_id}/pouches"),
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "le GET doit exister (#4354, était 405)"
+    );
+    let pouches = list.as_array().unwrap();
+    assert_eq!(pouches.len(), 2);
+    let codes: Vec<&str> = pouches
+        .iter()
+        .map(|p| p["code"].as_str().unwrap())
+        .collect();
+    assert!(codes.contains(&"DM-LIST-1"));
+    assert!(codes.contains(&"DM-LIST-2"));
+
+    cleanup(&db, &f).await;
+}
+
+/// #4354 : cycle inexistant/hors tenant → 404 sur le GET aussi.
+#[tokio::test]
+async fn list_pouches_unknown_cycle_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "GET",
+        &format!(
+            "/v1/cabinet/sterilization-cycles/{}/pouches",
+            Uuid::new_v4()
+        ),
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 
     cleanup(&db, &f).await;
 }
