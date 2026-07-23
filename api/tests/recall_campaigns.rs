@@ -251,3 +251,46 @@ async fn creates_reminder_for_eligible_patients_only() {
 
     cleanup(&db, &f).await;
 }
+
+/// #4345 : une valeur hors bornes fait déborder `now() - make_interval(...)`
+/// (hors plage timestamptz) → doit être refusée en 422, pas un 500.
+#[tokio::test]
+async fn months_since_last_appointment_out_of_range_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/recall-campaigns")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"months_since_last_appointment": 999999}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM reminder WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 0, "aucun reminder créé");
+
+    cleanup(&db, &f).await;
+}

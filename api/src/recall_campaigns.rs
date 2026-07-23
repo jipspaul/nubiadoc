@@ -30,7 +30,9 @@ pub struct CreateRecallCampaignResponse {
 /// (`kind='recall_annual'`, `appointment_id NULL`) pour les patients du
 /// cabinet sans RDV honoré depuis plus de N mois.
 ///
-/// `months_since_last_appointment > 0` → 422 sinon. Un patient déjà titulaire
+/// `months_since_last_appointment` doit être dans `1..=1200` → 422 sinon
+/// (#4345 — la borne haute évite un débordement `timestamptz` dans
+/// `now() - make_interval(months => N)`). Un patient déjà titulaire
 /// d'un rappel `recall_annual` `pending` est exclu (évite les doublons si la
 /// campagne est déclenchée plusieurs fois).
 pub async fn create_recall_campaign(
@@ -38,7 +40,11 @@ pub async fn create_recall_campaign(
     claims: ProSecretaryPlusClaims,
     Json(body): Json<CreateRecallCampaignBody>,
 ) -> Result<(StatusCode, Json<CreateRecallCampaignResponse>), AppError> {
-    if body.months_since_last_appointment <= 0 {
+    // #4345 : au-dela de ~80000 mois, `now() - make_interval(months => N)`
+    // sort de la plage timestamptz de Postgres (< 4713 av. J.-C.) -> erreur
+    // SQL mappee en 500 au lieu d'un refus de validation. 1200 mois (100 ans)
+    // est deja tres au-dela de toute campagne de relance realiste.
+    if !(1..=1200).contains(&body.months_since_last_appointment) {
         return Err(AppError::ValidationError);
     }
 
