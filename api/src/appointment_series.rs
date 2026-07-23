@@ -70,7 +70,11 @@ fn is_exclusion_violation(e: &sqlx::Error) -> bool {
 ///
 /// Token pro requis (secretary+). `occurrences` vide → 422. `ends_at <=
 /// starts_at` sur une occurrence → 422 (avant tout INSERT, anticipe le CHECK
-/// `appointment_time_order`). Patient ou praticien hors cabinet → 404.
+/// `appointment_time_order`). `starts_at <= now()` sur une occurrence → 422
+/// `start_at_not_future` (#4342 — parité avec `create_cabinet_slot`
+/// `scheduling.rs` et `create_booking` `bookings.rs`, qui gardent déjà le
+/// futur ; la série laissait passer des occurrences entièrement révolues).
+/// Patient ou praticien hors cabinet → 404.
 /// Toute occurrence en conflit (23P01, `appointment_no_overlap`) → 409
 /// `slot_taken`, la transaction entière est abandonnée (aucun RDV créé).
 pub async fn create_appointment_series(
@@ -93,6 +97,9 @@ pub async fn create_appointment_series(
             .map_err(|_| AppError::ValidationError)?;
         if ends_at <= starts_at {
             return Err(AppError::ValidationError);
+        }
+        if starts_at <= Utc::now() {
+            return Err(AppError::StartAtNotFuture);
         }
         occurrences.push(ParsedOccurrence { starts_at, ends_at });
     }
