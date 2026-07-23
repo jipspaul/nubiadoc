@@ -306,3 +306,121 @@ async fn missing_purchase_price_returns_422() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test : appointment_id d'un AUTRE patient du cabinet → 404 (#4353) ───────
+
+#[tokio::test]
+async fn create_with_appointment_of_another_patient_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let other_patient_id = Uuid::new_v4();
+    let other_appointment_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("labwork-prac+{prac_user_id}@nubia.test"))
+    .execute(&db)
+    .await
+    .unwrap();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Autre', 'Patient')",
+        )
+        .bind(other_patient_id)
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(f.cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, now() + interval '1 day', \
+                      now() + interval '1 day 30 minutes', 'confirmed')",
+        )
+        .bind(other_appointment_id)
+        .bind(f.cabinet_id)
+        .bind(other_patient_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "appointment_id": other_appointment_id,
+            "lab_name": "QA Lab CrossPatient",
+            "purchase_price_cents": 12000
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM lab_work_order WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(count, 0, "aucun bon créé");
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM appointment WHERE id = $1")
+            .bind(other_appointment_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(other_patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.unwrap();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+
+    cleanup(&db, &f).await;
+}
