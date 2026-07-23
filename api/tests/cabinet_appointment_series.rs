@@ -352,3 +352,71 @@ async fn create_series_empty_occurrences_returns_422() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+/// #4342 : une occurrence entièrement dans le passé → 422
+/// `start_at_not_future` (parité avec `create_cabinet_slot`/`create_booking`)
+/// et AUCUN RDV n'est créé, même les occurrences futures de la même série.
+#[tokio::test]
+async fn create_series_past_occurrence_returns_422_start_at_not_future() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixture(&db, "past").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/appointments/series")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), f.cabinet_id, "secretary")
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "practitioner_id": f.practitioner_id,
+                        "patient_id": f.patient_id,
+                        "motif": "QA-series-past",
+                        "occurrences": [
+                            {"starts_at": "2020-01-06T09:00:00Z", "ends_at": "2020-01-06T09:30:00Z"},
+                            {"starts_at": "2026-09-08T09:00:00Z", "ends_at": "2026-09-08T09:30:00Z"}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "start_at_not_future");
+
+    let db_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM appointment WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        db_count, 0,
+        "aucun RDV créé, même l'occurrence future de la série"
+    );
+
+    cleanup_fixture(&db, &f).await;
+}
