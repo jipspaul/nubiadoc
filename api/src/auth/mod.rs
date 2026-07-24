@@ -138,6 +138,7 @@ pub(crate) enum AppError {
     AppointmentNotHonored,
     ReviewAlreadyExists,
     AlreadyOnWaitingList,
+    InsufficientStock,
     NoActiveMembership,
     LastAdminCannotBeRemoved,
     StartAtNotFuture,
@@ -332,6 +333,11 @@ impl IntoResponse for AppError {
             AppError::AlreadyOnWaitingList => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "already_on_waiting_list"})),
+            )
+                .into_response(),
+            AppError::InsufficientStock => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "insufficient_stock"})),
             )
                 .into_response(),
             AppError::NoActiveMembership => (
