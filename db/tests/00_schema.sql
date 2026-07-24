@@ -161,7 +161,9 @@ SELECT fk_ok('quote_item', 'quote_id', 'quote', 'id');
 SELECT fk_ok('patient', 'patient_account_id', 'patient_account', 'id');  -- lien plateforme (0009)
 SELECT fk_ok('patient_account', 'app_user_id', 'app_user', 'id');        -- FK + CASCADE (0015, #178)
 SELECT col_not_null('patient_account', 'app_user_id', 'patient_account.app_user_id NOT NULL (0015)');
-SELECT fk_ok('quote_item', 'phase_id', 'treatment_phase', 'id');         -- plan de traitement (0010)
+-- FK composite tenant-scopée depuis 0200 (#4291) : quote_item(phase_id, cabinet_id)
+-- -> treatment_phase(id, cabinet_id), cf. tests/84_treatment_plan_phase_composite_fk.sql.
+SELECT fk_ok('quote_item', ARRAY['phase_id', 'cabinet_id'], 'treatment_phase', ARRAY['id', 'cabinet_id']);
 
 -- ----- Lien clinique <-> compte plateforme & couverture (0010) -----
 SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regime_obligatoire (couverture)');
