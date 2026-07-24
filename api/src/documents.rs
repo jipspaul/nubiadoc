@@ -160,7 +160,10 @@ pub async fn list_documents(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
     let fetch_limit = limit + 1;
 
     let category_clause = if params.category.is_some() {
