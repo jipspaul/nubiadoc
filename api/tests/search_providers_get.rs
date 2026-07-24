@@ -605,6 +605,82 @@ async fn search_providers_place_filters_by_known_city() {
         .ok();
 }
 
+// ── Régression #4387 : `near` sans `radius_km` applique un rayon par défaut ──
+// Repro exacte de l'issue : `near=<Paris>` seul (sans radius_km) ne doit PAS
+// renvoyer l'annuaire national — même rayon par défaut que `place`.
+
+#[tokio::test]
+async fn search_providers_near_without_radius_applies_default_radius() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let paris_id = insert_provider(&db, &format!("paris-near-{suffix}")).await;
+    let lyon_id = insert_provider(&db, &format!("lyon-near-{suffix}")).await;
+
+    sqlx::query(
+        "UPDATE provider SET geo = ST_SetSRID(ST_MakePoint(2.3522, 48.8566), 4326)::geography \
+         WHERE id = $1",
+    )
+    .bind(paris_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE provider SET geo = ST_SetSRID(ST_MakePoint(4.8357, 45.7640), 4326)::geography \
+         WHERE id = $1",
+    )
+    .bind(lyon_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?near=48.8566,2.3522")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    assert!(
+        data.iter()
+            .any(|p| p["provider_id"].as_str() == Some(&paris_id.to_string())),
+        "le praticien parisien doit apparaître pour near=Paris sans radius_km"
+    );
+    assert!(
+        !data
+            .iter()
+            .any(|p| p["provider_id"].as_str() == Some(&lyon_id.to_string())),
+        "le praticien lyonnais ne doit PAS apparaître : near sans radius_km \
+         doit borner par le rayon par défaut, pas renvoyer l'annuaire national"
+    );
+
+    sqlx::query("DELETE FROM provider WHERE id = $1 OR id = $2")
+        .bind(paris_id)
+        .bind(lyon_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Régression #3796 : recherche insensible aux accents ──────────────────────
 // q="amelie" (sans accent, clavier courant) doit matcher un provider nommé
 // "Dr Providers Amélie" (avec accent) — comme /ccam/acts le fait déjà.
