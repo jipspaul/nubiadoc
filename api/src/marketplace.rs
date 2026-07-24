@@ -366,9 +366,12 @@ const KNOWN_CITY_COORDS: &[(&str, f64, f64)] = &[
     ("rennes", 48.1173, -1.6778),
 ];
 
-/// Rayon (km) appliqué quand `place` résout une ville connue et qu'aucun
-/// `radius_km` explicite n'est fourni par l'appelant.
-const PLACE_DEFAULT_RADIUS_KM: f64 = 20.0;
+/// Rayon (km) appliqué par défaut à un filtre géo (`near` ou `place` résolu)
+/// quand aucun `radius_km` explicite n'est fourni par l'appelant. Sans lui,
+/// `ST_DWithin` (search_providers) est court-circuité par `radius IS NULL`
+/// → annuaire national renvoyé, filtre de proximité silencieusement ignoré
+/// (#4387 : n'était appliqué qu'à `place`, pas à `near`).
+const GEO_DEFAULT_RADIUS_KM: f64 = 20.0;
 
 fn resolve_place_coords(place: &str) -> Option<(f64, f64)> {
     let needle = place.trim().to_lowercase();
@@ -384,6 +387,9 @@ type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 /// Résout le filtre géo `near`/`place` en `(lat, lng, radius_km effectif)`.
 /// `near` (coordonnées explicites) est toujours prioritaire sur `place` si les
 /// deux sont fournis. `place` résolu via `KNOWN_CITY_COORDS` (#3753).
+/// Rayon par défaut `GEO_DEFAULT_RADIUS_KM` appliqué aux DEUX branches quand
+/// `radius_km` est omis (#4387 : `near` seul l'ignorait, annuaire national
+/// renvoyé au lieu d'un rayon de proximité).
 fn resolve_geo_filter(
     near: Option<&str>,
     place: Option<&str>,
@@ -399,14 +405,18 @@ fn resolve_geo_filter(
             .next()
             .and_then(|v| v.trim().parse::<f64>().ok())
             .ok_or(AppError::ValidationError)?;
-        return Ok((Some(lat), Some(lng), radius_km));
+        return Ok((
+            Some(lat),
+            Some(lng),
+            Some(radius_km.unwrap_or(GEO_DEFAULT_RADIUS_KM)),
+        ));
     }
     if let Some(p) = place {
         if let Some((lat, lng)) = resolve_place_coords(p) {
             return Ok((
                 Some(lat),
                 Some(lng),
-                Some(radius_km.unwrap_or(PLACE_DEFAULT_RADIUS_KM)),
+                Some(radius_km.unwrap_or(GEO_DEFAULT_RADIUS_KM)),
             ));
         }
         tracing::warn!(place = %p, "place inconnu du lookup géo statique, filtre ignoré");
