@@ -224,7 +224,7 @@ async fn no_show_count_is_zero_without_no_show_appointments() {
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
     let f = insert_fixture(&seed_db, &Uuid::new_v4().to_string()).await;
-    insert_appointment(&seed_db, &f, "2026-05-01T09:00:00Z", "completed").await;
+    insert_appointment(&seed_db, &f, "2026-05-01T09:00:00Z", "done").await;
 
     let state = AppState {
         db: app_db.clone(),
@@ -251,7 +251,7 @@ async fn no_show_count_reflects_three_no_shows() {
     insert_appointment(&seed_db, &f, "2026-05-01T09:00:00Z", "no_show").await;
     insert_appointment(&seed_db, &f, "2026-05-08T09:00:00Z", "no_show").await;
     insert_appointment(&seed_db, &f, "2026-05-15T09:00:00Z", "no_show").await;
-    insert_appointment(&seed_db, &f, "2026-05-22T09:00:00Z", "completed").await;
+    insert_appointment(&seed_db, &f, "2026-05-22T09:00:00Z", "done").await;
 
     let state = AppState {
         db: app_db.clone(),
