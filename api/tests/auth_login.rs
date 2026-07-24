@@ -206,6 +206,63 @@ async fn login_unknown_email_returns_401_unauthenticated() {
     assert_eq!(v["code"], "unauthenticated");
 }
 
+// ── Test 4b : password_hash NULL → 401 neutre, pas 500 (#4349) ──────────────
+// Membre/secrétariat invité pas encore activé, ou compte dépendant : la ligne
+// EXISTE (password_hash NULL) — ce n'est pas le chemin "email inconnu", mais
+// doit renvoyer le même 401 unauthenticated (anti-énumération §1.8), pas 500.
+
+#[tokio::test]
+async fn login_null_password_hash_returns_401_not_500() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let email = format!("login-null-hash_{}@test.local", Uuid::new_v4());
+
+    sqlx::query("INSERT INTO app_user (email, password_hash, kind) VALUES ($1, NULL, 'pro')")
+        .bind(&email)
+        .execute(&db)
+        .await
+        .expect("insert test user with NULL password_hash");
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"email": email, "password": "whatever"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "password_hash NULL doit renvoyer 401 neutre, pas 500 (#4349)"
+    );
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "unauthenticated");
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 5 : body JSON manquant → 400 Bad Request ───────────────────────────
 // Axum retourne 400 pour un body vide (body absent ≠ JSON malformé),
 // avant d'atteindre le handler. Aucun DB requis.

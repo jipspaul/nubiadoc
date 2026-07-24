@@ -153,7 +153,14 @@ pub async fn login(
     };
 
     let user_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-    let password_hash: String = row
+    // #4349 : password_hash est nullable (migration 0021 — membre/secrétariat
+    // invité pas encore activé, compte dépendant sans mot de passe propre).
+    // Un try_get::<String> direct sur NULL renvoie Err -> 500, AVANT même
+    // d'atteindre la garde 401 neutre ci-dessous (qui ne gère que le hash
+    // mal formé non-NULL) — 500 vs 401 (email inconnu) est un oracle
+    // d'énumération. Fix : Option<String>, NULL traité comme un hash absent
+    // -> même chemin leurre (coût CPU équivalent) que "email inconnu".
+    let password_hash: Option<String> = row
         .try_get("password_hash")
         .map_err(|_| AppError::Internal)?;
     let kind: String = row.try_get("kind").map_err(|_| AppError::Internal)?;
@@ -161,6 +168,12 @@ pub async fn login(
         .try_get("totp_enabled")
         .map_err(|_| AppError::Internal)?;
     let totp_secret: Option<String> = row.try_get("totp_secret").map_err(|_| AppError::Internal)?;
+
+    let Some(password_hash) = password_hash else {
+        let decoy = PasswordHash::new(&DECOY_PASSWORD_HASH).map_err(|_| AppError::Internal)?;
+        let _ = Argon2::default().verify_password(body.password.as_bytes(), &decoy);
+        return Err(AppError::Unauthenticated);
+    };
 
     // Un hash mal formé en base (ex. comptes seed 'SEED_PLACEHOLDER') ne doit
     // pas fuiter d'information : on le traite comme un échec d'auth (401 neutre),
