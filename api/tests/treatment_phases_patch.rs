@@ -257,6 +257,117 @@ async fn requested_to_done_succeeds_and_persists() {
     let row_status: String = row.try_get("status").unwrap();
     assert_eq!(row_status, "done");
 
+    // #4348 : seule phase du plan passée `done` -> le plan doit suivre
+    // (auparavant restait `draft` à vie, machine à états morte).
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let plan_row = sqlx::query("SELECT status FROM treatment_plan WHERE id = $1")
+        .bind(f.plan_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let plan_status: String = plan_row.try_get("status").unwrap();
+    assert_eq!(
+        plan_status, "done",
+        "#4348 : plan.status doit suivre quand toutes ses phases sont done"
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+/// #4348 : avec plusieurs phases, le plan passe `in_progress` dès qu'UNE
+/// phase progresse, mais ne passe `done` que quand TOUTES le sont.
+#[tokio::test]
+async fn plan_status_in_progress_until_all_phases_done() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let second_phase_id = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status) \
+             VALUES ($1, $2, $3, 2, 'Phase 2', 'requested')",
+        )
+        .bind(second_phase_id)
+        .bind(f.cabinet_id)
+        .bind(f.plan_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    // Première phase seule -> done. Le plan doit passer in_progress (pas done,
+    // il reste une phase 'requested').
+    let (status, _) = patch_status(
+        make_state(app_pool().await),
+        f.plan_id,
+        f.phase_id,
+        &token,
+        "done",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let plan_row = sqlx::query("SELECT status FROM treatment_plan WHERE id = $1")
+        .bind(f.plan_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let plan_status: String = plan_row.try_get("status").unwrap();
+    assert_eq!(
+        plan_status, "in_progress",
+        "1 phase done sur 2 -> plan in_progress, pas done"
+    );
+
+    // Seconde phase -> done aussi. Le plan doit maintenant passer done.
+    let (status, _) = patch_status(
+        make_state(app_pool().await),
+        f.plan_id,
+        second_phase_id,
+        &token,
+        "done",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let plan_row = sqlx::query("SELECT status FROM treatment_plan WHERE id = $1")
+        .bind(f.plan_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let plan_status: String = plan_row.try_get("status").unwrap();
+    assert_eq!(plan_status, "done", "2/2 phases done -> plan done");
+
     cleanup_fixtures(&db, &f).await;
 }
 
