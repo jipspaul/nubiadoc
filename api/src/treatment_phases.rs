@@ -63,12 +63,29 @@ pub struct CreateTreatmentPhaseResponse {
     pub phase_id: Uuid,
 }
 
+/// Valide un code dent ISO 3950 (notation FDI) : `<quadrant><dent>`,
+/// quadrant 1-4 (dentition permanente, dents 1-8) ou 5-8 (temporaire, 1-5).
+/// Même règle que `dental_chart.rs::validate_teeth` (#3680) — dupliquée ici
+/// faute de module de validation partagé pour une fonction aussi courte.
+fn is_valid_fdi_tooth(code: &str) -> bool {
+    code.len() == 2 && code.chars().all(|c| c.is_ascii_digit()) && {
+        let quadrant = code.as_bytes()[0] - b'0';
+        let tooth = code.as_bytes()[1] - b'0';
+        match quadrant {
+            1..=4 => (1..=8).contains(&tooth),
+            5..=8 => (1..=5).contains(&tooth),
+            _ => false,
+        }
+    }
+}
+
 /// `POST /v1/cabinet/treatment-plans/:id/phases` — ajoute une phase à un plan.
 ///
 /// Praticien uniquement (via `ProPractitionerClaims`). Plan inexistant ou
-/// hors tenant → 404. `title` vide, ou un `inline_acts[].label` vide/
-/// `amount_cents` négatif → 422. Statut initial : `requested`.
-/// Réponse `201 { phase_id }`.
+/// hors tenant → 404. `title` vide, `position` négatif (rang d'ordonnancement
+/// clinique, trié `ORDER BY position ASC`), un `inline_acts[].label` vide,
+/// `amount_cents` négatif, ou `tooth` hors numérotation FDI (#4368) → 422.
+/// Statut initial : `requested`. Réponse `201 { phase_id }`.
 pub async fn create_treatment_phase(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -79,9 +96,17 @@ pub async fn create_treatment_phase(
     if title.is_empty() {
         return Err(AppError::ValidationError);
     }
+    if body.position < 0 {
+        return Err(AppError::ValidationError);
+    }
     for act in &body.inline_acts {
         if act.label.trim().is_empty() || act.amount_cents < 0 {
             return Err(AppError::ValidationError);
+        }
+        if let Some(tooth) = &act.tooth {
+            if !is_valid_fdi_tooth(tooth) {
+                return Err(AppError::ValidationError);
+            }
         }
     }
 
