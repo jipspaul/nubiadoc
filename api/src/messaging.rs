@@ -93,7 +93,10 @@ pub async fn list_conversations(
     Query(params): Query<ListConversationsQuery>,
 ) -> Result<Json<ConversationsResponse>, AppError> {
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     // Deux formes selon que le curseur pointe sur un fil avec message (ts
     // connu) ou un fil vide (ts null, cf. #3771) — même schéma que
@@ -289,7 +292,10 @@ pub async fn get_conversation_messages(
     Query(params): Query<ListMessagesQuery>,
 ) -> Result<Json<MessagesResponse>, AppError> {
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
