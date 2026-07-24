@@ -210,6 +210,86 @@ fn is_forward_transition(current: &str, target: &str) -> bool {
     to > from
 }
 
+/// Ordre du plan (migration 0010) — même pattern `[...]`/`position()` que
+/// `PHASE_STATUS_ORDER`. `proposed`/`accepted` n'ont aucun déclencheur dans
+/// ce backend (aucune route ne les pose — hors scope #4348, nécessiterait un
+/// flux d'acceptation patient non spécifié) ; seule la dérivation
+/// mécanique `in_progress`/`done` à partir des phases est implémentée ici.
+const PLAN_STATUS_ORDER: [&str; 5] = ["draft", "proposed", "accepted", "in_progress", "done"];
+
+/// #4348 : la machine à états du plan était morte (`status` restait `draft`
+/// à vie, aucun `UPDATE treatment_plan SET status` nulle part) — incohérent
+/// avec les phases, qui progressent normalement. Dérive `in_progress`/`done`
+/// à partir de l'état agrégé des phases, dans la même transaction que la
+/// mise à jour de la phase qui vient de changer. Ne régresse jamais
+/// (`PLAN_STATUS_ORDER`, même discipline "forward-only" que les phases).
+async fn sync_plan_status_from_phases(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    plan_id: Uuid,
+    cabinet_id: Uuid,
+) -> Result<(), AppError> {
+    let counts = sqlx::query(
+        "SELECT count(*) AS total, \
+                count(*) FILTER (WHERE status = 'done') AS done_count, \
+                count(*) FILTER (WHERE status IN ('in_progress', 'done')) AS active_count \
+         FROM treatment_phase WHERE plan_id = $1 AND cabinet_id = $2",
+    )
+    .bind(plan_id)
+    .bind(cabinet_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let total: i64 = counts.try_get("total").map_err(|_| AppError::Internal)?;
+    let done_count: i64 = counts
+        .try_get("done_count")
+        .map_err(|_| AppError::Internal)?;
+    let active_count: i64 = counts
+        .try_get("active_count")
+        .map_err(|_| AppError::Internal)?;
+
+    let derived = if total > 0 && done_count == total {
+        Some("done")
+    } else if active_count > 0 {
+        Some("in_progress")
+    } else {
+        None
+    };
+    let Some(derived) = derived else {
+        return Ok(());
+    };
+
+    let plan_row =
+        sqlx::query("SELECT status FROM treatment_plan WHERE id = $1 AND cabinet_id = $2")
+            .bind(plan_id)
+            .bind(cabinet_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    let Some(plan_row) = plan_row else {
+        return Ok(());
+    };
+    let current: String = plan_row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    let (Some(from), Some(to)) = (
+        PLAN_STATUS_ORDER.iter().position(|s| *s == current),
+        PLAN_STATUS_ORDER.iter().position(|s| *s == derived),
+    ) else {
+        return Ok(());
+    };
+    if to <= from {
+        return Ok(());
+    }
+
+    sqlx::query("UPDATE treatment_plan SET status = $1, updated_at = now() WHERE id = $2 AND cabinet_id = $3")
+        .bind(derived)
+        .bind(plan_id)
+        .bind(cabinet_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    Ok(())
+}
+
 /// Corps de `PATCH /v1/cabinet/treatment-plans/:planId/phases/:phaseId`.
 #[derive(Deserialize)]
 pub struct PatchTreatmentPhaseBody {
@@ -231,6 +311,11 @@ pub struct PatchTreatmentPhaseResponse {
 /// `409 invalid_status` — mêmes règles que `lab_work_orders.rs` (#4148) : la
 /// progression n'a pas besoin d'être séquentielle (`requested → done`
 /// autorisé, saute `confirmed`/`in_progress`), seulement croissante.
+/// `treatment_plan.status` est synchronisé dans la même transaction
+/// (#4348 — `sync_plan_status_from_phases` : `in_progress` dès qu'une phase
+/// est `in_progress`/`done`, `done` quand toutes le sont ; jamais de
+/// régression). `proposed`/`accepted` restent hors de portée de cette
+/// route (aucun déclencheur métier défini pour ces deux statuts).
 pub async fn patch_treatment_phase(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -269,6 +354,8 @@ pub async fn patch_treatment_phase(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    sync_plan_status_from_phases(&mut tx, plan_id, claims.cabinet_id).await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
