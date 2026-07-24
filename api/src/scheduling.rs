@@ -1390,8 +1390,10 @@ pub struct NoShowResponse {
 /// Token pro requis (secretary+). `cabinet_id` extrait du JWT — jamais du body.
 /// RLS scopé via `app.current_cabinet_id` : 404 si le RDV n'appartient pas au cabinet.
 /// Statut source hors `requested|confirmed|checked_in|in_progress` (ex. déjà
-/// `cancelled`/`done`) → `409 invalid_status`. Libère le créneau associé.
-/// Auditée (`no_show_appointment`) dans `audit_log`.
+/// `cancelled`/`done`) → `409 invalid_status`. RDV pas encore commencé
+/// (`now() < starts_at`) → `409 too_early` (#4369 : un no-show désigne un
+/// patient absent à un RDV dû/passé, pas un rendez-vous encore à venir).
+/// Libère le créneau associé. Auditée (`no_show_appointment`) dans `audit_log`.
 pub async fn no_show_appointment(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -1409,7 +1411,7 @@ pub async fn no_show_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, status, slot_id FROM appointment \
+        "SELECT id, status, slot_id, starts_at FROM appointment \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(appt_id)
@@ -1422,6 +1424,8 @@ pub async fn no_show_appointment(
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
 
     if status != "requested"
         && status != "confirmed"
@@ -1429,6 +1433,9 @@ pub async fn no_show_appointment(
         && status != "in_progress"
     {
         return Err(AppError::InvalidStatus);
+    }
+    if chrono::Utc::now() < starts_at {
+        return Err(AppError::TooEarly);
     }
 
     sqlx::query(
@@ -1685,6 +1692,7 @@ pub async fn start_consultation(
 /// `status: "no_show"` : clôture cabinet d'un RDV `requested`, `confirmed`,
 /// `checked_in` ou `in_progress` → `409 invalid_status` si le RDV est dans un
 /// autre état, `422`/`400 validation_error` si une autre valeur est fournie.
+/// RDV pas encore commencé (`now() < starts_at`) → `409 too_early` (#4369).
 /// Nouveau `starts_at` : doit être dans le futur et correspondre à un
 /// `availability_slot` `open` du praticien → `409 slot_unavailable` sinon
 /// (même garde que `patch_appointment` côté patient, #3558).
@@ -1712,7 +1720,7 @@ pub async fn patch_cabinet_appointment(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, status, slot_id, practitioner_id FROM appointment \
+        "SELECT id, status, slot_id, practitioner_id, starts_at FROM appointment \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(appt_id)
@@ -1728,6 +1736,8 @@ pub async fn patch_cabinet_appointment(
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("starts_at").map_err(|_| AppError::Internal)?;
 
     // Clôture cabinet d'un `checked_in` (typiquement périmé, d'un jour passé,
     // donc absent de waiting-room/queue) : seule sortie de file possible avant
@@ -1757,6 +1767,9 @@ pub async fn patch_cabinet_appointment(
             && status != "in_progress"
         {
             return Err(AppError::InvalidStatus);
+        }
+        if chrono::Utc::now() < starts_at {
+            return Err(AppError::TooEarly);
         }
 
         sqlx::query(

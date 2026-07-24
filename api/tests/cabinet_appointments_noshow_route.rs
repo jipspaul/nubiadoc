@@ -2,7 +2,8 @@
 //!
 //! Couvre les critères d'acceptation de l'issue :
 //! - transition `confirmed → no_show` + entrée `audit_log` associée ;
-//! - rejet `409` depuis un statut déjà terminal (`cancelled`, `done`).
+//! - rejet `409` depuis un statut déjà terminal (`cancelled`, `done`) ;
+//! - rejet `409 too_early` pour un RDV encore à venir (#4369).
 
 use axum::{
     body::Body,
@@ -57,9 +58,15 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
 }
 
 /// Insère cabinet + praticien + patient + slot `booked` + RDV.
-/// `status` est le statut initial du RDV inséré.
+/// `status` est le statut initial du RDV inséré, `starts_at_offset` un
+/// intervalle SQL relatif à `now()` (ex. `"- interval '2 hours'"` pour un
+/// RDV passé, `"+ interval '2 hours'"` pour un RDV à venir — #4369).
 /// Retourne `(cabinet_id, prac_id, prac_user_id, appt_id, slot_id)`.
-async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+async fn insert_fixture_at(
+    db: &PgPool,
+    status: &str,
+    starts_at_offset: &str,
+) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
@@ -123,10 +130,10 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, U
     .await
     .unwrap();
 
-    sqlx::query(
+    sqlx::query(&format!(
         "INSERT INTO availability_slot (id, provider_id, cabinet_id, starts_at, ends_at, status) \
-         VALUES ($1, $2, $3, now() + interval '2 hours', now() + interval '2 hours 30 minutes', 'booked')",
-    )
+         VALUES ($1, $2, $3, now() {starts_at_offset}, now() {starts_at_offset} + interval '30 minutes', 'booked')",
+    ))
     .bind(slot_id)
     .bind(provider_id)
     .bind(cabinet_id)
@@ -134,11 +141,11 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, U
     .await
     .unwrap();
 
-    sqlx::query(
+    sqlx::query(&format!(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, slot_id, starts_at, ends_at, status, motif) \
-         VALUES ($1, $2, $3, $4, $5, now() + interval '2 hours', now() + interval '2 hours 30 minutes', $6, 'détartrage')",
-    )
+         VALUES ($1, $2, $3, $4, $5, now() {starts_at_offset}, now() {starts_at_offset} + interval '30 minutes', $6, 'détartrage')",
+    ))
     .bind(appt_id)
     .bind(cabinet_id)
     .bind(patient_id)
@@ -152,6 +159,11 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, U
     tx.commit().await.unwrap();
 
     (cabinet_id, prac_id, prac_user_id, appt_id, slot_id)
+}
+
+/// RDV déjà passé (`starts_at` -2h) — cas nominal des tests existants.
+async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+    insert_fixture_at(db, status, "- interval '2 hours'").await
 }
 
 async fn cleanup_fixture(
@@ -273,16 +285,23 @@ async fn no_show_from_confirmed_returns_200_frees_slot_and_audits() {
         "le créneau doit être libéré, pas verrouillé indéfiniment"
     );
 
+    let mut tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
     let audit_action: String = sqlx::query(
         "SELECT action FROM audit_log WHERE entity_id = $1 AND entity = 'appointment' \
-         ORDER BY created_at DESC LIMIT 1",
+         ORDER BY occurred_at DESC LIMIT 1",
     )
     .bind(appt_id)
-    .fetch_one(&app_db)
+    .fetch_one(&mut *tx)
     .await
     .unwrap()
     .try_get("action")
     .unwrap();
+    tx.commit().await.unwrap();
     assert_eq!(audit_action, "no_show_appointment");
 
     cleanup_fixture(
@@ -318,6 +337,59 @@ async fn no_show_from_cancelled_returns_409() {
 
     assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
     assert_eq!(body["code"], "invalid_status");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// RDV `confirmed` encore à venir (`starts_at` +2h) → `409 too_early`, pas de
+/// transition (#4369 : un no-show désigne un patient absent à un RDV dû, pas
+/// un rendez-vous futur).
+#[tokio::test]
+async fn no_show_from_confirmed_future_appointment_returns_409_too_early() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+        insert_fixture_at(&seed_db, "confirmed", "+ interval '2 hours'").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let (status, body) = post_no_show(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "too_early");
+
+    let mut tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let appt_status: String = sqlx::query_scalar("SELECT status FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        appt_status, "confirmed",
+        "aucune transition ne doit avoir eu lieu"
+    );
 
     cleanup_fixture(
         &seed_db,
