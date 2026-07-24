@@ -250,6 +250,68 @@ async fn reception_then_consumption_updates_quantity_on_hand() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 1b : consommation > stock disponible → 422 insufficient_stock (#4341) ──
+
+#[tokio::test]
+async fn consumption_exceeding_stock_returns_422_insufficient_stock() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &token,
+        Some(json!({"reference": "GANTS-NEG", "label": "Gants latex", "unit": "boite"})),
+    )
+    .await;
+    let item_id = created["item_id"].as_str().unwrap().to_string();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &token,
+        Some(json!({"delta": 5, "reason": "reception"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(resp["quantity_on_hand"], 5);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &token,
+        Some(json!({"delta": -100, "reason": "consumption"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(resp["code"], "insufficient_stock");
+
+    // La quantité reste au dernier état valide (5), pas de mouvement fantôme.
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/stock-items",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let items = list.as_array().unwrap();
+    assert_eq!(
+        items[0]["quantity_on_hand"], 5,
+        "aucun mouvement négatif appliqué"
+    );
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 2 : référence déjà utilisée dans ce cabinet → 409 ───────────────────
 
 #[tokio::test]

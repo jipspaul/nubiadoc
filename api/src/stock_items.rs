@@ -181,10 +181,13 @@ pub struct AddStockMovementResponse {
 /// façon atomique dans la même transaction que l'insertion du mouvement.
 ///
 /// Article inexistant/hors tenant → 404. `delta` non nul et `reason` ∈
-/// `VALID_REASONS` → 422 sinon. `consultation_act_id` (si fourni) doit
-/// exister dans ce cabinet → 404 sinon (FK composite (id, cabinet_id),
-/// migration 0192 — pré-vérifié pour ne pas laisser remonter la contrainte
-/// en 500, cf. précédent `sterilization.rs`).
+/// `VALID_REASONS` → 422 sinon. `quantity_on_hand + delta < 0` → 422
+/// `insufficient_stock` (#4341 — un inventaire physique n'est jamais
+/// négatif ; ligne verrouillée `FOR UPDATE` le temps de la transaction,
+/// anti-course avec un mouvement concurrent). `consultation_act_id` (si
+/// fourni) doit exister dans ce cabinet → 404 sinon (FK composite (id,
+/// cabinet_id), migration 0192 — pré-vérifié pour ne pas laisser remonter
+/// la contrainte en 500, cf. précédent `sterilization.rs`).
 pub async fn add_stock_movement(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -209,14 +212,28 @@ pub async fn add_stock_movement(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let item_exists = sqlx::query("SELECT 1 FROM stock_item WHERE id = $1 AND cabinet_id = $2")
-        .bind(item_id)
-        .bind(claims.cabinet_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-    if item_exists.is_none() {
+    // #4341 : FOR UPDATE verrouille la ligne pour la duree de la transaction
+    // - anti-course avec un mouvement concurrent sur le meme article - et
+    // recupere la quantite courante pour la borne basse ci-dessous.
+    let item_row = sqlx::query(
+        "SELECT quantity_on_hand FROM stock_item WHERE id = $1 AND cabinet_id = $2 FOR UPDATE",
+    )
+    .bind(item_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let Some(item_row) = item_row else {
         return Err(AppError::NotFound);
+    };
+    let current_quantity: i32 = item_row
+        .try_get("quantity_on_hand")
+        .map_err(|_| AppError::Internal)?;
+    // Un inventaire physique n'est jamais negatif - un mouvement qui ferait
+    // passer le stock sous 0 est refuse plutot que de persister une donnee
+    // fausse (meme esprit que l'anti-sur-encaissement #4311).
+    if current_quantity + body.delta < 0 {
+        return Err(AppError::InsufficientStock);
     }
 
     if let Some(act_id) = body.consultation_act_id {
