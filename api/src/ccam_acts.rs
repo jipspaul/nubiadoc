@@ -25,6 +25,14 @@
 //!
 //! Extrait de `consultations.rs` (refactor de taille, cf. #4056 / CLAUDE.md
 //! plafond 700 lignes) — module autonome, symétrique à `ngap_acts.rs`.
+//!
+//! #4364 : la résolution du praticien appelant (id + `conventions`) se fait
+//! désormais dans une transaction où `app.current_cabinet_id` est posé —
+//! `practitioner` est en RLS `tenant_isolation` FORCE (migration 0011), sans
+//! ce GUC la ligne n'est jamais visible (0 résultat silencieux) : `is_optam`
+//! retombait à `false` et les favoris/suggestions par dent ne remontaient
+//! jamais, même root cause que `practitioner_favorite_acts.rs` (RLS
+//! `practitioner` non scopée).
 
 use axum::{
     extract::{Query, State},
@@ -142,6 +150,19 @@ pub async fn search_ccam_acts(
     // « detartrage » sur « Détartrage ».
     let q = query.q.as_deref().map(|s| s.trim().to_lowercase());
 
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // #4364 : practitioner est en RLS tenant_isolation FORCE (migration 0011)
+    // — sans ce GUC sur la même transaction que le SELECT ci-dessous, la
+    // ligne n'est jamais visible (0 résultat silencieux, pas d'erreur) :
+    // is_optam retombe à false et les favoris ne remontent jamais en tête,
+    // même pattern que practitioner_favorite_acts.rs::resolve_practitioner_id.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // Adhésion OPTAM du praticien appelant (#4056) — `practitioner.conventions`
     // jsonb, `{"optam": true}` ; absente/false par défaut (non-adhérent).
     // `id` récupéré dans la même requête pour les favoris (#4112).
@@ -150,7 +171,7 @@ pub async fn search_ccam_acts(
     )
     .bind(claims.sub)
     .bind(claims.cabinet_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
     let practitioner_id: Option<uuid::Uuid> = practitioner
@@ -180,7 +201,7 @@ pub async fn search_ccam_acts(
                  LIMIT 25",
             )
             .bind(practitioner_id)
-            .fetch_all(&state.db)
+            .fetch_all(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
             rows.extend(favorite_rows);
@@ -207,7 +228,7 @@ pub async fn search_ccam_acts(
             )
             .bind(practitioner_id)
             .bind(claims.cabinet_id)
-            .fetch_all(&state.db)
+            .fetch_all(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -237,7 +258,7 @@ pub async fn search_ccam_acts(
                      FROM ccam_act WHERE code = ANY($1) AND active = true",
                 )
                 .bind(&top_codes)
-                .fetch_all(&state.db)
+                .fetch_all(&mut *tx)
                 .await
                 .map_err(|_| AppError::Internal)?;
                 // Réordonne selon top_codes (fetch_all ne garantit pas l'ordre de ANY()).
@@ -278,11 +299,13 @@ pub async fn search_ccam_acts(
         .bind(q.as_deref())
         .bind(&favorite_codes)
         .bind(remaining)
-        .fetch_all(&state.db)
+        .fetch_all(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
         rows.extend(more_rows);
     }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let data = rows
         .into_iter()

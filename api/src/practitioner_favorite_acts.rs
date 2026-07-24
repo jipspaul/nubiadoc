@@ -44,15 +44,23 @@ pub struct CreateFavoriteActBody {
 
 /// Résout l'id `practitioner` du JWT appelant. `404` si le compte n'est pas
 /// (encore) un `practitioner` de ce cabinet.
+///
+/// #4364 : `practitioner` est en RLS `tenant_isolation` FORCE (migration
+/// 0011) — exécuté sans `app.current_cabinet_id` posé au préalable sur LA
+/// MÊME connexion/transaction, `current_setting` renvoie `''`, la ligne
+/// n'est jamais visible → 404 systématique même pour un praticien valide.
+/// Prend donc la transaction (où l'appelant a déjà posé le GUC), jamais le
+/// pool brut — cf. `scheduling.rs::call_next_patient`, seul appelant qui
+/// fonctionnait avant ce fix.
 async fn resolve_practitioner_id(
-    db: &sqlx::PgPool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     cabinet_id: Uuid,
     user_id: Uuid,
 ) -> Result<Uuid, AppError> {
     sqlx::query("SELECT id FROM practitioner WHERE user_id = $1 AND cabinet_id = $2")
         .bind(user_id)
         .bind(cabinet_id)
-        .fetch_optional(db)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(|_| AppError::Internal)?
         .map(|r| r.try_get("id").map_err(|_| AppError::Internal))
@@ -66,7 +74,15 @@ pub async fn list_favorite_acts(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
 ) -> Result<Json<FavoriteActsResponse>, AppError> {
-    let practitioner_id = resolve_practitioner_id(&state.db, claims.cabinet_id, claims.sub).await?;
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let practitioner_id = resolve_practitioner_id(&mut tx, claims.cabinet_id, claims.sub).await?;
 
     let rows = sqlx::query(
         "SELECT f.ccam_code, c.label, c.tarif_cents, f.position \
@@ -76,9 +92,11 @@ pub async fn list_favorite_acts(
          ORDER BY f.position",
     )
     .bind(practitioner_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let data = rows
         .into_iter()
@@ -113,7 +131,7 @@ pub async fn create_favorite_act(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let practitioner_id = resolve_practitioner_id(&state.db, claims.cabinet_id, claims.sub).await?;
+    let practitioner_id = resolve_practitioner_id(&mut tx, claims.cabinet_id, claims.sub).await?;
 
     let act =
         sqlx::query("SELECT label, tarif_cents FROM ccam_act WHERE code = $1 AND active = true")
@@ -194,7 +212,7 @@ pub async fn delete_favorite_act(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let practitioner_id = resolve_practitioner_id(&state.db, claims.cabinet_id, claims.sub).await?;
+    let practitioner_id = resolve_practitioner_id(&mut tx, claims.cabinet_id, claims.sub).await?;
 
     let deleted = sqlx::query(
         "DELETE FROM practitioner_favorite_act \
