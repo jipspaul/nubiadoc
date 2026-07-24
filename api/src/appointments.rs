@@ -650,7 +650,14 @@ pub async fn list_appointments(
     ];
 
     let status_clause: String = match effective_status {
-        Some("upcoming") => " AND (a.status IN ('checked_in','in_progress') \
+        // #4340 : checked_in/in_progress est borné au jour courant, meme
+        // garde que get_appointment_queue (:1556) et get_waiting_room
+        // (scheduling.rs:526) - sans elle, un RDV in_progress jamais cloture
+        // reste "a venir" indefiniment, alors que queue/waiting-room l'ont
+        // deja exclu (incoherence cross-vue).
+        Some("upcoming") => " AND ((a.status IN ('checked_in','in_progress') \
+              AND a.starts_at >= date_trunc('day', now()) \
+              AND a.starts_at < date_trunc('day', now()) + interval '1 day') \
               OR (a.starts_at > now() AND a.status IN ('requested','confirmed')))"
             .to_string(),
         Some("past") => " AND (a.status IN ('done','cancelled','no_show') \
