@@ -5,6 +5,8 @@
 //!    (phase_id mis à jour).
 //! 3. Plan hors cabinet (autre tenant) → 404.
 //! 4. title vide → 422, aucune phase créée.
+//! 5. position négative → 422, aucune phase créée (#4368).
+//! 6. inline_acts[].tooth hors numérotation FDI → 422, aucune phase créée (#4368).
 
 use axum::{
     body::Body,
@@ -423,6 +425,109 @@ async fn create_treatment_phase_empty_title_returns_422() {
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::from(
                     json!({ "title": "   ", "position": 1 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 = sqlx::query("SELECT count(*) AS n FROM treatment_phase WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+        .try_get("n")
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(count, 0);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 5 : position négative → 422, aucune phase créée (#4368) ─────────────
+
+#[tokio::test]
+async fn create_treatment_phase_negative_position_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/treatment-plans/{}/phases", f.plan_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "title": "Phase neg", "position": -5 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 = sqlx::query("SELECT count(*) AS n FROM treatment_phase WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+        .try_get("n")
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(count, 0);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 6 : inline_acts[].tooth hors numérotation FDI → 422 (#4368) ─────────
+
+#[tokio::test]
+async fn create_treatment_phase_invalid_tooth_code_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/treatment-plans/{}/phases", f.plan_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({
+                        "title": "Phase acte",
+                        "position": 1,
+                        "inline_acts": [
+                            { "label": "acte", "tooth": "zzz999", "amount_cents": 1000 }
+                        ],
+                    })
+                    .to_string(),
                 ))
                 .unwrap(),
         )
