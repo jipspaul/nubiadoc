@@ -214,12 +214,16 @@ async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
         .execute(db)
         .await
         .ok();
-    sqlx::query("DELETE FROM ccam_act_incompatibility WHERE code_a = $1 AND code_b = $2")
-        .bind(CODE_A)
-        .bind(CODE_B)
-        .execute(db)
-        .await
-        .ok();
+    // PAS de DELETE sur ccam_act_incompatibility (CODE_A, CODE_B) ici (#4319) :
+    // contrairement à bundle_code (aléatoire par appel), cette paire est un
+    // COUPLE FIXE partagé par les 4 tests de ce fichier — `cargo test` les
+    // exécute en parallèle par défaut. Un test qui la supprime en cleanup
+    // pendant qu'un autre est encore entre son 1er et 2e POST fait
+    // disparaître la règle sous ses pieds → `check_incompatibility` ne
+    // matche plus rien → 201 au lieu de 422 (repro exacte de l'issue).
+    // `insert_fixtures` la (re)crée déjà en idempotent (ON CONFLICT DO
+    // NOTHING) ; la laisser vivre est sans risque (référentiel catalogue,
+    // pas de donnée tenant).
 
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
