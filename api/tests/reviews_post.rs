@@ -302,6 +302,84 @@ async fn post_review_patient_consulted_returns_201() {
     cleanup_fixture(&db, &f).await;
 }
 
+// ── Test 1b : RDV checked_in/in_progress (non terminé) → 422 not_honored (#4362) ─
+// La consultation n'est pas rendue tant que le RDV n'est pas "done" — un
+// patient en salle d'attente (checked_in) ou en cours (in_progress) ne peut
+// pas encore noter le praticien.
+
+#[tokio::test]
+async fn post_review_appointment_checked_in_returns_422_not_honored() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db, "checkedin").await;
+
+    for status in ["checked_in", "in_progress"] {
+        sqlx::query("UPDATE appointment SET status = $1 WHERE id = $2")
+            .bind(status)
+            .bind(f.appointment_id)
+            .execute(&db)
+            .await
+            .unwrap();
+
+        let state = AppState {
+            db: app_pool().await,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        };
+        let idempotency_key = Uuid::new_v4().to_string();
+
+        let response = app(state)
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/reviews")
+                    .header(
+                        "Authorization",
+                        format!(
+                            "Bearer {}",
+                            make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                        ),
+                    )
+                    .header("Content-Type", "application/json")
+                    .header("Idempotency-Key", &idempotency_key)
+                    .body(Body::from(
+                        serde_json::to_string(&json!({
+                            "appointment_id": f.appointment_id,
+                            "rating": 4,
+                            "comment": "trop tot"
+                        }))
+                        .unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "status={status} doit être refusé (#4362)"
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["code"], "appointment_not_honored");
+
+        let count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM review WHERE appointment_id = $1")
+                .bind(f.appointment_id)
+                .fetch_one(&db)
+                .await
+                .unwrap();
+        assert_eq!(count, 0, "aucun avis créé pour status={status}");
+    }
+
+    cleanup_fixture(&db, &f).await;
+}
+
 // ── Test 2 : patient jamais consulté → 404 (appointment inconnu sous sa RLS) ─
 
 #[tokio::test]

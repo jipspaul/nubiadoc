@@ -132,8 +132,13 @@ pub async fn create_review(
 
     let appt_status: String = appt_row.try_get("status").map_err(|_| AppError::Internal)?;
 
-    // Seuls les RDV effectivement honorés peuvent générer un avis.
-    if !matches!(appt_status.as_str(), "done" | "checked_in" | "in_progress") {
+    // Seuls les RDV effectivement honorés (consultation terminée) peuvent
+    // générer un avis (#4362 — `checked_in`/`in_progress` étaient
+    // whitelistés à tort : un patient juste arrivé en salle d'attente, ou
+    // dont la consultation n'est pas terminée, pouvait déjà noter le
+    // praticien, en contradiction directe avec l'intention "effectivement
+    // honorés" ci-dessus).
+    if appt_status != "done" {
         return Err(AppError::AppointmentNotHonored);
     }
 
