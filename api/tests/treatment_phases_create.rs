@@ -7,6 +7,7 @@
 //! 4. title vide → 422, aucune phase créée.
 //! 5. position négative → 422, aucune phase créée (#4368).
 //! 6. inline_acts[].tooth hors numérotation FDI → 422, aucune phase créée (#4368).
+//! 7. plan déjà `done` (terminal) → 422, aucune phase créée (#4386).
 
 use axum::{
     body::Body,
@@ -528,6 +529,67 @@ async fn create_treatment_phase_invalid_tooth_code_returns_422() {
                         ],
                     })
                     .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 = sqlx::query("SELECT count(*) AS n FROM treatment_phase WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+        .try_get("n")
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(count, 0);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 7 : plan déjà `done` (terminal) → 422, aucune phase créée (#4386) ───
+
+#[tokio::test]
+async fn create_treatment_phase_on_done_plan_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE treatment_plan SET status = 'done' WHERE id = $1")
+        .bind(f.plan_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/treatment-plans/{}/phases", f.plan_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "title": "Phase après done", "position": 2 }).to_string(),
                 ))
                 .unwrap(),
         )
