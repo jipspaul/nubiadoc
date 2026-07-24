@@ -199,7 +199,10 @@ const VALID_TREATMENT_STATUSES: [&str; 4] = ["planned", "in_progress", "complete
 /// orthodontique.
 ///
 /// `type` non vide, `semester_count > 0`, `status` (si fourni) valeur de
-/// `VALID_TREATMENT_STATUSES` → 422 sinon. `treatment_plan_id` (si fourni)
+/// `VALID_TREATMENT_STATUSES` **et non terminal** (`completed`/
+/// `discontinued` refusés à la création, #4366 — `add_orthodontic_step`
+/// refuse déjà toute étape sur ces statuts, un traitement né terminal est
+/// un cul-de-sac immédiat) → 422 sinon. `treatment_plan_id` (si fourni)
 /// doit exister dans ce cabinet → 404 sinon (FK 23503 remontée en 500
 /// sinon, cf. précédent `prescriptions.rs`).
 pub async fn create_orthodontic_treatment(
@@ -213,6 +216,15 @@ pub async fn create_orthodontic_treatment(
     }
     if let Some(ref status) = body.status {
         if !VALID_TREATMENT_STATUSES.contains(&status.as_str()) {
+            return Err(AppError::ValidationError);
+        }
+        // #4366 : completed/discontinued sont des statuts TERMINAUX
+        // (add_orthodontic_step, plus bas, refuse en 409 toute étape sur un
+        // traitement dans l'un de ces deux états, #4308). Un traitement créé
+        // directement dans cet état est un cul-de-sac immédiat, sans aucune
+        // étape possible ensuite — seuls planned/in_progress sont des
+        // statuts de départ valides.
+        if status == "completed" || status == "discontinued" {
             return Err(AppError::ValidationError);
         }
     }

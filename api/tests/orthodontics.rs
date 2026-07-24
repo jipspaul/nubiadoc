@@ -444,16 +444,35 @@ async fn add_step_on_completed_treatment_returns_409() {
     let f = seed(&db).await;
     let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
 
+    // #4366 : completed est désormais refusé à la création (cul-de-sac) —
+    // crée en planned puis fait passer directement en base au statut
+    // terminal (aucune route de transition n'existe encore côté API) pour
+    // tester la garde #4308 sur add_orthodontic_step.
     let (status, created) = call(
         state_with(app_pool().await),
         "POST",
         &format!("/v1/cabinet/patients/{}/orthodontics", f.patient_id),
         &token,
-        Some(json!({"type": "aligner", "semester_count": 2, "status": "completed"})),
+        Some(json!({"type": "aligner", "semester_count": 2, "status": "planned"})),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
     let treatment_id = created["treatment_id"].as_str().unwrap().to_string();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE orthodontic_treatment SET status = 'completed' WHERE id = $1")
+            .bind(Uuid::parse_str(&treatment_id).unwrap())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+    }
 
     let (status, resp) = call(
         state_with(app_pool().await),
@@ -469,6 +488,45 @@ async fn add_step_on_completed_treatment_returns_409() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 4b : création directement en statut terminal → 422 (#4366) ─────────
+
+#[tokio::test]
+async fn create_treatment_with_terminal_status_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    for status in ["completed", "discontinued"] {
+        let (resp_status, resp) = call(
+            state_with(app_pool().await),
+            "POST",
+            &format!("/v1/cabinet/patients/{}/orthodontics", f.patient_id),
+            &token,
+            Some(json!({"type": "aligner", "semester_count": 2, "status": status})),
+        )
+        .await;
+        assert_eq!(
+            resp_status,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "status={status} doit être refusé à la création (#4366)"
+        );
+        assert_eq!(resp["code"], "validation_error");
+    }
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM orthodontic_treatment WHERE patient_id = $1")
+            .bind(f.patient_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(count, 0, "aucun traitement créé");
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 5 : étape sur un traitement discontinued → 409 (#4308) ─────────────
 
 #[tokio::test]
@@ -480,16 +538,33 @@ async fn add_step_on_discontinued_treatment_returns_409() {
     let f = seed(&db).await;
     let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
 
+    // #4366 : discontinued est désormais refusé à la création — même
+    // contournement que le test completed ci-dessus.
     let (status, created) = call(
         state_with(app_pool().await),
         "POST",
         &format!("/v1/cabinet/patients/{}/orthodontics", f.patient_id),
         &token,
-        Some(json!({"type": "bagues", "semester_count": 3, "status": "discontinued"})),
+        Some(json!({"type": "bagues", "semester_count": 3, "status": "planned"})),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
     let treatment_id = created["treatment_id"].as_str().unwrap().to_string();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE orthodontic_treatment SET status = 'discontinued' WHERE id = $1")
+            .bind(Uuid::parse_str(&treatment_id).unwrap())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+    }
 
     let (status, resp) = call(
         state_with(app_pool().await),
