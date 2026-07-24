@@ -909,12 +909,15 @@ async fn complete_consultation_without_ccam_match_leaves_amo_part_null() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        // Aucun ccam_code (acte libre, hors nomenclature) : amo_part doit
-        // rester NULL, jamais une estimation fabriquée sur une base absente.
+        // ccam_code hors nomenclature (aucune ligne catalogue ne matche,
+        // consultation_act.ccam_code étant NOT NULL sans FK vers ccam_act —
+        // migration 0042) : amo_part doit rester NULL, jamais une estimation
+        // fabriquée sur une base absente (#4300 : la fixture insérait
+        // auparavant sans colonne ccam_code du tout, violant le NOT NULL).
         sqlx::query(
             "INSERT INTO consultation_act \
-             (cabinet_id, appointment_id, patient_id, practitioner_id, label, amount_cents) \
-             VALUES ($1, $2, $3, $4, 'Acte libre sans code', 5000)",
+             (cabinet_id, appointment_id, patient_id, practitioner_id, ccam_code, label, amount_cents) \
+             VALUES ($1, $2, $3, $4, 'HORS-NOMENCLATURE', 'Acte libre sans code', 5000)",
         )
         .bind(cabinet_id)
         .bind(appt_id)
