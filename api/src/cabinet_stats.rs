@@ -152,10 +152,12 @@ pub struct BillingStatsResponse {
     /// CA encaissé sur la période : somme des `payment.amount` `status='paid'`.
     pub revenue_collected_cents: i64,
     /// Impayé courant (solde actuel, PAS borné par `from`/`to`) : somme des
-    /// devis `signed` moins les paiements `pending`/`paid` (jamais
-    /// `failed`/`refunded`) — même formule que `balance_due_cents`
-    /// (`patient_detail::get_cabinet_patient`, US-4.6.2/#4044), agrégée au
-    /// cabinet entier plutôt qu'à un seul patient.
+    /// devis `signed` moins les paiements `pending`/`paid` **rattachés à un
+    /// devis signé** (`payment.quote_id`) — jamais `failed`/`refunded`.
+    /// `>= 0` par construction (`GREATEST`) : un impayé n'est jamais négatif
+    /// (#4347 — contrairement à `balance_due_cents`, agréger tous les
+    /// paiements du cabinet sans ce scoping mélangeait des ensembles sans
+    /// rapport et produisait un solde absurdement négatif).
     pub outstanding_cents: i64,
     /// `signed_count / sent_total` sur la période (`quote.created_at`) —
     /// `sent_total` = devis ayant atteint le statut envoyé
@@ -216,15 +218,26 @@ pub async fn get_cabinet_billing_stats(
         .try_get("revenue_collected_cents")
         .map_err(|_| AppError::Internal)?;
 
-    // Solde courant — même formule que balance_due_cents (clinical.rs),
-    // délibérément non bornée par from/to (c'est un état, pas un flux).
+    // Solde courant, délibérément non borné par from/to (c'est un état, pas
+    // un flux). #4347 : contrairement à balance_due_cents (patient_detail.rs)
+    // - où "tous les paiements du patient" et "ses devis signés" coïncident
+    // en pratique à l'échelle d'un seul patient - agréger "TOUS les
+    // paiements du cabinet" contre "les devis signés du cabinet" mélange des
+    // ensembles sans rapport (acomptes sur devis draft/refused, paiements
+    // hors devis...) et pouvait produire un impayé massivement négatif. Fix
+    // : ne compter que les paiements réellement rattachés (quote_id) à un
+    // devis signé. GREATEST(0, x) en défense en profondeur - un impayé n'est
+    // jamais négatif par définition (un solde négatif serait un trop-perçu,
+    // pas un impayé).
     let outstanding_row = sqlx::query(
-        "SELECT (( \
+        "SELECT GREATEST(0, ( \
            COALESCE((SELECT SUM(total_amount) FROM quote \
                      WHERE cabinet_id = $1 AND status = 'signed' AND deleted_at IS NULL), 0) \
            - \
-           COALESCE((SELECT SUM(amount) FROM payment \
-                     WHERE cabinet_id = $1 AND status IN ('pending', 'paid')), 0) \
+           COALESCE((SELECT SUM(p.amount) FROM payment p \
+                     JOIN quote q ON q.id = p.quote_id \
+                     WHERE p.cabinet_id = $1 AND p.status IN ('pending', 'paid') \
+                       AND q.cabinet_id = $1 AND q.status = 'signed' AND q.deleted_at IS NULL), 0) \
          ) * 100)::bigint AS outstanding_cents",
     )
     .bind(claims.cabinet_id)

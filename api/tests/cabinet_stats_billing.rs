@@ -250,6 +250,170 @@ async fn billing_stats_aggregates_revenue_outstanding_and_conversion() {
         .ok();
 }
 
+/// #4347 : un paiement SANS lien (ou lié à un devis non-signé) ne doit pas
+/// faire passer `outstanding_cents` en négatif — reproduit exactement le
+/// repro de l'issue (paiement massif hors du devis signé).
+#[tokio::test]
+async fn billing_stats_unrelated_payment_does_not_go_negative() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let admin_user_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_signed_id = Uuid::new_v4();
+    let quote_draft_id = Uuid::new_v4();
+    let unrelated_payment_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(admin_user_id)
+    .bind(format!("stats-billing-neg+{admin_user_id}@nubia.test"))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Stats Billing Neg {cabinet_id}"))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+         VALUES ($1, $2, 'Patient', 'StatsBillingNeg')",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // Devis signé de 50€ seulement.
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
+         VALUES ($1, $2, $3, 'signed', 50, 'EUR')",
+    )
+    .bind(quote_signed_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // Devis draft — jamais engageant, un paiement dessus n'est pas une dette soldée.
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
+         VALUES ($1, $2, $3, 'draft', 10, 'EUR')",
+    )
+    .bind(quote_draft_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // Paiement massif (10 000€) sur le devis DRAFT (pas signé) — reproduit
+    // le repro de l'issue : un paiement sans rapport avec les devis signés
+    // ne doit jamais faire passer outstanding_cents sous 0.
+    sqlx::query(
+        "INSERT INTO payment \
+         (id, cabinet_id, patient_id, quote_id, amount, currency, kind, provider, status) \
+         VALUES ($1, $2, $3, $4, 10000, 'EUR', 'full', 'stripe', 'paid')",
+    )
+    .bind(unrelated_payment_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(quote_draft_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/stats/billing")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(admin_user_id, cabinet_id, "admin")
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+    let outstanding = v["outstanding_cents"].as_i64().unwrap();
+    assert!(
+        outstanding >= 0,
+        "outstanding_cents ne doit jamais être négatif (#4347), obtenu {outstanding}"
+    );
+    assert_eq!(
+        outstanding, 5000,
+        "50€ de devis signé, non soldé (le paiement de 10000€ est sur un devis draft, hors scope)"
+    );
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM payment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(admin_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 #[tokio::test]
 async fn billing_stats_no_data_returns_null_conversion_rate() {
     if !db_available() {
