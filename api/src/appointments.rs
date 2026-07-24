@@ -1053,6 +1053,14 @@ pub async fn get_appointment_preparation(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #4363 : requis pour la branche tutelle de appointment_patient_read
+    // (migration 0196, account_guardianship RLS) — cf. get_appointment.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
         "SELECT id, starts_at, cabinet_id, practitioner_id, documents_hint \
          FROM appointment \
@@ -1270,6 +1278,14 @@ pub async fn get_appointment_directions(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #4363 : requis pour la branche tutelle de appointment_patient_read
+    // (migration 0196, account_guardianship RLS) — cf. get_appointment.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
         "SELECT cabinet_id, practitioner_id FROM appointment WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -1399,6 +1415,14 @@ pub async fn callback_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #4363 : requis pour la branche tutelle de appointment_patient_read
+    // (migration 0196, account_guardianship RLS) — cf. get_appointment.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
         "SELECT id, status, cabinet_id, callback_requested_at \
          FROM appointment \
@@ -1517,6 +1541,14 @@ pub async fn get_appointment_queue(
 
     // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // #4363 : requis pour la branche tutelle de appointment_patient_read
+    // (migration 0196, account_guardianship RLS) — cf. get_appointment.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await

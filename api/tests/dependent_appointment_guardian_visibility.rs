@@ -367,6 +367,97 @@ async fn guardian_can_checkin_and_cancel_dependent_appointment() {
     cleanup_fixture(&db, &f).await;
 }
 
+// ── Test 2b : le tuteur accède queue/callback-request/preparation/directions
+// du RDV du dépendant (#4363 — 4 handlers oubliés par le fix #4274) ────────
+
+#[tokio::test]
+async fn guardian_accesses_queue_callback_preparation_directions_for_dependent() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let f = insert_dependent_appointment_fixture(&db, "requested", 60 * 24 * 3).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(f.guardian_user_id, f.guardian_account_id);
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}/queue", f.appt_id))
+                .header("Authorization", format!("Bearer {}", jwt))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "queue : le tuteur doit voir la file du RDV du dépendant (#4363)"
+    );
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/appointments/{}/callback-request", f.appt_id))
+                .header("Authorization", format!("Bearer {}", jwt))
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "callback-request : le tuteur doit pouvoir demander un rappel (#4363)"
+    );
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}/preparation", f.appt_id))
+                .header("Authorization", format!("Bearer {}", jwt))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "preparation : le tuteur doit voir la préparation du RDV du dépendant (#4363)"
+    );
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}/directions", f.appt_id))
+                .header("Authorization", format!("Bearer {}", jwt))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "directions : le tuteur doit voir l'itinéraire du RDV du dépendant (#4363)"
+    );
+
+    cleanup_fixture(&db, &f).await;
+}
+
 // ── Test 3 : régression — un compte SANS lien de tutelle ne voit pas le RDV ─
 
 #[tokio::test]
