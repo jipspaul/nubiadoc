@@ -27,7 +27,9 @@
 //! (`notification_preference.sms_rdv=false`) → `status='cancelled'` (choix
 //! du patient, pas un échec). Un rappel individuellement en erreur (ex.
 //! contrainte DB) est loggé et compté `failed` — ne fait JAMAIS paniquer le
-//! balayage des autres rappels dus.
+//! balayage des autres rappels dus. `appointment_id` est `Option<Uuid>`, pas
+//! `Uuid` (#4389) : un rappel de campagne de relance (`kind='recall_annual'`,
+//! `recall_campaigns.rs`) n'a pas de RDV associé.
 
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
@@ -131,7 +133,15 @@ pub async fn dispatch_pending_reminders(
     for row in due {
         let reminder_id: Uuid = row.try_get("reminder_id").map_err(|_| AppError::Internal)?;
         let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-        let appointment_id: Uuid = row
+        // Option, pas Uuid (#4389) : un rappel de campagne de relance
+        // (kind='recall_annual', recall_campaigns.rs) n'a pas de RDV associé
+        // — appointment_id est NULL (colonne rendue nullable par la
+        // migration 0194). Un try_get<Uuid> non-optionnel ici échouait via
+        // `?`, AVANT le match process_one_reminder qui est le seul endroit
+        // documenté comme "continue le balayage sans jamais paniquer" —
+        // une seule ligne recall due suffisait à interrompre tout le
+        // balayage cross-cabinet, à chaque passe, indéfiniment.
+        let appointment_id: Option<Uuid> = row
             .try_get("appointment_id")
             .map_err(|_| AppError::Internal)?;
         let kind: String = row.try_get("kind").map_err(|_| AppError::Internal)?;
@@ -211,7 +221,7 @@ async fn process_one_reminder(
     db: &PgPool,
     reminder_id: Uuid,
     cabinet_id: Uuid,
-    appointment_id: Uuid,
+    appointment_id: Option<Uuid>,
     kind: &str,
     channel: &str,
     app_user_id: Option<Uuid>,
