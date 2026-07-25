@@ -317,3 +317,119 @@ async fn dispatch_marks_reminder_failed_when_no_device() {
 
     cleanup(&owner, &f).await;
 }
+
+// ── Test 3 (#4389) : rappel recall_annual (appointment_id NULL) ne bloque
+// pas le balayage — un rappel RDV légitime, dû dans la MÊME passe, doit
+// quand même être traité (sent), pas juste "aucune erreur retournée" ──────
+
+#[tokio::test]
+async fn dispatch_does_not_abort_on_null_appointment_recall_reminder() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let app_db = app_pool().await;
+
+    // RDV légitime avec device actif : doit rester "sent" même si une ligne
+    // recall_annual (appointment_id NULL) est due dans la même passe.
+    let f = insert_fixture(&owner, &Uuid::new_v4().to_string(), true).await;
+
+    // Rappel de campagne de relance (recall_campaigns.rs) : appointment_id
+    // NULL, dû immédiatement — exactement la ligne qui faisait planter tout
+    // le balayage avant #4389.
+    let recall_cabinet_id = Uuid::new_v4();
+    let recall_patient_id = Uuid::new_v4();
+    let recall_reminder_id = Uuid::new_v4();
+    let mut tx = owner.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(recall_cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(recall_cabinet_id)
+        .bind(format!("Cabinet Recall NullAppt {recall_reminder_id}"))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) VALUES ($1, $2, 'QA', 'Recall')",
+    )
+    .bind(recall_patient_id)
+    .bind(recall_cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO reminder \
+         (id, cabinet_id, appointment_id, patient_id, scheduled_at, kind, status) \
+         VALUES ($1, $2, NULL, $3, now() - interval '1 hour', 'recall_annual', 'pending')",
+    )
+    .bind(recall_reminder_id)
+    .bind(recall_cabinet_id)
+    .bind(recall_patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let summary = dispatch_pending_reminders(&app_db, &StubJobDispatcher, &StubSmsSender)
+        .await
+        .expect(
+            "le balayage ne doit jamais échouer sur une ligne recall_annual (appointment_id NULL)",
+        );
+    assert!(
+        summary.sent >= 1,
+        "le rappel RDV légitime doit rester traité (sent) dans la même passe (summary={summary:?})"
+    );
+
+    let rdv_status: String = sqlx::query_scalar("SELECT status FROM reminder WHERE id = $1")
+        .bind(f.reminder_id)
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_eq!(
+        rdv_status, "sent",
+        "le rappel RDV légitime ne doit pas être laissé pending par la ligne recall en erreur"
+    );
+
+    let recall_status: String = sqlx::query_scalar("SELECT status FROM reminder WHERE id = $1")
+        .bind(recall_reminder_id)
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_ne!(
+        recall_status, "pending",
+        "la ligne recall_annual doit être sortie de pending (traitée, pas laissée due indéfiniment)"
+    );
+
+    sqlx::query("DELETE FROM notification WHERE app_user_id = $1")
+        .bind(f.patient_account_user_id.unwrap())
+        .execute(&owner)
+        .await
+        .ok();
+    cleanup(&owner, &f).await;
+
+    let mut tx = owner.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(recall_cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM reminder WHERE id = $1")
+        .bind(recall_reminder_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(recall_patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(recall_cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+}
