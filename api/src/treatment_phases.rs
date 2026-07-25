@@ -84,7 +84,8 @@ fn is_valid_fdi_tooth(code: &str) -> bool {
 /// Praticien uniquement (via `ProPractitionerClaims`). Plan inexistant ou
 /// hors tenant → 404. `title` vide, `position` négatif (rang d'ordonnancement
 /// clinique, trié `ORDER BY position ASC`), un `inline_acts[].label` vide,
-/// `amount_cents` négatif, ou `tooth` hors numérotation FDI (#4368) → 422.
+/// `amount_cents` négatif, `tooth` hors numérotation FDI (#4368), ou plan
+/// déjà `done` (terminal — #4386) → 422.
 /// Statut initial : `requested`. Réponse `201 { phase_id }`.
 pub async fn create_treatment_phase(
     State(state): State<AppState>,
@@ -121,7 +122,7 @@ pub async fn create_treatment_phase(
     // Vérifie que le plan appartient au cabinet (RLS garantit le cloisonnement) ;
     // récupère patient_id pour le devis inline (#4263), si besoin.
     let plan_row = sqlx::query(
-        "SELECT patient_id FROM treatment_plan \
+        "SELECT patient_id, status FROM treatment_plan \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(plan_id)
@@ -136,6 +137,14 @@ pub async fn create_treatment_phase(
     let patient_id: Uuid = plan_row
         .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
+    let plan_status: String = plan_row.try_get("status").map_err(|_| AppError::Internal)?;
+    // Plan déjà `done` (terminal) : ajouter une phase ouverte le laisserait
+    // figé `done` avec du travail en cours (#4386) — sync_plan_status_from_phases
+    // est forward-only (jamais done -> in_progress) et n'est de toute façon
+    // appelée qu'au PATCH d'une phase existante, pas à la création.
+    if plan_status == "done" {
+        return Err(AppError::ValidationError);
+    }
 
     let phase_id: Uuid = sqlx::query(
         "INSERT INTO treatment_phase (cabinet_id, plan_id, position, title, status) \
