@@ -23,7 +23,8 @@ pub struct PatchAppointmentBody {
     pub motif: Option<String>,
 }
 
-/// `PATCH /v1/appointments/:id` — patient modifie son RDV (créneau ou motif).
+/// `PATCH /v1/appointments/:id` — patient modifie son RDV (créneau ou motif),
+/// y compris un RDV de dépendant (tutelle, `app.current_account_id` — #4388).
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
 /// Hors délai (≥ 24 h avant starts_at courant) → `409 too_late`.
@@ -46,6 +47,16 @@ pub async fn patch_appointment(
 
     // Scope patient — appointment_patient_read (policy 0029) → 404 si autre patient.
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Cf. get_appointment/cancel_appointment (#4388) : requis pour la branche
+    // tutelle de appointment_patient_read (migration 0196, account_guardianship
+    // RLS) — sans lui, un RDV de dépendant renvoie 404 alors que GET/cancel/
+    // queue/directions le voient déjà tous.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await

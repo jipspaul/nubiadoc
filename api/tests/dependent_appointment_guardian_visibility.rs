@@ -1,5 +1,6 @@
 //! Tests d'intégration : visibilité/gestion par le tuteur d'un RDV pris pour
-//! un dépendant (#4274/QA-20260722-2 — migration 0196).
+//! un dépendant (#4274/QA-20260722-2 — migration 0196 ; #4363 queue/callback/
+//! preparation/directions ; #4388 PATCH motif/starts_at).
 //!
 //! Un RDV `on_behalf_of` un dépendant est rattaché au `patient_account_id` du
 //! DÉPENDANT (create_appointment), jamais du tuteur. Avant #4274, le tuteur
@@ -520,4 +521,47 @@ async fn unrelated_account_still_gets_404_on_dependent_appointment() {
         .execute(&db)
         .await
         .ok();
+}
+
+// ── Test 5 : le tuteur peut PATCH (motif) le RDV du dépendant (#4388) ──────
+// PATCH était le seul handler tutelle sans le GUC app.current_account_id
+// (get/list/queue/directions/cancel/checkin l'ont déjà tous) → 404 alors que
+// le même RDV est lisible/gérable partout ailleurs.
+
+#[tokio::test]
+async fn guardian_can_patch_motif_of_dependent_appointment() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    // starts_at dans 3 jours : au-delà de la fenêtre "too_late" (24h) du PATCH.
+    let f = insert_dependent_appointment_fixture(&db, "requested", 3 * 24 * 60).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(f.guardian_user_id, f.guardian_account_id);
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/appointments/{}", f.appt_id))
+                .header("Authorization", format!("Bearer {}", jwt))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"motif": "QA modif tutelle"}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "le tuteur doit pouvoir modifier le motif du RDV du dépendant (pas 404)"
+    );
+
+    cleanup_fixture(&db, &f).await;
 }
