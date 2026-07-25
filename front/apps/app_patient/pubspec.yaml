@@ -1,7 +1,7 @@
 name: app_patient
 description: Nubia patient app (mobile-first, web/desktop/mobile).
 publish_to: none
-version: 0.1.0
+version: 0.1.1+1
 resolution: workspace
 
 environment:
