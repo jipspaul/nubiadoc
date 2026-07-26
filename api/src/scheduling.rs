@@ -2129,14 +2129,18 @@ pub async fn list_cabinet_slots(
     if params.page.is_some() {
         return Err(AppError::UnsupportedPageParam);
     }
-    let from = params
+    let from: Option<chrono::DateTime<chrono::Utc>> = params
         .from
         .as_deref()
-        .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok());
-    let to = params
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+    let to: Option<chrono::DateTime<chrono::Utc>> = params
         .to
         .as_deref()
-        .and_then(|s| s.parse::<chrono::DateTime<chrono::Utc>>().ok());
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
     let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
     let offset: i64 = params.offset.unwrap_or(0).max(0);
 
