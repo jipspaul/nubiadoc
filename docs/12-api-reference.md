@@ -108,7 +108,7 @@
 
 | Méthode | Chemin | Auth | Description |
 |---|---|---|---|
-| POST | `/v1/auth/register` | — | Création compte **patient** (e-mail + mot de passe) + CGU. |
+| POST | `/v1/auth/register` | — | Création compte **patient** (e-mail + mot de passe) + CGU. Réponse `201` même si l'email est déjà pris (anti-énumération, #4436). |
 | POST | `/v1/auth/login` | — | Login → access + refresh. Patient ou pro (selon compte). |
 | POST | `/v1/auth/refresh` | refresh | Rotation du refresh, nouveau access. |
 | POST | `/v1/auth/logout` | oui | Révoque le refresh courant. |
@@ -123,7 +123,7 @@
 
 **Contrats clés**
 
-`POST /v1/auth/register` — body : `email`, `password`, `accept_cgu:true`, `cgu_version`. → `201 { account_id, access_token, refresh_token }`. Erreurs : `409 email_taken`, `422` (politique mot de passe), `422 cgu_required`. Effet : crée `app_user` + `patient_account` + `consent_record(purpose='soins')` horodaté (`06` E3.1).
+`POST /v1/auth/register` — body : `email`, `password`, `accept_cgu:true`, `cgu_version`. → `201 { account_id, access_token, refresh_token }`. Si l'email est déjà pris, renvoie aussi `201` avec un `account_id`/`access_token`/`refresh_token` leurres (aucun compte créé, aucun token exploitable) plutôt qu'un `409 email_taken` — anti-énumération, parité avec `login`/`forgot` (§1.8, #4436). Erreurs restantes : `422` (politique mot de passe), `422 cgu_required`. Effet (email libre) : crée `app_user` + `patient_account` + `consent_record(purpose='soins')` horodaté (`06` E3.1).
 
 `POST /v1/auth/login` — body : `email`, `password`, `mfa_code?`. → `200 { access_token, refresh_token, token_type:"Bearer", expires_in }`. Si pro avec MFA : `401 mfa_required` puis renvoyer avec `mfa_code`. Rate-limited.
 

@@ -116,7 +116,6 @@ pub(crate) enum AppError {
     MfaRequired,
     ValidationError,
     Internal,
-    EmailTaken,
     CguRequired,
     PasswordPolicy,
     Forbidden,
@@ -237,9 +236,6 @@ impl IntoResponse for AppError {
                 Json(json!({"code": "internal_error"})),
             )
                 .into_response(),
-            AppError::EmailTaken => {
-                (StatusCode::CONFLICT, Json(json!({"code": "email_taken"}))).into_response()
-            }
             AppError::CguRequired => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 Json(json!({"code": "cgu_required"})),

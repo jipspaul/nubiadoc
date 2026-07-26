@@ -85,10 +85,14 @@ async fn register_happy_path_returns_201_with_tokens() {
         .ok();
 }
 
-// ── Test 2 : email déjà existant → 409 email_taken ───────────────────────────
+// ── Test 2 : email déjà existant → 201 leurre (anti-énumération, #4436) ─────
+// Parité avec login/forgot (§1.8) : un email déjà pris renvoie la même forme
+// de réponse (201, account_id/access_token/refresh_token) qu'une création
+// réussie, sans créer de second compte ni exposer de token exploitable pour
+// le compte existant.
 
 #[tokio::test]
-async fn register_duplicate_email_returns_409() {
+async fn register_duplicate_email_returns_decoy_201() {
     if !db_available() {
         return;
     }
@@ -129,13 +133,22 @@ async fn register_duplicate_email_returns_409() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["code"], "email_taken");
+    assert!(v["account_id"].is_string());
+    assert!(v["access_token"].is_string());
+    assert!(v["refresh_token"].is_string());
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM app_user WHERE email = $1")
+        .bind(&email)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 1, "aucun second compte ne doit être créé");
 
     sqlx::query("DELETE FROM app_user WHERE email = $1")
         .bind(&email)
