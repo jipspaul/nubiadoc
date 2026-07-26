@@ -78,19 +78,19 @@ pub async fn create_waiting_list_entry(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Résout le dossier patient dans ce cabinet.
-    let patient_row = sqlx::query(
-        "SELECT id FROM patient \
-         WHERE patient_account_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
-    )
-    .bind(claims.account_id)
-    .bind(cabinet_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::NotFound)?;
-
-    let patient_id: Uuid = patient_row.try_get("id").map_err(|_| AppError::Internal)?;
+    // Récupère-ou-crée le dossier patient de ce cabinet (SECURITY DEFINER,
+    // migration 0123 — même fonction que create_booking/create_appointment).
+    // Un patient qui découvre un provider listé et veut rejoindre sa liste
+    // d'attente n'a pas forcément déjà consulté dans ce cabinet (#4444).
+    // NULL uniquement si le compte lui-même n'existe pas → 404 légitime.
+    let patient_id: Uuid =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT ensure_patient_for_cabinet($1, $2)")
+            .bind(claims.account_id)
+            .bind(cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
 
     // Anti-doublon : vérifie si une entrée active existe déjà pour ce patient + provider.
     let existing = sqlx::query(
