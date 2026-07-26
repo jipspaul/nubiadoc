@@ -1073,7 +1073,7 @@ pub async fn get_appointment_preparation(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, starts_at, cabinet_id, practitioner_id, documents_hint \
+        "SELECT id, starts_at, cabinet_id, practitioner_id, patient_id, documents_hint \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -1090,9 +1090,20 @@ pub async fn get_appointment_preparation(
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
     let documents_hint: Option<String> = row
         .try_get("documents_hint")
         .map_err(|_| AppError::Internal)?;
+
+    // Patient réel du RDV (le DÉPENDANT pour un RDV on_behalf_of, pas le tuteur en
+    // session) : la couverture/tiers-payant ci-dessous doit être lue sur ce compte,
+    // pas sur claims.account_id (#4446).
+    let patient_account_id: Uuid =
+        sqlx::query_scalar("SELECT patient_account_id FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
     // Scope cabinet pour accès provider + cabinet.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1154,11 +1165,22 @@ pub async fn get_appointment_preparation(
     let geo_val: Option<serde_json::Value> =
         cab_row.try_get("geo").map_err(|_| AppError::Internal)?;
 
-    // Tiers-payant depuis patient_coverage (app.patient_account_id GUC déjà positionné).
+    // patient_coverage_owner (migration 0023) n'a pas de branche tutelle : elle exige
+    // une égalité stricte GUC == patient_account_id. Le GUC est repositionné sur le
+    // patient RÉEL du RDV (déjà authentifié via appointment_patient_read ci-dessus)
+    // pour cette lecture, au lieu de rester sur claims.account_id (#4446).
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(patient_account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Tiers-payant depuis patient_coverage du patient RÉEL du RDV (le dépendant pour
+    // un on_behalf_of), pas depuis celle du compte de session (#4446).
     let coverage_row = sqlx::query(
         "SELECT tiers_payant FROM patient_coverage WHERE patient_account_id = $1 LIMIT 1",
     )
-    .bind(claims.account_id)
+    .bind(patient_account_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
