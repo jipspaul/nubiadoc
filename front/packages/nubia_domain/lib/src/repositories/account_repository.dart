@@ -77,6 +77,12 @@ abstract class AccountRepository {
     String? address,
   });
 
+  /// GET /v1/account/medical-questionnaire — relit le questionnaire (brouillon
+  /// ou soumis) du patient pour [cabinetId]. `Right(null)` si aucun n'existe.
+  Future<Either<Failure, MedicalQuestionnaire?>> getMedicalQuestionnaire({
+    required String cabinetId,
+  });
+
   /// POST /v1/account/medical-questionnaire — crée un brouillon pour
   /// [cabinetId]. `ServerFailure(statusCode: 409)` si un brouillon existe déjà.
   Future<Either<Failure, MedicalQuestionnaire>> createMedicalQuestionnaire({

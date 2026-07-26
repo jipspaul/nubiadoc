@@ -16,6 +16,8 @@ class _MockCreate extends Mock implements CreateMedicalQuestionnaireUseCase {}
 
 class _MockPatch extends Mock implements PatchMedicalQuestionnaireUseCase {}
 
+class _MockGet extends Mock implements GetMedicalQuestionnaireUseCase {}
+
 const _draft = MedicalQuestionnaire(
   id: 'q-1',
   cabinetId: 'cab-1',
@@ -33,14 +35,19 @@ const _submitted = MedicalQuestionnaire(
 void main() {
   late _MockCreate create;
   late _MockPatch patch;
+  late _MockGet get_;
 
   setUp(() {
     create = _MockCreate();
     patch = _MockPatch();
+    get_ = _MockGet();
+    when(() => get_(cabinetId: any(named: 'cabinetId')))
+        .thenAnswer((_) async => const Right(null));
     GetIt.instance
         .registerFactory<CreateMedicalQuestionnaireUseCase>(() => create);
     GetIt.instance
         .registerFactory<PatchMedicalQuestionnaireUseCase>(() => patch);
+    GetIt.instance.registerFactory<GetMedicalQuestionnaireUseCase>(() => get_);
     addTearDown(GetIt.instance.reset);
   });
 
