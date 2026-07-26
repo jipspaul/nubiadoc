@@ -52,7 +52,10 @@ pub struct CloseCashRegisterResponse {
 /// - `closing_date` optionnel, défaut aujourd'hui (UTC). Ne peut pas être
 ///   dans le futur (`> aujourd'hui`) → `422` sinon (#4313) : une clôture de
 ///   caisse est par nature « la caisse du jour », une date future est un
-///   enregistrement comptable incohérent.
+///   enregistrement comptable incohérent. Symétriquement, ne peut pas être
+///   antérieure à `aujourd'hui - 31 jours` → `422` (#4393) : la clôture est
+///   irréversible (pas de correction/re-open), une date passée aberrante ne
+///   doit pas pouvoir se figer.
 /// - Clôture déjà existante pour ce cabinet+jour → `409
 ///   cash_register_already_closed` (pas de double clôture — une correction
 ///   explicite reste hors scope #4071).
@@ -76,6 +79,16 @@ pub async fn close_cash_register(
     // haute ne bloquait une date future (ex. 2099-12-31), enregistrement
     // comptable incohérent.
     if closing_date > chrono::Utc::now().date_naive() {
+        return Err(AppError::ValidationError);
+    }
+
+    // #4393 : symétriquement, aucune borne basse ne bloquait une date passée
+    // aberrante (ex. faute de frappe d'année) — or la clôture est ensuite
+    // irréversible (UNIQUE cabinet_id+closing_date, pas d'UPDATE/DELETE
+    // grantés, aucun endpoint de correction). On borne à une fenêtre de
+    // rattrapage raisonnable pour une clôture censée être quotidienne.
+    const MAX_PAST_DAYS: i64 = 31;
+    if closing_date < chrono::Utc::now().date_naive() - chrono::Duration::days(MAX_PAST_DAYS) {
         return Err(AppError::ValidationError);
     }
 
