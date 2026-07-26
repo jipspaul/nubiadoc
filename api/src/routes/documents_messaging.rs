@@ -1,6 +1,6 @@
 //! Routes documents + messagerie patient. Extrait de `lib.rs::build_router` (refactor taille).
 
-use axum::{routing::get, Router};
+use axum::{extract::DefaultBodyLimit, routing::get, Router};
 
 use crate::{documents, messaging, AppState};
 
@@ -10,6 +10,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/documents",
             get(documents::list_documents).post(documents::upload_document),
         )
+        .route_layer(DefaultBodyLimit::max(documents::MAX_UPLOAD_SIZE))
         .route("/v1/documents/:id", get(documents::get_document))
         .route(
             "/v1/documents/:id/download",
