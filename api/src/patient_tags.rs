@@ -146,10 +146,18 @@ pub struct CreatePatientTagBody {
     pub color: Option<String>,
 }
 
+/// `color` doit être un hex `#RRGGBB` (6 chiffres) — une valeur arbitraire
+/// acceptée verbatim casse le rendu de la puce côté front (#4395).
+fn is_valid_hex_color(color: &str) -> bool {
+    color.len() == 7 && color.starts_with('#') && color[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
 /// `POST /v1/cabinet/patients/:id/tags` — pose une étiquette administrative.
 ///
-/// Token pro requis (secretary+). `label` vide (après trim) → `422
-/// {"code":"validation_error"}`. Patient hors cabinet → 404. Auditée
+/// Token pro requis (secretary+). `label` vide (après trim) ou contenant un
+/// caractère de contrôle (ex. NUL, qui ferait échouer l'INSERT Postgres en
+/// 500), ou `color` qui n'est pas un hex `#RRGGBB` → `422
+/// {"code":"validation_error"}` (#4395). Patient hors cabinet → 404. Auditée
 /// (`create_patient_tag`) dans `audit_log`.
 pub async fn create_patient_tag(
     State(state): State<AppState>,
@@ -158,7 +166,7 @@ pub async fn create_patient_tag(
     Json(body): Json<CreatePatientTagBody>,
 ) -> Result<(StatusCode, Json<PatientTagItem>), AppError> {
     let label = body.label.trim().to_string();
-    if label.is_empty() {
+    if label.is_empty() || label.chars().any(|c| c.is_control()) {
         return Err(AppError::ValidationError);
     }
     let color = body
@@ -168,6 +176,9 @@ pub async fn create_patient_tag(
         .filter(|s| !s.is_empty())
         .unwrap_or("#94A3B8")
         .to_string();
+    if !is_valid_hex_color(&color) {
+        return Err(AppError::ValidationError);
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
