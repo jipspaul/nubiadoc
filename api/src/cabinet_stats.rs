@@ -151,10 +151,12 @@ pub struct BillingStatsQuery {
 pub struct BillingStatsResponse {
     /// CA encaissé sur la période : somme des `payment.amount` `status='paid'`.
     pub revenue_collected_cents: i64,
-    /// Impayé courant (solde actuel, PAS borné par `from`/`to`) : somme des
-    /// devis `signed` moins les paiements `pending`/`paid` **rattachés à un
-    /// devis signé** (`payment.quote_id`) — jamais `failed`/`refunded`.
-    /// `>= 0` par construction (`GREATEST`) : un impayé n'est jamais négatif
+    /// Impayé courant (solde actuel, PAS borné par `from`/`to`) : pour
+    /// chaque devis `signed`, `total_amount` moins les paiements
+    /// `pending`/`paid` **rattachés à ce devis** (`payment.quote_id`) —
+    /// jamais `failed`/`refunded` — clampé à `>= 0` **par devis** puis
+    /// sommé (#4425 : un clamp global masquait les impayés réels d'un
+    /// devis derrière le trop-perçu d'un autre). `>= 0` par construction
     /// (#4347 — contrairement à `balance_due_cents`, agréger tous les
     /// paiements du cabinet sans ce scoping mélangeait des ensembles sans
     /// rapport et produisait un solde absurdement négatif).
@@ -226,19 +228,24 @@ pub async fn get_cabinet_billing_stats(
     // ensembles sans rapport (acomptes sur devis draft/refused, paiements
     // hors devis...) et pouvait produire un impayé massivement négatif. Fix
     // : ne compter que les paiements réellement rattachés (quote_id) à un
-    // devis signé. GREATEST(0, x) en défense en profondeur - un impayé n'est
-    // jamais négatif par définition (un solde négatif serait un trop-perçu,
-    // pas un impayé).
+    // devis signé.
+    // #4425 : le fix #4347 clampait GREATEST(0, ...) sur l'agrégat GLOBAL
+    // (somme des devis - somme des paiements), donc un devis surpayé
+    // (trop-perçu) pouvait compenser un autre devis impayé avant que le
+    // clamp global écrase le résidu net négatif à 0 - masquant des impayés
+    // réels. Un impayé n'est jamais négatif PAR DEVIS ; le clamp doit donc
+    // s'appliquer par devis (trop-perçu neutralisé à 0 sans absorber
+    // l'impayé d'un autre devis) avant de sommer.
     let outstanding_row = sqlx::query(
-        "SELECT GREATEST(0, ( \
-           COALESCE((SELECT SUM(total_amount) FROM quote \
-                     WHERE cabinet_id = $1 AND status = 'signed' AND deleted_at IS NULL), 0) \
-           - \
-           COALESCE((SELECT SUM(p.amount) FROM payment p \
-                     JOIN quote q ON q.id = p.quote_id \
-                     WHERE p.cabinet_id = $1 AND p.status IN ('pending', 'paid') \
-                       AND q.cabinet_id = $1 AND q.status = 'signed' AND q.deleted_at IS NULL), 0) \
-         ) * 100)::bigint AS outstanding_cents",
+        "SELECT (COALESCE(SUM(GREATEST(0, q.total_amount - COALESCE(pay.paid_sum, 0))), 0) \
+           * 100)::bigint AS outstanding_cents \
+         FROM quote q \
+         LEFT JOIN ( \
+           SELECT quote_id, SUM(amount) AS paid_sum FROM payment \
+           WHERE cabinet_id = $1 AND status IN ('pending', 'paid') \
+           GROUP BY quote_id \
+         ) pay ON pay.quote_id = q.id \
+         WHERE q.cabinet_id = $1 AND q.status = 'signed' AND q.deleted_at IS NULL",
     )
     .bind(claims.cabinet_id)
     .fetch_one(&mut *tx)
