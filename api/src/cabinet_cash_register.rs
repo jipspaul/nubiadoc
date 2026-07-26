@@ -148,7 +148,12 @@ pub async fn close_cash_register(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|e| match &e {
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
+            AppError::CashRegisterAlreadyClosed
+        }
+        _ => AppError::Internal,
+    })?;
 
     let id: Uuid = closing_row.try_get("id").map_err(|_| AppError::Internal)?;
 
