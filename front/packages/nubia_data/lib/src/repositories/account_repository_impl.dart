@@ -212,6 +212,20 @@ class AccountRepositoryImpl implements AccountRepository {
   }
 
   @override
+  Future<Either<Failure, MedicalQuestionnaire?>> getMedicalQuestionnaire({
+    required String cabinetId,
+  }) async {
+    try {
+      final dto = await _api.getMedicalQuestionnaire(cabinetId);
+      return Right(dto?.toDomain());
+    } on DioException catch (e) {
+      return Left(_mapMedicalQuestionnaireError(e));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, MedicalQuestionnaire>> createMedicalQuestionnaire({
     required String cabinetId,
     required Map<String, dynamic> payload,

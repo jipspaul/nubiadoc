@@ -134,6 +134,23 @@ class AccountApi {
     return ReferringDoctorDto.fromJson(response.data!);
   }
 
+  /// GET /v1/account/medical-questionnaire — null si 404 (aucune soumission).
+  Future<MedicalQuestionnaireDto?> getMedicalQuestionnaire(
+      String cabinetId) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/account/medical-questionnaire',
+        queryParameters: {'cabinet_id': cabinetId},
+      );
+      final data = response.data;
+      if (data == null || data.isEmpty) return null;
+      return MedicalQuestionnaireDto.fromJson(data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
   Future<MedicalQuestionnaireDto> createMedicalQuestionnaire(
       Map<String, dynamic> body) async {
     final response = await _dio.post<Map<String, dynamic>>(

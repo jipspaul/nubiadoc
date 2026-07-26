@@ -14,6 +14,16 @@ final class MedicalQuestionnaireIdle extends MedicalQuestionnaireState {
   const MedicalQuestionnaireIdle();
 }
 
+/// Chargement initial terminé — [questionnaire] est `null` si le patient n'a
+/// encore rien soumis pour ce cabinet.
+final class MedicalQuestionnaireLoaded extends MedicalQuestionnaireState {
+  final MedicalQuestionnaire? questionnaire;
+  const MedicalQuestionnaireLoaded(this.questionnaire);
+
+  @override
+  List<Object?> get props => [questionnaire];
+}
+
 final class MedicalQuestionnaireSaving extends MedicalQuestionnaireState {
   const MedicalQuestionnaireSaving();
 }
@@ -39,16 +49,14 @@ final class MedicalQuestionnaireError extends MedicalQuestionnaireState {
 
 /// Cubit du questionnaire médical patient (#4109).
 ///
-/// Quoi : enregistre un brouillon (`saveDraft`) et/ou le soumet au cabinet
-/// (`submit`) pour le [cabinetId] du prochain RDV.
+/// Quoi : précharge le questionnaire existant (`GET`, #4459) puis enregistre
+/// un brouillon (`saveDraft`) et/ou le soumet au cabinet (`submit`) pour le
+/// [cabinetId] du prochain RDV.
 ///
-/// Pourquoi cette approche : l'API (#4108) n'expose aucun `GET` du
-/// questionnaire côté patient (seul le cabinet peut lire, après soumission) —
-/// impossible de précharger un brouillon existant. Le formulaire démarre donc
-/// toujours vierge ; `saveDraft`/`submit` gèrent eux-mêmes la création vs.
-/// mise à jour du brouillon existant (409 sur `POST` → bascule sur `PATCH`,
-/// 404 sur `PATCH` → bascule sur `POST`) plutôt que d'exiger que l'appelant
-/// sache si un brouillon existe déjà.
+/// `saveDraft`/`submit` gèrent eux-mêmes la création vs. mise à jour du
+/// brouillon existant (409 sur `POST` → bascule sur `PATCH`, 404 sur `PATCH`
+/// → bascule sur `POST`) plutôt que d'exiger que l'appelant sache si un
+/// brouillon existe déjà.
 ///
 /// Modes d'échec : toute erreur non 409/404 → `MedicalQuestionnaireError`
 /// (le formulaire reste rempli, aucune perte de saisie).
@@ -58,13 +66,26 @@ class MedicalQuestionnaireCubit extends Cubit<MedicalQuestionnaireState>
     required this.cabinetId,
     required CreateMedicalQuestionnaireUseCase create,
     required PatchMedicalQuestionnaireUseCase patch,
+    required GetMedicalQuestionnaireUseCase get,
   })  : _create = create,
         _patch = patch,
-        super(const MedicalQuestionnaireIdle());
+        _get = get,
+        super(const MedicalQuestionnaireIdle()) {
+    _load();
+  }
 
   final String cabinetId;
   final CreateMedicalQuestionnaireUseCase _create;
   final PatchMedicalQuestionnaireUseCase _patch;
+  final GetMedicalQuestionnaireUseCase _get;
+
+  Future<void> _load() async {
+    final result = await _get(cabinetId: cabinetId);
+    result.fold(
+      (_) => safeEmit(const MedicalQuestionnaireLoaded(null)),
+      (questionnaire) => safeEmit(MedicalQuestionnaireLoaded(questionnaire)),
+    );
+  }
 
   Future<void> saveDraft(Map<String, dynamic> payload) async {
     emit(const MedicalQuestionnaireSaving());
