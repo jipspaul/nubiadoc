@@ -16,6 +16,44 @@ use crate::{
     AppState,
 };
 
+/// Garde de scope secrétariat (R10) : un secrétaire ne peut agir sur les tags
+/// d'un patient que s'il est joignable via `provider_secretariat` — même
+/// requête que `patient_detail.rs:293-312` et `cabinet_document_download.rs`
+/// (#3821/#3823). Sans cette garde, les tags fuient un patient que la fiche
+/// et les documents masquent déjà en 404 (#4443).
+async fn ensure_secretary_scope(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &ProSecretaryPlusClaims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    if claims.role != "secretary" {
+        return Ok(());
+    }
+    let in_scope = match claims.secretariat_id {
+        Some(secretariat_id) => sqlx::query(
+            "SELECT 1 FROM appointment a \
+             JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+             JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+             WHERE a.patient_id = $1 \
+               AND a.deleted_at IS NULL \
+               AND a.status <> 'cancelled' \
+               AND ps.secretariat_id = $2 \
+               AND ps.active = true",
+        )
+        .bind(patient_id)
+        .bind(secretariat_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .is_some(),
+        None => false,
+    };
+    if !in_scope {
+        return Err(AppError::NotFound);
+    }
+    Ok(())
+}
+
 #[derive(Serialize)]
 pub struct PatientTagItem {
     pub id: Uuid,
@@ -68,6 +106,7 @@ pub async fn list_patient_tags(
         .map_err(|_| AppError::Internal)?;
 
     ensure_patient_in_cabinet(&mut tx, patient_id, claims.cabinet_id).await?;
+    ensure_secretary_scope(&mut tx, &claims, patient_id).await?;
 
     let rows = sqlx::query(
         "SELECT id, label, color, created_by, created_at FROM patient_tag \
@@ -139,6 +178,7 @@ pub async fn create_patient_tag(
         .map_err(|_| AppError::Internal)?;
 
     ensure_patient_in_cabinet(&mut tx, patient_id, claims.cabinet_id).await?;
+    ensure_secretary_scope(&mut tx, &claims, patient_id).await?;
 
     let row = sqlx::query(
         "INSERT INTO patient_tag (cabinet_id, patient_id, label, color, created_by) \
@@ -209,6 +249,9 @@ pub async fn delete_patient_tag(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    ensure_patient_in_cabinet(&mut tx, patient_id, claims.cabinet_id).await?;
+    ensure_secretary_scope(&mut tx, &claims, patient_id).await?;
 
     let deleted =
         sqlx::query("DELETE FROM patient_tag WHERE id = $1 AND patient_id = $2 RETURNING id")
