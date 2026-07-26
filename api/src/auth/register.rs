@@ -20,6 +20,48 @@ use crate::AppState;
 
 use super::{is_unique_violation, AppError, PatientClaims, ProRegisterClaims};
 
+/// #4436 : construit une réponse `201` à la forme strictement identique à
+/// une création réussie (mêmes champs, JWT valide et correctement signé)
+/// mais dont le `sub`/`account_id` ne correspondent à aucun compte réel.
+/// Utilisé quand l'email est déjà pris, pour ne pas exposer d'oracle
+/// d'énumération (parité avec le leurre argon2 de `auth/login.rs` et le
+/// travail symétrique de `auth/forgot_password.rs`, anti-énum §1.8) : un
+/// email inconnu et un email déjà enregistré produisent alors la même
+/// réponse (`201`, mêmes champs), sans jamais divulguer un token exploitable
+/// pour le compte existant.
+fn decoy_register_response(
+    state: &AppState,
+) -> Result<(StatusCode, Json<RegisterResponse>), AppError> {
+    let decoy_user_id = Uuid::new_v4();
+    let decoy_account_id = Uuid::new_v4();
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        + 900;
+    let claims = PatientClaims {
+        sub: decoy_user_id,
+        kind: "patient".to_string(),
+        account_id: decoy_account_id,
+        exp,
+    };
+    let access_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+    )
+    .map_err(|_| AppError::Internal)?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(RegisterResponse {
+            account_id: decoy_account_id,
+            access_token,
+            refresh_token: Uuid::new_v4().to_string(),
+        }),
+    ))
+}
+
 const RATE_MAX_ATTEMPTS: u32 = 5;
 const RATE_WINDOW: Duration = Duration::from_secs(600);
 
@@ -93,21 +135,24 @@ pub async fn register(
     let user_id = Uuid::new_v4();
     let account_id = Uuid::new_v4();
 
-    sqlx::query(
+    let insert_result = sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'patient')",
     )
     .bind(user_id)
     .bind(&body.email)
     .bind(&password_hash)
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        if is_unique_violation(&e) {
-            AppError::EmailTaken
-        } else {
-            AppError::Internal
+    .await;
+
+    if let Err(e) = insert_result {
+        if !is_unique_violation(&e) {
+            return Err(AppError::Internal);
         }
-    })?;
+        // #4436 : email déjà pris — abandonne l'INSERT (rollback implicite
+        // au drop de `tx`) et renvoie une réponse leurre indiscernable d'un
+        // 201 réel plutôt qu'un 409 email_taken (oracle d'énumération).
+        return decoy_register_response(&state);
+    }
 
     sqlx::query(
         "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, '', '')",
