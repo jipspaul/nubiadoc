@@ -494,7 +494,7 @@ pub async fn download_document(
     }))
 }
 
-const MAX_UPLOAD_SIZE: usize = 20 * 1024 * 1024;
+pub(crate) const MAX_UPLOAD_SIZE: usize = 20 * 1024 * 1024;
 const ALLOWED_UPLOAD_MIMES: &[&str] = &["application/pdf", "image/jpeg", "image/png"];
 
 /// Réponse de `POST /v1/documents`.
