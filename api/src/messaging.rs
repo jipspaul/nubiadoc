@@ -498,11 +498,23 @@ pub async fn mark_conversation_read(
     // Marque lus les messages non lus envoyés par le soignant (cabinet ou pharmacie).
     match body.last_read_message_id {
         Some(last_id) => {
+            // last_read_message_id doit appartenir au fil :id (sinon 404 : id inexistant
+            // ou message d'un autre fil — évite le no-op masqué et le marquage inter-fils).
+            let anchor = sqlx::query(
+                "SELECT created_at, id FROM message WHERE id = $1 AND conversation_id = $2",
+            )
+            .bind(last_id)
+            .bind(conversation_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+            anchor.ok_or(AppError::NotFound)?;
+
             sqlx::query(
                 "UPDATE message \
                  SET read_at = now() \
                  WHERE conversation_id = $1 \
-                   AND (created_at, id) <= (SELECT created_at, id FROM message WHERE id = $2) \
+                   AND (created_at, id) <= (SELECT created_at, id FROM message WHERE id = $2 AND conversation_id = $1) \
                    AND sender_kind IN ('practitioner', 'secretary', 'pharmacist') \
                    AND read_at IS NULL",
             )
