@@ -243,7 +243,7 @@ pub async fn list_provider_reviews(
 ) -> Result<Json<ListReviewsResponse>, AppError> {
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
-    let offset = (page - 1) * per_page;
+    let offset = (page - 1).saturating_mul(per_page);
 
     // Requête de comptage séparée de la requête paginée (#3864, même classe que
     // #3840 sur marketplace.rs::search_providers) : `COUNT(*) OVER()` est porté

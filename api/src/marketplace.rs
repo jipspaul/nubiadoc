@@ -518,7 +518,7 @@ pub async fn search_slots(
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
-    let offset = (page - 1) * per_page;
+    let offset = (page - 1).saturating_mul(per_page);
 
     // Sort clause — mêmes clés que /search/providers, alias du SELECT ci-dessous
     // (functional dependency sur p.id, clé primaire de provider — autorise de
@@ -764,7 +764,7 @@ pub async fn search_providers(
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
-    let offset = (page - 1) * per_page;
+    let offset = (page - 1).saturating_mul(per_page);
     let radius_m: Option<f64> = radius_km.map(|r| r * 1000.0);
 
     // Languages: comma-separated → vec for `&&` array overlap filter
