@@ -1,19 +1,22 @@
-//! `PATCH /v1/cabinet/quotes/:id` — édition d'un devis non signé (#4065).
+//! `PATCH /v1/cabinet/quotes/:id` — édition d'un devis `draft` (#4065, #4432).
 //!
 //! Extrait de `cabinet_quotes.rs` (CLAUDE.md plafond 700 lignes : ce fichier
 //! était déjà à 601 lignes avant cette route) — même contrat/tenant que les
 //! autres handlers `/v1/cabinet/quotes`.
 //!
 //! Quoi : remplace intégralement les lignes (`quote_item`) d'un devis
-//! `draft`/`sent` et recalcule `total_amount`, incrémente `version`.
-//! Quand : édition d'un devis avant envoi/signature (doc12 §16).
+//! `draft` et recalcule `total_amount`, incrémente `version`.
+//! Quand : édition d'un devis avant envoi au patient (doc12 §16).
 //! Pourquoi cette approche : remplacement complet plutôt que diff ligne à
 //! ligne — un devis n'a pas d'identité stable par ligne côté client (pas
 //! d'UI d'édition ligne par ligne aujourd'hui), et ça réutilise directement
 //! `validate_quote_items`/le pattern INSERT de `create_cabinet_quote`.
-//! Modes d'échec : devis signé → 409 `quote_locked` (trigger
-//! `enforce_quote_immutable`, migration 0051) ; devis inexistant/hors
-//! tenant → 404 ; lignes invalides → 422 (mêmes règles que la création).
+//! Modes d'échec : devis `sent`/`signed` → 409 `quote_locked` (#4432 : un
+//! devis déjà envoyé a pu être vu par le patient — le muter romprait
+//! l'intégrité du consentement à la signature, cf. `billing::sign_quote` qui
+//! ne pin aucune version ; le trigger `enforce_quote_immutable`, migration
+//! 0051, ne couvrait que `signed`) ; devis inexistant/hors tenant → 404 ;
+//! lignes invalides → 422 (mêmes règles que la création).
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -43,7 +46,7 @@ pub struct PatchCabinetQuoteResponse {
     pub total_amount_cents: i64,
 }
 
-/// `PATCH /v1/cabinet/quotes/:id` — édite un devis tant qu'il n'est pas signé.
+/// `PATCH /v1/cabinet/quotes/:id` — édite un devis tant qu'il est `draft`.
 ///
 /// - Auth JWT pro `practitioner`/`admin` requis (doc12 §16) — `secretary` → 403.
 /// - `cabinet_id` extrait du JWT, RLS scopée via `app.current_cabinet_id`.
@@ -52,7 +55,8 @@ pub struct PatchCabinetQuoteResponse {
 ///   non blanc, `amo`/`amc` non négatifs) → 422 sinon.
 /// - `deposit_pct` doit être entre 0 et 100 si fourni → 422 sinon.
 /// - Devis inexistant/hors cabinet → 404.
-/// - Devis signé (`enforce_quote_immutable`, migration 0051) → 409 `quote_locked`.
+/// - Devis `sent` ou `signed` → 409 `quote_locked` (#4432 : figer le montant
+///   dès l'envoi au patient, pour que `sign` engage exactement ce qu'il a vu).
 /// - `version` incrémentée à chaque édition acceptée.
 pub async fn patch_cabinet_quote(
     State(state): State<AppState>,
@@ -75,15 +79,24 @@ pub async fn patch_cabinet_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let exists =
-        sqlx::query("SELECT 1 FROM quote WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL")
-            .bind(id)
-            .bind(claims.cabinet_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-    if exists.is_none() {
-        return Err(AppError::NotFound);
+    let existing = sqlx::query(
+        "SELECT status FROM quote WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    // #4432 : un devis `sent` (déjà vu par le patient) ne doit plus être
+    // éditable — sinon `sign` fige silencieusement un montant que le
+    // patient n'a jamais consenti. Seul `draft` reste éditable ; `signed`
+    // est de toute façon bloqué par le trigger `enforce_quote_immutable`
+    // plus bas, mais on le rejette ici aussi pour un message cohérent.
+    let status: String = existing.try_get("status").map_err(|_| AppError::Internal)?;
+    if status != "draft" {
+        return Err(AppError::QuoteLocked);
     }
 
     let total_cents: i64 = body.items.iter().map(|i| i.amount_cents).sum();
