@@ -69,7 +69,8 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route("/v1/account/coverage/card", post(auth::post_coverage_card))
         .route(
             "/v1/account/medical-questionnaire",
-            post(medical_questionnaire::create_medical_questionnaire)
+            get(medical_questionnaire::get_medical_questionnaire)
+                .post(medical_questionnaire::create_medical_questionnaire)
                 .patch(medical_questionnaire::patch_medical_questionnaire),
         )
         .route(
