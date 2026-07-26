@@ -178,7 +178,12 @@ pub async fn create_favorite_act(
     .bind(position)
     .execute(&mut *tx)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|e| match &e {
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
+            AppError::FavoriteActAlreadyExists
+        }
+        _ => AppError::Internal,
+    })?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
