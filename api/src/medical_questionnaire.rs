@@ -1,8 +1,12 @@
 //! Handlers du questionnaire médical patient pré-consultation (#4108, table
 //! `medical_questionnaire_submission`, migration 0180).
 //!
-//! Quatre routes :
+//! Cinq routes :
 //! - `POST /v1/account/medical-questionnaire` (patient) : crée un brouillon.
+//! - `GET /v1/account/medical-questionnaire?cabinet_id=…` (patient) : relit
+//!   sa dernière soumission pour ce cabinet, quel que soit son statut
+//!   (brouillon/soumise/revue) — le patient est auteur ET sujet de la
+//!   donnée (RGPD art. 15), contrairement à la lecture cabinet ci-dessous.
 //! - `PATCH /v1/account/medical-questionnaire` (patient) : modifie le
 //!   brouillon existant, et/ou le soumet (`submit: true`).
 //! - `GET /v1/cabinet/patients/:id/medical-questionnaire` (praticien) : lit
@@ -26,7 +30,7 @@
 //! questionnaire avant la consultation, cas d'usage central de cette issue.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -161,6 +165,55 @@ pub async fn create_medical_questionnaire(
         cabinet_id = %body.cabinet_id,
         "medical questionnaire draft created"
     );
+
+    Ok(Json(row_to_response(row)?))
+}
+
+// ── GET /v1/account/medical-questionnaire ───────────────────────────────
+
+/// Query de `GET /v1/account/medical-questionnaire`.
+#[derive(Deserialize)]
+pub struct GetMedicalQuestionnaireQuery {
+    pub cabinet_id: Uuid,
+}
+
+/// `GET /v1/account/medical-questionnaire` — dernière soumission du patient
+/// pour ce cabinet, quel que soit son statut (`draft`/`submitted`/`reviewed`)
+/// : le patient, auteur ET sujet de la donnée, doit pouvoir la relire même
+/// une fois soumise — `RLS medical_questionnaire_submission_patient_owner`
+/// (migration 0180) l'autorise déjà sur tous les statuts, contrairement à
+/// `medical_questionnaire_submission_cabinet_read` qui masque les brouillons
+/// au cabinet. `404` si aucune soumission n'existe pour ce cabinet.
+pub async fn get_medical_questionnaire(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+    Query(query): Query<GetMedicalQuestionnaireQuery>,
+) -> Result<Json<MedicalQuestionnaireResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT id, cabinet_id, payload, status, submitted_at \
+         FROM medical_questionnaire_submission \
+         WHERE patient_account_id = $1 AND cabinet_id = $2 \
+         ORDER BY updated_at DESC LIMIT 1",
+    )
+    .bind(claims.account_id)
+    .bind(query.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        return Err(AppError::NotFound);
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
 
     Ok(Json(row_to_response(row)?))
 }
