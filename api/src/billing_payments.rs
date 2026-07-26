@@ -177,21 +177,6 @@ pub async fn create_payment_intent(
         return Err(AppError::InvalidStatus);
     }
 
-    // Acompte obligatoire (#3761) : deposit_pct était stocké à la création du
-    // devis mais jamais imposé — un patient pouvait régler un acompte
-    // arbitraire (ex. 1 centime) très en dessous du plancher demandé par le
-    // cabinet. `body.amount_cents` d'un paiement `kind:"deposit"` doit
-    // couvrir au moins `deposit_pct`% du total (arrondi au centime supérieur
-    // pour ne jamais sous-collecter).
-    if body.kind == "deposit" {
-        if let Some(pct) = deposit_pct {
-            let min_deposit_cents = ((total_amount_cents as f64) * pct / 100.0).ceil() as i64;
-            if body.amount_cents < min_deposit_cents {
-                return Err(AppError::ValidationError);
-            }
-        }
-    }
-
     // Scope cabinet pour les opérations sur payment (tenant_isolation policy).
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
@@ -225,6 +210,21 @@ pub async fn create_payment_intent(
         .try_get("committed_cents")
         .map_err(|_| AppError::Internal)?;
     let remaining_due_cents = total_amount_cents - already_committed_cents;
+
+    // Acompte obligatoire (#3761) : deposit_pct était stocké à la création du
+    // devis mais jamais imposé — un patient pouvait régler un acompte
+    // arbitraire (ex. 1 centime) très en dessous du plancher demandé par le
+    // cabinet. Le plancher s'applique tant qu'il n'est pas atteint, quel que
+    // soit le `kind` déclaré ("deposit"/"installment"/"full") : sinon il
+    // suffit de changer ce libellé pour le contourner entièrement (#4431).
+    if let Some(pct) = deposit_pct {
+        let min_deposit_cents = ((total_amount_cents as f64) * pct / 100.0).ceil() as i64;
+        if already_committed_cents < min_deposit_cents
+            && already_committed_cents + body.amount_cents < min_deposit_cents
+        {
+            return Err(AppError::ValidationError);
+        }
+    }
 
     if body.amount_cents > remaining_due_cents {
         return Err(AppError::ValidationError);
