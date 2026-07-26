@@ -883,7 +883,9 @@ async fn create_cabinet_conversation(
 
     let patient_id: Uuid = match patient_row {
         Some(r) => r.try_get("id").map_err(|_| AppError::Internal)?,
-        None => return Err(AppError::Forbidden),
+        // 404 uniforme (anti-énumération) : même statut que cabinet inexistant,
+        // pour ne pas laisser deviner l'existence d'un cabinet via 403 vs 404.
+        None => return Err(AppError::NotFound),
     };
 
     // ON CONFLICT DO UPDATE pour l'idempotence ET pour backfiller patient_id sur les fils
