@@ -1396,9 +1396,14 @@ pub async fn get_appointment_directions(
             _ => String::new(),
         },
     };
+    let travelmode = match mode.as_str() {
+        "walk" => "walking",
+        "transit" => "transit",
+        _ => "driving",
+    };
     let deeplink = format!(
-        "https://www.google.com/maps/dir/?api=1&destination={}",
-        destination
+        "https://www.google.com/maps/dir/?api=1&destination={}&travelmode={}",
+        destination, travelmode
     );
 
     tracing::info!(
