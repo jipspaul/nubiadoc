@@ -1940,10 +1940,14 @@ pub async fn create_appointment(
     // patient actif) ne doit pas être réservable, au même titre que le
     // chemin cabinet (create_cabinet_appointment).
     let (starts_at, ends_at, resolved_slot_id) = if let Some(slot_id) = body.slot_id {
+        // #4405 : AND online_booking = true — sinon un patient qui connaît un
+        // slot_id interne (jamais publié) le réserve directement, contournant
+        // la même garde déjà posée sur le funnel hold (claim_and_hold_slot,
+        // migration 0142/#3608) et les recherches publiques (marketplace.rs).
         let slot_row = sqlx::query(
             "SELECT starts_at, ends_at FROM availability_slot \
              WHERE id = $1 AND cabinet_id = $2 AND practitioner_id = $3 \
-             AND deleted_at IS NULL AND status = 'open'",
+             AND deleted_at IS NULL AND status = 'open' AND online_booking = true",
         )
         .bind(slot_id)
         .bind(cabinet_id)
@@ -1972,10 +1976,13 @@ pub async fn create_appointment(
         // reprogrammation (patch_appointment) — sinon starts_at est accepté
         // sans aucun créneau réel (heure hors-agenda) et l'exclusion GiST ne
         // bloque que les chevauchements, pas les horaires impossibles (#3722).
+        // #4405 : même garde que la branche slot_id ci-dessus — sans elle,
+        // un patient qui devine l'heure exacte d'un créneau interne (heures
+        // rondes) le réserve sans même connaître son slot_id.
         let slot_row = sqlx::query(
             "SELECT id, ends_at FROM availability_slot \
              WHERE cabinet_id = $1 AND practitioner_id = $2 AND starts_at = $3 \
-             AND deleted_at IS NULL AND status = 'open'",
+             AND deleted_at IS NULL AND status = 'open' AND online_booking = true",
         )
         .bind(cabinet_id)
         .bind(practitioner_id)

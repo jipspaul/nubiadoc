@@ -158,10 +158,12 @@ async fn post_appointment_happy_path_returns_201() {
 
         // Réservation via starts_at direct exige un availability_slot 'open'
         // au même horaire depuis #3722.
+        // online_booking=true (#4405) : POST /v1/appointments ne réserve plus
+        // un créneau non publié, ce fixture simule un créneau publié.
         sqlx::query(
             "INSERT INTO availability_slot \
-             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
-             VALUES ($1, $2, $3, $4, '2030-01-15T09:00:00Z', '2030-01-15T09:30:00Z', 'open')",
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, $2, $3, $4, '2030-01-15T09:00:00Z', '2030-01-15T09:30:00Z', 'open', true)",
         )
         .bind(Uuid::new_v4())
         .bind(provider_id)
@@ -390,10 +392,12 @@ async fn post_appointment_double_booking_returns_409() {
 
         // Réservation via starts_at direct exige un availability_slot 'open'
         // au même horaire depuis #3722.
+        // online_booking=true (#4405) : POST /v1/appointments ne réserve plus
+        // un créneau non publié, ce fixture simule un créneau publié.
         sqlx::query(
             "INSERT INTO availability_slot \
-             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
-             VALUES ($1, $2, $3, $4, '2030-03-10T10:00:00Z', '2030-03-10T10:30:00Z', 'open')",
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, $2, $3, $4, '2030-03-10T10:00:00Z', '2030-03-10T10:30:00Z', 'open', true)",
         )
         .bind(Uuid::new_v4())
         .bind(provider_id)
@@ -626,10 +630,12 @@ async fn post_appointment_idempotency_key_returns_same_appointment() {
 
         // Réservation via starts_at direct exige un availability_slot 'open'
         // au même horaire depuis #3722.
+        // online_booking=true (#4405) : POST /v1/appointments ne réserve plus
+        // un créneau non publié, ce fixture simule un créneau publié.
         sqlx::query(
             "INSERT INTO availability_slot \
-             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
-             VALUES ($1, $2, $3, $4, '2031-05-20T10:00:00Z', '2031-05-20T10:30:00Z', 'open')",
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, $2, $3, $4, '2031-05-20T10:00:00Z', '2031-05-20T10:30:00Z', 'open', true)",
         )
         .bind(Uuid::new_v4())
         .bind(provider_id)
@@ -1398,11 +1404,11 @@ async fn post_appointment_on_behalf_of_dependent_without_patient_record_returns_
         .unwrap();
 
         // Réservation via starts_at direct exige un availability_slot 'open'
-        // (#3722).
+        // (#3722). online_booking=true (#4405) : créneau publié.
         sqlx::query(
             "INSERT INTO availability_slot \
-             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
-             VALUES ($1, $2, $3, $4, '2030-06-10T09:00:00Z', '2030-06-10T09:30:00Z', 'open')",
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, $2, $3, $4, '2030-06-10T09:00:00Z', '2030-06-10T09:30:00Z', 'open', true)",
         )
         .bind(Uuid::new_v4())
         .bind(provider_id)

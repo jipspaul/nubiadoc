@@ -184,10 +184,13 @@ async fn insert_open_slot(db: &PgPool, f: &Fixtures, starts_at: &str, ends_at: &
         .execute(&mut *tx)
         .await
         .unwrap();
+    // online_booking=true (#4405) : POST /v1/appointments ne réserve plus un
+    // créneau non publié (défaut de colonne `false`) — ce fixture simule un
+    // créneau publié par le cabinet, cas nominal de tous les tests l'utilisant.
     sqlx::query(
         "INSERT INTO availability_slot \
-         (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
-         VALUES ($1, $2, $3, $4, $5, $6, 'open')",
+         (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'open', true)",
     )
     .bind(Uuid::new_v4())
     .bind(f.provider_id)
@@ -199,6 +202,39 @@ async fn insert_open_slot(db: &PgPool, f: &Fixtures, starts_at: &str, ends_at: &
     .await
     .unwrap();
     tx.commit().await.unwrap();
+}
+
+/// Créneau interne, jamais publié (#4405) — `online_booking` par défaut de
+/// colonne (`false`), comme `create_cabinet_slot`.
+async fn insert_unpublished_slot(
+    db: &PgPool,
+    f: &Fixtures,
+    starts_at: &str,
+    ends_at: &str,
+) -> Uuid {
+    let slot_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO availability_slot \
+         (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'open')",
+    )
+    .bind(slot_id)
+    .bind(f.provider_id)
+    .bind(f.cabinet_id)
+    .bind(f.prac_id)
+    .bind(starts_at.parse::<chrono::DateTime<chrono::Utc>>().unwrap())
+    .bind(ends_at.parse::<chrono::DateTime<chrono::Utc>>().unwrap())
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    slot_id
 }
 
 async fn teardown(db: &PgPool, f: &Fixtures) {
@@ -458,6 +494,122 @@ async fn create_appointment_overlap_returns_409_slot_taken() {
         v2["code"], "slot_taken",
         "code d'erreur doit être slot_taken (23P01)"
     );
+
+    teardown(&db, &f).await;
+}
+
+// ── Test 3bis (#4405) : slot_id d'un créneau non publié → 409 slot_taken ─────
+
+#[tokio::test]
+async fn create_appointment_unpublished_slot_via_slot_id_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "unpub-id").await;
+    let slot_id =
+        insert_unpublished_slot(&db, &f, "2032-10-01T09:00:00Z", "2032-10-01T09:30:00Z").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "provider_id": f.provider_id,
+                        "slot_id": slot_id,
+                        "motif": "détartrage"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::CONFLICT,
+        "un créneau non publié doit être traité comme indisponible, pas réservable"
+    );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "slot_taken");
+
+    teardown(&db, &f).await;
+}
+
+// ── Test 3ter (#4405) : starts_at devinant l'horaire d'un créneau non publié ─
+// → 409 slot_taken, sans jamais connaître le slot_id.
+
+#[tokio::test]
+async fn create_appointment_unpublished_slot_via_starts_at_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "unpub-sa").await;
+    insert_unpublished_slot(&db, &f, "2032-10-02T14:00:00Z", "2032-10-02T14:30:00Z").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "provider_id": f.provider_id,
+                        "starts_at": "2032-10-02T14:00:00Z",
+                        "motif": "détartrage"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::CONFLICT,
+        "deviner l'horaire d'un créneau non publié ne doit pas suffire à le réserver"
+    );
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "slot_taken");
 
     teardown(&db, &f).await;
 }
