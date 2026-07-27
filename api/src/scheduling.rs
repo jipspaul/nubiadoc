@@ -1057,6 +1057,18 @@ pub struct CabinetAppointmentsQuery {
     pub date: Option<String>,
 }
 
+/// Valeurs valides de `appointment.status` (CHECK, migration 0005). Même
+/// pattern que `cabinet_quotes::VALID_QUOTE_STATUSES` (#4066/#4420).
+const VALID_APPOINTMENT_STATUSES: [&str; 7] = [
+    "requested",
+    "confirmed",
+    "checked_in",
+    "in_progress",
+    "done",
+    "cancelled",
+    "no_show",
+];
+
 #[derive(Serialize)]
 pub struct CabinetAppointmentItem {
     pub id: Uuid,
@@ -1088,6 +1100,14 @@ pub async fn get_cabinet_appointments(
     claims: ProSecretaryPlusClaims,
     Query(params): Query<CabinetAppointmentsQuery>,
 ) -> Result<Json<CabinetAppointmentsResponse>, AppError> {
+    // #4420 : symétrique à list_cabinet_quotes — un status hors énum doit
+    // être refusé (400), pas renvoyer silencieusement une liste vide.
+    if let Some(ref status) = params.status {
+        if !VALID_APPOINTMENT_STATUSES.contains(&status.as_str()) {
+            return Err(AppError::InvalidAppointmentStatusFilter);
+        }
+    }
+
     let date_filter: Option<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> =
         if let Some(date_str) = &params.date {
             let d = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
