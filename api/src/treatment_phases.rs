@@ -44,8 +44,9 @@ pub struct CreateTreatmentPhaseBody {
     pub title: String,
     pub position: i32,
     /// Actes déjà existants (devis) à rattacher à cette phase — optionnel.
-    /// Seuls les `quote_item` du même cabinet sont rattachés ; les ids d'un
-    /// autre tenant sont silencieusement ignorés (RLS/tenant isolation).
+    /// Seuls les `quote_item` du même cabinet ET appartenant à un devis du
+    /// même patient que le plan sont rattachés ; les ids d'un autre tenant ou
+    /// d'un autre patient sont silencieusement ignorés (cloisonnement patient).
     #[serde(default)]
     pub quote_item_ids: Vec<Uuid>,
     /// Actes CCAM à créer directement (#4263) — utile pour peupler une phase
@@ -161,13 +162,18 @@ pub async fn create_treatment_phase(
     .map_err(|_| AppError::Internal)?;
 
     if !body.quote_item_ids.is_empty() {
-        sqlx::query("UPDATE quote_item SET phase_id = $1 WHERE id = ANY($2) AND cabinet_id = $3")
-            .bind(phase_id)
-            .bind(&body.quote_item_ids)
-            .bind(claims.cabinet_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+        sqlx::query(
+            "UPDATE quote_item SET phase_id = $1 \
+             WHERE id = ANY($2) AND cabinet_id = $3 \
+             AND quote_id IN (SELECT id FROM quote WHERE patient_id = $4 AND cabinet_id = $3)",
+        )
+        .bind(phase_id)
+        .bind(&body.quote_item_ids)
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
     }
 
     if !body.inline_acts.is_empty() {
