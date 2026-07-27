@@ -99,6 +99,23 @@ fn treatments_mention_anticoagulants(treatments: &serde_json::Value) -> bool {
     ANTICOAGULANT_KEYWORDS.iter().any(|kw| text.contains(kw))
 }
 
+/// Valide un code dent ISO 3950 (notation FDI) : `<quadrant><dent>`,
+/// quadrant 1-4 (dentition permanente, dents 1-8) ou 5-8 (temporaire, 1-5).
+/// Même règle que `dental_chart.rs::validate_teeth` et
+/// `treatment_phases.rs::is_valid_fdi_tooth` (#4426) — dupliquée ici faute de
+/// module de validation partagé pour une fonction aussi courte.
+fn is_valid_fdi_tooth(code: &str) -> bool {
+    code.len() == 2 && code.chars().all(|c| c.is_ascii_digit()) && {
+        let quadrant = code.as_bytes()[0] - b'0';
+        let tooth = code.as_bytes()[1] - b'0';
+        match quadrant {
+            1..=4 => (1..=8).contains(&tooth),
+            5..=8 => (1..=5).contains(&tooth),
+            _ => false,
+        }
+    }
+}
+
 /// Corps de la requête `POST /v1/cabinet/consultations/:id/acts` — soit
 /// `ccam_code` (acte unique), soit `bundle_code` (groupe, #4115), jamais
 /// les deux, jamais aucun des deux → 422.
@@ -382,6 +399,13 @@ pub async fn add_consultation_act(
     }
     if ccam_code.is_some() && body.label.as_deref().is_none_or(|s| s.trim().is_empty()) {
         return Err(AppError::ValidationError);
+    }
+    // #4426 : un tooth doit être un code FDI valide, comme dental-chart et
+    // les phases de plan de traitement (dental_chart.rs, treatment_phases.rs).
+    if let Some(tooth) = body.tooth.as_deref() {
+        if !is_valid_fdi_tooth(tooth) {
+            return Err(AppError::ValidationError);
+        }
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
