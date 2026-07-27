@@ -46,6 +46,10 @@ pub struct PrescriptionTemplateDto {
     pub label: String,
     pub items: serde_json::Value,
     pub is_global: bool,
+    /// `true` si modèle personnel (`practitioner_id` non NULL). Permet au
+    /// client de distinguer un modèle privé d'un modèle partagé — cf. le
+    /// contrat documenté sur `personal` dans `CreatePrescriptionTemplateBody`.
+    pub personal: bool,
 }
 
 /// `GET /v1/cabinet/prescription-templates` — liste les modèles visibles.
@@ -53,7 +57,10 @@ pub struct PrescriptionTemplateDto {
 /// Auth JWT pro `practitioner`/`admin` requis. RLS scopée via
 /// `app.current_cabinet_id` : renvoie les modèles propres au cabinet ET les
 /// modèles globaux (`cabinet_id IS NULL`, policy `global_template_read`) —
-/// les deux policies RLS s'additionnent (OR), pas de filtre applicatif requis.
+/// les deux policies RLS s'additionnent (OR). Filtre applicatif en plus :
+/// les modèles personnels (`practitioner_id` non NULL) d'un AUTRE praticien
+/// sont exclus — seuls les modèles partagés et les modèles personnels du
+/// praticien courant sont renvoyés, cf. contrat `personal` du POST.
 pub async fn list_prescription_templates(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -66,11 +73,26 @@ pub async fn list_prescription_templates(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    let practitioner_row =
+        sqlx::query("SELECT id FROM practitioner WHERE cabinet_id = $1 AND user_id = $2")
+            .bind(claims.cabinet_id)
+            .bind(claims.sub)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    let practitioner_id: Option<Uuid> = practitioner_row
+        .map(|row| row.try_get("id"))
+        .transpose()
+        .map_err(|_| AppError::Internal)?;
+
     let rows = sqlx::query(
-        "SELECT id, label, items, (cabinet_id IS NULL) AS is_global \
+        "SELECT id, label, items, (cabinet_id IS NULL) AS is_global, \
+         (practitioner_id IS NOT NULL) AS personal \
          FROM prescription_template \
+         WHERE practitioner_id IS NULL OR practitioner_id = $1 \
          ORDER BY is_global, label",
     )
+    .bind(practitioner_id)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -84,6 +106,7 @@ pub async fn list_prescription_templates(
             label: row.try_get("label").map_err(|_| AppError::Internal)?,
             items: row.try_get("items").map_err(|_| AppError::Internal)?,
             is_global: row.try_get("is_global").map_err(|_| AppError::Internal)?,
+            personal: row.try_get("personal").map_err(|_| AppError::Internal)?,
         });
     }
 
