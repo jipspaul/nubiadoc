@@ -331,10 +331,15 @@ async fn add_act_amount_close_to_tariff_returns_no_warning() {
     cleanup_fixture(&db, &f).await;
 }
 
-// ── code CCAM hors référentiel (pas de tarif connu) → pas de warning ────────
+// ── code CCAM hors référentiel → 422, jamais atteint la logique de warning (#4412) ─
+// Avant #4412, un code inconnu passait silencieusement (`applicable_tariff_for`
+// renvoyait `None` sans erreur, donc pas de warning à calculer) et devenait une
+// ligne facturable non remboursable. `insert_one_act` rejette désormais le code
+// avant même d'atteindre le calcul de warning — ce test vérifiait l'ancien
+// comportement bogué (201 sans warning) ; il vérifie maintenant le bon (422).
 
 #[tokio::test]
-async fn add_act_unknown_ccam_code_returns_no_warning() {
+async fn add_act_unknown_ccam_code_returns_422() {
     if !db_available() {
         return;
     }
@@ -373,12 +378,7 @@ async fn add_act_unknown_ccam_code_returns_no_warning() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CREATED);
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert!(v.get("warning").is_none(), "réponse : {v}");
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     cleanup_fixture(&db, &f).await;
 }

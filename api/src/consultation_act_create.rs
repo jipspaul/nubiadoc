@@ -241,6 +241,21 @@ async fn insert_one_act(
     entered_amount_cents: Option<i32>,
     is_optam: bool,
 ) -> Result<AddActResponse, AppError> {
+    // #4412 : le code CCAM doit exister au référentiel `ccam_act` — vérifié
+    // en tout premier (avant même le cumul interdit), symétrique à
+    // `cr_templates.rs:115-121`. Sans ce contrôle, un code inconnu passait
+    // silencieusement (`applicable_tariff_for` renvoie `None` sans erreur,
+    // utilisé seulement pour le calcul de tarif) et devenait une ligne
+    // facturable non remboursable, référentiellement incohérente.
+    let code_exists = sqlx::query("SELECT 1 FROM ccam_act WHERE code = $1")
+        .bind(ccam_code)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    if code_exists.is_none() {
+        return Err(AppError::ValidationError);
+    }
+
     // Cumul interdit (#4117) : vérifié avant la garde clinique — un cumul
     // interdit est une erreur de saisie (422), à signaler avant tout calcul
     // de risque/tarif sur un acte qui ne sera de toute façon pas ajouté.
