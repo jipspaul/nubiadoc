@@ -75,7 +75,9 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route(
             "/v1/account/referring-doctor",
-            get(auth::get_account_referring_doctor).put(auth::put_account_referring_doctor),
+            get(auth::get_account_referring_doctor)
+                .put(auth::put_account_referring_doctor)
+                .delete(auth::delete_account_referring_doctor),
         )
         .route(
             "/v1/account/notification-preferences",
