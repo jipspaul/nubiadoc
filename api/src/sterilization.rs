@@ -110,14 +110,17 @@ pub struct CreateSterilizationCycleResponse {
 /// `non_conforme` doit pouvoir être tracé au même titre qu'un cycle
 /// conforme, cf. #4138).
 ///
-/// `autoclave_ref` non vide, `cycle_number > 0`, `test_kind` ∈
-/// `VALID_TEST_KINDS`, `status` ∈ `VALID_STATUSES` → 422 sinon.
+/// `autoclave_ref` non vide, `cycle_number > 0`, `test_result` non vide,
+/// `test_kind` ∈ `VALID_TEST_KINDS`, `status` ∈ `VALID_STATUSES` → 422 sinon.
 pub async fn create_sterilization_cycle(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
     Json(body): Json<CreateSterilizationCycleBody>,
 ) -> Result<(StatusCode, Json<CreateSterilizationCycleResponse>), AppError> {
-    if body.autoclave_ref.trim().is_empty() || body.cycle_number <= 0 {
+    if body.autoclave_ref.trim().is_empty()
+        || body.cycle_number <= 0
+        || body.test_result.trim().is_empty()
+    {
         return Err(AppError::ValidationError);
     }
     if !VALID_TEST_KINDS.contains(&body.test_kind.as_str())
