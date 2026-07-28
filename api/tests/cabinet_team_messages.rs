@@ -301,6 +301,81 @@ async fn patient_token_forbidden() {
     assert_eq!(post_resp.status(), StatusCode::FORBIDDEN);
 }
 
+// ── Test 4bis (#4416) : un COLLÈGUE (autre user) voit le message dans le fil ──
+// Repro exacte de l'issue : secrétaire poste, praticien (autre app_user, même
+// cabinet) lit — avant le fix, GET renvoyait toujours {"data":[]} pour
+// quiconque (INNER JOIN app_user sous RLS self-only éliminait tout).
+
+#[tokio::test]
+async fn colleague_sees_message_in_shared_thread() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let sender_token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    // Second membre du même cabinet — le "collègue" qui va lire le fil.
+    let colleague_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(colleague_id)
+    .bind(format!("team-msg-colleague+{}@nubia.test", colleague_id))
+    .execute(&db)
+    .await
+    .unwrap();
+    let colleague_token = make_pro_token(colleague_id, f.cabinet_id, "practitioner");
+
+    let post_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", sender_token))
+                .body(Body::from(
+                    json!({ "body": "QA-teamproof-marker-777" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_resp.status(), StatusCode::CREATED);
+
+    let get_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/messages")
+                .header("Authorization", format!("Bearer {}", colleague_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    let item = data
+        .iter()
+        .find(|m| m["body"] == "QA-teamproof-marker-777")
+        .expect("le message du collègue doit être visible dans le fil partagé");
+    // Le collègue n'a pas de fiche provider et l'email de l'émetteur n'est
+    // pas visible sous RLS depuis ce viewer → fallback littéral, pas de 500.
+    assert_eq!(item["sender_name"], "Membre du cabinet");
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(colleague_id)
+        .execute(&db)
+        .await
+        .ok();
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 4 : isolation tenant — un cabinet ne voit pas les messages de l'autre ─
 
 #[tokio::test]
