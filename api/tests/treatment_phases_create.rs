@@ -368,6 +368,99 @@ async fn create_treatment_phase_attaches_existing_quote_items() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 2bis (#4421) : quote_item d'un AUTRE patient du même cabinet → ignoré ─
+
+#[tokio::test]
+async fn create_treatment_phase_ignores_cross_patient_quote_item() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+
+    // 2e patient du MÊME cabinet, avec son propre quote_item.
+    let other_patient_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+         VALUES ($1, $2, 'Jade', 'Autre')",
+    )
+    .bind(other_patient_id)
+    .bind(f.cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    let other_item_id = insert_quote_item(&db, f.cabinet_id, other_patient_id).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    // Plan de f.patient_id, mais on tente de rattacher l'item de other_patient_id.
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/treatment-plans/{}/phases", f.plan_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({
+                        "title": "Phase crosslink",
+                        "position": 1,
+                        "quote_item_ids": [other_item_id],
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // La création de la phase réussit (aucun item VALIDE n'est requis), mais
+    // le rattachement de l'item d'un autre patient doit être ignoré.
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let row = sqlx::query("SELECT phase_id FROM quote_item WHERE id = $1")
+        .bind(other_item_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let row_phase_id: Option<Uuid> = row.try_get("phase_id").unwrap();
+    assert_eq!(
+        row_phase_id, None,
+        "l'item du 2e patient ne doit PAS être rattaché à la phase du 1er"
+    );
+
+    // Nettoyage du 2e patient (hors cleanup_fixtures, qui ne connaît que f).
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(other_patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 3 : plan hors cabinet → 404 ──────────────────────────────────────────
 
 #[tokio::test]

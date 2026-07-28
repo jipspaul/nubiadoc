@@ -44,8 +44,10 @@ pub struct CreateTreatmentPhaseBody {
     pub title: String,
     pub position: i32,
     /// Actes déjà existants (devis) à rattacher à cette phase — optionnel.
-    /// Seuls les `quote_item` du même cabinet sont rattachés ; les ids d'un
-    /// autre tenant sont silencieusement ignorés (RLS/tenant isolation).
+    /// Seuls les `quote_item` du même cabinet ET du même patient que le plan
+    /// sont rattachés ; les ids d'un autre tenant ou d'un autre patient du
+    /// même cabinet sont silencieusement ignorés (#4421 : un `quote_item`
+    /// d'un tiers ne doit jamais fuiter dans le plan/total d'un autre patient).
     #[serde(default)]
     pub quote_item_ids: Vec<Uuid>,
     /// Actes CCAM à créer directement (#4263) — utile pour peupler une phase
@@ -161,13 +163,27 @@ pub async fn create_treatment_phase(
     .map_err(|_| AppError::Internal)?;
 
     if !body.quote_item_ids.is_empty() {
-        sqlx::query("UPDATE quote_item SET phase_id = $1 WHERE id = ANY($2) AND cabinet_id = $3")
-            .bind(phase_id)
-            .bind(&body.quote_item_ids)
-            .bind(claims.cabinet_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+        // #4421 : le filtre ne portait QUE sur cabinet_id (isolation tenant),
+        // jamais sur le patient — un quote_item d'un AUTRE patient du même
+        // cabinet pouvait être rattaché à cette phase, exposant sa ligne de
+        // devis (label + montant) au patient du plan via GET
+        // /treatment-plans/:id (fuite inter-patient + total du plan gonflé).
+        // Jointure sur quote pour vérifier quote.patient_id = patient du
+        // plan, symétrique à la garde déjà correcte de la branche
+        // inline_acts ci-dessous.
+        sqlx::query(
+            "UPDATE quote_item qi SET phase_id = $1 \
+             FROM quote q \
+             WHERE qi.id = ANY($2) AND qi.cabinet_id = $3 \
+               AND qi.quote_id = q.id AND q.patient_id = $4",
+        )
+        .bind(phase_id)
+        .bind(&body.quote_item_ids)
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
     }
 
     if !body.inline_acts.is_empty() {
