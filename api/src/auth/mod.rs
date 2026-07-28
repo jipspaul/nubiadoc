@@ -154,6 +154,12 @@ pub(crate) enum AppError {
     /// `WHERE q.status = $2` et renvoyait silencieusement une liste vide au
     /// lieu d'un 400 (#4066).
     InvalidQuoteStatusFilter,
+    /// `?status=` hors de l'énum `appointment.status` (CHECK, migration 0005)
+    /// sur `GET /v1/cabinet/appointments` — même lacune que
+    /// `InvalidQuoteStatusFilter` (#4066) : une valeur hors énum passait
+    /// telle quelle dans `WHERE a.status = $2` et renvoyait silencieusement
+    /// une liste vide au lieu d'un 400 (#4420).
+    InvalidAppointmentStatusFilter,
     /// `PATCH /v1/cabinet/quotes/:id` sur un devis déjà signé — remonte le
     /// trigger `enforce_quote_immutable` (migration 0051, SQLSTATE `P0001`)
     /// en `409 quote_locked` (contrat documenté doc12 §16, #4065).
@@ -384,6 +390,15 @@ impl IntoResponse for AppError {
                     "code": "invalid_status_filter",
                     "message": "`status` doit être l'une des valeurs : \
                                 draft, sent, signed, refused, expired.",
+                })),
+            )
+                .into_response(),
+            AppError::InvalidAppointmentStatusFilter => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "code": "invalid_status_filter",
+                    "message": "`status` doit être l'une des valeurs : \
+                                requested, confirmed, checked_in, in_progress, done, cancelled, no_show.",
                 })),
             )
                 .into_response(),

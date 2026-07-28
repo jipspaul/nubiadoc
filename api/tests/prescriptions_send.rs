@@ -319,6 +319,67 @@ async fn send_cross_tenant_prescription_returns_404() {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
+/// Ordonnance déjà délivrée (une commande `picked_up` existante) → 409
+/// `already_ordered`, même garde que le chemin patient (#3736) — sans elle
+/// un re-`send` praticien créait une 2e commande pour la même ordonnance
+/// signée (double-dispensation, #4402).
+#[tokio::test]
+async fn send_already_dispensed_prescription_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db, true).await;
+
+    let document_id: Uuid = sqlx::query("SELECT document_id FROM prescription WHERE id = $1")
+        .bind(fx.prescription_id)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+        .try_get("document_id")
+        .unwrap();
+    let patient_account_id: Uuid =
+        sqlx::query("SELECT patient_account_id FROM patient WHERE id = $1")
+            .bind(fx.patient_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("patient_account_id")
+            .unwrap();
+
+    sqlx::query(
+        "INSERT INTO pharmacy_order \
+         (pharmacy_id, cabinet_id, patient_account_id, prescription_id, document_id, \
+          created_by_kind, status, pharmacy_name, patient_display_name, picked_up_at) \
+         VALUES ($1, $2, $3, $4, $5, 'patient', 'picked_up', 'Pharmacie PS', 'Alice M.', now())",
+    )
+    .bind(fx.pharmacy_id)
+    .bind(fx.cabinet_id)
+    .bind(patient_account_id)
+    .bind(fx.prescription_id)
+    .bind(document_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (status, body) = send(
+        &pro_jwt(fx.pro_user_id, fx.cabinet_id, "practitioner"),
+        fx.prescription_id,
+        json!({"pharmacy_id": fx.pharmacy_id}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "already_ordered");
+
+    let order_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pharmacy_order WHERE prescription_id = $1")
+            .bind(fx.prescription_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(order_count, 1, "aucune 2e commande ne doit être créée");
+}
+
 #[tokio::test]
 async fn send_patient_without_account_returns_422() {
     if !db_available() {

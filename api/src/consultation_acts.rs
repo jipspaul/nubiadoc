@@ -22,6 +22,23 @@ use crate::{
     AppState,
 };
 
+/// Valide un code dent ISO 3950 (notation FDI) : `<quadrant><dent>`,
+/// quadrant 1-4 (dentition permanente, dents 1-8) ou 5-8 (temporaire, 1-5).
+/// Même règle que `dental_chart.rs::validate_teeth` et
+/// `treatment_phases.rs::is_valid_fdi_tooth` (#4426) — dupliquée ici faute de
+/// module de validation partagé pour une fonction aussi courte.
+fn is_valid_fdi_tooth(code: &str) -> bool {
+    code.len() == 2 && code.chars().all(|c| c.is_ascii_digit()) && {
+        let quadrant = code.as_bytes()[0] - b'0';
+        let tooth = code.as_bytes()[1] - b'0';
+        match quadrant {
+            1..=4 => (1..=8).contains(&tooth),
+            5..=8 => (1..=5).contains(&tooth),
+            _ => false,
+        }
+    }
+}
+
 // ── GET /v1/cabinet/consultations/:id/acts ────────────────────────────────────
 
 /// Réponse de `GET /v1/cabinet/consultations/:id/acts`.
@@ -163,6 +180,13 @@ pub async fn patch_consultation_act(
     }
     if body.label.as_deref().is_some_and(|s| s.trim().is_empty()) {
         return Err(AppError::ValidationError);
+    }
+    // #4426 : un tooth doit être un code FDI valide, comme dental-chart et
+    // les phases de plan de traitement.
+    if let Some(tooth) = body.tooth.as_deref() {
+        if !is_valid_fdi_tooth(tooth) {
+            return Err(AppError::ValidationError);
+        }
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;

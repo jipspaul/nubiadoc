@@ -3,7 +3,13 @@
 //! Couvre les critères d'acceptation de l'issue :
 //! - transition `confirmed → no_show` + entrée `audit_log` associée ;
 //! - rejet `409` depuis un statut déjà terminal (`cancelled`, `done`) ;
-//! - rejet `409 too_early` pour un RDV encore à venir (#4369).
+//! - rejet `409 too_early` pour un RDV encore à venir (#4369) ;
+//! - `checked_in`/`in_progress` (patient arrivé) restent clôturables même
+//!   avant `starts_at`, la garde `too_early` ne visant que
+//!   `requested`/`confirmed` (#4396) ;
+//! - `in_progress` avec une `consultation_session` déjà ouverte (via /start)
+//!   reste refusé (#4417) — seul `in_progress` SANS session (call-next) est
+//!   un no-show légitime.
 
 use axum::{
     body::Body,
@@ -390,6 +396,145 @@ async fn no_show_from_confirmed_future_appointment_returns_409_too_early() {
         appt_status, "confirmed",
         "aucune transition ne doit avoir eu lieu"
     );
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// RDV `checked_in` encore à venir (`starts_at` +40min, dans la fenêtre
+/// check-in -60min) → 200 : la garde `too_early` (#4369) ne vise que
+/// `requested`/`confirmed` (jamais présenté), pas un patient déjà arrivé (#4396).
+#[tokio::test]
+async fn no_show_from_checked_in_future_appointment_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+        insert_fixture_at(&seed_db, "checked_in", "+ interval '40 minutes'").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let (status, body) = post_no_show(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["status"], "no_show");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// RDV `in_progress` encore à venir SANS `consultation_session` (appelé via
+/// call-next, pas encore ouvert) → 200 (#4396 : garde temporelle exemptée ;
+/// #4417 : pas de session active donc no-show légitime).
+#[tokio::test]
+async fn no_show_from_in_progress_without_session_returns_200() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+        insert_fixture_at(&seed_db, "in_progress", "+ interval '40 minutes'").await;
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let (status, body) = post_no_show(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["status"], "no_show");
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+}
+
+/// RDV `in_progress` avec une `consultation_session` déjà ouverte (démarrée
+/// via `/start`) → 409 `invalid_status` : la consultation est réellement en
+/// cours, pas juste "appelé" — un no-show corromprait l'état (#4417).
+#[tokio::test]
+async fn no_show_from_in_progress_with_active_session_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+        insert_fixture_at(&seed_db, "in_progress", "- interval '2 hours'").await;
+
+    let mut tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO consultation_session (cabinet_id, appointment_id, practitioner_id) \
+         VALUES ($1, $2, $3)",
+    )
+    .bind(cabinet_id)
+    .bind(appt_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let (status, body) = post_no_show(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "invalid_status");
+
+    let mut tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM consultation_session WHERE appointment_id = $1")
+        .bind(appt_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.unwrap();
 
     cleanup_fixture(
         &seed_db,
