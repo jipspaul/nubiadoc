@@ -296,7 +296,17 @@ async fn insert_one_act(
             .and_then(|row| row.try_get::<Option<Vec<u8>>, _>("data_ciphertext").ok())
             .flatten()
             .and_then(|ct| decrypt_stub(&ct))
-            .is_some_and(|data| treatments_mention_anticoagulants(&data["treatments"]));
+            .is_some_and(|data| {
+                // #4403 : le flag STRUCTURÉ medico_legal.anticoagulants (#4103)
+                // doit déclencher la garde au même titre que le texte libre —
+                // sinon il est du code mort et un praticien qui saisit le
+                // risque via le champ prévu à cet effet (plutôt qu'un mot-clé
+                // en texte libre) contourne silencieusement l'alerte.
+                treatments_mention_anticoagulants(&data["treatments"])
+                    || data["medico_legal"]["anticoagulants"]
+                        .as_bool()
+                        .unwrap_or(false)
+            });
 
         if at_risk {
             return Err(AppError::ClinicalRiskWarning(format!(
