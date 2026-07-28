@@ -212,6 +212,12 @@ pub(crate) enum AppError {
     /// dans ce cabinet (index unique `(cabinet_id, reference)`, migration
     /// 0192) — même choix que `StepNumberTaken`/`PouchCodeAlreadyUsed`.
     StockReferenceAlreadyUsed,
+    /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481) : l'acte
+    /// est référencé par un `stock_movement` ou un `sterilized_pouch` (FK
+    /// composite `(consultation_act_id, cabinet_id)` sans `ON DELETE`,
+    /// migrations 0190/0192) — pré-vérifié pour éviter de laisser remonter
+    /// la violation FK Postgres (23503) en 500.
+    ActLinkedToStock,
 }
 
 impl IntoResponse for AppError {
@@ -453,6 +459,11 @@ impl IntoResponse for AppError {
             AppError::StockReferenceAlreadyUsed => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "stock_reference_already_used"})),
+            )
+                .into_response(),
+            AppError::ActLinkedToStock => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "act_linked_to_stock"})),
             )
                 .into_response(),
         }
