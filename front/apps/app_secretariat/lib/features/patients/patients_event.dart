@@ -11,7 +11,7 @@ class PatientsLoadRequested extends PatientsEvent {
 /// Recherche serveur (#4043) — remplace le filtrage en mémoire, qui ne
 /// scale plus au-delà de quelques centaines de dossiers. Le debounce est
 /// géré côté UI (patients_page.dart), pas ici.
-class PatientsSearchChanged extends PatientsEvent with Equatable {
+class PatientsSearchChanged extends PatientsEvent with EquatableMixin {
   const PatientsSearchChanged(this.query);
 
   final String query;
