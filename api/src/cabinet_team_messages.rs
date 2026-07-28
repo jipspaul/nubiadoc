@@ -26,8 +26,10 @@ use crate::{
 pub struct CabinetTeamMessageItem {
     pub id: Uuid,
     pub sender_id: Uuid,
-    /// `provider.display_name` du praticien émetteur, sinon son email
-    /// (le secrétariat/admin n'a pas de fiche `provider`).
+    /// `provider.display_name` du praticien émetteur, sinon son email si
+    /// visible (RLS `app_user` self-only, #4416 — souvent indisponible pour
+    /// un collègue), sinon `"Membre du cabinet"` (le secrétariat/admin n'a
+    /// pas de fiche `provider`).
     pub sender_name: String,
     pub body: String,
     pub created_at: String,
@@ -67,11 +69,28 @@ pub async fn list_cabinet_team_messages(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #4416 : `app_user` porte une RLS stricte self-only (user_self_select,
+    // 0045_platform_rls.sql — `id = app.current_user_id`), donc INVISIBLE
+    // pour tout sender autre que le viewer lui-même — un INNER JOIN dessus
+    // éliminait TOUTES les lignes (liste toujours vide, messagerie
+    // write-only). Positionner le GUC au viewer courant permet au moins de
+    // résoudre SON PROPRE email dans le fil (cas fréquent : on relit ce
+    // qu'on vient d'envoyer) ; RLS ne peut pas être élargie à "tout le
+    // cabinet" sans une policy dédiée (hors périmètre de ce fix).
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // LEFT JOIN (pas INNER) : `au` reste NULL pour les collègues (RLS
+    // toujours self-only), d'où le dernier fallback littéral dans le
+    // COALESCE pour ne jamais planter sur `sender_name` (colonne NOT NULL).
     let rows = sqlx::query(
         "SELECT cm.id, cm.sender_id, cm.body, cm.created_at, \
-                COALESCE(prov.display_name, au.email::text) AS sender_name \
+                COALESCE(prov.display_name, au.email::text, 'Membre du cabinet') AS sender_name \
          FROM cabinet_messages cm \
-         JOIN app_user au ON au.id = cm.sender_id \
+         LEFT JOIN app_user au ON au.id = cm.sender_id \
          LEFT JOIN practitioner p ON p.user_id = cm.sender_id AND p.cabinet_id = cm.cabinet_id \
          LEFT JOIN provider prov ON prov.practitioner_id = p.id AND prov.cabinet_id = cm.cabinet_id \
          WHERE cm.cabinet_id = $1 AND cm.deleted_at IS NULL \

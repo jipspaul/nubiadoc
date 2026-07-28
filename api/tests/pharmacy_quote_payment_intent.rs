@@ -303,3 +303,91 @@ async fn second_intent_with_different_key_returns_422_no_remaining_due() {
             .unwrap();
     assert_eq!(count, 1, "un seul paiement doit exister pour ce devis");
 }
+
+/// Repro exacte de #4418 : deux intents tirés EN PARALLÈLE (clés d'idempotence
+/// distinctes) sur le même devis. Le garde-fou séquentiel (#3732, test
+/// ci-dessus) ne protège pas contre cette course — seul l'index unique
+/// partiel `payment_pharmacy_quote_pending_unique` (migration 0201) ferme la
+/// fenêtre. Exactement UN intent doit réussir (201), l'autre 422/500 selon
+/// lequel gagne la course DB, mais jamais deux 201.
+#[tokio::test]
+async fn concurrent_intents_only_one_succeeds() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id);
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+
+    let (status, quote) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        None,
+        Some(json!({
+            "order_id": fx.order_id,
+            "items": [{"label": "Bain de bouche", "qty": 1, "unit_price_cents": 500}]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {quote}");
+    let quote_id = quote["id"].as_str().unwrap().to_string();
+
+    call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{quote_id}/send"),
+        &pharmacist,
+        None,
+        None,
+    )
+    .await;
+    let (status, quote) = call(
+        "POST",
+        &format!("/v1/account/pharmacy-quotes/{quote_id}/accept"),
+        &patient,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {quote}");
+
+    let key_a = format!("qa-4418-a-{}", Uuid::new_v4());
+    let key_b = format!("qa-4418-b-{}", Uuid::new_v4());
+    let fut_a = call(
+        "POST",
+        "/v1/payments/pharmacy-quote-intent",
+        &patient,
+        Some(&key_a),
+        Some(json!({"pharmacy_quote_id": quote_id, "method": "card"})),
+    );
+    let fut_b = call(
+        "POST",
+        "/v1/payments/pharmacy-quote-intent",
+        &patient,
+        Some(&key_b),
+        Some(json!({"pharmacy_quote_id": quote_id, "method": "card"})),
+    );
+    let ((status_a, body_a), (status_b, body_b)) = tokio::join!(fut_a, fut_b);
+
+    let created = [status_a, status_b]
+        .iter()
+        .filter(|s| **s == StatusCode::CREATED)
+        .count();
+    assert_eq!(
+        created, 1,
+        "exactement un intent doit réussir — a={status_a} ({body_a}), b={status_b} ({body_b})"
+    );
+
+    // Le seul moyen d'obtenir 2 lignes committed/pending est le bug #4418 lui-même.
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM payment WHERE pharmacy_quote_id = $1::uuid")
+            .bind(&quote_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        count, 1,
+        "l'index unique partiel doit empêcher un 2e paiement pending/paid concurrent"
+    );
+}

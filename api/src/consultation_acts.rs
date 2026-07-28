@@ -335,6 +335,30 @@ pub async fn delete_consultation_act(
         .try_get("appointment_id")
         .map_err(|_| AppError::Internal)?;
 
+    // Refuse proprement (409) si l'acte est référencé par un mouvement de
+    // stock ou une pochette de stérilisation : les FK composites
+    // `(consultation_act_id, cabinet_id)` de `stock_movement` (migration
+    // 0192) et `sterilized_pouch` (migration 0190) n'ont pas de clause
+    // `ON DELETE`, un hard-delete sans ce garde-fou remonte en 500 (23503).
+    let linked_row = sqlx::query(
+        "SELECT EXISTS(\
+           SELECT 1 FROM stock_movement \
+           WHERE consultation_act_id = $1 AND cabinet_id = $2\
+         ) OR EXISTS(\
+           SELECT 1 FROM sterilized_pouch \
+           WHERE consultation_act_id = $1 AND cabinet_id = $2\
+         )",
+    )
+    .bind(act_id)
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let linked_to_stock: bool = linked_row.try_get(0).map_err(|_| AppError::Internal)?;
+    if linked_to_stock {
+        return Err(AppError::ActLinkedToStock);
+    }
+
     // Supprime l'acte (filtre tenancy).
     let result = sqlx::query(
         "DELETE FROM consultation_act \

@@ -218,6 +218,12 @@ pub(crate) enum AppError {
     /// gonflerait le devis facturé au patient. `409`, pas `422` : l'acte en
     /// lui-même est valide, c'est sa répétition qui est refusée.
     DuplicateAct,
+    /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481) : l'acte
+    /// est référencé par un `stock_movement` ou un `sterilized_pouch` (FK
+    /// composite `(consultation_act_id, cabinet_id)` sans `ON DELETE`,
+    /// migrations 0190/0192) — pré-vérifié pour éviter de laisser remonter
+    /// la violation FK Postgres (23503) en 500.
+    ActLinkedToStock,
 }
 
 impl IntoResponse for AppError {
@@ -464,6 +470,11 @@ impl IntoResponse for AppError {
             AppError::DuplicateAct => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "duplicate_act"})),
+            )
+                .into_response(),
+            AppError::ActLinkedToStock => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "act_linked_to_stock"})),
             )
                 .into_response(),
         }
@@ -3279,6 +3290,58 @@ pub async fn put_account_referring_doctor(
             .try_get("free_address")
             .map_err(|_| AppError::Internal)?,
     }))
+}
+
+/// `DELETE /v1/account/referring-doctor` — retire le médecin traitant déclaré par le patient.
+///
+/// Idempotent : `204` que la déclaration existe ou non (jamais de `404`).
+pub async fn delete_account_referring_doctor(
+    State(state): State<AppState>,
+    claims: PatientAccountClaims,
+) -> Result<StatusCode, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query("DELETE FROM patient_referring_doctor WHERE patient_account_id = $1")
+        .bind(claims.account_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Audit log : entité plateforme → nil UUID comme sentinel cabinet_id.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(Uuid::nil().to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "INSERT INTO audit_log \
+         (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, 'patient', 'delete_referring_doctor', 'patient_referring_doctor', $3, $4)",
+    )
+    .bind(Uuid::nil())
+    .bind(claims.sub)
+    .bind(claims.account_id)
+    .bind(json!({}))
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        account_id = %claims.account_id,
+        user_id = %claims.sub,
+        "patient referring doctor deleted"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Un consentement RGPD tel que retourné par `GET /v1/account/consents`.
