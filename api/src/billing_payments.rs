@@ -19,6 +19,20 @@ use crate::{
     AppState,
 };
 
+/// Nom de la contrainte/index UNIQUE violée par une erreur `23505`, `None` si
+/// l'erreur n'est pas une violation d'unicité. #4418 : `payment` porte deux
+/// contraintes UNIQUE distinctes pouvant se déclencher sur le même INSERT
+/// (`payment_idempotency_key_unique`, `payment_pharmacy_quote_pending_unique`)
+/// — il faut discriminer par nom pour mapper chacune vers la bonne réponse.
+fn unique_violation_constraint(e: &sqlx::Error) -> Option<String> {
+    match e {
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505") => {
+            db_err.constraint().map(str::to_string)
+        }
+        _ => None,
+    }
+}
+
 /// Corps de `POST /v1/payments/intent`.
 #[derive(Deserialize)]
 pub struct PaymentIntentBody {
@@ -501,9 +515,26 @@ pub async fn create_pharmacy_quote_payment_intent(
     .await;
 
     // Même garde-fou que create_payment_intent : contrainte UNIQUE permanente
-    // vs cache idempotency_keys à TTL 24h (#3867).
+    // vs cache idempotency_keys à TTL 24h (#3867). #4418 : deux contraintes
+    // UNIQUE distinctes peuvent déclencher 23505 ici — celle sur
+    // idempotency_key (rejeu hors fenêtre de cache) et la nouvelle
+    // payment_pharmacy_quote_pending_unique (#4418, deux intents concurrents
+    // sur le même devis) — distinguées par nom pour ne pas mapper la 2nde en
+    // IdempotencyKeyConflict (message trompeur : ce n'est pas un rejeu, mais
+    // une race entre deux clés différentes sur le même devis).
     let row = match insert_result {
         Ok(row) => row,
+        Err(e)
+            if unique_violation_constraint(&e).as_deref()
+                == Some("payment_pharmacy_quote_pending_unique") =>
+        {
+            tracing::warn!(
+                account_id = %claims.account_id,
+                pharmacy_quote_id = %body.pharmacy_quote_id,
+                "concurrent pharmacy quote payment intent rejected by DB-level race guard"
+            );
+            return Err(AppError::ValidationError);
+        }
         Err(e) if is_unique_violation(&e) => {
             tracing::warn!(
                 account_id = %claims.account_id,
