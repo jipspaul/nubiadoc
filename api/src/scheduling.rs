@@ -1410,9 +1410,10 @@ pub struct NoShowResponse {
 /// Token pro requis (secretary+). `cabinet_id` extrait du JWT — jamais du body.
 /// RLS scopé via `app.current_cabinet_id` : 404 si le RDV n'appartient pas au cabinet.
 /// Statut source hors `requested|confirmed|checked_in|in_progress` (ex. déjà
-/// `cancelled`/`done`) → `409 invalid_status`. RDV pas encore commencé
-/// (`now() < starts_at`) → `409 too_early` (#4369 : un no-show désigne un
-/// patient absent à un RDV dû/passé, pas un rendez-vous encore à venir).
+/// `cancelled`/`done`) → `409 invalid_status`. Pour `requested`/`confirmed`
+/// (jamais présenté), RDV pas encore commencé (`now() < starts_at`) →
+/// `409 too_early` (#4369). `checked_in`/`in_progress` (patient arrivé,
+/// éventuellement avant `starts_at`) sont exemptés de cette garde (#4396).
 /// Libère le créneau associé. Auditée (`no_show_appointment`) dans `audit_log`.
 pub async fn no_show_appointment(
     State(state): State<AppState>,
@@ -1454,8 +1455,27 @@ pub async fn no_show_appointment(
     {
         return Err(AppError::InvalidStatus);
     }
-    if chrono::Utc::now() < starts_at {
+    // #4396 : la garde temporelle (#4369) ne vise que « jamais présenté »
+    // (requested/confirmed) — checked_in/in_progress signifient que le
+    // patient est arrivé, potentiellement avant starts_at (check-in dès
+    // starts_at-60min, call-next sans borne), et doivent rester clôturables.
+    if (status == "requested" || status == "confirmed") && chrono::Utc::now() < starts_at {
         return Err(AppError::TooEarly);
+    }
+    // #4417 : `in_progress` sans consultation_session = appelé via call-next
+    // mais pas encore ouvert (no-show légitime). Si une session existe déjà
+    // (RDV démarré via /start, même garde que start_consultation ci-dessus),
+    // la consultation est réellement en cours → 409, pas de no-show possible.
+    if status == "in_progress" {
+        let existing_session =
+            sqlx::query("SELECT id FROM consultation_session WHERE appointment_id = $1")
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        if existing_session.is_some() {
+            return Err(AppError::InvalidStatus);
+        }
     }
 
     sqlx::query(
@@ -1788,8 +1808,25 @@ pub async fn patch_cabinet_appointment(
         {
             return Err(AppError::InvalidStatus);
         }
-        if chrono::Utc::now() < starts_at {
+        // #4396 : idem no_show_appointment ci-dessus — checked_in/in_progress
+        // signifient que le patient est arrivé, la garde temporelle ne
+        // s'applique qu'à requested/confirmed (jamais présenté).
+        if (status == "requested" || status == "confirmed") && chrono::Utc::now() < starts_at {
             return Err(AppError::TooEarly);
+        }
+        // #4417 : idem no_show_appointment — un `in_progress` avec une
+        // consultation_session déjà ouverte (/start) est réellement en
+        // cours, pas juste appelé via call-next → 409, pas de no-show.
+        if status == "in_progress" {
+            let existing_session =
+                sqlx::query("SELECT id FROM consultation_session WHERE appointment_id = $1")
+                    .bind(id)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(|_| AppError::Internal)?;
+            if existing_session.is_some() {
+                return Err(AppError::InvalidStatus);
+            }
         }
 
         sqlx::query(
