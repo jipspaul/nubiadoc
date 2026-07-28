@@ -212,6 +212,12 @@ pub(crate) enum AppError {
     /// dans ce cabinet (index unique `(cabinet_id, reference)`, migration
     /// 0192) — même choix que `StepNumberTaken`/`PouchCodeAlreadyUsed`.
     StockReferenceAlreadyUsed,
+    /// `POST /v1/cabinet/consultations/:id/acts` (#4411) : un acte strictement
+    /// identique (même `ccam_code`/`tooth`/`amount_cents`) est déjà présent
+    /// sur cette séance — protège contre un double-submit/retry réseau qui
+    /// gonflerait le devis facturé au patient. `409`, pas `422` : l'acte en
+    /// lui-même est valide, c'est sa répétition qui est refusée.
+    DuplicateAct,
     /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481) : l'acte
     /// est référencé par un `stock_movement` ou un `sterilized_pouch` (FK
     /// composite `(consultation_act_id, cabinet_id)` sans `ON DELETE`,
@@ -459,6 +465,11 @@ impl IntoResponse for AppError {
             AppError::StockReferenceAlreadyUsed => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "stock_reference_already_used"})),
+            )
+                .into_response(),
+            AppError::DuplicateAct => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "duplicate_act"})),
             )
                 .into_response(),
             AppError::ActLinkedToStock => (
