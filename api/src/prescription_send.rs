@@ -35,6 +35,7 @@ pub struct SendPrescriptionBody {
 /// Token pro `practitioner` ou `admin` requis — `secretary` → 403.
 /// - Prescription inexistante ou hors tenant → 404.
 /// - Prescription non signée → 409 `invalid_status`.
+/// - Ordonnance déjà délivrée (une commande `picked_up`) → 409 `already_ordered` (#4402).
 /// - Pharmacie inconnue ou non listée → 404.
 /// - Patient sans compte app (impossible de suivre la commande) → 422.
 /// - Commande active déjà existante pour cette ordonnance → 409.
@@ -96,6 +97,22 @@ pub async fn send_prescription(
         return Err(AppError::InvalidStatus);
     }
     let document_id = document_id.ok_or(AppError::InvalidStatus)?;
+
+    // Ordonnance déjà délivrée (une commande picked_up) → non re-commandable,
+    // même garde que le chemin patient (#3736, pharmacy/orders.rs:317-333) —
+    // sans elle, un re-`send` praticien recréait une commande neuve pour une
+    // ordonnance signée déjà dispensée (#4402, double-dispensation).
+    let already_dispensed = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM pharmacy_order \
+         WHERE prescription_id = $1 AND status = 'picked_up')",
+    )
+    .bind(prescription_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if already_dispensed {
+        return Err(AppError::AlreadyOrdered);
+    }
 
     // Pharmacie listée uniquement (policy annuaire public).
     let pharmacy = sqlx::query("SELECT raison_sociale FROM pharmacy WHERE id = $1 AND is_listed")
