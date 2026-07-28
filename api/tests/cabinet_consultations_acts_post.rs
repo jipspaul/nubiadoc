@@ -1366,3 +1366,139 @@ async fn add_act_non_risky_code_with_anticoagulant_returns_201() {
     )
     .await;
 }
+
+// ── Test 13 : même acte re-soumis (double-submit/retry) → 409 duplicate_act,
+// une seule ligne facturée (#4411, POST …/acts était purement additif).
+
+#[tokio::test]
+async fn add_act_duplicate_ccam_code_tooth_amount_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = serde_json::json!({
+        "ccam_code": "HBGD001",
+        "label": "QA acte double",
+        "amount_cents": 5000
+    });
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+
+    let post = |state: AppState, token: String| {
+        let body = body.clone();
+        async move {
+            app(state)
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                        .header("Authorization", format!("Bearer {}", token))
+                        .header("content-type", "application/json")
+                        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+        }
+    };
+
+    let first = post(
+        AppState {
+            db: app_pool().await,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        },
+        token.clone(),
+    )
+    .await;
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    // Même acte re-soumis (double-submit / retry réseau) → 409, pas une 2e ligne.
+    let second = post(state, token).await;
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+    let bytes = axum::body::to_bytes(second.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "duplicate_act");
+
+    let count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM consultation_act WHERE appointment_id = $1")
+            .bind(appt_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
+    assert_eq!(count, 1, "un seul acte doit être facturé, pas 2");
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
+// ── Test 14 : même ccam_code/amount mais TOOTH différent → 201, 201 (pas un
+// faux positif — deux actes identiques sur des dents différentes sont légitimes).
+
+#[tokio::test]
+async fn add_act_same_ccam_code_different_tooth_returns_201_201() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+
+    for tooth in ["11", "21"] {
+        let body = serde_json::json!({
+            "ccam_code": "HBGD001",
+            "label": "QA acte",
+            "tooth": tooth,
+            "amount_cents": 5000
+        });
+        let response = app(AppState {
+            db: app_pool().await,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        })
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED, "tooth {tooth}");
+    }
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}

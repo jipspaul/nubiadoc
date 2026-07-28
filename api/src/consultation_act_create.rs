@@ -239,11 +239,12 @@ async fn check_incompatibility(
 }
 
 /// Insère une ligne `consultation_act`, avec la garde clinique anticoagulants
-/// (#4057), la garde de cumul interdit (#4117) et, si `entered_amount_cents`
-/// est fourni (mode `ccam_code` avec montant saisi), l'avertissement de
-/// sous-cotation (#4162). En mode bundle, `entered_amount_cents` est `None` :
-/// le montant vient directement de `final_amount_cents` (déjà auto-calculé
-/// par l'appelant), sans avertissement.
+/// (#4057), la garde de cumul interdit (#4117), la garde anti-doublon
+/// (#4411, même ccam_code/tooth/amount_cents déjà présent sur la séance) et,
+/// si `entered_amount_cents` est fourni (mode `ccam_code` avec montant
+/// saisi), l'avertissement de sous-cotation (#4162). En mode bundle,
+/// `entered_amount_cents` est `None` : le montant vient directement de
+/// `final_amount_cents` (déjà auto-calculé par l'appelant), sans avertissement.
 #[allow(clippy::too_many_arguments)]
 async fn insert_one_act(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -277,6 +278,28 @@ async fn insert_one_act(
     // interdit est une erreur de saisie (422), à signaler avant tout calcul
     // de risque/tarif sur un acte qui ne sera de toute façon pas ajouté.
     check_incompatibility(tx, cabinet_id, appointment_id, ccam_code).await?;
+
+    // #4411 : dédup contre un double-submit/retry réseau — POST …/acts était
+    // purement additif, sans idempotence ni contrôle d'un acte strictement
+    // identique déjà présent, et alimente directement le total facturé au
+    // devis émis à la clôture (3 envois identiques → facture ×3). Un acte
+    // est considéré identique si même ccam_code + tooth + amount_cents sur
+    // la même séance (label ignoré, purement descriptif).
+    let duplicate = sqlx::query(
+        "SELECT 1 FROM consultation_act \
+         WHERE appointment_id = $1 AND ccam_code = $2 AND amount_cents = $3 \
+           AND tooth IS NOT DISTINCT FROM $4",
+    )
+    .bind(appointment_id)
+    .bind(ccam_code)
+    .bind(final_amount_cents)
+    .bind(tooth)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if duplicate.is_some() {
+        return Err(AppError::DuplicateAct);
+    }
 
     // Alerte clinique bloquante (#4057) : acte invasif + patient sous
     // anticoagulants d'après le dossier médical → 409, pas d'insertion.
@@ -372,6 +395,8 @@ async fn insert_one_act(
 /// - Acte invasif à risque hémorragique + dossier médical mentionnant un
 ///   traitement anticoagulant → `409 clinical_risk_warning` bloquant (#4057,
 ///   table de correspondance v1 simple — voir constantes en tête de module).
+/// - Acte strictement identique (même ccam_code/tooth/amount_cents) déjà
+///   présent sur la séance → `409 duplicate_act` (#4411, anti double-submit).
 pub async fn add_consultation_act(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
