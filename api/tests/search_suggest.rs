@@ -262,3 +262,29 @@ async fn suggest_detartrage_without_accent_matches_act() {
         "q=detartrage (sans accent) doit matcher au moins un acte (Détartrage)"
     );
 }
+
+/// Régression #4394 : un octet NUL dans `q` faisait échouer le bind Postgres
+/// → 500 masqué en Internal. Doit désormais être rejeté proprement (422).
+#[tokio::test]
+async fn suggest_nul_byte_in_q_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/suggest?q=ab%00cd")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}

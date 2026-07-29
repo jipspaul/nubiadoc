@@ -90,6 +90,11 @@ pub async fn list_cabinet_patients(
         .map(|(at, id)| (Some(at), Some(id)))
         .unwrap_or((None, None));
 
+    // #4397 : NUL byte non filtré → 500 au bind (ILIKE).
+    if let Some(q) = params.q.as_deref() {
+        crate::text_validation::reject_nul_byte(q)?;
+    }
+
     // %q% search — ILIKE wildcards on user input are acceptable (parameterised query).
     let search_pattern = params.q.as_deref().map(|q| format!("%{}%", q));
 

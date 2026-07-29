@@ -56,6 +56,11 @@ pub async fn search_pharmacies(
         return Err(AppError::ValidationError);
     }
 
+    // #4394 : NUL byte non filtré → 500 au bind (translate()/ILIKE).
+    if let Some(q) = params.q.as_deref() {
+        crate::text_validation::reject_nul_byte(q)?;
+    }
+
     let radius_m: Option<f64> = params.radius_km.map(|r| r * 1000.0);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 50);
     // q normalisée (trim + minuscules) ; la normalisation des accents se fait

@@ -94,6 +94,7 @@ mod scheduling;
 mod sterilization;
 mod stock_items;
 mod support;
+mod text_validation;
 mod treatment_phases;
 mod treatment_plans;
 mod twilio_sms;

@@ -1510,3 +1510,35 @@ async fn create_cabinet_patient_with_appointment_history_returns_201() {
         .await
         .ok();
 }
+
+/// Régression #4397 : un octet NUL dans `q` faisait échouer le bind Postgres
+/// → 500 masqué en Internal. Doit désormais être rejeté proprement (422).
+#[tokio::test]
+async fn list_cabinet_patients_nul_byte_in_q_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("nul_byte_q_{}@test.local", Uuid::new_v4());
+    let db = app_pool().await;
+    let (token, _, _) = register_pro(db.clone(), &email).await;
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/patients?q=ab%00cd")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
+}
