@@ -261,6 +261,30 @@ async fn create_with_unknown_ccam_code_returns_422() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 2bis (#4410) : octet NUL dans title → 422 (pas 500) ────────────────
+
+#[tokio::test]
+async fn create_with_nul_byte_in_title_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "practitioner");
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/cr-templates",
+        &token,
+        Some(json!({"title": "a\u{0}b", "body_template": "x"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 3 : PATCH modifie le titre, laisse le reste inchangé ───────────────
 
 #[tokio::test]

@@ -103,6 +103,9 @@ pub async fn create_cr_template(
     if body.title.trim().is_empty() || body.body_template.trim().is_empty() {
         return Err(AppError::ValidationError);
     }
+    // #4410 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    crate::text_validation::reject_nul_byte(&body.title)?;
+    crate::text_validation::reject_nul_byte(&body.body_template)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

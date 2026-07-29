@@ -527,3 +527,43 @@ async fn apply_template_twice_does_not_duplicate_items() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test 6 (#4410) : octet NUL dans items[].label → 422 (pas 500) ───────────
+
+#[tokio::test]
+async fn create_template_nul_byte_in_item_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+
+    let response = app(state_with(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/prescription-templates")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(f.user_id, f.cabinet_id, "practitioner")
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "label": "modèle test",
+                        "items": [{"label": "a\u{0}b", "posology": "y", "duration": "z"}]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}

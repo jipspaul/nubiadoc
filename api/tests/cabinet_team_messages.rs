@@ -264,6 +264,34 @@ async fn post_empty_body_returns_422() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 2bis (#4410) : octet NUL dans body → 422 (pas 500) ─────────────────
+
+#[tokio::test]
+async fn post_nul_byte_in_body_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(json!({ "body": "a\u{0}b" }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 3 : patient → 403 sur GET et POST ────────────────────────────────────
 
 #[tokio::test]
