@@ -67,6 +67,18 @@ pub async fn create_prescription(
     }) {
         return Err(AppError::ValidationError);
     }
+    // #4410 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    for item in &body.items {
+        crate::text_validation::reject_nul_byte(&item.label)?;
+        crate::text_validation::reject_nul_byte(&item.posology)?;
+        crate::text_validation::reject_nul_byte(&item.duration)?;
+        if let Some(form) = &item.form {
+            crate::text_validation::reject_nul_byte(form)?;
+        }
+        if let Some(quantity) = &item.quantity {
+            crate::text_validation::reject_nul_byte(quantity)?;
+        }
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

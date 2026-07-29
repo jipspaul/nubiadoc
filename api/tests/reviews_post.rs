@@ -641,3 +641,51 @@ async fn post_review_missing_idempotency_key_returns_400() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["code"], "missing_idempotency_key");
 }
+
+// ── Test (#4410) : octet NUL dans comment → 422 (pas 500) ───────────────────
+
+#[tokio::test]
+async fn post_review_nul_byte_in_comment_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup_fixture(&db, "nulbyte").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/reviews")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", Uuid::new_v4().to_string())
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "appointment_id": f.appointment_id,
+                        "rating": 5,
+                        "comment": "a\u{0}b"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixture(&db, &f).await;
+}

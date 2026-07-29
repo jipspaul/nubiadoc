@@ -58,6 +58,10 @@ pub async fn create_review(
     if body.rating < 1 || body.rating > 5 {
         return Err(AppError::ValidationError);
     }
+    // #4410 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    if let Some(comment) = &body.comment {
+        crate::text_validation::reject_nul_byte(comment)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
