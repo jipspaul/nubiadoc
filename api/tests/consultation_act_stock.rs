@@ -66,7 +66,10 @@ struct Fixture {
 
 /// `mapped` : si `true`, crée aussi un `stock_item` + un mapping
 /// `ccam_act_stock_consumption` (quantité 2) pour `ccam_code`.
-async fn insert_fixture(db: &PgPool, tag: &str, mapped: bool) -> Fixture {
+/// `initial_qty` : `quantity_on_hand` de départ du `stock_item` (#4438 —
+/// la consommation par acte est désormais planchée à 0 comme le mouvement
+/// manuel, donc le stock de départ doit être suffisant pour le scénario).
+async fn insert_fixture(db: &PgPool, tag: &str, mapped: bool, initial_qty: i32) -> Fixture {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
@@ -159,11 +162,12 @@ async fn insert_fixture(db: &PgPool, tag: &str, mapped: bool) -> Fixture {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO stock_item (id, cabinet_id, reference, label, unit) \
-         VALUES ($1, $2, 'GANTS-STK', 'Gants latex', 'boite')",
+        "INSERT INTO stock_item (id, cabinet_id, reference, label, unit, quantity_on_hand) \
+         VALUES ($1, $2, 'GANTS-STK', 'Gants latex', 'boite', $3)",
     )
     .bind(stock_item_id)
     .bind(cabinet_id)
+    .bind(initial_qty)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -291,7 +295,7 @@ async fn mapped_act_decrements_linked_stock_item() {
         return;
     }
     let db = owner_pool().await;
-    let f = insert_fixture(&db, "map", true).await;
+    let f = insert_fixture(&db, "map", true, 5).await;
     let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
 
     let status = post_act(
@@ -314,8 +318,8 @@ async fn mapped_act_decrements_linked_stock_item() {
         .unwrap();
     let quantity_on_hand: i32 = item_row.try_get("quantity_on_hand").unwrap();
     assert_eq!(
-        quantity_on_hand, -2,
-        "le mapping (quantity=2) doit décrémenter le stock_item du bon delta"
+        quantity_on_hand, 3,
+        "le mapping (quantity=2) doit décrémenter le stock_item (5 -> 3) du bon delta"
     );
 
     let movement_row = sqlx::query(
@@ -342,7 +346,7 @@ async fn unmapped_act_creates_no_stock_movement() {
         return;
     }
     let db = owner_pool().await;
-    let f = insert_fixture(&db, "nomap", false).await;
+    let f = insert_fixture(&db, "nomap", false, 0).await;
     let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
 
     let status = post_act(
@@ -374,6 +378,65 @@ async fn unmapped_act_creates_no_stock_movement() {
         .unwrap();
     let quantity_on_hand: i32 = item_row.try_get("quantity_on_hand").unwrap();
     assert_eq!(quantity_on_hand, 0);
+
+    cleanup_fixture(&db, &f).await;
+}
+
+// ── Stock insuffisant pour le mapping → acte refusé, rien ne bouge (#4438) ──
+
+#[tokio::test]
+async fn mapped_act_insufficient_stock_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    // Mapping consomme 2, mais le stock de départ n'en a qu'1.
+    let f = insert_fixture(&db, "insuff", true, 1).await;
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let status = post_act(
+        AppState {
+            db: app_pool().await,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        },
+        f.session_id,
+        &token,
+        &f.ccam_code,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "stock insuffisant (1 en stock, 2 requis) doit refuser l'acte entier, \
+         même garde que le mouvement manuel (stock_items.rs)"
+    );
+
+    let count_row =
+        sqlx::query("SELECT count(*)::int AS n FROM consultation_act WHERE appointment_id = $1")
+            .bind(f.appt_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    let n: i32 = count_row.try_get("n").unwrap();
+    assert_eq!(n, 0, "aucun acte ne doit être créé (transaction annulée)");
+
+    let movement_count_row =
+        sqlx::query("SELECT count(*)::int AS n FROM stock_movement WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    let movement_n: i32 = movement_count_row.try_get("n").unwrap();
+    assert_eq!(movement_n, 0, "aucun mouvement de stock ne doit être créé");
+
+    let item_row = sqlx::query("SELECT quantity_on_hand FROM stock_item WHERE id = $1")
+        .bind(f.stock_item_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let quantity_on_hand: i32 = item_row.try_get("quantity_on_hand").unwrap();
+    assert_eq!(quantity_on_hand, 1, "le stock ne doit pas être décrémenté");
 
     cleanup_fixture(&db, &f).await;
 }
