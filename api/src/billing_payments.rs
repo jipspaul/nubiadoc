@@ -156,16 +156,16 @@ pub async fn create_payment_intent(
     // lu cabinet_id — donc un premier FOR UPDATE ici renverrait toujours 0
     // ligne (régression #3775 : le correctif avait rendu POST /payments/intent
     // 404 sur CHAQUE appel, pas seulement en cas de course concurrente).
-    // #4433 : patient_share_cents (total des lignes - part AMO - part AMC) —
-    // même sous-requête que cabinet_quotes.rs (patient_share_cents exposé
-    // côté cabinet) — c'est le reste-à-charge RÉEL du patient, pas le total
-    // brut du devis. Le tiers-payant ne doit jamais forcer le patient à
-    // préfinancer la part remboursée par l'assurance.
+    // #4515 : patient_share_cents ne peut PAS être calculé dans cette même
+    // requête — `quote_item` est en FORCE RLS avec la seule policy
+    // `tenant_isolation` (scope app.current_cabinet_id, pas encore posé ici) ;
+    // aucune policy patient permissive n'existe sur `quote_item` (contrairement
+    // à `quote`, cf. migration 0029). Une sous-requête sur quote_item à ce
+    // stade voit toujours 0 ligne → patient_share_cents = 0 → tout paiement
+    // rejeté en 422 (régression #4433, qui avait introduit ce calcul sans
+    // anticiper la dépendance RLS de quote_item au GUC cabinet).
     let quote_row = sqlx::query(
-        "SELECT q.cabinet_id, q.patient_id, q.status, q.deposit_pct::double precision AS deposit_pct, \
-                (SELECT coalesce(sum((qi.qty * qi.unit_amount \
-                    - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
-                 FROM quote_item qi WHERE qi.quote_id = q.id) AS patient_share_cents \
+        "SELECT q.cabinet_id, q.patient_id, q.status, q.deposit_pct::double precision AS deposit_pct \
          FROM quote q \
          JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.deleted_at IS NULL \
@@ -190,15 +190,14 @@ pub async fn create_payment_intent(
     let deposit_pct: Option<f64> = quote_row
         .try_get("deposit_pct")
         .map_err(|_| AppError::Internal)?;
-    let patient_share_cents: i64 = quote_row
-        .try_get("patient_share_cents")
-        .map_err(|_| AppError::Internal)?;
 
     if status != "signed" {
         return Err(AppError::InvalidStatus);
     }
 
-    // Scope cabinet pour les opérations sur payment (tenant_isolation policy).
+    // Scope cabinet pour les opérations sur payment (tenant_isolation policy)
+    // et sur quote_item (cf. commentaire ci-dessus) — doit précéder toute
+    // lecture de quote_item.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
         .bind(cabinet_id.to_string())
         .execute(&mut *tx)
@@ -214,6 +213,25 @@ pub async fn create_payment_intent(
         .bind(body.quote_id)
         .fetch_one(&mut *tx)
         .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Reste-à-charge réel du patient (total des lignes - part AMO - part AMC) —
+    // même sous-requête que cabinet_quotes.rs (patient_share_cents exposé côté
+    // cabinet). Le tiers-payant ne doit jamais forcer le patient à préfinancer
+    // la part remboursée par l'assurance. Exécutée maintenant que le GUC
+    // cabinet est posé, donc visible sous tenant_isolation.
+    let patient_share_row = sqlx::query(
+        "SELECT coalesce(sum((qi.qty * qi.unit_amount \
+             - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
+             AS patient_share_cents \
+         FROM quote_item qi WHERE qi.quote_id = $1",
+    )
+    .bind(body.quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let patient_share_cents: i64 = patient_share_row
+        .try_get("patient_share_cents")
         .map_err(|_| AppError::Internal)?;
 
     // Montant restant dû = total du devis - paiements déjà en cours/aboutis (jamais
