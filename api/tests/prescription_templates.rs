@@ -478,7 +478,57 @@ async fn list_templates_includes_global_and_own_cabinet_templates() {
     cleanup(&db, &f).await;
 }
 
-// ── Test 5 (#4410) : octet NUL dans items[].label → 422 (pas 500) ───────────
+// ── Test 5 (#4407/#4409) : ré-appliquer le MÊME modèle ne duplique pas les lignes ──
+
+#[tokio::test]
+async fn apply_template_twice_does_not_duplicate_items() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "practitioner");
+
+    let (first_status, first_resp) = apply_template(
+        state_with(app_pool().await),
+        f.prescription_id,
+        token.clone(),
+        f.private_template_id,
+    )
+    .await;
+    assert_eq!(first_status, StatusCode::OK);
+    assert_eq!(first_resp["items_created"], 2);
+
+    let (second_status, second_resp) = apply_template(
+        state_with(app_pool().await),
+        f.prescription_id,
+        token,
+        f.private_template_id,
+    )
+    .await;
+    assert_eq!(second_status, StatusCode::OK);
+    assert_eq!(
+        second_resp["items_created"], 0,
+        "les 2 lignes du modèle sont déjà présentes, aucune ré-insertion"
+    );
+
+    let count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM prescription_item WHERE prescription_id = $1")
+            .bind(f.prescription_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
+    assert_eq!(
+        count, 2,
+        "ré-appliquer le même modèle ne doit pas dupliquer les lignes"
+    );
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 6 (#4410) : octet NUL dans items[].label → 422 (pas 500) ───────────
 
 #[tokio::test]
 async fn create_template_nul_byte_in_item_returns_422() {

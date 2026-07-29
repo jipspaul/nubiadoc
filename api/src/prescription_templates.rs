@@ -305,7 +305,23 @@ pub async fn apply_prescription_template(
     let items: Vec<TemplateItemInput> =
         serde_json::from_value(items_json).map_err(|_| AppError::Internal)?;
 
+    // #4407/#4409 : apply-template était purement additif, sans dédup ni
+    // idempotence — ré-appliquer le même modèle empilait N× les mêmes lignes
+    // médicamenteuses (risque clinique de double posologie perçue). Une
+    // ligne du modèle déjà présente sur CETTE ordonnance (même label) est
+    // désormais sautée plutôt que ré-insérée.
+    let existing_labels: Vec<String> =
+        sqlx::query_scalar("SELECT label FROM prescription_item WHERE prescription_id = $1")
+            .bind(prescription_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+    let mut items_created = 0usize;
     for item in &items {
+        if existing_labels.contains(&item.label) {
+            continue;
+        }
         sqlx::query(
             "INSERT INTO prescription_item \
              (cabinet_id, prescription_id, label, form, posology, duration, quantity) \
@@ -321,6 +337,7 @@ pub async fn apply_prescription_template(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+        items_created += 1;
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
@@ -330,12 +347,12 @@ pub async fn apply_prescription_template(
         user_id = %claims.sub,
         prescription_id = %prescription_id,
         template_id = %body.template_id,
-        items_created = items.len(),
+        items_created,
         "prescription template applied"
     );
 
     Ok(Json(ApplyTemplateResponse {
         prescription_id,
-        items_created: items.len(),
+        items_created,
     }))
 }
