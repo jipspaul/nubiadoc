@@ -449,10 +449,11 @@ async fn convert_conversation_not_found_returns_404() {
     teardown(&db, &f).await;
 }
 
-// ── Test : slot déjà pris (status != 'open') → 409 slot_taken ───────────────
+// ── Test : slot existant mais non 'open' → 404 (#4399, pas 409 slot_taken :
+// réservé au vrai conflit d'insert 23P01, pas à un lookup à 0 ligne) ────────
 
 #[tokio::test]
-async fn convert_conversation_slot_not_open_returns_409() {
+async fn convert_conversation_slot_not_open_returns_404() {
     if !db_available() {
         return;
     }
@@ -502,12 +503,55 @@ async fn convert_conversation_slot_not_open_returns_409() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CONFLICT);
-    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    teardown(&db, &f).await;
+}
+
+// ── Test (#4399) : slot_id totalement inexistant → 404 (pas 409 slot_taken,
+// repro exacte de l'issue : un créneau jamais créé ne peut pas être "pris") ──
+
+#[tokio::test]
+async fn convert_conversation_unknown_slot_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "unknownslot").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/conversations/{}/convert-to-appointment",
+                    f.conversation_id
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(f.secretary_user_id, f.cabinet_id, "secretary")
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"slot_id": Uuid::new_v4()}).to_string()))
+                .unwrap(),
+        )
         .await
         .unwrap();
-    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(v["code"], "slot_taken");
+
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "un slot_id inexistant doit renvoyer 404 not_found, pas 409 slot_taken"
+    );
 
     teardown(&db, &f).await;
 }

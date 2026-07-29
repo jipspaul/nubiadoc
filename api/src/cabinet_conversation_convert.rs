@@ -112,6 +112,9 @@ pub async fn convert_conversation_to_appointment(
 
     // Résout le créneau pour starts_at / ends_at / practitioner_id (même
     // pattern que scheduling::create_cabinet_appointment).
+    // #4399 : 0 ligne signifie "introuvable" (inexistant, supprimé, non-open
+    // ou hors tenant) -> 404, pas 409 slot_taken (réservé au vrai
+    // double-booking, capté séparément plus bas par la contrainte 23P01).
     let slot_row = sqlx::query(
         "SELECT starts_at, ends_at, practitioner_id \
          FROM availability_slot \
@@ -122,7 +125,7 @@ pub async fn convert_conversation_to_appointment(
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::SlotTaken)?;
+    .ok_or(AppError::NotFound)?;
 
     let starts_at: chrono::DateTime<chrono::Utc> = slot_row
         .try_get("starts_at")
