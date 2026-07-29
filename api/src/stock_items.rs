@@ -181,7 +181,10 @@ pub struct AddStockMovementResponse {
 /// façon atomique dans la même transaction que l'insertion du mouvement.
 ///
 /// Article inexistant/hors tenant → 404. `delta` non nul et `reason` ∈
-/// `VALID_REASONS` → 422 sinon. `quantity_on_hand + delta < 0` → 422
+/// `VALID_REASONS` → 422 sinon. Signe de `delta` incohérent avec `reason`
+/// (`reception` négatif, `consumption`/`peremption` positif) → 422
+/// (#4479 — `adjustment` reste libre dans les deux sens).
+/// `quantity_on_hand + delta < 0` → 422
 /// `insufficient_stock` (#4341 — un inventaire physique n'est jamais
 /// négatif ; ligne verrouillée `FOR UPDATE` le temps de la transaction,
 /// anti-course avec un mouvement concurrent). `consultation_act_id` (si
@@ -196,6 +199,16 @@ pub async fn add_stock_movement(
 ) -> Result<(StatusCode, Json<AddStockMovementResponse>), AppError> {
     if body.delta == 0 || !VALID_REASONS.contains(&body.reason.as_str()) {
         return Err(AppError::ValidationError);
+    }
+    // #4479 : le signe de delta portait le sens réel du mouvement, mais
+    // rien ne le couplait au reason déclaré — une "consumption" positive
+    // gonflait le stock, une "reception" négative le vidait. reception =
+    // entrée (delta > 0) ; consumption/peremption = sortie (delta < 0).
+    // adjustment reste libre dans les deux sens (correction manuelle).
+    match body.reason.as_str() {
+        "reception" if body.delta < 0 => return Err(AppError::ValidationError),
+        "consumption" | "peremption" if body.delta > 0 => return Err(AppError::ValidationError),
+        _ => {}
     }
     let expiry_date = body
         .expiry_date
