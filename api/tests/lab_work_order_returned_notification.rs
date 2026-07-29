@@ -64,6 +64,7 @@ struct Fixture {
 async fn seed(db: &PgPool) -> Fixture {
     let cabinet_id = Uuid::new_v4();
     let pro_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
     let patient_app_user_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
@@ -111,6 +112,26 @@ async fn seed(db: &PgPool) -> Fixture {
     .execute(&mut *tx)
     .await
     .unwrap();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(pro_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    // Appointment passé : le praticien a consulté ce patient (garde §14, #4414).
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'done', 'contrôle')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
     tx.commit().await.unwrap();
 
     Fixture {
@@ -134,6 +155,16 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .await
         .ok();
     sqlx::query("DELETE FROM lab_work_order WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
         .await

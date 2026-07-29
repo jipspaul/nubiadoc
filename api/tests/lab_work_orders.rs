@@ -63,6 +63,7 @@ struct Fixture {
 async fn seed(db: &PgPool) -> Fixture {
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
     sqlx::query(
@@ -88,12 +89,32 @@ async fn seed(db: &PgPool) -> Fixture {
     .execute(&mut *tx)
     .await
     .unwrap();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
     sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
          VALUES ($1, $2, 'Patient', 'LabWork')",
     )
     .bind(patient_id)
     .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    // Appointment passé : le praticien a consulté ce patient (garde §14, #4414).
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'done', 'contrôle')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -118,8 +139,18 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(&mut *tx)
         .await
         .ok();
-    sqlx::query("DELETE FROM patient WHERE id = $1")
-        .bind(f.patient_id)
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
         .execute(&mut *tx)
         .await
         .ok();
@@ -423,4 +454,71 @@ async fn create_with_appointment_of_another_patient_returns_404() {
         .ok();
 
     cleanup(&db, &f).await;
+}
+
+/// Ajoute un second praticien au cabinet, SANS aucun `appointment` avec le
+/// patient (pour tester la garde §14, #4414). Retourne son `user_id`.
+async fn insert_practitioner_without_care_relationship(db: &PgPool, cabinet_id: Uuid) -> Uuid {
+    let user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("labwork-norel+{user_id}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    user_id
+}
+
+// ── Test (#4414) : praticien sans relation de soin avec le patient → 403 ────
+
+#[tokio::test]
+async fn create_no_care_relationship_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let other_user_id = insert_practitioner_without_care_relationship(&db, f.cabinet_id).await;
+    let token = make_practitioner_token(other_user_id, f.cabinet_id);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "Labo sans relation",
+            "purchase_price_cents": 5000
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    cleanup(&db, &f).await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(other_user_id)
+        .execute(&db)
+        .await
+        .ok();
 }
