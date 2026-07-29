@@ -99,6 +99,8 @@ pub struct CreateQuoteBody {
 /// `POST /v1/pharmacy/quotes` — crée un devis (statut `draft`) rattaché à une
 /// commande de la pharmacie (404 hors tenant). Items vides, libellé vide,
 /// quantité ou prix négatif → 422. Le total est calculé côté serveur.
+/// Commande d'ancrage hors statut actif (`received`/`preparing`/`ready`) —
+/// donc `picked_up`/`cancelled`/`rejected` → 409 `invalid_status` (#4415).
 pub async fn create_pharmacy_quote(
     State(state): State<AppState>,
     claims: PharmaPharmacistClaims,
@@ -128,7 +130,7 @@ pub async fn create_pharmacy_quote(
 
     // La commande ancre le devis : identité patient et nom dénormalisés.
     let order = sqlx::query(
-        "SELECT patient_account_id, pharmacy_name, patient_display_name \
+        "SELECT patient_account_id, pharmacy_name, patient_display_name, status \
          FROM pharmacy_order WHERE id = $1",
     )
     .bind(body.order_id)
@@ -136,6 +138,15 @@ pub async fn create_pharmacy_quote(
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+
+    // #4415 : une commande terminale (picked_up/cancelled/rejected) ne doit
+    // plus pouvoir ancrer un nouveau devis payable — sinon un devis peut
+    // être créé, envoyé, accepté et payé sur une commande jamais délivrée
+    // (charge fantôme) ou déjà retirée.
+    let order_status: String = order.try_get("status").map_err(|_| AppError::Internal)?;
+    if !matches!(order_status.as_str(), "received" | "preparing" | "ready") {
+        return Err(AppError::InvalidStatus);
+    }
 
     let patient_account_id: Uuid = order
         .try_get("patient_account_id")

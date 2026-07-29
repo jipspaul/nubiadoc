@@ -419,3 +419,39 @@ async fn validation_and_isolation() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ── Test (#4415) : commande d'ancrage terminale → 409 invalid_status ────────
+
+#[tokio::test]
+async fn create_on_terminal_order_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+
+    for terminal_status in ["picked_up", "cancelled", "rejected"] {
+        sqlx::query("UPDATE pharmacy_order SET status = $1 WHERE id = $2")
+            .bind(terminal_status)
+            .bind(fx.order_id)
+            .execute(&db)
+            .await
+            .unwrap();
+
+        let (status, body) = call(
+            "POST",
+            "/v1/pharmacy/quotes",
+            &pharmacist,
+            Some(json!({"order_id": fx.order_id,
+                        "items": [{"label": "X", "qty": 1, "unit_price_cents": 100}]})),
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::CONFLICT,
+            "order status={terminal_status} doit refuser la création: {body}"
+        );
+        assert_eq!(body["code"], "invalid_status");
+    }
+}
