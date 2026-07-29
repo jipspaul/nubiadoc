@@ -250,6 +250,98 @@ async fn reception_then_consumption_updates_quantity_on_hand() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 1a (#4479) : signe de delta incohérent avec reason → 422 ───────────
+
+#[tokio::test]
+async fn delta_sign_incoherent_with_reason_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let secretary_token = make_secretary_token(f.user_id, f.cabinet_id);
+    let practitioner_token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (status, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &secretary_token,
+        Some(json!({
+            "reference": "GANTS-SIGN",
+            "label": "Gants latex sign",
+            "unit": "boite"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let item_id = created["item_id"].as_str().unwrap().to_string();
+
+    // consumption positif → une "consommation" ne doit jamais AUGMENTER le stock.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &practitioner_token,
+        Some(json!({"delta": 9999, "reason": "consumption"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // reception négatif → une "réception" ne doit jamais DIMINUER le stock.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &practitioner_token,
+        Some(json!({"delta": -5, "reason": "reception"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // peremption positif → refusé, même logique que consumption.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &practitioner_token,
+        Some(json!({"delta": 3, "reason": "peremption"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // adjustment reste libre dans les deux sens.
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &secretary_token,
+        Some(json!({"delta": 5, "reason": "adjustment"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(resp["quantity_on_hand"], 5);
+
+    // Rien de tout ceci n'a bougé le stock au-delà de l'unique adjustment accepté.
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/stock-items",
+        &secretary_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let items = list.as_array().unwrap();
+    let item = items
+        .iter()
+        .find(|i| i["id"] == item_id)
+        .expect("item must exist");
+    assert_eq!(item["quantity_on_hand"], 5);
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 1b : consommation > stock disponible → 422 insufficient_stock (#4341) ──
 
 #[tokio::test]
