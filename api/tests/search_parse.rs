@@ -122,3 +122,76 @@ async fn parse_keywords_available_saturday() {
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["query"]["available"], "saturday");
 }
+
+/// #4484 : ville connue de KNOWN_CITY_COORDS (réellement filtrée par
+/// search_providers) → interprétation « près de <ville> ».
+#[tokio::test]
+async fn parse_known_city_says_pres_de() {
+    if !db_available() {
+        return;
+    }
+
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"q":"dentiste à Paris"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["query"]["place"], "Paris");
+    let interp = v["interpretation"].as_str().unwrap();
+    assert!(
+        interp.contains("près de Paris"),
+        "ville résolue → proximité réellement filtrée par search_providers : {interp}"
+    );
+}
+
+/// #4484 : ville hors KNOWN_CITY_COORDS (jamais filtrée par search_providers,
+/// géocodage externe hors scope MVP) → interprétation ne doit PAS promettre
+/// « près de <ville> » (repro exacte de l'issue : Grenoble).
+#[tokio::test]
+async fn parse_unknown_city_does_not_say_pres_de() {
+    if !db_available() {
+        return;
+    }
+
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"q":"dentiste à Grenoble"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["query"]["place"], "Grenoble");
+    let interp = v["interpretation"].as_str().unwrap();
+    assert!(
+        !interp.contains("près de Grenoble"),
+        "ville non résolue → ne doit pas promettre une proximité non appliquée : {interp}"
+    );
+    assert!(
+        interp.contains("Grenoble"),
+        "la ville reste mentionnée, sans promesse de proximité : {interp}"
+    );
+}

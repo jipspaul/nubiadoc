@@ -1567,7 +1567,10 @@ async fn resolve_specialty(
     (None, None, None)
 }
 
-/// Construit une interprétation lisible en français.
+/// Construit une interprétation lisible en français. `place` n'est annoncé
+/// « près de {place} » que s'il résout dans `KNOWN_CITY_COORDS` (#4484) —
+/// sinon le filtre géo est silencieusement ignoré par search_providers/
+/// search_slots, et promettre une proximité non appliquée serait trompeur.
 fn build_interpretation(query: &ParsedQuery, specialty_label: Option<&str>) -> String {
     let mut parts: Vec<String> = Vec::new();
 
@@ -1586,7 +1589,18 @@ fn build_interpretation(query: &ParsedQuery, specialty_label: Option<&str>) -> S
         parts.push("en téléconsultation".to_string());
     }
     if let Some(place) = &query.place {
-        parts.push(format!("près de {place}"));
+        // #4484 : « près de {place} » promet un filtrage géographique que
+        // search_providers/search_slots n'appliquent que pour les villes de
+        // KNOWN_CITY_COORDS (géocodage externe hors scope MVP) — pour toute
+        // autre ville, l'annuaire national était renvoyé sans que
+        // l'interprétation ne le laisse deviner. Phrasé neutre (sans « près
+        // de ») pour les villes non résolues : n'affirme pas une proximité
+        // qui ne sera pas appliquée.
+        if resolve_place_coords(place).is_some() {
+            parts.push(format!("près de {place}"));
+        } else {
+            parts.push(format!("à {place}"));
+        }
     }
 
     let mut interp = parts.join(" ");
