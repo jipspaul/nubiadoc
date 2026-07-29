@@ -76,19 +76,30 @@ pub async fn issue_token(
     }
 
     // ── 1. Lookup client (SECURITY DEFINER, hors contexte tenant) ──────────
+    // #4392 : pour un client_id totalement absent, la fonction SQL (non-SETOF,
+    // cf. docstring plus bas) échoue au niveau requête au lieu de produire la
+    // ligne composite NULL attendue — mappé en InvalidClient (401), pas
+    // Internal (500) : côté endpoint public d'auth, un échec de ce lookup
+    // précis signifie « client non reconnu », jamais une vraie panne serveur
+    // à exposer. Remonter un 500 ici casserait aussi la gestion d'erreur
+    // normale d'un partenaire qui teste un client_id invalide.
     let client_row = sqlx::query(
         "SELECT id, cabinet_id, scopes, status FROM interop_client_find_by_client_id($1)",
     )
     .bind(&body.client_id)
     .fetch_optional(&state.db)
     .await
-    .map_err(|_| InteropError::Internal)?
+    .map_err(|_| InteropError::InvalidClient)?
     .ok_or(InteropError::InvalidClient)?;
 
     // `interop_client_find_by_client_id` n'est pas SETOF : appelée dans un FROM,
-    // elle produit toujours exactement une ligne, composite NULL si aucun client
-    // ne correspond (Postgres traite une fonction scalaire en FROM comme un set
-    // d'une seule instance de son type de retour). `id IS NULL` == client inconnu.
+    // elle est censée produire une ligne composite NULL si aucun client ne
+    // correspond (Postgres traite une fonction scalaire en FROM comme un set
+    // d'une seule instance de son type de retour) — `id IS NULL` == client
+    // inconnu. En pratique (#4392), pour un client_id totalement absent la
+    // requête échoue au niveau exécution plutôt que de produire cette ligne
+    // NULL — géré par le `.map_err` ci-dessus, mais gardé ici aussi (défense
+    // en profondeur) pour le cas où la ligne composite-NULL est bien produite.
     let client_row_id: Option<Uuid> = client_row
         .try_get("id")
         .map_err(|_| InteropError::Internal)?;
