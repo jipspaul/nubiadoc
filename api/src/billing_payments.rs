@@ -156,9 +156,16 @@ pub async fn create_payment_intent(
     // lu cabinet_id — donc un premier FOR UPDATE ici renverrait toujours 0
     // ligne (régression #3775 : le correctif avait rendu POST /payments/intent
     // 404 sur CHAQUE appel, pas seulement en cas de course concurrente).
+    // #4433 : patient_share_cents (total des lignes - part AMO - part AMC) —
+    // même sous-requête que cabinet_quotes.rs (patient_share_cents exposé
+    // côté cabinet) — c'est le reste-à-charge RÉEL du patient, pas le total
+    // brut du devis. Le tiers-payant ne doit jamais forcer le patient à
+    // préfinancer la part remboursée par l'assurance.
     let quote_row = sqlx::query(
         "SELECT q.cabinet_id, q.patient_id, q.status, q.deposit_pct::double precision AS deposit_pct, \
-                (q.total_amount * 100)::bigint AS total_amount_cents \
+                (SELECT coalesce(sum((qi.qty * qi.unit_amount \
+                    - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
+                 FROM quote_item qi WHERE qi.quote_id = q.id) AS patient_share_cents \
          FROM quote q \
          JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.deleted_at IS NULL \
@@ -183,8 +190,8 @@ pub async fn create_payment_intent(
     let deposit_pct: Option<f64> = quote_row
         .try_get("deposit_pct")
         .map_err(|_| AppError::Internal)?;
-    let total_amount_cents: i64 = quote_row
-        .try_get("total_amount_cents")
+    let patient_share_cents: i64 = quote_row
+        .try_get("patient_share_cents")
         .map_err(|_| AppError::Internal)?;
 
     if status != "signed" {
@@ -223,7 +230,7 @@ pub async fn create_payment_intent(
     let already_committed_cents: i64 = already_committed_row
         .try_get("committed_cents")
         .map_err(|_| AppError::Internal)?;
-    let remaining_due_cents = total_amount_cents - already_committed_cents;
+    let remaining_due_cents = patient_share_cents - already_committed_cents;
 
     // Acompte obligatoire (#3761) : deposit_pct était stocké à la création du
     // devis mais jamais imposé — un patient pouvait régler un acompte
@@ -232,7 +239,7 @@ pub async fn create_payment_intent(
     // soit le `kind` déclaré ("deposit"/"installment"/"full") : sinon il
     // suffit de changer ce libellé pour le contourner entièrement (#4431).
     if let Some(pct) = deposit_pct {
-        let min_deposit_cents = ((total_amount_cents as f64) * pct / 100.0).ceil() as i64;
+        let min_deposit_cents = ((patient_share_cents as f64) * pct / 100.0).ceil() as i64;
         if already_committed_cents < min_deposit_cents
             && already_committed_cents + body.amount_cents < min_deposit_cents
         {
