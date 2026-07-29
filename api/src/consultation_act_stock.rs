@@ -8,7 +8,9 @@
 //! décrémente `stock_item.quantity_on_hand` d'autant, dans la MÊME
 //! transaction que l'acte (cohérence : pas d'acte facturé sans son
 //! mouvement de stock, ni l'inverse). Acte sans mapping → aucun mouvement
-//! créé (silencieux, comportement attendu).
+//! créé (silencieux, comportement attendu). Stock insuffisant pour un
+//! mapping → l'acte entier est refusé (`422 insufficient_stock`, #4438),
+//! même garde que le mouvement manuel (`stock_items.rs`).
 //!
 //! Extrait de `consultation_act_create.rs` (déjà > 500 lignes, cible
 //! CLAUDE.md) plutôt que d'y ajouter davantage — module dédié, une
@@ -43,6 +45,29 @@ pub async fn apply_stock_consumption(
             .try_get("stock_item_id")
             .map_err(|_| AppError::Internal)?;
         let quantity: i32 = row.try_get("quantity").map_err(|_| AppError::Internal)?;
+
+        // #4438 : FOR UPDATE + plancher à 0, même garde que le mouvement
+        // manuel (stock_items.rs::create_stock_movement, #4341) — sinon la
+        // consommation liée à un acte décrémente sans borne et produit un
+        // quantity_on_hand négatif persistant, incohérent avec le chemin
+        // manuel qui refuse (422 insufficient_stock) le même scénario.
+        let item_row = sqlx::query(
+            "SELECT quantity_on_hand FROM stock_item WHERE id = $1 AND cabinet_id = $2 FOR UPDATE",
+        )
+        .bind(stock_item_id)
+        .bind(cabinet_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        let Some(item_row) = item_row else {
+            continue;
+        };
+        let current_quantity: i32 = item_row
+            .try_get("quantity_on_hand")
+            .map_err(|_| AppError::Internal)?;
+        if current_quantity - quantity < 0 {
+            return Err(AppError::InsufficientStock);
+        }
 
         sqlx::query(
             "INSERT INTO stock_movement \
