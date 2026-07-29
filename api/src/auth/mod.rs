@@ -218,6 +218,12 @@ pub(crate) enum AppError {
     /// gonflerait le devis facturé au patient. `409`, pas `422` : l'acte en
     /// lui-même est valide, c'est sa répétition qui est refusée.
     DuplicateAct,
+    /// `POST /v1/account/dependents` (#4475) : un lien de tutelle actif
+    /// existe déjà pour ce couple (guardian, nom+prénom+date de naissance) —
+    /// `dependent_account_id` étant toujours neuf, l'index unique
+    /// `account_guardianship_active_pair_uidx` (migration 0025) ne peut
+    /// jamais se déclencher structurellement ; contrôle applicatif requis.
+    DuplicateDependent,
     /// `DELETE /v1/cabinet/consultations/:id/acts/:act_id` (#4481) : l'acte
     /// est référencé par un `stock_movement` ou un `sterilized_pouch` (FK
     /// composite `(consultation_act_id, cabinet_id)` sans `ON DELETE`,
@@ -470,6 +476,11 @@ impl IntoResponse for AppError {
             AppError::DuplicateAct => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "duplicate_act"})),
+            )
+                .into_response(),
+            AppError::DuplicateDependent => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "duplicate_dependent"})),
             )
                 .into_response(),
             AppError::ActLinkedToStock => (
@@ -4024,6 +4035,8 @@ pub struct PostDependentResponse {
 /// pour le proche, et une ligne `account_guardianship` liant le tuteur.
 /// §07 §4.6 : `authority='full'` si `birth_date` < 18 ans (conforme mineurs).
 /// Si `coverage` fourni → crée/upsert `patient_coverage` pour le proche.
+/// Un lien actif existe déjà pour ce couple (guardian, nom+prénom+date de
+/// naissance) → `409 duplicate_dependent` (#4475, dédup applicative).
 pub async fn post_account_dependents(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -4062,6 +4075,38 @@ pub async fn post_account_dependents(
     let managed_email = format!("managed-{}@nubia.internal", managed_user_id);
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // #4475 : dependent_account_id est toujours neuf à la création, donc
+    // l'index unique account_guardianship_active_pair_uidx (couple actif)
+    // ne peut structurellement jamais matcher — un double-submit du même
+    // proche (même nom/prénom/date de naissance) mintait un second compte
+    // géré identique. Contrôle applicatif avant l'INSERT : lien actif déjà
+    // existant pour ce couple (guardian, identité) → 409, pas de doublon.
+    // birth_date comparé via IS NOT DISTINCT FROM (NULL-safe : deux proches
+    // sans date de naissance renseignée comptent comme le même couple).
+    let duplicate = sqlx::query(
+        "SELECT 1 FROM account_guardianship ag \
+         JOIN patient_account pa ON pa.id = ag.dependent_account_id \
+         WHERE ag.guardian_account_id = $1 AND ag.active = true \
+           AND pa.first_name = $2 AND pa.last_name = $3 \
+           AND pa.birth_date IS NOT DISTINCT FROM $4",
+    )
+    .bind(claims.account_id)
+    .bind(&body.first_name)
+    .bind(&body.last_name)
+    .bind(birth_date)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if duplicate.is_some() {
+        return Err(AppError::DuplicateDependent);
+    }
 
     // app_user géré : password_hash NULL = aucun accès direct possible.
     sqlx::query("INSERT INTO app_user (id, email, kind) VALUES ($1, $2, 'patient')")
