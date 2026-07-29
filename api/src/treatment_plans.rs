@@ -13,6 +13,38 @@ use crate::{
     AppState,
 };
 
+/// Vérifie que le praticien appelant a eu au moins un `appointment` avec le
+/// patient dans ce cabinet (403 sinon). Même garde §14 que
+/// `dental_chart.rs`/`orthodontics.rs`/`periodontal_chart.rs`/`medical_record.rs`
+/// (#4400 : absente ici, plans de traitement accessibles à tout praticien du
+/// cabinet même sans relation de soin avec le patient). Appelant responsable
+/// du 404 patient-inexistant en amont.
+async fn ensure_care_relationship(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    patient_id: Uuid,
+    cabinet_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+           AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(user_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(())
+}
+
 #[derive(Deserialize)]
 pub struct ListTreatmentPlansQuery {
     pub limit: Option<i64>,
@@ -399,6 +431,10 @@ pub async fn create_treatment_plan(
         return Err(AppError::NotFound);
     }
 
+    // #4400 : garde §14 (relation de soin), absente jusqu'ici sur les plans
+    // de traitement alors que dossier/dental-chart/perio/ortho l'exigent.
+    ensure_care_relationship(&mut tx, body.patient_id, claims.cabinet_id, claims.sub).await?;
+
     let practitioner_id: Option<Uuid> =
         sqlx::query("SELECT id FROM practitioner WHERE user_id = $1 AND cabinet_id = $2")
             .bind(claims.sub)
@@ -501,6 +537,10 @@ pub async fn list_cabinet_treatment_plans(
     if patient_exists.is_none() {
         return Err(AppError::NotFound);
     }
+
+    // #4400 : garde §14 (relation de soin), absente jusqu'ici sur les plans
+    // de traitement alors que dossier/dental-chart/perio/ortho l'exigent.
+    ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
 
     let plan_rows = sqlx::query(
         "SELECT id, title, status, created_at FROM treatment_plan \

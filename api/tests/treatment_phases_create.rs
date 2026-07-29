@@ -149,6 +149,20 @@ async fn insert_fixtures(db: &PgPool) -> Fixtures {
     .await
     .unwrap();
 
+    // Appointment passé : le praticien a consulté ce patient (garde §14, #4400).
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'done', 'contrôle')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     Fixtures {
@@ -157,6 +171,39 @@ async fn insert_fixtures(db: &PgPool) -> Fixtures {
         patient_id,
         plan_id,
     }
+}
+
+/// Ajoute un second praticien au cabinet, SANS aucun `appointment` avec le
+/// patient du plan (pour tester la garde §14, #4400). Retourne son `user_id`.
+async fn insert_practitioner_without_care_relationship(db: &PgPool, cabinet_id: Uuid) -> Uuid {
+    let user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("tph-prac-norel+{}@nubia.test", user_id))
+    .execute(db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    user_id
 }
 
 /// Insère un devis + une ligne (`quote_item`), sans `phase_id`. Retourne l'id
@@ -708,4 +755,42 @@ async fn create_treatment_phase_on_done_plan_returns_422() {
     assert_eq!(count, 0);
 
     cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 8 : praticien sans relation de soin avec le patient → 403 (#4400) ───
+
+#[tokio::test]
+async fn create_treatment_phase_no_care_relationship_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let other_user_id = insert_practitioner_without_care_relationship(&db, f.cabinet_id).await;
+
+    let token = make_practitioner_token(other_user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/treatment-plans/{}/phases", f.plan_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "title": "Phase", "position": 0 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+    cleanup_fixtures(&db, &f).await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(other_user_id)
+        .execute(&db)
+        .await
+        .ok();
 }

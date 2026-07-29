@@ -25,6 +25,38 @@ use crate::{
     AppState,
 };
 
+/// Vérifie que le praticien appelant a eu au moins un `appointment` avec le
+/// patient dans ce cabinet (403 sinon). Même garde §14 que
+/// `dental_chart.rs`/`orthodontics.rs`/`periodontal_chart.rs`/`medical_record.rs`
+/// (#4400 : absente ici, phases accessibles à tout praticien du cabinet
+/// même sans relation de soin avec le patient du plan). Appelant responsable
+/// du 404 plan/phase-inexistant en amont.
+async fn ensure_care_relationship(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    patient_id: Uuid,
+    cabinet_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+           AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(user_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(())
+}
+
 /// Un acte CCAM inline (#4263) : créé comme `quote_item` (nouveau devis
 /// `draft`) dans le même appel que la phase, plutôt que de nécessiter un
 /// devis pré-existant.
@@ -140,6 +172,11 @@ pub async fn create_treatment_phase(
         .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
     let plan_status: String = plan_row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    // #4400 : garde §14 (relation de soin), absente jusqu'ici sur les phases
+    // alors que dossier/dental-chart/perio/ortho l'exigent.
+    ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
+
     // Plan déjà `done` (terminal) : ajouter une phase ouverte le laisserait
     // figé `done` avec du travail en cours (#4386) — sync_plan_status_from_phases
     // est forward-only (jamais done -> in_progress) et n'est de toute façon
@@ -381,8 +418,9 @@ pub async fn patch_treatment_phase(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT status FROM treatment_phase \
-         WHERE id = $1 AND plan_id = $2 AND cabinet_id = $3",
+        "SELECT tph.status, tp.patient_id FROM treatment_phase tph \
+         JOIN treatment_plan tp ON tp.id = tph.plan_id \
+         WHERE tph.id = $1 AND tph.plan_id = $2 AND tph.cabinet_id = $3",
     )
     .bind(phase_id)
     .bind(plan_id)
@@ -392,6 +430,11 @@ pub async fn patch_treatment_phase(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
     let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+
+    // #4400 : garde §14 (relation de soin), absente jusqu'ici sur les phases
+    // alors que dossier/dental-chart/perio/ortho l'exigent.
+    ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
 
     if !is_forward_transition(&current_status, &body.status) {
         return Err(AppError::InvalidStatus);
