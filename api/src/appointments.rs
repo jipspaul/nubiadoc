@@ -2057,6 +2057,22 @@ pub async fn create_appointment(
         .map_err(|_| AppError::Internal)?;
     }
 
+    // #4406 : une entrée active de liste d'attente pour ce patient+provider
+    // est honorée dès qu'un RDV est effectivement créé (docstring
+    // offer_waiting_list_slot, scheduling.rs — #3759). Sans cette transition,
+    // fulfilled est inatteignable : le patient reste "en attente" côté
+    // cabinet et ne peut plus se réinscrire (index unique partiel
+    // WHERE status='active', migration 0096).
+    sqlx::query(
+        "UPDATE waiting_list_entry SET status = 'fulfilled' \
+         WHERE patient_id = $1 AND provider_id = $2 AND status = 'active'",
+    )
+    .bind(patient_id)
+    .bind(body.provider_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     // Fetch provider + cabinet pour la réponse (même shape que GET /:id).
     let (provider_id, provider_display_name, provider_specialty) =
         fetch_provider_for_response(&mut tx, practitioner_id).await?;

@@ -255,6 +255,21 @@ pub async fn create_booking(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #4406 : idem create_appointment (appointments.rs) — une entrée active
+    // de liste d'attente pour ce patient+provider est honorée dès qu'un RDV
+    // est effectivement créé. Pas de provider_id direct ici (booking via
+    // hold_token/slot_id) : résolu via practitioner_id.
+    sqlx::query(
+        "UPDATE waiting_list_entry SET status = 'fulfilled' \
+         WHERE patient_id = $1 AND status = 'active' \
+           AND provider_id = (SELECT id FROM provider WHERE practitioner_id = $2)",
+    )
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     tracing::info!(

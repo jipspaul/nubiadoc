@@ -6,7 +6,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -688,4 +688,95 @@ async fn create_appointment_pro_token_returns_403() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+// ── Test (#4406) : RDV créé pour un patient en liste d'attente active → l'entrée passe fulfilled ──
+
+#[tokio::test]
+async fn create_appointment_fulfills_matching_waiting_list_entry() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = setup(&db, "wlfulfill").await;
+    insert_open_slot(&db, &f, "2032-08-10T09:00:00Z", "2032-08-10T09:30:00Z").await;
+
+    let entry_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO waiting_list_entry (id, cabinet_id, patient_id, provider_id, status) \
+         VALUES ($1, $2, $3, $4, 'active')",
+    )
+    .bind(entry_id)
+    .bind(f.cabinet_id)
+    .bind(f.patient_id)
+    .bind(f.provider_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/appointments")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(f.patient_user_id, f.patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_string(&json!({
+                        "provider_id": f.provider_id,
+                        "starts_at": "2032-08-10T09:00:00Z"
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let entry_status: String = sqlx::query("SELECT status FROM waiting_list_entry WHERE id = $1")
+        .bind(entry_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+        .try_get("status")
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        entry_status, "fulfilled",
+        "un RDV créé pour ce patient+provider doit honorer l'entrée active (#4406)"
+    );
+
+    sqlx::query("DELETE FROM waiting_list_entry WHERE id = $1")
+        .bind(entry_id)
+        .execute(&db)
+        .await
+        .ok();
+    teardown(&db, &f).await;
 }
