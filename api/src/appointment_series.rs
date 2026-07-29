@@ -186,6 +186,28 @@ pub async fn create_appointment_series(
         };
 
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+
+        // #4408 : contrairement à create_cabinet_appointment (scheduling.rs)
+        // et create_appointment (appointments.rs), la série ne consommait
+        // aucun availability_slot chevauché — un créneau 'open' publié
+        // restait visible dans /search/slots (créneau fantôme) alors que
+        // cette occurrence l'occupe déjà, menant à un 409 slot_taken à la
+        // réservation. Consomme tout slot 'open' recouvert par l'occurrence,
+        // même logique que la vérification 'blocked' ci-dessus.
+        sqlx::query(
+            "UPDATE availability_slot SET status = 'booked', updated_at = now() \
+             WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'open' \
+               AND deleted_at IS NULL \
+               AND tstzrange(starts_at, ends_at) && tstzrange($3, $4)",
+        )
+        .bind(claims.cabinet_id)
+        .bind(body.practitioner_id)
+        .bind(occ.starts_at)
+        .bind(occ.ends_at)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
         appointments.push(AppointmentSeriesItem {
             id,
             recurrence_index,

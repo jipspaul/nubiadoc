@@ -6,7 +6,7 @@ use axum::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tower::ServiceExt;
@@ -501,6 +501,115 @@ async fn create_series_overlapping_blocked_slot_returns_409_slot_taken() {
             .await
             .unwrap();
     assert_eq!(db_count, 0, "aucun RDV créé sur l'indisponibilité");
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.unwrap();
+    }
+
+    cleanup_fixture(&db, &f).await;
+}
+
+/// #4408 : une occurrence chevauchant un `availability_slot` publié `open`
+/// doit le consommer (`booked`), comme `create_cabinet_appointment` et
+/// `create_appointment` — sinon le créneau reste visible dans
+/// `/search/slots` (fantôme) alors qu'un RDV l'occupe déjà.
+#[tokio::test]
+async fn create_series_consumes_overlapping_open_slot() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixture(&db, "consume").await;
+    let slot_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, NULL, $2, $3, '2027-10-11T15:00:00Z', '2027-10-11T15:30:00Z', 'open', true)",
+        )
+        .bind(slot_id)
+        .bind(f.cabinet_id)
+        .bind(f.practitioner_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/appointments/series")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), f.cabinet_id, "secretary")
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "practitioner_id": f.practitioner_id,
+                        "patient_id": f.patient_id,
+                        "motif": "QA-consume-open-slot",
+                        "occurrences": [
+                            {"starts_at": "2027-10-11T15:00:00Z", "ends_at": "2027-10-11T15:30:00Z"}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let slot_status: String = {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let row = sqlx::query("SELECT status FROM availability_slot WHERE id = $1")
+            .bind(slot_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        row.try_get("status").unwrap()
+    };
+    assert_eq!(
+        slot_status, "booked",
+        "le créneau chevauché par la série doit être consommé, pas rester 'open' (fantôme)"
+    );
 
     {
         let mut tx = db.begin().await.unwrap();
