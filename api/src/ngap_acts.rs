@@ -53,6 +53,10 @@ pub async fn search_ngap_acts(
     _claims: ProPractitionerClaims,
     Query(query): Query<NgapActsQuery>,
 ) -> Result<Json<NgapActsResponse>, AppError> {
+    // #4397 : NUL byte non filtré → 500 au bind.
+    if let Some(q) = query.q.as_deref() {
+        crate::text_validation::reject_nul_byte(q)?;
+    }
     let q = query.q.as_deref().map(|s| s.trim().to_lowercase());
 
     let rows = sqlx::query(

@@ -136,6 +136,9 @@ pub async fn suggest_search(
     if params.q.chars().count() < 2 {
         return Err(AppError::ValidationError);
     }
+    // #4394 : Postgres text refuse l'octet NUL au bind — non filtré, il
+    // faisait échouer les 3 requêtes ci-dessous en 500 (masqué Internal).
+    crate::text_validation::reject_nul_byte(&params.q)?;
     // #3796 : repli d'accents (« detartrage » doit matcher « Détartrage »),
     // même schéma que search_ccam_acts (consultations.rs) et la recherche
     // pharmacie — normalisation Rust (minuscules) + translate() SQL des deux
@@ -442,6 +445,10 @@ pub async fn search_slots(
     Query(params): Query<SearchProvidersQuery>,
 ) -> Result<Json<SearchSlotsResponse>, AppError> {
     // #3796 : repli d'accents, même schéma que suggest_search.
+    // #4394 : NUL byte non filtré → 500 au bind (même défaut que suggest_search).
+    if let Some(q) = params.q.as_deref() {
+        crate::text_validation::reject_nul_byte(q)?;
+    }
     let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
@@ -722,6 +729,10 @@ pub async fn search_providers(
     Query(params): Query<SearchProvidersQuery>,
 ) -> Result<Json<SearchProvidersResponse>, AppError> {
     // #3796 : repli d'accents, même schéma que suggest_search/search_slots.
+    // #4394 : NUL byte non filtré → 500 au bind.
+    if let Some(q) = params.q.as_deref() {
+        crate::text_validation::reject_nul_byte(q)?;
+    }
     let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),

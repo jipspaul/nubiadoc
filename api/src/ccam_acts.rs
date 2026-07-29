@@ -145,6 +145,11 @@ pub async fn search_ccam_acts(
     claims: ProPractitionerClaims,
     Query(query): Query<CcamActsQuery>,
 ) -> Result<Json<CcamActsResponse>, AppError> {
+    // #4397 : NUL byte non filtré → 500 au bind.
+    if let Some(q) = query.q.as_deref() {
+        crate::text_validation::reject_nul_byte(q)?;
+    }
+
     // q normalisée (trim + minuscules) ; la normalisation des accents se fait
     // en SQL via translate() côté libellé ET côté motif, pour matcher
     // « detartrage » sur « Détartrage ».
