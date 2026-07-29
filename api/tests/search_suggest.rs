@@ -227,6 +227,43 @@ async fn suggest_dentiste_returns_profession() {
         .contains("dentiste")));
 }
 
+/// Régression #4398 : un espace de tête ne doit pas faire disparaître la
+/// suggestion de profession (branche non trim/désaccentuée jusqu'ici,
+/// contrairement à specialties/acts).
+#[tokio::test]
+async fn suggest_dentiste_with_leading_space_still_returns_profession() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/suggest?q=%20dentiste")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let professions = v["professions"].as_array().unwrap();
+    assert!(
+        !professions.is_empty(),
+        "un espace de tête ne doit pas faire perdre la profession Chirurgien-dentiste : {v}"
+    );
+}
+
 /// Régression #3796 : "detartrage" (sans accent) doit matcher l'acte
 /// "Détartrage" — comme /ccam/acts le fait déjà (repli d'accents).
 #[tokio::test]

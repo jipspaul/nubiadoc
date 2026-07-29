@@ -172,12 +172,17 @@ pub async fn suggest_search(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // #4398 : cette branche liait params.q BRUT (ni trim ni translate),
+    // contrairement à specialties/acts ci-dessus — un espace de tête ou un
+    // accent faisait silencieusement disparaître la profession n°1 des
+    // termes de recherche (marketplace.rs:118-120).
     let profession_rows = sqlx::query_as!(
         SuggestRow,
         "SELECT id, label FROM profession \
-         WHERE label ILIKE '%' || $1 || '%' \
+         WHERE translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
          ORDER BY label LIMIT 5",
-        params.q
+        q
     )
     .fetch_all(&state.db)
     .await

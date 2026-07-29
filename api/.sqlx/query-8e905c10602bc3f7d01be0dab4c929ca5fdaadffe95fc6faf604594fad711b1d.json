@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, label FROM profession WHERE label ILIKE '%' || $1 || '%' ORDER BY label LIMIT 5",
+  "query": "SELECT id, label FROM profession WHERE translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ORDER BY label LIMIT 5",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "e4fab78e400658c50e5d9a59699468c54478c11e5429df73095e579aae5c55c7"
+  "hash": "8e905c10602bc3f7d01be0dab4c929ca5fdaadffe95fc6faf604594fad711b1d"
 }
