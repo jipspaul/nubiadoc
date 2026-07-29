@@ -243,6 +243,59 @@ async fn get_periodontal_chart_no_bilan_returns_empty() {
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(v["sites"], json!({}));
     assert_eq!(v["indices"], json!({}));
+    assert_eq!(
+        v["measured_at"],
+        serde_json::Value::Null,
+        "#4413 : aucun bilan -> measured_at explicitement null, pas un now() fabriqué"
+    );
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}
+
+/// #4413 : deux lectures consécutives d'un patient sans bilan doivent
+/// renvoyer le même `measured_at` (null) — avant le fix, `now()` était
+/// recalculé à chaque GET et changeait entre deux appels.
+#[tokio::test]
+async fn get_periodontal_chart_no_bilan_measured_at_stable_across_reads() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(user_id, cabinet_id);
+
+    async fn get_measured_at(state: AppState, patient_id: Uuid, token: &str) -> serde_json::Value {
+        let resp = app(state)
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!(
+                        "/v1/cabinet/patients/{}/periodontal-chart",
+                        patient_id
+                    ))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        v["measured_at"].clone()
+    }
+
+    let first = get_measured_at(make_state(app_pool().await), patient_id, &token).await;
+    let second = get_measured_at(make_state(app_pool().await), patient_id, &token).await;
+    assert_eq!(first, serde_json::Value::Null);
+    assert_eq!(second, serde_json::Value::Null);
+    assert_eq!(
+        first, second,
+        "#4413 : état vide stable entre deux lectures"
+    );
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
