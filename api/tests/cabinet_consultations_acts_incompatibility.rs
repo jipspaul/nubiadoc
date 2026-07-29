@@ -283,7 +283,9 @@ async fn post_act(
                 .header("Authorization", format!("Bearer {}", token))
                 .header("Content-Type", "application/json")
                 .body(Body::from(
-                    json!({"ccam_code": ccam_code, "label": "Acte test"}).to_string(),
+                    // amount_cents requis en mode ccam_code depuis #4404.
+                    json!({"ccam_code": ccam_code, "label": "Acte test", "amount_cents": 1000})
+                        .to_string(),
                 ))
                 .unwrap(),
         )
