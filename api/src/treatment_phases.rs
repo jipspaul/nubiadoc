@@ -315,10 +315,16 @@ async fn sync_plan_status_from_phases(
     plan_id: Uuid,
     cabinet_id: Uuid,
 ) -> Result<(), AppError> {
+    // #4401 : 'confirmed' n'était pas compté comme "actif" — un plan dont
+    // TOUTES les phases sont confirmed (mais aucune in_progress/done)
+    // restait draft à vie, incohérence corrigée seulement quand une phase
+    // franchissait in_progress. 'confirmed' est un statut de phase légal et
+    // en avant (PHASE_STATUS_ORDER) : un plan "brouillon" avec des soins
+    // confirmés est faux pour le patient/praticien.
     let counts = sqlx::query(
         "SELECT count(*) AS total, \
                 count(*) FILTER (WHERE status = 'done') AS done_count, \
-                count(*) FILTER (WHERE status IN ('in_progress', 'done')) AS active_count \
+                count(*) FILTER (WHERE status IN ('confirmed', 'in_progress', 'done')) AS active_count \
          FROM treatment_phase WHERE plan_id = $1 AND cabinet_id = $2",
     )
     .bind(plan_id)
@@ -400,9 +406,10 @@ pub struct PatchTreatmentPhaseResponse {
 /// autorisé, saute `confirmed`/`in_progress`), seulement croissante.
 /// `treatment_plan.status` est synchronisé dans la même transaction
 /// (#4348 — `sync_plan_status_from_phases` : `in_progress` dès qu'une phase
-/// est `in_progress`/`done`, `done` quand toutes le sont ; jamais de
-/// régression). `proposed`/`accepted` restent hors de portée de cette
-/// route (aucun déclencheur métier défini pour ces deux statuts).
+/// est `confirmed`/`in_progress`/`done` (#4401), `done` quand toutes le
+/// sont ; jamais de régression). `proposed`/`accepted` restent hors de
+/// portée de cette route (aucun déclencheur métier défini pour ces deux
+/// statuts).
 pub async fn patch_treatment_phase(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,

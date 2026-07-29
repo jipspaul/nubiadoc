@@ -418,6 +418,51 @@ async fn plan_status_in_progress_until_all_phases_done() {
     cleanup_fixtures(&db, &f).await;
 }
 
+/// #4401 : une phase passée `confirmed` (sans jamais atteindre
+/// `in_progress`) faisait rester le plan `draft` à vie — `active_count` ne
+/// comptait que `in_progress`/`done`. `confirmed` est pourtant un statut de
+/// phase légal (`PHASE_STATUS_ORDER`) : le plan doit refléter `in_progress`.
+#[tokio::test]
+async fn plan_status_in_progress_when_phase_only_confirmed() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (status, body) = patch_status(
+        make_state(app_pool().await),
+        f.plan_id,
+        f.phase_id,
+        &token,
+        "confirmed",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "confirmed");
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let plan_row = sqlx::query("SELECT status FROM treatment_plan WHERE id = $1")
+        .bind(f.plan_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let plan_status: String = plan_row.try_get("status").unwrap();
+    assert_eq!(
+        plan_status, "in_progress",
+        "#4401 : phase confirmed -> plan in_progress, pas coincé draft"
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 #[tokio::test]
 async fn backward_transition_returns_409() {
     if !db_available() {
