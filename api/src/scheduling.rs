@@ -1018,6 +1018,21 @@ pub async fn create_cabinet_appointment(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // #4406 : idem create_appointment (appointments.rs) — un RDV créé côté
+    // cabinet (ex. secrétariat qui rappelle un patient en liste d'attente)
+    // honore aussi une entrée active pour ce patient+provider. Pas de
+    // provider_id direct ici : résolu via practitioner_id.
+    sqlx::query(
+        "UPDATE waiting_list_entry SET status = 'fulfilled' \
+         WHERE patient_id = $1 AND status = 'active' \
+           AND provider_id = (SELECT id FROM provider WHERE practitioner_id = $2)",
+    )
+    .bind(patient_id)
+    .bind(practitioner_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     hub.publish(
