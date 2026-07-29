@@ -400,7 +400,8 @@ async fn insert_one_act(
 /// - Insère dans `consultation_act` (RLS garantit le scope tenant).
 /// - Retourne `201`.
 /// - Body invalide (ni/les deux de ccam_code+bundle_code, label vide en mode
-///   ccam_code, amount_cents < 0, bundle_code inconnu ou sans ligne) → 422.
+///   ccam_code, amount_cents < 0 ou absent en mode ccam_code (#4404),
+///   bundle_code inconnu ou sans ligne) → 422.
 /// - Séance inexistante ou hors tenant → 404.
 /// - Acte invasif à risque hémorragique + dossier médical mentionnant un
 ///   traitement anticoagulant → `409 clinical_risk_warning` bloquant (#4057,
@@ -431,6 +432,11 @@ pub async fn add_consultation_act(
         if cents < 0 {
             return Err(AppError::ValidationError);
         }
+    }
+    // #4404 : amount_cents est documenté « Requis » en mode ccam_code — absent,
+    // il retombait silencieusement sur 0 (acte gratuit, facture sous-évaluée).
+    if ccam_code.is_some() && body.amount_cents.is_none() {
+        return Err(AppError::ValidationError);
     }
     if ccam_code.is_some() && body.label.as_deref().is_none_or(|s| s.trim().is_empty()) {
         return Err(AppError::ValidationError);
