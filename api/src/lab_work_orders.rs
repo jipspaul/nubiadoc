@@ -21,6 +21,39 @@ use crate::{
     notify, AppState,
 };
 
+/// Vérifie que le praticien appelant a eu au moins un `appointment` avec le
+/// patient dans ce cabinet (403 sinon). Même garde §14 que
+/// `prescriptions.rs`/`treatment_plans.rs`/`treatment_phases.rs` (#4414 :
+/// absente ici malgré l'en-tête de module revendiquant le pattern de
+/// `prescriptions.rs` — bons de travaux prothétiques accessibles/modifiables
+/// pour tout praticien du cabinet même sans relation de soin avec le
+/// patient). Appelant responsable du 404 patient/bon-inexistant en amont.
+async fn ensure_care_relationship(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    patient_id: Uuid,
+    cabinet_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+           AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(user_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(())
+}
+
 /// Ordre de progression légal — une transition n'est autorisée que vers un
 /// statut de rang STRICTEMENT supérieur (retour arrière interdit, cf. #4148 :
 /// `sent → returned` autorisé (saute `try_in`), `fitted → sent` refusé).
@@ -167,6 +200,10 @@ pub async fn create_lab_work_order(
         return Err(AppError::NotFound);
     }
 
+    // #4414 : garde §14 (relation de soin), absente jusqu'ici sur les bons
+    // de travaux prothétiques alors que prescriptions.rs l'exige.
+    ensure_care_relationship(&mut tx, body.patient_id, claims.cabinet_id, claims.sub).await?;
+
     // #4353 : quote_item n'a pas de patient_id direct (lien via quote_id ->
     // quote.patient_id) - jointure pour verifier que le devis appartient bien
     // au patient du bon, pas seulement au cabinet.
@@ -289,6 +326,10 @@ pub async fn patch_lab_work_order(
     .ok_or(AppError::NotFound)?;
     let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+
+    // #4414 : garde §14 (relation de soin), absente jusqu'ici sur les bons
+    // de travaux prothétiques alors que prescriptions.rs l'exige.
+    ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
 
     if !is_forward_transition(&current_status, &body.status) {
         return Err(AppError::InvalidStatus);
