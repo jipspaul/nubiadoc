@@ -147,6 +147,19 @@ async fn payment_intent_same_key_returns_same_response() {
         .await
         .unwrap();
 
+        // #4433 : patient_share_cents (reste-à-charge) est dérivé des lignes
+        // quote_item, pas de quote.total_amount — sans ligne, le devis aurait
+        // un reste-à-charge de 0 et tout paiement serait refusé.
+        sqlx::query(
+            "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+             VALUES ($1, $2, 'Item test', 1, 100.00)",
+        )
+        .bind(cabinet_id)
+        .bind(quote_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
         tx.commit().await.unwrap();
     }
 
@@ -246,6 +259,11 @@ async fn payment_intent_same_key_returns_same_response() {
             .ok();
         sqlx::query("DELETE FROM payment WHERE cabinet_id = $1")
             .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote_item WHERE quote_id = $1")
+            .bind(quote_id)
             .execute(&mut *tx)
             .await
             .ok();
@@ -482,6 +500,26 @@ async fn payment_intent_stale_cache_existing_payment_returns_conflict_not_500() 
         .await
         .unwrap();
 
+        // #4433 : patient_share_cents dérivé des lignes quote_item.
+        sqlx::query(
+            "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+             VALUES ($1, $2, 'Item test', 1, 100.00)",
+        )
+        .bind(cabinet_id)
+        .bind(quote_a_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+             VALUES ($1, $2, 'Item test', 1, 100.00)",
+        )
+        .bind(cabinet_id)
+        .bind(quote_b_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
         // `payment` déjà en base pour le patient A, sur cette clé — sans aucune
         // entrée correspondante dans idempotency_keys (cache expiré/absent).
         sqlx::query(
@@ -568,6 +606,12 @@ async fn payment_intent_stale_cache_existing_payment_returns_conflict_not_500() 
             .ok();
         sqlx::query("DELETE FROM payment WHERE cabinet_id = $1")
             .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote_item WHERE quote_id = $1 OR quote_id = $2")
+            .bind(quote_a_id)
+            .bind(quote_b_id)
             .execute(&mut *tx)
             .await
             .ok();
