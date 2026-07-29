@@ -30,11 +30,17 @@ use crate::{
 // ── Structures ────────────────────────────────────────────────────────────────
 
 /// Réponse de `GET`/`PUT /v1/cabinet/patients/:id/periodontal-chart`.
+///
+/// `measured_at` est un horodatage clinique (date de mesure réelle) —
+/// `None` (`null` en JSON) quand aucun bilan n'existe encore pour ce
+/// patient (#4413 : auparavant fabriqué à `now()` sur `GET`, changeant à
+/// chaque appel et rendant l'état "aucun bilan" indistinguable d'un bilan
+/// "mesuré à l'instant").
 #[derive(Serialize)]
 pub struct PeriodontalChartResponse {
     pub sites: Value,
     pub indices: Value,
-    pub measured_at: String,
+    pub measured_at: Option<String>,
 }
 
 /// Corps de `PUT /v1/cabinet/patients/:id/periodontal-chart`.
@@ -105,7 +111,8 @@ async fn ensure_practitioner_care_relationship(
 ///
 /// Praticien uniquement (R.4127-72) — secrétaire → 403.
 /// Patient inexistant ou hors tenant → 404.
-/// Si aucun bilan → `{ sites: {}, indices: {}, measured_at: <now> }`.
+/// Si aucun bilan → `{ sites: {}, indices: {}, measured_at: null }` (#4413 :
+/// stable entre deux lectures, jamais fabriqué).
 pub async fn get_periodontal_chart(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -139,7 +146,7 @@ pub async fn get_periodontal_chart(
         None => PeriodontalChartResponse {
             sites: serde_json::json!({}),
             indices: serde_json::json!({}),
-            measured_at: chrono::Utc::now().to_rfc3339(),
+            measured_at: None,
         },
         Some(r) => {
             let sites: Value = r.try_get("sites").map_err(|_| AppError::Internal)?;
@@ -149,7 +156,7 @@ pub async fn get_periodontal_chart(
             PeriodontalChartResponse {
                 sites,
                 indices,
-                measured_at: measured_at.to_rfc3339(),
+                measured_at: Some(measured_at.to_rfc3339()),
             }
         }
     };
@@ -224,6 +231,6 @@ pub async fn put_periodontal_chart(
     Ok(Json(PeriodontalChartResponse {
         sites,
         indices,
-        measured_at: measured_at.to_rfc3339(),
+        measured_at: Some(measured_at.to_rfc3339()),
     }))
 }
