@@ -201,6 +201,12 @@ pub(crate) enum AppError {
     /// déjà scanné dans ce cabinet (index unique `(cabinet_id, code)`,
     /// migration 0191) — même choix que `StepNumberTaken`.
     PouchCodeAlreadyUsed,
+    /// `POST /v1/cabinet/sterilization-cycles` (#4489) : `(autoclave_ref,
+    /// cycle_number)` déjà utilisé dans ce cabinet (index unique
+    /// `(cabinet_id, autoclave_ref, cycle_number)`, migration 0202) — même
+    /// choix que `StepNumberTaken`/`PouchCodeAlreadyUsed` (registre de
+    /// traçabilité médico-légale, pas de doublon corrigeable).
+    SterilizationCycleNumberAlreadyUsed,
     /// `POST /v1/cabinet/consultations/:id/acts` (#4117) : le code CCAM
     /// soumis figure dans `ccam_act_incompatibility` avec un acte déjà
     /// présent dans la séance — `422` (erreur de saisie côté praticien,
@@ -455,6 +461,11 @@ impl IntoResponse for AppError {
             AppError::PouchCodeAlreadyUsed => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "pouch_code_already_used"})),
+            )
+                .into_response(),
+            AppError::SterilizationCycleNumberAlreadyUsed => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "sterilization_cycle_number_already_used"})),
             )
                 .into_response(),
             AppError::IncompatibleActs(reason) => (

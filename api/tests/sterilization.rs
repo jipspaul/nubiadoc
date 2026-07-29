@@ -221,6 +221,68 @@ async fn pouch_can_be_added_to_non_conforme_cycle() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 1a (#4489) : même (autoclave_ref, cycle_number) → 409 ──────────────
+
+#[tokio::test]
+async fn duplicate_cycle_number_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let body = json!({
+        "autoclave_ref": "Autoclave-Dup",
+        "cycle_number": 42,
+        "test_kind": "helix",
+        "test_result": "conforme",
+        "status": "conforme"
+    });
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        Some(body.clone()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        Some(body),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::CONFLICT,
+        "un 2e cycle avec le même (autoclave_ref, cycle_number) doit être refusé : {resp}"
+    );
+    assert_eq!(resp["code"], "sterilization_cycle_number_already_used");
+
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/sterilization-cycles",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        list.as_array().unwrap().len(),
+        1,
+        "un seul cycle doit exister, pas de doublon persisté"
+    );
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 1b : GET liste les pochettes d'un cycle (#4354) ─────────────────────
 
 #[tokio::test]
