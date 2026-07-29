@@ -130,6 +130,20 @@ async fn insert_fixtures(db: &PgPool) -> Fixtures {
     .await
     .unwrap();
 
+    // Appointment passé : le praticien a consulté ce patient (garde §14, #4400).
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), 'done', 'contrôle')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     Fixtures {
