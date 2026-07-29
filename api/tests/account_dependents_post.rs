@@ -117,6 +117,95 @@ async fn dependent_post_happy_path_returns_201_with_id() {
     Uuid::parse_str(dep_id).expect("dependent_account_id must be a valid UUID");
 }
 
+// ── Test 1a (#4475) : double-submit identique → 409 duplicate_dependent ─────
+
+#[tokio::test]
+async fn dependent_post_duplicate_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!("guardian-dup+{}@nubia.test", guardian_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Gardien')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let token = make_patient_jwt(guardian_user_id, guardian_account_id);
+    let body = json!({
+        "first_name": "QATest",
+        "last_name": "DupChild",
+        "birth_date": "2015-05-05",
+        "relationship": "enfant"
+    });
+
+    let post = || {
+        let body = body.clone();
+        let token = token.clone();
+        async move {
+            app(AppState {
+                db: app_pool().await,
+                jwt_secret: JWT_SECRET.to_string(),
+                mailer: Arc::new(StubMailer),
+            })
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/account/dependents")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+        }
+    };
+
+    let first = post().await;
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    let second = post().await;
+    assert_eq!(
+        second.status(),
+        StatusCode::CONFLICT,
+        "un double-submit identique (même nom/prénom/date de naissance) \
+         doit être refusé, pas créer un second compte géré"
+    );
+    let bytes = axum::body::to_bytes(second.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["code"], "duplicate_dependent");
+
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM account_guardianship \
+         WHERE guardian_account_id = $1 AND active = true",
+    )
+    .bind(guardian_account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(count, 1, "un seul lien de tutelle actif doit exister");
+}
+
 // ── Test 1b : coverage.tiers_payant/plateforme persistés à la création (#3860) ──
 
 #[tokio::test]
