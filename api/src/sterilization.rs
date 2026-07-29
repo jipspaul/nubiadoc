@@ -112,6 +112,11 @@ pub struct CreateSterilizationCycleResponse {
 ///
 /// `autoclave_ref` non vide, `cycle_number > 0`, `test_result` non vide,
 /// `test_kind` ∈ `VALID_TEST_KINDS`, `status` ∈ `VALID_STATUSES` → 422 sinon.
+/// `(autoclave_ref, cycle_number)` déjà utilisé dans ce cabinet → `409
+/// sterilization_cycle_number_already_used` (index unique `(cabinet_id,
+/// autoclave_ref, cycle_number)`, migration 0202, #4489 — un cycle_number
+/// pour un autoclave donné est un compteur physique unique, le registre de
+/// traçabilité ne doit jamais contenir deux cycles homonymes).
 pub async fn create_sterilization_cycle(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -151,7 +156,12 @@ pub async fn create_sterilization_cycle(
     .bind(&body.status)
     .fetch_one(&mut *tx)
     .await
-    .map_err(|_| AppError::Internal)?;
+    .map_err(|e| match &e {
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
+            AppError::SterilizationCycleNumberAlreadyUsed
+        }
+        _ => AppError::Internal,
+    })?;
 
     let cycle_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
 
