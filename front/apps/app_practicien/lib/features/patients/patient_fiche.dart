@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'medical_questionnaire_review_section.dart';
 import 'patient_fiche_bloc.dart';
+import 'patient_implants_section.dart';
 
 class PatientFiche extends StatelessWidget {
   final CabinetPatient patient;
@@ -139,6 +140,8 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                     PatientTagsSection(patientId: patient.id),
                     const SizedBox(height: 16),
                     PatientOrthodonticsSection(patientId: patient.id),
+                    const SizedBox(height: 16),
+                    PatientImplantsSection(patientId: patient.id),
                   ],
                 ),
               ),

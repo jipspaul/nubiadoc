@@ -9,4 +9,17 @@ abstract class ImplantPassportRepository {
   /// GET /v1/implant-passport/export (#4142). Suit la redirection 302 et
   /// renvoie l'URL signée du PDF.
   Future<Either<Failure, String>> exportPassport();
+
+  /// POST /v1/cabinet/patients/{id}/implants (#4140/#4141) — écriture côté
+  /// praticien. Renvoie l'implant créé (reconstruit à partir des valeurs du
+  /// formulaire : la route ne renvoie que l'id).
+  Future<Either<Failure, ImplantItem>> createImplant({
+    required String patientId,
+    required String brand,
+    required String implantRef,
+    String? lotNumber,
+    String? placementDate,
+    String? toothPosition,
+    String? notes,
+  });
 }
