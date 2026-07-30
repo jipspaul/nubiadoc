@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
-    app_with_quote_signature_client, run_dispatch_loop, AppState, BrevoMailer, StubJobDispatcher,
-    TwilioSmsSender, YousignClient,
+    app_with_quote_signature_client, run_dispatch_loop, run_quote_relance_loop, AppState,
+    BrevoMailer, StubJobDispatcher, TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
 
@@ -64,6 +64,17 @@ async fn main() {
         std::sync::Arc::new(StubJobDispatcher),
         std::sync::Arc::new(TwilioSmsSender::from_env()),
         REMINDER_DISPATCH_INTERVAL,
+    ));
+
+    // Worker de relance des devis en attente de signature (#4126) : même
+    // pattern tokio::spawn que le dispatch de rappels ci-dessus. Intervalle
+    // large (contrairement aux rappels RDV, une relance J+3/J+7 tolère
+    // largement un passage toutes les 6h — pas besoin d'un balayage minute
+    // par minute sur une fenêtre de plusieurs jours).
+    const QUOTE_RELANCE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(6 * 3600);
+    tokio::spawn(run_quote_relance_loop(
+        state.db.clone(),
+        QUOTE_RELANCE_INTERVAL,
     ));
 
     let http_task = axum::serve(

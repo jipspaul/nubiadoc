@@ -205,9 +205,11 @@ pub async fn complete_consultation(
         // (cf. cabinet_quotes.rs::send_cabinet_quote — simple UPDATE status,
         // pas de génération PDF/notification ici).
         let quote_row = sqlx::query(
+            // #4126 : sent_at posé dès la création (déjà 'sent'), départ du
+            // calendrier de relance J+3/J+7.
             "INSERT INTO quote \
-             (cabinet_id, patient_id, status, total_amount, currency) \
-             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR') \
+             (cabinet_id, patient_id, status, total_amount, currency, sent_at) \
+             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now()) \
              RETURNING id",
         )
         .bind(claims.cabinet_id)
