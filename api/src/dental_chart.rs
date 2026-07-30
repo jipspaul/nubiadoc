@@ -28,11 +28,17 @@ use crate::{
 
 // ── Structures ────────────────────────────────────────────────────────────────
 
-/// Réponse de `GET /v1/cabinet/patients/:id/dental-chart`.
+/// Réponse de `GET`/`PUT /v1/cabinet/patients/:id/dental-chart`.
+///
+/// `updated_at` est `None` (`null` en JSON) quand aucun odontogramme
+/// n'existe encore pour ce patient (#4518 : auparavant fabriqué à `now()`
+/// sur `GET`, changeant à chaque appel et rendant l'état "aucun
+/// odontogramme" indistinguable d'un odontogramme "modifié à l'instant" —
+/// même correctif que #4413 sur `periodontal_chart`).
 #[derive(Serialize)]
 pub struct DentalChartResponse {
     pub teeth: Value,
-    pub updated_at: String,
+    pub updated_at: Option<String>,
 }
 
 /// Corps de `PUT /v1/cabinet/patients/:id/dental-chart`.
@@ -184,7 +190,8 @@ async fn ensure_care_relationship(
 /// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
 /// RLS `tenant_isolation` scoped via `app.current_cabinet_id`.
 /// Patient inexistant ou hors tenant → 404.
-/// Si aucun enregistrement → retourne `{ teeth: {}, updated_at: <now> }`.
+/// Si aucun enregistrement → retourne `{ teeth: {}, updated_at: null }`
+/// (#4518 : stable entre deux lectures, jamais fabriqué).
 pub async fn get_dental_chart(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -216,7 +223,7 @@ pub async fn get_dental_chart(
     let response = match row {
         None => DentalChartResponse {
             teeth: serde_json::json!({}),
-            updated_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: None,
         },
         Some(r) => {
             let teeth: Value = r.try_get("teeth_status").map_err(|_| AppError::Internal)?;
@@ -224,7 +231,7 @@ pub async fn get_dental_chart(
                 r.try_get("updated_at").map_err(|_| AppError::Internal)?;
             DentalChartResponse {
                 teeth,
-                updated_at: updated_at.to_rfc3339(),
+                updated_at: Some(updated_at.to_rfc3339()),
             }
         }
     };
@@ -325,7 +332,7 @@ pub async fn put_dental_chart(
 
     Ok(Json(DentalChartResponse {
         teeth,
-        updated_at: updated_at.to_rfc3339(),
+        updated_at: Some(updated_at.to_rfc3339()),
     }))
 }
 
@@ -402,7 +409,7 @@ pub async fn get_dental_chart_history_at(
             row.try_get("recorded_at").map_err(|_| AppError::Internal)?;
         DentalChartResponse {
             teeth,
-            updated_at: recorded_at.to_rfc3339(),
+            updated_at: Some(recorded_at.to_rfc3339()),
         }
     } else {
         let current_row = sqlx::query(
@@ -431,7 +438,7 @@ pub async fn get_dental_chart_history_at(
             .map_err(|_| AppError::Internal)?;
         DentalChartResponse {
             teeth,
-            updated_at: updated_at.to_rfc3339(),
+            updated_at: Some(updated_at.to_rfc3339()),
         }
     };
 
