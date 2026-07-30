@@ -26,6 +26,7 @@ mod appointment_series;
 mod appointments;
 mod audit_log;
 mod auth;
+mod bank_deposit_slip;
 mod billing;
 mod billing_payments;
 mod bookings;
