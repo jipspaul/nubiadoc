@@ -74,6 +74,7 @@ mod patient_guardianship;
 mod patient_merge;
 mod patient_satisfaction;
 mod patient_tags;
+mod payment_schedules;
 mod periodontal_chart;
 mod permissions;
 mod pharmacy;
