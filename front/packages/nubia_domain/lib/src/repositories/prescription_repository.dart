@@ -31,4 +31,17 @@ abstract class PrescriptionRepository {
     required String prescriptionId,
     required String templateId,
   });
+
+  /// GET /v1/cabinet/patients/{id}/prescriptions (#4132) — historique des
+  /// ordonnances du patient (vue cabinet), brouillons inclus.
+  Future<Either<Failure, List<Prescription>>> listPrescriptions(
+    String patientId,
+  );
+
+  /// POST /v1/cabinet/prescriptions/{id}/renew (#4132) — duplique
+  /// l'ordonnance en un nouveau brouillon, renvoie l'ordonnance créée
+  /// (re-fetch : la route renew ne renvoie que l'id).
+  Future<Either<Failure, Prescription>> renewPrescription(
+    String prescriptionId,
+  );
 }

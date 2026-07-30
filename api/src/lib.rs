@@ -78,6 +78,7 @@ mod periodontal_chart;
 mod permissions;
 mod pharmacy;
 mod practitioner_favorite_acts;
+mod prescription_list;
 mod prescription_renew;
 mod prescription_send;
 mod prescription_templates;

@@ -191,6 +191,8 @@ export 'src/usecases/pharmacy/watch_pharmacy_orders_use_case.dart';
 export 'src/usecases/prescription/apply_prescription_template_use_case.dart';
 export 'src/usecases/prescription/create_prescription_use_case.dart';
 export 'src/usecases/prescription/list_prescription_templates_use_case.dart';
+export 'src/usecases/prescription/list_prescriptions_use_case.dart';
+export 'src/usecases/prescription/renew_prescription_use_case.dart';
 export 'src/usecases/prescription/sign_prescription_use_case.dart';
 export 'src/usecases/reviews/get_provider_reviews_use_case.dart';
 export 'src/usecases/reviews/submit_review_use_case.dart';

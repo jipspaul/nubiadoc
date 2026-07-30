@@ -20,7 +20,15 @@ class OrdonnancesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => GetIt.instance<OrdonnancesBloc>(),
+      // #4132 : charge l'historique du patient dès l'ouverture (si connu) —
+      // remplace le CTA "créer" par la liste + bouton Renouveler par ligne.
+      create: (_) {
+        final bloc = GetIt.instance<OrdonnancesBloc>();
+        if (patientId != null) {
+          bloc.add(OrdonnancesListRequested(patientId!));
+        }
+        return bloc;
+      },
       child: OrdonnancesBody(patientId: patientId),
     );
   }
@@ -50,8 +58,16 @@ class OrdonnancesBody extends StatelessWidget {
               key: const Key('create_ordonnance_button'),
               label: 'Créer une ordonnance',
               icon: Icons.add,
-              onPressed: () => context.push('/ordonnances/new'),
+              onPressed: () => context.push(patientId == null
+                  ? '/ordonnances/new'
+                  : '/ordonnances/new?patientId=$patientId'),
             ),
+          );
+        }
+        if (state is OrdonnancesLoaded) {
+          return _HistoryView(
+            ordonnances: state.ordonnances,
+            patientId: patientId,
           );
         }
         if (state is OrdonnancesError) {
@@ -96,6 +112,93 @@ class _LoadingView extends StatelessWidget {
               SizedBox(height: 8),
               NubiaSkeletonLoader(height: 12, width: 180),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Historique des ordonnances du patient (#4132) — une ligne par ordonnance,
+/// bouton "Renouveler" pour dupliquer ses lignes dans un nouveau brouillon.
+class _HistoryView extends StatelessWidget {
+  const _HistoryView({required this.ordonnances, this.patientId});
+  final List<Prescription> ordonnances;
+  final String? patientId;
+
+  static String _statusLabel(PrescriptionStatus status) => switch (status) {
+        PrescriptionStatus.draft => 'Brouillon',
+        PrescriptionStatus.signed => 'Signée',
+        PrescriptionStatus.sent => 'Envoyée',
+      };
+
+  static StatusPillVariant _statusVariant(PrescriptionStatus status) =>
+      switch (status) {
+        PrescriptionStatus.draft => StatusPillVariant.info,
+        PrescriptionStatus.signed => StatusPillVariant.success,
+        PrescriptionStatus.sent => StatusPillVariant.success,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: NubiaButton(
+            key: const Key('create_ordonnance_button'),
+            label: 'Nouvelle ordonnance',
+            icon: Icons.add,
+            onPressed: () => context.push(patientId == null
+                ? '/ordonnances/new'
+                : '/ordonnances/new?patientId=$patientId'),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            key: const Key('ordonnances_history_list'),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            itemCount: ordonnances.length,
+            itemBuilder: (context, i) {
+              final presc = ordonnances[i];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: NubiaCard(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              presc.items.isEmpty
+                                  ? 'Ordonnance'
+                                  : '${presc.items.length} médicament(s)',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 4),
+                            StatusPill(
+                              label: _statusLabel(presc.status),
+                              variant: _statusVariant(presc.status),
+                            ),
+                          ],
+                        ),
+                      ),
+                      NubiaButton(
+                        key: Key('renew_ordonnance_button_$i'),
+                        label: 'Renouveler',
+                        icon: Icons.refresh,
+                        onPressed: () => context
+                            .read<OrdonnancesBloc>()
+                            .add(OrdonnancesRenewRequested(presc.id)),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],

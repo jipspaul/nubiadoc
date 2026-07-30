@@ -122,4 +122,47 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, List<Prescription>>> listPrescriptions(
+    String patientId,
+  ) async {
+    try {
+      final dtos = await _api.listPrescriptions(patientId);
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible de charger l'historique des ordonnances.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, Prescription>> renewPrescription(
+    String prescriptionId,
+  ) async {
+    try {
+      final newId = await _api.renewPrescription(prescriptionId);
+      // renew ne renvoie que l'id créé : re-fetch pour l'ordonnance complète,
+      // même pattern que applyPrescriptionTemplate.
+      final dto = await _api.getPrescription(newId);
+      return Right(dto.toDomain());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible de renouveler l'ordonnance.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }

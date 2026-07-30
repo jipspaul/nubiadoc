@@ -44,3 +44,27 @@ class OrdonnancesApplyTemplateRequested extends OrdonnancesEvent {
   @override
   List<Object?> get props => [prescriptionId, templateId];
 }
+
+/// Charge l'historique des ordonnances du patient (#4132) — déclenché à
+/// l'ouverture de la page quand un `patientId` est fourni.
+class OrdonnancesListRequested extends OrdonnancesEvent {
+  final String patientId;
+
+  const OrdonnancesListRequested(this.patientId);
+
+  @override
+  List<Object?> get props => [patientId];
+}
+
+/// Renouvelle une ordonnance passée (#4132) : duplique ses lignes dans un
+/// nouveau brouillon via `POST /v1/cabinet/prescriptions/{id}/renew`, puis
+/// affiche ce brouillon pour relecture/signature (même écran qu'après
+/// création — `OrdonnancesCreated`).
+class OrdonnancesRenewRequested extends OrdonnancesEvent {
+  final String prescriptionId;
+
+  const OrdonnancesRenewRequested(this.prescriptionId);
+
+  @override
+  List<Object?> get props => [prescriptionId];
+}

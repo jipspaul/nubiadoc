@@ -73,4 +73,26 @@ class PrescriptionApi {
       data: {'template_id': templateId},
     );
   }
+
+  /// GET /v1/cabinet/patients/{id}/prescriptions (#4132) — historique des
+  /// ordonnances du patient, brouillons inclus (vue cabinet).
+  Future<List<PrescriptionDto>> listPrescriptions(String patientId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+        '/cabinet/patients/$patientId/prescriptions');
+    final data = response.data!['data'] as List<dynamic>;
+    return data
+        .map((e) => PrescriptionDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// POST /v1/cabinet/prescriptions/{id}/renew (#4132) — duplique
+  /// l'ordonnance en un nouveau brouillon. Ne renvoie que l'id créé (pas les
+  /// lignes) : appeler `getPrescription` ensuite pour l'ordonnance complète,
+  /// même pattern que `applyPrescriptionTemplate`.
+  Future<String> renewPrescription(String prescriptionId) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/prescriptions/$prescriptionId/renew',
+    );
+    return response.data!['prescription_id'] as String;
+  }
 }
