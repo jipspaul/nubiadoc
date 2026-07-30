@@ -21,7 +21,7 @@ use crate::{
 /// requête que `patient_detail.rs:293-312` et `cabinet_document_download.rs`
 /// (#3821/#3823). Sans cette garde, les tags fuient un patient que la fiche
 /// et les documents masquent déjà en 404 (#4443).
-async fn ensure_secretary_scope(
+pub(crate) async fn ensure_secretary_scope(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &ProSecretaryPlusClaims,
     patient_id: Uuid,

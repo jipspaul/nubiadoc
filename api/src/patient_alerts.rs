@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProSecretaryPlusClaims},
+    patient_tags::ensure_secretary_scope,
     AppState,
 };
 
@@ -57,15 +58,18 @@ pub async fn get_patient_alerts(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let patient_exists = sqlx::query("SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2")
-        .bind(patient_id)
-        .bind(claims.cabinet_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
     if patient_exists.is_none() {
         return Err(AppError::NotFound);
     }
+    ensure_secretary_scope(&mut tx, &claims, patient_id).await?;
 
     let mut alerts = Vec::new();
 
