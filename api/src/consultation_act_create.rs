@@ -136,6 +136,13 @@ pub struct AddActBody {
     /// Réservé pour le devis (inclus/hors-nomenclature) — accepté, non stocké dans cette version.
     #[allow(dead_code)]
     pub included: Option<bool>,
+    /// Phase de traitement à laquelle rattacher cet acte (#4120, migration
+    /// 0203) — typiquement une phase à séances programmées
+    /// (`planned_sessions`). Doit appartenir au patient de cette séance,
+    /// sinon `404`. `None` = hors mécanisme de décompte (comportement
+    /// historique). En mode `bundle_code`, s'applique à chaque ligne créée.
+    #[serde(default)]
+    pub phase_id: Option<Uuid>,
 }
 
 /// Un acte créé (élément de la réponse, seul ou dans un groupe).
@@ -258,6 +265,7 @@ async fn insert_one_act(
     final_amount_cents: i32,
     entered_amount_cents: Option<i32>,
     is_optam: bool,
+    phase_id: Option<Uuid>,
 ) -> Result<AddActResponse, AppError> {
     // #4412 : le code CCAM doit exister au référentiel `ccam_act` — vérifié
     // en tout premier (avant même le cumul interdit), symétrique à
@@ -365,8 +373,8 @@ async fn insert_one_act(
     let act_row = sqlx::query(
         "INSERT INTO consultation_act \
          (cabinet_id, appointment_id, patient_id, practitioner_id, \
-          ccam_code, label, tooth, amount_cents) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+          ccam_code, label, tooth, amount_cents, phase_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
          RETURNING id",
     )
     .bind(cabinet_id)
@@ -377,6 +385,7 @@ async fn insert_one_act(
     .bind(label)
     .bind(tooth)
     .bind(final_amount_cents)
+    .bind(phase_id)
     .fetch_one(&mut **tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -403,6 +412,8 @@ async fn insert_one_act(
 ///   ccam_code, amount_cents < 0 ou absent en mode ccam_code (#4404),
 ///   bundle_code inconnu ou sans ligne) → 422.
 /// - Séance inexistante ou hors tenant → 404.
+/// - `phase_id` (#4120) fourni mais n'appartenant pas au patient de cette
+///   séance (autre patient ou inexistant) → 404.
 /// - Acte invasif à risque hémorragique + dossier médical mentionnant un
 ///   traitement anticoagulant → `409 clinical_risk_warning` bloquant (#4057,
 ///   table de correspondance v1 simple — voir constantes en tête de module).
@@ -507,6 +518,27 @@ pub async fn add_consultation_act(
 
     let is_optam = is_optam_practitioner(&mut tx, practitioner_id, claims.cabinet_id).await?;
 
+    // #4120 : phase_id (si fourni) doit appartenir au patient de cette
+    // séance — jointure via treatment_plan pour le patient_id (phase_id
+    // seul ne le porte pas), scope cabinet garanti par le tenant_isolation
+    // déjà posé sur la transaction.
+    if let Some(phase_id) = body.phase_id {
+        let phase_row = sqlx::query(
+            "SELECT 1 FROM treatment_phase tph \
+             JOIN treatment_plan tp ON tp.id = tph.plan_id \
+             WHERE tph.id = $1 AND tph.cabinet_id = $2 AND tp.patient_id = $3",
+        )
+        .bind(phase_id)
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        if phase_row.is_none() {
+            return Err(AppError::NotFound);
+        }
+    }
+
     let response = if let Some(ccam_code) = ccam_code {
         let entered_amount = body.amount_cents.unwrap_or(0);
         let act = insert_one_act(
@@ -521,6 +553,7 @@ pub async fn add_consultation_act(
             entered_amount,
             Some(entered_amount),
             is_optam,
+            body.phase_id,
         )
         .await?;
         AddActApiResponse::Single(act)
@@ -580,6 +613,7 @@ pub async fn add_consultation_act(
                 final_amount,
                 None,
                 is_optam,
+                body.phase_id,
             )
             .await?;
             acts.push(act);

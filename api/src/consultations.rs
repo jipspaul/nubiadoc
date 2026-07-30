@@ -27,6 +27,14 @@ pub struct CompleteConsultationResponse {
     pub invoice_id: Option<Uuid>,
     /// Prochaine étape suggérée (ex. "sign_quote", "no_action").
     pub next_step: String,
+    /// Séances restantes (`planned_sessions - completed_sessions`) sur la
+    /// phase de traitement décomptée par cette clôture (#4120). `null` si
+    /// aucun acte de cette séance n'était rattaché à une phase à séances
+    /// programmées, ou si plusieurs phases distinctes l'étaient (ambigu —
+    /// toutes sont décomptées, mais un seul champ ne peut représenter les
+    /// deux restants à la fois).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sessions_remaining: Option<i32>,
 }
 
 /// `POST /v1/cabinet/consultations/:id/complete` — clôture la séance et génère le devis.
@@ -40,8 +48,14 @@ pub struct CompleteConsultationResponse {
 ///   #4152) — silencieuse si le patient n'a pas de compte app.
 /// - Si des actes CCAM existent pour ce RDV, crée un `quote` en `sent`
 ///   (#4260 — visible immédiatement côté patient, RLS `quote_patient_read`
-///   exige status <> 'draft') avec les `quote_item` correspondants et
-///   retourne `invoice_id`.
+///   exige status <> 'draft') avec les `quote_item` correspondants (chacun
+///   hérite du `phase_id` de son acte d'origine) et retourne `invoice_id`.
+/// - #4120 : pour chaque `treatment_phase` distincte rattachée à au moins
+///   un acte de cette séance (`consultation_act.phase_id`, migration 0203)
+///   et utilisant le mécanisme de séances programmées (`planned_sessions`
+///   non NULL), incrémente `completed_sessions` (capé, jamais au-delà de
+///   `planned_sessions`). `sessions_remaining` dans la réponse si une seule
+///   phase était concernée (sinon `null`, ambigu entre plusieurs phases).
 /// - Séance déjà `completed` ou `cancelled` → `409 invalid_status`.
 /// - Séance inexistante ou hors tenant → `404`.
 pub async fn complete_consultation(
@@ -154,7 +168,7 @@ pub async fn complete_consultation(
 
     // Récupère les actes CCAM pour ce RDV.
     let act_rows = sqlx::query(
-        "SELECT id, patient_id, label, ccam_code, tooth, amount_cents \
+        "SELECT id, patient_id, label, ccam_code, tooth, amount_cents, phase_id \
          FROM consultation_act \
          WHERE appointment_id = $1 AND cabinet_id = $2 \
          ORDER BY created_at ASC",
@@ -239,6 +253,7 @@ pub async fn complete_consultation(
             let amount_cents: i32 = row
                 .try_get("amount_cents")
                 .map_err(|_| AppError::Internal)?;
+            let phase_id: Option<Uuid> = row.try_get("phase_id").map_err(|_| AppError::Internal)?;
 
             // Part AMO estimée (#4062) : taux dentaire standard appliqué au
             // tarif de référence CCAM (base de remboursement indicative,
@@ -260,8 +275,8 @@ pub async fn complete_consultation(
 
             sqlx::query(
                 "INSERT INTO quote_item \
-                 (cabinet_id, quote_id, label, ccam_code, tooth, qty, unit_amount, amo_part) \
-                 VALUES ($1, $2, $3, $4, $5, 1, $6::numeric / 100, $7::numeric / 100)",
+                 (cabinet_id, quote_id, label, ccam_code, tooth, qty, unit_amount, amo_part, phase_id) \
+                 VALUES ($1, $2, $3, $4, $5, 1, $6::numeric / 100, $7::numeric / 100, $8)",
             )
             .bind(claims.cabinet_id)
             .bind(quote_id)
@@ -270,6 +285,7 @@ pub async fn complete_consultation(
             .bind(&tooth)
             .bind(i64::from(amount_cents))
             .bind(amo_part_cents)
+            .bind(phase_id)
             .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
@@ -277,6 +293,54 @@ pub async fn complete_consultation(
 
         Some(quote_id)
     };
+
+    // #4120 : décompte des séances programmées — pour chaque phase distincte
+    // rattachée à au moins un acte de CETTE séance (phase_id sur
+    // consultation_act, migration 0203), incrémente completed_sessions.
+    // Capé à planned_sessions (LEAST) plutôt qu'un simple +1 : une même
+    // phase peut être touchée par plusieurs actes de la séance, mais une
+    // séance ne compte qu'une fois, et jamais au-delà de la contrainte
+    // CHECK treatment_phase_completed_not_over_planned. Les phases sans
+    // planned_sessions (mécanisme non utilisé) ne matchent simplement pas
+    // la clause WHERE — no-op silencieux, comportement historique préservé.
+    let mut touched_phase_ids: Vec<Uuid> = act_rows
+        .iter()
+        .filter_map(|row| row.try_get::<Option<Uuid>, _>("phase_id").ok().flatten())
+        .collect();
+    touched_phase_ids.sort();
+    touched_phase_ids.dedup();
+
+    let mut sessions_remaining: Option<i32> = None;
+    for phase_id in &touched_phase_ids {
+        let phase_row = sqlx::query(
+            "UPDATE treatment_phase \
+             SET completed_sessions = LEAST(completed_sessions + 1, planned_sessions) \
+             WHERE id = $1 AND cabinet_id = $2 AND planned_sessions IS NOT NULL \
+             RETURNING completed_sessions, planned_sessions",
+        )
+        .bind(phase_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        if let Some(row) = phase_row {
+            let completed: i32 = row
+                .try_get("completed_sessions")
+                .map_err(|_| AppError::Internal)?;
+            let planned: i32 = row
+                .try_get("planned_sessions")
+                .map_err(|_| AppError::Internal)?;
+            // Une seule phase décomptée dans cette séance -> champ non
+            // ambigu, sinon (rare, plusieurs phases sur la même séance)
+            // toutes sont décomptées mais aucune n'est reportée seule.
+            sessions_remaining = if touched_phase_ids.len() == 1 {
+                Some(planned - completed)
+            } else {
+                None
+            };
+        }
+    }
 
     // Audit.
     sqlx::query(
@@ -311,6 +375,7 @@ pub async fn complete_consultation(
     Ok(Json(CompleteConsultationResponse {
         invoice_id,
         next_step: next_step.to_string(),
+        sessions_remaining,
     }))
 }
 
