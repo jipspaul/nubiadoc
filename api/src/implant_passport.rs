@@ -1,18 +1,20 @@
-//! Handlers `GET /v1/implant-passport` et `GET /v1/implant-passport/export` — passeport implantaire patient.
+//! Handlers `GET /v1/implant-passport`, `GET /v1/implant-passport/export`
+//! (lecture patient) et `POST /v1/cabinet/patients/:id/implants` (écriture
+//! praticien, #4140) — passeport implantaire.
 
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::{Extension, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::Response;
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, PatientAccountClaims},
+    auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
     AppState, StorageSigner,
 };
 
@@ -125,4 +127,140 @@ pub async fn export_implant_passport(
         .header(header::CACHE_CONTROL, "no-store")
         .body(Body::empty())
         .map_err(|_| AppError::Internal)
+}
+
+// ── POST /v1/cabinet/patients/:id/implants ────────────────────────────────
+
+/// Corps de `POST /v1/cabinet/patients/:id/implants`.
+#[derive(Deserialize)]
+pub struct CreateImplantBody {
+    pub brand: String,
+    pub implant_ref: String,
+    #[serde(default)]
+    pub lot_number: Option<String>,
+    #[serde(default)]
+    pub placement_date: Option<String>,
+    #[serde(default)]
+    pub tooth_position: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+/// Réponse de `POST /v1/cabinet/patients/:id/implants`.
+#[derive(Serialize)]
+pub struct CreateImplantResponse {
+    pub implant_id: Uuid,
+}
+
+/// `POST /v1/cabinet/patients/:id/implants` — enregistre un implant posé (#4140).
+///
+/// Praticien uniquement (`ProPractitionerClaims`) — `cabinet_id` extrait du
+/// JWT, jamais du body (invariant tenancy). `patient_id` (path) inexistant ou
+/// hors tenant → `404`. Garde §14 (relation de soin, même pattern que
+/// `prescriptions.rs::create_prescription`/`dental_chart.rs`) : praticien
+/// sans `appointment` avec ce patient dans ce cabinet → `403`. `brand`/
+/// `implant_ref` vides → `422`. Visible ensuite côté patient via
+/// `GET /v1/implant-passport`.
+pub async fn create_implant(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(patient_id): Path<Uuid>,
+    Json(body): Json<CreateImplantBody>,
+) -> Result<(StatusCode, Json<CreateImplantResponse>), AppError> {
+    let brand = body.brand.trim().to_string();
+    let implant_ref = body.implant_ref.trim().to_string();
+    if brand.is_empty() || implant_ref.is_empty() {
+        return Err(AppError::ValidationError);
+    }
+    crate::text_validation::reject_nul_byte(&brand)?;
+    crate::text_validation::reject_nul_byte(&implant_ref)?;
+    if let Some(lot) = &body.lot_number {
+        crate::text_validation::reject_nul_byte(lot)?;
+    }
+    if let Some(tooth) = &body.tooth_position {
+        crate::text_validation::reject_nul_byte(tooth)?;
+    }
+    if let Some(notes) = &body.notes {
+        crate::text_validation::reject_nul_byte(notes)?;
+    }
+    let placement_date: Option<chrono::NaiveDate> = body
+        .placement_date
+        .as_deref()
+        .map(|s| s.parse::<chrono::NaiveDate>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Garde §14 (relation de soin) — même pattern que
+    // prescriptions.rs/dental_chart.rs/periodontal_chart.rs.
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+           AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
+    let implant_row = sqlx::query(
+        "INSERT INTO implant_passport \
+         (cabinet_id, patient_id, implant_ref, brand, lot_number, placement_date, tooth_position, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+    )
+    .bind(claims.cabinet_id)
+    .bind(patient_id)
+    .bind(&implant_ref)
+    .bind(&brand)
+    .bind(body.lot_number.as_deref())
+    .bind(placement_date)
+    .bind(body.tooth_position.as_deref())
+    .bind(body.notes.as_deref())
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let implant_id: Uuid = implant_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        patient_id = %patient_id,
+        implant_id = %implant_id,
+        "implant created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateImplantResponse { implant_id }),
+    ))
 }
