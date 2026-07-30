@@ -13,6 +13,10 @@ use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
 pub use brevo_mailer::BrevoMailer;
+pub use quote_relance_dispatch::{
+    dispatch_quote_relances, run_quote_relance_loop, QuoteRelanceDispatchError,
+    QuoteRelanceDispatchSummary,
+};
 pub use realtime::channels;
 pub use realtime::WsHub;
 pub use reminder_dispatch::{
@@ -84,6 +88,8 @@ mod prescription_send;
 mod prescription_templates;
 mod prescriptions;
 mod provider_secretariat;
+mod quote_relance_dispatch;
+mod quote_relances;
 mod quote_signature;
 mod realtime;
 mod recall_campaigns;

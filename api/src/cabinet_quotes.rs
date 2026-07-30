@@ -683,7 +683,10 @@ pub async fn send_cabinet_quote(
     }
 
     let updated = sqlx::query(
-        "UPDATE quote SET status = 'sent', updated_at = now() \
+        // #4126 : sent_at pose la date de départ du calendrier de relance
+        // J+3/J+7 (quote_relance_dispatch.rs) — jamais réécrit après (guard
+        // idempotence status=='sent' ci-dessus empêche un second UPDATE).
+        "UPDATE quote SET status = 'sent', sent_at = now(), updated_at = now() \
          WHERE id = $1 AND cabinet_id = $2 \
          RETURNING status",
     )
