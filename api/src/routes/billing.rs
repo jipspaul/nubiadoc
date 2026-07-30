@@ -5,7 +5,7 @@ use axum::{routing::get, Router};
 use crate::{
     billing, billing_payments, cabinet_cash_register, cabinet_payments_manual,
     cabinet_quote_item_parts, cabinet_quotes, cabinet_quotes_export, cabinet_quotes_patch,
-    cabinet_stats, dashboard, quote_signature, treatment_plans, AppState,
+    cabinet_stats, dashboard, payment_schedules, quote_signature, treatment_plans, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -21,6 +21,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route("/v1/payments", get(billing::list_payments))
         .route("/v1/quotes", get(billing::list_quotes))
+        .route(
+            "/v1/payment-schedules",
+            get(payment_schedules::list_payment_schedules),
+        )
+        .route(
+            "/v1/cabinet/quotes/:id/payment-schedule",
+            axum::routing::post(payment_schedules::create_payment_schedule),
+        )
         .route(
             "/v1/cabinet/quotes",
             get(cabinet_quotes::list_cabinet_quotes),
