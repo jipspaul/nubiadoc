@@ -78,6 +78,7 @@ mod patient_guardianship;
 mod patient_merge;
 mod patient_satisfaction;
 mod patient_tags;
+mod payment_schedules;
 mod periodontal_chart;
 mod permissions;
 mod pharmacy;
@@ -295,6 +296,35 @@ impl QuoteSignatureClient for StubQuoteSignatureClient {
     }
 }
 
+/// Client de souscription Alma pour un échéancier de paiement fractionné
+/// (`payment_schedule.provider = 'alma'`, #4163) — swappable (stub en test,
+/// SDK Alma réel en prod, différenciant explicitement classé « Could »
+/// §4.4, pas une brique de parité). Appelé synchroniquement à la création
+/// de l'échéancier ; `Err` = Alma refuse/injoignable → la création échoue
+/// entièrement (pas d'échéancier fantôme non souscrit chez le provider).
+#[async_trait]
+pub trait AlmaClient: Send + Sync {
+    /// Souscrit l'échéancier `schedule_id` auprès d'Alma pour
+    /// `total_amount_cents`. Retourne la référence externe (subscription id).
+    async fn subscribe(&self, schedule_id: Uuid, total_amount_cents: i64)
+        -> Result<String, String>;
+}
+
+/// Implémentation stub : référence fixe, pour les tests et le dev local sans
+/// clé Alma.
+pub struct StubAlmaClient;
+
+#[async_trait]
+impl AlmaClient for StubAlmaClient {
+    async fn subscribe(
+        &self,
+        schedule_id: Uuid,
+        _total_amount_cents: i64,
+    ) -> Result<String, String> {
+        Ok(format!("stub-alma-{schedule_id}"))
+    }
+}
+
 /// État partagé injecté dans les handlers via `State<AppState>`.
 #[derive(Clone)]
 pub struct AppState {
@@ -324,6 +354,7 @@ pub fn app(state: AppState) -> Router {
         Arc::new(StubStorageSigner),
         Arc::new(WsHub::new()),
         Arc::new(StubQuoteSignatureClient),
+        Arc::new(StubAlmaClient),
     )
 }
 
@@ -339,6 +370,7 @@ pub fn app_with_dispatcher(
         signer,
         Arc::new(WsHub::new()),
         Arc::new(StubQuoteSignatureClient),
+        Arc::new(StubAlmaClient),
     )
 }
 
@@ -350,6 +382,7 @@ pub fn app_with_hub(state: AppState, hub: Arc<WsHub>) -> Router {
         Arc::new(StubStorageSigner),
         hub,
         Arc::new(StubQuoteSignatureClient),
+        Arc::new(StubAlmaClient),
     )
 }
 
@@ -365,6 +398,21 @@ pub fn app_with_quote_signature_client(
         Arc::new(StubStorageSigner),
         Arc::new(WsHub::new()),
         quote_signature_client,
+        Arc::new(StubAlmaClient),
+    )
+}
+
+/// Variante pour les tests qui injectent un `AlmaClient` personnalisé (#4163 :
+/// vérifier que la souscription est bien appelée à la création d'un
+/// échéancier `provider='alma'`).
+pub fn app_with_alma_client(state: AppState, alma_client: Arc<dyn AlmaClient>) -> Router {
+    build_router(
+        state,
+        Arc::new(StubJobDispatcher),
+        Arc::new(StubStorageSigner),
+        Arc::new(WsHub::new()),
+        Arc::new(StubQuoteSignatureClient),
+        alma_client,
     )
 }
 
@@ -374,6 +422,7 @@ fn build_router(
     signer: Arc<dyn StorageSigner>,
     hub: Arc<WsHub>,
     quote_signature_client: Arc<dyn QuoteSignatureClient>,
+    alma_client: Arc<dyn AlmaClient>,
 ) -> Router {
     let router = Router::new();
     let router = routes::misc::add(router);
@@ -402,6 +451,7 @@ fn build_router(
             Arc::new(StubSignatureClient) as Arc<dyn SignatureClient>
         ))
         .layer(Extension(quote_signature_client))
+        .layer(Extension(alma_client))
         .layer(Extension(StripeWebhookSecret(
             std::env::var("STRIPE_WEBHOOK_SECRET").unwrap_or_default(),
         )))
