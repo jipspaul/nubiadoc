@@ -110,6 +110,8 @@ void registerPro(GetIt gi) {
       sign: gi<SignPrescriptionUseCase>(),
       listTemplates: gi<ListPrescriptionTemplatesUseCase>(),
       applyTemplate: gi<ApplyPrescriptionTemplateUseCase>(),
+      list: gi<ListPrescriptionsUseCase>(),
+      renew: gi<RenewPrescriptionUseCase>(),
     ),
   );
 

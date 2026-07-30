@@ -9,20 +9,28 @@ class OrdonnancesBloc extends Bloc<OrdonnancesEvent, OrdonnancesState> {
   final SignPrescriptionUseCase _sign;
   final ListPrescriptionTemplatesUseCase _listTemplates;
   final ApplyPrescriptionTemplateUseCase _applyTemplate;
+  final ListPrescriptionsUseCase _list;
+  final RenewPrescriptionUseCase _renew;
 
   OrdonnancesBloc({
     required CreatePrescriptionUseCase create,
     required SignPrescriptionUseCase sign,
     required ListPrescriptionTemplatesUseCase listTemplates,
     required ApplyPrescriptionTemplateUseCase applyTemplate,
+    required ListPrescriptionsUseCase list,
+    required RenewPrescriptionUseCase renew,
   })  : _create = create,
         _sign = sign,
         _listTemplates = listTemplates,
         _applyTemplate = applyTemplate,
+        _list = list,
+        _renew = renew,
         super(const OrdonnancesInitial()) {
     on<OrdonnancesCreateRequested>(_onCreate);
     on<OrdonnancesSignRequested>(_onSign);
     on<OrdonnancesApplyTemplateRequested>(_onApplyTemplate);
+    on<OrdonnancesListRequested>(_onList);
+    on<OrdonnancesRenewRequested>(_onRenew);
   }
 
   /// Exposé pour le sélecteur de modèle (#4074) : liste indépendante de
@@ -92,6 +100,43 @@ class OrdonnancesBloc extends Bloc<OrdonnancesEvent, OrdonnancesState> {
       );
     } catch (_) {
       emit(const OrdonnancesError("Erreur d'application du modèle."));
+    }
+  }
+
+  /// #4132 : charge l'historique des ordonnances du patient à l'ouverture
+  /// de la page.
+  Future<void> _onList(
+    OrdonnancesListRequested event,
+    Emitter<OrdonnancesState> emit,
+  ) async {
+    emit(const OrdonnancesLoading());
+    try {
+      final result = await _list(event.patientId);
+      result.fold(
+        (failure) => emit(OrdonnancesError(failure.message)),
+        (ordonnances) => emit(OrdonnancesLoaded(ordonnances)),
+      );
+    } catch (_) {
+      emit(const OrdonnancesError("Erreur de chargement de l'historique."));
+    }
+  }
+
+  /// #4132 : renouvelle une ordonnance passée — duplique ses lignes dans un
+  /// nouveau brouillon, puis affiche ce brouillon (même écran de relecture
+  /// qu'après une création classique).
+  Future<void> _onRenew(
+    OrdonnancesRenewRequested event,
+    Emitter<OrdonnancesState> emit,
+  ) async {
+    emit(const OrdonnancesLoading());
+    try {
+      final result = await _renew(event.prescriptionId);
+      result.fold(
+        (failure) => emit(OrdonnancesError(failure.message)),
+        (prescription) => emit(OrdonnancesCreated(prescription)),
+      );
+    } catch (_) {
+      emit(const OrdonnancesError('Erreur de renouvellement.'));
     }
   }
 }

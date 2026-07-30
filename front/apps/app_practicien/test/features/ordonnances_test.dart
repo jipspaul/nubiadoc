@@ -28,6 +28,12 @@ class MockListPrescriptionTemplatesUseCase extends Mock
 class MockApplyPrescriptionTemplateUseCase extends Mock
     implements ApplyPrescriptionTemplateUseCase {}
 
+class MockListPrescriptionsUseCase extends Mock
+    implements ListPrescriptionsUseCase {}
+
+class MockRenewPrescriptionUseCase extends Mock
+    implements RenewPrescriptionUseCase {}
+
 class MockOrdonnancesBloc extends MockBloc<OrdonnancesEvent, OrdonnancesState>
     implements OrdonnancesBloc {}
 
@@ -78,12 +84,16 @@ OrdonnancesBloc _makeBloc({
   required MockSignPrescriptionUseCase sign,
   MockListPrescriptionTemplatesUseCase? listTemplates,
   MockApplyPrescriptionTemplateUseCase? applyTemplate,
+  MockListPrescriptionsUseCase? list,
+  MockRenewPrescriptionUseCase? renew,
 }) =>
     OrdonnancesBloc(
       create: create,
       sign: sign,
       listTemplates: listTemplates ?? MockListPrescriptionTemplatesUseCase(),
       applyTemplate: applyTemplate ?? MockApplyPrescriptionTemplateUseCase(),
+      list: list ?? MockListPrescriptionsUseCase(),
+      renew: renew ?? MockRenewPrescriptionUseCase(),
     );
 
 Widget _wrap(OrdonnancesBloc bloc) => MaterialApp(
@@ -175,6 +185,19 @@ class _OrdonnancesBodyDirect extends StatelessWidget {
             icon: Icons.description,
             title: 'Aucune ordonnance',
             subtitle: 'Crée la première',
+          );
+        }
+        if (state is OrdonnancesLoaded) {
+          return ListView.builder(
+            key: const Key('ordonnances_history_list'),
+            itemCount: state.ordonnances.length,
+            itemBuilder: (context, i) => ElevatedButton(
+              key: Key('renew_ordonnance_button_$i'),
+              onPressed: () => context.read<OrdonnancesBloc>().add(
+                    OrdonnancesRenewRequested(state.ordonnances[i].id),
+                  ),
+              child: Text('Renouveler ${state.ordonnances[i].id}'),
+            ),
           );
         }
         if (state is OrdonnancesSigned) {
@@ -298,6 +321,52 @@ void main() {
         const OrdonnancesError('Impossible de signer.'),
       ],
     );
+
+    blocTest<OrdonnancesBloc, OrdonnancesState>(
+      '#4132 : émet Loading puis Loaded après chargement de l\'historique',
+      build: () {
+        final mockList = MockListPrescriptionsUseCase();
+        when(() => mockList('pat-1'))
+            .thenAnswer((_) async => Right([_prescription]));
+        return _makeBloc(create: mockCreate, sign: mockSign, list: mockList);
+      },
+      act: (bloc) => bloc.add(const OrdonnancesListRequested('pat-1')),
+      expect: () => [
+        const OrdonnancesLoading(),
+        OrdonnancesLoaded([_prescription]),
+      ],
+    );
+
+    blocTest<OrdonnancesBloc, OrdonnancesState>(
+      '#4132 : émet Loading puis Created après renouvellement réussi',
+      build: () {
+        final mockRenew = MockRenewPrescriptionUseCase();
+        when(() => mockRenew('presc-1'))
+            .thenAnswer((_) async => Right(_prescription));
+        return _makeBloc(create: mockCreate, sign: mockSign, renew: mockRenew);
+      },
+      act: (bloc) => bloc.add(const OrdonnancesRenewRequested('presc-1')),
+      expect: () => [
+        const OrdonnancesLoading(),
+        OrdonnancesCreated(_prescription),
+      ],
+    );
+
+    blocTest<OrdonnancesBloc, OrdonnancesState>(
+      '#4132 : émet Loading puis Error si le renouvellement échoue',
+      build: () {
+        final mockRenew = MockRenewPrescriptionUseCase();
+        when(() => mockRenew('presc-1')).thenAnswer(
+          (_) async => Left(NetworkFailure('Réseau indisponible')),
+        );
+        return _makeBloc(create: mockCreate, sign: mockSign, renew: mockRenew);
+      },
+      act: (bloc) => bloc.add(const OrdonnancesRenewRequested('presc-1')),
+      expect: () => [
+        const OrdonnancesLoading(),
+        const OrdonnancesError('Réseau indisponible'),
+      ],
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -401,6 +470,28 @@ void main() {
       await tester.pump();
       expect(find.byType(NubiaEmptyState), findsOneWidget);
       expect(find.byKey(const Key('ordonnances_empty')), findsOneWidget);
+    });
+
+    testWidgets(
+        '#4132 : affiche le bouton Renouveler et dispatch OrdonnancesRenewRequested',
+        (tester) async {
+      final bloc = MockOrdonnancesBloc();
+      whenListen(
+        bloc,
+        Stream.value(OrdonnancesLoaded([_prescription])),
+        initialState: OrdonnancesLoaded([_prescription]),
+      );
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(
+          find.byKey(const Key('renew_ordonnance_button_0')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('renew_ordonnance_button_0')));
+      await tester.pump();
+
+      verify(() => bloc.add(const OrdonnancesRenewRequested('presc-1')))
+          .called(1);
     });
   });
 
