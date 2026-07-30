@@ -7,10 +7,12 @@
 //! (`payment_schedule_patient_read`) ajoutée par la migration 0204,
 //! symétrique à `prescription_patient_read`/`implant_passport_patient_read`.
 
+use std::sync::Arc;
+
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -18,7 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
-    AppState,
+    AlmaClient, AppState,
 };
 
 // ── GET /v1/payment-schedules ──────────────────────────────────────────────
@@ -166,10 +168,13 @@ const VALID_PROVIDERS: &[&str] = &["stripe", "gocardless", "alma"];
 /// vide, un `amount_cents` ≤ 0, ou `provider` hors `VALID_PROVIDERS` → `422`.
 /// `total_amount` = somme des jalons (pas nécessairement égal au montant du
 /// devis — un échéancier peut ne couvrir qu'une partie, ex. hors acompte
-/// déjà réglé).
+/// déjà réglé). `provider = "alma"` (#4163) déclenche la souscription
+/// synchrone auprès d'`AlmaClient` — un refus/timeout provider fait échouer
+/// toute la création (`500`), pas d'échéancier fantôme non souscrit.
 pub async fn create_payment_schedule(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
+    Extension(alma_client): Extension<Arc<dyn AlmaClient>>,
     Path(quote_id): Path<Uuid>,
     Json(body): Json<CreatePaymentScheduleBody>,
 ) -> Result<(StatusCode, Json<CreatePaymentScheduleResponse>), AppError> {
@@ -246,6 +251,23 @@ pub async fn create_payment_schedule(
     .map_err(|_| AppError::Internal)?;
 
     let schedule_id: Uuid = schedule_row.try_get("id").map_err(|_| AppError::Internal)?;
+
+    // #4163 : souscription Alma synchrone — appelée APRÈS l'insert pour
+    // disposer de schedule_id (référence envoyée au provider), toujours
+    // dans la même transaction (un refus Alma annule la création entière
+    // via le rollback implicite au drop de `tx` sur `?`).
+    if body.provider.as_deref() == Some("alma") {
+        let provider_ref = alma_client
+            .subscribe(schedule_id, total_cents)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        sqlx::query("UPDATE payment_schedule SET provider_ref = $1 WHERE id = $2")
+            .bind(&provider_ref)
+            .bind(schedule_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
