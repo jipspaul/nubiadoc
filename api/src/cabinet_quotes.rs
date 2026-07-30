@@ -241,6 +241,10 @@ pub struct ListCabinetQuotesQuery {
     /// (voir `OVERDUE_THRESHOLD_DAYS`). Implique `status = 'signed'` même si
     /// `?status=` n'est pas fourni.
     pub overdue: Option<bool>,
+    /// `?patient_id=` : restreint la liste aux devis de ce patient (#4419/#4519 :
+    /// avant, ce paramètre était capté mais jamais appliqué au SQL, renvoyant
+    /// tous les devis du cabinet quelle que soit la valeur).
+    pub patient_id: Option<Uuid>,
 }
 
 /// Délai (jours) au-delà duquel un devis `signed` sans activité de paiement
@@ -342,8 +346,38 @@ pub async fn list_cabinet_quotes(
         String::new()
     };
 
-    let rows = if let Some(ref status) = params.status {
-        sqlx::query(&format!(
+    // Clause `patient_id` (#4419/#4519) : bindée juste après `overdue_sql`,
+    // avant `status` afin que les index `$N` restent simples à calculer pour
+    // les deux branches ci-dessous.
+    let patient_sql = if params.patient_id.is_some() {
+        " AND q.patient_id = $2"
+    } else {
+        ""
+    };
+
+    let rows = match (params.patient_id, &params.status) {
+        (Some(patient_id), Some(status)) => sqlx::query(&format!(
+            "{base_sql}{overdue_sql}{patient_sql} AND q.status = $3 ORDER BY q.created_at DESC LIMIT $4 OFFSET $5"
+        ))
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .bind(status)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+        (Some(patient_id), None) => sqlx::query(&format!(
+            "{base_sql}{overdue_sql}{patient_sql} ORDER BY q.created_at DESC LIMIT $3 OFFSET $4"
+        ))
+        .bind(claims.cabinet_id)
+        .bind(patient_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+        (None, Some(status)) => sqlx::query(&format!(
             "{base_sql}{overdue_sql} AND q.status = $2 ORDER BY q.created_at DESC LIMIT $3 OFFSET $4"
         ))
         .bind(claims.cabinet_id)
@@ -352,9 +386,8 @@ pub async fn list_cabinet_quotes(
         .bind(offset)
         .fetch_all(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal)?
-    } else {
-        sqlx::query(&format!(
+        .map_err(|_| AppError::Internal)?,
+        (None, None) => sqlx::query(&format!(
             "{base_sql}{overdue_sql} ORDER BY q.created_at DESC LIMIT $2 OFFSET $3"
         ))
         .bind(claims.cabinet_id)
@@ -362,7 +395,7 @@ pub async fn list_cabinet_quotes(
         .bind(offset)
         .fetch_all(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal)?
+        .map_err(|_| AppError::Internal)?,
     };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
