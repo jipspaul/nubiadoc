@@ -52,4 +52,53 @@ class ImplantPassportRepositoryImpl implements ImplantPassportRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, ImplantItem>> createImplant({
+    required String patientId,
+    required String brand,
+    required String implantRef,
+    String? lotNumber,
+    String? placementDate,
+    String? toothPosition,
+    String? notes,
+  }) async {
+    try {
+      final id = await _api.createImplant(
+        patientId: patientId,
+        brand: brand,
+        implantRef: implantRef,
+        lotNumber: lotNumber,
+        placementDate: placementDate,
+        toothPosition: toothPosition,
+        notes: notes,
+      );
+      // POST ne renvoie que l'id : reconstruit à partir des valeurs du
+      // formulaire déjà connues côté client (pas de re-fetch nécessaire).
+      return Right(ImplantItem(
+        id: id,
+        brand: brand,
+        lotNumber: lotNumber,
+        placementDate: placementDate,
+        toothPosition: toothPosition,
+        notes: notes,
+      ));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (e.response?.statusCode == 403) {
+        return const Left(ServerFailure(
+          message: "Aucune relation de soin avec ce patient.",
+          statusCode: 403,
+        ));
+      }
+      return Left(ServerFailure(
+        message: "Impossible d'enregistrer l'implant.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }

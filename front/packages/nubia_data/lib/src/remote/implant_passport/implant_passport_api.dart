@@ -25,4 +25,30 @@ class ImplantPassportApi {
     );
     return response.headers.value('location') ?? '';
   }
+
+  /// POST /cabinet/patients/{id}/implants (#4140) — écriture côté praticien.
+  /// Ne renvoie que l'id créé (pas les champs) : le repository reconstruit
+  /// l'entité affichable à partir des valeurs du formulaire déjà connues.
+  Future<String> createImplant({
+    required String patientId,
+    required String brand,
+    required String implantRef,
+    String? lotNumber,
+    String? placementDate,
+    String? toothPosition,
+    String? notes,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/patients/$patientId/implants',
+      data: {
+        'brand': brand,
+        'implant_ref': implantRef,
+        if (lotNumber != null) 'lot_number': lotNumber,
+        if (placementDate != null) 'placement_date': placementDate,
+        if (toothPosition != null) 'tooth_position': toothPosition,
+        if (notes != null) 'notes': notes,
+      },
+    );
+    return response.data!['implant_id'] as String;
+  }
 }

@@ -234,6 +234,7 @@ export 'src/usecases/cabinet_stats/get_cabinet_billing_stats_use_case.dart';
 export 'src/usecases/audit_log/get_audit_log_use_case.dart';
 export 'src/usecases/implants/list_implant_passport_use_case.dart';
 export 'src/usecases/implants/export_implant_passport_use_case.dart';
+export 'src/usecases/implants/create_implant_use_case.dart';
 export 'src/usecases/stock_items/list_stock_items_use_case.dart';
 export 'src/usecases/stock_items/add_stock_movement_use_case.dart';
 export 'src/usecases/lab_work_orders/list_lab_work_orders_use_case.dart';

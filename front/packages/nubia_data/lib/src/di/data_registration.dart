@@ -433,6 +433,7 @@ void _registerUseCases(GetIt gi) {
     // implant passport
     ..registerFactory(() => ListImplantPassportUseCase(gi()))
     ..registerFactory(() => ExportImplantPassportUseCase(gi()))
+    ..registerFactory(() => CreateImplantUseCase(gi()))
     // messaging
     ..registerFactory(() => GetConversationMessagesUseCase(gi()))
     ..registerFactory(() => GetConversationsUseCase(gi()))
