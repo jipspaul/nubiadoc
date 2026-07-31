@@ -94,10 +94,19 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     try {
       final result = await _confirmAppointment(event.appointmentId);
       result.fold(
-        (failure) => safeEmit(current.copyWith(
-          actionInProgress: false,
-          actionError: failure.message,
-        )),
+        (failure) {
+          safeEmit(current.copyWith(
+            actionInProgress: false,
+            actionError: failure.message,
+          ));
+          // #4535 : recharge même sur échec — un 409 peut signifier que le
+          // RDV a changé de statut entre-temps (déjà confirmé, annulé…),
+          // l'agenda affichée doit refléter l'état réel, pas rester figée
+          // sur "À confirmer" pendant que le snackbar d'erreur s'affiche.
+          if (_currentWeekStart != null) {
+            add(AgendaLoadRequested(weekStart: _currentWeekStart!));
+          }
+        },
         (_) {
           if (_currentWeekStart != null) {
             add(AgendaLoadRequested(weekStart: _currentWeekStart!));

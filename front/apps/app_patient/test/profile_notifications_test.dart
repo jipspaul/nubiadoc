@@ -14,6 +14,8 @@ import 'package:app_patient/session/auth_cubit.dart';
 
 class MockGetAccountUseCase extends Mock implements GetAccountUseCase {}
 
+class MockUpdateAccountUseCase extends Mock implements UpdateAccountUseCase {}
+
 class MockUserSettingsRepository extends Mock
     implements UserSettingsRepository {}
 
@@ -58,11 +60,13 @@ void main() {
   });
 
   late MockGetAccountUseCase mockGetAccount;
+  late MockUpdateAccountUseCase mockUpdateAccount;
   late MockUserSettingsRepository mockUserSettings;
   late MockNotificationRepository mockNotifRepo;
 
   setUp(() {
     mockGetAccount = MockGetAccountUseCase();
+    mockUpdateAccount = MockUpdateAccountUseCase();
     mockUserSettings = MockUserSettingsRepository();
     mockNotifRepo = MockNotificationRepository();
     when(() => mockGetAccount()).thenAnswer((_) async => const Right(_account));
@@ -74,6 +78,7 @@ void main() {
 
   ProfileBloc makeBloc() => ProfileBloc(
         getAccount: mockGetAccount,
+        updateAccount: mockUpdateAccount,
         userSettings: mockUserSettings,
         notificationRepo: mockNotifRepo,
       );
