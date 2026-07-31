@@ -49,8 +49,8 @@ impl LocalKeyManager {
             .map_err(|_| CryptoError::KeyWrap)?;
         let mut derived = [0u8; 32];
         okm.fill(&mut derived).map_err(|_| CryptoError::KeyWrap)?;
-        let unbound =
-            aead::UnboundKey::new(&aead::AES_256_GCM, &derived).map_err(|_| CryptoError::KeyWrap)?;
+        let unbound = aead::UnboundKey::new(&aead::AES_256_GCM, &derived)
+            .map_err(|_| CryptoError::KeyWrap)?;
         Ok(aead::LessSafeKey::new(unbound))
     }
 }
@@ -117,7 +117,10 @@ mod tests {
         let dek = [42u8; 32];
 
         let (wrapped, key_ref) = km.wrap_key(&dek, "cabinet-A").await.unwrap();
-        let unwrapped = km.unwrap_key(&wrapped, "cabinet-A", &key_ref).await.unwrap();
+        let unwrapped = km
+            .unwrap_key(&wrapped, "cabinet-A", &key_ref)
+            .await
+            .unwrap();
 
         assert_eq!(unwrapped, dek);
     }

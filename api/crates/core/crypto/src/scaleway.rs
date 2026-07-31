@@ -208,12 +208,10 @@ mod tests {
                 "/key-manager/v1alpha1/regions/fr-par/keys/{key_id}/encrypt"
             )))
             .and(header("X-Auth-Token", "test-token"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "key_id": key_id,
-                    "ciphertext": BASE64.encode(&fake_wrapped),
-                })),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "key_id": key_id,
+                "ciphertext": BASE64.encode(&fake_wrapped),
+            })))
             .mount(&server)
             .await;
 
