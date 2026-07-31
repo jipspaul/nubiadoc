@@ -87,16 +87,18 @@ SELECT col_not_null('payment_schedule', 'total_amount','payment_schedule.total_a
 -- 3. Clés étrangères (catalogue — pas de données nécessaires)
 -- ===========================================================================
 SELECT fk_ok('quote',            'cabinet_id',  'cabinet',          'id');
-SELECT fk_ok('quote',            'patient_id',  'patient',          'id');
+-- FK composite tenant-scopée depuis 0212 (#4291) : quote(patient_id, cabinet_id)
+-- -> patient(id, cabinet_id), cf. tests/87_patient_children_composite_fk.sql.
+SELECT fk_ok('quote', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('quote',            'signature_id','signature',         'id');
 SELECT fk_ok('quote_item',       'cabinet_id',  'cabinet',          'id');
 SELECT fk_ok('quote_item',       'quote_id',    'quote',            'id');
 SELECT fk_ok('signature',        'cabinet_id',  'cabinet',          'id');
 SELECT fk_ok('payment_schedule', 'cabinet_id',  'cabinet',          'id');
-SELECT fk_ok('payment_schedule', 'patient_id',  'patient',          'id');
+SELECT fk_ok('payment_schedule', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('payment_schedule', 'quote_id',    'quote',            'id');
 SELECT fk_ok('payment',          'cabinet_id',  'cabinet',          'id');
-SELECT fk_ok('payment',          'patient_id',  'patient',          'id');
+SELECT fk_ok('payment', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('payment',          'schedule_id', 'payment_schedule', 'id');
 SELECT fk_ok('payment',          'quote_id',    'quote',            'id');
 
