@@ -14,6 +14,8 @@ import 'package:app_patient/session/auth_cubit.dart';
 
 class MockGetAccountUseCase extends Mock implements GetAccountUseCase {}
 
+class MockUpdateAccountUseCase extends Mock implements UpdateAccountUseCase {}
+
 class MockUserSettingsRepository extends Mock
     implements UserSettingsRepository {}
 
@@ -45,11 +47,13 @@ Widget _wrap(ProfileBloc bloc) => MaterialApp(
 
 void main() {
   late MockGetAccountUseCase mockGetAccount;
+  late MockUpdateAccountUseCase mockUpdateAccount;
   late MockUserSettingsRepository mockUserSettings;
   late MockNotificationRepository mockNotifRepo;
 
   setUp(() {
     mockGetAccount = MockGetAccountUseCase();
+    mockUpdateAccount = MockUpdateAccountUseCase();
     mockUserSettings = MockUserSettingsRepository();
     mockNotifRepo = MockNotificationRepository();
     when(() => mockGetAccount()).thenAnswer((_) async => const Right(_account));
@@ -68,6 +72,7 @@ void main() {
 
         final bloc = ProfileBloc(
           getAccount: mockGetAccount,
+          updateAccount: mockUpdateAccount,
           userSettings: mockUserSettings,
           notificationRepo: mockNotifRepo,
         );
@@ -97,6 +102,7 @@ void main() {
 
         final bloc = ProfileBloc(
           getAccount: mockGetAccount,
+          updateAccount: mockUpdateAccount,
           userSettings: mockUserSettings,
           notificationRepo: mockNotifRepo,
         );

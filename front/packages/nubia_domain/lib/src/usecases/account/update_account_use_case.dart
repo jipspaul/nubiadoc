@@ -8,11 +8,17 @@ class UpdateAccountUseCase {
 
   const UpdateAccountUseCase(this._repository);
 
+  /// Champs absents : non modifiés côté back (PATCH partiel, COALESCE) — cf.
+  /// [AccountRepository.updateAccount]. #4544 : ces params étaient `required`
+  /// ici alors que le repository/back les traitent déjà en optionnel, ce qui
+  /// forçait tout appelant (ex. modifier juste le téléphone) à réenvoyer des
+  /// valeurs déjà connues, ou à en fabriquer quand elles manquaient
+  /// (`dateOfBirth` nullable côté [PatientAccount]).
   Future<Either<Failure, PatientAccount>> call({
-    required String firstName,
-    required String lastName,
-    required String phone,
-    required DateTime dateOfBirth,
+    String? firstName,
+    String? lastName,
+    String? phone,
+    DateTime? dateOfBirth,
   }) {
     return _repository.updateAccount(
       firstName: firstName,

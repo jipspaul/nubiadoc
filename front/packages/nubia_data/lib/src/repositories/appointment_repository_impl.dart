@@ -200,6 +200,14 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
           message: 'Ce créneau n\'est plus disponible.',
         ));
       }
+      // #4532 : la fenêtre de préavis (24 h) évaluée par le back sur la
+      // destination du déplacement, pas seulement la source.
+      if (statusCode == 409 && apiCode == 'too_late') {
+        return const Left(ValidationFailure(
+          message: 'Ce créneau est trop proche pour une modification. '
+              'Choisissez un créneau plus tardif.',
+        ));
+      }
       if (statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }

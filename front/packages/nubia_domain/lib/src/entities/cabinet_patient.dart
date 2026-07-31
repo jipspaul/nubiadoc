@@ -70,7 +70,18 @@ class CabinetPatient extends Equatable {
     this.dependents,
   });
 
-  String get fullName => '$firstName $lastName';
+  /// #4542 : quelques dossiers ont `firstName`/`lastName` vides côté back
+  /// (import legacy). `'$firstName $lastName'` produisait alors une ligne
+  /// blanche dans les listes patients (praticien/secrétariat), donnée
+  /// illisible et peu rassurante. Repli explicite plutôt qu'un vide.
+  String get fullName {
+    final trimmedFirst = firstName.trim();
+    final trimmedLast = lastName.trim();
+    if (trimmedFirst.isEmpty && trimmedLast.isEmpty) return 'Patient sans nom';
+    if (trimmedFirst.isEmpty) return trimmedLast;
+    if (trimmedLast.isEmpty) return trimmedFirst;
+    return '$trimmedFirst $trimmedLast';
+  }
 
   @override
   List<Object?> get props => [id];

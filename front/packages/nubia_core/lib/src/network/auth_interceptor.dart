@@ -95,16 +95,31 @@ class AuthInterceptor extends Interceptor {
     try {
       String? refreshToken;
       var storageReadFailed = false;
-      try {
-        refreshToken = await _tokenStorage.getRefreshToken();
-      } catch (_) {
-        // Same class of race as the onRequest read above: a storage read
-        // landing mid-write (e.g. right after login) must not escape as an
-        // uncaught exception — Dio would wrap it into a client-side
-        // DioException with zero network trace instead of ever reaching
-        // the refresh endpoint. Treat it as transiently unavailable rather
-        // than "logged out" so we don't wipe valid tokens on a race.
-        storageReadFailed = true;
+      // #4533 : un `null`/une exception isolés peuvent être un vrai read
+      // transitoire (storage pas encore prêt, ex. IndexedDB sur web tout
+      // juste après un boot/reload) plutôt qu'une vraie absence de token —
+      // observé en prod : 401 → AUCUN appel /auth/refresh tenté →
+      // déconnexion, alors que le refresh token était valide en storage
+      // l'instant d'après. On retente quelques fois avant de conclure à une
+      // absence réelle (et déconnecter l'utilisateur).
+      for (var attempt = 0; attempt < 3; attempt++) {
+        storageReadFailed = false;
+        try {
+          refreshToken = await _tokenStorage.getRefreshToken();
+        } catch (_) {
+          // Même classe de race que le read de onRequest ci-dessus : un
+          // read en cours d'écriture (ex. juste après un login/refresh) ne
+          // doit jamais s'échapper en exception non catchée — Dio la
+          // transformerait en DioException côté client sans jamais
+          // atteindre l'endpoint de refresh. Traité comme transitoire, pas
+          // comme "déconnecté", pour ne pas effacer des tokens valides sur
+          // une simple race.
+          storageReadFailed = true;
+        }
+        if (refreshToken != null) break;
+        if (attempt < 2) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
       }
       if (refreshToken == null) {
         if (!storageReadFailed) {

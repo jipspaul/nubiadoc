@@ -395,6 +395,19 @@ class _DetailViewState extends State<_DetailView> {
             onPressed: () => context.push('/patients/${p.id}/treatment-plans'),
           ),
           const SizedBox(height: 12),
+          // #4541 : la fiche patient n'offrait aucun moyen d'atteindre une
+          // ordonnance pour ce patient — l'onglet Ordonnances (nav) n'a pas
+          // de patientId et son bouton "Nouvelle ordonnance" reste caché
+          // tant qu'aucun patient n'est déjà sélectionné. Impasse.
+          NubiaButton(
+            key: const Key('btn_create_ordonnance'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.medication_outlined,
+            label: 'Créer une ordonnance',
+            onPressed: () =>
+                context.push('/ordonnances/new?patientId=${p.id}'),
+          ),
+          const SizedBox(height: 12),
           NubiaButton(
             key: const Key('btn_export_pdf'),
             variant: NubiaButtonVariant.secondary,

@@ -8,14 +8,17 @@ import 'profile_state.dart';
 class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
     with SafeEmitMixin<ProfileState> {
   final GetAccountUseCase _getAccount;
+  final UpdateAccountUseCase _updateAccount;
   final UserSettingsRepository _userSettings;
   final NotificationRepository _notificationRepo;
 
   ProfileBloc({
     required GetAccountUseCase getAccount,
+    required UpdateAccountUseCase updateAccount,
     required UserSettingsRepository userSettings,
     required NotificationRepository notificationRepo,
   })  : _getAccount = getAccount,
+        _updateAccount = updateAccount,
         _userSettings = userSettings,
         _notificationRepo = notificationRepo,
         super(const ProfileInitial()) {
@@ -23,6 +26,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
     on<BiometricToggleRequested>(_onBiometricToggle);
     on<ToggleEmailRdv>(_onToggleEmailRdv);
     on<TogglePushRdv>(_onTogglePushRdv);
+    on<PhoneUpdateRequested>(_onPhoneUpdate);
   }
 
   Future<void> _onLoadRequested(
@@ -96,5 +100,24 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState>
     } catch (e) {
       safeEmit(ProfileToggleFailed(previous, e.toString()));
     }
+  }
+
+  Future<void> _onPhoneUpdate(
+    PhoneUpdateRequested event,
+    Emitter<ProfileState> emit,
+  ) async {
+    if (state is! ProfileLoaded) return;
+    final previous = state as ProfileLoaded;
+    emit(ProfileLoaded(previous.account,
+        biometricEnabled: previous.biometricEnabled,
+        notifPrefs: previous.notifPrefs,
+        phoneUpdating: true));
+    final result = await _updateAccount(phone: event.phone);
+    result.fold(
+      (failure) => safeEmit(ProfileToggleFailed(previous, failure.message)),
+      (account) => safeEmit(ProfileLoaded(account,
+          biometricEnabled: previous.biometricEnabled,
+          notifPrefs: previous.notifPrefs)),
+    );
   }
 }
