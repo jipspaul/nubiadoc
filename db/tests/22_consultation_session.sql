@@ -71,8 +71,10 @@ SELECT col_type_is('consultation_session', 'created_at',
 -- ===========================================================================
 SELECT fk_ok('consultation_session', 'cabinet_id', 'cabinet', 'id',
     'consultation_session.cabinet_id FK → cabinet.id');
-SELECT fk_ok('consultation_session', 'appointment_id', 'appointment', 'id',
-    'consultation_session.appointment_id FK → appointment.id');
+-- FK composite tenant-scopée depuis 0215 (#4291).
+SELECT fk_ok('consultation_session', ARRAY['appointment_id', 'cabinet_id'],
+    'appointment', ARRAY['id', 'cabinet_id'],
+    'consultation_session.appointment_id FK composite → appointment(id, cabinet_id)');
 -- FK composite tenant-scopée depuis 0214 (#4291).
 SELECT fk_ok('consultation_session', ARRAY['practitioner_id', 'cabinet_id'],
     'practitioner', ARRAY['id', 'cabinet_id'],
