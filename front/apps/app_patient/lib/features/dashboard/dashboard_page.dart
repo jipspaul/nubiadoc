@@ -81,7 +81,9 @@ class _DashboardPageState extends State<DashboardPage> {
         body: switch (_index) {
           0 => BlocProvider(
               create: (_) => GetIt.instance<AppointmentsBloc>(),
-              child: const AppointmentsPage(),
+              child: AppointmentsPage(
+                onViewMyAppointments: () => setState(() => _index = 1),
+              ),
             ),
           1 => const MesRdvPage(),
           2 => const MessagingPage(),

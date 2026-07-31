@@ -106,10 +106,15 @@ class SchedulingApi {
     return AppointmentDto.fromJson(response.data!);
   }
 
+  // #4543 : POST /appointments/:id/cancel répond `{appointment_id, status}`
+  // (api/src/appointments.rs::CancelResponse), pas un appointment complet —
+  // décoder cette réponse en AppointmentDto échouait systématiquement
+  // (`starts_at` absent) et masquait une annulation pourtant réussie côté
+  // serveur derrière une "erreur de décodage". On re-fetch l'appointment à
+  // jour plutôt que de fabriquer un objet à partir d'un payload incomplet.
   Future<AppointmentDto> cancel(String id) async {
-    final response =
-        await _dio.post<Map<String, dynamic>>('/appointments/$id/cancel');
-    return AppointmentDto.fromJson(response.data!);
+    await _dio.post<void>('/appointments/$id/cancel');
+    return getById(id);
   }
 
   Future<AppointmentDto> modify({
@@ -123,11 +128,12 @@ class SchedulingApi {
     return AppointmentDto.fromJson(response.data!);
   }
 
+  // Même défaut de forme que cancel() (#4543) : POST .../checkin répond
+  // `{appointment_id, status, checkin_at}` (api/src/appointments.rs::
+  // CheckinResponse), pas un appointment complet.
   Future<AppointmentDto> checkin(String id) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/appointments/$id/checkin',
-    );
-    return AppointmentDto.fromJson(response.data!);
+    await _dio.post<void>('/appointments/$id/checkin');
+    return getById(id);
   }
 
   Future<DirectionsDto> getDirections(String id, {String mode = 'car'}) async {

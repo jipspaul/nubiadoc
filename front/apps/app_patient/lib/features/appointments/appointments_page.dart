@@ -12,11 +12,16 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'appointments_bloc.dart';
 import 'appointments_event.dart';
 import 'appointments_state.dart';
+import 'booking_confirmation_page.dart';
 
 /// Page de recherche praticien + booking.
 /// Tab 1 du DashboardPage : recherche → carte + liste → créneaux → confirmation.
 class AppointmentsPage extends StatefulWidget {
-  const AppointmentsPage({super.key});
+  const AppointmentsPage({this.onViewMyAppointments, super.key});
+
+  /// #4534 : appelé quand l'utilisateur tape « Voir mes RDV » sur l'écran
+  /// de confirmation — permet au shell (DashboardPage) de basculer l'onglet.
+  final VoidCallback? onViewMyAppointments;
 
   @override
   State<AppointmentsPage> createState() => _AppointmentsPageState();
@@ -35,14 +40,7 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
     return BlocListener<AppointmentsBloc, AppointmentsState>(
       listener: (context, state) {
         if (state is AppointmentsBookingSuccess) {
-          // Le RDV part en statut « requested » : le cabinet doit confirmer.
-          // On annonce donc une DEMANDE, pas une confirmation.
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Demande de rendez-vous envoyée')),
-          );
-          context
-              .read<AppointmentsBloc>()
-              .add(const AppointmentsSearchChanged(''));
+          _showBookingConfirmation(context, state);
         }
         if (state is AppointmentsError) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -71,6 +69,25 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
         },
       ),
     );
+  }
+
+  /// #4534 : écran de confirmation dédié (récap praticien/date/motif) au
+  /// lieu d'un simple snackbar fugace qui ne rassurait pas assez.
+  Future<void> _showBookingConfirmation(
+    BuildContext context,
+    AppointmentsBookingSuccess state,
+  ) async {
+    final bloc = context.read<AppointmentsBloc>();
+    final viewAppointments = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => BookingConfirmationPage(appointment: state.appointment),
+      ),
+    );
+    if (!mounted) return;
+    bloc.add(const AppointmentsSearchChanged(''));
+    if (viewAppointments == true) {
+      widget.onViewMyAppointments?.call();
+    }
   }
 
   Widget _buildBody(BuildContext context, AppointmentsState state) {
