@@ -2,40 +2,43 @@
 
 use axum::{routing::get, Router};
 
-use crate::{appointments, AppState};
+use crate::{
+    appointments_actions, appointments_checkin, appointments_create, appointments_preparation,
+    appointments_read, appointments_read_extras, AppState,
+};
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
     router
         .route(
             "/v1/appointments",
-            get(appointments::list_appointments).post(appointments::create_appointment),
+            get(appointments_read::list_appointments).post(appointments_create::create_appointment),
         )
         .route(
             "/v1/appointments/:id",
-            get(appointments::get_appointment).patch(appointments::patch_appointment),
+            get(appointments_read::get_appointment).patch(appointments_actions::patch_appointment),
         )
         .route(
             "/v1/appointments/:id/cancel",
-            axum::routing::post(appointments::cancel_appointment),
+            axum::routing::post(appointments_actions::cancel_appointment),
         )
         .route(
             "/v1/appointments/:id/checkin",
-            axum::routing::post(appointments::checkin_appointment),
+            axum::routing::post(appointments_checkin::checkin_appointment),
         )
         .route(
             "/v1/appointments/:id/callback-request",
-            axum::routing::post(appointments::callback_appointment),
+            axum::routing::post(appointments_checkin::callback_appointment),
         )
         .route(
             "/v1/appointments/:id/directions",
-            get(appointments::get_appointment_directions),
+            get(appointments_read_extras::get_appointment_directions),
         )
         .route(
             "/v1/appointments/:id/preparation",
-            get(appointments::get_appointment_preparation),
+            get(appointments_preparation::get_appointment_preparation),
         )
         .route(
             "/v1/appointments/:id/queue",
-            get(appointments::get_appointment_queue),
+            get(appointments_read_extras::get_appointment_queue),
         )
 }
