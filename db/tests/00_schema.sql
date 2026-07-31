@@ -174,6 +174,25 @@ SELECT fk_ok('quote_item', ARRAY['phase_id', 'cabinet_id'], 'treatment_phase', A
 SELECT fk_ok('pharmacy_order', ARRAY['document_id', 'cabinet_id'], 'document', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('pharmacy_order', ARRAY['prescription_id', 'cabinet_id'], 'prescription', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('pharmacy_order', ARRAY['consent_record_id', 'patient_account_id'], 'consent_record', ARRAY['id', 'patient_account_id']);
+-- FK composite tenant-scopée depuis 0212 (#4291) : groupe "patient" — 19
+-- tables enfants <table>.patient_id -> patient(id, cabinet_id).
+-- Cf. tests/87_patient_children_composite_fk.sql (échantillon comportemental).
+SELECT fk_ok('medical_record', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('clinical_note', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('dental_chart', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('document', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('appointment', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('waiting_list_entry', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('conversation', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('treatment_plan', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('prescription', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_act', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('implant_passport', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('reminder', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('patient_tag', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('periodontal_chart', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('dental_chart_history', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('orthodontic_treatment', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
 
 -- ----- Lien clinique <-> compte plateforme & couverture (0010) -----
 SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regime_obligatoire (couverture)');
