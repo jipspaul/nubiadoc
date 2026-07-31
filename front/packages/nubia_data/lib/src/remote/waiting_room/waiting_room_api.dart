@@ -131,21 +131,14 @@ class WaitingRoomApi {
   }
 
   Future<void> offerSlot(String id) async {
-    // Le back exige un corps JSON `{ proposed_at }` (ISO 8601 UTC) — cf.
-    // `OfferSlotBody` côté Rust. Sans corps → 415/400. L'écran « Combler » ne
-    // sélectionne pas de créneau précis : on propose le prochain créneau
-    // disponible, le back se contente de marquer l'entrée `fulfilled` et de
-    // notifier le patient. Le back rejette (422) tout `proposed_at` <=
-    // now+5min (cf. `offer_waiting_list_slot`) : on marge donc largement
-    // au-delà de ce seuil pour éviter tout écart de latence réseau/horloge.
-    await _dio.post<void>(
-      '/cabinet/waiting-list/$id/offer',
-      data: {
-        'proposed_at': DateTime.now()
-            .toUtc()
-            .add(const Duration(minutes: 15))
-            .toIso8601String(),
-      },
-    );
+    // #4536 : `proposed_at` est désormais optionnel côté back — l'écran
+    // « Combler » ne sélectionne pas de créneau précis, et le front n'a de
+    // toute façon aucun moyen de connaître les créneaux RÉELS du provider de
+    // l'entrée (non exposés par GET /cabinet/waiting-list). Avant ce fix, un
+    // horodatage fabriqué `now()+15min` était envoyé, qui ne correspondait
+    // quasi jamais à un vrai `availability_slot` → 409 systématique malgré
+    // des créneaux disponibles ailleurs. Le back choisit maintenant lui-même
+    // le prochain créneau ouvert du provider (`offer_waiting_list_slot`).
+    await _dio.post<void>('/cabinet/waiting-list/$id/offer', data: const {});
   }
 }

@@ -62,3 +62,24 @@ class WaitingListOfferSuccess extends WaitingListState {
   @override
   int get hashCode => runtimeType.hashCode;
 }
+
+/// #4536 : échec d'une action « Combler » sur une entrée précise. Distinct de
+/// [WaitingListError] (échec du CHARGEMENT de la liste, qui lui n'a rien à
+/// montrer) — ici la liste reste affichée, seul un feedback ponctuel
+/// (snackbar) signale l'échec. Porte [entries] pour que l'écran continue de
+/// rendre la liste au lieu de basculer sur l'état d'erreur plein écran.
+class WaitingListOfferError extends WaitingListState {
+  const WaitingListOfferError(this.message, this.entries);
+
+  final String message;
+  final List<WaitingListEntry> entries;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WaitingListOfferError &&
+      other.message == message &&
+      other.entries.length == entries.length;
+
+  @override
+  int get hashCode => Object.hash(message, entries.length);
+}
