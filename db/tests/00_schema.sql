@@ -157,7 +157,9 @@ SELECT is(
 -- ----- Clés étrangères clés -----
 SELECT fk_ok('patient', 'cabinet_id', 'cabinet', 'id');
 SELECT fk_ok('appointment', 'practitioner_id', 'practitioner', 'id');
-SELECT fk_ok('quote_item', 'quote_id', 'quote', 'id');
+-- FK composite tenant-scopée depuis 0213 (#4291) : quote_item(quote_id, cabinet_id)
+-- -> quote(id, cabinet_id), cf. tests/88_quote_signature_composite_fk.sql.
+SELECT fk_ok('quote_item', ARRAY['quote_id', 'cabinet_id'], 'quote', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('patient', 'patient_account_id', 'patient_account', 'id');  -- lien plateforme (0009)
 SELECT fk_ok('patient_account', 'app_user_id', 'app_user', 'id');        -- FK + CASCADE (0015, #178)
 SELECT col_not_null('patient_account', 'app_user_id', 'patient_account.app_user_id NOT NULL (0015)');
