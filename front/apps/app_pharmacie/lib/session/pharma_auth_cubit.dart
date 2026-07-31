@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -70,11 +72,58 @@ class PharmaAuthCubit extends Cubit<AuthState> {
         emit(const AuthUnauthenticated());
         return;
       }
-      // Le token persisté peut être expiré ou encore kind:"pro" : on rejoue
-      // la sélection de contexte (l'interceptor rafraîchit au besoin).
+      // #4531 : le token persisté est le PLUS SOUVENT déjà kind:"pharma" —
+      // select-pharmacy-context (ce restore) ou onTokensRefreshed (un refresh
+      // en cours de session) l'a écrasé sur le précédent. Le rejouer avec ce
+      // token échoue en 403 (select-pharmacy-context exige kind:"pro" côté
+      // back, cf. ProClaims) : l'app restait bloquée sur /login à chaque
+      // réouverture malgré une session valide. On restaure directement dans
+      // ce cas (/v1/me redérive pharmacy_memberships depuis les claims du
+      // token pharma lui-même, cf. #3853 — pas besoin de re-sélectionner).
+      if (_tokenKind(token) == 'pharma') {
+        final membershipsResult = await _memberships();
+        membershipsResult.fold(
+          (failure) => emit(const AuthUnauthenticated()),
+          (memberships) {
+            if (memberships.isEmpty) {
+              emit(const AuthUnauthenticated());
+              return;
+            }
+            emit(
+              AuthAuthenticated(
+                AuthSession(
+                  kind: UserKind.pro,
+                  userId: 'me',
+                  role: proRoleFromString(memberships.first.role),
+                  contextLabel: PharmaConfig.spaceLabel,
+                ),
+              ),
+            );
+          },
+        );
+        return;
+      }
+      // Token encore kind:"pro" (premier restore après un login) : sélection
+      // normale du contexte pharmacie.
       await _enterPharmacyContext(silent: true);
     } catch (_) {
       emit(const AuthUnauthenticated());
+    }
+  }
+
+  /// Lit `kind` dans le payload du JWT sans vérifier la signature — sert
+  /// uniquement à choisir la branche de restauration locale, jamais une
+  /// décision de sécurité (le back authentifie réellement chaque appel).
+  String? _tokenKind(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      ) as Map<String, dynamic>;
+      return payload['kind'] as String?;
+    } catch (_) {
+      return null;
     }
   }
 
