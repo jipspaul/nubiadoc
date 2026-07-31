@@ -366,4 +366,64 @@ void main() {
       expect(find.text('Bonjour docteur, une question'), findsOneWidget);
     });
   });
+
+  // #4545 — le thread s'ouvrait sur le tout premier message (historique),
+  // sans scroll auto vers le plus récent : `reverse: true` sur la ListView
+  // ancre systématiquement la vue sur le dernier message.
+  group('MessagingPage — ordre d\'affichage du thread (#4545)', () {
+    testWidgets(
+        'le dernier message (le plus récent) est rendu en dernier dans '
+        'l\'arbre — position visuelle du bas avec reverse:true',
+        (tester) async {
+      final older = Message(
+        id: 'msg-old',
+        conversationId: 'conv-1',
+        sender: MessageSender.cabinet,
+        text: 'Message le plus ancien',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 1, 9, 0),
+      );
+      final newer = Message(
+        id: 'msg-new',
+        conversationId: 'conv-1',
+        sender: MessageSender.patient,
+        text: 'Message le plus récent',
+        urgency: MessageUrgency.normal,
+        sentAt: DateTime(2026, 6, 18, 11, 0),
+      );
+      // Ordre ASC renvoyé par le back (created_at ASC) : ancien -> récent.
+      when(() => mockGetMessages(any()))
+          .thenAnswer((_) async => Right([older, newer]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final list = tester
+          .widget<ListView>(find.byKey(const Key('messaging_thread_messages')));
+      expect(list.reverse, isTrue);
+
+      final oldOffset =
+          tester.getCenter(find.text('Message le plus ancien')).dy;
+      final newOffset =
+          tester.getCenter(find.text('Message le plus récent')).dy;
+      expect(newOffset, greaterThan(oldOffset));
+    });
+  });
 }

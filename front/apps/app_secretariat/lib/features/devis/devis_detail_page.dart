@@ -30,9 +30,34 @@ class _DevisDetailPageState extends State<DevisDetailPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Détail devis')),
-      body: BlocBuilder<DevisBloc, DevisState>(
+      body: BlocConsumer<DevisBloc, DevisState>(
+        listenWhen: (previous, current) => current is DevisSendFailure,
+        listener: (context, state) {
+          if (state is DevisSendFailure) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  key: const Key('devis_send_error_snackbar'),
+                  content: Text(
+                    state.message.isEmpty ? 'Envoi impossible.' : state.message,
+                  ),
+                ),
+              );
+          }
+        },
         builder: (context, state) {
           if (state is DevisDetailLoaded) {
+            return _DevisDetailBody(quote: state.quote);
+          }
+          if (state is DevisSendInProgress) {
+            return _DevisDetailBody(quote: state.quote, sending: true);
+          }
+          // Échec d'envoi : on reste sur le détail pour permettre un nouvel essai.
+          if (state is DevisSendFailure) {
+            return _DevisDetailBody(quote: state.quote);
+          }
+          if (state is DevisSent) {
             return _DevisDetailBody(quote: state.quote);
           }
           if (state is DevisDetailError) {
@@ -51,9 +76,10 @@ class _DevisDetailPageState extends State<DevisDetailPage> {
 }
 
 class _DevisDetailBody extends StatelessWidget {
-  const _DevisDetailBody({required this.quote});
+  const _DevisDetailBody({required this.quote, this.sending = false});
 
   final CabinetQuote quote;
+  final bool sending;
 
   String _statusLabel(CabinetQuoteStatus status) {
     switch (status) {
@@ -110,6 +136,22 @@ class _DevisDetailBody extends StatelessWidget {
             variant: _statusVariant(quote.status),
           ),
         ),
+        // #4537 : brouillon consultable sans action = cul-de-sac pour la
+        // secrétaire. Le back autorise déjà secretary+ à envoyer.
+        if (quote.status == CabinetQuoteStatus.draft) ...[
+          const SizedBox(height: 16),
+          NubiaButton(
+            key: const Key('btn_send_devis_secretariat'),
+            label: 'Envoyer au patient',
+            icon: Icons.send_outlined,
+            size: NubiaButtonSize.lg,
+            isLoading: sending,
+            onPressed: sending
+                ? null
+                : () =>
+                    context.read<DevisBloc>().add(DevisSendRequested(quote.id)),
+          ),
+        ],
         if (hasDates) ...[
           const SizedBox(height: 16),
           NubiaCard(

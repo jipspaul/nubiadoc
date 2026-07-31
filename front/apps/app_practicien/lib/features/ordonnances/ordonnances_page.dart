@@ -214,6 +214,9 @@ class _InitialView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // #4541 : sans patientId (arrivée directe par l'onglet nav), l'écran
+    // n'offrait ni bouton ni moyen d'avancer — cul-de-sac. On redirige vers
+    // la liste des patients plutôt que de laisser un message sec.
     return NubiaEmptyState(
       key: const Key('ordonnances_initial'),
       icon: Icons.medication_outlined,
@@ -222,7 +225,12 @@ class _InitialView extends StatelessWidget {
           ? 'Ouvrez une fiche patient pour créer une ordonnance.'
           : null,
       action: patientId == null
-          ? null
+          ? NubiaButton(
+              key: const Key('ordonnances_initial_go_to_patients'),
+              label: 'Choisir un patient',
+              icon: Icons.people_outline,
+              onPressed: () => context.push('/patients'),
+            )
           : NubiaButton(
               key: const Key('create_ordonnance_button'),
               label: 'Nouvelle ordonnance',

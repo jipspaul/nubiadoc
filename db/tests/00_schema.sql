@@ -156,14 +156,70 @@ SELECT is(
 
 -- ----- Clés étrangères clés -----
 SELECT fk_ok('patient', 'cabinet_id', 'cabinet', 'id');
-SELECT fk_ok('appointment', 'practitioner_id', 'practitioner', 'id');
-SELECT fk_ok('quote_item', 'quote_id', 'quote', 'id');
+-- FK composite tenant-scopée depuis 0213 (#4291) : quote_item(quote_id, cabinet_id)
+-- -> quote(id, cabinet_id), cf. tests/88_quote_signature_composite_fk.sql.
+SELECT fk_ok('quote_item', ARRAY['quote_id', 'cabinet_id'], 'quote', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('patient', 'patient_account_id', 'patient_account', 'id');  -- lien plateforme (0009)
 SELECT fk_ok('patient_account', 'app_user_id', 'app_user', 'id');        -- FK + CASCADE (0015, #178)
 SELECT col_not_null('patient_account', 'app_user_id', 'patient_account.app_user_id NOT NULL (0015)');
 -- FK composite tenant-scopée depuis 0200 (#4291) : quote_item(phase_id, cabinet_id)
 -- -> treatment_phase(id, cabinet_id), cf. tests/84_treatment_plan_phase_composite_fk.sql.
 SELECT fk_ok('quote_item', ARRAY['phase_id', 'cabinet_id'], 'treatment_phase', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0210 (#4291) : pharmacy_order(document_id/
+-- prescription_id, cabinet_id) -> document/prescription(id, cabinet_id) —
+-- cas le plus urgent de l'audit (vecteur de fuite documentaire clinique via
+-- document_pharmacy_read). consent_record_id est composite sur
+-- patient_account_id (consent_record n'a pas cabinet_id, plateforme depuis
+-- 0017) : le risque analogue ici est cross-patient, pas cross-cabinet.
+-- Cf. tests/85_pharmacy_order_composite_fk.sql.
+SELECT fk_ok('pharmacy_order', ARRAY['document_id', 'cabinet_id'], 'document', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('pharmacy_order', ARRAY['prescription_id', 'cabinet_id'], 'prescription', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('pharmacy_order', ARRAY['consent_record_id', 'patient_account_id'], 'consent_record', ARRAY['id', 'patient_account_id']);
+-- FK composite tenant-scopée depuis 0212 (#4291) : groupe "patient" — 19
+-- tables enfants <table>.patient_id -> patient(id, cabinet_id).
+-- Cf. tests/87_patient_children_composite_fk.sql (échantillon comportemental).
+SELECT fk_ok('medical_record', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('clinical_note', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('dental_chart', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('document', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('appointment', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('waiting_list_entry', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('conversation', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('treatment_plan', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('prescription', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_act', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('implant_passport', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('reminder', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('patient_tag', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('periodontal_chart', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('dental_chart_history', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('orthodontic_treatment', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0214 (#4291) : groupe "practitioner" (parent),
+-- cf. tests/89_practitioner_children_composite_fk.sql.
+SELECT fk_ok('appointment', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('treatment_plan', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('prescription', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_act', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_clinique', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('prescription_template', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('practitioner_favorite_act', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0215 (#4291) : groupe "appointment" (parent),
+-- cf. tests/90_appointment_children_composite_fk.sql.
+SELECT fk_ok('checkin_event', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_act', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('reminder', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_clinique', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0216 (#4291) : conversation/secretariat/provider,
+-- cf. tests/91_conversation_secretariat_provider_composite_fk.sql.
+SELECT fk_ok('message', ARRAY['conversation_id', 'cabinet_id'], 'conversation', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('secretariat_membership', ARRAY['secretariat_id', 'cabinet_id'], 'secretariat', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('provider_verification', ARRAY['provider_id', 'cabinet_id'], 'provider', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0211 (#4291) : prescription(consultation_id,
+-- cabinet_id) -> consultation_session(id, cabinet_id) et orthodontic_treatment
+-- (treatment_plan_id, cabinet_id) -> treatment_plan(id, cabinet_id).
+-- Cf. tests/86_prescription_orthodontic_composite_fk.sql.
+SELECT fk_ok('prescription', ARRAY['consultation_id', 'cabinet_id'], 'consultation_session', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('orthodontic_treatment', ARRAY['treatment_plan_id', 'cabinet_id'], 'treatment_plan', ARRAY['id', 'cabinet_id']);
 
 -- ----- Lien clinique <-> compte plateforme & couverture (0010) -----
 SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regime_obligatoire (couverture)');
