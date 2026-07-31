@@ -214,6 +214,12 @@ SELECT fk_ok('consultation_clinique', ARRAY['appointment_id', 'cabinet_id'], 'ap
 SELECT fk_ok('message', ARRAY['conversation_id', 'cabinet_id'], 'conversation', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('secretariat_membership', ARRAY['secretariat_id', 'cabinet_id'], 'secretariat', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('provider_verification', ARRAY['provider_id', 'cabinet_id'], 'provider', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0211 (#4291) : prescription(consultation_id,
+-- cabinet_id) -> consultation_session(id, cabinet_id) et orthodontic_treatment
+-- (treatment_plan_id, cabinet_id) -> treatment_plan(id, cabinet_id).
+-- Cf. tests/86_prescription_orthodontic_composite_fk.sql.
+SELECT fk_ok('prescription', ARRAY['consultation_id', 'cabinet_id'], 'consultation_session', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('orthodontic_treatment', ARRAY['treatment_plan_id', 'cabinet_id'], 'treatment_plan', ARRAY['id', 'cabinet_id']);
 
 -- ----- Lien clinique <-> compte plateforme & couverture (0010) -----
 SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regime_obligatoire (couverture)');
