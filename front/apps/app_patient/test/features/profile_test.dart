@@ -19,6 +19,8 @@ import 'package:app_patient/session/auth_cubit.dart';
 
 class MockGetAccountUseCase extends Mock implements GetAccountUseCase {}
 
+class MockUpdateAccountUseCase extends Mock implements UpdateAccountUseCase {}
+
 class MockUserSettingsRepository extends Mock
     implements UserSettingsRepository {}
 
@@ -53,10 +55,12 @@ Widget _wrap(ProfileBloc bloc) => MaterialApp(
 ProfileBloc _makeBloc(
   MockGetAccountUseCase getAccount,
   MockUserSettingsRepository userSettings,
-  MockNotificationRepository notifRepo,
-) =>
+  MockNotificationRepository notifRepo, [
+  MockUpdateAccountUseCase? updateAccount,
+]) =>
     ProfileBloc(
         getAccount: getAccount,
+        updateAccount: updateAccount ?? MockUpdateAccountUseCase(),
         userSettings: userSettings,
         notificationRepo: notifRepo);
 
@@ -109,6 +113,78 @@ void main() {
       expect(find.byKey(const Key('profile_content')), findsOneWidget);
       expect(find.text('Marie Curie'), findsOneWidget);
       expect(find.text('marie@example.com'), findsAtLeastNWidgets(1));
+    });
+
+    testWidgets(
+        'Informations personnelles : email en texte simple (#4544 — '
+        'non modifiable, plus de faux champ de saisie désactivé)',
+        (tester) async {
+      when(() => mockGetAccount())
+          .thenAnswer((_) async => const Right(_account));
+
+      final bloc = _makeBloc(mockGetAccount, mockUserSettings, mockNotifRepo);
+      bloc.add(const ProfileLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('profile_email_value')), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('profile_email_value'))).data,
+        'marie@example.com',
+      );
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('profile_email_value')),
+          matching: find.byType(TextField),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'Informations personnelles : tap crayon téléphone → dialog pré-rempli '
+        '→ Enregistrer → PhoneUpdateRequested dispatché (#4544)',
+        (tester) async {
+      when(() => mockGetAccount())
+          .thenAnswer((_) async => const Right(_account));
+      final mockUpdateAccount = MockUpdateAccountUseCase();
+      when(() => mockUpdateAccount(phone: any(named: 'phone'))).thenAnswer(
+        (_) async => const Right(PatientAccount(
+          id: 'acc-1',
+          firstName: 'Marie',
+          lastName: 'Curie',
+          email: 'marie@example.com',
+          phone: '+33698765432',
+        )),
+      );
+
+      final bloc = _makeBloc(
+          mockGetAccount, mockUserSettings, mockNotifRepo, mockUpdateAccount);
+      bloc.add(const ProfileLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.text('0601020304'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('edit_phone_button')));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('edit_phone_field')),
+      );
+      expect(field.controller?.text, '0601020304');
+
+      await tester.enterText(
+        find.byKey(const Key('edit_phone_field')),
+        '+33698765432',
+      );
+      await tester.tap(find.byKey(const Key('save_phone_button')));
+      await tester.pumpAndSettle();
+
+      verify(() => mockUpdateAccount(phone: '+33698765432')).called(1);
+      expect(find.text('+33698765432'), findsOneWidget);
     });
 
     testWidgets('expose un accès visible aux devis & paiements (#3351)',
@@ -252,6 +328,63 @@ void main() {
             (s) => s.previousState.notifPrefs?.pushEnabled,
             'previousState.pushEnabled',
             true),
+      ],
+    );
+
+    blocTest<ProfileBloc, ProfileState>(
+      'PhoneUpdateRequested : émet [Loaded(phoneUpdating), Loaded(compte à '
+      'jour)] quand updateAccount réussit (#4544)',
+      build: () {
+        final mockUpdateAccount = MockUpdateAccountUseCase();
+        when(() => mockUpdateAccount(phone: '+33698765432')).thenAnswer(
+          (_) async => const Right(PatientAccount(
+            id: 'acc-1',
+            firstName: 'Marie',
+            lastName: 'Curie',
+            email: 'marie@example.com',
+            phone: '+33698765432',
+          )),
+        );
+        return _makeBloc(
+            mockGetAccount, mockUserSettings, mockNotifRepo, mockUpdateAccount);
+      },
+      seed: () => const ProfileLoaded(_account,
+          biometricEnabled: false, notifPrefs: _prefs),
+      act: (bloc) => bloc.add(const PhoneUpdateRequested('+33698765432')),
+      expect: () => [
+        isA<ProfileLoaded>()
+            .having((s) => s.phoneUpdating, 'phoneUpdating', true),
+        isA<ProfileLoaded>()
+            .having((s) => s.account.phone, 'account.phone', '+33698765432')
+            .having((s) => s.phoneUpdating, 'phoneUpdating', false),
+      ],
+    );
+
+    blocTest<ProfileBloc, ProfileState>(
+      'PhoneUpdateRequested : émet [Loaded(phoneUpdating), ToggleFailed] '
+      'quand updateAccount échoue — le téléphone précédent est conservé '
+      '(#4544)',
+      build: () {
+        final mockUpdateAccount = MockUpdateAccountUseCase();
+        when(() => mockUpdateAccount(phone: 'invalide')).thenAnswer(
+          (_) async => const Left(ValidationFailure(
+            message: 'Numéro de téléphone invalide.',
+          )),
+        );
+        return _makeBloc(
+            mockGetAccount, mockUserSettings, mockNotifRepo, mockUpdateAccount);
+      },
+      seed: () => const ProfileLoaded(_account,
+          biometricEnabled: false, notifPrefs: _prefs),
+      act: (bloc) => bloc.add(const PhoneUpdateRequested('invalide')),
+      expect: () => [
+        isA<ProfileLoaded>()
+            .having((s) => s.phoneUpdating, 'phoneUpdating', true),
+        isA<ProfileToggleFailed>()
+            .having((s) => s.previousState.account.phone,
+                'previousState.account.phone', '0601020304')
+            .having(
+                (s) => s.message, 'message', 'Numéro de téléphone invalide.'),
       ],
     );
   });

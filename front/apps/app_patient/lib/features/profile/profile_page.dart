@@ -53,6 +53,7 @@ class ProfilePage extends StatelessWidget {
             biometricEnabled: state.biometricEnabled,
             emailRdv: state.notifPrefs?.emailEnabled ?? true,
             pushRdv: state.notifPrefs?.pushEnabled ?? true,
+            phoneUpdating: state.phoneUpdating,
           );
         }
         if (state is ProfileToggleFailed) {
@@ -61,6 +62,7 @@ class ProfilePage extends StatelessWidget {
             biometricEnabled: state.previousState.biometricEnabled,
             emailRdv: state.previousState.notifPrefs?.emailEnabled ?? true,
             pushRdv: state.previousState.notifPrefs?.pushEnabled ?? true,
+            phoneUpdating: false,
           );
         }
         return const SizedBox.shrink();
@@ -77,12 +79,14 @@ class _ProfileContent extends StatelessWidget {
     required this.biometricEnabled,
     required this.emailRdv,
     required this.pushRdv,
+    required this.phoneUpdating,
   });
 
   final PatientAccount account;
   final bool biometricEnabled;
   final bool emailRdv;
   final bool pushRdv;
+  final bool phoneUpdating;
 
   @override
   Widget build(BuildContext context) {
@@ -97,11 +101,9 @@ class _ProfileContent extends StatelessWidget {
         NubiaCard(
           child: Column(
             children: [
-              _ReadOnlyField(label: 'Email', value: account.email),
-              if (account.phone != null && account.phone!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _ReadOnlyField(label: 'Téléphone', value: account.phone!),
-              ],
+              _InfoRow(label: 'Email', value: account.email),
+              const SizedBox(height: 12),
+              _PhoneRow(phone: account.phone, updating: phoneUpdating),
             ],
           ),
         ),
@@ -295,42 +297,118 @@ class _ProfileHeaderCard extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-/// Champ en lecture seule (NubiaTextField désactivé) pour afficher une donnée
-/// du compte. Gère son propre contrôleur.
-class _ReadOnlyField extends StatefulWidget {
-  const _ReadOnlyField({required this.label, required this.value});
+/// #4544 : l'email n'est jamais modifiable via `PATCH /v1/account` (422 si
+/// présent dans le corps — modifiable uniquement via le flow de connexion).
+/// Un champ de saisie désactivé pour une valeur définitivement figée est
+/// trompeur (ressemble à un formulaire cassé) : simple affichage texte.
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
-  State<_ReadOnlyField> createState() => _ReadOnlyFieldState();
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+        const SizedBox(height: 2),
+        Text(value,
+            key: const Key('profile_email_value'), style: textTheme.bodyLarge),
+      ],
+    );
+  }
 }
 
-class _ReadOnlyFieldState extends State<_ReadOnlyField> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.value);
+/// #4544 : le téléphone, contrairement à l'email, EST modifiable côté back
+/// (`PATCH /v1/account` accepte `phone`) — l'écran n'offrait pourtant aucun
+/// moyen de le faire. Affichage + bouton crayon ouvrant un dialog d'édition.
+class _PhoneRow extends StatelessWidget {
+  const _PhoneRow({required this.phone, required this.updating});
 
-  @override
-  void didUpdateWidget(covariant _ReadOnlyField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value) {
-      _controller.text = widget.value;
+  final String? phone;
+  final bool updating;
+
+  Future<void> _edit(BuildContext context) async {
+    final bloc = context.read<ProfileBloc>();
+    final controller = TextEditingController(text: phone ?? '');
+    final newPhone = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Modifier le téléphone'),
+        content: TextField(
+          key: const Key('edit_phone_field'),
+          controller: controller,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            hintText: '+33612345678',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            key: const Key('cancel_phone_edit_button'),
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            key: const Key('save_phone_button'),
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    if (newPhone != null && newPhone.isNotEmpty && newPhone != phone) {
+      bloc.add(PhoneUpdateRequested(newPhone));
     }
   }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return NubiaTextField(
-      controller: _controller,
-      label: widget.label,
-      enabled: false,
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Téléphone',
+                  style: textTheme.labelSmall
+                      ?.copyWith(color: cs.onSurfaceVariant)),
+              const SizedBox(height: 2),
+              Text(
+                phone != null && phone!.isNotEmpty ? phone! : 'Non renseigné',
+                key: const Key('profile_phone_value'),
+                style: textTheme.bodyLarge,
+              ),
+            ],
+          ),
+        ),
+        if (updating)
+          const Padding(
+            padding: EdgeInsets.all(8),
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else
+          IconButton(
+            key: const Key('edit_phone_button'),
+            tooltip: 'Modifier le téléphone',
+            icon: const Icon(Icons.edit_outlined, size: 20),
+            onPressed: () => _edit(context),
+          ),
+      ],
     );
   }
 }
