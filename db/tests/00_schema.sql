@@ -156,7 +156,6 @@ SELECT is(
 
 -- ----- Clés étrangères clés -----
 SELECT fk_ok('patient', 'cabinet_id', 'cabinet', 'id');
-SELECT fk_ok('appointment', 'practitioner_id', 'practitioner', 'id');
 -- FK composite tenant-scopée depuis 0213 (#4291) : quote_item(quote_id, cabinet_id)
 -- -> quote(id, cabinet_id), cf. tests/88_quote_signature_composite_fk.sql.
 SELECT fk_ok('quote_item', ARRAY['quote_id', 'cabinet_id'], 'quote', ARRAY['id', 'cabinet_id']);
@@ -195,6 +194,15 @@ SELECT fk_ok('patient_tag', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY[
 SELECT fk_ok('periodontal_chart', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('dental_chart_history', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('orthodontic_treatment', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0214 (#4291) : groupe "practitioner" (parent),
+-- cf. tests/89_practitioner_children_composite_fk.sql.
+SELECT fk_ok('appointment', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('treatment_plan', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('prescription', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_act', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_clinique', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('prescription_template', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('practitioner_favorite_act', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
 
 -- ----- Lien clinique <-> compte plateforme & couverture (0010) -----
 SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regime_obligatoire (couverture)');
