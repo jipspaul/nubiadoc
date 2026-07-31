@@ -67,8 +67,10 @@ SELECT col_is_null('implant_passport', 'deleted_at',
 -- ===========================================================================
 SELECT fk_ok('implant_passport', 'cabinet_id', 'cabinet', 'id',
     'implant_passport.cabinet_id FK → cabinet.id');
-SELECT fk_ok('implant_passport', 'patient_id', 'patient', 'id',
-    'implant_passport.patient_id FK → patient.id');
+-- FK composite tenant-scopée depuis 0212 (#4291) : implant_passport(patient_id,
+-- cabinet_id) -> patient(id, cabinet_id), cf. tests/87_patient_children_composite_fk.sql.
+SELECT fk_ok('implant_passport', ARRAY['patient_id', 'cabinet_id'], 'patient', ARRAY['id', 'cabinet_id'],
+    'implant_passport.patient_id FK composite → patient(id, cabinet_id)');
 
 -- ===========================================================================
 -- 3. RLS : activation + FORCE
