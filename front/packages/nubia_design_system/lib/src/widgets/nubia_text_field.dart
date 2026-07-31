@@ -37,6 +37,10 @@ enum NubiaTextFieldVariant {
 /// - [errorText] : message d'erreur affiché sous le champ.
 /// - [suffixWidget] : widget affiché à droite (variant `withSuffix` uniquement).
 /// - [onChanged] : callback de changement de valeur.
+/// - [onSubmitted] : callback à la validation clavier (Entrée en mono-ligne,
+///   #4538 — un chat/composer doit pouvoir se soumettre ainsi, réflexe
+///   universel). `null` par défaut : aucun changement de comportement pour
+///   les champs existants qui ne le renseignent pas.
 class NubiaTextField extends StatefulWidget {
   const NubiaTextField({
     super.key,
@@ -47,6 +51,7 @@ class NubiaTextField extends StatefulWidget {
     this.errorText,
     this.suffixWidget,
     this.onChanged,
+    this.onSubmitted,
     this.maxLines,
     this.enabled = true,
   });
@@ -58,6 +63,7 @@ class NubiaTextField extends StatefulWidget {
   final String? errorText;
   final Widget? suffixWidget;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final int? maxLines;
   final bool enabled;
 
@@ -113,6 +119,13 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
     return TextField(
       controller: widget.controller,
       onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
+      // Entrée envoie (au lieu d'ajouter une ligne) uniquement quand
+      // [onSubmitted] est fourni — un textarea multiligne sans callback de
+      // soumission garde son comportement Entrée = saut de ligne.
+      textInputAction: widget.onSubmitted != null
+          ? TextInputAction.send
+          : null,
       obscureText: obscureText,
       maxLines: obscureText ? 1 : (maxLines ?? 1),
       enabled: widget.enabled,
