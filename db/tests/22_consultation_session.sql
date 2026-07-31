@@ -73,8 +73,10 @@ SELECT fk_ok('consultation_session', 'cabinet_id', 'cabinet', 'id',
     'consultation_session.cabinet_id FK → cabinet.id');
 SELECT fk_ok('consultation_session', 'appointment_id', 'appointment', 'id',
     'consultation_session.appointment_id FK → appointment.id');
-SELECT fk_ok('consultation_session', 'practitioner_id', 'practitioner', 'id',
-    'consultation_session.practitioner_id FK → practitioner.id');
+-- FK composite tenant-scopée depuis 0214 (#4291).
+SELECT fk_ok('consultation_session', ARRAY['practitioner_id', 'cabinet_id'],
+    'practitioner', ARRAY['id', 'cabinet_id'],
+    'consultation_session.practitioner_id FK composite → practitioner(id, cabinet_id)');
 
 -- ===========================================================================
 -- 3. RLS : activation + FORCE
