@@ -158,6 +158,7 @@ void registerPatient(GetIt gi) {
   gi.registerFactory<ProfileBloc>(
     () => ProfileBloc(
       getAccount: gi<GetAccountUseCase>(),
+      updateAccount: gi<UpdateAccountUseCase>(),
       userSettings: gi<UserSettingsRepository>(),
       notificationRepo: gi<NotificationRepository>(),
     ),
