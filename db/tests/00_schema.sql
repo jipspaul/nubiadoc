@@ -203,6 +203,12 @@ SELECT fk_ok('consultation_act', ARRAY['practitioner_id', 'cabinet_id'], 'practi
 SELECT fk_ok('consultation_clinique', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('prescription_template', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
 SELECT fk_ok('practitioner_favorite_act', ARRAY['practitioner_id', 'cabinet_id'], 'practitioner', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0215 (#4291) : groupe "appointment" (parent),
+-- cf. tests/90_appointment_children_composite_fk.sql.
+SELECT fk_ok('checkin_event', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_act', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('reminder', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('consultation_clinique', ARRAY['appointment_id', 'cabinet_id'], 'appointment', ARRAY['id', 'cabinet_id']);
 
 -- ----- Lien clinique <-> compte plateforme & couverture (0010) -----
 SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regime_obligatoire (couverture)');
