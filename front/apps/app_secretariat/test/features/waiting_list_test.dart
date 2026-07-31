@@ -148,6 +148,30 @@ void main() {
         WaitingListLoaded(entries),
       ],
     );
+
+    // #4536 : un échec de « Combler » (ex. 409 slot_unavailable) ne doit
+    // JAMAIS remplacer la liste déjà affichée par l'état d'erreur plein
+    // écran — seul un feedback ponctuel doit apparaître, la liste reste.
+    blocTest<WaitingListBloc, WaitingListState>(
+      'échec de Combler garde les entrées affichées (pas de WaitingListError)',
+      build: () {
+        when(() => repo.list()).thenAnswer((_) async => Right(entries));
+        when(() => repo.offerSlot('w1')).thenAnswer(
+          (_) async => const Left(
+            ValidationFailure(message: 'Aucun créneau disponible.'),
+          ),
+        );
+        return WaitingListBloc(
+          listWaitingList: listUseCase,
+          offerSlot: offerSlotUseCase,
+        );
+      },
+      seed: () => WaitingListLoaded(entries),
+      act: (bloc) => bloc.add(const WaitingListOfferSlotRequested('w1')),
+      expect: () => [
+        WaitingListOfferError('Aucun créneau disponible.', entries),
+      ],
+    );
   });
 
   // --- WaitingListPage widget test ---------------------------------------------

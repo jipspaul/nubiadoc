@@ -40,17 +40,23 @@ class WaitingListBloc extends Bloc<WaitingListEvent, WaitingListState>
     WaitingListOfferSlotRequested event,
     Emitter<WaitingListState> emit,
   ) async {
+    // #4536 : un échec de « Combler » ne doit jamais remplacer toute la
+    // liste par l'état d'erreur plein écran (réservé à l'échec du
+    // CHARGEMENT) — on garde les entrées déjà affichées.
+    final currentEntries =
+        state is WaitingListLoaded ? (state as WaitingListLoaded).entries : const <WaitingListEntry>[];
     try {
       final result = await _offerSlot(event.id);
       await result.fold(
-        (failure) async => safeEmit(WaitingListError(failure.message)),
+        (failure) async =>
+            safeEmit(WaitingListOfferError(failure.message, currentEntries)),
         (_) async {
           safeEmit(const WaitingListOfferSuccess());
           await _onLoad(const WaitingListLoadRequested(), emit);
         },
       );
     } catch (_) {
-      safeEmit(const WaitingListError('Erreur inattendue.'));
+      safeEmit(WaitingListOfferError('Erreur inattendue.', currentEntries));
     }
   }
 }
