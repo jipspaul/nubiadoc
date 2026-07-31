@@ -54,8 +54,12 @@ class ModifyRdvBloc extends Bloc<ModifyRdvEvent, ModifyRdvState>
       );
       slotsResult.fold(
         (failure) => safeEmit(ModifyRdvError(failure.message)),
-        (slots) =>
-            safeEmit(ModifyRdvLoaded(appointment: appointment, slots: slots)),
+        (slots) => safeEmit(
+          ModifyRdvLoaded(
+            appointment: appointment,
+            slots: _withReschedulePreavis(slots),
+          ),
+        ),
       );
     } catch (_) {
       safeEmit(const ModifyRdvError('Erreur de chargement.'));
@@ -101,5 +105,28 @@ class ModifyRdvBloc extends Bloc<ModifyRdvEvent, ModifyRdvState>
         ),
       );
     }
+  }
+
+  /// #4532 : le back rejette (409 `too_late`) tout déplacement vers un
+  /// créneau à moins de 24 h — mais la recherche de créneaux (partagée avec
+  /// la prise de RDV, préavis 2 h) ne le sait pas et les affiche
+  /// sélectionnables. On les grise ici pour ne jamais proposer un créneau
+  /// que la confirmation va ensuite refuser.
+  List<Slot> _withReschedulePreavis(List<Slot> slots) {
+    final cutoff = DateTime.now().add(const Duration(hours: 24));
+    return [
+      for (final slot in slots)
+        if (slot.startsAt.isBefore(cutoff))
+          Slot(
+            id: slot.id,
+            cabinetId: slot.cabinetId,
+            practitionerId: slot.practitionerId,
+            startsAt: slot.startsAt,
+            endsAt: slot.endsAt,
+            isAvailable: false,
+          )
+        else
+          slot,
+    ];
   }
 }

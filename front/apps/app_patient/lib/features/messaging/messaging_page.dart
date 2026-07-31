@@ -264,7 +264,12 @@ class _ThreadViewState extends State<_ThreadView> {
             ),
           ),
         ),
-        // Messages list
+        // Messages list — #4545 : `reverse: true` + index inversé plutôt
+        // qu'un ScrollController piloté manuellement. La conversation
+        // s'ouvre ainsi directement sur le dernier message (au lieu du
+        // tout premier, historique), et reste ancrée en bas à chaque
+        // nouveau message (envoyé ou reçu) sans code de scroll dédié — même
+        // mécanisme que les listes de chat usuelles (WhatsApp, Slack…).
         Expanded(
           child: state.messages.isEmpty
               ? const Center(
@@ -273,10 +278,12 @@ class _ThreadViewState extends State<_ThreadView> {
                 )
               : ListView.builder(
                   key: const Key('messaging_thread_messages'),
+                  reverse: true,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: state.messages.length,
-                  itemBuilder: (context, i) =>
-                      _MessageBubble(message: state.messages[i]),
+                  itemBuilder: (context, i) => _MessageBubble(
+                    message: state.messages[state.messages.length - 1 - i],
+                  ),
                 ),
         ),
         // Input bar

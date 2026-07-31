@@ -1,10 +1,10 @@
 //! `/v1/interop/fhir/Appointment` — lecture/écriture FHIR des rendez-vous (lot A6).
 //!
-//! ## Chemin volontairement séparé de `appointments.rs`/`scheduling.rs`
+//! ## Chemin volontairement séparé de `appointments_create.rs`/`scheduling.rs`
 //!
-//! Ce module N'appelle PAS `appointments::create_appointment` (patient) ni
+//! Ce module N'appelle PAS `appointments_create::create_appointment` (patient) ni
 //! `scheduling::create_cabinet_appointment` (secrétariat), et ne modifie ni
-//! `api/src/appointments.rs` ni `api/src/scheduling.rs`. Le plan d'archi
+//! `api/src/appointments_*.rs` ni `api/src/scheduling.rs`. Le plan d'archi
 //! d'origine prévoyait d'extraire la logique de création en un service
 //! partagé — décision volontairement reportée : ce code est en production
 //! (garde tutelle, idempotence, anti-double-booking) sur du trafic patient
@@ -120,7 +120,7 @@ fn internal_from_tenancy(_: TenancyError) -> FhirError {
 /// Détecte la violation de la contrainte d'exclusion `appointment_no_overlap`
 /// (SQLSTATE `23P01`, Postgres `exclusion_violation`).
 ///
-/// Copie volontaire de `appointments::is_exclusion_violation` — pas d'import
+/// Copie volontaire de `appointments_response::is_exclusion_violation` — pas d'import
 /// d'une fonction privée d'un autre module (cf. commentaire de module
 /// ci-dessus sur la duplication assumée).
 fn is_exclusion_violation(e: &sqlx::Error) -> bool {
@@ -594,7 +594,7 @@ impl From<CreateAppointmentError> for FhirError {
 /// différence du flux patient où l'en-tête est optionnel) : un partenaire/SIH
 /// rejoue ses requêtes, on ne veut jamais absorber une resoumission sans
 /// protection anti-doublon explicite. Même convention que
-/// `appointments::create_appointment` : la clé est comparée à une empreinte
+/// `appointments_create::create_appointment` : la clé est comparée à une empreinte
 /// (patient+practitioner+start+end) — clé rejouée avec une charge différente
 /// → `409 conflict` plutôt qu'absorbée silencieusement.
 ///
