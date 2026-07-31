@@ -270,7 +270,7 @@ pub async fn get_organization(
 // ── Location ─────────────────────────────────────────────────────────────────
 
 /// Formate `establishment.address` (jsonb `{"rue":...,"cp":...,"ville":...}`,
-/// même forme que `appointments::format_establishment_address`) en `Address`
+/// même forme que `appointments_response::format_establishment_address`) en `Address`
 /// FHIR minimal. `None`/objet vide si aucun des trois champs n'est renseigné.
 fn location_address(address: &Value) -> Option<Value> {
     let line = address.get("rue").and_then(|v| v.as_str());
