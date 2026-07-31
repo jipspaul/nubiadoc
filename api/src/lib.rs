@@ -41,6 +41,7 @@ mod cabinet_document_download;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_payments_manual;
+mod cabinet_payouts;
 mod cabinet_quote_item_parts;
 mod cabinet_quotes;
 mod cabinet_quotes_export;

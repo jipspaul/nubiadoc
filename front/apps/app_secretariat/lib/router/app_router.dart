@@ -37,6 +37,9 @@ import '../features/waiting_list/waiting_list_page.dart';
 import '../features/cabinet_stats/cabinet_stats_bloc.dart';
 import '../features/cabinet_stats/cabinet_stats_event.dart';
 import '../features/cabinet_stats/cabinet_stats_page.dart';
+import '../features/cabinet_payouts/cabinet_payouts_bloc.dart';
+import '../features/cabinet_payouts/cabinet_payouts_event.dart';
+import '../features/cabinet_payouts/cabinet_payouts_page.dart';
 import '../features/audit_log/audit_log_bloc.dart';
 import '../features/audit_log/audit_log_event.dart';
 import '../features/audit_log/audit_log_page.dart';
@@ -55,6 +58,7 @@ class AppRouter {
   static const a2uiDemo = '/a2ui-demo';
   static const salleAttente = '/salle-attente';
   static const cabinetStats = '/cabinet-stats';
+  static const cabinetPayouts = '/cabinet-payouts';
   static const auditLog = '/audit-log';
 
   static const patients = '/patients';
@@ -133,6 +137,14 @@ class AppRouter {
             create: (_) => GetIt.instance<CabinetStatsBloc>()
               ..add(const CabinetStatsLoadRequested()),
             child: const CabinetStatsPage(),
+          ),
+        ),
+        GoRoute(
+          path: cabinetPayouts,
+          builder: (_, __) => BlocProvider(
+            create: (_) => GetIt.instance<CabinetPayoutsBloc>()
+              ..add(const CabinetPayoutsLoadRequested()),
+            child: const CabinetPayoutsPage(),
           ),
         ),
         GoRoute(
