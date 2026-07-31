@@ -164,6 +164,16 @@ SELECT col_not_null('patient_account', 'app_user_id', 'patient_account.app_user_
 -- FK composite tenant-scopée depuis 0200 (#4291) : quote_item(phase_id, cabinet_id)
 -- -> treatment_phase(id, cabinet_id), cf. tests/84_treatment_plan_phase_composite_fk.sql.
 SELECT fk_ok('quote_item', ARRAY['phase_id', 'cabinet_id'], 'treatment_phase', ARRAY['id', 'cabinet_id']);
+-- FK composite tenant-scopée depuis 0210 (#4291) : pharmacy_order(document_id/
+-- prescription_id, cabinet_id) -> document/prescription(id, cabinet_id) —
+-- cas le plus urgent de l'audit (vecteur de fuite documentaire clinique via
+-- document_pharmacy_read). consent_record_id est composite sur
+-- patient_account_id (consent_record n'a pas cabinet_id, plateforme depuis
+-- 0017) : le risque analogue ici est cross-patient, pas cross-cabinet.
+-- Cf. tests/85_pharmacy_order_composite_fk.sql.
+SELECT fk_ok('pharmacy_order', ARRAY['document_id', 'cabinet_id'], 'document', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('pharmacy_order', ARRAY['prescription_id', 'cabinet_id'], 'prescription', ARRAY['id', 'cabinet_id']);
+SELECT fk_ok('pharmacy_order', ARRAY['consent_record_id', 'patient_account_id'], 'consent_record', ARRAY['id', 'patient_account_id']);
 
 -- ----- Lien clinique <-> compte plateforme & couverture (0010) -----
 SELECT has_column('patient_account', 'regime_obligatoire', 'patient_account.regime_obligatoire (couverture)');
