@@ -191,6 +191,8 @@ class _Composer extends StatelessWidget {
                 enabled: enabled,
                 hint: 'Écrire un message à l\'équipe…',
                 onChanged: (_) {},
+                // #4538 : Entrée envoie (réflexe universel dans un chat).
+                onSubmitted: enabled ? (_) => onSend() : null,
               ),
             ),
             const SizedBox(width: 8),
