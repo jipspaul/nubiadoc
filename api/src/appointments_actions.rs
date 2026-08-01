@@ -42,7 +42,8 @@ pub struct PatchAppointmentBody {
 /// y compris un RDV de dépendant (tutelle, `app.current_account_id` — #4388).
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
-/// Hors délai (≥ 24 h avant starts_at courant) → `409 too_late`.
+/// Reprogrammation hors délai (≥ 24 h avant starts_at source ou destination) →
+/// `409 too_late` ; ne s'applique pas à un PATCH motif seul (#4574).
 /// Conflit créneau (contrainte PG `23P01`) → `409 slot_taken`.
 /// Audité (`update_appointment`) dans `audit_log`.
 pub async fn patch_appointment(
@@ -102,11 +103,6 @@ pub async fn patch_appointment(
         return Err(AppError::InvalidStatus);
     }
 
-    // Délai configurable, défaut 24 h avant le starts_at courant.
-    if chrono::Utc::now() >= starts_at - chrono::Duration::hours(24) {
-        return Err(AppError::TooLate);
-    }
-
     // Reprogrammation : le nouveau créneau doit être validé côté serveur, comme
     // la réservation initiale (POST /v1/bookings exige un availability_slot réel).
     // Sinon un patient pouvait déplacer son RDV vers une date passée ou une heure
@@ -116,6 +112,12 @@ pub async fn patch_appointment(
     // lisibles (policy availability_slot_patient_read, 0117 — aucun GUC requis).
     let mut new_slot_id: Option<Uuid> = None;
     if let Some(new_ts) = new_starts_at {
+        // Préavis 24 h sur la source, uniquement pour un vrai changement de
+        // créneau : un PATCH motif-seul (new_starts_at = None) ne déplace rien
+        // et ne concerne pas le préavis cabinet (#4574).
+        if chrono::Utc::now() >= starts_at - chrono::Duration::hours(24) {
+            return Err(AppError::TooLate);
+        }
         if new_ts <= chrono::Utc::now() {
             return Err(AppError::SlotUnavailable);
         }
