@@ -340,7 +340,16 @@ dependencies = [
 name = "core-crypto"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "reqwest",
+ "ring",
+ "serde",
+ "serde_json",
  "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "wiremock",
 ]
 
 [[package]]
