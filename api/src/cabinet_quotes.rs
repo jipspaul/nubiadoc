@@ -568,8 +568,6 @@ pub async fn get_cabinet_quote(
     let deposit_pct: Option<f64> = quote_row
         .try_get("deposit_pct")
         .map_err(|_| AppError::Internal)?;
-    let deposit_amount_cents =
-        deposit_pct.map(|pct| ((amount_cents as f64) * pct / 100.0).ceil() as i64);
 
     let mut items = Vec::with_capacity(item_rows.len());
     let mut patient_share_total: i64 = 0;
@@ -600,6 +598,13 @@ pub async fn get_cabinet_quote(
             panier_sante,
         });
     }
+
+    // Acompte dérivé de la part patient nette (après AMO/AMC), pas du total
+    // brut du devis — cohérent avec le plancher enforced sur `patient_share_cents`
+    // dans billing_payments.rs (sinon l'acompte affiché peut dépasser le
+    // reste-à-charge et devenir impayable en tiers-payant, #4583).
+    let deposit_amount_cents =
+        deposit_pct.map(|pct| ((patient_share_total as f64) * pct / 100.0).ceil() as i64);
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
