@@ -161,20 +161,27 @@ pub async fn create_appointment_series(
             return Err(AppError::SlotTaken);
         }
 
-        // #4577 : résout le créneau 'open' chevauché AVANT l'INSERT pour le
-        // lier via appointment.slot_id. Sans ce lien (slot_id NULL), les 3
-        // chemins de libération sur appointment.slot_id (no-show, annulation,
-        // reprogrammation — scheduling.rs) ne s'exécutent jamais : le
-        // créneau consommé ci-dessous reste 'booked' à vie après la sortie
-        // du RDV (créneau orphelin, jamais rendu à la disponibilité).
-        let slot_row = sqlx::query(
-            "SELECT id FROM availability_slot \
-             WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'open' \
-               AND deleted_at IS NULL \
-               AND tstzrange(starts_at, ends_at) && tstzrange($3, $4) \
-             ORDER BY starts_at \
-             LIMIT 1 \
-             FOR UPDATE",
+        // #4408 : contrairement à create_cabinet_appointment (scheduling.rs)
+        // et create_appointment (appointments.rs), la série ne consommait
+        // aucun availability_slot chevauché — un créneau 'open' publié
+        // restait visible dans /search/slots (créneau fantôme) alors que
+        // cette occurrence l'occupe déjà, menant à un 409 slot_taken à la
+        // réservation. Consomme le slot 'open' recouvert par l'occurrence,
+        // même logique que la vérification 'blocked' ci-dessus, et retient
+        // son id pour le poser sur l'appointment (#4576 : sans slot_id, les
+        // voies de libération — cancel/no-show/reprogrammation — ne
+        // retrouvent jamais ce créneau et il reste 'booked' à vie).
+        let consumed_slot_id: Option<Uuid> = sqlx::query_scalar(
+            "UPDATE availability_slot SET status = 'booked', updated_at = now() \
+             WHERE id = ( \
+                 SELECT id FROM availability_slot \
+                 WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'open' \
+                   AND deleted_at IS NULL \
+                   AND tstzrange(starts_at, ends_at) && tstzrange($3, $4) \
+                 LIMIT 1 \
+                 FOR UPDATE \
+             ) \
+             RETURNING id",
         )
         .bind(claims.cabinet_id)
         .bind(body.practitioner_id)
@@ -183,10 +190,6 @@ pub async fn create_appointment_series(
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
-        let slot_id: Option<Uuid> = match slot_row {
-            Some(r) => Some(r.try_get("id").map_err(|_| AppError::Internal)?),
-            None => None,
-        };
 
         let result = sqlx::query(
             "INSERT INTO appointment \
@@ -198,7 +201,7 @@ pub async fn create_appointment_series(
         .bind(claims.cabinet_id)
         .bind(body.patient_id)
         .bind(body.practitioner_id)
-        .bind(slot_id)
+        .bind(consumed_slot_id)
         .bind(occ.starts_at)
         .bind(occ.ends_at)
         .bind(body.motif.as_deref())
@@ -214,27 +217,6 @@ pub async fn create_appointment_series(
         };
 
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-
-        // #4408 : contrairement à create_cabinet_appointment (scheduling.rs)
-        // et create_appointment (appointments.rs), la série ne consommait
-        // aucun availability_slot chevauché — un créneau 'open' publié
-        // restait visible dans /search/slots (créneau fantôme) alors que
-        // cette occurrence l'occupe déjà, menant à un 409 slot_taken à la
-        // réservation. Consomme tout slot 'open' recouvert par l'occurrence,
-        // même logique que la vérification 'blocked' ci-dessus.
-        sqlx::query(
-            "UPDATE availability_slot SET status = 'booked', updated_at = now() \
-             WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'open' \
-               AND deleted_at IS NULL \
-               AND tstzrange(starts_at, ends_at) && tstzrange($3, $4)",
-        )
-        .bind(claims.cabinet_id)
-        .bind(body.practitioner_id)
-        .bind(occ.starts_at)
-        .bind(occ.ends_at)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
 
         appointments.push(AppointmentSeriesItem {
             id,
