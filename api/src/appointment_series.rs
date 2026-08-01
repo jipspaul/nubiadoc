@@ -161,16 +161,44 @@ pub async fn create_appointment_series(
             return Err(AppError::SlotTaken);
         }
 
+        // #4577 : résout le créneau 'open' chevauché AVANT l'INSERT pour le
+        // lier via appointment.slot_id. Sans ce lien (slot_id NULL), les 3
+        // chemins de libération sur appointment.slot_id (no-show, annulation,
+        // reprogrammation — scheduling.rs) ne s'exécutent jamais : le
+        // créneau consommé ci-dessous reste 'booked' à vie après la sortie
+        // du RDV (créneau orphelin, jamais rendu à la disponibilité).
+        let slot_row = sqlx::query(
+            "SELECT id FROM availability_slot \
+             WHERE cabinet_id = $1 AND practitioner_id = $2 AND status = 'open' \
+               AND deleted_at IS NULL \
+               AND tstzrange(starts_at, ends_at) && tstzrange($3, $4) \
+             ORDER BY starts_at \
+             LIMIT 1 \
+             FOR UPDATE",
+        )
+        .bind(claims.cabinet_id)
+        .bind(body.practitioner_id)
+        .bind(occ.starts_at)
+        .bind(occ.ends_at)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        let slot_id: Option<Uuid> = match slot_row {
+            Some(r) => Some(r.try_get("id").map_err(|_| AppError::Internal)?),
+            None => None,
+        };
+
         let result = sqlx::query(
             "INSERT INTO appointment \
-             (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, \
-              recurrence_id, recurrence_index) \
-             VALUES ($1, $2, $3, $4, $5, 'requested', $6, $7, $8) \
+             (cabinet_id, patient_id, practitioner_id, slot_id, starts_at, ends_at, status, \
+              motif, recurrence_id, recurrence_index) \
+             VALUES ($1, $2, $3, $4, $5, $6, 'requested', $7, $8, $9) \
              RETURNING id",
         )
         .bind(claims.cabinet_id)
         .bind(body.patient_id)
         .bind(body.practitioner_id)
+        .bind(slot_id)
         .bind(occ.starts_at)
         .bind(occ.ends_at)
         .bind(body.motif.as_deref())
