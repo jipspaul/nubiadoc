@@ -72,14 +72,6 @@ pub async fn create_review(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Requis pour la branche tutelle de appointment_patient_read (migration
-    // 0196, account_guardianship RLS) — cf. checkin_appointment (#4363/#4575).
-    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
-        .bind(claims.account_id.to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
     // Empreinte de la requête : une clé rejouée avec un appointment_id/rating/comment
     // différent ne doit jamais renvoyer silencieusement l'avis de la 1re requête
     // (#3671, jumeau de #3632/#3620) -> divergence d'empreinte -> 409.
