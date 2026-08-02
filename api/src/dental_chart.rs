@@ -343,7 +343,10 @@ pub async fn put_dental_chart(
 pub struct DentalChartHistoryQuery {
     /// Date demandée (RFC3339) — requis, aucune valeur par défaut : sans
     /// date, c'est `GET /dental-chart` (l'état courant) qu'il faut appeler.
-    pub at: String,
+    /// `Option` (et non `String`) pour que l'absence du paramètre soit
+    /// validée dans le handler (→ 422) plutôt que rejetée par l'extracteur
+    /// `Query` d'axum avant même l'exécution du handler (→ 400, #4585).
+    pub at: Option<String>,
 }
 
 /// `GET /v1/cabinet/patients/:id/dental-chart/history?at=` — `teeth_status`
@@ -376,8 +379,12 @@ pub async fn get_dental_chart_history_at(
     Path(patient_id): Path<Uuid>,
     axum::extract::Query(query): axum::extract::Query<DentalChartHistoryQuery>,
 ) -> Result<Json<DentalChartResponse>, AppError> {
-    let at: chrono::DateTime<chrono::Utc> =
-        query.at.parse().map_err(|_| AppError::ValidationError)?;
+    let at: chrono::DateTime<chrono::Utc> = query
+        .at
+        .as_deref()
+        .ok_or(AppError::ValidationError)?
+        .parse()
+        .map_err(|_| AppError::ValidationError)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -448,7 +455,7 @@ pub async fn get_dental_chart_history_at(
         cabinet_id = %claims.cabinet_id,
         user_id = %claims.sub,
         patient_id = %patient_id,
-        at = %query.at,
+        at = %at,
         "dental chart history read"
     );
 
