@@ -65,6 +65,7 @@ void main() {
     late _MockCabinetQuotesRepository repo;
     late ListCabinetQuotesUseCase listUseCase;
     late GetCabinetQuoteUseCase getUseCase;
+    late SendCabinetQuoteUseCase sendUseCase;
 
     final quote = CabinetQuote(
       id: 'q1',
@@ -82,10 +83,14 @@ void main() {
       repo = _MockCabinetQuotesRepository();
       listUseCase = ListCabinetQuotesUseCase(repo);
       getUseCase = GetCabinetQuoteUseCase(repo);
+      sendUseCase = SendCabinetQuoteUseCase(repo);
     });
 
-    DevisBloc buildBloc() =>
-        DevisBloc(listQuotes: listUseCase, getQuote: getUseCase);
+    DevisBloc buildBloc() => DevisBloc(
+          listQuotes: listUseCase,
+          getQuote: getUseCase,
+          sendQuote: sendUseCase,
+        );
 
     blocTest<DevisBloc, DevisState>(
       'émet Loading puis Loaded sur succès',
@@ -176,6 +181,40 @@ void main() {
       expect(keys.containsKey('motif'), isFalse);
       expect(keys.containsKey('notesMedicales'), isFalse);
     });
+
+    // #4537 : le secrétariat peut désormais envoyer un devis brouillon —
+    // le back autorise déjà secretary+, seule l'UI en manquait l'action.
+    blocTest<DevisBloc, DevisState>(
+      'DevisSendRequested émet InProgress puis Sent sur succès',
+      build: () {
+        when(() => repo.sendQuote(quote.id)).thenAnswer(
+          (_) async => const Right(CabinetQuoteStatus.sent),
+        );
+        return buildBloc();
+      },
+      seed: () => DevisDetailLoaded(quote),
+      act: (bloc) => bloc.add(DevisSendRequested(quote.id)),
+      expect: () => [
+        DevisSendInProgress(quote),
+        isA<DevisSent>(),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisSendRequested émet InProgress puis SendFailure sur échec',
+      build: () {
+        when(() => repo.sendQuote(quote.id)).thenAnswer(
+          (_) async => Left(const NetworkFailure('Envoi impossible.')),
+        );
+        return buildBloc();
+      },
+      seed: () => DevisDetailLoaded(quote),
+      act: (bloc) => bloc.add(DevisSendRequested(quote.id)),
+      expect: () => [
+        DevisSendInProgress(quote),
+        DevisSendFailure(quote: quote, message: 'Envoi impossible.'),
+      ],
+    );
   });
 
   // --- DevisPage widget test ---------------------------------------------------

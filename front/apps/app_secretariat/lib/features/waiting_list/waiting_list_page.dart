@@ -52,12 +52,21 @@ class _WaitingListPageState extends State<WaitingListPage> {
               const SnackBar(content: Text('Créneau proposé avec succès.')),
             );
           }
+          if (state is WaitingListOfferError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
         },
         builder: (context, state) {
-          if (state is WaitingListLoaded || state is WaitingListOfferSuccess) {
-            final entries = state is WaitingListLoaded
-                ? state.entries
-                : <WaitingListEntry>[];
+          if (state is WaitingListLoaded ||
+              state is WaitingListOfferSuccess ||
+              state is WaitingListOfferError) {
+            final entries = switch (state) {
+              WaitingListLoaded(:final entries) => entries,
+              WaitingListOfferError(:final entries) => entries,
+              _ => const <WaitingListEntry>[],
+            };
             if (entries.isEmpty) {
               return const NubiaEmptyState(
                 key: Key('waiting_list_empty'),

@@ -74,10 +74,11 @@ pub struct ManualPaymentResponse {
 ///   avec le chemin Stripe qui exige la même chose avant tout PaymentIntent —
 ///   un règlement physique reçu avant signature n'a pas de contrepartie
 ///   contractuelle à solder).
-/// - `amount_cents` ne peut pas dépasser le reste dû (total du devis moins
-///   les paiements `pending`/`paid` déjà enregistrés, sous verrou `FOR
-///   UPDATE` pour sérialiser deux encaissements concurrents) → `422` sinon
-///   (#4311, même garde anti-sur-encaissement que le chemin Stripe).
+/// - `amount_cents` ne peut pas dépasser le reste dû (reste-à-charge patient
+///   du devis, c.-à-d. total des lignes moins part AMO/AMC, moins les
+///   paiements `pending`/`paid` déjà enregistrés, sous verrou `FOR UPDATE`
+///   pour sérialiser deux encaissements concurrents) → `422` sinon (#4311,
+///   #4573, même garde anti-sur-encaissement que le chemin Stripe).
 /// - Crée `payment` en `status='paid'`, `provider='manual'`, `kind='full'`
 ///   (un encaissement manuel solde le montant reçu, pas un acompte partiel
 ///   suivi automatiquement).
@@ -182,7 +183,7 @@ pub async fn create_manual_payment(
     // appartenir au patient donné (pas seulement au même cabinet) : évite
     // d'associer par erreur le règlement au devis d'un autre patient du cabinet.
     let quote_row = sqlx::query(
-        "SELECT status, (total_amount * 100)::bigint AS total_amount_cents \
+        "SELECT status \
          FROM quote \
          WHERE id = $1 AND cabinet_id = $2 AND patient_id = $3 AND deleted_at IS NULL \
          FOR UPDATE",
@@ -198,9 +199,6 @@ pub async fn create_manual_payment(
     let status: String = quote_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
-    let total_amount_cents: i64 = quote_row
-        .try_get("total_amount_cents")
-        .map_err(|_| AppError::Internal)?;
 
     // #4311 : parité avec le chemin Stripe (billing_payments.rs:176-178) — un
     // règlement physique reçu avant signature n'a pas de contrepartie
@@ -209,9 +207,28 @@ pub async fn create_manual_payment(
         return Err(AppError::InvalidStatus);
     }
 
-    // #4311 : reste dû = total du devis - paiements déjà en cours/aboutis
-    // (jamais les `failed`/`refunded`, qui n'engagent aucune somme) — même
-    // garde anti-sur-encaissement que billing_payments.rs:213-231.
+    // #4573 : reste-à-charge réel du patient (total des lignes - part AMO -
+    // part AMC), même sous-requête que billing_payments.rs:223-227 — le
+    // tiers-payant ne doit jamais forcer le patient à préfinancer la part
+    // remboursée par l'assurance. Un encaissement manuel plafonné sur le total
+    // BRUT du devis laissait la secrétaire encaisser la part AMO/AMC.
+    let patient_share_row = sqlx::query(
+        "SELECT coalesce(sum((qi.qty * qi.unit_amount \
+             - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
+             AS patient_share_cents \
+         FROM quote_item qi WHERE qi.quote_id = $1",
+    )
+    .bind(body.quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let patient_share_cents: i64 = patient_share_row
+        .try_get("patient_share_cents")
+        .map_err(|_| AppError::Internal)?;
+
+    // #4311 : reste dû = reste-à-charge patient - paiements déjà en cours/
+    // aboutis (jamais les `failed`/`refunded`, qui n'engagent aucune somme) —
+    // même garde anti-sur-encaissement que billing_payments.rs:239-251.
     let already_committed_row = sqlx::query(
         "SELECT COALESCE(SUM(amount * 100), 0)::bigint AS committed_cents \
          FROM payment \
@@ -224,7 +241,7 @@ pub async fn create_manual_payment(
     let already_committed_cents: i64 = already_committed_row
         .try_get("committed_cents")
         .map_err(|_| AppError::Internal)?;
-    let remaining_due_cents = total_amount_cents - already_committed_cents;
+    let remaining_due_cents = patient_share_cents - already_committed_cents;
 
     if body.amount_cents > remaining_due_cents {
         return Err(AppError::ValidationError);

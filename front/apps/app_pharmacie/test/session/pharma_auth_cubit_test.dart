@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,14 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_pharmacie/session/pharma_auth_cubit.dart';
+
+/// Construit un JWT factice (payload seul lisible, signature bidon) pour
+/// tester la lecture locale de `kind` sans dépendre d'un vrai secret.
+String _fakeJwt(Map<String, dynamic> payload) {
+  final segment =
+      base64Url.encode(utf8.encode(jsonEncode(payload))).replaceAll('=', '');
+  return 'header.$segment.signature';
+}
 
 class MockLoginUseCase extends Mock implements LoginUseCase {}
 
@@ -191,6 +201,50 @@ void main() {
       expect: () => [
         isA<AuthUnauthenticated>().having((s) => s.message, 'message', isNull),
       ],
+    );
+
+    // #4531 : le token persisté est déjà kind:"pharma" (select-pharmacy-context
+    // ou onTokensRefreshed l'a écrasé lors de la session précédente) — ne
+    // JAMAIS rejouer select-pharmacy-context avec ce token (403 côté back,
+    // cf. ProClaims), restaurer directement depuis /v1/me.
+    blocTest<PharmaAuthCubit, AuthState>(
+      'token déjà kind:"pharma" → restauration directe, sans re-sélection',
+      build: buildCubit,
+      setUp: () {
+        when(() => tokenStorage.getAccessToken()).thenAnswer(
+          (_) async => _fakeJwt({'sub': 'u1', 'kind': 'pharma', 'exp': 0}),
+        );
+      },
+      act: (cubit) => cubit.restore(),
+      expect: () => [
+        isA<AuthAuthenticated>().having(
+          (s) => s.session.role,
+          'role',
+          ProRole.pharmacist,
+        ),
+      ],
+      verify: (_) {
+        verify(() => memberships()).called(1);
+        verifyNever(() => selectContext(any()));
+      },
+    );
+
+    blocTest<PharmaAuthCubit, AuthState>(
+      'token kind:"pharma" mais memberships vide → Unauthenticated',
+      build: buildCubit,
+      setUp: () {
+        when(() => tokenStorage.getAccessToken()).thenAnswer(
+          (_) async => _fakeJwt({'sub': 'u1', 'kind': 'pharma', 'exp': 0}),
+        );
+        when(() => memberships()).thenAnswer((_) async => const Right([]));
+      },
+      act: (cubit) => cubit.restore(),
+      expect: () => [
+        isA<AuthUnauthenticated>().having((s) => s.message, 'message', isNull),
+      ],
+      verify: (_) {
+        verifyNever(() => selectContext(any()));
+      },
     );
   });
 }

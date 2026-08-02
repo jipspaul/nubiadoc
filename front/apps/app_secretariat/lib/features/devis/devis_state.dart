@@ -78,3 +78,47 @@ class DevisDetailError extends DevisState {
   @override
   int get hashCode => message.hashCode;
 }
+
+/// Envoi du devis au patient en cours (#4537).
+class DevisSendInProgress extends DevisState {
+  const DevisSendInProgress(this.quote);
+
+  final CabinetQuote quote;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisSendInProgress && other.quote == quote;
+
+  @override
+  int get hashCode => quote.hashCode;
+}
+
+/// Devis envoyé au patient (confirmation).
+class DevisSent extends DevisState {
+  const DevisSent(this.quote);
+
+  final CabinetQuote quote;
+
+  @override
+  bool operator ==(Object other) => other is DevisSent && other.quote == quote;
+
+  @override
+  int get hashCode => quote.hashCode;
+}
+
+/// Échec de l'envoi : on reste sur le détail et on signale l'erreur.
+class DevisSendFailure extends DevisState {
+  const DevisSendFailure({required this.quote, required this.message});
+
+  final CabinetQuote quote;
+  final String message;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisSendFailure &&
+      other.quote == quote &&
+      other.message == message;
+
+  @override
+  int get hashCode => Object.hash(quote, message);
+}

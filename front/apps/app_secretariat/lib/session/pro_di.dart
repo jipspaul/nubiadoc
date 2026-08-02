@@ -64,6 +64,7 @@ void registerPro(GetIt gi) {
       () => DevisBloc(
         listQuotes: gi<ListCabinetQuotesUseCase>(),
         getQuote: gi<GetCabinetQuoteUseCase>(),
+        sendQuote: gi<SendCabinetQuoteUseCase>(),
       ),
     )
     ..registerFactory<BookableSlotsBloc>(

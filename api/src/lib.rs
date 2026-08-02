@@ -27,7 +27,13 @@ pub use yousign_client::YousignClient;
 
 mod appointment_motifs;
 mod appointment_series;
-mod appointments;
+mod appointments_actions;
+mod appointments_checkin;
+mod appointments_create;
+mod appointments_preparation;
+mod appointments_read;
+mod appointments_read_extras;
+mod appointments_response;
 mod audit_log;
 mod auth;
 mod bank_deposit_slip;

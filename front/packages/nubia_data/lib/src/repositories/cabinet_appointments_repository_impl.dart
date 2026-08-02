@@ -105,21 +105,20 @@ class CabinetAppointmentsRepositoryImpl
       final dto = await _api.confirm(id);
       return Right(dto.toDomain());
     } on DioException catch (e) {
-      // 409 « déjà confirmé » (invalid_status) → succès idempotent. Le RDV est
-      // déjà dans l'état voulu : on ne remonte pas d'erreur rouge, l'appelant
-      // recharge l'agenda et voit le statut « confirmé ».
+      // #4535 : 409 invalid_status ne veut PAS toujours dire « déjà confirmé,
+      // idempotent » — un RDV peut aussi être passé à `cancelled`/`completed`
+      // entre-temps (vraie erreur, pas un doublon de clic). Fabriquer un
+      // faux succès ici masquait ce cas : l'agenda se rechargeait, montrait
+      // un RDV toujours "À confirmer" (car réellement pas confirmé côté
+      // back), sans aucun message — l'utilisateur croyait l'action perdue.
+      // On remonte désormais une vraie erreur dans tous les cas ; l'appelant
+      // recharge l'agenda pour refléter l'état réel (y compris si le RDV
+      // était déjà confirmé par ailleurs — l'erreur reste alors sans
+      // conséquence visible, l'agenda montre "Confirmé").
       if (e.response?.statusCode == 409) {
-        return Right(CabinetAppointment(
-          id: id,
-          cabinetId: '',
-          patientId: '',
-          patientName: '',
-          practitionerId: '',
-          practitionerName: '',
-          startsAt: DateTime.now(),
-          duration: Duration.zero,
-          motif: '',
-          status: CabinetAppointmentStatus.confirmed,
+        return const Left(ValidationFailure(
+          message: 'Ce rendez-vous n\'est plus en attente de confirmation '
+              '(déjà confirmé, ou statut modifié entre-temps).',
         ));
       }
       if (e.response?.statusCode == 404) {

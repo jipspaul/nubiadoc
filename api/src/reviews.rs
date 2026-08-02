@@ -249,6 +249,15 @@ pub async fn list_provider_reviews(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1).saturating_mul(per_page);
 
+    sqlx::query!(
+        "SELECT id FROM provider WHERE id = $1 AND is_listed = true",
+        provider_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
     // Requête de comptage séparée de la requête paginée (#3864, même classe que
     // #3840 sur marketplace.rs::search_providers) : `COUNT(*) OVER()` est porté
     // par les LIGNES RETOURNÉES elles-mêmes — une page hors plage (OFFSET ≥ nb

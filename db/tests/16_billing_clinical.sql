@@ -37,6 +37,15 @@ INSERT INTO patient (id, cabinet_id, first_name, last_name)
   VALUES ('77800000-0000-0000-0000-0000000000c2',
           '77800000-0000-0000-0000-000000000002', 'Paul', '778B');
 
+INSERT INTO app_user (id, email, password_hash, kind)
+  VALUES ('77800000-0000-0000-0000-0000000000a2',
+          'practitioner.778b@example.test', '$argon2id$fixture', 'pro');
+
+INSERT INTO practitioner (id, cabinet_id, user_id)
+  VALUES ('77800000-0000-0000-0000-0000000000b2',
+          '77800000-0000-0000-0000-000000000002',
+          '77800000-0000-0000-0000-0000000000a2');
+
 -- ===========================================================================
 -- 1. QUOTE — devis signé immuable (trigger enforce_quote_immutable, 0051)
 -- ===========================================================================
@@ -166,7 +175,7 @@ INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status)
   VALUES ('77800000-0000-0000-0000-000000000031',
           '77800000-0000-0000-0000-000000000002',
           '77800000-0000-0000-0000-0000000000c2',
-          '77800000-0000-0000-0000-0000000000b1',  -- même praticien_id (hors scope RLS)
+          '77800000-0000-0000-0000-0000000000b2',  -- praticien propre à 778-B (FK composite #4291)
           'draft');
 
 -- 3.2 Fail-closed : sans GUC → 0 prescription visible

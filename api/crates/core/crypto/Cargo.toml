@@ -5,4 +5,24 @@ edition = "2021"
 publish = false
 
 [dependencies]
-thiserror = { workspace = true }
+thiserror   = { workspace = true }
+async-trait = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+tracing     = { workspace = true }
+# Non promus en [workspace.dependencies] à la racine (même précédent que
+# integrations-hl7v2/Cargo.toml pour sha2/hex) : versions alignées à la
+# main du package `nubia-api` pour éviter toute dérive/duplication dans le
+# lockfile.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+base64  = "0.22"
+# Backend crypto `ring` en dépendance directe : déjà résolu dans le
+# workspace via rustls/tokio-rustls (feature "ring", cf.
+# integrations-hl7v2/Cargo.toml pour le choix détaillé face à aws-lc-rs) —
+# ce crate en a juste besoin comme lib directement utilisable (AEAD + HKDF),
+# pas seulement comme backend TLS transitif.
+ring = "0.17"
+
+[dev-dependencies]
+tokio    = { workspace = true }
+wiremock = "0.6"

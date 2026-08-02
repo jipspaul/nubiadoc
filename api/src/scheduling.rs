@@ -733,10 +733,13 @@ pub async fn get_waiting_list(
 // ── Offer (proposer un créneau libéré) ───────────────────────────────────────
 
 /// Corps de `POST /v1/cabinet/waiting-list/:id/offer`.
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct OfferSlotBody {
-    /// Créneau proposé (ISO 8601 UTC).
-    pub proposed_at: String,
+    /// Créneau proposé (ISO 8601 UTC). Optionnel (#4536) : si absent, le
+    /// back sélectionne lui-même le prochain `availability_slot` `open` du
+    /// provider de l'entrée — le front ne connaît pas (et n'a pas à
+    /// connaître) les créneaux réels, seul le back peut les valider.
+    pub proposed_at: Option<String>,
 }
 
 /// Réponse de `POST /v1/cabinet/waiting-list/:id/offer`.
@@ -755,9 +758,14 @@ pub struct OfferSlotResponse {
 /// `fulfilled` que lorsqu'un RDV est effectivement créé pour ce patient (#3759,
 /// correctif du passage prématuré introduit par #3577). `notified` dans la
 /// réponse reflète l'envoi effectif (`false` si le patient n'a aucun compte
-/// applicatif rattaché). `proposed_at` doit correspondre à un `availability_slot`
-/// `open` réel du provider de l'entrée, sinon `409 slot_unavailable` (#3726/#3758 :
-/// avant, tout datetime futur était accepté et notifiait un créneau fantôme).
+/// applicatif rattaché). `proposed_at` (optionnel, #4536) doit correspondre à
+/// un `availability_slot` `open` réel du provider de l'entrée, sinon
+/// `409 slot_unavailable` (#3726/#3758 : avant, tout datetime futur était
+/// accepté et notifiait un créneau fantôme) ; s'il est absent, le back
+/// sélectionne lui-même le prochain créneau `open` du provider (le front ne
+/// connaît pas les créneaux réels — avant #4536 il envoyait un horodatage
+/// fabriqué `now()+15min` qui ne correspondait presque jamais à un vrai
+/// créneau, d'où un 409 quasi systématique malgré des créneaux disponibles).
 /// RBAC : `secretary+`. `cabinet_id` extrait du JWT.
 pub async fn offer_waiting_list_slot(
     State(state): State<AppState>,
@@ -765,14 +773,18 @@ pub async fn offer_waiting_list_slot(
     axum::extract::Path(entry_id): axum::extract::Path<Uuid>,
     Json(body): Json<OfferSlotBody>,
 ) -> Result<Json<OfferSlotResponse>, AppError> {
-    // Valide le format de la date proposée, et qu'elle est bien dans le futur
+    // Si fourni, valide le format et que la date est bien dans le futur
     // (même règle que la création de RDV, `appointments.rs::create_appointment`).
-    let proposed_at = body
+    let explicit_proposed_at = body
         .proposed_at
-        .parse::<chrono::DateTime<chrono::Utc>>()
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
         .map_err(|_| AppError::ValidationError)?;
-    if proposed_at <= chrono::Utc::now() + chrono::Duration::minutes(5) {
-        return Err(AppError::ValidationError);
+    if let Some(ts) = explicit_proposed_at {
+        if ts <= chrono::Utc::now() + chrono::Duration::minutes(5) {
+            return Err(AppError::ValidationError);
+        }
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -804,21 +816,43 @@ pub async fn offer_waiting_list_slot(
     // mais seule la date était validée (#3577 incomplet) : n'importe quel datetime
     // futur — hors horaires, sans slot réel — était accepté, notifiait le patient
     // d'un créneau fantôme (#3726/#3758). Exige désormais un availability_slot
-    // `open` du même provider à cette heure exacte, comme create_appointment.
+    // `open` du même provider, comme create_appointment.
     let provider_id = provider_id.ok_or(AppError::ValidationError)?;
-    let real_slot = sqlx::query(
-        "SELECT 1 FROM availability_slot \
-         WHERE provider_id = $1 AND starts_at = $2 AND status = 'open' \
-           AND deleted_at IS NULL",
-    )
-    .bind(provider_id)
-    .bind(proposed_at)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-    if real_slot.is_none() {
-        return Err(AppError::SlotUnavailable);
-    }
+    let proposed_at = match explicit_proposed_at {
+        // Créneau explicite : doit correspondre exactement à un slot ouvert.
+        Some(ts) => {
+            let real_slot = sqlx::query(
+                "SELECT 1 FROM availability_slot \
+                 WHERE provider_id = $1 AND starts_at = $2 AND status = 'open' \
+                   AND deleted_at IS NULL",
+            )
+            .bind(provider_id)
+            .bind(ts)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+            if real_slot.is_none() {
+                return Err(AppError::SlotUnavailable);
+            }
+            ts
+        }
+        // #4536 : pas de créneau fourni par l'appelant → le back choisit le
+        // prochain slot ouvert du provider (au-delà du même délai de 5 min).
+        None => {
+            let next: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+                "SELECT starts_at FROM availability_slot \
+                 WHERE provider_id = $1 AND status = 'open' AND deleted_at IS NULL \
+                   AND starts_at > $2 \
+                 ORDER BY starts_at ASC LIMIT 1",
+            )
+            .bind(provider_id)
+            .bind(chrono::Utc::now() + chrono::Duration::minutes(5))
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+            next.ok_or(AppError::SlotUnavailable)?
+        }
+    };
 
     let pat_row = sqlx::query(
         "SELECT app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
@@ -840,7 +874,9 @@ pub async fn offer_waiting_list_slot(
 
     let notify_data = serde_json::json!({
         "waiting_list_entry_id": entry_id,
-        "proposed_at": body.proposed_at,
+        // Le créneau RÉEL retenu (explicite ou auto-sélectionné, #4536) —
+        // pas `body.proposed_at` qui peut être absent.
+        "proposed_at": proposed_at.to_rfc3339(),
     });
     let notified = if let Some(uid) = patient_app_user_id {
         notify::notify_user(
