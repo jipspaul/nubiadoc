@@ -10,14 +10,54 @@ jobs:
     runs-on: docker
     container:
       image: rust-ci:stable
+    env:
+      # Les tests d'intégration api/tests/*.rs se connectent à ces rôles (créés
+      # par les migrations : nubia_owner en 0001, nubia_app/seed ensuite). Sans
+      # base, ils skippent (db_available()=false) OU paniquent sur connect() —
+      # d'où l'échec systémique du job avant ce fix. On monte donc un Postgres
+      # inline (comme db.yml), migré via le db/Makefile (source unique).
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATA: /tmp/pgdata
+      DATABASE_URL: postgres://nubia_owner@localhost:5432/nubia
+      APP_DATABASE_URL: postgres://nubia_app@localhost:5432/nubia
+      SEED_DATABASE_URL: postgres://nubia_seed@localhost:5432/nubia
     steps:
       - uses: actions/checkout@v4
+
       - name: Format
         working-directory: api
         run: cargo fmt --all -- --check
+
       - name: Clippy
         working-directory: api
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      # rust-ci:stable n'embarque pas Postgres/PostGIS (contrairement à
+      # db-ci:stable). On les installe en-job puis on démarre un cluster inline
+      # (trust auth, localhost) — le services: de Forgejo a un DNS cassé sur ce
+      # runner (cf. db.yml). PostGIS est requis par le schéma (make reset).
+      - name: Provisionne Postgres + PostGIS inline
+        run: |
+          set -e
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends postgresql postgresql-postgis make
+          PGVER=$(ls /usr/lib/postgresql/ | sort -n | tail -1)
+          echo "/usr/lib/postgresql/$PGVER/bin" >> "$GITHUB_PATH"
+          export PATH="/usr/lib/postgresql/$PGVER/bin:$PATH"
+          rm -rf "$PGDATA" && mkdir -p "$PGDATA" && chown postgres:postgres "$PGDATA"
+          su postgres -c "initdb -D $PGDATA --auth-host=trust --auth-local=trust -U postgres" >/dev/null
+          su postgres -c "pg_ctl -D $PGDATA -l /tmp/pg.log -o \"-c listen_addresses='localhost'\" -w start"
+          for i in $(seq 1 30); do pg_isready -h localhost -U postgres -q && break; sleep 1; done
+          pg_isready -h localhost -U postgres
+
+      # reset (rôle owner + base + PostGIS, étape admin) puis migrations sqlx.
+      # Réutilise le db/Makefile : un fait = une source (les migrations).
+      - name: Schéma + rôles (db/ reset + migrate)
+        working-directory: db
+        run: make reset migrate
+
       - name: Test
         working-directory: api
         run: cargo nextest run --workspace --all-features
