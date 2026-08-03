@@ -74,7 +74,7 @@ async fn insert_fixture(db: &PgPool, client_id: &str, secret: &str, status: &str
         .await
         .unwrap();
 
-    sqlx::query("INSERT INTO app_user (id, email) VALUES ($1, $2)")
+    sqlx::query("INSERT INTO app_user (id, email, kind) VALUES ($1, $2, 'pro')")
         .bind(user_id)
         .bind(format!("practitioner-{user_id}@example.test"))
         .execute(&mut *tx)

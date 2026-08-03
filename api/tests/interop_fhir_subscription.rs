@@ -85,7 +85,7 @@ async fn setup_fixture(db: &PgPool) -> Fixture {
     let practitioner_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
 
-    sqlx::query("INSERT INTO app_user (id, email, password_hash) VALUES ($1, $2, 'hash')")
+    sqlx::query("INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')")
         .bind(prac_user_id)
         .bind(format!("interop-fhir-sub+{prac_user_id}@nubia.test"))
         .execute(db)
