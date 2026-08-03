@@ -191,7 +191,6 @@ fn idem_key(test_name: &str) -> String {
 // ── Test 1 : method='cash', devis signed -> paiement paid associé au bon devis/cabinet ──
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_manual_payment_with_cash_creates_paid_payment() {
     if !db_available() {
         return;
@@ -348,7 +347,6 @@ async fn create_manual_payment_with_zero_amount_returns_422() {
 // ── Test 5 : token practitioner -> 201 (autorisé) ────────────────────────────
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_manual_payment_with_practitioner_token_succeeds() {
     if !db_available() {
         return;
@@ -455,7 +453,6 @@ async fn create_manual_payment_exceeding_remaining_due_returns_422() {
 // ── Test 8 : deuxième encaissement dépassant le reste dû -> 422 (cumul) ─────
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_manual_payment_second_call_exceeding_remaining_due_returns_422() {
     if !db_available() {
         return;
@@ -538,7 +535,6 @@ async fn create_manual_payment_without_idempotency_key_returns_422() {
 // ── Test 10 : rejeu même clé + même requête -> même payment_id, pas de doublon (#4311) ──
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_manual_payment_replayed_with_same_key_is_idempotent() {
     if !db_available() {
         return;
@@ -586,7 +582,6 @@ async fn create_manual_payment_replayed_with_same_key_is_idempotent() {
 // ── Test 11 : même clé, requête différente -> 409 idempotency_key_conflict ──
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_manual_payment_same_key_different_amount_returns_409() {
     if !db_available() {
         return;

@@ -199,7 +199,6 @@ async fn send(state: AppState, req: Request<Body>) -> (StatusCode, Value) {
 // ── GET /v1/interop/fhir/Appointment/:id ────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn get_appointment_returns_mapped_fhir_resource() {
     if !db_available() {
         return;
@@ -241,7 +240,6 @@ async fn get_appointment_returns_mapped_fhir_resource() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn get_appointment_from_another_cabinet_returns_404() {
     if !db_available() {
         return;
@@ -282,7 +280,6 @@ async fn get_appointment_from_another_cabinet_returns_404() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn get_appointment_without_scope_returns_403_operation_outcome() {
     if !db_available() {
         return;
@@ -415,7 +412,6 @@ fn fhir_appointment_body(patient_id: Uuid, practitioner_id: Uuid, start: &str, e
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_appointment_requires_idempotency_key_header() {
     if !db_available() {
         return;
@@ -451,7 +447,6 @@ async fn create_appointment_requires_idempotency_key_header() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_appointment_happy_path_sets_status_confirmed() {
     if !db_available() {
         return;
@@ -500,7 +495,6 @@ async fn create_appointment_happy_path_sets_status_confirmed() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_appointment_idempotent_replay_returns_same_appointment_without_duplicate() {
     if !db_available() {
         return;
@@ -547,7 +541,6 @@ async fn create_appointment_idempotent_replay_returns_same_appointment_without_d
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_appointment_idempotency_key_replayed_with_different_payload_returns_409() {
     if !db_available() {
         return;
@@ -608,7 +601,6 @@ async fn create_appointment_idempotency_key_replayed_with_different_payload_retu
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_appointment_double_booking_returns_409_conflict() {
     if !db_available() {
         return;
@@ -670,7 +662,6 @@ async fn create_appointment_double_booking_returns_409_conflict() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn create_appointment_unknown_patient_returns_422() {
     if !db_available() {
         return;

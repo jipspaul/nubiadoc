@@ -217,7 +217,6 @@ async fn get(state: AppState, uri: &str, token: &str) -> (StatusCode, Value) {
 // ── Practitioner ─────────────────────────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn get_practitioner_returns_fhir_resource_for_own_cabinet() {
     if !db_available() {
         return;
@@ -307,7 +306,6 @@ async fn get_practitioner_without_directory_scope_returns_403_operation_outcome(
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: échec réel révélé par le fix DB CI (env reset+migrate), voir #4602"]
 async fn search_practitioners_lists_only_own_cabinet() {
     if !db_available() {
         return;
