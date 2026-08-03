@@ -105,6 +105,19 @@ async fn seed(db: &PgPool, status: &str) -> Fixture {
     .await
     .unwrap();
 
+    // Le reste dû est calculé depuis les quote_item (part patient), pas depuis
+    // quote.total_amount. Sans ligne, reste dû = 0 → tout paiement rejeté 422.
+    // 1 acte à 100.00 (part patient pleine) → reste dû 10000 cents.
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+         VALUES ($1, $2, 'Acte de test', 1, 100.00)",
+    )
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     Fixture {
