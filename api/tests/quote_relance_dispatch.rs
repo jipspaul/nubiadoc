@@ -85,7 +85,7 @@ async fn insert_fixtures(db: &PgPool, sent_days_ago: i64) -> Fixtures {
 
     sqlx::query(
         "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency, sent_at) \
-         VALUES ($1, $2, $3, 'sent', 150.00, 'EUR', now() - make_interval(days => $4))",
+         VALUES ($1, $2, $3, 'sent', 150.00, 'EUR', now() - make_interval(days => $4::int))",
     )
     .bind(quote_id)
     .bind(cabinet_id)
@@ -146,7 +146,6 @@ async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn quote_sent_4_days_ago_gets_j3_relance() {
     if !db_available() {
         return;
@@ -187,7 +186,6 @@ async fn quote_sent_4_days_ago_gets_j3_relance() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn quote_sent_8_days_ago_gets_both_milestones() {
     if !db_available() {
         return;
@@ -221,7 +219,6 @@ async fn quote_sent_8_days_ago_gets_both_milestones() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn quote_sent_1_day_ago_gets_no_relance() {
     if !db_available() {
         return;
@@ -240,7 +237,6 @@ async fn quote_sent_1_day_ago_gets_no_relance() {
 /// #4126 : deux passages successifs du worker sur le même devis ne créent
 /// pas de doublon (UNIQUE(quote_id, milestone), ON CONFLICT DO NOTHING).
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn dispatch_is_idempotent_across_runs() {
     if !db_available() {
         return;

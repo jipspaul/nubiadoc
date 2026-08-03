@@ -283,7 +283,6 @@ async fn dispatch_sends_sms_and_marks_sent_when_channel_is_sms() {
 // ── Test 2 : reminder channel='sms' + opt-out patient → cancelled, pas d'appel ──
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn dispatch_marks_reminder_cancelled_when_sms_opted_out() {
     if !db_available() {
         return;

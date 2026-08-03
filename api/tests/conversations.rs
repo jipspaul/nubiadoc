@@ -665,7 +665,6 @@ fn lazy_app_pool() -> PgPool {
 // ── Test 4 : cabinet non lié au patient → 403 ─────────────────────────────────
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn conversations_create_unlinked_cabinet_returns_403() {
     if !db_available() {
         return;

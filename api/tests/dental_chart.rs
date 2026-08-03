@@ -247,7 +247,6 @@ async fn get_dental_chart_secretary_returns_403() {
 // ── Test 2 : GET avec token praticien → 200 { teeth, updated_at } ─────────────
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn get_dental_chart_practitioner_returns_200() {
     if !db_available() {
         return;

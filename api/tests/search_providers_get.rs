@@ -686,7 +686,6 @@ async fn search_providers_near_without_radius_applies_default_radius() {
 // "Dr Providers Amélie" (avec accent) — comme /ccam/acts le fait déjà.
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn search_providers_accent_insensitive_match() {
     if !db_available() {
         return;

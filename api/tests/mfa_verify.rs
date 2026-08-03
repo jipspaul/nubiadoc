@@ -67,7 +67,6 @@ fn test_totp() -> (String, TOTP) {
 // ── Test 1 : code valide → 200 + mfa_enabled = true en DB ─────────────────
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn mfa_verify_valid_totp_returns_200_and_activates_mfa() {
     // Skip when no DB is reachable (CI rust-ci.yml has no Postgres sidecar).
     if std::env::var("APP_DATABASE_URL").is_err() || std::env::var("DATABASE_URL").is_err() {

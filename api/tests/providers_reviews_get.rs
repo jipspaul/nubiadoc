@@ -365,7 +365,6 @@ async fn get_provider_reviews_invalid_uuid_returns_error() {
 // ── Test 3 : provider inconnu → 200 + liste vide (pas de 404) ────────────────
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn get_provider_reviews_unknown_provider_returns_empty_list() {
     if !db_available() {
         return;

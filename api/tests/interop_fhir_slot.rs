@@ -462,7 +462,6 @@ async fn search_slots_returns_bundle_scoped_to_own_cabinet() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn search_slots_from_to_excludes_out_of_range_slot() {
     if !db_available() {
         return;

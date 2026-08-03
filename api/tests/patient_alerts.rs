@@ -208,7 +208,6 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn overdue_patient_gets_unpaid_and_missing_document_alerts() {
     if !db_available() {
         return;
@@ -245,7 +244,6 @@ async fn overdue_patient_gets_unpaid_and_missing_document_alerts() {
 }
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn up_to_date_patient_gets_no_alerts() {
     if !db_available() {
         return;

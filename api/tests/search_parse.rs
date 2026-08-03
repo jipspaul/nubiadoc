@@ -36,7 +36,6 @@ fn state(db: PgPool) -> AppState {
 
 /// Cas mots-clés : « dentiste secteur 1 » → spécialité résolue + sector=1, 200.
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn parse_keywords_dentiste_secteur1() {
     if !db_available() {
         return;

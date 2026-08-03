@@ -447,7 +447,6 @@ async fn patch_appointment_past_date_returns_409_slot_unavailable() {
 // ── Test 2 : hors délai → 409 { "error": "too_late" } ───────────────────────
 
 #[tokio::test]
-#[ignore = "quarantaine: bug déterministe révélé par le fix DB CI, voir #4602"]
 async fn patch_appointment_too_late_returns_409() {
     if !db_available() {
         return;
