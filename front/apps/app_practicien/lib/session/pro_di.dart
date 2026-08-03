@@ -16,6 +16,8 @@ import '../features/cabinet/cabinet_info_cubit.dart';
 import '../features/register/pro_register_cubit.dart';
 import '../features/consultation_clinique/ccam_picker.dart';
 import '../features/consultation_clinique/api_get_acts_use_case.dart';
+import '../features/consultation_clinique/modules/consultation_module.dart';
+import '../features/consultation_clinique/modules/dentaire/dental_module.dart';
 import '../features/stock/stock_bloc.dart';
 import '../features/lab_work/lab_work_orders_bloc.dart';
 import '../features/stock/stock_inventory_bloc.dart';
@@ -85,6 +87,13 @@ void registerPro(GetIt gi) {
   );
   gi.registerFactory<FavoriteActsUseCase>(
     () => ApiFavoriteActsUseCase(gi<ClinicalSessionApi>()),
+  );
+
+  // Module de spécialité de la vue consultation — le dentaire est le seul
+  // aujourd'hui ; un futur registre multi-spécialités = changer cette
+  // registration (cf. ConsultationSpecialtyModule).
+  gi.registerLazySingleton<ConsultationSpecialtyModule>(
+    () => const DentalConsultationModule(),
   );
 
   gi.registerFactory<ConsultationCliniqueBloc>(

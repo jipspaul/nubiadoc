@@ -16,6 +16,8 @@ import 'package:app_practicien/features/consultation_clinique/ccam_picker.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_bloc.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_event.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_state.dart';
+import 'package:app_practicien/features/consultation_clinique/modules/consultation_module.dart';
+import 'package:app_practicien/features/consultation_clinique/modules/dentaire/dental_module.dart';
 import 'package:app_practicien/features/consultation_clinique/widgets/consultation_loaded_view.dart';
 
 class MockConsultationCliniqueBloc
@@ -78,6 +80,9 @@ void main() {
     GetIt.instance.registerFactory<GetDentalChartUseCase>(() => getChart);
     GetIt.instance
         .registerFactory<PutDentalChartUseCase>(MockPutDentalChartUseCase.new);
+    GetIt.instance.registerLazySingleton<ConsultationSpecialtyModule>(
+      () => const DentalConsultationModule(),
+    );
     addTearDown(GetIt.instance.reset);
   });
 

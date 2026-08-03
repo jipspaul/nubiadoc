@@ -7,12 +7,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import '../consultation_clinique_bloc.dart';
 import '../consultation_clinique_event.dart';
 import '../consultation_clinique_state.dart';
-import '../modules/dentaire/odontogram_panel.dart';
-import '../modules/dentaire/tooth_act_suggestions.dart';
-import '../modules/dentaire/tooth_status_update_dialog.dart';
-import '../modules/dentaire/treated_tooth_tile.dart';
+import '../modules/consultation_module.dart';
 import '../sterilization_scan_page.dart';
-import '../../dental_chart/dental_chart_cubit.dart';
 import 'act_entry_panel.dart';
 import 'clinical_context_panel.dart';
 import 'next_step_panel.dart';
@@ -78,34 +74,19 @@ class _ConsultationLoadedViewState extends State<ConsultationLoadedView> {
         );
   }
 
-  /// Après un acte portant une dent : PROPOSE la mise à jour de
-  /// l'odontogramme si la table de suggestions connaît l'acte. « Ignorer »
-  /// n'écrit rien ; la validation passe par le PUT dental-chart standard.
+  /// Après un acte portant une dent : consomme l'événement puis délègue au
+  /// module de spécialité, qui peut PROPOSER une suite (dialogue explicite —
+  /// jamais d'écriture automatique).
   Future<void> _onToothActAdded(
     BuildContext context,
+    ConsultationSpecialtyModule module,
     ConsultationCliniqueLoaded state,
   ) async {
     final added = state.lastAddedToothAct!;
-    final bloc = context.read<ConsultationCliniqueBloc>();
-    final chartCubit = context.read<DentalChartCubit>();
-    bloc.add(const ConsultationCliniqueToothActConsumed());
-
-    final suggestion = suggestedToothStatusForAct(
-      ccamCode: added.ccamCode,
-      label: added.label,
-    );
-    if (suggestion == null) return;
-
-    final chosen = await ToothStatusUpdateDialog.show(
-      context,
-      tooth: added.tooth,
-      actLabel: added.label,
-      suggestedStatus: suggestion,
-    );
-    if (chosen != null) {
-      chartCubit.setToothStatus(added.tooth, chosen);
-      await chartCubit.save();
-    }
+    context
+        .read<ConsultationCliniqueBloc>()
+        .add(const ConsultationCliniqueToothActConsumed());
+    await module.onToothActRecorded(context, added);
   }
 
   ActEntryPanel _buildEntryPanel(Map<String, ToothState>? teeth) =>
@@ -135,13 +116,9 @@ class _ConsultationLoadedViewState extends State<ConsultationLoadedView> {
   }
 
   Widget _buildLayouts(BuildContext context,
-      {required Map<String, ToothState>? teeth, required bool dental}) {
-    final highlightedTooth = _highlightedTooth;
-    final moduleTile = highlightedTooth == null
-        ? null
-        : TreatedToothTile(tooth: highlightedTooth);
-    final odontogram = dental ? const OdontogramPanel() : null;
-
+      {Map<String, ToothState>? teeth,
+      Widget? odontogram,
+      Widget? moduleTile}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -174,34 +151,29 @@ class _ConsultationLoadedViewState extends State<ConsultationLoadedView> {
   @override
   Widget build(BuildContext context) {
     final patientId = widget.state.session.patient?.id;
-    // Sans patient (payload minimal / back en retard) : pas de module
-    // dentaire, la saisie d'acte reste pleinement fonctionnelle.
+    // Sans patient (payload minimal / back en retard) : pas de module de
+    // spécialité, la saisie d'acte reste pleinement fonctionnelle.
     if (patientId == null) {
-      return _buildLayouts(context, teeth: null, dental: false);
+      return _buildLayouts(context);
     }
-    return BlocProvider<DentalChartCubit>(
-      // Keyé sur le patient : le cubit (et son GET dental-chart) survit aux
-      // rebuilds de séance (ajout d'acte) et n'est recréé qu'au changement
-      // de patient.
-      key: ValueKey('consultation_dental_chart_$patientId'),
-      create: (_) => DentalChartCubit(
-        patientId: patientId,
-        getDentalChart: GetIt.instance<GetDentalChartUseCase>(),
-        putDentalChart: GetIt.instance<PutDentalChartUseCase>(),
-      ),
+    final module = GetIt.instance<ConsultationSpecialtyModule>();
+    return module.wrapSession(
+      patientId: patientId,
       child: BlocListener<ConsultationCliniqueBloc, ConsultationCliniqueState>(
         listenWhen: (_, current) =>
             current is ConsultationCliniqueLoaded &&
             current.lastAddedToothAct != null,
         listener: (context, state) => _onToothActAdded(
           context,
+          module,
           state as ConsultationCliniqueLoaded,
         ),
-        child: BlocBuilder<DentalChartCubit, DentalChartState>(
-          builder: (context, chartState) => _buildLayouts(
+        child: Builder(
+          builder: (context) => _buildLayouts(
             context,
-            teeth: chartState is DentalChartLoaded ? chartState.teeth : null,
-            dental: true,
+            teeth: module.teethStatus(context),
+            odontogram: module.buildCentralPanel(context),
+            moduleTile: module.buildContextTile(context, _highlightedTooth),
           ),
         ),
       ),
