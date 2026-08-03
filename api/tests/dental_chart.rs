@@ -164,6 +164,18 @@ async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     .await
     .unwrap();
 
+    // Odontogramme existant : le GET doit renvoyer updated_at (chaîne), pas null
+    // (le null n'arrive que si aucun enregistrement n'existe pour le patient).
+    sqlx::query(
+        "INSERT INTO dental_chart (cabinet_id, patient_id, teeth_status) \
+         VALUES ($1, $2, '{\"11\": \"healthy\"}'::jsonb)",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     (cabinet_id, user_id, patient_id)
