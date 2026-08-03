@@ -18,9 +18,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
   DashboardBloc({
     required GetCabinetAgendaUseCase getAgenda,
     required ListWaitingListUseCase listWaitingList,
-  })  : _getAgenda = getAgenda,
-        _listWaitingList = listWaitingList,
-        super(const DashboardInitial()) {
+  }) : _getAgenda = getAgenda,
+       _listWaitingList = listWaitingList,
+       super(const DashboardInitial()) {
     on<DashboardLoadRequested>(_onLoad);
   }
 
@@ -52,14 +52,26 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
           // (agenda_page.dart : `!isFree && status != 'cancelled'`).
           final booked = entries.where((e) => !e.isFree && !e.isCancelled);
           final todayCount = booked
-              .where((e) =>
-                  e.startsAt.year == now.year &&
-                  e.startsAt.month == now.month &&
-                  e.startsAt.day == now.day)
+              .where(
+                (e) =>
+                    e.startsAt.year == now.year &&
+                    e.startsAt.month == now.month &&
+                    e.startsAt.day == now.day,
+              )
               .length;
-          final pendingCount = entries.where((e) => e.isPending).length;
-          final waitingCount =
-              waitingResult.fold((_) => 0, (list) => list.length);
+          final pendingCount = entries
+              .where(
+                (e) =>
+                    e.isPending &&
+                    e.startsAt.year == now.year &&
+                    e.startsAt.month == now.month &&
+                    e.startsAt.day == now.day,
+              )
+              .length;
+          final waitingCount = waitingResult.fold(
+            (_) => 0,
+            (list) => list.length,
+          );
 
           safeEmit(
             DashboardLoaded(
