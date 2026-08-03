@@ -296,6 +296,235 @@ async fn consultation_get_practitioner_returns_200() {
     assert_eq!(v["practitioner"]["display_name"], "Dr. Test Consultation");
     assert!(v["acts"].is_array(), "acts doit être un tableau");
 
+    // Enrichissements vue fauteuil (lot 1) — fixture minimale :
+    // patient + RDV présents, le reste absent/vide.
+    assert_eq!(v["patient"]["display_name"], "Patient Consultation");
+    assert!(
+        v["patient"].get("age_years").is_none(),
+        "age_years absent sans birth_date"
+    );
+    assert!(v["appointment"]["starts_at"].is_string());
+    assert_eq!(v["appointment"]["motif"], "détartrage");
+    assert_eq!(
+        v["medical_alerts"],
+        serde_json::json!([]),
+        "medical_alerts doit être une liste vide sans dossier médical"
+    );
+    assert!(v.get("medical_history").is_none());
+    assert!(v.get("current_phase").is_none());
+    assert!(v.get("last_note").is_none());
+    assert!(
+        !String::from_utf8_lossy(&body).contains("birth_date"),
+        "birth_date ne doit JAMAIS sortir (minimisation)"
+    );
+
+    cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
+}
+
+// ── Test 1bis : contexte enrichi complet (dossier, plan, dernière note) ───────
+
+/// Chiffre une note de séance comme `consultations.rs::set_consultation_note` :
+/// préfixe `STUB_ENC:` puis XOR 0xFF (≠ stub `medical_record`, JSON en clair).
+fn stub_encrypt_session_note(plain: &str) -> Vec<u8> {
+    let mut out = b"STUB_ENC:".to_vec();
+    out.extend(plain.bytes().map(|b| b ^ 0xFF));
+    out
+}
+
+#[tokio::test]
+async fn consultation_get_returns_enriched_context() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, session_id) =
+        insert_consultation_fixture(&db).await;
+
+    // ── Enrichit la fixture : âge, dossier médical, plan 3 phases, note passée.
+    let plan_id = Uuid::new_v4();
+    let past_appt_id = Uuid::new_v4();
+    let past_session_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    let patient_id: Uuid = sqlx::query_scalar("SELECT patient_id FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+
+    // Âge déterministe quel que soit le jour d'exécution : 48 ans révolus.
+    sqlx::query(
+        "UPDATE patient SET birth_date = (current_date - interval '48 years' - interval '40 days')::date \
+         WHERE id = $1",
+    )
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    let record_json = serde_json::json!({
+        "allergies": ["latex"],
+        "treatments": [],
+        "history": "Bruxisme nocturne (gouttière)",
+        "medico_legal": { "anticoagulants": true }
+    });
+    sqlx::query(
+        "INSERT INTO medical_record (cabinet_id, patient_id, data_ciphertext, data_key_ref) \
+         VALUES ($1, $2, $3, 'stub')",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(format!("STUB_ENC:{record_json}").into_bytes())
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO treatment_plan (id, cabinet_id, patient_id, practitioner_id, title, status) \
+         VALUES ($1, $2, $3, $4, 'Pose implant 26', 'in_progress')",
+    )
+    .bind(plan_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO treatment_phase (cabinet_id, plan_id, position, title, status, planned_sessions, completed_sessions) VALUES \
+         ($1, $2, 1, 'Extraction + greffe', 'done', 1, 1), \
+         ($1, $2, 2, 'Chirurgie implantaire', 'in_progress', 3, 1), \
+         ($1, $2, 3, 'Pilier + couronne céramique', 'requested', NULL, 0)",
+    )
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // Séance passée terminée avec note → alimente `last_note`.
+    sqlx::query(
+        "INSERT INTO appointment (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() - interval '30 days', now() - interval '30 days' + interval '1 hour', 'done')",
+    )
+    .bind(past_appt_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO consultation_session \
+         (id, cabinet_id, appointment_id, practitioner_id, status, started_at, completed_at, note_ciphertext, note_key_ref) \
+         VALUES ($1, $2, $3, $4, 'completed', now() - interval '30 days', now() - interval '30 days', $5, 'stub')",
+    )
+    .bind(past_session_id)
+    .bind(cabinet_id)
+    .bind(past_appt_id)
+    .bind(prac_id)
+    .bind(stub_encrypt_session_note(
+        "Densité osseuse suffisante en secteur 2.",
+    ))
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    // Patient : âge calculé, jamais la date brute.
+    assert_eq!(v["patient"]["id"], patient_id.to_string());
+    assert_eq!(v["patient"]["age_years"], 48);
+    assert!(!String::from_utf8_lossy(&body).contains("birth_date"));
+
+    // Alertes passives : allergie saisie + flag structuré (jamais déduit).
+    let alerts = v["medical_alerts"].as_array().unwrap();
+    assert!(alerts
+        .iter()
+        .any(|a| a["kind"] == "allergie" && a["label"] == "latex"));
+    assert!(alerts
+        .iter()
+        .any(|a| a["kind"] == "medico_legal" && a["label"] == "Anticoagulants"));
+    assert_eq!(v["medical_history"], "Bruxisme nocturne (gouttière)");
+
+    // Phase courante : la phase in_progress, pas la done ni la requested.
+    assert_eq!(v["current_phase"]["plan_id"], plan_id.to_string());
+    assert_eq!(v["current_phase"]["plan_title"], "Pose implant 26");
+    assert_eq!(v["current_phase"]["phase_title"], "Chirurgie implantaire");
+    assert_eq!(v["current_phase"]["position"], 2);
+    assert_eq!(v["current_phase"]["phase_count"], 3);
+    assert_eq!(v["current_phase"]["planned_sessions"], 3);
+    assert_eq!(v["current_phase"]["completed_sessions"], 1);
+    assert_eq!(
+        v["current_phase"]["next_phase_title"],
+        "Pilier + couronne céramique"
+    );
+
+    // Dernière note : déchiffrée + datée.
+    assert_eq!(
+        v["last_note"]["excerpt"],
+        "Densité osseuse suffisante en secteur 2."
+    );
+    assert!(v["last_note"]["date"].is_string());
+
+    // ── Cleanup (ordre FK) ─────────────────────────────────────────────────
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    for q in [
+        "DELETE FROM consultation_session WHERE cabinet_id = $1",
+        "DELETE FROM treatment_phase WHERE cabinet_id = $1",
+        "DELETE FROM treatment_plan WHERE cabinet_id = $1",
+        "DELETE FROM medical_record WHERE cabinet_id = $1",
+    ] {
+        sqlx::query(q).bind(cabinet_id).execute(&mut *tx).await.ok();
+    }
+    // Le RDV passé doit partir AVANT cleanup_fixture, sinon la FK
+    // appointment→patient bloque la suppression du patient.
+    sqlx::query("DELETE FROM appointment WHERE id = $1")
+        .bind(past_appt_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
     cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
 }
 
