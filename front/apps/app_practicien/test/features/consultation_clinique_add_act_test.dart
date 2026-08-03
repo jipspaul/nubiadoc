@@ -95,7 +95,16 @@ void main() {
       expect: () => [
         const ConsultationCliniqueLoaded(
             session: _empty, actionInProgress: true),
-        const ConsultationCliniqueLoaded(session: _withAct),
+        // L'acte portait une dent → le module dentaire reçoit la proposition
+        // de mise à jour d'odontogramme (consommée par la vue).
+        const ConsultationCliniqueLoaded(
+          session: _withAct,
+          lastAddedToothAct: AddedToothAct(
+            ccamCode: 'HBGD036',
+            label: 'Détartrage deux arcades',
+            tooth: '11',
+          ),
+        ),
       ],
       verify: (_) {
         verify(() => addAct.call(

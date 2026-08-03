@@ -47,9 +47,11 @@ final class CabinetMessagingThreadLoaded extends CabinetMessagingState {
   final CabinetConversation conversation;
   final List<Message> messages;
   final bool sending;
+
   /// Conversion en RDV en cours (#4159/#4160) — désactive le bouton "Créer un
   /// RDV" pendant l'appel.
   final bool converting;
+
   /// Message d'erreur de la dernière tentative de conversion, `null` sinon.
   final String? conversionError;
 

@@ -166,7 +166,11 @@ void main() {
     testWidgets(
         'selectedTooth (#4048) → pré-remplit le champ dent de l\'éditeur',
         (tester) async {
+      // Deux stubs : la recherche libre (sans arg nommé) ET le chargement
+      // des suggestions contextuelles à la dent (#4118, tooth nommé).
       when(() => useCase.search(any()))
+          .thenAnswer((_) async => [_actDetartrage]);
+      when(() => useCase.search(any(), tooth: any(named: 'tooth')))
           .thenAnswer((_) async => [_actDetartrage]);
 
       await tester

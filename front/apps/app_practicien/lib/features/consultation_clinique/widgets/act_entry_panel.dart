@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../ccam_picker.dart';
+import '../../dental_chart/dental_chart_page.dart' show kToothStatusColors;
 import '../../dental_chart/tooth_grid.dart';
 
 /// Zone de saisie d'acte : sélection de dent (#4048) + recherche/favoris
 /// CCAM. La dent choisie pré-remplit l'éditeur d'acte.
 ///
-/// L'état `selectedTooth` est porté par la vue parente (partagé avec le
-/// futur odontogramme intégré du module dentaire, lot 3).
+/// L'état `selectedTooth` vit dans le `ConsultationCliniqueBloc` (partagé
+/// avec l'odontogramme intégré du module dentaire) — la vue parente fournit
+/// les callbacks.
 class ActEntryPanel extends StatelessWidget {
   const ActEntryPanel({
     super.key,
@@ -16,11 +19,17 @@ class ActEntryPanel extends StatelessWidget {
     required this.onToothSelected,
     required this.onToothCleared,
     required this.onActSubmitted,
+    this.teethStatus,
   });
 
   final String? selectedTooth;
   final ValueChanged<String> onToothSelected;
   final VoidCallback onToothCleared;
+
+  /// État réel des dents (odontogramme du patient) — colore le bottom-sheet
+  /// mobile au lieu du gris uniforme historique. `null` si indisponible.
+  final Map<String, ToothState>? teethStatus;
+
   final void Function({
     required String code,
     required String label,
@@ -29,6 +38,7 @@ class ActEntryPanel extends StatelessWidget {
   }) onActSubmitted;
 
   Future<void> _pickTooth(BuildContext context) async {
+    final teeth = teethStatus;
     final tooth = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -37,9 +47,15 @@ class ActEntryPanel extends StatelessWidget {
         child: ToothGrid(
           quadrants: FdiQuadrants.permanent,
           keyPrefix: 'act_tooth_picker',
-          colorFor: (code) => code == selectedTooth
-              ? Theme.of(ctx).colorScheme.primary
-              : Colors.grey.shade100,
+          selectedCodes: {if (selectedTooth != null) selectedTooth!},
+          colorFor: (code) {
+            final status = teeth?[code]?.status;
+            final statusColor = kToothStatusColors[status];
+            if (statusColor != null) return statusColor;
+            return code == selectedTooth
+                ? Theme.of(ctx).colorScheme.primary
+                : Colors.grey.shade100;
+          },
           onTap: (code) => Navigator.of(ctx).pop(code),
         ),
       ),

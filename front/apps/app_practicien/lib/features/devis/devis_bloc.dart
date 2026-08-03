@@ -80,7 +80,8 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     try {
       final result = await _send(quote.id);
       result.fold(
-        (failure) => emit(DevisSendFailure(quote: quote, message: failure.message)),
+        (failure) =>
+            emit(DevisSendFailure(quote: quote, message: failure.message)),
         (status) => emit(DevisSent(_withStatus(quote, status))),
       );
     } catch (_) {

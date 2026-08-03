@@ -3,6 +3,7 @@
 //! pile verticale, seuils de design/07-handoff/00-fondations.md).
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +25,10 @@ class MockConsultationCliniqueBloc
 class MockGetActsUseCase extends Mock implements GetActsUseCase {}
 
 class MockFavoriteActsUseCase extends Mock implements FavoriteActsUseCase {}
+
+class MockGetDentalChartUseCase extends Mock implements GetDentalChartUseCase {}
+
+class MockPutDentalChartUseCase extends Mock implements PutDentalChartUseCase {}
 
 // startedAt volontairement absent : le SessionTimer périodique empêcherait
 // pumpAndSettle de converger.
@@ -61,6 +66,18 @@ void main() {
     final favoriteActs = MockFavoriteActsUseCase();
     when(() => favoriteActs.list()).thenAnswer((_) async => []);
     GetIt.instance.registerFactory<FavoriteActsUseCase>(() => favoriteActs);
+    // La session de test a un patient → la vue crée le DentalChartCubit du
+    // module dentaire (odontogramme intégré).
+    final getChart = MockGetDentalChartUseCase();
+    when(() => getChart.call(any())).thenAnswer(
+      (_) async => Right(DentalChart(
+        teeth: const {'26': ToothState(status: 'carie')},
+        updatedAt: DateTime(2026, 8, 3),
+      )),
+    );
+    GetIt.instance.registerFactory<GetDentalChartUseCase>(() => getChart);
+    GetIt.instance
+        .registerFactory<PutDentalChartUseCase>(MockPutDentalChartUseCase.new);
     addTearDown(GetIt.instance.reset);
   });
 
@@ -101,6 +118,8 @@ void main() {
     expect(find.byKey(const Key('session_acts_panel')), findsOneWidget);
     expect(find.byKey(const Key('session_actions_panel')), findsOneWidget);
     expect(find.byKey(const Key('next_step_panel')), findsOneWidget);
+    // Module dentaire : odontogramme intégré en colonne centrale.
+    expect(find.byKey(const Key('odontogram_panel')), findsOneWidget);
     expect(find.text('Terminer & facturer'), findsOneWidget);
   });
 
@@ -121,6 +140,8 @@ void main() {
     expect(find.byKey(const Key('consultation_mobile_layout')), findsOneWidget);
     expect(find.byKey(const Key('patient_banner')), findsOneWidget);
     expect(find.byKey(const Key('session_actions_panel')), findsNothing);
+    // Mobile : pas d'odontogramme inline, le bottom-sheet reste la voie.
+    expect(find.byKey(const Key('odontogram_panel')), findsNothing);
     expect(
         find.byKey(const Key('complete_consultation_button')), findsOneWidget);
     expect(find.byKey(const Key('act_tooth_picker_button')), findsOneWidget);

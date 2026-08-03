@@ -91,7 +91,8 @@ class _AppointmentSlotPickerState extends State<AppointmentSlotPicker> {
                 ? Text(
                     _error!,
                     key: const Key('appointment_slot_picker_error'),
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
                   )
                 : _slots.isEmpty
                     // #4540 : un « Créer » définitivement grisé sans le

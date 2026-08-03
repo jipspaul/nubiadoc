@@ -9,8 +9,8 @@ class ApiGetActsUseCase implements GetActsUseCase {
   const ApiGetActsUseCase(this._api);
 
   @override
-  Future<List<CcamAct>> search(String prefix) async {
-    final acts = await _api.searchCcamActs(prefix);
+  Future<List<CcamAct>> search(String prefix, {String? tooth}) async {
+    final acts = await _api.searchCcamActs(prefix, tooth: tooth);
     return acts
         .map((a) =>
             CcamAct(code: a.code, label: a.label, tarifCents: a.tarifCents))

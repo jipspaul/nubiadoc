@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../consultation_clinique_bloc.dart';
 import '../consultation_clinique_event.dart';
 import '../consultation_clinique_state.dart';
+import '../modules/dentaire/odontogram_panel.dart';
+import '../modules/dentaire/tooth_act_suggestions.dart';
+import '../modules/dentaire/tooth_status_update_dialog.dart';
+import '../modules/dentaire/treated_tooth_tile.dart';
 import '../sterilization_scan_page.dart';
+import '../../dental_chart/dental_chart_cubit.dart';
 import 'act_entry_panel.dart';
 import 'clinical_context_panel.dart';
 import 'next_step_panel.dart';
@@ -22,10 +29,14 @@ const double kConsultationDesktopMinWidth = 1024;
 const double kConsultationTabletMinWidth = 768;
 
 /// Vue « séance ouverte » : bandeau patient + colonnes selon la largeur
-/// (maquette `bo-praticien-core.jsx`, 3 colonnes 300 | 1fr | 280).
+/// (maquette `bo-praticien-core.jsx`, 3 colonnes 300 | 1fr | 280), avec le
+/// module dentaire intégré : odontogramme en tête de colonne centrale
+/// (tap dent → acte CCAM pré-rempli, à la Desmos) et proposition EXPLICITE
+/// de mise à jour d'état de dent après un acte (jamais d'automatisme,
+/// périmètre non-DM).
 ///
-/// La dent sélectionnée (#4048) vit ici en attendant sa migration dans le
-/// Bloc avec l'odontogramme intégré (lot 3 de la refonte).
+/// La dent sélectionnée vit dans le `ConsultationCliniqueBloc`
+/// (`state.selectedTooth`, #4048).
 class ConsultationLoadedView extends StatefulWidget {
   const ConsultationLoadedView({super.key, required this.state});
 
@@ -36,8 +47,6 @@ class ConsultationLoadedView extends StatefulWidget {
 }
 
 class _ConsultationLoadedViewState extends State<ConsultationLoadedView> {
-  String? _selectedTooth;
-
   /// Ancre de la zone de saisie d'acte pour le bouton « Ajouter un acte »
   /// de la colonne Actions.
   final GlobalKey _actEntryAnchor = GlobalKey();
@@ -69,38 +78,133 @@ class _ConsultationLoadedViewState extends State<ConsultationLoadedView> {
         );
   }
 
-  ActEntryPanel _buildEntryPanel() => ActEntryPanel(
+  /// Après un acte portant une dent : PROPOSE la mise à jour de
+  /// l'odontogramme si la table de suggestions connaît l'acte. « Ignorer »
+  /// n'écrit rien ; la validation passe par le PUT dental-chart standard.
+  Future<void> _onToothActAdded(
+    BuildContext context,
+    ConsultationCliniqueLoaded state,
+  ) async {
+    final added = state.lastAddedToothAct!;
+    final bloc = context.read<ConsultationCliniqueBloc>();
+    final chartCubit = context.read<DentalChartCubit>();
+    bloc.add(const ConsultationCliniqueToothActConsumed());
+
+    final suggestion = suggestedToothStatusForAct(
+      ccamCode: added.ccamCode,
+      label: added.label,
+    );
+    if (suggestion == null) return;
+
+    final chosen = await ToothStatusUpdateDialog.show(
+      context,
+      tooth: added.tooth,
+      actLabel: added.label,
+      suggestedStatus: suggestion,
+    );
+    if (chosen != null) {
+      chartCubit.setToothStatus(added.tooth, chosen);
+      await chartCubit.save();
+    }
+  }
+
+  ActEntryPanel _buildEntryPanel(Map<String, ToothState>? teeth) =>
+      ActEntryPanel(
         key: _actEntryAnchor,
-        selectedTooth: _selectedTooth,
-        onToothSelected: (tooth) => setState(() => _selectedTooth = tooth),
-        onToothCleared: () => setState(() => _selectedTooth = null),
+        selectedTooth: widget.state.selectedTooth,
+        teethStatus: teeth,
+        onToothSelected: (tooth) => context
+            .read<ConsultationCliniqueBloc>()
+            .add(ConsultationCliniqueToothSelected(tooth)),
+        onToothCleared: () => context
+            .read<ConsultationCliniqueBloc>()
+            .add(const ConsultationCliniqueToothCleared()),
         onActSubmitted: _submitAct,
       );
 
-  @override
-  Widget build(BuildContext context) {
+  /// Dent mise en avant dans le contexte clinique : la sélection courante,
+  /// sinon la dernière dent traitée cette séance.
+  String? get _highlightedTooth {
+    final selected = widget.state.selectedTooth;
+    if (selected != null) return selected;
+    for (final act in widget.state.session.acts.reversed) {
+      final tooth = act.tooth;
+      if (tooth != null && tooth.isNotEmpty) return tooth;
+    }
+    return null;
+  }
+
+  Widget _buildLayouts(BuildContext context,
+      {required Map<String, ToothState>? teeth, required bool dental}) {
+    final highlightedTooth = _highlightedTooth;
+    final moduleTile = highlightedTooth == null
+        ? null
+        : TreatedToothTile(tooth: highlightedTooth);
+    final odontogram = dental ? const OdontogramPanel() : null;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         if (width >= kConsultationDesktopMinWidth) {
           return _DesktopLayout(
             state: widget.state,
-            entryPanel: _buildEntryPanel(),
+            entryPanel: _buildEntryPanel(teeth),
             onAddAct: _scrollToActEntry,
+            odontogram: odontogram,
+            moduleTile: moduleTile,
           );
         }
         if (width >= kConsultationTabletMinWidth) {
           return _TabletLayout(
             state: widget.state,
-            entryPanel: _buildEntryPanel(),
+            entryPanel: _buildEntryPanel(teeth),
             onAddAct: _scrollToActEntry,
+            odontogram: odontogram,
+            moduleTile: moduleTile,
           );
         }
         return _MobileLayout(
           state: widget.state,
-          entryPanel: _buildEntryPanel(),
+          entryPanel: _buildEntryPanel(teeth),
         );
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final patientId = widget.state.session.patient?.id;
+    // Sans patient (payload minimal / back en retard) : pas de module
+    // dentaire, la saisie d'acte reste pleinement fonctionnelle.
+    if (patientId == null) {
+      return _buildLayouts(context, teeth: null, dental: false);
+    }
+    return BlocProvider<DentalChartCubit>(
+      // Keyé sur le patient : le cubit (et son GET dental-chart) survit aux
+      // rebuilds de séance (ajout d'acte) et n'est recréé qu'au changement
+      // de patient.
+      key: ValueKey('consultation_dental_chart_$patientId'),
+      create: (_) => DentalChartCubit(
+        patientId: patientId,
+        getDentalChart: GetIt.instance<GetDentalChartUseCase>(),
+        putDentalChart: GetIt.instance<PutDentalChartUseCase>(),
+      ),
+      child: BlocListener<ConsultationCliniqueBloc, ConsultationCliniqueState>(
+        listenWhen: (_, current) =>
+            current is ConsultationCliniqueLoaded &&
+            current.lastAddedToothAct != null,
+        listener: (context, state) => _onToothActAdded(
+          context,
+          state as ConsultationCliniqueLoaded,
+        ),
+        child: BlocBuilder<DentalChartCubit, DentalChartState>(
+          builder: (context, chartState) => _buildLayouts(
+            context,
+            teeth: chartState is DentalChartLoaded ? chartState.teeth : null,
+            dental: true,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -110,11 +214,15 @@ class _DesktopLayout extends StatelessWidget {
     required this.state,
     required this.entryPanel,
     required this.onAddAct,
+    this.odontogram,
+    this.moduleTile,
   });
 
   final ConsultationCliniqueLoaded state;
   final Widget entryPanel;
   final VoidCallback onAddAct;
+  final Widget? odontogram;
+  final Widget? moduleTile;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +246,10 @@ class _DesktopLayout extends StatelessWidget {
                 SizedBox(
                   width: 300,
                   child: SingleChildScrollView(
-                    child: ClinicalContextPanel(session: session),
+                    child: ClinicalContextPanel(
+                      session: session,
+                      moduleTile: moduleTile,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -146,6 +257,10 @@ class _DesktopLayout extends StatelessWidget {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
+                        if (odontogram != null) ...[
+                          odontogram!,
+                          const SizedBox(height: 16),
+                        ],
                         SessionActsPanel(session: session),
                         const SizedBox(height: 16),
                         entryPanel,
@@ -191,11 +306,15 @@ class _TabletLayout extends StatelessWidget {
     required this.state,
     required this.entryPanel,
     required this.onAddAct,
+    this.odontogram,
+    this.moduleTile,
   });
 
   final ConsultationCliniqueLoaded state;
   final Widget entryPanel;
   final VoidCallback onAddAct;
+  final Widget? odontogram;
+  final Widget? moduleTile;
 
   @override
   Widget build(BuildContext context) {
@@ -220,6 +339,10 @@ class _TabletLayout extends StatelessWidget {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
+                        if (odontogram != null) ...[
+                          odontogram!,
+                          const SizedBox(height: 16),
+                        ],
                         SessionActsPanel(session: session),
                         const SizedBox(height: 16),
                         entryPanel,
@@ -229,7 +352,10 @@ class _TabletLayout extends StatelessWidget {
                           actionInProgress: state.actionInProgress,
                         ),
                         const SizedBox(height: 16),
-                        ClinicalContextPanel(session: session),
+                        ClinicalContextPanel(
+                          session: session,
+                          moduleTile: moduleTile,
+                        ),
                       ],
                     ),
                   ),
@@ -263,7 +389,8 @@ class _TabletLayout extends StatelessWidget {
 }
 
 /// Mobile : pile verticale historique (grosses cibles, odontogramme via
-/// bottom-sheet), « Terminer » compact dans le bandeau patient.
+/// bottom-sheet coloré par l'état réel des dents), « Terminer » compact dans
+/// le bandeau patient.
 class _MobileLayout extends StatelessWidget {
   const _MobileLayout({required this.state, required this.entryPanel});
 

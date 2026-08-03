@@ -8,15 +8,22 @@ class ClinicalSessionApi {
 
   ClinicalSessionApi(ApiClient client) : _dio = client.dio;
 
-  /// GET /v1/ccam/acts?q= — référentiel CCAM (#3226). Retourne des triplets
-  /// (code, label, tarifCents) filtrés par code ou libellé (accent-insensible
-  /// côté API). `tarif_cents` est le tarif de référence CCAM (peut être absent).
+  /// GET /v1/ccam/acts?q=&tooth= — référentiel CCAM (#3226). Retourne des
+  /// triplets (code, label, tarifCents) filtrés par code ou libellé
+  /// (accent-insensible côté API). `tarif_cents` est le tarif de référence
+  /// CCAM (peut être absent). `tooth` (FDI, #4118) : quand `q` est vide, le
+  /// back classe les suggestions par usage du praticien sur des dents du
+  /// même type (molaire/prémolaire/canine/incisive).
   Future<List<({String code, String label, int? tarifCents})>> searchCcamActs(
-    String q,
-  ) async {
+    String q, {
+    String? tooth,
+  }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/ccam/acts',
-      queryParameters: {if (q.trim().isNotEmpty) 'q': q.trim()},
+      queryParameters: {
+        if (q.trim().isNotEmpty) 'q': q.trim(),
+        if (tooth != null && tooth.trim().isNotEmpty) 'tooth': tooth.trim(),
+      },
     );
     final data = (response.data?['data'] as List<dynamic>? ?? []);
     return data

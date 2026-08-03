@@ -32,7 +32,9 @@ class CcamActDraft {
 }
 
 abstract class GetActsUseCase {
-  Future<List<CcamAct>> search(String prefix);
+  /// [tooth] (FDI, #4118) : quand [prefix] est vide, le back classe les
+  /// suggestions par usage du praticien sur des dents du même type.
+  Future<List<CcamAct>> search(String prefix, {String? tooth});
 }
 
 /// Gestion des actes CCAM favoris du praticien (#4112/#4113) — épingler
@@ -82,10 +84,34 @@ class _CcamPickerState extends State<CcamPicker> {
   List<CcamAct>? _suggestions;
   List<CcamAct>? _favorites;
 
+  /// Suggestions contextuelles à la dent sélectionnée (#4118) — affichées
+  /// uniquement quand le champ de recherche est vide.
+  List<CcamAct>? _toothSuggestions;
+
   @override
   void initState() {
     super.initState();
     _loadFavorites();
+    _loadToothSuggestions();
+  }
+
+  @override
+  void didUpdateWidget(covariant CcamPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedTooth != oldWidget.selectedTooth) {
+      _loadToothSuggestions();
+    }
+  }
+
+  Future<void> _loadToothSuggestions() async {
+    final tooth = widget.selectedTooth;
+    if (tooth == null || tooth.isEmpty) {
+      if (_toothSuggestions != null) setState(() => _toothSuggestions = null);
+      return;
+    }
+    final results = await widget.useCase.search('', tooth: tooth);
+    if (!mounted || widget.selectedTooth != tooth) return;
+    setState(() => _toothSuggestions = results.take(5).toList());
   }
 
   @override
@@ -161,6 +187,11 @@ class _CcamPickerState extends State<CcamPicker> {
   Widget build(BuildContext context) {
     final suggestions = _suggestions;
     final favorites = _favorites;
+    final toothSuggestions = _toothSuggestions;
+    // Les suggestions par dent ne s'affichent que sans recherche en cours.
+    final showToothSuggestions = toothSuggestions != null &&
+        toothSuggestions.isNotEmpty &&
+        suggestions == null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -200,6 +231,34 @@ class _CcamPickerState extends State<CcamPicker> {
             hint: 'Rechercher un acte CCAM',
           ),
         ),
+        // SOUS le champ (et non au-dessus) : une section qui apparaît en
+        // asynchrone au-dessus du champ décalerait son Element dans la
+        // Column et casserait la connexion IME en cours de frappe.
+        if (showToothSuggestions) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Suggestions pour la dent ${widget.selectedTooth}',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+          ),
+          ListView.builder(
+            key: const Key('ccam_tooth_suggestions'),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: toothSuggestions.length,
+            itemBuilder: (context, i) => ListRow(
+              key: Key('ccam_tooth_suggestion_${toothSuggestions[i].code}'),
+              leading: const Icon(Icons.auto_awesome_outlined, size: 22),
+              title: toothSuggestions[i].label,
+              subtitle: toothSuggestions[i].code,
+              onTap: () => _select(toothSuggestions[i]),
+            ),
+          ),
+        ],
         if (suggestions != null)
           suggestions.isEmpty
               ? Padding(

@@ -404,8 +404,7 @@ class _DetailViewState extends State<_DetailView> {
             variant: NubiaButtonVariant.secondary,
             icon: Icons.medication_outlined,
             label: 'Créer une ordonnance',
-            onPressed: () =>
-                context.push('/ordonnances/new?patientId=${p.id}'),
+            onPressed: () => context.push('/ordonnances/new?patientId=${p.id}'),
           ),
           const SizedBox(height: 12),
           NubiaButton(

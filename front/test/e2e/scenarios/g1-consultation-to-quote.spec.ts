@@ -140,9 +140,12 @@ test.describe('G1 — Consultation dentaire complète → devis patient', () => 
     await loginAs('practicien', page);
     await gotoRoute(page, 'practicien', `/consultation?id=${consultationId}`);
 
-    // Choisit la dent via le schéma (bottom sheet ToothGrid) — même dent que
-    // l'étape 3, pour l'assertion tooth ci-dessous.
-    await page.getByText('Choisir une dent').first().click();
+    // Choisit la dent directement sur l'odontogramme intégré à la vue
+    // (refonte consultation lot 3, à la Desmos) — même dent que l'étape 3,
+    // pour l'assertion tooth ci-dessous. Au viewport Playwright (1280,
+    // desktop ≥1024), la grille est inline dans la colonne centrale ; le
+    // bottom-sheet « Choisir une dent » ne subsiste qu'en mobile (<768).
+    await expect(page.getByText('Schéma dentaire').first()).toBeVisible();
     await page.getByText(TOOTH, { exact: true }).first().click();
     await expect(page.getByText(`Dent ${TOOTH}`).first()).toBeVisible();
 

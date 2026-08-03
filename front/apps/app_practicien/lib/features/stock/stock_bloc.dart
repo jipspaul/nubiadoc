@@ -46,8 +46,7 @@ class StockBloc extends Bloc<StockEvent, StockState>
     );
     result.fold(
       (failure) => safeEmit(StockError(failure.message)),
-      (created) =>
-          safeEmit(StockLoaded([created, ...current.requests])),
+      (created) => safeEmit(StockLoaded([created, ...current.requests])),
     );
   }
 }

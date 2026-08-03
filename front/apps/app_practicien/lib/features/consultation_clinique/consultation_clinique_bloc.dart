@@ -43,6 +43,24 @@ class ConsultationCliniqueBloc
         emit(current.copyWith(clearClinicalRiskWarning: true));
       }
     });
+    on<ConsultationCliniqueToothSelected>((event, emit) {
+      final current = state;
+      if (current is ConsultationCliniqueLoaded) {
+        emit(current.copyWith(selectedTooth: event.tooth));
+      }
+    });
+    on<ConsultationCliniqueToothCleared>((event, emit) {
+      final current = state;
+      if (current is ConsultationCliniqueLoaded) {
+        emit(current.copyWith(clearSelectedTooth: true));
+      }
+    });
+    on<ConsultationCliniqueToothActConsumed>((event, emit) {
+      final current = state;
+      if (current is ConsultationCliniqueLoaded) {
+        emit(current.copyWith(clearLastAddedToothAct: true));
+      }
+    });
   }
 
   Future<void> _onLoad(
@@ -96,11 +114,29 @@ class ConsultationCliniqueBloc
         ),
         // #3401 — recharge la séance après un ajout réussi pour rafraîchir la
         // liste des actes et le total (sinon l'écran reste « 0 acte · 0.00 € »).
+        // La sélection de dent est consommée par l'acte ; si l'acte portait
+        // une dent, on l'expose pour que le module dentaire PROPOSE la mise à
+        // jour de l'odontogramme (jamais d'écriture automatique — non-DM).
         (_) async {
+          final tooth = event.tooth;
+          final addedToothAct = tooth == null || tooth.isEmpty
+              ? null
+              : AddedToothAct(
+                  ccamCode: event.ccamCode,
+                  label: event.label,
+                  tooth: tooth,
+                );
           final reload = await _getSession(current.session.id);
           reload.fold(
-            (_) => safeEmit(current.copyWith(actionInProgress: false)),
-            (s) => safeEmit(ConsultationCliniqueLoaded(session: s)),
+            (_) => safeEmit(current.copyWith(
+              actionInProgress: false,
+              clearSelectedTooth: true,
+              lastAddedToothAct: addedToothAct,
+            )),
+            (s) => safeEmit(ConsultationCliniqueLoaded(
+              session: s,
+              lastAddedToothAct: addedToothAct,
+            )),
           );
         },
       );

@@ -74,17 +74,15 @@ class _StockPageState extends State<StockPage> {
             case StockError(:final message):
               return NubiaErrorWidget(
                 message: message,
-                onRetry: () => context
-                    .read<StockBloc>()
-                    .add(const StockLoadRequested()),
+                onRetry: () =>
+                    context.read<StockBloc>().add(const StockLoadRequested()),
               );
             case StockLoaded(:final requests):
               if (requests.isEmpty) {
                 return const NubiaEmptyState(
                   icon: Icons.inventory_2_outlined,
                   title: 'Aucune demande de stock',
-                  subtitle:
-                      'Envoyez une demande à une pharmacie partenaire.',
+                  subtitle: 'Envoyez une demande à une pharmacie partenaire.',
                 );
               }
               return ListView.builder(

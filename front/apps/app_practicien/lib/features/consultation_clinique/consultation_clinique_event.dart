@@ -56,6 +56,27 @@ class ConsultationCliniqueActionErrorConsumed
   const ConsultationCliniqueActionErrorConsumed();
 }
 
+/// Dent sélectionnée pour le prochain acte (#4048) — tap sur l'odontogramme
+/// intégré ou le bottom-sheet mobile.
+class ConsultationCliniqueToothSelected extends ConsultationCliniqueEvent {
+  final String tooth;
+  const ConsultationCliniqueToothSelected(this.tooth);
+
+  @override
+  List<Object?> get props => [tooth];
+}
+
+/// Désélectionne la dent courante.
+class ConsultationCliniqueToothCleared extends ConsultationCliniqueEvent {
+  const ConsultationCliniqueToothCleared();
+}
+
+/// Consomme la proposition de mise à jour d'odontogramme après affichage du
+/// dialogue (que le praticien ait validé ou ignoré).
+class ConsultationCliniqueToothActConsumed extends ConsultationCliniqueEvent {
+  const ConsultationCliniqueToothActConsumed();
+}
+
 /// Consomme l'alerte clinique bloquante après acquittement du dialogue —
 /// #4057/#4058.
 class ConsultationCliniqueClinicalRiskWarningConsumed
