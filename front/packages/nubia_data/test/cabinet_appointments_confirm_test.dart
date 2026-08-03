@@ -20,12 +20,15 @@ void main() {
     repository = CabinetAppointmentsRepositoryImpl(api);
   });
 
-  test('confirm() sur 409 renvoie une vraie erreur, pas un faux succès', () async {
+  test('confirm() sur 409 renvoie une vraie erreur, pas un faux succès',
+      () async {
     when(() => api.confirm(any())).thenThrow(
       DioException(
-        requestOptions: RequestOptions(path: '/cabinet/appointments/a-1/confirm'),
+        requestOptions:
+            RequestOptions(path: '/cabinet/appointments/a-1/confirm'),
         response: Response(
-          requestOptions: RequestOptions(path: '/cabinet/appointments/a-1/confirm'),
+          requestOptions:
+              RequestOptions(path: '/cabinet/appointments/a-1/confirm'),
           statusCode: 409,
         ),
       ),

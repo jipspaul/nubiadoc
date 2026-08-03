@@ -30,7 +30,6 @@ void main() {
 
   test('aucun repo clinique enregistré (prescription, consultation)', () {
     expect(gi.isRegistered<PrescriptionRepository>(), isFalse);
-    expect(gi.isRegistered<ConsultationRepository>(), isFalse);
     expect(gi.isRegistered<ClinicalSessionRepository>(), isFalse);
   });
 

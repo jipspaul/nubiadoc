@@ -64,7 +64,7 @@ void main() {
     testWidgets('aucun chemin vers le clinique ni vers l\'espace patient',
         (tester) async {
       expect(GetIt.instance.isRegistered<PrescriptionRepository>(), isFalse);
-      expect(GetIt.instance.isRegistered<ConsultationRepository>(), isFalse);
+      expect(GetIt.instance.isRegistered<ClinicalSessionRepository>(), isFalse);
       expect(GetIt.instance.isRegistered<PatientPharmacyRepository>(), isFalse);
       expect(GetIt.instance.isRegistered<PharmacyOrdersRepository>(), isTrue);
     });

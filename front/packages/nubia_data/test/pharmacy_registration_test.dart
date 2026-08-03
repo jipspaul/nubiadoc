@@ -49,7 +49,7 @@ void main() {
 
     // Cloisonnement : pas d'accès clinique ni patient depuis l'app pharmacie.
     expect(gi.isRegistered<PrescriptionRepository>(), isFalse);
-    expect(gi.isRegistered<ConsultationRepository>(), isFalse);
+    expect(gi.isRegistered<ClinicalSessionRepository>(), isFalse);
     expect(gi.isRegistered<PatientPharmacyRepository>(), isFalse);
   });
 

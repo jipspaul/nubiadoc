@@ -35,7 +35,6 @@ export 'src/entities/cabinet_appointment.dart';
 export 'src/entities/cabinet_patient.dart';
 export 'src/entities/cabinet_practitioner.dart';
 export 'src/entities/cabinet_quote.dart';
-export 'src/entities/consultation_context.dart';
 export 'src/entities/dental_chart.dart';
 export 'src/entities/member.dart';
 export 'src/entities/periodontal_chart.dart';
@@ -95,7 +94,6 @@ export 'src/repositories/treatment_plans_repository.dart';
 export 'src/repositories/patient_treatment_plans_repository.dart';
 export 'src/repositories/cabinet_team_messages_repository.dart';
 export 'src/repositories/cabinet_quotes_repository.dart';
-export 'src/repositories/consultation_repository.dart';
 export 'src/repositories/members_repository.dart';
 export 'src/repositories/secretariat_repository.dart';
 export 'src/repositories/slots_repository.dart';
@@ -256,9 +254,6 @@ export 'src/usecases/cabinet_patients/list_cabinet_patients_use_case.dart';
 export 'src/usecases/cabinet_patients/get_cabinet_patient_use_case.dart';
 export 'src/usecases/cabinet_patients/update_patient_notes_use_case.dart';
 // consultation pro (gated clinical)
-export 'src/usecases/consultation/get_consultation_context_use_case.dart';
-export 'src/usecases/consultation/add_consultation_act_use_case.dart';
-export 'src/usecases/consultation/complete_consultation_use_case.dart';
 // waiting room pro
 export 'src/usecases/waiting_room/list_waiting_room_use_case.dart';
 export 'src/usecases/waiting_room/call_next_use_case.dart';

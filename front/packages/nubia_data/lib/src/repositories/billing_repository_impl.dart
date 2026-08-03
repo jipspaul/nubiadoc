@@ -43,8 +43,7 @@ class BillingRepositoryImpl implements BillingRepository {
       final dto = await _api.getQuoteById(quoteId);
       return Right(dto.toDomain());
     } on DioException catch (e) {
-      return Left(
-          _mapDioError(e, 'Erreur lors de la signature du devis.'));
+      return Left(_mapDioError(e, 'Erreur lors de la signature du devis.'));
     } catch (e) {
       return const Left(ParseFailure());
     }

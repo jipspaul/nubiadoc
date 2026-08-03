@@ -4,7 +4,6 @@ import 'package:nubia_data/src/remote/cabinet_messaging/cabinet_messaging_dto.da
 import 'package:nubia_data/src/remote/cabinet_patients/cabinet_patients_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_agenda/cabinet_agenda_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
-import 'package:nubia_data/src/remote/consultation/consultation_dto.dart';
 import 'package:nubia_data/src/remote/waiting_room/waiting_room_dto.dart';
 import 'package:nubia_data/src/remote/search/search_dto.dart';
 import 'package:nubia_data/src/remote/members/members_dto.dart';
@@ -153,30 +152,6 @@ void main() {
         CabinetAppointmentStatus.completed,
         reason: 'un RDV done ne doit jamais retomber sur requested',
       );
-    });
-  });
-
-  group('ConsultationContextDto (GET /v1/cabinet/consultations/:id)', () {
-    test('fromJson désérialise une consultation en cours', () {
-      final json = {
-        'id': 'consult-1',
-        'cabinet_id': 'cab-1',
-        'appointment_id': 'rdv-1',
-        'patient_id': 'pat-1',
-        'patient_name': 'Marie Dupont',
-        'practitioner_id': 'prac-1',
-        'started_at': '2026-07-10T14:05:00Z',
-        'ended_at': null,
-        'notes': null,
-        'is_completed': false,
-      };
-      final dto = ConsultationContextDto.fromJson(json);
-      expect(dto.id, 'consult-1');
-      expect(dto.isCompleted, isFalse);
-      expect(dto.endedAt, isNull);
-      final domain = dto.toDomain();
-      expect(domain.isCompleted, isFalse);
-      expect(domain.endedAt, isNull);
     });
   });
 

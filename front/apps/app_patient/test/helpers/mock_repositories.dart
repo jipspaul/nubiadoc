@@ -45,9 +45,6 @@ class MockCabinetQuotesRepository extends Mock
 class MockClinicalSessionRepository extends Mock
     implements ClinicalSessionRepository {}
 
-class MockConsultationRepository extends Mock
-    implements ConsultationRepository {}
-
 class MockMembersRepository extends Mock implements MembersRepository {}
 
 class MockPrescriptionRepository extends Mock

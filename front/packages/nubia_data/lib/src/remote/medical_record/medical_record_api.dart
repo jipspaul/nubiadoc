@@ -10,8 +10,8 @@ class MedicalRecordApi {
 
   /// GET /v1/cabinet/patients/{id}/medical-record (#4076).
   Future<MedicalRecordSummaryDto> getMedicalRecord(String patientId) async {
-    final response = await _dio
-        .get<Map<String, dynamic>>('/cabinet/patients/$patientId/medical-record');
+    final response = await _dio.get<Map<String, dynamic>>(
+        '/cabinet/patients/$patientId/medical-record');
     return MedicalRecordSummaryDto.fromJson(response.data!);
   }
 }

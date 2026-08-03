@@ -56,7 +56,8 @@ void main() {
     expect(find.byKey(const Key('completed_schedule_next')), findsOneWidget);
   });
 
-  testWidgets('phase épuisée : badge « Phase terminée », pas de re-programmation',
+  testWidgets(
+      'phase épuisée : badge « Phase terminée », pas de re-programmation',
       (tester) async {
     await pump(tester,
         result: const SessionCompleteResult(sessionsRemaining: 0));

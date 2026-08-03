@@ -28,17 +28,16 @@ void main() {
         'amc renseigné + numeroAdherent null → envoie quand même la clé '
         'numero_adherent (chaîne vide) pour éviter le 422 "missing field"',
         () async {
-      when(() => api.updateCoverage(any()))
-          .thenAnswer((_) async => _dto);
+      when(() => api.updateCoverage(any())).thenAnswer((_) async => _dto);
 
       await repo.updateCoverage(
         regime: HealthInsuranceRegime.regimeGeneral,
         amc: 'QA Mutuelle',
       );
 
-      final body =
-          verify(() => api.updateCoverage(captureAny())).captured.single
-              as Map<String, dynamic>;
+      final body = verify(() => api.updateCoverage(captureAny()))
+          .captured
+          .single as Map<String, dynamic>;
       expect(body['mutuelle'], {'amc': 'QA Mutuelle', 'numero_adherent': ''});
     });
   });

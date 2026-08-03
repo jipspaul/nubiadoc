@@ -32,7 +32,6 @@ import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/cabinet_stats/cabinet_stats_api.dart';
 import '../remote/audit_log/audit_log_api.dart';
 import '../remote/clinical/clinical_session_api.dart';
-import '../remote/consultation/consultation_api.dart';
 import '../remote/cr_templates/cr_template_api.dart';
 import '../remote/dashboard/dashboard_api.dart';
 import '../remote/documents/document_api.dart';
@@ -86,7 +85,6 @@ import '../repositories/cabinet_stats_repository_impl.dart';
 import '../repositories/audit_log_repository_impl.dart';
 import '../repositories/cached_appointments_repository_impl.dart';
 import '../repositories/clinical_session_repository_impl.dart';
-import '../repositories/consultation_repository_impl.dart';
 import '../repositories/cr_template_repository_impl.dart';
 import '../repositories/dashboard_repository_impl.dart';
 import '../repositories/document_repository_impl.dart';
@@ -122,9 +120,9 @@ import '../realtime/ws_pharmacy_order_events.dart';
 ///
 /// [includePro] gates the pro/cabinet data stack (9 APIs + repos for the
 /// practitioner and secretariat surfaces). Pass `true` in the pro apps.
-/// When `includePro == true` and `includeClinical == false`, the
-/// [ConsultationApi]/[ConsultationRepository] are NOT registered (secretariat
-/// binary does not access clinical data).
+/// When `includePro == true` and `includeClinical == false`, the clinical
+/// session stack (APIs, repositories, use cases) is NOT registered
+/// (secretariat binary does not access clinical data).
 ///
 /// [useCache] enables the offline cache layer for appointments. When `true`,
 /// [AppointmentRepository] is backed by [CachedAppointmentsRepositoryImpl]
@@ -487,8 +485,8 @@ void _registerClinical(GetIt gi) {
 
 /// Registers the pro/cabinet data stack.
 ///
-/// [includeClinical] controls whether [ConsultationApi] and
-/// [ConsultationRepository] are registered — secretariat apps pass `false`.
+/// [includeClinical] controls whether the clinical session use cases tied
+/// to the pro surface are registered — secretariat apps pass `false`.
 void _registerPro(GetIt gi, {bool includeClinical = true}) {
   gi
     // APIs
@@ -742,13 +740,8 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => CreateStockRequestUseCase(gi()));
 
   if (includeClinical) {
-    gi
-      ..registerLazySingleton<ConsultationApi>(
-        () => ConsultationApi(gi()),
-      )
-      ..registerLazySingleton<ConsultationRepository>(
-        () => ConsultationRepositoryImpl(gi()),
-      )
-      ..registerFactory(() => StartConsultationUseCase(gi()));
+    // Démarrage de séance depuis l'agenda — s'appuie sur la stack
+    // ClinicalSession enregistrée par `_registerClinical`.
+    gi.registerFactory(() => StartConsultationUseCase(gi()));
   }
 }
