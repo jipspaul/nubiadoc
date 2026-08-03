@@ -23,6 +23,84 @@ class ClinicalAct extends Equatable {
       [id, ccamCode, label, tooth, amountCents, included];
 }
 
+/// Patient de la séance (bandeau patient de la vue fauteuil).
+/// L'API ne renvoie jamais la date de naissance — seulement l'âge calculé.
+class PatientSummary extends Equatable {
+  final String id;
+  final String displayName;
+  final int? ageYears;
+
+  const PatientSummary({
+    required this.id,
+    required this.displayName,
+    this.ageYears,
+  });
+
+  @override
+  List<Object?> get props => [id, displayName, ageYears];
+}
+
+/// Alerte médicale en affichage PASSIF uniquement (périmètre non-DM).
+/// `kind` : 'allergie' | 'medico_legal'.
+class MedicalAlert extends Equatable {
+  final String kind;
+  final String label;
+
+  const MedicalAlert({required this.kind, required this.label});
+
+  @override
+  List<Object?> get props => [kind, label];
+}
+
+/// Phase de plan de traitement en cours (panneau « Prochaine étape »).
+class CurrentPhase extends Equatable {
+  final String planId;
+  final String planTitle;
+  final String phaseId;
+  final String phaseTitle;
+  final int position;
+  final int phaseCount;
+  final int? plannedSessions;
+  final int completedSessions;
+  final String? nextPhaseTitle;
+
+  const CurrentPhase({
+    required this.planId,
+    required this.planTitle,
+    required this.phaseId,
+    required this.phaseTitle,
+    required this.position,
+    required this.phaseCount,
+    this.plannedSessions,
+    required this.completedSessions,
+    this.nextPhaseTitle,
+  });
+
+  @override
+  List<Object?> get props => [
+        planId,
+        planTitle,
+        phaseId,
+        phaseTitle,
+        position,
+        phaseCount,
+        plannedSessions,
+        completedSessions,
+        nextPhaseTitle,
+      ];
+}
+
+/// Extrait daté de la note de la dernière séance terminée du patient.
+class LastNote extends Equatable {
+  final DateTime? date;
+  final String excerpt;
+
+  const LastNote({this.date, required this.excerpt});
+
+  @override
+  List<Object?> get props => [date, excerpt];
+}
+
 /// The clinical session context returned by GET /v1/cabinet/consultations/{id}.
 class ClinicalSession extends Equatable {
   final String id;
@@ -44,6 +122,31 @@ class ClinicalSession extends Equatable {
   /// la consultation d'un confrère dans l'historique).
   final String? practitionerName;
 
+  // ── Contexte enrichi (refonte consultation, lot 1) ────────────────────────
+  // Tous nullables : la route liste ne les renvoie pas, et un back déployé
+  // en décalé non plus — le front doit tolérer leur absence.
+
+  /// Patient de la séance (détail uniquement).
+  final PatientSummary? patient;
+
+  /// Début du RDV lié à la séance (détail uniquement).
+  final DateTime? appointmentStartsAt;
+
+  /// Motif du RDV en texte libre (détail uniquement).
+  final String? appointmentMotif;
+
+  /// Alertes médicales passives (liste vide si dossier vide ou route liste).
+  final List<MedicalAlert> medicalAlerts;
+
+  /// Antécédents en texte libre (`medical_record.history`).
+  final String? medicalHistory;
+
+  /// Phase de plan de traitement en cours pour ce patient.
+  final CurrentPhase? currentPhase;
+
+  /// Dernière note de séance terminée du patient.
+  final LastNote? lastNote;
+
   const ClinicalSession({
     required this.id,
     required this.appointmentId,
@@ -53,6 +156,13 @@ class ClinicalSession extends Equatable {
     this.patientName,
     this.startedAt,
     this.practitionerName,
+    this.patient,
+    this.appointmentStartsAt,
+    this.appointmentMotif,
+    this.medicalAlerts = const [],
+    this.medicalHistory,
+    this.currentPhase,
+    this.lastNote,
   });
 
   bool get isCompleted => status == 'completed';
@@ -75,6 +185,13 @@ class ClinicalSession extends Equatable {
         patientName,
         startedAt,
         practitionerName,
+        patient,
+        appointmentStartsAt,
+        appointmentMotif,
+        medicalAlerts,
+        medicalHistory,
+        currentPhase,
+        lastNote,
       ];
 }
 

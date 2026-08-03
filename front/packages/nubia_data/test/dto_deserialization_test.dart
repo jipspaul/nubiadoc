@@ -519,5 +519,116 @@ void main() {
       expect(session.patientName, 'Marc Dubois');
       expect(session.startedAt, DateTime.utc(2026, 7, 6, 9, 30));
     });
+
+    test('fromJson mappe le contexte enrichi complet (refonte lot 1)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'id': 'cs-4',
+        'appointment_id': 'aa-4',
+        'status': 'in_progress',
+        'started_at': '2026-08-03T09:00:00Z',
+        'acts': [],
+        'patient': {
+          'id': 'pt-1',
+          'display_name': 'Marc Dubois',
+          'age_years': 48,
+        },
+        'appointment': {
+          'starts_at': '2026-08-03T09:00:00Z',
+          'motif': 'Pose implant 26',
+        },
+        'medical_alerts': [
+          {'kind': 'allergie', 'label': 'latex'},
+          {'kind': 'medico_legal', 'label': 'Anticoagulants'},
+        ],
+        'medical_history': 'Bruxisme nocturne (gouttière)',
+        'current_phase': {
+          'plan_id': 'plan-1',
+          'plan_title': 'Pose implant 26',
+          'phase_id': 'ph-2',
+          'phase_title': 'Chirurgie implantaire',
+          'position': 2,
+          'phase_count': 3,
+          'planned_sessions': 3,
+          'completed_sessions': 1,
+          'next_phase_title': 'Pilier + couronne céramique',
+        },
+        'last_note': {
+          'date': '2026-04-14T10:00:00Z',
+          'excerpt': 'Densité osseuse suffisante en secteur 2.',
+        },
+      }).toDomain();
+
+      expect(session.patient?.id, 'pt-1');
+      expect(session.patient?.displayName, 'Marc Dubois');
+      expect(session.patient?.ageYears, 48);
+      expect(session.appointmentStartsAt, DateTime.utc(2026, 8, 3, 9));
+      expect(session.appointmentMotif, 'Pose implant 26');
+      expect(session.medicalAlerts, hasLength(2));
+      expect(session.medicalAlerts.first.kind, 'allergie');
+      expect(session.medicalAlerts.first.label, 'latex');
+      expect(session.medicalHistory, 'Bruxisme nocturne (gouttière)');
+      expect(session.currentPhase?.phaseTitle, 'Chirurgie implantaire');
+      expect(session.currentPhase?.position, 2);
+      expect(session.currentPhase?.phaseCount, 3);
+      expect(session.currentPhase?.plannedSessions, 3);
+      expect(session.currentPhase?.completedSessions, 1);
+      expect(
+        session.currentPhase?.nextPhaseTitle,
+        'Pilier + couronne céramique',
+      );
+      expect(session.lastNote?.date, DateTime.utc(2026, 4, 14, 10));
+      expect(
+        session.lastNote?.excerpt,
+        'Densité osseuse suffisante en secteur 2.',
+      );
+    });
+
+    test(
+      'fromJson tolère un payload minimal sans contexte enrichi '
+      '(route liste ou back non déployé)',
+      () {
+        final session = ClinicalSessionDto.fromJson({
+          'id': 'cs-5',
+          'appointment_id': 'aa-5',
+          'status': 'completed',
+          'acts': [],
+        }).toDomain();
+
+        expect(session.patient, isNull);
+        expect(session.appointmentStartsAt, isNull);
+        expect(session.appointmentMotif, isNull);
+        expect(session.medicalAlerts, isEmpty);
+        expect(session.medicalHistory, isNull);
+        expect(session.currentPhase, isNull);
+        expect(session.lastNote, isNull);
+      },
+    );
+
+    test('fromJson tolère age_years et champs optionnels absents du patient',
+        () {
+      final session = ClinicalSessionDto.fromJson({
+        'id': 'cs-6',
+        'appointment_id': 'aa-6',
+        'status': 'in_progress',
+        'acts': [],
+        'patient': {'id': 'pt-2', 'display_name': 'Patient Consultation'},
+        'appointment': {'starts_at': '2026-08-03T10:00:00Z'},
+        'medical_alerts': [],
+        'current_phase': {
+          'plan_id': 'plan-2',
+          'plan_title': 'Détartrage série',
+          'phase_id': 'ph-1',
+          'phase_title': 'Phase unique',
+          'position': 1,
+          'phase_count': 1,
+          'completed_sessions': 0,
+        },
+      }).toDomain();
+
+      expect(session.patient?.ageYears, isNull);
+      expect(session.appointmentMotif, isNull);
+      expect(session.currentPhase?.plannedSessions, isNull);
+      expect(session.currentPhase?.nextPhaseTitle, isNull);
+    });
   });
 }
