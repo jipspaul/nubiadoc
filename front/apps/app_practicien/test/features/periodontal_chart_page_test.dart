@@ -150,8 +150,7 @@ void main() {
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
-    final nameField =
-        find.byKey(const Key('periodontal_chart_new_index_name'));
+    final nameField = find.byKey(const Key('periodontal_chart_new_index_name'));
     await tester.ensureVisible(nameField);
     await tester.enterText(nameField, 'Indice de plaque');
 

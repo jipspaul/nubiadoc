@@ -86,7 +86,8 @@ void main() {
     when(() => mockSlots()).thenAnswer((_) async => Right([_slot]));
 
     await tester.pumpWidget(MaterialApp(
-        theme: NubiaTheme.light, home: const Scaffold(body: CabinetMessagingPage())));
+        theme: NubiaTheme.light,
+        home: const Scaffold(body: CabinetMessagingPage())));
     await tester.pump();
 
     expect(
@@ -123,7 +124,8 @@ void main() {
       ),
     );
     await tester.pumpWidget(MaterialApp(
-        theme: NubiaTheme.light, home: const Scaffold(body: CabinetMessagingPage())));
+        theme: NubiaTheme.light,
+        home: const Scaffold(body: CabinetMessagingPage())));
     await tester.pump();
 
     expect(
@@ -144,7 +146,8 @@ void main() {
       ),
     );
     await tester.pumpWidget(MaterialApp(
-        theme: NubiaTheme.light, home: const Scaffold(body: CabinetMessagingPage())));
+        theme: NubiaTheme.light,
+        home: const Scaffold(body: CabinetMessagingPage())));
     await tester.pump();
 
     expect(find.byKey(const Key('conversion_error_banner')), findsOneWidget);
@@ -173,8 +176,7 @@ void main() {
       routes: [
         GoRoute(
           path: '/messages',
-          builder: (_, __) =>
-              const Scaffold(body: CabinetMessagingPage()),
+          builder: (_, __) => const Scaffold(body: CabinetMessagingPage()),
         ),
         GoRoute(
           path: AppRouter.agenda,
@@ -183,8 +185,8 @@ void main() {
       ],
     );
 
-    await tester.pumpWidget(MaterialApp.router(
-        theme: NubiaTheme.light, routerConfig: router));
+    await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router));
     await tester.pump();
 
     await tester

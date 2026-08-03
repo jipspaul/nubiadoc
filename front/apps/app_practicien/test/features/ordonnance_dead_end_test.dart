@@ -32,8 +32,7 @@ class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
 class _MockListPatientDocuments extends Mock
     implements ListPatientDocumentsUseCase {}
 
-class _MockOrdonnancesBloc
-    extends MockBloc<OrdonnancesEvent, OrdonnancesState>
+class _MockOrdonnancesBloc extends MockBloc<OrdonnancesEvent, OrdonnancesState>
     implements OrdonnancesBloc {}
 
 final _patient = CabinetPatient(

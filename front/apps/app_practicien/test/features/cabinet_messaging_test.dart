@@ -279,7 +279,8 @@ void main() {
         conversation: _conversation,
         messages: const [],
       ),
-      act: (bloc) => bloc.add(const CabinetMessagingConvertToAppointmentRequested(
+      act: (bloc) =>
+          bloc.add(const CabinetMessagingConvertToAppointmentRequested(
         conversationId: 'conv-1',
         slotId: 'slot-1',
       )),
@@ -304,8 +305,9 @@ void main() {
               conversationId: _conversation.id,
               slotId: 'slot-1',
             )).thenAnswer(
-          (_) async =>
-              const Left(ValidationFailure(message: 'Ce créneau vient d\'être réservé, choisissez-en un autre.')),
+          (_) async => const Left(ValidationFailure(
+              message:
+                  'Ce créneau vient d\'être réservé, choisissez-en un autre.')),
         );
         return _makeBloc(
           list: mockList,
@@ -318,7 +320,8 @@ void main() {
         conversation: _conversation,
         messages: const [],
       ),
-      act: (bloc) => bloc.add(const CabinetMessagingConvertToAppointmentRequested(
+      act: (bloc) =>
+          bloc.add(const CabinetMessagingConvertToAppointmentRequested(
         conversationId: 'conv-1',
         slotId: 'slot-1',
       )),
@@ -331,7 +334,8 @@ void main() {
         CabinetMessagingThreadLoaded(
           conversation: _conversation,
           messages: const [],
-          conversionError: 'Ce créneau vient d\'être réservé, choisissez-en un autre.',
+          conversionError:
+              'Ce créneau vient d\'être réservé, choisissez-en un autre.',
         ),
       ],
     );
