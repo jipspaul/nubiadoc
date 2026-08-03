@@ -28,18 +28,17 @@ jobs:
         working-directory: api
         run: cargo test --workspace --all-features --no-run
 
-  # ── Job NON bloquant : suite d'intégration DB (informatif) ─────────────────
+  # ── Job BLOQUANT : suite d'intégration DB (1191 tests) ─────────────────────
   # Provisionne Postgres+PostGIS inline (rust-ci n'a pas le binaire ; services:
   # a un DNS cassé sur ce runner — cf. db.yml) + migrations via le db/Makefile,
-  # puis exécute les ~1000 tests d'intégration. Ils sont encore instables (vrais
-  # bugs + interférence sur base partagée), donc ce job N'ÉCHOUE JAMAIS le merge :
-  # `continue-on-error` au niveau job + `|| true` sur le step. Les échecs sont
-  # dans le log, à fiabiliser test par test (voir issue de suivi).
+  # puis exécute les tests d'intégration. 27 bugs déterministes connus sont en
+  # quarantaine (`#[ignore]` → issue #4602) ; les 1191 autres BLOQUENT le merge :
+  # un test qui casse (régression) rougit la CI et empêche de merger. Retirer un
+  # `#[ignore]` au fur et à mesure que le bug #4602 est corrigé.
   rust-integration:
     runs-on: docker
     container:
       image: rust-ci:stable
-    continue-on-error: true
     env:
       PGHOST: localhost
       PGPORT: "5432"
@@ -66,6 +65,6 @@ jobs:
       - name: Schéma + rôles (db/ reset + migrate)
         working-directory: db
         run: make reset migrate
-      - name: Tests d'intégration (NON bloquant — échecs dans le log)
+      - name: Tests d'intégration (BLOQUANT — 27 bugs connus en quarantaine)
         working-directory: api
-        run: cargo nextest run --workspace --all-features --no-fail-fast || true
+        run: cargo nextest run --workspace --all-features --no-fail-fast
