@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/app_router.dart';
 import 'notifications_bloc.dart';
 import 'notifications_event.dart';
 import 'notifications_state.dart';
@@ -18,22 +20,22 @@ class NotificationsPage extends StatelessWidget {
     return BlocBuilder<NotificationsBloc, NotificationsState>(
       builder: (context, state) => switch (state) {
         NotificationsInitial() || NotificationsLoading() => const Center(
-            key: Key('notifications_loading'),
-            child: CircularProgressIndicator(),
-          ),
+          key: Key('notifications_loading'),
+          child: CircularProgressIndicator(),
+        ),
         NotificationsError(:final message) => NubiaErrorWidget(
-            key: const Key('notifications_error'),
-            message: message,
-            onRetry: () => context
-                .read<NotificationsBloc>()
-                .add(const NotificationsLoadRequested()),
+          key: const Key('notifications_error'),
+          message: message,
+          onRetry: () => context.read<NotificationsBloc>().add(
+            const NotificationsLoadRequested(),
           ),
+        ),
         NotificationsEmpty() => const NubiaEmptyState(
-            key: Key('notifications_empty'),
-            icon: Icons.notifications_off,
-            title: 'Aucune notification',
-            subtitle: 'Vous êtes à jour',
-          ),
+          key: Key('notifications_empty'),
+          icon: Icons.notifications_off,
+          title: 'Aucune notification',
+          subtitle: 'Vous êtes à jour',
+        ),
         NotificationsLoaded loaded => _NotificationsContent(state: loaded),
       },
     );
@@ -65,9 +67,9 @@ class _NotificationsContent extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () => context
-                    .read<NotificationsBloc>()
-                    .add(const NotificationMarkAllReadRequested()),
+                onPressed: () => context.read<NotificationsBloc>().add(
+                  const NotificationMarkAllReadRequested(),
+                ),
                 child: const Text('Tout marquer comme lu'),
               ),
             ),
@@ -110,9 +112,15 @@ class _NotificationTile extends StatelessWidget {
         ),
       ),
       subtitle: Text(notification.body),
-      onTap: () => context
-          .read<NotificationsBloc>()
-          .add(NotificationMarkReadRequested(notification.id)),
+      onTap: () {
+        context.read<NotificationsBloc>().add(
+          NotificationMarkReadRequested(notification.id),
+        );
+        final deepLink = notification.deepLink;
+        if (deepLink != null && deepLink.isNotEmpty) {
+          context.go(_resolveDeepLink(deepLink));
+        }
+      },
     );
   }
 
@@ -124,5 +132,20 @@ class _NotificationTile extends StatelessWidget {
       NotificationType.payment => Icons.receipt_outlined,
       NotificationType.other => Icons.notifications_outlined,
     };
+  }
+
+  /// Traduit un `deep_link` API en route app. `/appointments/<id>` n'a pas de
+  /// route dédiée côté patient (`/appointments` sert au booking, sans `:id`) ;
+  /// on réutilise la convention `mesRdv?id=` déjà en place pour les push FCM
+  /// (cf. NotificationDeepLinkHandler._resolveRoute). Les autres deep_links
+  /// (ex. `/pharmacy/orders/<id>`) correspondent déjà à une route existante.
+  static String _resolveDeepLink(String deepLink) {
+    final appointmentMatch = RegExp(
+      r'^/appointments/(.+)$',
+    ).firstMatch(deepLink);
+    if (appointmentMatch != null) {
+      return '${AppRouter.mesRdv}?id=${appointmentMatch.group(1)}';
+    }
+    return deepLink;
   }
 }
