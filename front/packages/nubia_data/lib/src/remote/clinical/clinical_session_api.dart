@@ -163,6 +163,7 @@ class ClinicalSessionApi {
     return SessionCompleteResult(
       invoiceId: data['invoice_id'] as String?,
       nextStep: data['next_step'] as String?,
+      sessionsRemaining: (data['sessions_remaining'] as num?)?.toInt(),
     );
   }
 }

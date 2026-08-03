@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../../router/app_router.dart';
+
 /// Panneau « Prochaine étape » (maquette) : phase de plan en cours avec
-/// décompte de séances (#4120). Les CTA de navigation (programmer le RDV,
-/// détail du plan) arrivent au lot 4.
+/// décompte de séances (#4120) et CTA « Programmer le RDV ».
 class NextStepPanel extends StatelessWidget {
   const NextStepPanel({super.key, required this.phase});
 
@@ -73,6 +75,15 @@ class NextStepPanel extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          NubiaButton(
+            key: const Key('next_step_schedule_button'),
+            size: NubiaButtonSize.sm,
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.event_outlined,
+            label: 'Programmer le RDV',
+            onPressed: () => GoRouter.of(context).go(AppRouter.agenda),
           ),
         ],
       ),

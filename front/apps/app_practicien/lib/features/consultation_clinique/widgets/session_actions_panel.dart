@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../consultation_clinique_bloc.dart';
 import '../consultation_clinique_event.dart';
 import '../sterilization_scan_page.dart';
+import '../../../router/app_router.dart';
 
 /// Colonne « Actions » de la vue fauteuil (desktop/tablette) : enchaînements
 /// de séance et CTA primaire « Terminer & facturer » pleine largeur
 /// (maquette `bo-praticien-core.jsx`).
 ///
-/// Les actions Prescrire / Joindre une radio / Étape suivante du plan
-/// arrivent au lot 4 (refonte consultation) — on n'affiche pas de boutons
-/// morts d'ici là.
+/// « Prescrire une ordonnance » (#4541) et « Étape suivante du plan »
+/// (#4120) exigent le patient du contexte enrichi — masqués si absent
+/// (payload minimal), jamais de bouton mort.
 class SessionActionsPanel extends StatelessWidget {
   const SessionActionsPanel({
     super.key,
@@ -49,6 +51,33 @@ class SessionActionsPanel extends StatelessWidget {
               onPressed: session.isFinished ? null : onAddAct,
             ),
             const SizedBox(height: 8),
+          ],
+          if (session.patient != null) ...[
+            NubiaButton(
+              key: const Key('prescribe_button'),
+              size: NubiaButtonSize.sm,
+              variant: NubiaButtonVariant.secondary,
+              icon: Icons.medication_outlined,
+              label: 'Prescrire une ordonnance',
+              // #4541 — ordonnance pré-adressée au patient de la séance.
+              onPressed: () => GoRouter.of(context).go(
+                '${AppRouter.ordonnances}/new?patientId=${session.patient!.id}',
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (session.currentPhase != null) ...[
+              NubiaButton(
+                key: const Key('next_plan_step_button'),
+                size: NubiaButtonSize.sm,
+                variant: NubiaButtonVariant.secondary,
+                icon: Icons.arrow_forward,
+                label: 'Étape suivante du plan',
+                onPressed: () => GoRouter.of(context).go(
+                  '${AppRouter.patients}/${session.patient!.id}/treatment-plans',
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
           ],
           if (session.acts.isNotEmpty) ...[
             NubiaButton(

@@ -200,8 +200,17 @@ class SessionCompleteResult extends Equatable {
   final String? invoiceId;
   final String? nextStep;
 
-  const SessionCompleteResult({this.invoiceId, this.nextStep});
+  /// Séances restantes sur la phase de plan décomptée à la clôture
+  /// (`sessions_remaining`, #4120) — `null` si la séance n'était pas
+  /// rattachée à une phase avec `planned_sessions`.
+  final int? sessionsRemaining;
+
+  const SessionCompleteResult({
+    this.invoiceId,
+    this.nextStep,
+    this.sessionsRemaining,
+  });
 
   @override
-  List<Object?> get props => [invoiceId, nextStep];
+  List<Object?> get props => [invoiceId, nextStep, sessionsRemaining];
 }

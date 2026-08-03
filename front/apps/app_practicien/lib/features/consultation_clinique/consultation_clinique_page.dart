@@ -115,7 +115,7 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
           return ConsultationLoadedView(state: state);
         }
         if (state is ConsultationCliniqueCompleted) {
-          return const ConsultationCompletedView();
+          return ConsultationCompletedView(result: state.result);
         }
         if (state is ConsultationHistoriqueLoaded) {
           return ConsultationHistoriqueView(sessions: state.sessions);
