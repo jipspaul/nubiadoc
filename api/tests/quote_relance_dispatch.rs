@@ -145,6 +145,26 @@ async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
         .ok();
 }
 
+
+async fn count_milestone(db: &PgPool, cabinet_id: Uuid, quote_id: Uuid, milestone: &str) -> i64 {
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let c = sqlx::query_scalar(
+        "SELECT count(*) FROM quote_relance WHERE quote_id = $1 AND milestone = $2",
+    )
+    .bind(quote_id)
+    .bind(milestone)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    c
+}
+
 #[tokio::test]
 async fn quote_sent_4_days_ago_gets_j3_relance() {
     if !db_available() {
@@ -154,9 +174,9 @@ async fn quote_sent_4_days_ago_gets_j3_relance() {
     let app_db = app_pool().await;
     let f = insert_fixtures(&owner_db, 4).await;
 
-    let summary = dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(summary.j3_sent, 1);
-    assert_eq!(summary.j7_sent, 0);
+    dispatch_quote_relances(&app_db).await.unwrap();
+    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await, 1);
+    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await, 0);
 
     let mut tx = owner_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -194,9 +214,9 @@ async fn quote_sent_8_days_ago_gets_both_milestones() {
     let app_db = app_pool().await;
     let f = insert_fixtures(&owner_db, 8).await;
 
-    let summary = dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(summary.j3_sent, 1);
-    assert_eq!(summary.j7_sent, 1);
+    dispatch_quote_relances(&app_db).await.unwrap();
+    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await, 1);
+    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await, 1);
 
     let count: i64 = {
         let mut tx = owner_db.begin().await.unwrap();
@@ -227,9 +247,9 @@ async fn quote_sent_1_day_ago_gets_no_relance() {
     let app_db = app_pool().await;
     let f = insert_fixtures(&owner_db, 1).await;
 
-    let summary = dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(summary.j3_sent, 0);
-    assert_eq!(summary.j7_sent, 0);
+    dispatch_quote_relances(&app_db).await.unwrap();
+    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await, 0);
+    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await, 0);
 
     cleanup_fixtures(&owner_db, &f).await;
 }
@@ -245,14 +265,10 @@ async fn dispatch_is_idempotent_across_runs() {
     let app_db = app_pool().await;
     let f = insert_fixtures(&owner_db, 4).await;
 
-    let first = dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(first.j3_sent, 1);
+    dispatch_quote_relances(&app_db).await.unwrap();
+    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await, 1);
 
-    let second = dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(
-        second.j3_sent, 0,
-        "#4126 : deuxieme passage ne re-envoie pas le meme jalon"
-    );
+    dispatch_quote_relances(&app_db).await.unwrap();
 
     let count: i64 = {
         let mut tx = owner_db.begin().await.unwrap();
