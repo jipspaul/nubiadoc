@@ -16,6 +16,12 @@ jobs:
     runs-on: docker
     container:
       image: rust-ci:stable
+    env:
+      # Plafonne le parallélisme de rustc : le nœud runner (VM Lima 20 Gio) OOM-kill
+      # les compilations de nubia-api quand plusieurs jobs lourds tournent en même
+      # temps (postmortem 2026-08-04 : rustc tué au milieu de « Compiling nubia-api »,
+      # log tronqué sans erreur). 4 jobs de build ⇒ pic mémoire maîtrisé.
+      CARGO_BUILD_JOBS: "4"
     steps:
       - uses: actions/checkout@v4
       - name: Format
@@ -42,7 +48,14 @@ jobs:
     runs-on: docker
     container:
       image: rust-ci:stable
+    # Sérialisé APRÈS le gate `rust` : les deux jobs compilent nubia-api (crate
+    # lourd). Les laisser tourner en parallèle sur le mono-nœud (VM Lima 20 Gio)
+    # saturait la RAM → OOM-kill de rustc (postmortem 2026-08-04). `needs` garantit
+    # qu'un seul compile nubia-api à la fois ; bonus : pas d'intégration si le gate
+    # (fmt/clippy) est déjà rouge.
+    needs: rust
     env:
+      CARGO_BUILD_JOBS: "4"
       PGHOST: localhost
       PGPORT: "5432"
       PGDATA: /tmp/pgdata
