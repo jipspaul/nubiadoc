@@ -24,7 +24,7 @@ use axum::{
 use core_tenancy::with_tenant;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sqlx::{postgres::PgRow, Row};
+use sqlx::Row;
 use uuid::Uuid;
 
 use integrations_interop::Scope;
@@ -39,23 +39,25 @@ use crate::{
 
 // ── Practitioner ─────────────────────────────────────────────────────────────
 
-/// Colonnes lues pour mapper un `Practitioner` FHIR — `practitioner` (tenant,
-/// RLS `cabinet_id = GUC`) jointe à `app_user` (identité civile) et, en
-/// `LEFT JOIN`, à `provider` (fiche marketplace publique, optionnelle : un
-/// praticien peut ne pas avoir de profil public). `$1` = `cabinet_id`.
+/// Colonnes lues pour la partie tenant d'un `Practitioner` FHIR — table
+/// `practitioner` (RLS `cabinet_id = GUC`) en `LEFT JOIN` avec `provider`
+/// (fiche marketplace publique, optionnelle : un praticien peut ne pas avoir de
+/// profil public). L'identité civile vit dans `app_user`, lue séparément (cf.
+/// [`load_practitioners`]) : `app_user` porte la RLS `user_self_select`
+/// (migration 0045) qui exige `app.current_user_id`, donc un JOIN direct ici ne
+/// renverrait aucune ligne sous le seul contexte cabinet.
+/// `$1` = `cabinet_id`, `$2` = `practitioner.id`.
 const PRACTITIONER_SELECT_BY_ID: &str =
-    "SELECT p.id, p.rpps, u.first_name, u.last_name, pr.display_name \
+    "SELECT p.id, p.rpps, p.user_id, pr.display_name \
      FROM practitioner p \
-     JOIN app_user u ON u.id = p.user_id \
      LEFT JOIN provider pr ON pr.practitioner_id = p.id AND pr.cabinet_id = p.cabinet_id \
      WHERE p.cabinet_id = $1 AND p.id = $2";
 
-/// Même jointure que [`PRACTITIONER_SELECT_BY_ID`], sans le filtre `_id` —
-/// liste des praticiens du cabinet.
+/// Même requête que [`PRACTITIONER_SELECT_BY_ID`], sans le filtre `_id` —
+/// liste des praticiens du cabinet. `$1` = `cabinet_id`.
 const PRACTITIONER_SELECT_ALL: &str =
-    "SELECT p.id, p.rpps, u.first_name, u.last_name, pr.display_name \
+    "SELECT p.id, p.rpps, p.user_id, pr.display_name \
      FROM practitioner p \
-     JOIN app_user u ON u.id = p.user_id \
      LEFT JOIN provider pr ON pr.practitioner_id = p.id AND pr.cabinet_id = p.cabinet_id \
      WHERE p.cabinet_id = $1 \
      ORDER BY p.id";
@@ -68,16 +70,65 @@ struct PractitionerRow {
     display_name: Option<String>,
 }
 
-fn row_to_practitioner(row: &PgRow) -> Result<PractitionerRow, FhirError> {
-    Ok(PractitionerRow {
-        id: row.try_get("id").map_err(|_| FhirError::Internal)?,
-        rpps: row.try_get("rpps").map_err(|_| FhirError::Internal)?,
-        first_name: row.try_get("first_name").map_err(|_| FhirError::Internal)?,
-        last_name: row.try_get("last_name").map_err(|_| FhirError::Internal)?,
-        display_name: row
-            .try_get("display_name")
-            .map_err(|_| FhirError::Internal)?,
-    })
+/// Lit les praticiens du cabinet **avec** leur identité civile (`app_user`),
+/// sous le contexte tenant déjà positionné par [`with_tenant`].
+///
+/// Quoi : renvoie les `PractitionerRow` complets (identité comprise) pour la
+/// requête donnée (`PRACTITIONER_SELECT_BY_ID` ou `_ALL`).
+/// Pourquoi cette approche : `app_user` porte la RLS `user_self_select`
+/// (migration 0045) qui exige `app.current_user_id` = id de la ligne — un JOIN
+/// direct sous le seul contexte cabinet ne renverrait donc aucune ligne. On lit
+/// d'abord `practitioner`(+`provider`) sous la RLS cabinet, puis pour chaque
+/// ligne on positionne `app.current_user_id` et on lit `first_name`/`last_name`
+/// — même schéma que la liste des membres du cabinet (`auth::mod`).
+/// `filter_id` lie `$2` (`GET` par id) ; `None` pour la liste complète.
+/// Modes d'échec : erreur DB propagée en [`FhirError::Internal`] par l'appelant.
+async fn load_practitioners(
+    tx: &mut sqlx::Transaction<'static, sqlx::Postgres>,
+    query: &str,
+    cabinet_id: Uuid,
+    filter_id: Option<Uuid>,
+) -> Result<Vec<PractitionerRow>, sqlx::Error> {
+    let base = {
+        let q = sqlx::query(query).bind(cabinet_id);
+        let q = match filter_id {
+            Some(id) => q.bind(id),
+            None => q,
+        };
+        q.fetch_all(&mut **tx).await?
+    };
+
+    let mut out = Vec::with_capacity(base.len());
+    for row in &base {
+        let id: Uuid = row.try_get("id")?;
+        let rpps: Option<String> = row.try_get("rpps")?;
+        let user_id: Uuid = row.try_get("user_id")?;
+        let display_name: Option<String> = row.try_get("display_name")?;
+
+        // Satisfait `user_self_select` (migration 0045) pour lire l'identité de
+        // CE praticien : la policy exige `app.current_user_id = app_user.id`.
+        sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+            .bind(user_id.to_string())
+            .execute(&mut **tx)
+            .await?;
+        let identity = sqlx::query("SELECT first_name, last_name FROM app_user WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+        let (first_name, last_name) = match identity {
+            Some(r) => (r.try_get("first_name")?, r.try_get("last_name")?),
+            None => (None, None),
+        };
+
+        out.push(PractitionerRow {
+            id,
+            rpps,
+            first_name,
+            last_name,
+            display_name,
+        });
+    }
+    Ok(out)
 }
 
 /// Mappe une ligne DB vers un `Practitioner` FHIR R4 minimal.
@@ -138,19 +189,15 @@ pub async fn get_practitioner(
     require_scope(&claims, Scope::DirectoryRead)?;
     let cabinet_id = claims.cabinet_id;
 
-    let row = with_tenant(&state.db, cabinet_id, move |mut tx| async move {
-        let row = sqlx::query(PRACTITIONER_SELECT_BY_ID)
-            .bind(cabinet_id)
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?;
-        Ok(row)
+    let rows = with_tenant(&state.db, cabinet_id, move |mut tx| async move {
+        let rows =
+            load_practitioners(&mut tx, PRACTITIONER_SELECT_BY_ID, cabinet_id, Some(id)).await?;
+        Ok(rows)
     })
     .await
-    .map_err(|_| FhirError::Internal)?
-    .ok_or(FhirError::NotFound)?;
+    .map_err(|_| FhirError::Internal)?;
 
-    let practitioner = row_to_practitioner(&row)?;
+    let practitioner = rows.into_iter().next().ok_or(FhirError::NotFound)?;
     Ok(Json(practitioner_to_fhir(&practitioner)))
 }
 
@@ -178,33 +225,17 @@ pub async fn search_practitioners(
     let filter_id = params.id;
 
     let rows = with_tenant(&state.db, cabinet_id, move |mut tx| async move {
-        let rows = match filter_id {
-            Some(id) => {
-                sqlx::query(PRACTITIONER_SELECT_BY_ID)
-                    .bind(cabinet_id)
-                    .bind(id)
-                    .fetch_all(&mut *tx)
-                    .await?
-            }
-            None => {
-                sqlx::query(PRACTITIONER_SELECT_ALL)
-                    .bind(cabinet_id)
-                    .fetch_all(&mut *tx)
-                    .await?
-            }
+        let query = match filter_id {
+            Some(_) => PRACTITIONER_SELECT_BY_ID,
+            None => PRACTITIONER_SELECT_ALL,
         };
+        let rows = load_practitioners(&mut tx, query, cabinet_id, filter_id).await?;
         Ok(rows)
     })
     .await
     .map_err(|_| FhirError::Internal)?;
 
-    let resources = rows
-        .iter()
-        .map(row_to_practitioner)
-        .collect::<Result<Vec<_>, FhirError>>()?
-        .iter()
-        .map(practitioner_to_fhir)
-        .collect();
+    let resources = rows.iter().map(practitioner_to_fhir).collect();
 
     Ok(Json(bundle_searchset(resources)))
 }
