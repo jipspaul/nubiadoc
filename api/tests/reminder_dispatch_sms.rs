@@ -12,7 +12,7 @@
 use nubia_api::{dispatch_pending_reminders, StubJobDispatcher, TwilioSmsSender};
 use sqlx::PgPool;
 use uuid::Uuid;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{body_string_contains, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn db_available() -> bool {
@@ -298,7 +298,12 @@ async fn dispatch_marks_reminder_cancelled_when_sms_opted_out() {
     .await;
 
     let mock_server = MockServer::start().await;
+    // Scopé au numéro de CE patient : le balayage de dispatch est cross-cabinet
+    // (worker unique), donc un SMS d'un reminder opt-in frère peut transiter par
+    // ce sender sous charge parallèle. L'invariant testé est « aucun SMS vers le
+    // patient opt-out », pas « aucun POST du tout ».
     Mock::given(method("POST"))
+        .and(body_string_contains("To=%2B33600000002"))
         .respond_with(ResponseTemplate::new(201))
         .expect(0)
         .mount(&mock_server)
@@ -307,13 +312,12 @@ async fn dispatch_marks_reminder_cancelled_when_sms_opted_out() {
     let sms_sender =
         TwilioSmsSender::with_base_url("test-sid", "test-token", "+33700000000", mock_server.uri());
 
-    let summary = dispatch_pending_reminders(&app_db, &StubJobDispatcher, &sms_sender)
+    // Le compteur `summary.cancelled` est un total de passe GLOBAL : une passe
+    // concurrente peut avoir déjà traité ce reminder, d'où un compte à 0 ici.
+    // L'assertion fiable est l'état final du reminder (status == "cancelled").
+    dispatch_pending_reminders(&app_db, &StubJobDispatcher, &sms_sender)
         .await
         .unwrap();
-    assert!(
-        summary.cancelled >= 1,
-        "au moins ce reminder doit être compté cancelled (summary={summary:?})"
-    );
     wait_for_request().await;
 
     let status: String = sqlx::query_scalar("SELECT status FROM reminder WHERE id = $1")

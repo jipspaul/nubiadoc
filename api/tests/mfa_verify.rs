@@ -99,11 +99,11 @@ async fn mfa_verify_valid_totp_returns_200_and_activates_mfa() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let row = sqlx::query!("SELECT mfa_enabled FROM app_user WHERE id = $1", user_id)
+    let row = sqlx::query!("SELECT totp_enabled FROM app_user WHERE id = $1", user_id)
         .fetch_one(&db)
         .await
         .unwrap();
-    assert!(row.mfa_enabled);
+    assert!(row.totp_enabled);
 }
 
 // ── Test 2 : code invalide → 422 ──────────────────────────────────────────

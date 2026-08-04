@@ -105,6 +105,19 @@ async fn seed(db: &PgPool, status: &str) -> Fixture {
     .await
     .unwrap();
 
+    // Le reste dû est calculé depuis les quote_item (part patient), pas depuis
+    // quote.total_amount. Sans ligne, reste dû = 0 → tout paiement rejeté 422.
+    // 1 acte à 100.00 (part patient pleine) → reste dû 10000 cents.
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+         VALUES ($1, $2, 'Acte de test', 1, 100.00)",
+    )
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     Fixture {
@@ -121,6 +134,19 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(&mut *tx)
         .await
         .ok();
+    // Purge les clés d'idempotence de CE cabinet uniquement (via les paiements
+    // qu'elles référencent). Un `LIKE 'test-cpm-%'` global effaçait la clé d'un
+    // test frère encore en vol -> son rejeu ratait le cache (miss -> 422).
+    // À exécuter AVANT le DELETE payment : la sous-requête référence payment.
+    sqlx::query(
+        "DELETE FROM idempotency_keys \
+         WHERE response->>'payment_id' IN \
+             (SELECT id::text FROM payment WHERE cabinet_id = $1)",
+    )
+    .bind(f.cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
     sqlx::query("DELETE FROM payment WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
@@ -142,11 +168,6 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .await
         .ok();
     tx.commit().await.ok();
-
-    sqlx::query("DELETE FROM idempotency_keys WHERE key LIKE 'test-cpm-%'")
-        .execute(db)
-        .await
-        .ok();
 }
 
 fn state_with(db: PgPool) -> AppState {
