@@ -134,6 +134,19 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(&mut *tx)
         .await
         .ok();
+    // Purge les clés d'idempotence de CE cabinet uniquement (via les paiements
+    // qu'elles référencent). Un `LIKE 'test-cpm-%'` global effaçait la clé d'un
+    // test frère encore en vol -> son rejeu ratait le cache (miss -> 422).
+    // À exécuter AVANT le DELETE payment : la sous-requête référence payment.
+    sqlx::query(
+        "DELETE FROM idempotency_keys \
+         WHERE response->>'payment_id' IN \
+             (SELECT id::text FROM payment WHERE cabinet_id = $1)",
+    )
+    .bind(f.cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
     sqlx::query("DELETE FROM payment WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
@@ -155,11 +168,6 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .await
         .ok();
     tx.commit().await.ok();
-
-    sqlx::query("DELETE FROM idempotency_keys WHERE key LIKE 'test-cpm-%'")
-        .execute(db)
-        .await
-        .ok();
 }
 
 fn state_with(db: PgPool) -> AppState {

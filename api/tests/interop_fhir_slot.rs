@@ -12,7 +12,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use chrono::{Duration, Utc};
+use chrono::{Duration, SecondsFormat, Utc};
 use integrations_interop::hash_secret;
 use serde_json::Value;
 use sqlx::PgPool;
@@ -484,8 +484,12 @@ async fn search_slots_from_to_excludes_out_of_range_slot() {
 
     // La fixture crée un créneau ~2h dans le futur : une fenêtre from/to loin
     // dans le futur ne doit pas le retourner.
-    let far_from = (Utc::now() + Duration::days(30)).to_rfc3339();
-    let far_to = (Utc::now() + Duration::days(31)).to_rfc3339();
+    // `to_rfc3339()` produit un offset `+00:00` dont le `+` est décodé en espace
+    // dans la query string (`application/x-www-form-urlencoded`) → date
+    // malformée côté handler (400). On sérialise avec le suffixe `Z` (sans `+`),
+    // ce qu'enverrait un vrai client après url-encoding correct.
+    let far_from = (Utc::now() + Duration::days(30)).to_rfc3339_opts(SecondsFormat::Secs, true);
+    let far_to = (Utc::now() + Duration::days(31)).to_rfc3339_opts(SecondsFormat::Secs, true);
     let (status, body) = get_with_bearer(
         state_sync(app_pool().await),
         &format!("/v1/interop/fhir/Slot?from={far_from}&to={far_to}"),

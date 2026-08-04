@@ -36,7 +36,13 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-fn make_token(sub: Uuid, cabinet_id: Uuid, kind: &str, role: &str) -> String {
+fn make_token(
+    sub: Uuid,
+    cabinet_id: Uuid,
+    kind: &str,
+    role: &str,
+    secretariat_id: Option<Uuid>,
+) -> String {
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -49,6 +55,7 @@ fn make_token(sub: Uuid, cabinet_id: Uuid, kind: &str, role: &str) -> String {
             "kind": kind,
             "cabinet_id": cabinet_id,
             "role": role,
+            "secretariat_id": secretariat_id,
             "exp": exp,
         }),
         &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
@@ -100,6 +107,89 @@ async fn insert_fixture(db: &PgPool, suffix: &str) -> (Uuid, Uuid, Uuid) {
     (cabinet_id, secretary_user_id, patient_id)
 }
 
+/// Rattache le patient au périmètre d'un secrétariat (R10, #3821) : practitioner
+/// + provider + secretariat + provider_secretariat(active) + appointment non
+/// annulé liant le patient au praticien. Sans ce rattachement,
+/// `ensure_secretary_scope` masque le patient en 404. Retourne le
+/// `secretariat_id` à porter dans le JWT du secrétaire.
+async fn scope_patient_to_secretariat(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid) -> Uuid {
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
+    let appt_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("patient-tags-prac+{prac_user_id}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, $4, 'Dr. Tags Test', true, true)",
+    )
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Tags Test')")
+        .bind(secretariat_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+         VALUES ($1, $2, true)",
+    )
+    .bind(provider_id)
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() + interval '1 day', now() + interval '1 day 1 hour', 'confirmed')",
+    )
+    .bind(appt_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    secretariat_id
+}
+
 async fn cleanup(db: &PgPool, cabinet_id: Uuid, secretary_user_id: Uuid, patient_id: Uuid) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -109,6 +199,44 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, secretary_user_id: Uuid, patient
         .ok();
     sqlx::query("DELETE FROM patient_tag WHERE patient_id = $1")
         .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    // Scope secrétariat posé par `scope_patient_to_secretariat` (no-op pour les
+    // tests qui ne l'appellent pas). Ordre FK : appointment → provider_secretariat
+    // → secretariat → provider → practitioner, avant patient/cabinet.
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query(
+        "DELETE FROM provider_secretariat WHERE provider_id IN \
+         (SELECT id FROM provider WHERE cabinet_id = $1)",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
+    sqlx::query("DELETE FROM secretariat WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    let prac_user_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT user_id FROM practitioner WHERE cabinet_id = $1 LIMIT 1")
+            .bind(cabinet_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .ok()
+            .flatten();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(cabinet_id)
         .execute(&mut *tx)
         .await
         .ok();
@@ -129,6 +257,13 @@ async fn cleanup(db: &PgPool, cabinet_id: Uuid, secretary_user_id: Uuid, patient
         .execute(db)
         .await
         .ok();
+    if let Some(prac_user_id) = prac_user_id {
+        sqlx::query("DELETE FROM app_user WHERE id = $1")
+            .bind(prac_user_id)
+            .execute(db)
+            .await
+            .ok();
+    }
 }
 
 fn test_state(app_db: PgPool) -> AppState {
@@ -150,7 +285,16 @@ async fn secretary_can_create_list_and_delete_tag() {
     let app_db = app_pool().await;
     let (cabinet_id, secretary_user_id, patient_id) =
         insert_fixture(&seed_db, &Uuid::new_v4().to_string()).await;
-    let token = make_token(Uuid::new_v4(), cabinet_id, "pro", "secretary");
+    let secretariat_id = scope_patient_to_secretariat(&seed_db, cabinet_id, patient_id).await;
+    // `sub` = l'app_user secrétaire réellement inséré par le fixture : `created_by`
+    // sur patient_tag/audit_log référence app_user(id) (un Uuid aléatoire → 500 FK).
+    let token = make_token(
+        secretary_user_id,
+        cabinet_id,
+        "pro",
+        "secretary",
+        Some(secretariat_id),
+    );
 
     // POST → 201.
     let response = app(test_state(app_db.clone()))
@@ -244,7 +388,7 @@ async fn patient_token_is_forbidden() {
     let app_db = app_pool().await;
     let (cabinet_id, secretary_user_id, patient_id) =
         insert_fixture(&seed_db, &Uuid::new_v4().to_string()).await;
-    let token = make_token(Uuid::new_v4(), cabinet_id, "patient", "patient");
+    let token = make_token(Uuid::new_v4(), cabinet_id, "patient", "patient", None);
 
     let response = app(test_state(app_db))
         .oneshot(
@@ -272,7 +416,7 @@ async fn blank_label_is_rejected() {
     let app_db = app_pool().await;
     let (cabinet_id, secretary_user_id, patient_id) =
         insert_fixture(&seed_db, &Uuid::new_v4().to_string()).await;
-    let token = make_token(Uuid::new_v4(), cabinet_id, "pro", "secretary");
+    let token = make_token(Uuid::new_v4(), cabinet_id, "pro", "secretary", None);
 
     let response = app(test_state(app_db))
         .oneshot(
