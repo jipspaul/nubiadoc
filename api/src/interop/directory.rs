@@ -47,16 +47,14 @@ use crate::{
 /// (migration 0045) qui exige `app.current_user_id`, donc un JOIN direct ici ne
 /// renverrait aucune ligne sous le seul contexte cabinet.
 /// `$1` = `cabinet_id`, `$2` = `practitioner.id`.
-const PRACTITIONER_SELECT_BY_ID: &str =
-    "SELECT p.id, p.rpps, p.user_id, pr.display_name \
+const PRACTITIONER_SELECT_BY_ID: &str = "SELECT p.id, p.rpps, p.user_id, pr.display_name \
      FROM practitioner p \
      LEFT JOIN provider pr ON pr.practitioner_id = p.id AND pr.cabinet_id = p.cabinet_id \
      WHERE p.cabinet_id = $1 AND p.id = $2";
 
 /// Même requête que [`PRACTITIONER_SELECT_BY_ID`], sans le filtre `_id` —
 /// liste des praticiens du cabinet. `$1` = `cabinet_id`.
-const PRACTITIONER_SELECT_ALL: &str =
-    "SELECT p.id, p.rpps, p.user_id, pr.display_name \
+const PRACTITIONER_SELECT_ALL: &str = "SELECT p.id, p.rpps, p.user_id, pr.display_name \
      FROM practitioner p \
      LEFT JOIN provider pr ON pr.practitioner_id = p.id AND pr.cabinet_id = p.cabinet_id \
      WHERE p.cabinet_id = $1 \

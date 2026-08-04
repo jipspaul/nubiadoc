@@ -145,7 +145,6 @@ async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
         .ok();
 }
 
-
 async fn count_milestone(db: &PgPool, cabinet_id: Uuid, quote_id: Uuid, milestone: &str) -> i64 {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -175,8 +174,14 @@ async fn quote_sent_4_days_ago_gets_j3_relance() {
     let f = insert_fixtures(&owner_db, 4).await;
 
     dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await, 1);
-    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await, 0);
+    assert_eq!(
+        count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await,
+        1
+    );
+    assert_eq!(
+        count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await,
+        0
+    );
 
     let mut tx = owner_db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -215,8 +220,14 @@ async fn quote_sent_8_days_ago_gets_both_milestones() {
     let f = insert_fixtures(&owner_db, 8).await;
 
     dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await, 1);
-    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await, 1);
+    assert_eq!(
+        count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await,
+        1
+    );
+    assert_eq!(
+        count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await,
+        1
+    );
 
     let count: i64 = {
         let mut tx = owner_db.begin().await.unwrap();
@@ -248,8 +259,14 @@ async fn quote_sent_1_day_ago_gets_no_relance() {
     let f = insert_fixtures(&owner_db, 1).await;
 
     dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await, 0);
-    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await, 0);
+    assert_eq!(
+        count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await,
+        0
+    );
+    assert_eq!(
+        count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j7").await,
+        0
+    );
 
     cleanup_fixtures(&owner_db, &f).await;
 }
@@ -266,7 +283,10 @@ async fn dispatch_is_idempotent_across_runs() {
     let f = insert_fixtures(&owner_db, 4).await;
 
     dispatch_quote_relances(&app_db).await.unwrap();
-    assert_eq!(count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await, 1);
+    assert_eq!(
+        count_milestone(&owner_db, f.cabinet_id, f.quote_id, "j3").await,
+        1
+    );
 
     dispatch_quote_relances(&app_db).await.unwrap();
 
