@@ -164,18 +164,6 @@ async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     .await
     .unwrap();
 
-    // Odontogramme existant : le GET doit renvoyer updated_at (chaîne), pas null
-    // (le null n'arrive que si aucun enregistrement n'existe pour le patient).
-    sqlx::query(
-        "INSERT INTO dental_chart (cabinet_id, patient_id, teeth_status) \
-         VALUES ($1, $2, '{\"11\": \"healthy\"}'::jsonb)",
-    )
-    .bind(cabinet_id)
-    .bind(patient_id)
-    .execute(&mut *tx)
-    .await
-    .unwrap();
-
     tx.commit().await.unwrap();
 
     (cabinet_id, user_id, patient_id)
@@ -265,6 +253,19 @@ async fn get_dental_chart_practitioner_returns_200() {
     }
     let db = owner_pool().await;
     let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+
+    // Ce test couvre le cas « odontogramme déjà enregistré » → updated_at non-null.
+    // On le crée ici (et pas dans le fixture partagé) pour ne pas fausser les tests
+    // d'historique qui supposent l'absence d'état préalable.
+    sqlx::query(
+        "INSERT INTO dental_chart (cabinet_id, patient_id, teeth_status) \
+         VALUES ($1, $2, '{\"11\": \"healthy\"}'::jsonb)",
+    )
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&db)
+    .await
+    .unwrap();
 
     let token = make_practitioner_token(user_id, cabinet_id);
 
