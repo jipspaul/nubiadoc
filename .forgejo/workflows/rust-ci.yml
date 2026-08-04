@@ -28,13 +28,16 @@ jobs:
         working-directory: api
         run: cargo test --workspace --all-features --no-run
 
-  # ── Job BLOQUANT : suite d'intégration DB (1191 tests) ─────────────────────
+  # ── Job BLOQUANT : suite d'intégration DB (1218 tests, 0 skip) ─────────────
   # Provisionne Postgres+PostGIS inline (rust-ci n'a pas le binaire ; services:
   # a un DNS cassé sur ce runner — cf. db.yml) + migrations via le db/Makefile,
-  # puis exécute les tests d'intégration. 27 bugs déterministes connus sont en
-  # quarantaine (`#[ignore]` → issue #4602) ; les 1191 autres BLOQUENT le merge :
-  # un test qui casse (régression) rougit la CI et empêche de merger. Retirer un
-  # `#[ignore]` au fur et à mesure que le bug #4602 est corrigé.
+  # puis exécute TOUTE la suite d'intégration. AUCUNE quarantaine, aucun
+  # `#[ignore]` : les 1218 tests tournent et BLOQUENT le merge — un test qui
+  # casse (régression) rougit la CI. Les tests sensibles au timing (serveurs
+  # tokio/websocket) sont sérialisés via api/.config/nextest.toml (test-group
+  # serial-io) pour rester déterministes sous charge, sans être exclus.
+  # La base est créée en UTF-8 (db/Makefile) — indispensable au fold d'accents
+  # `translate()` de la recherche (un cluster SQL_ASCII casse le multibyte).
   rust-integration:
     runs-on: docker
     container:
@@ -65,6 +68,6 @@ jobs:
       - name: Schéma + rôles (db/ reset + migrate)
         working-directory: db
         run: make reset migrate
-      - name: Tests d'intégration (BLOQUANT — 27 bugs connus en quarantaine)
+      - name: Tests d'intégration (BLOQUANT — 1218 tests, 0 skip, 0 quarantaine)
         working-directory: api
         run: cargo nextest run --workspace --all-features --no-fail-fast

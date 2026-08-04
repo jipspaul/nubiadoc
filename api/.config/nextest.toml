@@ -1,0 +1,21 @@
+# Config nextest — exécution des tests d'intégration.
+#
+# QUOI : sérialise les tests qui montent un vrai serveur tokio/websocket ou font
+#        de la crypto/dispatch à timeout, pour un résultat déterministe.
+# POURQUOI : ces tests passent tous en isolation, mais sous forte contention CPU
+#        (nextest lance N=nb_cœurs tests en parallèle) leurs timeouts internes
+#        (handshake websocket, attente d'un stub dispatcher, ping/pong) expirent
+#        de façon aléatoire → le jeu d'échecs changeait d'un run à l'autre. Les
+#        sérialiser (max-threads=1) supprime la contention sans rien skipper : ils
+#        tournent tous, ils bloquent tous le merge. Le reste de la suite reste
+#        pleinement parallèle.
+# MODE D'ÉCHEC : si un de ces tests casse pour un vrai bug, il rougit la CI
+#        normalement (pas de retry masquant, pas d'ignore).
+
+[test-groups]
+serial-io = { max-threads = 1 }
+
+[[profile.default.overrides]]
+# Binaires montant un serveur réseau réel ou sensibles au timing sous charge.
+filter = 'binary(/^ws_handshake$|^ws_named_channels$|^ws_waiting_room$|^webhook_stripe$|^webhook_yousign$|^hl7v2_e2e$|^pharmacy_orders_realtime$/)'
+test-group = 'serial-io'
