@@ -107,11 +107,11 @@ async fn insert_fixture(db: &PgPool, suffix: &str) -> (Uuid, Uuid, Uuid) {
     (cabinet_id, secretary_user_id, patient_id)
 }
 
-/// Rattache le patient au périmètre d'un secrétariat (R10, #3821) : practitioner
-/// + provider + secretariat + provider_secretariat(active) + appointment non
-/// annulé liant le patient au praticien. Sans ce rattachement,
-/// `ensure_secretary_scope` masque le patient en 404. Retourne le
-/// `secretariat_id` à porter dans le JWT du secrétaire.
+/// Rattache le patient au périmètre d'un secrétariat (R10, #3821) en créant la
+/// chaîne practitioner, provider, secretariat, provider_secretariat(active) et un
+/// appointment non annulé liant le patient au praticien. Sans ce rattachement,
+/// `ensure_secretary_scope` masque le patient en 404. Retourne le `secretariat_id`
+/// à porter dans le JWT du secrétaire.
 async fn scope_patient_to_secretariat(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid) -> Uuid {
     let prac_user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
