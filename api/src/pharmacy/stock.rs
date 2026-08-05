@@ -101,6 +101,13 @@ pub async fn create_stock_request(
     {
         return Err(AppError::ValidationError);
     }
+    // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    for item in &body.items {
+        crate::text_validation::reject_nul_byte(&item.label)?;
+        if let Some(note) = &item.note {
+            crate::text_validation::reject_nul_byte(note)?;
+        }
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
