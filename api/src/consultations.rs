@@ -13,7 +13,9 @@ use uuid::Uuid;
 use crate::{
     auth::{AppError, ProPractitionerClaims},
     consultation_context::PractitionerSummary,
-    notify, AppState,
+    notify,
+    patient_guardianship::aggregate_guardianship,
+    AppState,
 };
 
 // ── POST /v1/cabinet/consultations/:id/complete ───────────────────────────────
@@ -196,6 +198,33 @@ pub async fn complete_consultation(
             total_cents += i64::from(cents);
         }
 
+        // Résout le responsable légal (#4098, cf. cabinet_quotes.rs) : sans
+        // ce champ, un devis émis pour un dépendant reste invisible à son
+        // tuteur (quote_patient_read, migration 0175) — cul-de-sac de
+        // facturation (#4591).
+        let patient_account_row = sqlx::query(
+            "SELECT patient_account_id FROM patient \
+             WHERE id = $1 AND cabinet_id = $2",
+        )
+        .bind(patient_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        let patient_account_id: Option<Uuid> = match &patient_account_row {
+            Some(row) => row
+                .try_get("patient_account_id")
+                .map_err(|_| AppError::Internal)?,
+            None => None,
+        };
+        let billed_to_account_id = match patient_account_id {
+            Some(account_id) => {
+                let (guardians, _dependents) = aggregate_guardianship(&mut tx, account_id).await?;
+                guardians.into_iter().next().map(|g| g.account_id)
+            }
+            None => None,
+        };
+
         // Crée le devis déjà envoyé (#4260) : la policy RLS quote_patient_read
         // (migrations 0134/0175) exige status <> 'draft' pour qu'un patient
         // puisse lire son devis — un devis créé en 'draft' à la clôture de
@@ -208,13 +237,15 @@ pub async fn complete_consultation(
             // #4126 : sent_at posé dès la création (déjà 'sent'), départ du
             // calendrier de relance J+3/J+7.
             "INSERT INTO quote \
-             (cabinet_id, patient_id, status, total_amount, currency, sent_at) \
-             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now()) \
+             (cabinet_id, patient_id, status, total_amount, currency, sent_at, \
+              billed_to_account_id) \
+             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now(), $4) \
              RETURNING id",
         )
         .bind(claims.cabinet_id)
         .bind(patient_id)
         .bind(total_cents)
+        .bind(billed_to_account_id)
         .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
