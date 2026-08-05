@@ -529,6 +529,13 @@ pub async fn list_account_prescriptions(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+    // GUC compte : requis par la sous-requête account_guardianship de la
+    // policy prescription_patient_read (branche tutelle, 0218/#4597).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
         "SELECT id, status, document_id, created_at, signed_at \
