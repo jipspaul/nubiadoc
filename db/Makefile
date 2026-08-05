@@ -43,7 +43,7 @@ reset: ## Détruit et recrée une base propre (admin)
 	$(ADMIN_PSQL) -d postgres -c "DROP ROLE IF EXISTS nubia_seed;"
 	$(ADMIN_PSQL) -d postgres -c "DROP ROLE IF EXISTS nubia_owner;"
 	$(ADMIN_PSQL) -d postgres -c "CREATE ROLE nubia_owner LOGIN CREATEROLE BYPASSRLS;"
-	$(ADMIN_PSQL) -d postgres -c "CREATE DATABASE $(DB_NAME) OWNER nubia_owner;"
+	$(ADMIN_PSQL) -d postgres -c "CREATE DATABASE $(DB_NAME) OWNER nubia_owner ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0;"
 	$(ADMIN_PSQL) -d $(DB_NAME) -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 	@echo "✓ base $(DB_NAME) recréée (owner=nubia_owner, postgis provisionné)"
 

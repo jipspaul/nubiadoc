@@ -662,10 +662,13 @@ fn lazy_app_pool() -> PgPool {
     .unwrap()
 }
 
-// ── Test 4 : cabinet non lié au patient → 403 ─────────────────────────────────
+// ── Test 4 : cabinet non lié au patient → 404 (anti-énumération) ──────────────
+// Le handler renvoie un 404 UNIFORME (même statut que « cabinet inexistant »)
+// pour ne pas laisser un patient non rattaché déduire l'existence d'un cabinet
+// via 403-vs-404 (choix sécurité délibéré, cf. messaging.rs create_cabinet_conversation).
 
 #[tokio::test]
-async fn conversations_create_unlinked_cabinet_returns_403() {
+async fn conversations_create_unlinked_cabinet_returns_404() {
     if !db_available() {
         return;
     }
@@ -696,7 +699,7 @@ async fn conversations_create_unlinked_cabinet_returns_403() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // Cleanup
     {

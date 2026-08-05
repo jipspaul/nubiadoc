@@ -535,13 +535,15 @@ async fn get_queue_position_3_when_two_prior_checkins() {
     .await
     .unwrap();
 
-    // Patient checké maintenant (dernier dans la file).
+    // Patient checké en dernier : ancre son checkin_at franchement après les
+    // extras (now() - 2/5 min) pour que l'ordre de la file soit déterministe
+    // même si l'insertion des extras est retardée sous charge parallèle.
     let (cabinet_id, prac_id, _patient_id, appt_id) = insert_fixture(
         &db,
         prac_user_id,
         patient_account_id,
         "checked_in",
-        Some("now()"),
+        Some("now() + interval '1 hour'"),
     )
     .await;
 

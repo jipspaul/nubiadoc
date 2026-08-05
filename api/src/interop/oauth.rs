@@ -10,7 +10,7 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
-    extract::{Form, State},
+    extract::{rejection::FormRejection, Form, State},
     Json,
 };
 use integrations_interop::{parse_scopes, scopes_to_string, verify_secret, Scope};
@@ -66,8 +66,15 @@ pub struct TokenResponse {
 ///    `actor_id=interop_client.id`, aucune PII dans les métadonnées).
 pub async fn issue_token(
     State(state): State<AppState>,
-    Form(body): Form<TokenRequest>,
+    body: Result<Form<TokenRequest>, FormRejection>,
 ) -> Result<Json<TokenResponse>, InteropError> {
+    // #4615 : un paramètre requis absent fait échouer l'extracteur `Form`
+    // *avant* d'atteindre le handler (`FormRejection`, ex: 422 par défaut
+    // d'Axum) — il faut le mapper explicitement en `invalid_request` RFC 6749
+    // (400) pour rester cohérent avec le cas « champ présent mais vide »
+    // traité juste en dessous, qui produit déjà ce même 400.
+    let Form(body) = body.map_err(|_| InteropError::InvalidRequest)?;
+
     if body.grant_type != "client_credentials" {
         return Err(InteropError::UnsupportedGrantType);
     }
