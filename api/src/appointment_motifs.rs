@@ -104,6 +104,8 @@ fn validate_label(label: &str) -> Result<String, AppError> {
     if trimmed.is_empty() {
         return Err(AppError::ValidationError);
     }
+    // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    crate::text_validation::reject_nul_byte(&trimmed)?;
     Ok(trimmed)
 }
 
