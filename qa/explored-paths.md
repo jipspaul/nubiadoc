@@ -400,6 +400,25 @@ Last run: 2026-07-07T04:10:45.000Z
 
 | flow | app | last_check | last_status | last_finding |
 | --- | --- | --- | --- | --- |
+| waiting-room-fifo-e2e | 2026-08-05T20:30:00.000Z | OK | Flux complet create→confirm→checkin→call-next→start→complete→exit file : CLEAN |
+| prescription-pharmacie-e2e | 2026-08-05T20:30:00.000Z | bug | #4626 (PDF stub), #4629 (re-send 409 ambigu) ; flux nominal CLEAN |
+| b1-facturation-devis | 2026-08-05T20:30:00.000Z | OK | draft→send→sign→payment intent, validations AMO/AMC, cloisonnement : CLEAN |
+| b2-devis-pharmacie | 2026-08-05T20:30:00.000Z | OK | create→send→accept/refuse state-machine : CLEAN |
+| b3-documents-coffre-fort | 2026-08-05T20:30:00.000Z | OK | upload/list/get/download, cloisonnement prat→patient 403 : CLEAN |
+| b4-consultations-actes | 2026-08-05T20:30:00.000Z | OK | cloisonnement sec→403 (consultations/medical-record/dental-chart), complete-lock : CLEAN |
+| b5-stock-appro | 2026-08-05T20:30:00.000Z | OK | sent→accept→fulfill transitions + validations + cloisonnement : CLEAN |
+| b6-dependants-couverture | 2026-08-05T20:30:00.000Z | OK | CRUD relationship enum, nss, cross-account 404 : CLEAN |
+| b7-annuaire-filtres | 2026-08-05T20:30:00.000Z | bug | #4628 facettes specialty sans UUID |
+| b8-notifications-rappels | 2026-08-05T20:30:00.000Z | OK | read/read-all, unread_only, reminders : CLEAN |
+| b9-messagerie | 2026-08-05T20:30:00.000Z | bug | #4627 POST /conversations/:id/read → 415 sans Content-Type |
+| b10-auth-securite | 2026-08-05T20:30:00.000Z | OK | anti-enum 401, forgot 204, MFA patient→403, rate-limit 429 : CLEAN |
+| b11-onboarding-pro | 2026-08-05T20:30:00.000Z | OK | RBAC members/secretariats, register anti-enum, cabinet/provider PATCH : CLEAN |
+| b12-rdv-cas-limites | 2026-08-05T20:30:00.000Z | OK | reprog <24h 409, cancel, no-show, callback, directions, preparation : CLEAN |
+| ui-smoke-patient | 2026-08-05T20:30:00.000Z | OK | flutter-view+_flutter présent, 0 console.error, 0 req≥400 : CLEAN |
+| ui-smoke-praticien | 2026-08-05T20:30:00.000Z | OK | flutter-view+_flutter présent, 0 console.error, 0 req≥400 : CLEAN |
+| ui-smoke-secretariat | 2026-08-05T20:30:00.000Z | OK | flutter-view+_flutter présent, 0 console.error, 0 req≥400 : CLEAN |
+| ui-smoke-pharmacie | 2026-08-05T20:30:00.000Z | OK | flutter-view+_flutter présent, 0 console.error, 0 req≥400 : CLEAN |
+
 | A (signup patient) | patient | 2026-07-07T04:10:45.000Z | OK | reconfirmé de bout en bout (signup → account-setup → coverage-setup → home) avec un compte jetable frais : 0 console.error, 0 failed-request. |
 | B (invitation secretariat) | secretariat | 2026-07-07T04:10:45.000Z | OK | reconfirmé — invitation_token invalide correctement rejeté au submit, "Invitation invalide" affiché, bouton "Retour à la connexion" fonctionnel. |
 | C (register praticien) | praticien | 2026-07-07T04:10:45.000Z | OK | **6e confirmation indépendante consécutive** — POST 201 → /cabinet-setup atteint sans rebond sur /login, run indépendant ~2h15 après le précédent. |
