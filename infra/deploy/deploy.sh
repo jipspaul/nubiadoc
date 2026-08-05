@@ -28,6 +28,40 @@ set -eu
 cd /opt/nubia
 PUBLIC_API_BASE="${PUBLIC_API_BASE:-http://192.168.1.100:3000}"
 
+# --- Garde-fou disque (incident 2026-07-30 -> 2026-08-02) --------------------
+# Le LXC fait 7,8 Go. Chaque déploiement empile de nouvelles couches podman :
+# le `--no-cache` de l'API et le rebuild de la console laissent à chaque fois
+# des images intermédiaires que RIEN ne nettoyait. Le disque est monté à 90 %
+# et le `npm ci` de la console est mort sur :
+#   storing blob to file "/var/tmp/container_images_storage.../1":
+#   no space left on device        (exitcode 125)
+# Résultat : 3 JOURS sans déploiement (dernier succès 29/07 11h01) — le backend
+# live servait du code périmé pendant que la CI passait au vert sur les PR.
+# Personne ne l'a vu : l'échec était noyé au milieu d'un log de 6 minutes.
+#
+# Deux mesures, dans cet ordre :
+#   1. purge des couches orphelines AVANT le build. `image prune` (sans -a) ne
+#      touche QUE les couches sans tag et jamais une image utilisée par un
+#      conteneur en cours — la stack qui tourne n'est pas menacée ;
+#   2. si l'espace reste sous le seuil malgré ça, on échoue TÔT et FORT plutôt
+#      que 6 minutes plus tard sur une erreur cryptique — même logique que le
+#      pré-vol de joignabilité SSH (#3493).
+MIN_FREE_MB=3000
+echo "[deploy] purge des couches podman orphelines (avant build)"
+podman image prune -f >/dev/null 2>&1 || true
+podman container prune -f >/dev/null 2>&1 || true
+rm -rf /var/tmp/container_images_storage* 2>/dev/null || true
+
+FREE_MB=$(df -Pm / | awk 'NR==2{print $4}')
+echo "[deploy] espace libre: ${FREE_MB} Mo (seuil ${MIN_FREE_MB} Mo)"
+if [ "$FREE_MB" -lt "$MIN_FREE_MB" ]; then
+  echo "::error::DISQUE PLEIN sur le LXC : ${FREE_MB} Mo libres < ${MIN_FREE_MB} Mo requis."
+  echo "  Le build podman de la console échouerait sur 'no space left on device'."
+  echo "  Sur le LXC : podman system prune -af && rm -rf /var/tmp/container_images_storage*"
+  echo "  Puis : df -h /"
+  exit 1
+fi
+
 echo "[deploy] build image api (COPY-only, binaire musl pré-compilé)"
 # --no-cache : le layer COPY du binaire peut être servi depuis le cache podman
 # (même tag :latest) et faire tourner un binaire périmé. On force un rebuild

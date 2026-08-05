@@ -71,5 +71,41 @@ void main() {
       await tester.enterText(find.byType(TextField), '42');
       expect(typed, '42');
     });
+
+    // #4538 : Entrée doit soumettre (réflexe universel dans un chat) quand
+    // onSubmitted est fourni — comportement inchangé (pas de textInputAction
+    // forcé) sinon.
+    testWidgets('onSubmitted appelé à la validation clavier (Entrée)', (
+      tester,
+    ) async {
+      String? submitted;
+      await tester.pumpWidget(
+        wrap(
+          NubiaTextField(
+            hint: 'Écrire un message…',
+            onSubmitted: (v) => submitted = v,
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), 'Bonjour');
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pump();
+
+      expect(submitted, 'Bonjour');
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.textInputAction, TextInputAction.send);
+    });
+
+    testWidgets('sans onSubmitted, textInputAction reste par défaut (null)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(const NubiaTextField(hint: 'Nom')),
+      );
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.textInputAction, isNull);
+    });
   });
 }

@@ -300,6 +300,9 @@ pub async fn get_quote(
                 (qi.unit_amount * 100)::bigint AS unit_amount_cents, \
                 (qi.amc_part * 100)::bigint AS amc_part_cents, \
                 (qi.amo_part * 100)::bigint AS amo_part_cents, \
+                ((qi.qty * qi.unit_amount \
+                  - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100)::bigint \
+                  AS patient_share_cents, \
                 ca.panier_sante \
          FROM quote_item qi \
          LEFT JOIN ccam_act ca ON ca.code = qi.ccam_code \
@@ -337,10 +340,9 @@ pub async fn get_quote(
     let deposit_pct: Option<f64> = quote_row
         .try_get("deposit_pct")
         .map_err(|_| AppError::Internal)?;
-    let deposit_amount_cents =
-        deposit_pct.map(|pct| ((amount_cents as f64) * pct / 100.0).ceil() as i64);
 
     let mut items = Vec::with_capacity(item_rows.len());
+    let mut patient_share_total: i64 = 0;
     for row in &item_rows {
         let item_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
         let label: String = row.try_get("label").map_err(|_| AppError::Internal)?;
@@ -359,6 +361,10 @@ pub async fn get_quote(
         let panier_sante: Option<String> = row
             .try_get("panier_sante")
             .map_err(|_| AppError::Internal)?;
+        let patient_share_cents: i64 = row
+            .try_get("patient_share_cents")
+            .map_err(|_| AppError::Internal)?;
+        patient_share_total += patient_share_cents;
         items.push(QuoteLineItem {
             id: item_id,
             label,
@@ -371,6 +377,12 @@ pub async fn get_quote(
             panier_sante,
         });
     }
+
+    // Acompte dérivé de la part patient nette (après AMO/AMC), pas du total
+    // brut du devis — cf. cabinet_quotes.rs::get_cabinet_quote et le plancher
+    // enforced sur `patient_share_cents` dans billing_payments.rs (#4583).
+    let deposit_amount_cents =
+        deposit_pct.map(|pct| ((patient_share_total as f64) * pct / 100.0).ceil() as i64);
 
     tracing::info!(
         account_id = %claims.account_id,
@@ -424,14 +436,17 @@ pub async fn sign_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le devis appartient au patient (JOIN patient → patient_account_id).
+    // Vérifie que le devis appartient au patient (JOIN patient → patient_account_id)
+    // OU au compte facturé (billed_to_account_id, #4098) — symétrique à la policy
+    // RLS quote_patient_read (migration 0175) : le tuteur payeur doit pouvoir
+    // signer le devis qu'il voit.
     // RLS fail-closed : si le devis n'existe pas ou hors tenant → 404.
     let row = sqlx::query(
         "SELECT q.cabinet_id, q.status, q.signed_at \
          FROM quote q \
          JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.deleted_at IS NULL \
-           AND p.patient_account_id = $2",
+           AND (p.patient_account_id = $2 OR q.billed_to_account_id = $2)",
     )
     .bind(id)
     .bind(claims.account_id)

@@ -119,7 +119,7 @@ async fn patch_coverage_creates_audit_log_entry() {
     let row = sqlx::query_as::<_, (String, Uuid, serde_json::Value)>(
         "SELECT action, entity_id, metadata FROM audit_log \
          WHERE action = 'update_coverage' AND entity_id = $1 \
-         ORDER BY created_at DESC LIMIT 1",
+         ORDER BY occurred_at DESC LIMIT 1",
     )
     .bind(account_id)
     .fetch_optional(&db)
@@ -171,7 +171,7 @@ async fn patch_coverage_regime_change_logs_old_and_new() {
     let row = sqlx::query_as::<_, (serde_json::Value,)>(
         "SELECT metadata FROM audit_log \
          WHERE action = 'update_coverage' AND entity_id = $1 \
-         ORDER BY created_at DESC LIMIT 1",
+         ORDER BY occurred_at DESC LIMIT 1",
     )
     .bind(account_id)
     .fetch_optional(&db)

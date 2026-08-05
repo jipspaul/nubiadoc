@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -11,6 +12,7 @@ import 'package:app_practicien/features/cabinet_messaging/cabinet_messaging_bloc
 import 'package:app_practicien/features/cabinet_messaging/cabinet_messaging_event.dart';
 import 'package:app_practicien/features/cabinet_messaging/cabinet_messaging_page.dart';
 import 'package:app_practicien/features/cabinet_messaging/cabinet_messaging_state.dart';
+import 'package:app_practicien/router/app_router.dart';
 
 /// Tests widget "Créer un RDV" depuis une conversation (#4160). Contrairement
 /// à cabinet_messaging_test.dart (qui teste le bloc + un double minimal de la
@@ -155,5 +157,49 @@ void main() {
       find.byKey(const Key('create_appointment_from_conversation')),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'aucun créneau disponible → CTA "Aller à l\'agenda" navigue vers '
+      '/agenda (#4540)', (tester) async {
+    when(() => bloc.state).thenReturn(
+      CabinetMessagingThreadLoaded(
+          conversation: _conversation, messages: const []),
+    );
+    when(() => mockSlots()).thenAnswer((_) async => const Right([]));
+
+    final router = GoRouter(
+      initialLocation: '/messages',
+      routes: [
+        GoRoute(
+          path: '/messages',
+          builder: (_, __) =>
+              const Scaffold(body: CabinetMessagingPage()),
+        ),
+        GoRoute(
+          path: AppRouter.agenda,
+          builder: (_, __) => const Scaffold(body: Text('agenda page')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light, routerConfig: router));
+    await tester.pump();
+
+    await tester
+        .tap(find.byKey(const Key('create_appointment_from_conversation')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('appointment_slot_picker_empty')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const Key('appointment_slot_picker_go_to_agenda')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('agenda page'), findsOneWidget);
   });
 }

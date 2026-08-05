@@ -42,7 +42,10 @@ pub struct PatchAppointmentBody {
 /// y compris un RDV de dépendant (tutelle, `app.current_account_id` — #4388).
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
-/// Hors délai (≥ 24 h avant starts_at courant) → `409 too_late`.
+/// Modification hors délai (≥ 24 h avant le starts_at source, ou avant la
+/// destination lors d'une reprogrammation) → `409 too_late`. La garde source
+/// couvre aussi un PATCH motif seul (#384) ; la garde destination (#4574) s'y
+/// ajoute pour une reprogrammation.
 /// Conflit créneau (contrainte PG `23P01`) → `409 slot_taken`.
 /// Audité (`update_appointment`) dans `audit_log`.
 pub async fn patch_appointment(
@@ -102,7 +105,9 @@ pub async fn patch_appointment(
         return Err(AppError::InvalidStatus);
     }
 
-    // Délai configurable, défaut 24 h avant le starts_at courant.
+    // Préavis 24 h sur la SOURCE : s'applique à TOUTE modification, y compris un
+    // PATCH motif seul (#384) — un RDV à < 24 h est figé côté patient. Le préavis
+    // sur la destination est vérifié en plus ci-dessous pour une reprogrammation.
     if chrono::Utc::now() >= starts_at - chrono::Duration::hours(24) {
         return Err(AppError::TooLate);
     }

@@ -33,9 +33,13 @@
 //! migration 0149) stocke un hash argon2 de ce secret dérivé, à titre
 //! défensif/audit uniquement — jamais lu sur le chemin de signature.
 //!
-//! `core-crypto` (chiffrement d'enveloppe KMS) est un scaffold non implémenté
-//! (`CryptoError::NotImplemented`, prévu pour NUB-T3) — inutilisable pour ce
-//! lot, d'où le choix de dérivation plutôt que chiffrement réversible.
+//! `core-crypto` (chiffrement d'enveloppe KMS) dispose désormais d'une
+//! implémentation réelle, mais n'est délibérément PAS utilisé ici : la
+//! dérivation HMAC ci-dessus est stateless (aucun secret persisté à faire
+//! survivre à une rotation de clé maître KMS) et plus simple que de gérer
+//! un `key_context`/`key_ref` pour une valeur qui n'a jamais besoin d'être
+//! stockée. Le chiffrement d'enveloppe reste pertinent pour les colonnes
+//! `*_ciphertext` qui, elles, doivent être persistées (cf. `docs/05` §3).
 //!
 //! ## Raccourci assumé — livraison synchrone best-effort
 //!

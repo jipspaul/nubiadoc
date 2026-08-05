@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_domain/nubia_domain.dart';
+
+import '../../../router/app_router.dart';
 
 /// Sélecteur de créneau pour "Créer un RDV" depuis une conversation
 /// (#4159/#4160). Formulaire "1 clic" : patient/motif sont déjà déduits du
@@ -91,9 +94,34 @@ class _AppointmentSlotPickerState extends State<AppointmentSlotPicker> {
                     style: TextStyle(color: Theme.of(context).colorScheme.error),
                   )
                 : _slots.isEmpty
-                    ? const Text(
-                        'Aucun créneau disponible.',
-                        key: Key('appointment_slot_picker_empty'),
+                    // #4540 : un « Créer » définitivement grisé sans le
+                    // moindre moyen d'avancer est un cul-de-sac. On explique
+                    // la cause et on redirige vers l'agenda (où le praticien
+                    // ouvre de nouvelles disponibilités), plutôt qu'un
+                    // message sec + un bouton mort.
+                    ? Column(
+                        key: const Key('appointment_slot_picker_empty'),
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Aucun créneau disponible dans les prochains '
+                            'jours. Ouvrez de nouvelles disponibilités '
+                            'depuis l\'agenda pour proposer un rendez-vous.',
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            key: const Key(
+                              'appointment_slot_picker_go_to_agenda',
+                            ),
+                            icon: const Icon(Icons.calendar_month_outlined),
+                            label: const Text('Aller à l\'agenda'),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              context.go(AppRouter.agenda);
+                            },
+                          ),
+                        ],
                       )
                     : InputDecorator(
                         decoration: const InputDecoration(labelText: 'Créneau'),

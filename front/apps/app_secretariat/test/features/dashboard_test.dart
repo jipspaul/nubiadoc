@@ -124,7 +124,9 @@ void main() {
       act: (bloc) => bloc.add(const DashboardLoadRequested()),
       expect: () => [
         const DashboardLoading(),
-        const DashboardLoaded(todayCount: 1, pendingCount: 2, waitingCount: 1),
+        // pendingCount = a1 seulement (#4599 : borné au jour, comme
+        // todayCount — a2 est demain, exclu).
+        const DashboardLoaded(todayCount: 1, pendingCount: 1, waitingCount: 1),
       ],
     );
 
@@ -160,9 +162,11 @@ void main() {
       expect: () => [
         const DashboardLoading(),
         // todayCount = req-today + conf-today (2) — cancel-today exclu.
-        // pendingCount = req-today + req-later (2) — confirmed/done/
-        // no_show/cancelled tous exclus (avant #3855 : 5, tout non-libre).
-        const DashboardLoaded(todayCount: 2, pendingCount: 2, waitingCount: 0),
+        // pendingCount = req-today seulement (1) — confirmed/done/no_show/
+        // cancelled tous exclus (avant #3855 : 5, tout non-libre), et
+        // req-later exclu car pas aujourd'hui (#4599 : même borne
+        // temporelle que todayCount).
+        const DashboardLoaded(todayCount: 2, pendingCount: 1, waitingCount: 0),
       ],
     );
 

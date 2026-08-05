@@ -305,7 +305,7 @@ class _AppointmentCard extends StatelessWidget {
         .toUpperCase();
   }
 
-  String _formatDateTime(DateTime dt) {
+  String _formatDateTime(DateTime utc) {
     const weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
     const months = [
       'jan',
@@ -321,6 +321,10 @@ class _AppointmentCard extends StatelessWidget {
       'nov',
       'déc',
     ];
+    // #4620/#4618 : startsAt vient de DateTime.parse() sur un ISO +00:00
+    // (isUtc == true) — lire .hour/.day/.weekday bruts affichait l'heure UTC
+    // au lieu de l'heure locale (-2h en été / -1h en hiver pour Europe/Paris).
+    final dt = utc.toLocal();
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]} à $h:$m';

@@ -5,19 +5,103 @@ on: [pull_request]
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
+
 jobs:
+  # ── Gate bloquant : format + lint (compile inclus) ─────────────────────────
+  # Fiable (pas de base, pas d'exécution de test) → conditionne le merge.
+  # `clippy --all-targets --all-features` compile TOUT le code ET tous les tests
+  # d'intégration (il attrape les erreurs de compilation des tests) — donc pas
+  # besoin d'un `cargo test --no-run` séparé qui recompilait tout une 2e fois.
   rust:
     runs-on: docker
     container:
       image: rust-ci:stable
+    env:
+      # Plafonne le parallélisme de rustc : le nœud runner (VM Lima 20 Gio) OOM-kill
+      # les compilations de nubia-api quand plusieurs jobs lourds tournent en même
+      # temps (postmortem 2026-08-04 : rustc tué au milieu de « Compiling nubia-api »,
+      # log tronqué sans erreur). 4 jobs de build ⇒ pic mémoire maîtrisé.
+      CARGO_BUILD_JOBS: "4"
     steps:
       - uses: actions/checkout@v4
+      # Cache cargo (deps + target) partagé avec rust-integration via la même clé :
+      # sans lui, chaque run recompilait ~224 binaires from scratch (~15 min). Avec,
+      # les runs suivants sont incrémentaux (quelques minutes). Clé = hash Cargo.lock.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
+            api/target
+          key: rust-cargo-${{ hashFiles('api/Cargo.lock') }}
+          restore-keys: |
+            rust-cargo-
       - name: Format
         working-directory: api
         run: cargo fmt --all -- --check
-      - name: Clippy
+      - name: Clippy (compile + lint tous les targets, tests inclus)
         working-directory: api
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: Test
+
+  # ── Job BLOQUANT : suite d'intégration DB (1218 tests, 0 skip) ─────────────
+  # Provisionne Postgres+PostGIS inline (rust-ci n'a pas le binaire ; services:
+  # a un DNS cassé sur ce runner — cf. db.yml) + migrations via le db/Makefile,
+  # puis exécute TOUTE la suite d'intégration. AUCUNE quarantaine, aucun
+  # `#[ignore]` : les 1218 tests tournent et BLOQUENT le merge — un test qui
+  # casse (régression) rougit la CI. Les tests sensibles au timing (serveurs
+  # tokio/websocket) sont sérialisés via api/.config/nextest.toml (test-group
+  # serial-io) pour rester déterministes sous charge, sans être exclus.
+  # La base est créée en UTF-8 (db/Makefile) — indispensable au fold d'accents
+  # `translate()` de la recherche (un cluster SQL_ASCII casse le multibyte).
+  rust-integration:
+    runs-on: docker
+    container:
+      image: rust-ci:stable
+    # Sérialisé APRÈS le gate `rust` : les deux jobs compilent nubia-api (crate
+    # lourd). Les laisser tourner en parallèle sur le mono-nœud (VM Lima 20 Gio)
+    # saturait la RAM → OOM-kill de rustc (postmortem 2026-08-04). `needs` garantit
+    # qu'un seul compile nubia-api à la fois ; bonus : pas d'intégration si le gate
+    # (fmt/clippy) est déjà rouge.
+    needs: rust
+    env:
+      CARGO_BUILD_JOBS: "4"
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATA: /tmp/pgdata
+      DATABASE_URL: postgres://nubia_owner@localhost:5432/nubia
+      APP_DATABASE_URL: postgres://nubia_app@localhost:5432/nubia
+      SEED_DATABASE_URL: postgres://nubia_seed@localhost:5432/nubia
+    steps:
+      - uses: actions/checkout@v4
+      # Même clé que le gate `rust` : comme il tourne AVANT (needs), il a déjà
+      # peuplé le cache → ici on restaure `api/target` et la compile est quasi
+      # incrémentale (seuls les binaires de test nextest se relient).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
+            api/target
+          key: rust-cargo-${{ hashFiles('api/Cargo.lock') }}
+          restore-keys: |
+            rust-cargo-
+      - name: Provisionne Postgres + PostGIS inline
+        run: |
+          set -e
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends postgresql postgresql-postgis make
+          PGVER=$(ls /usr/lib/postgresql/ | sort -n | tail -1)
+          echo "/usr/lib/postgresql/$PGVER/bin" >> "$GITHUB_PATH"
+          export PATH="/usr/lib/postgresql/$PGVER/bin:$PATH"
+          rm -rf "$PGDATA" && mkdir -p "$PGDATA" && chown postgres:postgres "$PGDATA"
+          su postgres -c "initdb -D $PGDATA --auth-host=trust --auth-local=trust -U postgres" >/dev/null
+          su postgres -c "pg_ctl -D $PGDATA -l /tmp/pg.log -o \"-c listen_addresses='localhost'\" -w start"
+          for i in $(seq 1 30); do pg_isready -h localhost -U postgres -q && break; sleep 1; done
+          pg_isready -h localhost -U postgres
+      - name: Schéma + rôles (db/ reset + migrate)
+        working-directory: db
+        run: make reset migrate
+      - name: Tests d'intégration (BLOQUANT — 1218 tests, 0 skip, 0 quarantaine)
         working-directory: api
-        run: cargo nextest run --workspace --all-features
+        run: cargo nextest run --workspace --all-features --no-fail-fast

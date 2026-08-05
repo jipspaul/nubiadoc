@@ -62,10 +62,19 @@ async fn parse_keywords_dentiste_secteur1() {
 
     assert_eq!(v["source"], "keywords", "sans clé LLM → source keywords");
     assert_eq!(v["query"]["sector"], "1", "« secteur 1 » → sector=1");
+    // « dentiste » = profession Chirurgien-dentiste, rattachée à PLUSIEURS
+    // spécialités (Omnipratique + Implantologie, migration 0039) : par design
+    // (#3618) `parse` ne collapse PAS sur une spécialité arbitraire — specialty
+    // reste null et la recherche reste à l'échelle de la profession, portée par
+    // `q`. Cf. le test jumeau `suggest_dentiste_returns_profession`.
     assert!(
-        v["query"]["specialty"].is_string(),
-        "« dentiste » doit résoudre une spécialité (uuid non null), obtenu : {}",
+        v["query"]["specialty"].is_null(),
+        "« dentiste » = profession multi-spécialités → pas de collapse arbitraire (#3618), obtenu : {}",
         v["query"]["specialty"]
+    );
+    assert_eq!(
+        v["query"]["q"], "dentiste",
+        "le terme profession reste porté par q (recherche à l'échelle profession, #3618)"
     );
     assert!(
         v["interpretation"].is_string(),
