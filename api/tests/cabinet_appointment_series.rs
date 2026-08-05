@@ -628,3 +628,172 @@ async fn create_series_consumes_overlapping_open_slot() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+/// Régression #4577 (doublon de #4576, déjà corrigé par 43a63ed0) : le RDV
+/// créé par une série doit porter `slot_id` (pas NULL) sur le créneau
+/// consommé, afin que la reprogrammation (PATCH /v1/cabinet/appointments/:id)
+/// libère bien le créneau d'origine — sinon il reste `booked` à vie, orphelin
+/// de tout RDV.
+#[tokio::test]
+async fn create_series_appointment_slot_id_is_linked_and_released_on_reschedule() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixture(&db, "reschedule").await;
+    let origin_slot_id = Uuid::new_v4();
+    let dest_slot_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, NULL, $2, $3, '2027-11-23T05:13:00Z', '2027-11-23T05:38:00Z', 'open', true)",
+        )
+        .bind(origin_slot_id)
+        .bind(f.cabinet_id)
+        .bind(f.practitioner_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO availability_slot \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+             VALUES ($1, NULL, $2, $3, '2027-11-23T07:33:00Z', '2027-11-23T07:58:00Z', 'open', true)",
+        )
+        .bind(dest_slot_id)
+        .bind(f.cabinet_id)
+        .bind(f.practitioner_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let secretary_jwt = make_pro_jwt(Uuid::new_v4(), f.cabinet_id, "secretary");
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/appointments/series")
+                .header("Authorization", format!("Bearer {secretary_jwt}"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "practitioner_id": f.practitioner_id,
+                        "patient_id": f.patient_id,
+                        "motif": "QA-4577-reschedule",
+                        "occurrences": [
+                            {"starts_at": "2027-11-23T05:13:00Z", "ends_at": "2027-11-23T05:38:00Z"}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let appointment_id: Uuid = json["appointments"][0]["id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+
+    // Le RDV de série doit porter slot_id = origin_slot_id (pas NULL).
+    let linked_slot_id: Option<Uuid> = {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let row = sqlx::query("SELECT slot_id FROM appointment WHERE id = $1")
+            .bind(appointment_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        row.try_get("slot_id").unwrap()
+    };
+    assert_eq!(
+        linked_slot_id,
+        Some(origin_slot_id),
+        "le RDV créé par une série doit être lié au créneau consommé (slot_id), \
+         sinon les voies de libération (reschedule/no-show/cancel) ne le retrouvent jamais"
+    );
+
+    // Reprogrammation vers le créneau de destination.
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/cabinet/appointments/{appointment_id}"))
+                .header("Authorization", format!("Bearer {secretary_jwt}"))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({"starts_at": "2027-11-23T07:33:00Z"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Le créneau d'origine doit être repassé 'open' (libéré).
+    let origin_status: String = {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        let row = sqlx::query("SELECT status FROM availability_slot WHERE id = $1")
+            .bind(origin_slot_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        row.try_get("status").unwrap()
+    };
+    assert_eq!(
+        origin_status, "open",
+        "le créneau d'origine d'un RDV de série doit être libéré (status='open') \
+         après reprogrammation, pas rester 'booked' orphelin (#4577)"
+    );
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM availability_slot WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.unwrap();
+    }
+
+    cleanup_fixture(&db, &f).await;
+}
