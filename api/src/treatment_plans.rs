@@ -115,8 +115,16 @@ pub async fn list_treatment_plans(
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Scope patient — RLS treatment_plan_patient_read (migration 0038).
+    // Scope patient — RLS treatment_plan_patient_read (migration 0038 + 0218).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Requis pour la branche tutelle de treatment_plan_patient_read
+    // (migration 0218, account_guardianship RLS). Cf. appointments_read.rs.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
@@ -235,8 +243,16 @@ pub async fn get_treatment_plan(
 ) -> Result<Json<TreatmentPlanDetailResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    // Scope patient — RLS treatment_plan_patient_read (migration 0038).
+    // Scope patient — RLS treatment_plan_patient_read (migration 0038 + 0218).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Requis pour la branche tutelle de treatment_plan_patient_read
+    // (migration 0218, account_guardianship RLS). Cf. appointments_read.rs.
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
