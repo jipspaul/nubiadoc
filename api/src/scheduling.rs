@@ -336,12 +336,16 @@ pub async fn call_next_patient(
 
     // Prochain rendez-vous checked_in (FIFO sur checkin_at).
     // FOR UPDATE SKIP LOCKED évite les doubles appels concurrents.
+    // Fenêtre GLISSANTE (now ± 1 jour), PAS `date_trunc('day', now())` : un patient
+    // qui a check-in juste avant minuit et attend encore doit rester appelable après
+    // minuit (le date_trunc l'excluait — bug de la salle d'attente qui « oublie » un
+    // présent au passage de minuit ; test call_next_practitioner_happy_path).
     let maybe_apt = if let Some(practitioner_id) = practitioner_filter {
         sqlx::query(
             "SELECT id, patient_id FROM appointment \
              WHERE status = 'checked_in' AND deleted_at IS NULL AND practitioner_id = $1 \
-               AND starts_at >= date_trunc('day', now()) \
-               AND starts_at < date_trunc('day', now()) + interval '1 day' \
+               AND starts_at >= now() - interval '1 day' \
+               AND starts_at < now() + interval '1 day' \
              ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
              LIMIT 1 \
              FOR UPDATE SKIP LOCKED",
@@ -354,8 +358,8 @@ pub async fn call_next_patient(
         sqlx::query(
             "SELECT id, patient_id FROM appointment \
              WHERE status = 'checked_in' AND deleted_at IS NULL \
-               AND starts_at >= date_trunc('day', now()) \
-               AND starts_at < date_trunc('day', now()) + interval '1 day' \
+               AND starts_at >= now() - interval '1 day' \
+               AND starts_at < now() + interval '1 day' \
              ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
              LIMIT 1 \
              FOR UPDATE SKIP LOCKED",
