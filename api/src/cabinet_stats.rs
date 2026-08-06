@@ -15,7 +15,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, ProSecretaryPlusClaims},
+    auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
     AppState,
 };
 
@@ -48,7 +48,9 @@ pub struct ActivityStatsResponse {
 /// `GET /v1/cabinet/stats/activity?from=&to=` — nombre d'actes et montant
 /// total facturé, groupés par praticien et type d'acte CCAM (#4079).
 ///
-/// Token pro requis (secretary, practitioner, admin) — patient → 403.
+/// Praticien uniquement (`ProPractitionerClaims`) — le détail des actes
+/// cliniques (codes CCAM par praticien) relève du clinique, comme le reste
+/// de la surface `consultation_act` (403 secretary/patient, cf. #4592).
 /// `cabinet_id` extrait du JWT, RLS scopée via `app.current_cabinet_id`.
 /// `from`/`to` (format `YYYY-MM-DD`, bornes inclusives sur
 /// `consultation_act.created_at`) → `422 validation_error` si non parsable,
@@ -56,7 +58,7 @@ pub struct ActivityStatsResponse {
 /// Source : `consultation_act` uniquement (agrégation, aucune nouvelle table).
 pub async fn get_cabinet_activity_stats(
     State(state): State<AppState>,
-    claims: ProSecretaryPlusClaims,
+    claims: ProPractitionerClaims,
     Query(params): Query<ActivityStatsQuery>,
 ) -> Result<Json<ActivityStatsResponse>, AppError> {
     let from: Option<chrono::NaiveDate> = params
