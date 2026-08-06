@@ -244,8 +244,13 @@ class _AppointmentCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${appointment.practitionerName} · '
-                        '${_formatDateTime(appointment.startsAt)}',
+                        // #4608 : séparateur '·' seulement si le nom du
+                        // praticien est disponible, sinon il restait pendant
+                        // en tête (« · 06/01 09:00 »).
+                        appointment.practitionerName.isEmpty
+                            ? _formatDateTime(appointment.startsAt)
+                            : '${appointment.practitionerName} · '
+                                '${_formatDateTime(appointment.startsAt)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
