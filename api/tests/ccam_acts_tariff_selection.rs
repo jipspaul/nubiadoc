@@ -23,7 +23,6 @@ use uuid::Uuid;
 use nubia_api::{app, AppState, StubMailer};
 
 const JWT_SECRET: &str = "test-secret-ccam-tariff-selection";
-const TEST_CODE: &str = "TEST4056";
 
 fn db_available() -> bool {
     std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
@@ -83,6 +82,10 @@ fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
 struct Fixtures {
     cabinet_id: Uuid,
     user_id: Uuid,
+    /// Code CCAM UNIQUE à ce test — évite que le cleanup d'un test frère
+    /// (`DELETE FROM ccam_act WHERE code = ...`) efface la ligne qu'un autre lit
+    /// sous exécution parallèle (les tests de ce fichier partageaient un code fixe).
+    code: String,
 }
 
 /// Insère cabinet + app_user + practitioner (`conventions` fourni tel quel)
@@ -91,6 +94,7 @@ async fn insert_fixtures(db: &PgPool, conventions: serde_json::Value) -> Fixture
     let cabinet_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
+    let code = format!("T{}", &Uuid::new_v4().simple().to_string()[..6]).to_uppercase();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
@@ -132,7 +136,7 @@ async fn insert_fixtures(db: &PgPool, conventions: serde_json::Value) -> Fixture
            panier_sante = EXCLUDED.panier_sante, \
            active = true",
     )
-    .bind(TEST_CODE)
+    .bind(&code)
     .execute(db)
     .await
     .unwrap();
@@ -140,12 +144,13 @@ async fn insert_fixtures(db: &PgPool, conventions: serde_json::Value) -> Fixture
     Fixtures {
         cabinet_id,
         user_id,
+        code,
     }
 }
 
 async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
     sqlx::query("DELETE FROM ccam_act WHERE code = $1")
-        .bind(TEST_CODE)
+        .bind(&f.code)
         .execute(db)
         .await
         .ok();
@@ -181,7 +186,7 @@ async fn optam_practitioner_gets_optam_tariff() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/ccam/acts?q={}", TEST_CODE))
+                .uri(format!("/v1/ccam/acts?q={}", f.code))
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
@@ -198,7 +203,7 @@ async fn optam_practitioner_gets_optam_tariff() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|a| a["code"] == TEST_CODE)
+        .find(|a| a["code"] == f.code)
         .expect("ligne de test présente");
     assert_eq!(item["applicable_tariff_cents"], 1200);
     assert_eq!(item["panier_sante"], "libre");
@@ -221,7 +226,7 @@ async fn non_optam_practitioner_gets_secteur1_tariff() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/ccam/acts?q={}", TEST_CODE))
+                .uri(format!("/v1/ccam/acts?q={}", f.code))
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
@@ -238,7 +243,7 @@ async fn non_optam_practitioner_gets_secteur1_tariff() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|a| a["code"] == TEST_CODE)
+        .find(|a| a["code"] == f.code)
         .expect("ligne de test présente");
     assert_eq!(item["applicable_tariff_cents"], 1000);
 
@@ -253,21 +258,17 @@ async fn practitioner_without_row_falls_back_gracefully() {
         return;
     }
     let db = owner_pool().await;
+    // Code CCAM unique à ce test (isolation parallèle — cf. Fixtures.code).
+    let code = format!("T{}", &Uuid::new_v4().simple().to_string()[..6]).to_uppercase();
     // Fixture minimale : ligne `ccam_act` de test insérée, mais AUCUNE ligne
     // `practitioner` pour ce token (cas edge : compte pro sans fiche
     // practitioner, ex. juste après provisioning).
     sqlx::query(
         "INSERT INTO ccam_act \
          (code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante, active) \
-         VALUES ($1, 'Acte de test #4056', 1000, 1000, 1200, 'libre', true) \
-         ON CONFLICT (code) DO UPDATE SET \
-           tarif_cents = EXCLUDED.tarif_cents, \
-           secteur1_cents = EXCLUDED.secteur1_cents, \
-           optam_cents = EXCLUDED.optam_cents, \
-           panier_sante = EXCLUDED.panier_sante, \
-           active = true",
+         VALUES ($1, 'Acte de test #4056', 1000, 1000, 1200, 'libre', true)",
     )
-    .bind(TEST_CODE)
+    .bind(&code)
     .execute(&db)
     .await
     .unwrap();
@@ -277,7 +278,7 @@ async fn practitioner_without_row_falls_back_gracefully() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/ccam/acts?q={}", TEST_CODE))
+                .uri(format!("/v1/ccam/acts?q={}", code))
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
@@ -294,12 +295,12 @@ async fn practitioner_without_row_falls_back_gracefully() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|a| a["code"] == TEST_CODE)
+        .find(|a| a["code"] == code)
         .expect("ligne de test présente");
     assert_eq!(item["applicable_tariff_cents"], 1000);
 
     sqlx::query("DELETE FROM ccam_act WHERE code = $1")
-        .bind(TEST_CODE)
+        .bind(&code)
         .execute(&db)
         .await
         .ok();

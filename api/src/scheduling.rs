@@ -336,12 +336,16 @@ pub async fn call_next_patient(
 
     // Prochain rendez-vous checked_in (FIFO sur checkin_at).
     // FOR UPDATE SKIP LOCKED évite les doubles appels concurrents.
+    // Fenêtre GLISSANTE (now ± 1 jour), PAS `date_trunc('day', now())` : un patient
+    // qui a check-in juste avant minuit et attend encore doit rester appelable après
+    // minuit (le date_trunc l'excluait — bug de la salle d'attente qui « oublie » un
+    // présent au passage de minuit ; test call_next_practitioner_happy_path).
     let maybe_apt = if let Some(practitioner_id) = practitioner_filter {
         sqlx::query(
             "SELECT id, patient_id FROM appointment \
              WHERE status = 'checked_in' AND deleted_at IS NULL AND practitioner_id = $1 \
-               AND starts_at >= date_trunc('day', now()) \
-               AND starts_at < date_trunc('day', now()) + interval '1 day' \
+               AND starts_at >= now() - interval '1 day' \
+               AND starts_at < now() + interval '1 day' \
              ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
              LIMIT 1 \
              FOR UPDATE SKIP LOCKED",
@@ -354,8 +358,8 @@ pub async fn call_next_patient(
         sqlx::query(
             "SELECT id, patient_id FROM appointment \
              WHERE status = 'checked_in' AND deleted_at IS NULL \
-               AND starts_at >= date_trunc('day', now()) \
-               AND starts_at < date_trunc('day', now()) + interval '1 day' \
+               AND starts_at >= now() - interval '1 day' \
+               AND starts_at < now() + interval '1 day' \
              ORDER BY checkin_at ASC NULLS LAST, starts_at ASC \
              LIMIT 1 \
              FOR UPDATE SKIP LOCKED",
@@ -984,7 +988,14 @@ pub async fn create_cabinet_appointment(
     let slot_row = sqlx::query(
         "SELECT starts_at, ends_at, practitioner_id \
          FROM availability_slot \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL AND status = 'open'",
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL AND status = 'open' \
+         AND NOT EXISTS ( \
+             SELECT 1 FROM provider_unavailability pu \
+             JOIN provider prov ON prov.id = pu.provider_id \
+             WHERE prov.practitioner_id = availability_slot.practitioner_id \
+               AND pu.starts_at < availability_slot.ends_at \
+               AND pu.ends_at > availability_slot.starts_at \
+         )",
     )
     .bind(body.slot_id)
     .bind(claims.cabinet_id)
