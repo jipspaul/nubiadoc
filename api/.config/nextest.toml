@@ -1,0 +1,32 @@
+# Config nextest — exécution des tests d'intégration.
+#
+# QUOI : sérialise les tests qui montent un vrai serveur tokio/websocket ou font
+#        de la crypto/dispatch à timeout, pour un résultat déterministe.
+# POURQUOI : ces tests passent tous en isolation, mais sous forte contention CPU
+#        (nextest lance N=nb_cœurs tests en parallèle) leurs timeouts internes
+#        (handshake websocket, attente d'un stub dispatcher, ping/pong) expirent
+#        de façon aléatoire → le jeu d'échecs changeait d'un run à l'autre. Les
+#        sérialiser (max-threads=1) supprime la contention sans rien skipper : ils
+#        tournent tous, ils bloquent tous le merge. Le reste de la suite reste
+#        pleinement parallèle.
+# MODE D'ÉCHEC : si un de ces tests casse pour un vrai bug, il rougit la CI
+#        normalement (pas de retry masquant, pas d'ignore).
+
+[test-groups]
+serial-io = { max-threads = 1 }
+
+[[profile.default.overrides]]
+# Binaires montant un serveur réseau réel ou sensibles au timing sous charge.
+filter = 'binary(/^ws_handshake$|^ws_named_channels$|^ws_waiting_room$|^webhook_stripe$|^webhook_yousign$|^hl7v2_e2e$|^pharmacy_orders_realtime$/)'
+test-group = 'serial-io'
+
+[[profile.default.overrides]]
+# Binaires touchant le RÉFÉRENTIEL CCAM/actes/bundles/devis (données GLOBALES
+# partagées : tarifs, définitions de bundles). Passent en isolation, mais un test
+# qui mute un tarif/bundle en parallèle d'un test qui l'assert → assertion faussée
+# (ex. add_act_with_bundle_code_creates_one_act_per_item, échec 3/3 le 2026-08-06 ;
+# même classe que ccam_acts_tariff_selection). Sérialisés entre eux pour supprimer
+# la collision, SANS rien skipper (ils tournent tous, bloquent tous le merge). Coût
+# quasi nul : ces tests s'exécutent en ~ms (le poids de la CI = la compile).
+filter = 'binary(/^cabinet_consultations_acts_bundle$|^cabinet_consultations_acts_incompatibility$|^cabinet_consultations_acts_patch$|^cabinet_consultations_acts_post$|^cabinet_consultations_acts_underquote_warning$|^cabinet_consultations_complete$|^cabinet_consultations_get$|^cabinet_quote_detail_get$|^cabinet_quotes_post$|^cabinet_stats_activity$|^ccam_acts_tariff_selection$|^ccam_acts_tooth_suggestion$|^consultation_act_stock$|^consultation_complete_quote_visible_to_patient$|^consultation_complete_session_decrement$|^cr_templates$|^practitioner_favorite_acts$|^treatment_phases_inline_acts$|^treatment-plans_get$/)'
+test-group = 'serial-io'

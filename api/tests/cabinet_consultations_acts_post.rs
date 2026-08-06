@@ -990,7 +990,7 @@ async fn add_act_invalid_fdi_tooth_returns_422() {
     };
 
     let body = serde_json::json!({
-        "ccam_code": "HBGD001",
+        "ccam_code": "HBGD036",
         "label": "QA",
         "amount_cents": 5000,
         "tooth": "banana"
@@ -1572,7 +1572,7 @@ async fn add_act_duplicate_ccam_code_tooth_amount_returns_409() {
     };
 
     let body = serde_json::json!({
-        "ccam_code": "HBGD001",
+        "ccam_code": "HBGD036",
         "label": "QA acte double",
         "amount_cents": 5000
     });
@@ -1653,7 +1653,7 @@ async fn add_act_same_ccam_code_different_tooth_returns_201_201() {
 
     for tooth in ["11", "21"] {
         let body = serde_json::json!({
-            "ccam_code": "HBGD001",
+            "ccam_code": "HBGD036",
             "label": "QA acte",
             "tooth": tooth,
             "amount_cents": 5000

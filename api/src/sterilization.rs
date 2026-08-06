@@ -133,6 +133,9 @@ pub async fn create_sterilization_cycle(
     {
         return Err(AppError::ValidationError);
     }
+    // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    crate::text_validation::reject_nul_byte(&body.autoclave_ref)?;
+    crate::text_validation::reject_nul_byte(&body.test_result)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

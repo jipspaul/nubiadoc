@@ -238,6 +238,55 @@ pub async fn patch_consultation_act(
         .try_get("appointment_id")
         .map_err(|_| AppError::Internal)?;
 
+    // Charge l'acte courant pour calculer l'état résultant du PATCH (ccam_code
+    // non modifiable ici, tooth/amount_cents via COALESCE comme l'UPDATE plus bas).
+    let current_act = sqlx::query(
+        "SELECT ccam_code, tooth, amount_cents FROM consultation_act \
+         WHERE id = $1 AND appointment_id = $2 AND cabinet_id = $3",
+    )
+    .bind(act_id)
+    .bind(appointment_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let ccam_code: String = current_act
+        .try_get("ccam_code")
+        .map_err(|_| AppError::Internal)?;
+    let current_tooth: Option<String> = current_act
+        .try_get("tooth")
+        .map_err(|_| AppError::Internal)?;
+    let current_amount_cents: i32 = current_act
+        .try_get("amount_cents")
+        .map_err(|_| AppError::Internal)?;
+
+    let resulting_tooth = body.tooth.clone().or(current_tooth);
+    let resulting_amount_cents = body.amount_cents.unwrap_or(current_amount_cents);
+
+    // #4411 : la garde anti-doublon doit tenir sur toutes les voies de
+    // mutation, pas seulement la POST — un PATCH qui rend un acte
+    // strictement identique (même ccam_code/tooth/amount_cents) à un autre
+    // acte de la même séance doit être bloqué en 409, sinon la clôture
+    // facture le doublon dans le devis.
+    let duplicate = sqlx::query(
+        "SELECT 1 FROM consultation_act \
+         WHERE appointment_id = $1 AND ccam_code = $2 AND amount_cents = $3 \
+           AND tooth IS NOT DISTINCT FROM $4 AND id != $5",
+    )
+    .bind(appointment_id)
+    .bind(&ccam_code)
+    .bind(resulting_amount_cents)
+    .bind(resulting_tooth.as_deref())
+    .bind(act_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if duplicate.is_some() {
+        return Err(AppError::DuplicateAct);
+    }
+
     // Met à jour l'acte (filtre sur appointment_id et cabinet_id pour la tenancy).
     let updated = sqlx::query(
         "UPDATE consultation_act \
