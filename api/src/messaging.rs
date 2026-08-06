@@ -800,6 +800,7 @@ async fn create_pharmacy_conversation(
         .map(|c| format!(" {}.", c.to_uppercase()))
         .unwrap_or_default();
     let display_name = format!("{first_name}{initial}");
+    let display_name = (!display_name.trim().is_empty()).then_some(display_name);
 
     // Idempotent : une conversation par (compte, pharmacie).
     let existing = sqlx::query(
@@ -819,7 +820,7 @@ async fn create_pharmacy_conversation(
         .bind(claims.account_id)
         .bind(pharmacy_id)
         .bind(subject.as_deref())
-        .bind(&display_name)
+        .bind(display_name.as_deref())
         .fetch_one(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?,

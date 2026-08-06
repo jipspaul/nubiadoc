@@ -36,16 +36,19 @@ class AppointmentDto {
     if (json['duration_minutes'] != null) {
       durationMinutes = (json['duration_minutes'] as num).toInt();
     } else if (endsAt != null) {
-      durationMinutes =
-          DateTime.parse(endsAt).difference(DateTime.parse(startsAt)).inMinutes;
+      durationMinutes = DateTime.parse(
+        endsAt,
+      ).difference(DateTime.parse(startsAt)).inMinutes;
     } else {
       durationMinutes = 0;
     }
     final provider = json['provider'] as Map<String, dynamic>?;
-    final practitionerName = (provider?['display_name'] as String?) ??
+    final practitionerName =
+        (provider?['display_name'] as String?) ??
         (json['practitioner_name'] as String?) ??
         '';
-    final practitionerId = (provider?['id'] as String?) ??
+    final practitionerId =
+        (provider?['id'] as String?) ??
         (json['practitioner_id'] as String?) ??
         (json['provider_id'] as String?) ??
         '';
@@ -53,9 +56,19 @@ class AppointmentDto {
     // (jamais en `practitioner_specialty` de premier niveau, clé conservée en
     // repli défensif seulement) — la lire au mauvais endroit laissait le champ
     // vide en permanence (séparateur « · » pendant sur 3 écrans patient).
-    final practitionerSpecialty = (provider?['specialty'] as String?) ??
+    final practitionerSpecialty =
+        (provider?['specialty'] as String?) ??
         (json['practitioner_specialty'] as String?) ??
         '';
+    // #4606 : même classe que #3825 — l'API sérialise l'adresse/téléphone du
+    // cabinet imbriqués sous `cabinet.address`/`cabinet.phone` (jamais en
+    // premier niveau), la clé top-level est conservée en repli défensif.
+    final cabinet = json['cabinet'] as Map<String, dynamic>?;
+    final cabinetAddress =
+        (cabinet?['address'] as String?) ??
+        (json['cabinet_address'] as String?);
+    final cabinetPhone =
+        (cabinet?['phone'] as String?) ?? (json['cabinet_phone'] as String?);
     return AppointmentDto(
       id: json['id'] as String,
       cabinetId: json['cabinet_id'] as String? ?? '',
@@ -66,28 +79,28 @@ class AppointmentDto {
       motif: json['motif'] as String? ?? '',
       status: json['status'] as String,
       type: json['type'] as String? ?? 'in_person',
-      cabinetAddress: json['cabinet_address'] as String?,
-      cabinetPhone: json['cabinet_phone'] as String?,
+      cabinetAddress: cabinetAddress,
+      cabinetPhone: cabinetPhone,
       practitionerId: practitionerId,
     );
   }
 
   Appointment toDomain() => Appointment(
-        id: id,
-        cabinetId: cabinetId,
-        practitionerName: practitionerName,
-        practitionerSpecialty: practitionerSpecialty,
-        startsAt: DateTime.parse(startsAt),
-        duration: Duration(minutes: durationMinutes),
-        motif: motif,
-        status: _parseStatus(status),
-        type: type == 'teleconsult'
-            ? AppointmentType.teleconsult
-            : AppointmentType.inPerson,
-        cabinetAddress: cabinetAddress,
-        cabinetPhone: cabinetPhone,
-        practitionerId: practitionerId,
-      );
+    id: id,
+    cabinetId: cabinetId,
+    practitionerName: practitionerName,
+    practitionerSpecialty: practitionerSpecialty,
+    startsAt: DateTime.parse(startsAt),
+    duration: Duration(minutes: durationMinutes),
+    motif: motif,
+    status: _parseStatus(status),
+    type: type == 'teleconsult'
+        ? AppointmentType.teleconsult
+        : AppointmentType.inPerson,
+    cabinetAddress: cabinetAddress,
+    cabinetPhone: cabinetPhone,
+    practitionerId: practitionerId,
+  );
 
   // #3804 : le back envoie 'done' (jamais 'completed') et distingue
   // checked_in/in_progress (CHECK constraint appointment.status,
