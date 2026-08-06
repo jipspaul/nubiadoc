@@ -33,12 +33,8 @@ jobs:
             /usr/local/cargo/registry
             /usr/local/cargo/git
             api/target
-          # v2 : le cache inclut désormais les binaires de test (build fait dans le
-          # job `rust`). Bump de clé pour forcer un cache frais ; l'ancien préfixe
-          # reste en fallback (deps déjà là au 1er run v2).
-          key: rust-cargo-v2-${{ hashFiles('api/Cargo.lock') }}
+          key: rust-cargo-${{ hashFiles('api/Cargo.lock') }}
           restore-keys: |
-            rust-cargo-v2-
             rust-cargo-
       - name: Format
         working-directory: api
@@ -54,26 +50,6 @@ jobs:
           for a in 1 2 3; do
             echo "::group::clippy tentative $a"
             if cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/ci-fail.log; then
-              echo "::endgroup::"; exit 0
-            fi
-            echo "::endgroup::"
-            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler' /tmp/ci-fail.log \
-              || { echo 'echec reel (pas RAM) -> stop'; exit 1; }
-            echo 'segfault/kill (RAM ?) -> nouvelle tentative'
-          done
-          exit 1
-      # PRÉ-COMPILE les binaires de test ICI (mode BUILD, pas juste le check de
-      # clippy) → ils entrent dans le cache `api/target`. Résultat : le job
-      # rust-integration (needs: rust) restaure des binaires DÉJÀ construits et
-      # ne fait plus que les lancer (~30 s) au lieu de tout recompiler (~25 min).
-      # Gros gain de temps ET moins d'exposition à la cellule RAM (#19).
-      - name: Build binaires de test (peuple le cache pour rust-integration)
-        working-directory: api
-        run: |
-          set -o pipefail
-          for a in 1 2 3; do
-            echo "::group::build-tests tentative $a"
-            if cargo nextest run --workspace --all-features --no-run 2>&1 | tee /tmp/ci-fail.log; then
               echo "::endgroup::"; exit 0
             fi
             echo "::endgroup::"
@@ -130,12 +106,8 @@ jobs:
             /usr/local/cargo/registry
             /usr/local/cargo/git
             api/target
-          # v2 : le cache inclut désormais les binaires de test (build fait dans le
-          # job `rust`). Bump de clé pour forcer un cache frais ; l'ancien préfixe
-          # reste en fallback (deps déjà là au 1er run v2).
-          key: rust-cargo-v2-${{ hashFiles('api/Cargo.lock') }}
+          key: rust-cargo-${{ hashFiles('api/Cargo.lock') }}
           restore-keys: |
-            rust-cargo-v2-
             rust-cargo-
       - name: Provisionne Postgres + PostGIS inline
         run: |
