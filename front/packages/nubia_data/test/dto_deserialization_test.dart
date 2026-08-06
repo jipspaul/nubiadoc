@@ -179,7 +179,6 @@ void main() {
         expect(dto.documentsToSign, 2);
         expect(dto.pendingPaymentsCents, 5000);
         expect(dto.unreadMessages, 3);
-        expect(dto.pendingQuestionnaires, 1);
         final domain = dto.toDomain();
         expect(domain.upcomingAppointments, 1);
         expect(domain.documentsToSign, 2);
@@ -202,7 +201,6 @@ void main() {
         expect(dto.documentsToSign, 0);
         expect(dto.pendingPaymentsCents, 0);
         expect(dto.unreadMessages, 0);
-        expect(dto.pendingQuestionnaires, 0);
       },
     );
   });

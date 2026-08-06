@@ -6,13 +6,11 @@ class DashboardSummary {
   final int documentsToSign;
   final int pendingPaymentsCents;
   final int unreadMessages;
-  final int pendingQuestionnaires;
   const DashboardSummary({
     required this.upcomingAppointments,
     required this.documentsToSign,
     required this.pendingPaymentsCents,
     required this.unreadMessages,
-    required this.pendingQuestionnaires,
   });
 }
 

@@ -74,7 +74,6 @@ const _summary = DashboardSummary(
   documentsToSign: 0,
   pendingPaymentsCents: 0,
   unreadMessages: 1,
-  pendingQuestionnaires: 0,
 );
 
 DashboardBloc _makeBloc(MockGetDashboardSummaryUseCase uc) =>
