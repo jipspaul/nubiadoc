@@ -18,11 +18,15 @@ const _months = [
   'déc',
 ];
 
-String _dayHeader(DateTime dt) =>
-    '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+String _dayHeader(DateTime dt) {
+  final local = dt.toLocal();
+  return '${_weekdays[local.weekday - 1]} ${local.day} ${_months[local.month - 1]}';
+}
 
-String _hhmm(DateTime dt) =>
-    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+String _hhmm(DateTime dt) {
+  final local = dt.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
 
 /// #4534 : écran de confirmation dédié après une prise de RDV réussie —
 /// remplace le seul snackbar fugace (« Demande de rendez-vous envoyée » puis
