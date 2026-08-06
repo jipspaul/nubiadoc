@@ -261,7 +261,14 @@ pub async fn create_appointment(
         let slot_row = sqlx::query(
             "SELECT starts_at, ends_at FROM availability_slot \
              WHERE id = $1 AND cabinet_id = $2 AND practitioner_id = $3 \
-             AND deleted_at IS NULL AND status = 'open' AND online_booking = true",
+             AND deleted_at IS NULL AND status = 'open' AND online_booking = true \
+             AND NOT EXISTS ( \
+                 SELECT 1 FROM provider_unavailability pu \
+                 JOIN provider prov ON prov.id = pu.provider_id \
+                 WHERE prov.practitioner_id = $3 \
+                   AND pu.starts_at < availability_slot.ends_at \
+                   AND pu.ends_at > availability_slot.starts_at \
+             )",
         )
         .bind(slot_id)
         .bind(cabinet_id)
@@ -296,7 +303,14 @@ pub async fn create_appointment(
         let slot_row = sqlx::query(
             "SELECT id, ends_at FROM availability_slot \
              WHERE cabinet_id = $1 AND practitioner_id = $2 AND starts_at = $3 \
-             AND deleted_at IS NULL AND status = 'open' AND online_booking = true",
+             AND deleted_at IS NULL AND status = 'open' AND online_booking = true \
+             AND NOT EXISTS ( \
+                 SELECT 1 FROM provider_unavailability pu \
+                 JOIN provider prov ON prov.id = pu.provider_id \
+                 WHERE prov.practitioner_id = $2 \
+                   AND pu.starts_at < availability_slot.ends_at \
+                   AND pu.ends_at > availability_slot.starts_at \
+             )",
         )
         .bind(cabinet_id)
         .bind(practitioner_id)

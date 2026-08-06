@@ -352,6 +352,17 @@ fn available_time_clause(available: Option<&str>) -> &'static str {
     }
 }
 
+/// Fragment SQL exclurant les créneaux (`sl`, alias `availability_slot`) qui
+/// tombent dans une plage `provider_unavailability` du praticien (migration
+/// 0116 : vacances/formation/congés) — jusqu'ici jamais consultée, la table
+/// restait orpheline et la recherche proposait des créneaux pendant l'absence
+/// déclarée du praticien (#4647).
+const UNAVAILABILITY_EXCLUSION_CLAUSE: &str = " AND NOT EXISTS ( \
+     SELECT 1 FROM provider_unavailability pu \
+     WHERE pu.provider_id = sl.provider_id \
+       AND pu.starts_at < sl.ends_at AND pu.ends_at > sl.starts_at \
+ )";
+
 /// Lookup géo statique (#3753) : `place` (nom de ville) était parsé par
 /// `/search/parse` et par les query params `search_providers`/`search_slots`,
 /// mais totalement ignoré par le SQL — un vrai géocodage externe reste hors
@@ -564,6 +575,7 @@ pub async fn search_slots(
              AND sl.deleted_at IS NULL \
              AND sl.online_booking = true \
              AND sl.starts_at > now() \
+             {UNAVAILABILITY_EXCLUSION_CLAUSE} \
              AND ($4::text IS NULL \
                   OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
                        LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
@@ -691,6 +703,7 @@ pub async fn search_slots(
                  AND sl.starts_at > now() \
                  AND ($2::date IS NULL OR sl.starts_at::date = $2) \
                  {available_clause} \
+                 {UNAVAILABILITY_EXCLUSION_CLAUSE} \
              ORDER BY sl.starts_at ASC"
         );
         let slot_rows = sqlx::query(&slots_sql)
@@ -815,7 +828,8 @@ pub async fn search_providers(
             " AND EXISTS (\
               SELECT 1 FROM availability_slot sl \
               WHERE sl.provider_id = p.id AND sl.status = 'open' \
-              AND sl.deleted_at IS NULL AND sl.online_booking = true{available_time})"
+              AND sl.deleted_at IS NULL AND sl.online_booking = true{available_time} \
+              {UNAVAILABILITY_EXCLUSION_CLAUSE})"
         )
     };
 
@@ -871,7 +885,8 @@ pub async fn search_providers(
              (SELECT min(sl.starts_at) FROM availability_slot sl \
               WHERE sl.provider_id = p.id AND sl.status = 'open' \
               AND sl.deleted_at IS NULL AND sl.online_booking = true \
-              AND sl.starts_at > now()) AS next_slot_at, \
+              AND sl.starts_at > now() \
+              {UNAVAILABILITY_EXCLUSION_CLAUSE}) AS next_slot_at, \
              (SELECT avg(rating)::double precision FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
              ST_Y(p.geo::geometry) AS geo_lat, \

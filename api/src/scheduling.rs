@@ -984,7 +984,14 @@ pub async fn create_cabinet_appointment(
     let slot_row = sqlx::query(
         "SELECT starts_at, ends_at, practitioner_id \
          FROM availability_slot \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL AND status = 'open'",
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL AND status = 'open' \
+         AND NOT EXISTS ( \
+             SELECT 1 FROM provider_unavailability pu \
+             JOIN provider prov ON prov.id = pu.provider_id \
+             WHERE prov.practitioner_id = availability_slot.practitioner_id \
+               AND pu.starts_at < availability_slot.ends_at \
+               AND pu.ends_at > availability_slot.starts_at \
+         )",
     )
     .bind(body.slot_id)
     .bind(claims.cabinet_id)
