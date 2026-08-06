@@ -478,6 +478,185 @@ async fn deposit_floor_uses_patient_share_not_gross_total() {
     );
 }
 
+/// Repro exacte de #4610 : devis tiers-payant brut 1000€, AMO 700€ + AMC
+/// 200€ → part patient nette 100€ (10000 c), deposit_pct=50 → l'acompte
+/// affiché doit être `ceil(10000 * 50%) = 5000`, pas `ceil(100000 * 50%) =
+/// 50000` (5x le reste-à-charge, impayable côté /payments/intent).
+#[tokio::test]
+async fn quote_views_deposit_amount_uses_patient_share_with_amo_and_amc() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("dep-amoamc-patient+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'DepAmoAmc', 'Test')",
+    )
+    .bind(patient_account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("dep-amoamc-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Dep AmoAmc Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'DepAmoAmc', 'Patient', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(patient_account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency, deposit_pct) \
+         VALUES ($1, $2, $3, 'signed', 1000.00, 'EUR', 50)",
+    )
+    .bind(quote_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount, amo_part, amc_part) \
+         VALUES ($1, $2, 'Couronne', 1, 1000.00, 700.00, 200.00)",
+    )
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let fx = Fixture {
+        user_id,
+        patient_account_id,
+        prac_user_id,
+        cabinet_id,
+        quote_id,
+    };
+
+    let (status, patient_view) = {
+        let response = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/v1/quotes/{}", fx.quote_id))
+                    .header(
+                        "Authorization",
+                        format!(
+                            "Bearer {}",
+                            make_patient_jwt(fx.user_id, fx.patient_account_id)
+                        ),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+        )
+    };
+    assert_eq!(status, StatusCode::OK, "body: {patient_view}");
+    assert_eq!(
+        patient_view["deposit_amount_cents"],
+        json!(5000),
+        "acompte doit être dérivé de la part patient (10000c) pas du brut (100000c)"
+    );
+
+    let (status, cabinet_view) = {
+        let response = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/v1/cabinet/quotes/{}", fx.quote_id))
+                    .header(
+                        "Authorization",
+                        format!(
+                            "Bearer {}",
+                            make_pro_jwt(fx.prac_user_id, fx.cabinet_id, "practitioner")
+                        ),
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+        )
+    };
+    assert_eq!(status, StatusCode::OK, "body: {cabinet_view}");
+    assert_eq!(cabinet_view["patient_share_cents"], json!(10000));
+    assert_eq!(
+        cabinet_view["deposit_amount_cents"],
+        json!(5000),
+        "acompte doit être dérivé de la part patient (10000c) pas du brut (100000c)"
+    );
+}
+
 /// Symétrique : payer en dessous du reste-à-charge réel (300€) est refusé,
 /// même si c'est très supérieur à ce qu'un plancher calculé sur le brut
 /// aurait exigé au même pourcentage.

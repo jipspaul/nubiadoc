@@ -22,26 +22,45 @@ jobs:
       # temps (postmortem 2026-08-04 : rustc tué au milieu de « Compiling nubia-api »,
       # log tronqué sans erreur). 4 jobs de build ⇒ pic mémoire maîtrisé.
       CARGO_BUILD_JOBS: "4"
+      # target/ PERSISTANT : le runner monte un volume Docker `cargo-target` dans
+      # /cargo-target (config container.options, LXC 213). Remplace actions/cache,
+      # qui tarrait+gzippait des Go de target à CHAQUE run (~24 min d'overhead
+      # observés) SANS rendre la compile incrémentale. Ici le target survit sur
+      # disque → compile vraiment incrémentale (~5 min au lieu de ~29). capacity=1
+      # ⇒ pas d'accès concurrent au volume.
+      CARGO_TARGET_DIR: /cargo-target
     steps:
       - uses: actions/checkout@v4
-      # Cache cargo (deps + target) partagé avec rust-integration via la même clé :
-      # sans lui, chaque run recompilait ~224 binaires from scratch (~15 min). Avec,
-      # les runs suivants sont incrémentaux (quelques minutes). Clé = hash Cargo.lock.
-      - uses: actions/cache@v4
-        with:
-          path: |
-            /usr/local/cargo/registry
-            /usr/local/cargo/git
-            api/target
-          key: rust-cargo-${{ hashFiles('api/Cargo.lock') }}
-          restore-keys: |
-            rust-cargo-
       - name: Format
         working-directory: api
-        run: cargo fmt --all -- --check
+        run: cargo fmt --all -- --check 2>&1 | tee /tmp/ci-fail.log
       - name: Clippy (compile + lint tous les targets, tests inclus)
         working-directory: api
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: |
+          set -o pipefail
+          # Retry sur segfault/kill du linker : l'hôte a une cellule RAM
+          # défectueuse (#19, non remplaçable) qui fait planter rustc/ld au hasard
+          # (~1 fois par run). On re-compile ; un échec RÉEL (pas RAM) sort tout de
+          # suite (pas de retry inutile).
+          for a in 1 2 3; do
+            echo "::group::clippy tentative $a"
+            if cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/ci-fail.log; then
+              echo "::endgroup::"; exit 0
+            fi
+            echo "::endgroup::"
+            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler' /tmp/ci-fail.log \
+              || { echo 'echec reel (pas RAM) -> stop'; exit 1; }
+            echo 'segfault/kill (RAM ?) -> nouvelle tentative'
+          done
+          exit 1
+      - name: Rapporte l'échec sur la PR (self-fix fixer)
+        if: failure() && github.event_name == 'pull_request'
+        run: bash .forgejo/ci-report-failure.sh /tmp/ci-fail.log rust
+        env:
+          PRN: ${{ github.event.pull_request.number }}
+          API: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          TOK: ${{ github.token }}
 
   # ── Job BLOQUANT : suite d'intégration DB (1218 tests, 0 skip) ─────────────
   # Provisionne Postgres+PostGIS inline (rust-ci n'a pas le binaire ; services:
@@ -65,6 +84,10 @@ jobs:
     needs: rust
     env:
       CARGO_BUILD_JOBS: "4"
+      # Même target/ PERSISTANT que le job `rust` (volume `cargo-target` monté par
+      # le runner). Comme `rust` (needs) a compilé AVANT dans ce même volume, ici la
+      # compile est vraiment incrémentale : seuls les binaires de test se relient.
+      CARGO_TARGET_DIR: /cargo-target
       PGHOST: localhost
       PGPORT: "5432"
       PGDATA: /tmp/pgdata
@@ -73,18 +96,6 @@ jobs:
       SEED_DATABASE_URL: postgres://nubia_seed@localhost:5432/nubia
     steps:
       - uses: actions/checkout@v4
-      # Même clé que le gate `rust` : comme il tourne AVANT (needs), il a déjà
-      # peuplé le cache → ici on restaure `api/target` et la compile est quasi
-      # incrémentale (seuls les binaires de test nextest se relient).
-      - uses: actions/cache@v4
-        with:
-          path: |
-            /usr/local/cargo/registry
-            /usr/local/cargo/git
-            api/target
-          key: rust-cargo-${{ hashFiles('api/Cargo.lock') }}
-          restore-keys: |
-            rust-cargo-
       - name: Provisionne Postgres + PostGIS inline
         run: |
           set -e
@@ -104,4 +115,28 @@ jobs:
         run: make reset migrate
       - name: Tests d'intégration (BLOQUANT — 1218 tests, 0 skip, 0 quarantaine)
         working-directory: api
-        run: cargo nextest run --workspace --all-features --no-fail-fast
+        run: |
+          set -o pipefail
+          # `--retries 2` : un test dont l'assertion est corrompue par la cellule
+          # RAM défectueuse (#19, non remplaçable) repasse au re-run (le hit est
+          # rare) → pas de faux rouge. Boucle externe : re-compile sur segfault du
+          # linker. Un vrai échec (survit aux retries, pas de signature RAM) sort.
+          for a in 1 2 3; do
+            echo "::group::nextest tentative $a"
+            if cargo nextest run --workspace --all-features --no-fail-fast --retries 2 2>&1 | tee /tmp/ci-fail.log; then
+              echo "::endgroup::"; exit 0
+            fi
+            echo "::endgroup::"
+            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler' /tmp/ci-fail.log \
+              || { echo 'echec test reel (survecu aux retries) -> stop'; exit 1; }
+            echo 'segfault/kill (RAM ?) -> nouvelle tentative'
+          done
+          exit 1
+      - name: Rapporte l'échec sur la PR (self-fix fixer)
+        if: failure() && github.event_name == 'pull_request'
+        run: bash .forgejo/ci-report-failure.sh /tmp/ci-fail.log rust-integration
+        env:
+          PRN: ${{ github.event.pull_request.number }}
+          API: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          TOK: ${{ github.token }}
