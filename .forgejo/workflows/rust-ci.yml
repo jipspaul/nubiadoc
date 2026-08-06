@@ -38,10 +38,21 @@ jobs:
             rust-cargo-
       - name: Format
         working-directory: api
-        run: cargo fmt --all -- --check
+        run: cargo fmt --all -- --check 2>&1 | tee /tmp/ci-fail.log
       - name: Clippy (compile + lint tous les targets, tests inclus)
         working-directory: api
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee -a /tmp/ci-fail.log
+      # Sur échec d'une PR : poste l'erreur en commentaire pour le fixer autonome.
+      - name: Rapporte l'échec sur la PR (self-fix fixer)
+        if: failure() && github.event_name == 'pull_request'
+        run: bash .forgejo/ci-report-failure.sh /tmp/ci-fail.log rust
+        env:
+          PRN: ${{ github.event.pull_request.number }}
+          API: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          TOK: ${{ github.token }}
 
   # ── Job BLOQUANT : suite d'intégration DB (1218 tests, 0 skip) ─────────────
   # Provisionne Postgres+PostGIS inline (rust-ci n'a pas le binaire ; services:
@@ -104,4 +115,15 @@ jobs:
         run: make reset migrate
       - name: Tests d'intégration (BLOQUANT — 1218 tests, 0 skip, 0 quarantaine)
         working-directory: api
-        run: cargo nextest run --workspace --all-features --no-fail-fast
+        run: |
+          set -o pipefail
+          cargo nextest run --workspace --all-features --no-fail-fast 2>&1 | tee /tmp/ci-fail.log
+      # Sur échec d'une PR : poste les tests en échec en commentaire pour le fixer.
+      - name: Rapporte l'échec sur la PR (self-fix fixer)
+        if: failure() && github.event_name == 'pull_request'
+        run: bash .forgejo/ci-report-failure.sh /tmp/ci-fail.log rust-integration
+        env:
+          PRN: ${{ github.event.pull_request.number }}
+          API: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          TOK: ${{ github.token }}
