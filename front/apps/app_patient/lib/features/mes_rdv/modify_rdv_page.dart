@@ -24,11 +24,15 @@ const _months = [
   'déc',
 ];
 
-String _dayHeader(DateTime dt) =>
-    '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+String _dayHeader(DateTime utc) {
+  final dt = utc.toLocal();
+  return '${_weekdays[dt.weekday - 1]} ${dt.day} ${_months[dt.month - 1]}';
+}
 
-String _hhmm(DateTime dt) =>
-    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+String _hhmm(DateTime utc) {
+  final dt = utc.toLocal();
+  return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+}
 
 /// Écran "Modifier le rendez-vous".
 ///
