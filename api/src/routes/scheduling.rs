@@ -1,11 +1,13 @@
 //! Routes agenda/planning cabinet. Extrait de `lib.rs::build_router` (refactor taille).
 
 use axum::{
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 
-use crate::{appointment_motifs, appointment_series, scheduling, AppState};
+use crate::{
+    appointment_motifs, appointment_series, provider_unavailability, scheduling, AppState,
+};
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
     router
@@ -71,5 +73,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/slots/:id/online",
             put(scheduling::put_cabinet_slot_online),
+        )
+        .route(
+            "/v1/cabinet/unavailability",
+            get(provider_unavailability::list_unavailability)
+                .post(provider_unavailability::create_unavailability),
+        )
+        .route(
+            "/v1/cabinet/unavailability/:id",
+            delete(provider_unavailability::delete_unavailability),
         )
 }

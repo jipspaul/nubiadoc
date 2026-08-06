@@ -34,7 +34,6 @@ const _summary = DashboardSummary(
   documentsToSign: 1,
   pendingPaymentsCents: 0,
   unreadMessages: 3,
-  pendingQuestionnaires: 0,
 );
 
 const _emptySummary = DashboardSummary(
@@ -42,7 +41,6 @@ const _emptySummary = DashboardSummary(
   documentsToSign: 0,
   pendingPaymentsCents: 0,
   unreadMessages: 0,
-  pendingQuestionnaires: 0,
 );
 
 Widget _wrap(HomeBloc bloc) {

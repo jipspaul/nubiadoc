@@ -380,7 +380,7 @@ pub async fn get_quote(
 
     // Acompte dérivé de la part patient nette (après AMO/AMC), pas du total
     // brut du devis — cf. cabinet_quotes.rs::get_cabinet_quote et le plancher
-    // enforced sur `patient_share_cents` dans billing_payments.rs (#4583).
+    // enforced sur `patient_share_cents` dans billing_payments.rs (#4583, #4610, #4611).
     let deposit_amount_cents =
         deposit_pct.map(|pct| ((patient_share_total as f64) * pct / 100.0).ceil() as i64);
 

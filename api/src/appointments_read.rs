@@ -145,7 +145,10 @@ pub async fn list_appointments(
 
     let order = if is_past { "DESC" } else { "ASC" };
 
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     // $1 = fetch_limit ; si cursor : $2 = starts_at, $3 = id
     let cursor_clause = if cursor.is_some() {
