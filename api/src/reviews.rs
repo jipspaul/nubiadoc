@@ -360,9 +360,16 @@ pub struct CabinetReviewItem {
 }
 
 #[derive(Serialize)]
+pub struct CabinetReviewsPageInfo {
+    pub page: i64,
+    pub per_page: i64,
+    pub total: i64,
+}
+
+#[derive(Serialize)]
 pub struct ListCabinetReviewsResponse {
     pub data: Vec<CabinetReviewItem>,
-    pub page: PageInfo,
+    pub page: CabinetReviewsPageInfo,
 }
 
 /// `GET /v1/cabinet/reviews[?status=pending]` — listing des avis du cabinet pour modération.
@@ -456,7 +463,7 @@ pub async fn list_cabinet_reviews(
 
     Ok(Json(ListCabinetReviewsResponse {
         data,
-        page: PageInfo {
+        page: CabinetReviewsPageInfo {
             page,
             per_page,
             total,
