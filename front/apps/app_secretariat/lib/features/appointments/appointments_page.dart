@@ -121,11 +121,14 @@ String _initialsFrom(String name) {
       .toUpperCase();
 }
 
-String _formatDateTime(DateTime dt) => '${dt.day.toString().padLeft(2, '0')}/'
-    '${dt.month.toString().padLeft(2, '0')}/'
-    '${dt.year} '
-    '${dt.hour.toString().padLeft(2, '0')}:'
-    '${dt.minute.toString().padLeft(2, '0')}';
+String _formatDateTime(DateTime dt) {
+  final local = dt.toLocal();
+  return '${local.day.toString().padLeft(2, '0')}/'
+      '${local.month.toString().padLeft(2, '0')}/'
+      '${local.year} '
+      '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
+}
 
 // ---------------------------------------------------------------------------
 
