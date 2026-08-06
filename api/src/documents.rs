@@ -160,6 +160,14 @@ pub async fn list_documents(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Requis pour la branche tutelle de document_patient_read (migration
+    // 0218, account_guardianship RLS) — cf. appointment_patient_read (0196).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let cursor = match params.cursor.as_deref() {
         Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
         None => None,
@@ -336,6 +344,14 @@ pub async fn get_document(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Requis pour la branche tutelle de document_patient_read (migration
+    // 0218, account_guardianship RLS) — cf. appointment_patient_read (0196).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     let row = sqlx::query(
         "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.sha256, \
          d.created_at, d.storage_key, d.cabinet_id \
@@ -436,6 +452,14 @@ pub async fn download_document(
     // Scope patient — RLS document_patient_read (migration 0034).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(effective_account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Requis pour la branche tutelle de document_patient_read (migration
+    // 0218, account_guardianship RLS) — cf. appointment_patient_read (0196).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;

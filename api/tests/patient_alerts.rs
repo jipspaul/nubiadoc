@@ -32,7 +32,7 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
+fn make_secretary_token(sub: Uuid, cabinet_id: Uuid, secretariat_id: Option<Uuid>) -> String {
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -45,6 +45,7 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
             "kind": "pro",
             "cabinet_id": cabinet_id,
             "role": "secretary",
+            "secretariat_id": secretariat_id,
             "exp": exp
         }),
         &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
@@ -65,6 +66,8 @@ struct Fixture {
     user_id: Uuid,
     patient_overdue_id: Uuid,
     patient_up_to_date_id: Uuid,
+    secretariat_id: Uuid,
+    prac_user_id: Uuid,
 }
 
 async fn seed(db: &PgPool) -> Fixture {
@@ -72,12 +75,25 @@ async fn seed(db: &PgPool) -> Fixture {
     let user_id = Uuid::new_v4();
     let patient_overdue_id = Uuid::new_v4();
     let patient_up_to_date_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
     )
     .bind(user_id)
     .bind(format!("patientalerts+{user_id}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
+    // Praticien porteur du scope secrétariat (app_user global, hors tx cabinet).
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("patientalerts-prac+{prac_user_id}@nubia.test"))
     .execute(db)
     .await
     .unwrap();
@@ -157,6 +173,67 @@ async fn seed(db: &PgPool) -> Fixture {
     .await
     .unwrap();
 
+    // Scope secrétariat (R10) : sans practitioner + provider +
+    // provider_secretariat(active) + appointment liant CHAQUE patient au
+    // praticien, `ensure_secretary_scope` masque le patient en 404.
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, $4, 'Dr. Alerts Test', true, true)",
+    )
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Alerts Test')",
+    )
+    .bind(secretariat_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+         VALUES ($1, $2, true)",
+    )
+    .bind(provider_id)
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    // Un RDV confirmé par patient pour matérialiser le scope secrétariat. Créneaux
+    // DÉCALÉS par index (patient 0 → J+1, patient 1 → J+2) : même praticien au même
+    // créneau violerait la contrainte d'exclusion appointment_no_overlap.
+    for (i, patient_id) in [patient_overdue_id, patient_up_to_date_id]
+        .into_iter()
+        .enumerate()
+    {
+        let offset = format!("{} day", i + 1);
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, now() + $5::interval, now() + $5::interval + interval '1 hour', 'confirmed')",
+        )
+        .bind(Uuid::new_v4())
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .bind(offset)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    }
+
     tx.commit().await.unwrap();
 
     Fixture {
@@ -164,6 +241,8 @@ async fn seed(db: &PgPool) -> Fixture {
         user_id,
         patient_overdue_id,
         patient_up_to_date_id,
+        secretariat_id,
+        prac_user_id,
     }
 }
 
@@ -189,6 +268,35 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .execute(&mut *tx)
         .await
         .ok();
+    // Scope secrétariat, ordre FK avant patient/cabinet.
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query(
+        "DELETE FROM provider_secretariat WHERE provider_id IN \
+         (SELECT id FROM provider WHERE cabinet_id = $1)",
+    )
+    .bind(f.cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
+    sqlx::query("DELETE FROM secretariat WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM patient WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
@@ -200,8 +308,8 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .await
         .ok();
     tx.commit().await.ok();
-    sqlx::query("DELETE FROM app_user WHERE id = $1")
-        .bind(f.user_id)
+    sqlx::query("DELETE FROM app_user WHERE id = ANY($1)")
+        .bind(vec![f.user_id, f.prac_user_id])
         .execute(db)
         .await
         .ok();
@@ -214,7 +322,7 @@ async fn overdue_patient_gets_unpaid_and_missing_document_alerts() {
     }
     let db = owner_pool().await;
     let f = seed(&db).await;
-    let token = make_secretary_token(f.user_id, f.cabinet_id);
+    let token = make_secretary_token(f.user_id, f.cabinet_id, Some(f.secretariat_id));
 
     let response = app(state_with(app_pool().await))
         .oneshot(
@@ -250,7 +358,7 @@ async fn up_to_date_patient_gets_no_alerts() {
     }
     let db = owner_pool().await;
     let f = seed(&db).await;
-    let token = make_secretary_token(f.user_id, f.cabinet_id);
+    let token = make_secretary_token(f.user_id, f.cabinet_id, Some(f.secretariat_id));
 
     let response = app(state_with(app_pool().await))
         .oneshot(

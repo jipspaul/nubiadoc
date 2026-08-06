@@ -41,7 +41,8 @@ pub struct ImplantPassportResponse {
 
 /// `GET /v1/implant-passport` — liste les implants dentaires du patient authentifié.
 ///
-/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (migration 0077).
+/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (migration 0077),
+/// étendue à la branche tutelle (migration 0219, #4641).
 /// Lecture seule — données non chiffrées (pas de PII directe).
 /// Aucun implant → `{ data: [] }`.
 pub async fn list_implant_passport(
@@ -52,6 +53,14 @@ pub async fn list_implant_passport(
 
     // Scope patient — RLS implant_passport_patient_read (migration 0077).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Requis pour la branche tutelle de implant_passport_patient_read
+    // (migration 0219, account_guardianship RLS) — cf. appointment_patient_read (0196).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await

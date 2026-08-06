@@ -113,6 +113,10 @@ pub async fn create_stock_item(
     {
         return Err(AppError::ValidationError);
     }
+    // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    crate::text_validation::reject_nul_byte(&body.reference)?;
+    crate::text_validation::reject_nul_byte(&body.label)?;
+    crate::text_validation::reject_nul_byte(&body.unit)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

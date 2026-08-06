@@ -167,6 +167,29 @@ pub async fn create_booking(
         return Err(AppError::SlotUnavailable);
     }
 
+    // Même défense en profondeur : une indisponibilité praticien (0116,
+    // vacances/formation/congés) posée APRÈS le hold patient ne doit pas
+    // laisser passer la réservation, au même titre que le PATCH
+    // status='blocked' ci-dessus (#4647 — jusqu'ici la table n'était
+    // consultée nulle part).
+    let is_unavailable: bool = sqlx::query_scalar(
+        "SELECT EXISTS ( \
+             SELECT 1 FROM provider_unavailability pu \
+             JOIN provider prov ON prov.id = pu.provider_id \
+             WHERE prov.practitioner_id = $1 \
+               AND pu.starts_at < $2 AND pu.ends_at > $3 \
+         )",
+    )
+    .bind(practitioner_id)
+    .bind(ends_at)
+    .bind(starts_at)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if is_unavailable {
+        return Err(AppError::SlotUnavailable);
+    }
+
     // Valide le hold : appartient au caller, non expiré.
     let hold_row = sqlx::query(
         "SELECT id FROM slot_holds \

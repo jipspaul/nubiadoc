@@ -5,14 +5,12 @@ class DashboardDto {
   final int documentsToSign;
   final int pendingPaymentsCents;
   final int unreadMessages;
-  final int pendingQuestionnaires;
 
   const DashboardDto({
     required this.upcomingAppointments,
     required this.documentsToSign,
     required this.pendingPaymentsCents,
     required this.unreadMessages,
-    required this.pendingQuestionnaires,
   });
 
   factory DashboardDto.fromJson(Map<String, dynamic> json) {
@@ -27,7 +25,6 @@ class DashboardDto {
       documentsToSign: toSign.length,
       pendingPaymentsCents: pendingPaymentsCents,
       unreadMessages: (json['unread_messages'] as num).toInt(),
-      pendingQuestionnaires: (json['reminders'] as num).toInt(),
     );
   }
 
@@ -36,6 +33,5 @@ class DashboardDto {
         documentsToSign: documentsToSign,
         pendingPaymentsCents: pendingPaymentsCents,
         unreadMessages: unreadMessages,
-        pendingQuestionnaires: pendingQuestionnaires,
       );
 }

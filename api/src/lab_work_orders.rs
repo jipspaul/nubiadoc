@@ -181,6 +181,8 @@ pub async fn create_lab_work_order(
     if body.lab_name.trim().is_empty() || body.purchase_price_cents < 0 {
         return Err(AppError::ValidationError);
     }
+    // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    crate::text_validation::reject_nul_byte(&body.lab_name)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
