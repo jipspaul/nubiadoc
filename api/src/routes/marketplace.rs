@@ -50,10 +50,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/providers/:id/reviews",
             get(reviews::list_provider_reviews),
         )
-        .route(
-            "/v1/cabinet/reviews",
-            get(reviews::list_cabinet_reviews),
-        )
+        .route("/v1/cabinet/reviews", get(reviews::list_cabinet_reviews))
         .route(
             "/v1/cabinet/reviews/:id",
             axum::routing::patch(reviews::moderate_review),
