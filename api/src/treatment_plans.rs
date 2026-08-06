@@ -85,7 +85,8 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 
 /// `GET /v1/treatment-plans` — parcours de soins patient : liste paginée des plans de traitement.
 ///
-/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (migration 0038).
+/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (migration 0038),
+/// étendue à la branche tutelle (migration 0222, #4596).
 /// Tri par `created_at DESC`. Pagination cursor-based (`limit` + `cursor`).
 /// Aucun plan → `{ data: [], page: { limit } }`.
 pub async fn list_treatment_plans(
@@ -117,6 +118,14 @@ pub async fn list_treatment_plans(
 
     // Scope patient — RLS treatment_plan_patient_read (migration 0038).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Requis pour la branche tutelle de treatment_plan_patient_read
+    // (migration 0222, account_guardianship RLS) — cf. appointment_patient_read (0196).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
@@ -225,7 +234,8 @@ pub struct TreatmentPlanDetailResponse {
 
 /// `GET /v1/treatment-plans/:id` — détail d'un plan de traitement avec phases et actes.
 ///
-/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (migration 0038).
+/// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (migration 0038),
+/// étendue à la branche tutelle (migration 0222, #4596).
 /// Vérifie que le plan appartient au patient (via policy RLS + `patient_account_id`).
 /// `404 not_found` si l'id est inexistant ou hors patient.
 pub async fn get_treatment_plan(
@@ -237,6 +247,14 @@ pub async fn get_treatment_plan(
 
     // Scope patient — RLS treatment_plan_patient_read (migration 0038).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Requis pour la branche tutelle de treatment_plan_patient_read
+    // (migration 0222, account_guardianship RLS) — cf. appointment_patient_read (0196).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
