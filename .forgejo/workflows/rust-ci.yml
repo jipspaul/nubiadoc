@@ -38,10 +38,34 @@ jobs:
             rust-cargo-
       - name: Format
         working-directory: api
-        run: cargo fmt --all -- --check
+        run: cargo fmt --all -- --check 2>&1 | tee /tmp/ci-fail.log
       - name: Clippy (compile + lint tous les targets, tests inclus)
         working-directory: api
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: |
+          set -o pipefail
+          # Retry sur segfault/kill du linker : l'hôte a une cellule RAM
+          # défectueuse (#19, non remplaçable) qui fait planter rustc/ld au hasard
+          # (~1 fois par run). On re-compile ; un échec RÉEL (pas RAM) sort tout de
+          # suite (pas de retry inutile).
+          for a in 1 2 3; do
+            echo "::group::clippy tentative $a"
+            if cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/ci-fail.log; then
+              echo "::endgroup::"; exit 0
+            fi
+            echo "::endgroup::"
+            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler' /tmp/ci-fail.log \
+              || { echo 'echec reel (pas RAM) -> stop'; exit 1; }
+            echo 'segfault/kill (RAM ?) -> nouvelle tentative'
+          done
+          exit 1
+      - name: Rapporte l'échec sur la PR (self-fix fixer)
+        if: failure() && github.event_name == 'pull_request'
+        run: bash .forgejo/ci-report-failure.sh /tmp/ci-fail.log rust
+        env:
+          PRN: ${{ github.event.pull_request.number }}
+          API: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          TOK: ${{ github.token }}
 
   # ── Job BLOQUANT : suite d'intégration DB (1218 tests, 0 skip) ─────────────
   # Provisionne Postgres+PostGIS inline (rust-ci n'a pas le binaire ; services:
@@ -104,4 +128,28 @@ jobs:
         run: make reset migrate
       - name: Tests d'intégration (BLOQUANT — 1218 tests, 0 skip, 0 quarantaine)
         working-directory: api
-        run: cargo nextest run --workspace --all-features --no-fail-fast
+        run: |
+          set -o pipefail
+          # `--retries 2` : un test dont l'assertion est corrompue par la cellule
+          # RAM défectueuse (#19, non remplaçable) repasse au re-run (le hit est
+          # rare) → pas de faux rouge. Boucle externe : re-compile sur segfault du
+          # linker. Un vrai échec (survit aux retries, pas de signature RAM) sort.
+          for a in 1 2 3; do
+            echo "::group::nextest tentative $a"
+            if cargo nextest run --workspace --all-features --no-fail-fast --retries 2 2>&1 | tee /tmp/ci-fail.log; then
+              echo "::endgroup::"; exit 0
+            fi
+            echo "::endgroup::"
+            grep -qiE 'Segmentation|signal 11|SIGSEGV|linking with|core dumped|Killed|internal compiler' /tmp/ci-fail.log \
+              || { echo 'echec test reel (survecu aux retries) -> stop'; exit 1; }
+            echo 'segfault/kill (RAM ?) -> nouvelle tentative'
+          done
+          exit 1
+      - name: Rapporte l'échec sur la PR (self-fix fixer)
+        if: failure() && github.event_name == 'pull_request'
+        run: bash .forgejo/ci-report-failure.sh /tmp/ci-fail.log rust-integration
+        env:
+          PRN: ${{ github.event.pull_request.number }}
+          API: ${{ github.api_url }}
+          REPO: ${{ github.repository }}
+          TOK: ${{ github.token }}
