@@ -494,7 +494,9 @@ class _EntryCard extends StatelessWidget {
     // clinique — cloisonnement secrétariat).
     final subtitleParts = <String>[
       if (entry.motif != null && entry.motif!.isNotEmpty) entry.motif!,
-      entry.practitionerName,
+      // #4608 : ne pas ajouter un nom de praticien vide (sinon un
+      // séparateur ' · ' pendant apparaissait sur cette ligne).
+      if (entry.practitionerName.isNotEmpty) entry.practitionerName,
     ];
 
     // Bloc statut (+ action Confirmer) séparé de la ligne nom/motif (#3896) :

@@ -1144,6 +1144,10 @@ pub struct CabinetAppointmentItem {
     /// Horodatage de la demande de rappel patient (`POST .../callback-request`), si présente.
     pub callback_requested_at: Option<String>,
     pub patient_name: Option<String>,
+    /// #4608 : absente jusqu'ici — le front (secrétariat) lit
+    /// `practitioner_name`, clé jamais émise par cet endpoint, d'où un
+    /// séparateur « · » pendant sur chaque ligne RDV (nom de praticien vide).
+    pub practitioner_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1230,9 +1234,11 @@ pub async fn get_cabinet_appointments(
         (Some(status), Some((ds, de))) => {
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
-                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
+                        pr.display_name AS practitioner_name \
                  FROM appointment a \
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 LEFT JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1 \
                    AND a.status = $2 \
@@ -1254,9 +1260,11 @@ pub async fn get_cabinet_appointments(
         (Some(status), None) => {
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
-                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
+                        pr.display_name AS practitioner_name \
                  FROM appointment a \
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 LEFT JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1 \
                    AND a.status = $2{} \
@@ -1273,9 +1281,11 @@ pub async fn get_cabinet_appointments(
         (None, Some((ds, de))) => {
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
-                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
+                        pr.display_name AS practitioner_name \
                  FROM appointment a \
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 LEFT JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1 \
                    AND a.starts_at >= $2 AND a.starts_at < $3{} \
@@ -1292,9 +1302,11 @@ pub async fn get_cabinet_appointments(
         (None, None) => {
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
-                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name \
+                        NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
+                        pr.display_name AS practitioner_name \
                  FROM appointment a \
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
+                 LEFT JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1{} \
                  ORDER BY a.starts_at",
@@ -1332,6 +1344,9 @@ pub async fn get_cabinet_appointments(
         let patient_name: Option<String> = row
             .try_get("patient_name")
             .map_err(|_| AppError::Internal)?;
+        let practitioner_name: Option<String> = row
+            .try_get("practitioner_name")
+            .map_err(|_| AppError::Internal)?;
         data.push(CabinetAppointmentItem {
             id,
             practitioner_id,
@@ -1342,6 +1357,7 @@ pub async fn get_cabinet_appointments(
             motif_admin,
             callback_requested_at: callback_requested_at.map(|ts| ts.to_rfc3339()),
             patient_name,
+            practitioner_name,
         });
     }
 
