@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -137,11 +138,15 @@ class DashboardPage extends StatelessWidget {
           icon: const Icon(Icons.forum_outlined),
           onPressed: () => context.push(AppRouter.teamMessages),
         ),
-        IconButton(
-          tooltip: 'Démo A2UI',
-          icon: const Icon(Icons.auto_awesome_outlined),
-          onPressed: () => context.push('/a2ui-demo'),
-        ),
+        // #4539 : banc de test du framework A2UI, jamais eu sa place dans
+        // la nav en production (vocabulaire interne + faux CTA « demo.cta »
+        // exposés à un praticien). Réservé aux builds debug.
+        if (kDebugMode)
+          IconButton(
+            tooltip: 'Démo A2UI',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => context.push('/a2ui-demo'),
+          ),
       ],
       onSignOut: () => context.read<ProAuthCubit>().signOut(),
     );
