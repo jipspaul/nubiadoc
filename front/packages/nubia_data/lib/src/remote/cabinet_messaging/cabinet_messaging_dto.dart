@@ -28,11 +28,19 @@ class CabinetConversationDto {
     final firstName = json['patient_first_name'] as String? ?? '';
     final lastName = json['patient_last_name'] as String? ?? '';
     final combined = '$firstName $lastName'.trim();
+    // #4663 : `patient_name` peut être une chaîne vide (pas `null`) quand le
+    // compte patient source n'avait ni prénom ni nom au moment de la
+    // création du fil côté API — `?? combined` ne se déclenche jamais sur
+    // une chaîne vide, d'où un fallback ultime explicite ('Patient'),
+    // symétrique au COALESCE(..., 'Patient') du back.
+    final rawName = (json['patient_name'] as String?)?.trim() ?? '';
+    final patientName = rawName.isNotEmpty
+        ? rawName
+        : (combined.isNotEmpty ? combined : 'Patient');
     return CabinetConversationDto(
       id: json['id'] as String,
       patientId: json['patient_id'] as String? ?? '',
-      patientName: json['patient_name'] as String? ??
-          (combined.isNotEmpty ? combined : ''),
+      patientName: patientName,
       unreadCount: (json['unread_count'] as num? ?? 0).toInt(),
       lastMessageAt: json['last_message_at'] as String?,
       lastMessage: json['last_message'] == null

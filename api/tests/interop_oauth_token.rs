@@ -292,6 +292,42 @@ async fn scope_escalation_attempt_returns_invalid_scope() {
     cleanup(&owner, cabinet_id, interop_client_id).await;
 }
 
+// ── #4615 : paramètre requis totalement ABSENT (pas juste vide) ─────────────
+// → doit produire la même enveloppe RFC 6749 que le cas « champ présent mais
+// vide » (`InteropError::InvalidRequest`, 400 `{"error":"invalid_request"}`),
+// et non le 422 `{"code":"validation_error"}` générique émis par défaut par
+// l'extracteur `Form` d'Axum sur un champ manquant.
+
+#[tokio::test]
+async fn missing_client_secret_field_returns_rfc6749_invalid_request() {
+    if !db_available() {
+        return;
+    }
+    let (status, body) = post_token(
+        state_sync(app_pool().await),
+        "grant_type=client_credentials&client_id=x",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"], "invalid_request");
+}
+
+#[tokio::test]
+async fn empty_client_id_field_present_returns_same_invalid_request_envelope() {
+    if !db_available() {
+        return;
+    }
+    let (status, body) = post_token(
+        state_sync(app_pool().await),
+        "grant_type=client_credentials&client_id=&client_secret=y",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"], "invalid_request");
+}
+
 // ── grant_type non supporté → 400 unsupported_grant_type ─────────────────────
 
 #[tokio::test]

@@ -339,6 +339,138 @@ pub async fn list_provider_reviews(
     }))
 }
 
+// ── GET /v1/cabinet/reviews ──────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct ListCabinetReviewsQuery {
+    pub status: Option<String>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct CabinetReviewItem {
+    pub id: Uuid,
+    pub provider_id: Uuid,
+    pub rating: i32,
+    pub comment: Option<String>,
+    pub author_name: String,
+    pub created_at: String,
+    pub status: String,
+}
+
+#[derive(Serialize)]
+pub struct CabinetReviewsPageInfo {
+    pub page: i64,
+    pub per_page: i64,
+    pub total: i64,
+}
+
+#[derive(Serialize)]
+pub struct ListCabinetReviewsResponse {
+    pub data: Vec<CabinetReviewItem>,
+    pub page: CabinetReviewsPageInfo,
+}
+
+/// `GET /v1/cabinet/reviews[?status=pending]` — listing des avis du cabinet pour modération.
+///
+/// Token pro requis (praticien ou secrétaire, `ProSecretaryPlusClaims`).
+/// Sans filtre `status`, retourne tous les avis des providers du cabinet (policies
+/// `review_cabinet_moderate_read` + `review_public_read`). `status` doit être
+/// `pending`, `published` ou `rejected` → `422` sinon.
+/// Paginé (offset-based) : `page` + `per_page` (défaut 20, max 100). Trié `created_at DESC`.
+pub async fn list_cabinet_reviews(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Query(params): Query<ListCabinetReviewsQuery>,
+) -> Result<Json<ListCabinetReviewsResponse>, AppError> {
+    if let Some(status) = &params.status {
+        if !matches!(status.as_str(), "pending" | "published" | "rejected") {
+            return Err(AppError::ValidationError);
+        }
+    }
+
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
+    let offset = (page - 1).saturating_mul(per_page);
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    // Scope cabinet (policy review_cabinet_moderate_read, migration 0137) : sans ce
+    // GUC, les avis 'pending' du cabinet ne sont visibles par aucune policy SELECT.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let total: i64 = sqlx::query(
+        "SELECT COUNT(*) AS total_count FROM review r \
+         JOIN provider p ON p.id = r.provider_id \
+         WHERE p.cabinet_id = $1 AND ($2::text IS NULL OR r.status = $2)",
+    )
+    .bind(claims.cabinet_id)
+    .bind(&params.status)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .try_get("total_count")
+    .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT r.id, r.provider_id, r.rating, r.comment, \
+                r.created_at, r.author_display, r.status \
+         FROM review r \
+         JOIN provider p ON p.id = r.provider_id \
+         WHERE p.cabinet_id = $1 AND ($2::text IS NULL OR r.status = $2) \
+         ORDER BY r.created_at DESC \
+         LIMIT $3 OFFSET $4",
+    )
+    .bind(claims.cabinet_id)
+    .bind(&params.status)
+    .bind(per_page)
+    .bind(offset)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let mut data: Vec<CabinetReviewItem> = Vec::with_capacity(rows.len());
+
+    for row in &rows {
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let provider_id: Uuid = row.try_get("provider_id").map_err(|_| AppError::Internal)?;
+        let rating: i32 = row.try_get("rating").map_err(|_| AppError::Internal)?;
+        let comment: Option<String> = row.try_get("comment").map_err(|_| AppError::Internal)?;
+        let created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let author_name: String = row
+            .try_get("author_display")
+            .map_err(|_| AppError::Internal)?;
+        let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+        data.push(CabinetReviewItem {
+            id,
+            provider_id,
+            rating,
+            comment,
+            author_name,
+            created_at: created_at.to_rfc3339(),
+            status,
+        });
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(Json(ListCabinetReviewsResponse {
+        data,
+        page: CabinetReviewsPageInfo {
+            page,
+            per_page,
+            total,
+        },
+    }))
+}
+
 // ── PATCH /v1/cabinet/reviews/:id ────────────────────────────────────────────
 
 /// Corps de la requête `PATCH /v1/cabinet/reviews/:id`.

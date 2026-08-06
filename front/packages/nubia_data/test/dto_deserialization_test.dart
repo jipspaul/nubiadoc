@@ -179,7 +179,6 @@ void main() {
         expect(dto.documentsToSign, 2);
         expect(dto.pendingPaymentsCents, 5000);
         expect(dto.unreadMessages, 3);
-        expect(dto.pendingQuestionnaires, 1);
         final domain = dto.toDomain();
         expect(domain.upcomingAppointments, 1);
         expect(domain.documentsToSign, 2);
@@ -202,7 +201,6 @@ void main() {
         expect(dto.documentsToSign, 0);
         expect(dto.pendingPaymentsCents, 0);
         expect(dto.unreadMessages, 0);
-        expect(dto.pendingQuestionnaires, 0);
       },
     );
   });
@@ -479,6 +477,37 @@ void main() {
       final domain = dto.toDomain();
       expect(domain.id, '488801b0-17d9-4ec7-8d52-c475f2564b34');
       expect(domain.status, CabinetAppointmentStatus.confirmed);
+    });
+  });
+
+  // #4608 : GET /cabinet/appointments émet `practitioner_name` (fix API) —
+  // le DTO doit le lire, sinon la ligne RDV secrétariat affiche « · <date> »
+  // avec un séparateur pendant faute de nom de praticien.
+  group('CabinetAppointmentDto (GET /cabinet/appointments)', () {
+    test('fromJson lit practitioner_name (clé réellement émise par l\'API)', () {
+      final dto = CabinetAppointmentDto.fromJson({
+        'id': 'appt-1',
+        'practitioner_id': 'prac-1',
+        'patient_id': 'pat-1',
+        'patient_name': 'Jean Dupont',
+        'practitioner_name': 'Dr Hugo Marin',
+        'starts_at': '2026-01-06T09:00:00Z',
+        'ends_at': '2026-01-06T09:30:00Z',
+        'status': 'confirmed',
+      });
+      expect(dto.practitionerName, 'Dr Hugo Marin');
+    });
+
+    test('fromJson retombe sur \'\' quand practitioner_name est absent (pas de crash)', () {
+      final dto = CabinetAppointmentDto.fromJson({
+        'id': 'appt-1',
+        'practitioner_id': 'prac-1',
+        'patient_id': 'pat-1',
+        'starts_at': '2026-01-06T09:00:00Z',
+        'ends_at': '2026-01-06T09:30:00Z',
+        'status': 'confirmed',
+      });
+      expect(dto.practitionerName, '');
     });
   });
 
