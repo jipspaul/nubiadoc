@@ -133,6 +133,36 @@ impl StorageClient for StubStorageClient {
     }
 }
 
+/// Trait d'upload d'objets binaires (documents chiffrés) — swappable (in-memory
+/// en test, Scaleway/MinIO en prod). Distinct de `StorageClient` (signature
+/// d'URL) : ce trait couvre l'écriture effective de l'objet, corrigeant le
+/// stub historique où `storage_key` référençait une clé jamais uploadée
+/// (issue #4626 — ordonnance signée inutilisable en production).
+#[async_trait::async_trait]
+pub trait ObjectStorage: Send + Sync {
+    /// Uploade `bytes` sous `key` avec le `content_type` donné.
+    async fn upload(&self, key: &str, content_type: &str, bytes: Vec<u8>) -> Result<(), String>;
+}
+
+/// Implémentation en mémoire pour les tests et le dev local — pas de dépendance
+/// réseau, mais l'upload est réellement effectué (contrairement au stub
+/// historique qui ne faisait qu'inventer un UUID sans jamais écrire l'objet).
+#[derive(Default)]
+pub struct InMemoryObjectStorage {
+    objects: std::sync::Mutex<std::collections::HashMap<String, (String, Vec<u8>)>>,
+}
+
+#[async_trait::async_trait]
+impl ObjectStorage for InMemoryObjectStorage {
+    async fn upload(&self, key: &str, content_type: &str, bytes: Vec<u8>) -> Result<(), String> {
+        self.objects
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?
+            .insert(key.to_string(), (content_type.to_string(), bytes));
+        Ok(())
+    }
+}
+
 /// Trait d'envoi d'email — swappable (stub en test, Brevo/SMTP en prod).
 pub trait Mailer: Send + Sync {
     /// Envoie le lien de reset. Ne doit jamais bloquer ni paniquer.
@@ -452,6 +482,9 @@ fn build_router(
         .layer(Extension(hub))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
+        ))
+        .layer(Extension(
+            Arc::new(InMemoryObjectStorage::default()) as Arc<dyn ObjectStorage>
         ))
         .layer(Extension(dispatcher))
         .layer(Extension(signer))
