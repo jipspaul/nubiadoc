@@ -60,12 +60,10 @@ class _HomeContent extends StatelessWidget {
     // (l'écran devis n'a pas d'onglet dédié dans la barre du bas).
     final bool hasFinancial =
         s.documentsToSign > 0 || s.pendingPaymentsCents > 0;
-    final bool hasShortcuts =
-        s.unreadMessages > 0 || s.pendingQuestionnaires > 0 || hasFinancial;
+    final bool hasShortcuts = s.unreadMessages > 0 || hasFinancial;
     final bool allClear = s.upcomingAppointments == 0 &&
         s.documentsToSign == 0 &&
         s.unreadMessages == 0 &&
-        s.pendingQuestionnaires == 0 &&
         s.pendingPaymentsCents == 0;
 
     return ListView(
@@ -155,14 +153,6 @@ class _HomeContent extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          if (s.pendingQuestionnaires > 0)
-            _ShortcutCard(
-              key: const Key('card_questionnaires'),
-              icon: Icons.assignment_outlined,
-              title: 'Questionnaires en attente',
-              subtitle: 'À compléter avant votre rendez-vous.',
-              count: s.pendingQuestionnaires,
-            ),
         ],
         if (allClear)
           const Padding(
