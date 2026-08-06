@@ -1982,7 +1982,11 @@ pub async fn patch_cabinet_appointment(
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
     // Un starts_at différent délie le RDV de son créneau d'origine et le
     // rattache au nouveau créneau de destination (slot_id = new_slot_id),
-    // symétrique de create_appointment.
+    // symétrique de create_appointment. Un changement de créneau repasse
+    // aussi le RDV en 'requested' : le patient n'a consenti qu'à l'horaire
+    // d'origine, pas au nouveau (symétrique de patch_appointment côté
+    // patient, #4445) — sinon le cabinet reprogramme un RDV confirmed vers
+    // un horaire que le patient n'a jamais accepté.
     let result = sqlx::query(
         "UPDATE appointment \
          SET \
@@ -1992,6 +1996,7 @@ pub async fn patch_cabinet_appointment(
                              ELSE ends_at END, \
            motif      = COALESCE($2, motif), \
            slot_id    = CASE WHEN $1 IS NOT NULL THEN $4 ELSE slot_id END, \
+           status     = CASE WHEN $1 IS NOT NULL THEN 'requested' ELSE status END, \
            updated_at = now() \
          WHERE id = $3 \
          RETURNING id, status",
