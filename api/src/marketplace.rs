@@ -357,11 +357,19 @@ fn available_time_clause(available: Option<&str>) -> &'static str {
 /// 0116 : vacances/formation/congés) — jusqu'ici jamais consultée, la table
 /// restait orpheline et la recherche proposait des créneaux pendant l'absence
 /// déclarée du praticien (#4647).
-const UNAVAILABILITY_EXCLUSION_CLAUSE: &str = " AND NOT EXISTS ( \
-     SELECT 1 FROM provider_unavailability pu \
-     WHERE pu.provider_id = sl.provider_id \
-       AND pu.starts_at < sl.ends_at AND pu.ends_at > sl.starts_at \
- )";
+///
+/// Passe par la fonction `SECURITY DEFINER` `provider_unavailable_at`
+/// (migration 0220) plutôt qu'un `NOT EXISTS` direct sur
+/// `provider_unavailability` : cette table est sous `FORCE ROW LEVEL
+/// SECURITY` avec une policy qui exige `app.current_cabinet_id` (0116), or
+/// `/search/slots` et `/search/providers` sont des routes PUBLIQUES sans JWT
+/// qui ne posent jamais ce GUC — un `NOT EXISTS` direct ne voit donc AUCUNE
+/// ligne (RLS bloque tout) et l'exclusion devient un no-op silencieux : un
+/// créneau couvert par une indisponibilité déclarée restait annoncé
+/// disponible dans l'annuaire public alors que la réservation réelle le
+/// refusait en 409 (#4655).
+const UNAVAILABILITY_EXCLUSION_CLAUSE: &str =
+    " AND NOT provider_unavailable_at(sl.provider_id, sl.starts_at, sl.ends_at)";
 
 /// Lookup géo statique (#3753) : `place` (nom de ville) était parsé par
 /// `/search/parse` et par les query params `search_providers`/`search_slots`,
