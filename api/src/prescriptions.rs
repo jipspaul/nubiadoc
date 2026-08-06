@@ -515,7 +515,8 @@ pub struct AccountPrescriptionsResponse {
 }
 
 /// `GET /v1/account/prescriptions` — ordonnances visibles par le compte
-/// patient (policy `prescription_patient_read`, 0109). Fournit les ids
+/// patient, propre OU tuteur légal actif d'un dépendant (policy
+/// `prescription_patient_read`, 0109/0221, #4597). Fournit les ids
 /// nécessaires à `POST /v1/account/prescriptions/{id}/order`.
 /// Les brouillons (`status = 'draft'`, jamais signés/envoyés) sont exclus,
 /// cohérent avec la liste devis patient (fix #3487) : cf. issue #3622.
@@ -525,6 +526,14 @@ pub async fn list_account_prescriptions(
 ) -> Result<Json<AccountPrescriptionsResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
+        .bind(claims.account_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    // GUC compte : requis par la policy guardianship_owner_select (0025) pour
+    // que la sous-requête account_guardianship de prescription_patient_read
+    // (0109/0221) voie la tutelle du tuteur en session (#4597).
+    sqlx::query("SELECT set_config('app.current_account_id', $1, true)")
         .bind(claims.account_id.to_string())
         .execute(&mut *tx)
         .await
