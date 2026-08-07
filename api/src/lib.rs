@@ -60,6 +60,7 @@ mod clinical;
 mod consultation_act_create;
 mod consultation_act_stock;
 mod consultation_acts;
+mod consultation_clinique;
 mod consultation_context;
 mod consultations;
 mod cr_templates;
