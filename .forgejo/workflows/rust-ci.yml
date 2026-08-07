@@ -22,6 +22,11 @@ jobs:
       # temps (postmortem 2026-08-04 : rustc tué au milieu de « Compiling nubia-api »,
       # log tronqué sans erreur). 4 jobs de build ⇒ pic mémoire maîtrisé.
       CARGO_BUILD_JOBS: "4"
+      # Incrémental OFF : sur RAM défectueuse (#19) le dep-graph incrémental du
+      # volume cargo-target se corrompt (ICE rustc 'dep graph node ... unique index').
+      # Les deps compilées restent cachées dans le volume ; on ne perd que
+      # l'incrémental intra-crate. Stabilité > vitesse ici.
+      CARGO_INCREMENTAL: "0"
       # target/ PERSISTANT : le runner monte un volume Docker `cargo-target` dans
       # /cargo-target (config container.options, LXC 213). Remplace actions/cache,
       # qui tarrait+gzippait des Go de target à CHAQUE run (~24 min d'overhead
@@ -84,6 +89,11 @@ jobs:
     needs: rust
     env:
       CARGO_BUILD_JOBS: "4"
+      # Incrémental OFF : sur RAM défectueuse (#19) le dep-graph incrémental du
+      # volume cargo-target se corrompt (ICE rustc 'dep graph node ... unique index').
+      # Les deps compilées restent cachées dans le volume ; on ne perd que
+      # l'incrémental intra-crate. Stabilité > vitesse ici.
+      CARGO_INCREMENTAL: "0"
       # Même target/ PERSISTANT que le job `rust` (volume `cargo-target` monté par
       # le runner). Comme `rust` (needs) a compilé AVANT dans ce même volume, ici la
       # compile est vraiment incrémentale : seuls les binaires de test se relient.
