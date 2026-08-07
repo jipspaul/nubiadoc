@@ -75,7 +75,9 @@ pub async fn get_patient_consultation_clinique(
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-    let appointment_id: Uuid = row.try_get("appointment_id").map_err(|_| AppError::Internal)?;
+    let appointment_id: Uuid = row
+        .try_get("appointment_id")
+        .map_err(|_| AppError::Internal)?;
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;

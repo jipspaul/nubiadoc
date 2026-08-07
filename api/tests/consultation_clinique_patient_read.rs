@@ -248,7 +248,10 @@ async fn consultation_clinique_finalized_returns_200_with_content() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/appointments/{}/consultation-clinique", appt_id))
+                .uri(format!(
+                    "/v1/appointments/{}/consultation-clinique",
+                    appt_id
+                ))
                 .header(
                     "Authorization",
                     format!("Bearer {}", make_patient_jwt(user_id, account_id)),
@@ -334,7 +337,10 @@ async fn consultation_clinique_draft_returns_404() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/appointments/{}/consultation-clinique", appt_id))
+                .uri(format!(
+                    "/v1/appointments/{}/consultation-clinique",
+                    appt_id
+                ))
                 .header(
                     "Authorization",
                     format!("Bearer {}", make_patient_jwt(user_id, account_id)),
