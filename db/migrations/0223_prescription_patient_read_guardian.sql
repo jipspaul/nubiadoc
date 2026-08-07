@@ -1,4 +1,4 @@
--- 0221_prescription_patient_read_guardian.sql
+-- 0223_prescription_patient_read_guardian.sql
 -- Étend prescription_patient_read (migration 0109) à la branche tutelle
 -- (#4597, QA-20260802-5), symétrique à appointment_patient_read (0196),
 -- document_patient_read (0218) et implant_passport_patient_read (0219).
