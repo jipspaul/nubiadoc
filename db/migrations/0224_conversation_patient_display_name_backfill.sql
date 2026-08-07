@@ -1,4 +1,4 @@
--- 0221_conversation_patient_display_name_backfill.sql
+-- 0224_conversation_patient_display_name_backfill.sql
 -- patient_display_name était calculé une seule fois à la création du fil
 -- (api/src/messaging.rs, create_pharmacy_conversation) : si first_name/last_name
 -- du compte patient étaient des chaînes vides (pas NULL), la valeur persistée
