@@ -1,7 +1,7 @@
 //! `GET /v1/cabinet/patient-merge-candidates`,
 //! `POST /v1/cabinet/patient-merge-candidates/:id/resolve` (#3916, lot
 //! interop A5) — résolution humaine des doublons patient flagués
-//! automatiquement (table `patient_merge_candidate`, migration 0225,
+//! automatiquement (table `patient_merge_candidate`, migration 0226,
 //! RLS `cabinet_id`).
 //!
 //! Pas de fusion automatique en v1 (conforme à l'issue) : `resolve` marque

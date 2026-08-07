@@ -1,4 +1,4 @@
--- 0225_create_patient_merge_candidate.sql
+-- 0226_create_patient_merge_candidate.sql
 -- Table patient_merge_candidate (#3916, lot interop A5) : détection de
 -- doublons patient au sein d'un même cabinet, avec résolution humaine
 -- (pas de fusion automatique en v1 — la fusion réelle existe déjà,
