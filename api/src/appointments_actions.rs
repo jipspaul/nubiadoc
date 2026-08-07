@@ -132,6 +132,11 @@ pub async fn patch_appointment(
         if chrono::Utc::now() >= new_ts - chrono::Duration::hours(24) {
             return Err(AppError::TooLate);
         }
+        // #4659 : même garde provider_unavailability que create_appointment
+        // (slot_id et starts_at, appointments_create.rs) — sinon la
+        // reprogrammation trouve un créneau resté 'open' pendant une
+        // indisponibilité déclarée du praticien et réserve dessus, alors que
+        // POST /v1/appointments refuse (409 slot_taken) le même créneau.
         new_slot_id = sqlx::query_scalar(
             "SELECT s.id FROM availability_slot s \
                JOIN provider p ON p.id = s.provider_id \
@@ -139,7 +144,14 @@ pub async fn patch_appointment(
                  AND s.starts_at = $2 \
                  AND s.status = 'open' \
                  AND s.online_booking = true \
-                 AND s.deleted_at IS NULL",
+                 AND s.deleted_at IS NULL \
+                 AND NOT EXISTS ( \
+                     SELECT 1 FROM provider_unavailability pu \
+                     JOIN provider prov ON prov.id = pu.provider_id \
+                     WHERE prov.practitioner_id = $1 \
+                       AND pu.starts_at < s.ends_at \
+                       AND pu.ends_at > s.starts_at \
+                 )",
         )
         .bind(practitioner_id)
         .bind(new_ts)
