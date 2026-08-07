@@ -206,10 +206,20 @@ pub struct SendPharmacyMessageBody {
     pub body: String,
 }
 
-/// Réponse (même forme que le cabinet).
+/// Réponse de `POST /v1/pharmacy/conversations/:id/messages`.
+/// `message_id` (historique) + le message complet : le front parse la réponse
+/// comme un MessageDto (`id`/`body`/`sender`/`created_at`) — sans ces champs,
+/// l'envoi réussissait côté serveur mais crashait au parse côté pharmacie
+/// (mêmes symptômes que le correctif cabinet, cf. `SendCabinetMessageResponse`).
 #[derive(Serialize)]
 pub struct SendPharmacyMessageResponse {
     pub message_id: Uuid,
+    pub id: Uuid,
+    pub body: String,
+    pub sender: String,
+    pub sender_kind: String,
+    pub created_at: String,
+    pub read_at: Option<String>,
 }
 
 /// `POST /v1/pharmacy/conversations/:id/messages` — réponse du pharmacien.
@@ -246,7 +256,7 @@ pub async fn send_pharmacy_message(
          (pharmacy_id, conversation_id, sender_kind, sender_id, \
           body_ciphertext, body_key_ref, triage_flag) \
          VALUES ($1, $2, 'pharmacist', $3, $4, 'poc-stub', 'normal') \
-         RETURNING id",
+         RETURNING id, created_at",
     )
     .bind(claims.pharmacy_id)
     .bind(conversation_id)
@@ -257,6 +267,8 @@ pub async fn send_pharmacy_message(
     .map_err(|_| AppError::Internal)?;
 
     let message_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let channel = format!("conversation:{conversation_id}");
@@ -272,7 +284,15 @@ pub async fn send_pharmacy_message(
 
     Ok((
         StatusCode::CREATED,
-        Json(SendPharmacyMessageResponse { message_id }),
+        Json(SendPharmacyMessageResponse {
+            message_id,
+            id: message_id,
+            body: body.body,
+            sender: "pharmacist".to_string(),
+            sender_kind: "pharmacist".to_string(),
+            created_at: created_at.to_rfc3339(),
+            read_at: None,
+        }),
     ))
 }
 
