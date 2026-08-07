@@ -285,6 +285,26 @@ async fn prescription_sign_practitioner_returns_200() {
     let status: String = sqlx::Row::try_get(&row, "status").unwrap();
     assert_eq!(status, "signed");
 
+    // Régression #4713 : le PDF généré doit être réellement uploadé — plus de
+    // stub `size_bytes=0`/`sha256` nul (storage_key jamais uploadé).
+    let document_id = Uuid::parse_str(v["document_id"].as_str().unwrap()).unwrap();
+    let doc_row = sqlx::query("SELECT size_bytes, sha256 FROM document WHERE id = $1")
+        .bind(document_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let size_bytes: i64 = sqlx::Row::try_get(&doc_row, "size_bytes").unwrap();
+    let sha256: String = sqlx::Row::try_get(&doc_row, "sha256").unwrap();
+    assert!(
+        size_bytes > 0,
+        "size_bytes doit être > 0 (PDF réel uploadé)"
+    );
+    assert_ne!(
+        sha256,
+        "0".repeat(64),
+        "sha256 doit être calculé à partir du PDF réel, pas un stub nul"
+    );
+
     cleanup_fixture(
         &db,
         cabinet_id,
