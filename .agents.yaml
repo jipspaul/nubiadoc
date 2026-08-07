@@ -12,7 +12,7 @@
 scopes:
   rust-agent:     [api/, db/migrations, ci/, scripts/, tests/]
   flutter-agent:  [front/, app/, ci/, docs/, scripts/]
-  web-agent:      [web-console/, ci/, docs/]
+  web-agent:      [ci/, docs/]
   postgres-agent: [db/, scripts/, ci/]
   design:         [design/, docs/]
   # Agents not listed -> default (full clone).
