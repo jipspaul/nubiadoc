@@ -13,5 +13,6 @@ pub mod capability;
 pub mod directory;
 pub mod error;
 pub mod oauth;
+pub mod patient;
 pub mod slot;
 pub mod subscription;
