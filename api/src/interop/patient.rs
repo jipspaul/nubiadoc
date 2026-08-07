@@ -196,18 +196,19 @@ async fn find_patient_by_ins(
     key_context: &str,
     ins: &str,
 ) -> Result<Option<Uuid>, AdtError> {
-    let rows: Vec<(Uuid, Vec<u8>, String)> = with_tenant(db, cabinet_id, move |mut tx| async move {
-        let rows = sqlx::query_as::<_, (Uuid, Vec<u8>, String)>(
-            "SELECT id, ins_ciphertext, ins_key_ref FROM patient \
+    let rows: Vec<(Uuid, Vec<u8>, String)> =
+        with_tenant(db, cabinet_id, move |mut tx| async move {
+            let rows = sqlx::query_as::<_, (Uuid, Vec<u8>, String)>(
+                "SELECT id, ins_ciphertext, ins_key_ref FROM patient \
              WHERE cabinet_id = $1 AND ins_ciphertext IS NOT NULL AND deleted_at IS NULL",
-        )
-        .bind(cabinet_id)
-        .fetch_all(&mut *tx)
-        .await?;
-        Ok(rows)
-    })
-    .await
-    .map_err(|_| AdtError::Internal)?;
+            )
+            .bind(cabinet_id)
+            .fetch_all(&mut *tx)
+            .await?;
+            Ok(rows)
+        })
+        .await
+        .map_err(|_| AdtError::Internal)?;
 
     for (id, ciphertext, key_ref) in rows {
         if let Ok(plaintext) = decrypt_column(&ciphertext, key_manager, key_context, &key_ref).await
@@ -281,7 +282,8 @@ mod tests {
     use core_crypto::LocalKeyManager;
     use integrations_hl7v2::parser::parse;
 
-    const ADT_A28: &str = "MSH|^~\\&|SIH|HOPITAL1|NUBIA|CABINET1|20260719101500||ADT^A28|MSGID0001|P|2.5\r\
+    const ADT_A28: &str =
+        "MSH|^~\\&|SIH|HOPITAL1|NUBIA|CABINET1|20260719101500||ADT^A28|MSGID0001|P|2.5\r\
 PID|1||123456^^^HOPITAL1^PI~2600112233044^^^INS-NIR^NI||DUPONT^JEAN||19800101|M\r\
 PV1|1|O\r";
 
@@ -316,10 +318,16 @@ PV1|1|O\r";
 
     #[test]
     fn missing_pid_is_missing_segment_error() {
-        let msg = parse("MSH|^~\\&|SIH|HOPITAL1|NUBIA|CABINET1|20260719101500||ADT^A28|MSGID0001|P|2.5\r").unwrap();
+        let msg = parse(
+            "MSH|^~\\&|SIH|HOPITAL1|NUBIA|CABINET1|20260719101500||ADT^A28|MSGID0001|P|2.5\r",
+        )
+        .unwrap();
         assert_eq!(extract_ins(&msg), Err(AdtError::MissingSegment("PID")));
         assert_eq!(extract_name(&msg), Err(AdtError::MissingSegment("PID")));
-        assert_eq!(extract_birth_date(&msg), Err(AdtError::MissingSegment("PID")));
+        assert_eq!(
+            extract_birth_date(&msg),
+            Err(AdtError::MissingSegment("PID"))
+        );
     }
 
     #[tokio::test]

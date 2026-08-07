@@ -128,8 +128,15 @@ pub async fn dispatch(
     {
         Ok(true) => {
             // ── 6. Traitement métier (ADT stub B8 / SIU réel B9) ────────
-            match process_message(pool, cabinet_id, partner.id, message, &message_type, key_manager)
-                .await
+            match process_message(
+                pool,
+                cabinet_id,
+                partner.id,
+                message,
+                &message_type,
+                key_manager,
+            )
+            .await
             {
                 Ok(()) => accept(
                     &control_id,
@@ -471,8 +478,15 @@ PV1|1|O\r";
 
         let unknown = parse("MSH|^~\\&|A|B|C|D|20260719||ZZZ^Z99|1|P|2.5\r").unwrap();
         assert_eq!(
-            process_message(&pool, cabinet_id, partner_id, &unknown, "ZZZ^Z99", &key_manager)
-                .await,
+            process_message(
+                &pool,
+                cabinet_id,
+                partner_id,
+                &unknown,
+                "ZZZ^Z99",
+                &key_manager
+            )
+            .await,
             Ok(()) // type non géré : reste un no-op sûr
         );
     }
