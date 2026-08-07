@@ -444,10 +444,11 @@ async fn patch_appointment_past_date_returns_409_slot_unavailable() {
         .ok();
 }
 
-// ── Test 2 : hors délai → 409 { "error": "too_late" } ───────────────────────
+// ── Test 2 : PATCH motif seul sur un RDV < 24 h → 200 (préavis non applicable,
+// aucun créneau déplacé, #4574) ─────────────────────────────────────────────
 
 #[tokio::test]
-async fn patch_appointment_too_late_returns_409() {
+async fn patch_appointment_motif_only_within_24h_returns_200() {
     if !db_available() {
         return;
     }
@@ -521,13 +522,13 @@ async fn patch_appointment_too_late_returns_409() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(response.status(), StatusCode::OK);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["code"], "too_late");
+    assert_eq!(v["motif"], "nouveau motif");
 
     cleanup(&db, cabinet_id, patient_id, prac_id).await;
     sqlx::query("DELETE FROM patient_account WHERE id = $1")

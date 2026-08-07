@@ -105,13 +105,6 @@ pub async fn patch_appointment(
         return Err(AppError::InvalidStatus);
     }
 
-    // Préavis 24 h sur la SOURCE : s'applique à TOUTE modification, y compris un
-    // PATCH motif seul (#384) — un RDV à < 24 h est figé côté patient. Le préavis
-    // sur la destination est vérifié en plus ci-dessous pour une reprogrammation.
-    if chrono::Utc::now() >= starts_at - chrono::Duration::hours(24) {
-        return Err(AppError::TooLate);
-    }
-
     // Reprogrammation : le nouveau créneau doit être validé côté serveur, comme
     // la réservation initiale (POST /v1/bookings exige un availability_slot réel).
     // Sinon un patient pouvait déplacer son RDV vers une date passée ou une heure
@@ -123,6 +116,13 @@ pub async fn patch_appointment(
     if let Some(new_ts) = new_starts_at {
         if new_ts <= chrono::Utc::now() {
             return Err(AppError::SlotUnavailable);
+        }
+        // Préavis 24 h sur la SOURCE : ne s'applique qu'à un vrai changement de
+        // créneau (reschedule), pas à un PATCH motif seul qui ne déplace rien
+        // (#4574) — un RDV à < 24 h reste figé côté horaire mais son motif
+        // demeure éditable. Le préavis destination est vérifié en plus ci-dessous.
+        if chrono::Utc::now() >= starts_at - chrono::Duration::hours(24) {
+            return Err(AppError::TooLate);
         }
         // Préavis 24 h évalué sur la DESTINATION, pas seulement la source (:80) :
         // sans ce contrôle, un RDV source >24h pouvait être déplacé vers un créneau
