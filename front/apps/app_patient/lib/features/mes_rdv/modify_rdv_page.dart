@@ -195,10 +195,11 @@ class _SlotsByDay extends StatelessWidget {
   Widget build(BuildContext context) {
     final groups = <DateTime, List<Slot>>{};
     for (final slot in slots) {
+      final localStartsAt = slot.startsAt.toLocal();
       final key = DateTime(
-        slot.startsAt.year,
-        slot.startsAt.month,
-        slot.startsAt.day,
+        localStartsAt.year,
+        localStartsAt.month,
+        localStartsAt.day,
       );
       groups.putIfAbsent(key, () => []).add(slot);
     }
