@@ -29,6 +29,13 @@ jobs:
       # disque → compile vraiment incrémentale (~5 min au lieu de ~29). capacity=1
       # ⇒ pas d'accès concurrent au volume.
       CARGO_TARGET_DIR: /cargo-target
+      # Le cache incrémental (dep-graph) du volume persistant `cargo-target` s'est
+      # corrompu (ICE répété : "the compiler unexpectedly panicked" dans
+      # rustc_query_system::dep_graph::serialized, systématiquement sur le test
+      # `interop_oauth_token` — 3 tentatives auto-fix consécutives, même crash).
+      # Désactive l'incrémental pour ce job : évite la (dé)sérialisation du
+      # dep-graph corrompu. Coût : recompile un peu plus lente, mais fiable.
+      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v4
       - name: Format
