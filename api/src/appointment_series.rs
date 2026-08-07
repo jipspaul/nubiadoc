@@ -161,6 +161,28 @@ pub async fn create_appointment_series(
             return Err(AppError::SlotTaken);
         }
 
+        // #4656 : contrairement à create_cabinet_appointment/create_appointment
+        // (appointments_create.rs:264-271/308-315), la série ne consultait pas
+        // provider_unavailability (#4647/#4649) — un praticien en vacances
+        // pouvait se voir imposer toute une série de RDV.
+        let unavailable: bool = sqlx::query_scalar(
+            "SELECT EXISTS ( \
+                 SELECT 1 FROM provider_unavailability pu \
+                 JOIN provider prov ON prov.id = pu.provider_id \
+                 WHERE prov.practitioner_id = $1 \
+                   AND pu.starts_at < $3 AND pu.ends_at > $2 \
+             )",
+        )
+        .bind(body.practitioner_id)
+        .bind(occ.starts_at)
+        .bind(occ.ends_at)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        if unavailable {
+            return Err(AppError::SlotTaken);
+        }
+
         // #4408 : contrairement à create_cabinet_appointment (scheduling.rs)
         // et create_appointment (appointments.rs), la série ne consommait
         // aucun availability_slot chevauché — un créneau 'open' publié
