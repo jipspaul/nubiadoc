@@ -183,7 +183,9 @@ pub async fn finalize_consultation_clinique(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
-    let appointment_id: Uuid = row.try_get("appointment_id").map_err(|_| AppError::Internal)?;
+    let appointment_id: Uuid = row
+        .try_get("appointment_id")
+        .map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
