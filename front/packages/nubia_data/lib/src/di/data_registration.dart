@@ -570,6 +570,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetStatsApi>(
       () => CabinetStatsApi(gi()),
     )
+    ..registerLazySingleton<CabinetPayoutsApi>(
+      () => CabinetPayoutsApi(gi()),
+    )
     ..registerLazySingleton<AuditLogApi>(
       () => AuditLogApi(gi()),
     )
@@ -652,6 +655,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetStatsRepository>(
       () => CabinetStatsRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<CabinetPayoutsRepository>(
+      () => CabinetPayoutsRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<AuditLogRepository>(
       () => AuditLogRepositoryImpl(gi()),
     )
@@ -710,6 +716,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => CallNextUseCase(gi()))
     ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
     ..registerFactory(() => GetCabinetActivityStatsUseCase(gi()))
+    ..registerFactory(() => GetCabinetPayoutsUseCase(gi()))
     ..registerFactory(() => GetCabinetBillingStatsUseCase(gi()))
     ..registerFactory(() => GetAuditLogUseCase(gi()))
     ..registerFactory(() => GetCabinetQuoteUseCase(gi()))

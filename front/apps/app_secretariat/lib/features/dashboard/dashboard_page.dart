@@ -28,6 +28,9 @@ import '../bookable_slots/bookable_slots_page.dart';
 import '../cabinet_stats/cabinet_stats_bloc.dart';
 import '../cabinet_stats/cabinet_stats_event.dart';
 import '../cabinet_stats/cabinet_stats_page.dart';
+import '../cabinet_payouts/cabinet_payouts_bloc.dart';
+import '../cabinet_payouts/cabinet_payouts_event.dart';
+import '../cabinet_payouts/cabinet_payouts_page.dart';
 import '../cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../cabinet_messaging/cabinet_messaging_event.dart';
 import '../cabinet_messaging/cabinet_messaging_page.dart';
@@ -159,6 +162,12 @@ class DashboardPage extends StatelessWidget {
             create: (_) => GetIt.instance<CabinetStatsBloc>()
               ..add(const CabinetStatsLoadRequested()),
             child: const CabinetStatsBody(),
+          );
+        } else if (destination.route == '/cabinet-payouts') {
+          body = BlocProvider(
+            create: (_) => GetIt.instance<CabinetPayoutsBloc>()
+              ..add(const CabinetPayoutsLoadRequested()),
+            child: const CabinetPayoutsBody(),
           );
         } else if (destination.route == ProConfig.auditLogRoute) {
           body = BlocProvider(

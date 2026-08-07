@@ -13,6 +13,7 @@ import '../features/audit_log/audit_log_access_cubit.dart';
 import '../features/audit_log/audit_log_bloc.dart';
 import '../features/bookable_slots/bookable_slots_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
+import '../features/cabinet_payouts/cabinet_payouts_bloc.dart';
 import '../features/cabinet_stats/cabinet_stats_bloc.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
@@ -124,6 +125,9 @@ void registerPro(GetIt gi) {
         getActivityStats: gi<GetCabinetActivityStatsUseCase>(),
         getBillingStats: gi<GetCabinetBillingStatsUseCase>(),
       ),
+    )
+    ..registerFactory<CabinetPayoutsBloc>(
+      () => CabinetPayoutsBloc(getPayouts: gi<GetCabinetPayoutsUseCase>()),
     )
     ..registerFactory<AuditLogBloc>(
       () => AuditLogBloc(getAuditLog: gi<GetAuditLogUseCase>()),
