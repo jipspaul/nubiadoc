@@ -230,14 +230,15 @@ async fn send_happy_path_creates_order_and_consent() {
     .unwrap();
     assert_eq!(evidence["channel"], "verbal_in_office");
 
-    // Doublon actif → 409.
-    let (status, _) = send(
+    // Doublon actif → 409 already_ordered (pas invalid_status, #4629).
+    let (status, body) = send(
         &token,
         fx.prescription_id,
         json!({"pharmacy_id": fx.pharmacy_id}),
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["code"], "already_ordered");
 }
 
 #[tokio::test]
