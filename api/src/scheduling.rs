@@ -828,6 +828,8 @@ pub async fn offer_waiting_list_slot(
             // #4660 : même garde provider_unavailability que create_appointment
             // (appointments_create.rs:265-271) — un slot 'open' pendant une
             // indisponibilité déclarée ne doit pas être proposé au patient.
+            // NB: retrigger CI (ICE rustc transitoire sur interop_oauth_token,
+            // sans lien avec ce diff).
             let real_slot = sqlx::query(
                 "SELECT 1 FROM availability_slot \
                  WHERE provider_id = $1 AND starts_at = $2 AND status = 'open' \
