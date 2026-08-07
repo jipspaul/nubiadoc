@@ -10,8 +10,9 @@ use axum::{
 use crate::{
     cabinet_document_download, clinical, consultation_act_create, consultation_acts,
     consultation_context, consultations, dental_chart, implant_passport, medical_questionnaire,
-    medical_record, orthodontics, patient_alerts, patient_detail, patient_merge, patient_tags,
-    periodontal_chart, prescription_list, treatment_phases, treatment_plans, AppState,
+    medical_record, orthodontics, patient_alerts, patient_detail, patient_merge,
+    patient_merge_candidate, patient_tags, periodontal_chart, prescription_list,
+    treatment_phases, treatment_plans, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -35,6 +36,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/patients/:id/merge",
             post(patient_merge::merge_cabinet_patient),
+        )
+        .route(
+            "/v1/cabinet/patient-merge-candidates",
+            get(patient_merge_candidate::list_merge_candidates),
+        )
+        .route(
+            "/v1/cabinet/patient-merge-candidates/:id/resolve",
+            post(patient_merge_candidate::resolve_merge_candidate),
         )
         .route(
             "/v1/cabinet/patients/:id/notes",

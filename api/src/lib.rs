@@ -84,6 +84,7 @@ mod patient_alerts;
 mod patient_detail;
 mod patient_guardianship;
 mod patient_merge;
+mod patient_merge_candidate;
 mod patient_satisfaction;
 mod patient_tags;
 mod payment_schedules;
