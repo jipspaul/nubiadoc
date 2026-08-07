@@ -143,11 +143,11 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             put(consultations::set_consultation_note),
         )
         .route(
-            "/v1/cabinet/consultations/:id/clinical-note",
-            post(consultation_clinique::create_clinical_note),
+            "/v1/cabinet/appointments/:id/consultation-clinique",
+            post(consultation_clinique::create_consultation_clinique),
         )
         .route(
-            "/v1/cabinet/consultations/:id/clinical-note/finalize",
-            post(consultation_clinique::finalize_clinical_note),
+            "/v1/cabinet/consultation-clinique/:id/finalize",
+            post(consultation_clinique::finalize_consultation_clinique),
         )
 }

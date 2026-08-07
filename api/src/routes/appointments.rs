@@ -4,7 +4,7 @@ use axum::{routing::get, Router};
 
 use crate::{
     appointments_actions, appointments_checkin, appointments_create, appointments_preparation,
-    appointments_read, appointments_read_extras, AppState,
+    appointments_read, appointments_read_extras, consultation_clinique, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -40,5 +40,9 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/appointments/:id/queue",
             get(appointments_read_extras::get_appointment_queue),
+        )
+        .route(
+            "/v1/appointments/:id/consultation-clinique",
+            get(consultation_clinique::get_patient_consultation_clinique),
         )
 }
