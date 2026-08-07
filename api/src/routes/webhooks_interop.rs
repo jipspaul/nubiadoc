@@ -60,6 +60,14 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
                 .patch(interop::appointment::update_appointment_status),
         )
         .route(
+            "/v1/interop/fhir/Patient",
+            get(interop::patient::search_patients),
+        )
+        .route(
+            "/v1/interop/fhir/Patient/:id",
+            get(interop::patient::get_patient),
+        )
+        .route(
             "/v1/interop/fhir/Subscription",
             axum::routing::post(interop::subscription::create_subscription),
         )
