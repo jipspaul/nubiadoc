@@ -20,10 +20,11 @@
 //! Consommé par `api/src/hl7v2/listener.rs` (lot B10), qui appelle
 //! [`dispatch`] pour chaque message MLLP reçu.
 //!
-//! Le traitement métier (`process_message`) branche `ADT` sur un stub (lot
-//! B8, bloqué sur `crates/core/crypto`) et `SIU` sur [`crate::hl7v2::siu`]
-//! (lot B9, agenda).
+//! Le traitement métier (`process_message`) branche `ADT` sur
+//! [`crate::interop::patient`] (lot B8, mapping ADT vers la couche service
+//! patient) et `SIU` sur [`crate::hl7v2::siu`] (lot B9, agenda).
 
+use core_crypto::KeyManager;
 use core_tenancy::with_tenant;
 use integrations_hl7v2::{
     ack::{build_ack, AckCode, AckParams},
@@ -33,6 +34,7 @@ use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::hl7v2::siu;
+use crate::interop::patient as adt_patient;
 
 /// Pourquoi un message a été rejeté (ACK `AR`/`AE`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,7 +86,12 @@ pub struct DispatchOutcome {
 /// Ne panique jamais : toute erreur technique est convertie en
 /// [`RejectReason::Internal`] (ACK `AE`) — l'appelant MLLP doit toujours
 /// pouvoir écrire quelque chose sur le socket.
-pub async fn dispatch(pool: &PgPool, fingerprint: &str, message: &Message) -> DispatchOutcome {
+pub async fn dispatch(
+    pool: &PgPool,
+    fingerprint: &str,
+    message: &Message,
+    key_manager: &dyn KeyManager,
+) -> DispatchOutcome {
     let control_id = msh_field(message, 10).unwrap_or_default();
     let message_type = msh_field(message, 9).unwrap_or_default();
 
@@ -121,7 +128,9 @@ pub async fn dispatch(pool: &PgPool, fingerprint: &str, message: &Message) -> Di
     {
         Ok(true) => {
             // ── 6. Traitement métier (ADT stub B8 / SIU réel B9) ────────
-            match process_message(pool, cabinet_id, partner.id, message, &message_type).await {
+            match process_message(pool, cabinet_id, partner.id, message, &message_type, key_manager)
+                .await
+            {
                 Ok(()) => accept(
                     &control_id,
                     DispatchStatus::Accepted {
@@ -277,19 +286,17 @@ async fn process_message(
     partner_id: Uuid,
     message: &Message,
     message_type: &str,
+    key_manager: &dyn KeyManager,
 ) -> Result<(), String> {
     // Le groupe de message (avant `^`) suffit à distinguer ADT/SIU ; le
     // sous-type précis (A28, S12, ...) est discriminé dans chaque module.
     let message_group = message_type.split('^').next().unwrap_or(message_type);
     match message_group {
-        // TODO(B8): bloqué sur `crates/core/crypto` (chiffrement INS) —
-        // création/màj patient hors scope tant que ce socle n'existe pas.
         "ADT" => {
-            tracing::debug!(
-                message_type,
-                "hl7v2 dispatch: stub ADT (B8 bloqué sur crypto)"
-            );
-            Ok(())
+            let trigger = message_type.split('^').nth(1).unwrap_or("");
+            adt_patient::handle(pool, cabinet_id, key_manager, message, trigger)
+                .await
+                .map_err(|e| e.to_string())
         }
         "SIU" => siu::handle(pool, cabinet_id, partner_id, message, message_type)
             .await
@@ -434,10 +441,13 @@ PV1|1|O\r";
         assert_eq!(reparsed_dup.segment("MSA").unwrap().field(1), Some("AA"));
     }
 
-    /// Pool jamais connecté (`connect_lazy`) : suffisant pour ADT (stub, ne
-    /// touche jamais `pool`) et un type non géré (idem) — pas de DB requise.
-    /// Le traitement SIU réel (qui, lui, a besoin d'une vraie DB) est couvert
-    /// par les tests DB-gated de `siu.rs` et le test e2e (lot B11).
+    /// Pool jamais connecté (`connect_lazy`) : suffisant pour un type non géré
+    /// (stub optimiste, ne touche jamais `pool`) — pas de DB requise. Le
+    /// traitement ADT réel (qui, lui, a besoin d'une vraie DB dès qu'un PID
+    /// valide est fourni) est couvert par les tests unitaires de
+    /// `interop::patient` et le test e2e (lot B11) ; ici on vérifie
+    /// seulement qu'un ADT sans PID échoue proprement (`Err`), sans jamais
+    /// paniquer ni toucher `pool`.
     fn lazy_pool() -> PgPool {
         sqlx::postgres::PgPoolOptions::new()
             .connect_lazy("postgres://fake@localhost/fake")
@@ -445,20 +455,24 @@ PV1|1|O\r";
     }
 
     #[tokio::test]
-    async fn process_message_adt_and_unknown_never_panic_without_db() {
+    async fn process_message_adt_without_pid_fails_cleanly_and_unknown_is_noop() {
         let pool = lazy_pool();
         let partner_id = Uuid::new_v4();
         let cabinet_id = Uuid::new_v4();
+        let key_manager = core_crypto::LocalKeyManager::new([3u8; 32], "test-v1");
         let msg = parse("MSH|^~\\&|A|B|C|D|20260719||ADT^A28|1|P|2.5\r").unwrap();
 
-        assert_eq!(
-            process_message(&pool, cabinet_id, partner_id, &msg, "ADT^A28").await,
-            Ok(())
+        // Pas de segment PID : échoue avant tout accès DB, jamais de panique.
+        assert!(
+            process_message(&pool, cabinet_id, partner_id, &msg, "ADT^A28", &key_manager)
+                .await
+                .is_err()
         );
 
         let unknown = parse("MSH|^~\\&|A|B|C|D|20260719||ZZZ^Z99|1|P|2.5\r").unwrap();
         assert_eq!(
-            process_message(&pool, cabinet_id, partner_id, &unknown, "ZZZ^Z99").await,
+            process_message(&pool, cabinet_id, partner_id, &unknown, "ZZZ^Z99", &key_manager)
+                .await,
             Ok(()) // type non géré : reste un no-op sûr
         );
     }

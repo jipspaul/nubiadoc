@@ -20,6 +20,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use core_crypto::LocalKeyManager;
 use integrations_hl7v2::{
     accept_tls, build_acceptor, parse_bytes, peer_certificate_fingerprint, read_frame, write_frame,
     MllpReadOptions, MutualTlsConfig, ServerIdentity,
@@ -92,6 +94,25 @@ fn mtls_config_from_env() -> MutualTlsConfig {
     }
 }
 
+/// Construit le [`LocalKeyManager`] utilisé pour chiffrer/déchiffrer l'INS
+/// (lot B8, `interop::patient`) depuis les variables d'environnement
+/// `KMS_MASTER_KEY` (32 octets encodés en base64 standard) et
+/// `KMS_KEY_VERSION` (défaut `"v1"`, à incrémenter lors d'une rotation) —
+/// même convention que `KMS_DRIVER=local` (`infra/poc/compose.yml`). Erreur
+/// de configuration au démarrage = `.expect()`, comme le reste de ce module.
+fn key_manager_from_env() -> LocalKeyManager {
+    let encoded = std::env::var("KMS_MASTER_KEY")
+        .expect("KMS_MASTER_KEY doit être défini (clé maître locale, base64, 32 octets)");
+    let decoded = BASE64
+        .decode(encoded.trim())
+        .expect("KMS_MASTER_KEY doit être du base64 valide");
+    let key: [u8; 32] = decoded
+        .try_into()
+        .unwrap_or_else(|_| panic!("KMS_MASTER_KEY doit décoder en exactement 32 octets"));
+    let version = std::env::var("KMS_KEY_VERSION").unwrap_or_else(|_| "v1".to_string());
+    LocalKeyManager::new(key, version)
+}
+
 /// Démarre le listener MLLP et ne retourne jamais en fonctionnement normal
 /// (boucle d'acceptation infinie) — prévu pour être couru dans un
 /// `tokio::select!` aux côtés de `axum::serve` (cf. `main.rs`).
@@ -122,6 +143,7 @@ pub async fn serve(pool: PgPool, status: Hl7v2ListenerStatus) {
     let mtls_config = mtls_config_from_env();
     let acceptor = build_acceptor(mtls_config)
         .expect("MLLP: configuration mTLS invalide (certificats/CA malformés)");
+    let key_manager = Arc::new(key_manager_from_env());
 
     let bind = format!("0.0.0.0:{port}");
     let listener = TcpListener::bind(&bind)
@@ -140,8 +162,9 @@ pub async fn serve(pool: PgPool, status: Hl7v2ListenerStatus) {
         };
         let acceptor = acceptor.clone();
         let pool = pool.clone();
+        let key_manager = key_manager.clone();
         tokio::spawn(async move {
-            handle_connection(acceptor, stream, pool, peer_addr).await;
+            handle_connection(acceptor, stream, pool, peer_addr, key_manager).await;
         });
     }
 }
@@ -155,6 +178,7 @@ async fn handle_connection(
     stream: TcpStream,
     pool: PgPool,
     peer_addr: std::net::SocketAddr,
+    key_manager: Arc<LocalKeyManager>,
 ) {
     let mut tls_stream = match accept_tls(&acceptor, stream).await {
         Ok(s) => s,
@@ -192,7 +216,7 @@ async fn handle_connection(
             }
         };
 
-        let outcome = dispatch(&pool, &fingerprint, &message).await;
+        let outcome = dispatch(&pool, &fingerprint, &message, key_manager.as_ref()).await;
         match &outcome.status {
             DispatchStatus::Accepted { cabinet_id, .. } => {
                 tracing::info!(peer = %peer_addr, cabinet_id = %cabinet_id, "MLLP: message accepté");

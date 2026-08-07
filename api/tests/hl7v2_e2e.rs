@@ -229,6 +229,13 @@ async fn hl7v2_e2e_known_facility_pair_returns_aa_ack() {
     std::env::set_var("MLLP_TLS_CERT_PATH", &cert_path);
     std::env::set_var("MLLP_TLS_KEY_PATH", &key_path);
     std::env::set_var("MLLP_TLS_CLIENT_CA_PATH", &ca_path);
+    // Lot B8 : le listener charge un LocalKeyManager (chiffrement INS) au
+    // démarrage — 32 octets fixes encodés en base64, suffisant pour ce test
+    // (aucune assertion ici ne porte sur le contenu de l'INS déchiffré).
+    std::env::set_var(
+        "KMS_MASTER_KEY",
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [7u8; 32]),
+    );
 
     let status = nubia_api::hl7v2::listener::Hl7v2ListenerStatus::default();
     // Le listener tourne avec le pool applicatif (rôle nubia_app, RLS
