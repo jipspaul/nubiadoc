@@ -80,6 +80,11 @@ fn is_exclusion_violation(e: &sqlx::Error) -> bool {
 /// parité avec `create_cabinet_appointment` `scheduling.rs`, qui exige un
 /// slot `status='open'` ; `appointment_no_overlap` ne connaît que les
 /// `appointment` entre eux, pas les `availability_slot`).
+/// Toute occurrence chevauchant une `provider_unavailability` active → 409
+/// `slot_taken` (#4656 — parité avec `create_cabinet_appointment`/
+/// `create_appointment` `appointments_create.rs:264-271`/`:308-315` ; la
+/// série ignorait jusqu'ici cette table alors que c'est le garde-fou
+/// principal de la fonctionnalité "indisponibilités praticien" #4647/#4649).
 /// Toute occurrence en conflit (23P01, `appointment_no_overlap`) → 409
 /// `slot_taken`, la transaction entière est abandonnée (aucun RDV créé).
 pub async fn create_appointment_series(
@@ -165,21 +170,19 @@ pub async fn create_appointment_series(
         // (appointments_create.rs:264-271/308-315), la série ne consultait pas
         // provider_unavailability (#4647/#4649) — un praticien en vacances
         // pouvait se voir imposer toute une série de RDV.
-        let unavailable: bool = sqlx::query_scalar(
-            "SELECT EXISTS ( \
-                 SELECT 1 FROM provider_unavailability pu \
-                 JOIN provider prov ON prov.id = pu.provider_id \
-                 WHERE prov.practitioner_id = $1 \
-                   AND pu.starts_at < $3 AND pu.ends_at > $2 \
-             )",
+        let unavailable = sqlx::query(
+            "SELECT 1 FROM provider_unavailability pu \
+             JOIN provider prov ON prov.id = pu.provider_id \
+             WHERE prov.practitioner_id = $1 \
+               AND pu.starts_at < $3 AND pu.ends_at > $2",
         )
         .bind(body.practitioner_id)
         .bind(occ.starts_at)
         .bind(occ.ends_at)
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
-        if unavailable {
+        if unavailable.is_some() {
             return Err(AppError::SlotTaken);
         }
 
