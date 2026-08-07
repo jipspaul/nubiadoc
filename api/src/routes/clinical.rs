@@ -11,8 +11,8 @@ use crate::{
     cabinet_document_download, clinical, consultation_act_create, consultation_acts,
     consultation_context, consultations, dental_chart, implant_passport, medical_questionnaire,
     medical_record, orthodontics, patient_alerts, patient_detail, patient_merge,
-    patient_merge_candidate, patient_tags, periodontal_chart, prescription_list,
-    treatment_phases, treatment_plans, AppState,
+    patient_merge_candidate, patient_tags, periodontal_chart, prescription_list, treatment_phases,
+    treatment_plans, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {

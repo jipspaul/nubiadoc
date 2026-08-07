@@ -90,8 +90,12 @@ pub async fn list_merge_candidates(
     let mut data = Vec::with_capacity(rows.len());
     for row in rows {
         let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-        let patient_a_id: Uuid = row.try_get("patient_a_id").map_err(|_| AppError::Internal)?;
-        let patient_b_id: Uuid = row.try_get("patient_b_id").map_err(|_| AppError::Internal)?;
+        let patient_a_id: Uuid = row
+            .try_get("patient_a_id")
+            .map_err(|_| AppError::Internal)?;
+        let patient_b_id: Uuid = row
+            .try_get("patient_b_id")
+            .map_err(|_| AppError::Internal)?;
         let reason: String = row.try_get("reason").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
