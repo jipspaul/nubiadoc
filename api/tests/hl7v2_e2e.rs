@@ -7,12 +7,14 @@
 //! mTLS, extraction d'empreinte, résolution partenaire/cabinet (lots B6+fix),
 //! dédup, audit, ACK — fonctionne de bout en bout.
 //!
-//! **Portée actuelle** : les lots B8 (mapping ADT) et B9 (mapping SIU) ne
-//! sont pas encore câblés — `dispatch::stub_process` renvoie `AA` pour tout
-//! message ADT/SIU reconnu sans encore créer de ligne `patient`/`appointment`.
-//! Ce test vérifie donc le pipeline transport/auth/résolution/ACK, pas les
-//! effets métier. À étendre (assertions sur les lignes DB) une fois B8/B9
-//! livrés.
+//! **Portée actuelle** : le lot B8 (mapping ADT) est câblé — `PID-3` doit donc
+//! porter une répétition avec l'autorité d'affectation `INS-NIR` pour que
+//! `interop::patient::handle` puisse extraire l'INS et renvoyer un ACK `AA`
+//! (sinon `MissingIns` → ACK `AE`). Le lot B9 (mapping SIU) n'est pas encore
+//! câblé — `dispatch::stub_process` renvoie `AA` pour tout message SIU
+//! reconnu sans encore créer de ligne `appointment`. Ce test vérifie donc le
+//! pipeline transport/auth/résolution/ACK, pas les effets métier SIU. À
+//! étendre (assertions sur les lignes DB) une fois B9 livré.
 //!
 //! Gated par `db_available()` (même convention que les autres tests interop) :
 //! nécessite `APP_DATABASE_URL`/`DATABASE_URL` pointant vers une base migrée
@@ -144,7 +146,7 @@ impl rustls::client::danger::ServerCertVerifier for AcceptAnyServerCert {
 fn build_adt_a28(sending_facility: &str, receiving_facility: &str, control_id: &str) -> Vec<u8> {
     format!(
         "MSH|^~\\&|SIH|{sending_facility}|NUBIA|{receiving_facility}|20260720101500||ADT^A28|{control_id}|P|2.5\r\
-PID|1||123456^^^{sending_facility}^PI||DUPONT^JEAN||19800101|M\r"
+PID|1||123456^^^{sending_facility}^PI~2600112233044^^^INS-NIR^NI||DUPONT^JEAN||19800101|M\r"
     )
     .into_bytes()
 }
