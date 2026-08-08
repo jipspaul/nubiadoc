@@ -3,6 +3,7 @@
 pub mod forgot_password;
 pub mod login;
 pub mod logout;
+pub mod mfa_crypto;
 pub mod mfa_enroll;
 pub mod mfa_verify;
 pub mod refresh;
