@@ -212,12 +212,21 @@ async fn insert_extra_appt(
     .await
     .unwrap();
 
+    // `starts_at` est borné au jour courant (LEAST avec 23h30) : la requête
+    // de comptage de la file (appointments_read_extras) filtre sur
+    // `starts_at` dans [aujourd'hui 00:00, aujourd'hui 24:00[. Sans ce clamp,
+    // un run proche de minuit fait franchir `now() + INTERVAL '{slot_offset_min}
+    // min'` au jour suivant → le RDV extra sort silencieusement de la fenêtre
+    // "aujourd'hui" → position comptée en moins → assertion `position 3` en
+    // échec intermittent (flake observé en CI, cf. postmortem #4646).
     sqlx::query(&format!(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) \
          VALUES ($1, $2, $3, $4, \
-           now() + INTERVAL '{slot_offset_min} min', \
-           now() + INTERVAL '{slot_offset_min} min' + INTERVAL '30 min', \
+           LEAST(now() + INTERVAL '{slot_offset_min} min', \
+                 date_trunc('day', now()) + INTERVAL '23 hours 30 minutes'), \
+           LEAST(now() + INTERVAL '{slot_offset_min} min', \
+                 date_trunc('day', now()) + INTERVAL '23 hours 30 minutes') + INTERVAL '30 min', \
            'checked_in', 'extra', \
            now() - INTERVAL '{checkin_offset_min} min')"
     ))
