@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use crate::AppState;
 
+use super::mfa_crypto::{decrypt_totp_secret, key_manager_from_env};
 use super::{AppError, LoginResponse, PatientClaims, ProClaims, ProRegisterClaims};
 
 const RATE_WINDOW: Duration = Duration::from_secs(300);
@@ -134,7 +135,7 @@ pub async fn login(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "SELECT id, password_hash, kind, totp_enabled, totp_secret \
+        "SELECT id, password_hash, kind, totp_enabled \
          FROM app_user WHERE email = $1",
     )
     .bind(&body.email)
@@ -167,7 +168,6 @@ pub async fn login(
     let totp_enabled: bool = row
         .try_get("totp_enabled")
         .map_err(|_| AppError::Internal)?;
-    let totp_secret: Option<String> = row.try_get("totp_secret").map_err(|_| AppError::Internal)?;
 
     let Some(password_hash) = password_hash else {
         let decoy = PasswordHash::new(&DECOY_PASSWORD_HASH).map_err(|_| AppError::Internal)?;
@@ -187,7 +187,35 @@ pub async fn login(
         match &body.mfa_code {
             None => return Err(AppError::MfaRequired),
             Some(code) => {
-                let secret = totp_secret.ok_or(AppError::Internal)?;
+                let mut mfa_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+                sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+                    .bind(user_id.to_string())
+                    .execute(&mut *mfa_tx)
+                    .await
+                    .map_err(|_| AppError::Internal)?;
+                let enrollment_row = sqlx::query(
+                    "SELECT secret_ciphertext, secret_key_ref FROM mfa_enrollment \
+                     WHERE app_user_id = $1 AND method = 'totp' AND verified = true",
+                )
+                .bind(user_id)
+                .fetch_optional(&mut *mfa_tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+                mfa_tx.commit().await.map_err(|_| AppError::Internal)?;
+
+                let enrollment_row = enrollment_row.ok_or(AppError::Internal)?;
+                let secret_ciphertext: Vec<u8> = enrollment_row
+                    .try_get("secret_ciphertext")
+                    .map_err(|_| AppError::Internal)?;
+                let secret_key_ref: String = enrollment_row
+                    .try_get("secret_key_ref")
+                    .map_err(|_| AppError::Internal)?;
+
+                let key_manager = key_manager_from_env().map_err(|_| AppError::Internal)?;
+                let secret = decrypt_totp_secret(&secret_ciphertext, &secret_key_ref, &key_manager)
+                    .await
+                    .map_err(|_| AppError::Internal)?;
+
                 let secret_bytes = Secret::Encoded(secret)
                     .to_bytes()
                     .map_err(|_| AppError::Unauthenticated)?;

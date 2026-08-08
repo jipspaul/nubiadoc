@@ -8,17 +8,27 @@
 //! `secret_key_ref`, sur le même pattern que `interop::patient` pour
 //! `patient_account.ins_ciphertext`.
 //!
-//! Câblage des handlers (`mfa_enroll.rs`/`mfa_verify.rs`/`login.rs`) hors
-//! périmètre de ce commit (cf. issue #4650, "Done when" : uniquement
-//! l'utilitaire de chiffrement à ce stade).
+//! Câblé dans `mfa_verify.rs` (écriture) et `login.rs` (lecture) — cf. #4651.
 
-// Câblage des handlers hors périmètre de ce commit (cf. doc de module
-// ci-dessus) : `#[allow(dead_code)]` évite un rejet CI (`clippy -D warnings`)
-// tant que ces fonctions ne sont pas encore appelées par `mfa_enroll.rs`/
-// `mfa_verify.rs`/`login.rs`.
-#![allow(dead_code)]
+use core_crypto::{decrypt_column, encrypt_column, CryptoError, KeyManager, LocalKeyManager};
 
-use core_crypto::{decrypt_column, encrypt_column, CryptoError, KeyManager};
+/// Construit le [`KeyManager`] local (POC/dev) depuis `KMS_MASTER_KEY`
+/// (32 octets, base64) — même convention que `interop::patient::key_manager_from_env`.
+pub fn key_manager_from_env() -> Result<LocalKeyManager, CryptoError> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let raw = std::env::var("KMS_MASTER_KEY").map_err(|_| CryptoError::MalformedCiphertext)?;
+    let decoded = STANDARD
+        .decode(raw.trim())
+        .map_err(|_| CryptoError::MalformedCiphertext)?;
+    let key: [u8; 32] = decoded
+        .try_into()
+        .map_err(|_| CryptoError::MalformedCiphertext)?;
+    Ok(LocalKeyManager::new(
+        key,
+        std::env::var("KMS_KEY_VERSION").unwrap_or_else(|_| "v1".to_string()),
+    ))
+}
 
 /// Contexte d'enveloppement des secrets MFA — `mfa_enrollment` est une
 /// entité plateforme (liée à `app_user`, pas à un `cabinet_id`, cf.
@@ -57,7 +67,6 @@ pub async fn decrypt_totp_secret(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core_crypto::LocalKeyManager;
 
     #[tokio::test]
     async fn round_trips_a_totp_secret_through_encrypt_then_decrypt() {
