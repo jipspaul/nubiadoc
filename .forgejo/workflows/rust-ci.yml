@@ -14,6 +14,9 @@ jobs:
   # besoin d'un `cargo test --no-run` séparé qui recompilait tout une 2e fois.
   rust:
     runs-on: docker
+    # Garde-fou anti-hang (cf. front-test) : un linker/rustc wedgé (RAM #19)
+    # ne doit pas geler l'unique runner. clippy+build ~15min nominal.
+    timeout-minutes: 30
     container:
       image: rust-ci:stable
     env:
@@ -79,6 +82,8 @@ jobs:
   # `translate()` de la recherche (un cluster SQL_ASCII casse le multibyte).
   rust-integration:
     runs-on: docker
+    # Garde-fou anti-hang. nextest 1218 tests ~25-35min → marge à 50.
+    timeout-minutes: 50
     container:
       image: rust-ci:stable
     # Sérialisé APRÈS le gate `rust` : les deux jobs compilent nubia-api (crate
