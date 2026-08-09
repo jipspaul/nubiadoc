@@ -30,6 +30,14 @@
 //!
 //! Modes d'échec : aucun (données mock, pas d'appel externe qui pourrait
 //! échouer) — seule la requête SQL de somme interne peut échouer → 500.
+//!
+//! Note déploiement (#4734) : ce module a été mergé (PR #4569, commit
+//! 04e804ed) mais le run `deploy.yml` déclenché juste après (id 24952) a
+//! échoué, laissant la route absente du binaire live pendant plusieurs
+//! heures malgré un code strictement correct (deploy-lag pur, cf. registre
+//! `qa/explored-paths.md`). Ce commit re-déclenche un déploiement frais sur
+//! `main` (le fichier n'est pas dans `paths-ignore` de `deploy.yml`) pour
+//! que le prochain run `deploy` publie enfin cette route.
 
 use axum::extract::{Query, State};
 use axum::Json;
