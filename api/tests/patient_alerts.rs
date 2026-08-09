@@ -79,6 +79,7 @@ async fn seed(db: &PgPool) -> Fixture {
     let prac_id = Uuid::new_v4();
     let provider_id = Uuid::new_v4();
     let secretariat_id = Uuid::new_v4();
+    let overdue_quote_id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
@@ -133,11 +134,24 @@ async fn seed(db: &PgPool) -> Fixture {
 
     // Patient en retard : devis signé il y a 45 jours, aucun paiement.
     sqlx::query(
-        "INSERT INTO quote (cabinet_id, patient_id, status, total_amount, signed_at) \
-         VALUES ($1, $2, 'signed', 500.00, now() - interval '45 days')",
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, signed_at) \
+         VALUES ($1, $2, $3, 'signed', 500.00, now() - interval '45 days')",
     )
+    .bind(overdue_quote_id)
     .bind(cabinet_id)
     .bind(patient_overdue_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    // balance_due_cents (#4794) est dérivé des lignes quote_item (part patient
+    // nette), pas de quote.total_amount — sans ligne, le solde serait 0 et
+    // l'alerte unpaid_invoice ne se déclencherait jamais (même piège que #4433).
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+         VALUES ($1, $2, 'Item test', 1, 500.00)",
+    )
+    .bind(cabinet_id)
+    .bind(overdue_quote_id)
     .execute(&mut *tx)
     .await
     .unwrap();
@@ -259,6 +273,11 @@ async fn cleanup(db: &PgPool, f: &Fixture) {
         .await
         .ok();
     sqlx::query("DELETE FROM payment WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote_item WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
         .await
