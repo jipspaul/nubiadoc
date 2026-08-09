@@ -610,7 +610,10 @@ async fn create_series_overlapping_provider_unavailability_returns_409_slot_take
             .fetch_one(&db)
             .await
             .unwrap();
-    assert_eq!(db_count, 0, "aucun RDV créé sur l'indisponibilité praticien");
+    assert_eq!(
+        db_count, 0,
+        "aucun RDV créé sur l'indisponibilité praticien"
+    );
 
     {
         let mut tx = db.begin().await.unwrap();
