@@ -22,11 +22,18 @@ class AgendaLoaded extends AgendaState {
   final bool actionInProgress;
   final String? actionError;
 
+  /// Roster praticien_id -> nom, résolu via `ListCabinetPractitionersUseCase`
+  /// (même source que le picker « Nouveau RDV », #4608). Contrairement à une
+  /// map construite depuis `entries`, ce roster reste complet même quand la
+  /// semaine affichée ne contient aucun créneau/RDV pour un praticien donné.
+  final Map<String, String> practitionerNames;
+
   const AgendaLoaded({
     required this.entries,
     this.availableSlots = const [],
     this.actionInProgress = false,
     this.actionError,
+    this.practitionerNames = const {},
   });
 
   AgendaLoaded copyWith({
@@ -34,6 +41,7 @@ class AgendaLoaded extends AgendaState {
     List<Slot>? availableSlots,
     bool? actionInProgress,
     String? actionError,
+    Map<String, String>? practitionerNames,
     bool clearActionError = false,
   }) =>
       AgendaLoaded(
@@ -42,11 +50,17 @@ class AgendaLoaded extends AgendaState {
         actionInProgress: actionInProgress ?? this.actionInProgress,
         actionError:
             clearActionError ? null : (actionError ?? this.actionError),
+        practitionerNames: practitionerNames ?? this.practitionerNames,
       );
 
   @override
-  List<Object?> get props =>
-      [entries, availableSlots, actionInProgress, actionError];
+  List<Object?> get props => [
+        entries,
+        availableSlots,
+        actionInProgress,
+        actionError,
+        practitionerNames,
+      ];
 }
 
 class AgendaError extends AgendaState {

@@ -12,6 +12,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   final ConfirmAppointmentUseCase _confirmAppointment;
   final RescheduleAppointmentUseCase _rescheduleAppointment;
   final ListBookableSlotsUseCase _listSlots;
+  final ListCabinetPractitionersUseCase _listPractitioners;
 
   DateTime? _currentWeekStart;
 
@@ -21,11 +22,13 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     required ConfirmAppointmentUseCase confirmAppointment,
     required RescheduleAppointmentUseCase rescheduleAppointment,
     required ListBookableSlotsUseCase listSlots,
+    required ListCabinetPractitionersUseCase listPractitioners,
   })  : _getAgenda = getAgenda,
         _createAppointment = createAppointment,
         _confirmAppointment = confirmAppointment,
         _rescheduleAppointment = rescheduleAppointment,
         _listSlots = listSlots,
+        _listPractitioners = listPractitioners,
         super(const AgendaInitial()) {
     on<AgendaLoadRequested>(_onLoad);
     on<AgendaAppointmentCreateRequested>(_onCreate);
@@ -52,7 +55,22 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
       );
       final entries = entriesResult.getOrElse(() => []);
       final slots = slotsResult.getOrElse(() => []);
-      safeEmit(AgendaLoaded(entries: entries, availableSlots: slots));
+      // #4666 : la map practitionerId -> nom ne doit pas être construite à
+      // partir des seules `entries` de la semaine affichée (vide ou
+      // incomplète si un praticien n'a aucun créneau/RDV cette semaine-là).
+      // On réutilise le roster du cabinet (même source que le picker
+      // « Nouveau RDV », #4608) — résolution qui reste correcte même sur une
+      // semaine vide.
+      final practitionersResult = await _listPractitioners();
+      final practitionerNames = <String, String>{
+        for (final p in practitionersResult.getOrElse(() => []))
+          p.id: p.displayName,
+      };
+      safeEmit(AgendaLoaded(
+        entries: entries,
+        availableSlots: slots,
+        practitionerNames: practitionerNames,
+      ));
     } catch (_) {
       safeEmit(const AgendaError('Erreur de chargement de l\'agenda.'));
     }

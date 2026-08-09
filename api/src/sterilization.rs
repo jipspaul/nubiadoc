@@ -222,6 +222,8 @@ pub async fn add_sterilized_pouch(
     if body.code.trim().is_empty() {
         return Err(AppError::ValidationError);
     }
+    // #4600/#4727 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    crate::text_validation::reject_nul_byte(&body.code)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

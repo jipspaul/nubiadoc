@@ -107,7 +107,8 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route(
             "/v1/cabinet/cash-register/closing",
-            axum::routing::post(cabinet_cash_register::close_cash_register),
+            get(cabinet_cash_register::list_cash_register_closings)
+                .post(cabinet_cash_register::close_cash_register),
         )
         .route(
             "/v1/cabinet/payments/bank-deposit-slip",

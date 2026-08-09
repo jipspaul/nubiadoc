@@ -1072,7 +1072,10 @@ pub async fn list_patient_documents(
         }
     }
 
-    let cursor = params.cursor.as_deref().and_then(doc_decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(doc_decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
     let fetch_limit = limit + 1;
 
     let (cursor_at, cursor_id) = cursor

@@ -195,6 +195,10 @@ pub async fn create_payment_schedule(
     }
     for installment in &body.installments {
         crate::text_validation::reject_nul_byte(&installment.date)?;
+        installment
+            .date
+            .parse::<chrono::NaiveDate>()
+            .map_err(|_| AppError::ValidationError)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;

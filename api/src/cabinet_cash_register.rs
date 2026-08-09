@@ -1,5 +1,5 @@
 //! `POST /v1/cabinet/cash-register/closing` — clôture de caisse journalière
-//! (#4071).
+//! (#4071) ; `GET` sur la même route — historique des clôtures (#4797).
 //!
 //! Quoi : agrège les paiements `status='paid'` du jour par méthode
 //! (`payment.method`) et fige le résultat dans `cash_register_closing`
@@ -43,6 +43,22 @@ pub struct CloseCashRegisterResponse {
     pub closing_date: String,
     pub totals_by_method: serde_json::Value,
     pub total_amount_cents: i64,
+}
+
+/// Réponse d'un élément de `GET /v1/cabinet/cash-register/closing` — mêmes
+/// champs que `CloseCashRegisterResponse` (contrat identique, seul le
+/// nombre d'éléments diffère : un objet vs `{data: [...]}`).
+#[derive(Serialize)]
+pub struct CashRegisterClosingView {
+    pub id: Uuid,
+    pub closing_date: String,
+    pub totals_by_method: serde_json::Value,
+    pub total_amount_cents: i64,
+}
+
+#[derive(Serialize)]
+pub struct ListCashRegisterClosingsResponse {
+    pub data: Vec<CashRegisterClosingView>,
 }
 
 /// `POST /v1/cabinet/cash-register/closing` — clôture la caisse d'un jour.
@@ -177,4 +193,62 @@ pub async fn close_cash_register(
             total_amount_cents,
         }),
     ))
+}
+
+/// `GET /v1/cabinet/cash-register/closing` — historique des clôtures de
+/// caisse du cabinet courant (#4797).
+///
+/// La clôture est irréversible et n'était jusqu'ici lisible que dans la
+/// réponse `201` du `POST` — donnée figée en base mais inatteignable
+/// ensuite, alors que c'est précisément l'usage visé (rapprochement
+/// comptable a posteriori, #4071). Triée par `closing_date` décroissante
+/// (une clôture par jour au plus, volume naturellement borné : pas de
+/// pagination pour l'instant).
+pub async fn list_cash_register_closings(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+) -> Result<Json<ListCashRegisterClosingsResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT id, closing_date, totals_by_method, \
+                (total_amount * 100)::bigint AS total_amount_cents \
+         FROM cash_register_closing \
+         WHERE cabinet_id = $1 \
+         ORDER BY closing_date DESC",
+    )
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut data = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let closing_date: NaiveDate = row
+            .try_get("closing_date")
+            .map_err(|_| AppError::Internal)?;
+        let totals_by_method: serde_json::Value = row
+            .try_get("totals_by_method")
+            .map_err(|_| AppError::Internal)?;
+        let total_amount_cents: i64 = row
+            .try_get("total_amount_cents")
+            .map_err(|_| AppError::Internal)?;
+        data.push(CashRegisterClosingView {
+            id,
+            closing_date: closing_date.to_string(),
+            totals_by_method,
+            total_amount_cents,
+        });
+    }
+
+    Ok(Json(ListCashRegisterClosingsResponse { data }))
 }
