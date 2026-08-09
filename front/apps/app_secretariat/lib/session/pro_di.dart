@@ -46,6 +46,7 @@ void registerPro(GetIt gi) {
         confirmAppointment: gi<ConfirmAppointmentUseCase>(),
         rescheduleAppointment: gi<RescheduleAppointmentUseCase>(),
         listSlots: gi<ListBookableSlotsUseCase>(),
+        listPractitioners: gi<ListCabinetPractitionersUseCase>(),
       ),
     )
     ..registerFactory<PatientsBloc>(
