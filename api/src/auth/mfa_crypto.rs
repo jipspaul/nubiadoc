@@ -8,15 +8,8 @@
 //! `secret_key_ref`, sur le même pattern que `interop::patient` pour
 //! `patient_account.ins_ciphertext`.
 //!
-//! Câblage des handlers (`mfa_enroll.rs`/`mfa_verify.rs`/`login.rs`) hors
-//! périmètre de ce commit (cf. issue #4650, "Done when" : uniquement
-//! l'utilitaire de chiffrement à ce stade).
-
-// Câblage des handlers hors périmètre de ce commit (cf. doc de module
-// ci-dessus) : `#[allow(dead_code)]` évite un rejet CI (`clippy -D warnings`)
-// tant que ces fonctions ne sont pas encore appelées par `mfa_enroll.rs`/
-// `mfa_verify.rs`/`login.rs`.
-#![allow(dead_code)]
+//! Câblé par `mfa_verify.rs` (persistance à l'enrôlement) et `login.rs`
+//! (déchiffrement à la vérification du code TOTP au login), cf. #4652.
 
 use core_crypto::{decrypt_column, encrypt_column, CryptoError, KeyManager};
 
