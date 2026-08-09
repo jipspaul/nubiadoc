@@ -85,7 +85,10 @@ pub async fn list_cabinet_patients(
     let offset: i64 = params.offset.unwrap_or(0).max(0);
     let fetch_limit = limit + 1;
 
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
     let (cursor_at, cursor_id) = cursor
         .map(|(at, id)| (Some(at), Some(id)))
         .unwrap_or((None, None));
@@ -624,7 +627,10 @@ pub async fn list_patient_notes(
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
     let fetch_limit = limit + 1;
 
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
     let (cursor_at, cursor_id) = cursor
         .map(|(at, id)| (Some(at), Some(id)))
         .unwrap_or((None, None));
