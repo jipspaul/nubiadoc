@@ -444,12 +444,12 @@ pub fn app_with_quote_signature_client(
     )
 }
 
-/// Variante de production : combine un `QuoteSignatureClient` réel (Yousign,
-/// #4064) et un `StorageSigner` réel (Scaleway, #4717) — utilisée par
-/// `main.rs`. `app_with_quote_signature_client` seul câblait `StubStorageSigner`
-/// en dur, ce qui rendait tous les exports/téléchargements non-fonctionnels
-/// en production (URL vers `storage.example.com`, domaine fantôme).
-pub fn app_for_production(
+/// Variante pour la production : `QuoteSignatureClient` **et** `StorageSigner`
+/// personnalisés (#4717 — `StubStorageSigner` câblé en dur en production
+/// générait des URL vers `storage.example.com`, un domaine fantôme jamais
+/// résolu en DNS public, rendant tout export/téléchargement de document
+/// non-fonctionnel pour l'utilisateur final).
+pub fn app_with_quote_signature_client_and_signer(
     state: AppState,
     quote_signature_client: Arc<dyn QuoteSignatureClient>,
     signer: Arc<dyn StorageSigner>,

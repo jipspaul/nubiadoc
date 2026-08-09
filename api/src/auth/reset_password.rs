@@ -25,7 +25,11 @@ pub struct ResetPasswordBody {
 ///
 /// Vérifie le token (SHA-256) : inconnu → `404`, expiré → `410`, valide → change
 /// `password_hash` (argon2id), révoque tous les refresh tokens de l'utilisateur
-/// (forcé logout), invalide le token (`NULL`). Retourne `204`.
+/// (forcé logout), invalide le token (`NULL`). Désactive également la MFA
+/// (`totp_enabled = false` + suppression de l'enrôlement `mfa_enrollment`) : le
+/// reset de mot de passe est le point de recovery utilisé en cas de perte de
+/// l'authenticator TOTP (cf #4772), faute d'un flow de désactivation dédié.
+/// Retourne `204`.
 pub async fn reset_password(
     State(state): State<AppState>,
     Json(body): Json<ResetPasswordBody>,
@@ -97,6 +101,7 @@ pub async fn reset_password(
          SET password_hash = $1, \
              password_reset_token = NULL, \
              password_reset_expires_at = NULL, \
+             totp_enabled = false, \
              updated_at = now() \
          WHERE id = $2",
     )
@@ -105,6 +110,14 @@ pub async fn reset_password(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // Supprime l'enrôlement MFA (secret TOTP chiffré) : le reset de mot de passe
+    // est le point de recovery en cas de perte de l'authenticator (cf #4772).
+    sqlx::query("DELETE FROM mfa_enrollment WHERE app_user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     // Révoque toutes les sessions actives (forcé logout sur tous les appareils).
     sqlx::query(
@@ -118,7 +131,7 @@ pub async fn reset_password(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    tracing::info!(user_id = %user_id, "password reset and sessions revoked");
+    tracing::info!(user_id = %user_id, "password reset, MFA disabled, and sessions revoked");
 
     Ok(StatusCode::NO_CONTENT)
 }
