@@ -32,6 +32,9 @@ class MockRescheduleAppointmentUseCase extends Mock
 class MockListBookableSlotsUseCase extends Mock
     implements ListBookableSlotsUseCase {}
 
+class MockListCabinetPractitionersUseCase extends Mock
+    implements ListCabinetPractitionersUseCase {}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -57,6 +60,7 @@ AgendaBloc _makeBloc({
   required MockConfirmAppointmentUseCase confirmAppointment,
   required MockRescheduleAppointmentUseCase rescheduleAppointment,
   required MockListBookableSlotsUseCase listSlots,
+  required MockListCabinetPractitionersUseCase listPractitioners,
 }) =>
     AgendaBloc(
       getAgenda: getAgenda,
@@ -64,6 +68,7 @@ AgendaBloc _makeBloc({
       confirmAppointment: confirmAppointment,
       rescheduleAppointment: rescheduleAppointment,
       listSlots: listSlots,
+      listPractitioners: listPractitioners,
     );
 
 Widget _wrap(AgendaBloc bloc) => MaterialApp(
@@ -128,6 +133,7 @@ void main() {
   late MockConfirmAppointmentUseCase mockConfirm;
   late MockRescheduleAppointmentUseCase mockReschedule;
   late MockListBookableSlotsUseCase mockListSlots;
+  late MockListCabinetPractitionersUseCase mockListPractitioners;
 
   setUp(() {
     mockGetAgenda = MockGetCabinetAgendaUseCase();
@@ -135,6 +141,9 @@ void main() {
     mockConfirm = MockConfirmAppointmentUseCase();
     mockReschedule = MockRescheduleAppointmentUseCase();
     mockListSlots = MockListBookableSlotsUseCase();
+    mockListPractitioners = MockListCabinetPractitionersUseCase();
+    when(() => mockListPractitioners())
+        .thenAnswer((_) async => const Right([]));
   });
 
   AgendaBloc makeBloc() => _makeBloc(
@@ -143,6 +152,7 @@ void main() {
         confirmAppointment: mockConfirm,
         rescheduleAppointment: mockReschedule,
         listSlots: mockListSlots,
+        listPractitioners: mockListPractitioners,
       );
 
   group('AgendaBloc', () {
@@ -391,6 +401,7 @@ void main() {
             confirmAppointment: mockConfirm,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
           ));
 
       // Viewport mobile 390x844 — repro exacte de l'issue (le nom s'affichait
@@ -473,6 +484,7 @@ void main() {
             confirmAppointment: mockConfirm,
             rescheduleAppointment: mockReschedule,
             listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
           ));
 
       await tester.pumpWidget(
@@ -500,6 +512,118 @@ void main() {
       expect(find.byKey(const Key('entry_f-1')), findsOneWidget);
       expect(find.byKey(const Key('entry_f-2')), findsOneWidget);
       expect(find.byKey(const Key('entry_f-3')), findsNothing);
+
+      await gi.reset();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // #4666 — nom du praticien sur l'agenda cabinet : résolu via le roster
+  // (ListCabinetPractitionersUseCase), pas seulement via `entry.practitionerName`
+  // (qui peut être vide pour un slot, cf. #4608).
+  // -------------------------------------------------------------------------
+  group('résolution du nom praticien via le roster (#4666)', () {
+    testWidgets(
+        'practitioner_id connu (roster) mais practitionerName vide sur '
+        'l\'entrée -> nom affiché sans séparateur pendant', (tester) async {
+      final entry = AgendaEntry(
+        id: 'r-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        // Nom vide sur l'entrée elle-même (ex : slot non enrichi) — seul le
+        // roster connaît le nom.
+        practitionerName: '',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientId: 'pat-1',
+        patientName: 'Marc Dubois',
+        motif: 'Contrôle',
+        isFree: false,
+      );
+
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockListPractitioners()).thenAnswer(
+        (_) async => const Right([
+          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Hugo Marin'),
+        ]),
+      );
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Dr Hugo Marin'), findsOneWidget);
+      // Pas de séparateur '·' pendant : le motif et le nom sont joints par
+      // ' · ', jamais un ' · ' en tête isolé.
+      expect(find.text('· Dr Hugo Marin'), findsNothing);
+
+      await gi.reset();
+    });
+
+    testWidgets(
+        'practitioner_id inconnu du roster -> aucun nom, pas de libellé '
+        'orphelin', (tester) async {
+      final entry = AgendaEntry(
+        id: 'r-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-inconnu',
+        practitionerName: '',
+        startsAt: DateTime(2026, 7, 7, 9, 0),
+        endsAt: DateTime(2026, 7, 7, 9, 30),
+        patientId: 'pat-1',
+        patientName: 'Marc Dubois',
+        motif: 'Contrôle',
+        isFree: false,
+      );
+
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([entry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockListPractitioners()).thenAnswer(
+        (_) async => const Right([
+          CabinetPractitioner(id: 'prac-1', displayName: 'Dr Hugo Marin'),
+        ]),
+      );
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      // Le motif reste visible, seul (pas de "· <motif>" ni "<motif> ·").
+      expect(find.text('Contrôle'), findsOneWidget);
+      expect(find.textContaining('Dr Hugo Marin'), findsNothing);
 
       await gi.reset();
     });

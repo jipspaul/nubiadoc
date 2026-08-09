@@ -124,9 +124,8 @@ fn validate_tooth_value(value: &Value) -> Result<(), AppError> {
     }
 
     if let Some(notes) = obj.get("notes") {
-        if notes.as_str().is_none() {
-            return Err(AppError::ValidationError);
-        }
+        let notes_str = notes.as_str().ok_or(AppError::ValidationError)?;
+        crate::text_validation::reject_nul_byte(notes_str)?;
     }
 
     let allowed_keys = obj

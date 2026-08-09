@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use nubia_api::hl7v2::listener::{self, Hl7v2ListenerStatus};
 use nubia_api::{
-    app_with_quote_signature_client, run_dispatch_loop, run_quote_relance_loop, AppState,
-    BrevoMailer, StubJobDispatcher, TwilioSmsSender, YousignClient,
+    app_with_quote_signature_client_and_signer, run_dispatch_loop, run_quote_relance_loop,
+    AppState, BrevoMailer, ScalewayStorageSigner, StorageSigner, StubJobDispatcher,
+    TwilioSmsSender, YousignClient,
 };
 use sqlx::PgPool;
 
@@ -94,11 +95,18 @@ async fn main() {
 /// modifier la signature de `build_router`/`app` (utilisée par de nombreux
 /// tests d'intégration existants).
 fn app_with_hl7v2_status(state: AppState, mllp_status: Hl7v2ListenerStatus) -> axum::Router {
-    // YousignClient en prod (#4064) ; StubQuoteSignatureClient reste utilisé
-    // par app(state)/les tests d'intégration qui construisent leur propre routeur.
-    app_with_quote_signature_client(state, std::sync::Arc::new(YousignClient::from_env()))
-        .route("/v1/interop/hl7v2/health", axum::routing::get(hl7v2_health))
-        .layer(axum::Extension(mllp_status))
+    // YousignClient en prod (#4064) ; ScalewayStorageSigner en prod (#4717 —
+    // remplace le StubStorageSigner câblé en dur qui générait des URL vers
+    // le domaine fantôme storage.example.com). StubQuoteSignatureClient/
+    // StubStorageSigner restent utilisés par app(state)/les tests
+    // d'intégration qui construisent leur propre routeur.
+    app_with_quote_signature_client_and_signer(
+        state,
+        std::sync::Arc::new(YousignClient::from_env()),
+        std::sync::Arc::new(ScalewayStorageSigner::from_env()) as std::sync::Arc<dyn StorageSigner>,
+    )
+    .route("/v1/interop/hl7v2/health", axum::routing::get(hl7v2_health))
+    .layer(axum::Extension(mllp_status))
 }
 
 async fn hl7v2_health(

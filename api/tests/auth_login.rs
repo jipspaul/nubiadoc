@@ -306,8 +306,8 @@ async fn login_pro_mfa_enabled_without_code_returns_401_mfa_required() {
     let hash = hash_password(password);
 
     sqlx::query(
-        "INSERT INTO app_user (email, password_hash, kind, totp_enabled, totp_secret) \
-         VALUES ($1, $2, 'pro', true, 'JBSWY3DPEHPK3PXP')",
+        "INSERT INTO app_user (email, password_hash, kind, totp_enabled) \
+         VALUES ($1, $2, 'pro', true)",
     )
     .bind(&email)
     .bind(&hash)

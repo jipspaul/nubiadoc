@@ -56,12 +56,16 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Compte MFA (TOTP actif) — EP7. kind='pro' : le challenge TOTP au login
 -- ne s'applique qu'aux comptes pro (api/src/auth/login.rs).
--- ⚠️ Le secret TOTP doit décoder en ≥16 octets (RFC 6238 ; `totp-rs` rejette
--- les secrets plus courts). 32 caractères base32 = 20 octets.
-INSERT INTO app_user (id, email, password_hash, kind, status, totp_secret, totp_enabled, first_name, last_name) VALUES
+-- Depuis #4653, le secret TOTP n'est plus stocké en clair sur `app_user` :
+-- ce seed insère un compte avec `totp_enabled = true` mais SANS enrôlement
+-- `mfa_enrollment` (le secret chiffré KMS ne peut pas être précalculé en
+-- SQL pur) — les flows Playwright qui ont besoin d'un login MFA bout-en-bout
+-- doivent passer par `/mfa/enroll` + `/mfa/verify` pour créer un vrai
+-- enrôlement chiffré.
+INSERT INTO app_user (id, email, password_hash, kind, status, totp_enabled, first_name, last_name) VALUES
   ('aee00000-0000-0000-0000-000000000001', 'patient.mfa@nubia.test',
    '$argon2id$v=19$m=19456,t=2,p=1$TblEa5Fu9Sp4xoK0NIeVMg$4p+yGjeHCuw1ciiKab85753f4YS8YUxh6ypBUNVNlqM',
-   'pro', 'active', 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', true, 'Mathilde', 'Mfa')
+   'pro', 'active', true, 'Mathilde', 'Mfa')
 ON CONFLICT (id) DO NOTHING;
 
 -- Compte reset mot de passe — EP7.

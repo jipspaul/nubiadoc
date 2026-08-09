@@ -101,7 +101,9 @@ SELECT col_type_is('app_user', 'email', 'citext', 'app_user.email citext');
 SELECT col_is_unique('app_user', 'email', 'app_user.email UNIQUE');
 SELECT has_column('app_user', 'password_hash', 'app_user.password_hash présent (nullable depuis 0021 — comptes invités)');
 SELECT col_not_null('app_user', 'kind', 'app_user.kind NOT NULL');
-SELECT has_column('app_user', 'totp_secret', 'app_user.totp_secret présent');
+-- app_user.totp_secret supprimée en 0226 (#4653) : le secret TOTP est
+-- désormais exclusivement chiffré dans mfa_enrollment.secret_ciphertext.
+SELECT hasnt_column('app_user', 'totp_secret', 'app_user.totp_secret supprimée (secret chiffré via mfa_enrollment)');
 SELECT col_not_null('app_user', 'totp_enabled', 'app_user.totp_enabled NOT NULL');
 SELECT has_column('app_user', 'password_reset_token', 'app_user.password_reset_token présent');
 SELECT has_column('app_user', 'password_reset_expires_at', 'app_user.password_reset_expires_at présent');

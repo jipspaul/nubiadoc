@@ -27,17 +27,16 @@ class CabinetStatsBloc extends Bloc<CabinetStatsEvent, CabinetStatsState>
     Emitter<CabinetStatsState> emit,
   ) async {
     emit(const CabinetStatsLoading());
-    final results = await (
-      _getActivityStats(),
-      _getBillingStats(),
-    ).wait;
+    final results = await (_getActivityStats(), _getBillingStats()).wait;
     final (activityResult, billingResult) = results;
 
-    activityResult.fold(
+    // stats/activity est réservé aux praticiens (RBAC #4592) : un 403 y est
+    // attendu pour le secrétariat et ne doit pas masquer les KPI de
+    // facturation (stats/billing), eux bien accessibles à ce rôle.
+    billingResult.fold(
       (failure) => safeEmit(CabinetStatsError(failure.message)),
-      (activity) => billingResult.fold(
-        (failure) => safeEmit(CabinetStatsError(failure.message)),
-        (billing) => safeEmit(CabinetStatsLoaded(activity, billing)),
+      (billing) => safeEmit(
+        CabinetStatsLoaded(activityResult.getOrElse(() => const []), billing),
       ),
     );
   }

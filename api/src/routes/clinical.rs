@@ -72,6 +72,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
                 .post(orthodontics::create_orthodontic_treatment),
         )
         .route(
+            "/v1/cabinet/orthodontics/:id",
+            patch(orthodontics::patch_orthodontic_treatment),
+        )
+        .route(
             "/v1/cabinet/orthodontics/:id/steps",
             post(orthodontics::add_orthodontic_step),
         )

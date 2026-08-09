@@ -7,6 +7,8 @@ use argon2::{
 use axum::extract::{ConnectInfo, Json, State};
 use axum::http::HeaderMap;
 use axum_client_ip::{SecureClientIp, SecureClientIpSource};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use core_crypto::LocalKeyManager;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Deserialize;
 use sqlx::Row;
@@ -19,7 +21,7 @@ use uuid::Uuid;
 
 use crate::AppState;
 
-use super::mfa_crypto::{decrypt_totp_secret, key_manager_from_env};
+use super::mfa_crypto::decrypt_totp_secret;
 use super::{AppError, LoginResponse, PatientClaims, ProClaims, ProRegisterClaims};
 
 const RATE_WINDOW: Duration = Duration::from_secs(300);
@@ -89,6 +91,22 @@ pub struct LoginBody {
     email: String,
     password: String,
     mfa_code: Option<String>,
+}
+
+/// Construit le [`LocalKeyManager`] (POC/dev) depuis `KMS_MASTER_KEY`
+/// (32 octets, base64) — même convention que `interop::patient` et
+/// `mfa_verify`. Échoue en `AppError::Internal` (jamais de fallback en
+/// clair) si `KMS_MASTER_KEY` est absente/mal formée.
+fn key_manager_from_env() -> Result<LocalKeyManager, AppError> {
+    let raw = std::env::var("KMS_MASTER_KEY").map_err(|_| AppError::Internal)?;
+    let decoded = STANDARD
+        .decode(raw.trim())
+        .map_err(|_| AppError::Internal)?;
+    let key: [u8; 32] = decoded.try_into().map_err(|_| AppError::Internal)?;
+    Ok(LocalKeyManager::new(
+        key,
+        std::env::var("KMS_KEY_VERSION").unwrap_or_else(|_| "v1".to_string()),
+    ))
 }
 
 /// `POST /v1/auth/login` — authentifie un patient ou un pro, émet access + refresh tokens.
@@ -187,31 +205,35 @@ pub async fn login(
         match &body.mfa_code {
             None => return Err(AppError::MfaRequired),
             Some(code) => {
+                // Le secret TOTP est chiffré au repos dans `mfa_enrollment`
+                // (migrations 0046/0047) — `app_user.totp_secret` n'est plus
+                // utilisé sur ce chemin (#4652). On relit l'enrôlement dans
+                // une transaction courte, GUC posé pour la RLS user-scoped.
                 let mut mfa_tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
                 sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
                     .bind(user_id.to_string())
                     .execute(&mut *mfa_tx)
                     .await
                     .map_err(|_| AppError::Internal)?;
-                let enrollment_row = sqlx::query(
+                let enrollment = sqlx::query(
                     "SELECT secret_ciphertext, secret_key_ref FROM mfa_enrollment \
-                     WHERE app_user_id = $1 AND method = 'totp' AND verified = true",
+                     WHERE app_user_id = $1 AND method = 'totp'",
                 )
                 .bind(user_id)
                 .fetch_optional(&mut *mfa_tx)
                 .await
                 .map_err(|_| AppError::Internal)?;
-                mfa_tx.commit().await.map_err(|_| AppError::Internal)?;
+                mfa_tx.rollback().await.map_err(|_| AppError::Internal)?;
 
-                let enrollment_row = enrollment_row.ok_or(AppError::Internal)?;
-                let secret_ciphertext: Vec<u8> = enrollment_row
+                let enrollment = enrollment.ok_or(AppError::Internal)?;
+                let secret_ciphertext: Vec<u8> = enrollment
                     .try_get("secret_ciphertext")
                     .map_err(|_| AppError::Internal)?;
-                let secret_key_ref: String = enrollment_row
+                let secret_key_ref: String = enrollment
                     .try_get("secret_key_ref")
                     .map_err(|_| AppError::Internal)?;
 
-                let key_manager = key_manager_from_env().map_err(|_| AppError::Internal)?;
+                let key_manager = key_manager_from_env()?;
                 let secret = decrypt_totp_secret(&secret_ciphertext, &secret_key_ref, &key_manager)
                     .await
                     .map_err(|_| AppError::Internal)?;

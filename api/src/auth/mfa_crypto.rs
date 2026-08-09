@@ -8,27 +8,10 @@
 //! `secret_key_ref`, sur le même pattern que `interop::patient` pour
 //! `patient_account.ins_ciphertext`.
 //!
-//! Câblé dans `mfa_verify.rs` (écriture) et `login.rs` (lecture) — cf. #4651.
+//! Câblé par `mfa_verify.rs` (persistance à l'enrôlement) et `login.rs`
+//! (déchiffrement à la vérification du code TOTP au login), cf. #4652.
 
-use core_crypto::{decrypt_column, encrypt_column, CryptoError, KeyManager, LocalKeyManager};
-
-/// Construit le [`KeyManager`] local (POC/dev) depuis `KMS_MASTER_KEY`
-/// (32 octets, base64) — même convention que `interop::patient::key_manager_from_env`.
-pub fn key_manager_from_env() -> Result<LocalKeyManager, CryptoError> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
-
-    let raw = std::env::var("KMS_MASTER_KEY").map_err(|_| CryptoError::MalformedCiphertext)?;
-    let decoded = STANDARD
-        .decode(raw.trim())
-        .map_err(|_| CryptoError::MalformedCiphertext)?;
-    let key: [u8; 32] = decoded
-        .try_into()
-        .map_err(|_| CryptoError::MalformedCiphertext)?;
-    Ok(LocalKeyManager::new(
-        key,
-        std::env::var("KMS_KEY_VERSION").unwrap_or_else(|_| "v1".to_string()),
-    ))
-}
+use core_crypto::{decrypt_column, encrypt_column, CryptoError, KeyManager};
 
 /// Contexte d'enveloppement des secrets MFA — `mfa_enrollment` est une
 /// entité plateforme (liée à `app_user`, pas à un `cabinet_id`, cf.
@@ -67,6 +50,7 @@ pub async fn decrypt_totp_secret(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core_crypto::LocalKeyManager;
 
     #[tokio::test]
     async fn round_trips_a_totp_secret_through_encrypt_then_decrypt() {

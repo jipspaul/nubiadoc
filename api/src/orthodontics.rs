@@ -1,6 +1,7 @@
 //! Handlers suivi orthodontique (#4135), sur `orthodontic_treatment`/
 //! `orthodontic_step` (migration 0189, #4134) :
 //! - `GET/POST /v1/cabinet/patients/:id/orthodontics`
+//! - `PATCH /v1/cabinet/orthodontics/:id`
 //! - `POST /v1/cabinet/orthodontics/:id/steps`
 //!
 //! Pattern JWT `ProPractitionerClaims` + `cabinet_id` du JWT, garde
@@ -313,6 +314,108 @@ pub struct AddOrthodonticStepResponse {
 }
 
 const VALID_STEP_KINDS: [&str; 3] = ["bague", "contention", "gouttiere"];
+
+// ── PATCH /v1/cabinet/orthodontics/:id ──────────────────────────────────────
+
+/// Transitions de statut autorisées — seule voie pour atteindre les
+/// statuts TERMINAUX `completed`/`discontinued` (#4730 : refusés à la
+/// création, #4366, la seule autre écriture de `status`). `planned` et
+/// `in_progress` peuvent tous deux mener à l'un ou l'autre statut terminal
+/// (arrêt anticipé possible sans passer par `in_progress`) ; aucune
+/// transition n'est autorisée hors d'un statut terminal une fois atteint.
+fn is_valid_treatment_transition(current: &str, target: &str) -> bool {
+    matches!(
+        (current, target),
+        ("planned", "in_progress")
+            | ("planned", "completed")
+            | ("planned", "discontinued")
+            | ("in_progress", "completed")
+            | ("in_progress", "discontinued")
+    )
+}
+
+/// Body de `PATCH /v1/cabinet/orthodontics/:id`.
+#[derive(Deserialize)]
+pub struct PatchOrthodonticTreatmentBody {
+    pub status: String,
+}
+
+/// Réponse de `PATCH /v1/cabinet/orthodontics/:id`.
+#[derive(Serialize)]
+pub struct PatchOrthodonticTreatmentResponse {
+    pub status: String,
+}
+
+/// `PATCH /v1/cabinet/orthodontics/:id` — transitionne le statut d'un
+/// traitement orthodontique, seule voie pour atteindre un statut terminal
+/// (`completed`/`discontinued`, migration 0189) une fois le traitement créé
+/// (#4730).
+///
+/// Traitement inexistant/hors tenant → 404. Garde relation-de-soin E.2.16.c
+/// §14. `status` absent de `VALID_TREATMENT_STATUSES` ou transition non
+/// autorisée (déjà terminal, ou cible == statut courant) →
+/// `409 invalid_status`, même pattern que
+/// `lab_work_orders::is_forward_transition`.
+pub async fn patch_orthodontic_treatment(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(treatment_id): Path<Uuid>,
+    Json(body): Json<PatchOrthodonticTreatmentBody>,
+) -> Result<Json<PatchOrthodonticTreatmentResponse>, AppError> {
+    if !VALID_TREATMENT_STATUSES.contains(&body.status.as_str()) {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "SELECT patient_id, status FROM orthodontic_treatment WHERE id = $1 AND cabinet_id = $2",
+    )
+    .bind(treatment_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+    let current_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+
+    ensure_care_relationship(&mut tx, patient_id, claims.cabinet_id, claims.sub).await?;
+
+    if !is_valid_treatment_transition(&current_status, &body.status) {
+        return Err(AppError::InvalidStatus);
+    }
+
+    sqlx::query("UPDATE orthodontic_treatment SET status = $1 WHERE id = $2 AND cabinet_id = $3")
+        .bind(&body.status)
+        .bind(treatment_id)
+        .bind(claims.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        treatment_id = %treatment_id,
+        from = %current_status,
+        to = %body.status,
+        "orthodontic treatment status updated"
+    );
+
+    Ok(Json(PatchOrthodonticTreatmentResponse {
+        status: body.status,
+    }))
+}
 
 /// `POST /v1/cabinet/orthodontics/:id/steps` — ajoute une étape à un
 /// traitement orthodontique.
