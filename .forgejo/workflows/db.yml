@@ -21,6 +21,8 @@ concurrency:
 jobs:
   db-test:
     runs-on: docker
+    # Garde-fou anti-hang (cf. front-test) : ne jamais geler le runner unique.
+    timeout-minutes: 20
     container:
       image: db-ci:stable
     env:
