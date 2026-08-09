@@ -4,18 +4,61 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/cabinet_appointments/cabinet_appointments_api.dart';
 import 'package:nubia_domain/src/entities/cabinet_appointment.dart';
 import 'package:nubia_domain/src/repositories/cabinet_appointments_repository.dart';
+import 'package:nubia_domain/src/repositories/cabinet_agenda_repository.dart';
 
 class CabinetAppointmentsRepositoryImpl
     implements CabinetAppointmentsRepository {
   final CabinetAppointmentsApi _api;
+  final CabinetAgendaRepository? _agendaRepository;
 
-  const CabinetAppointmentsRepositoryImpl(this._api);
+  const CabinetAppointmentsRepositoryImpl(this._api, [this._agendaRepository]);
+
+  /// #4664 : `GET /cabinet/appointments` n'émet jamais `practitioner_name`
+  /// (seulement `practitioner_id`). On résout le nom localement via le
+  /// roster des praticiens du cabinet (`CabinetAgendaRepository.
+  /// listPractitioners`, déjà utilisé pour l'agenda), indexé par id. `''`
+  /// si le `practitioner_id` ne correspond à aucun praticien connu.
+  Future<List<CabinetAppointment>> _resolvePractitionerNames(
+      List<CabinetAppointment> appointments) async {
+    final repository = _agendaRepository;
+    if (repository == null || appointments.isEmpty) {
+      return appointments;
+    }
+    final result = await repository.listPractitioners();
+    return result.fold(
+      (_) => appointments,
+      (practitioners) {
+        final namesById = {
+          for (final p in practitioners) p.id: p.displayName,
+        };
+        return appointments
+            .map((a) => a.practitionerName.isNotEmpty
+                ? a
+                : CabinetAppointment(
+                    id: a.id,
+                    cabinetId: a.cabinetId,
+                    patientId: a.patientId,
+                    patientName: a.patientName,
+                    practitionerId: a.practitionerId,
+                    practitionerName: namesById[a.practitionerId] ?? '',
+                    startsAt: a.startsAt,
+                    duration: a.duration,
+                    motif: a.motif,
+                    status: a.status,
+                    slotId: a.slotId,
+                  ))
+            .toList();
+      },
+    );
+  }
 
   @override
   Future<Either<Failure, List<CabinetAppointment>>> list({int page = 1}) async {
     try {
       final dtos = await _api.list(page: page);
-      return Right(dtos.map((d) => d.toDomain()).toList());
+      final appointments =
+          await _resolvePractitionerNames(dtos.map((d) => d.toDomain()).toList());
+      return Right(appointments);
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());

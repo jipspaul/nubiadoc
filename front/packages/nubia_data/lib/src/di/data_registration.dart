@@ -634,7 +634,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
       () => CabinetAgendaRepositoryImpl(gi()),
     )
     ..registerLazySingleton<CabinetAppointmentsRepository>(
-      () => CabinetAppointmentsRepositoryImpl(gi()),
+      () => CabinetAppointmentsRepositoryImpl(gi(), gi()),
     )
     ..registerLazySingleton<WaitingRoomRepository>(
       () => WaitingRoomRepositoryImpl(gi()),

@@ -43,10 +43,13 @@ class CabinetAppointmentDto {
       patientId: json['patient_id'] as String,
       patientName: json['patient_name'] as String? ?? '',
       practitionerId: json['practitioner_id'] as String,
-      // #4608 : `GET /cabinet/appointments` n'émet que `practitioner_name`
-      // (voir fix côté API) — repli `provider.display_name` conservé au cas
-      // où une réponse imbriquée serait un jour introduite (même pattern que
-      // le fix patient #3825).
+      // #4664 : `GET /cabinet/appointments` n'émet JAMAIS `practitioner_name`
+      // (seulement `practitioner_id`) — repli `provider.display_name` conservé
+      // au cas où une réponse imbriquée serait un jour introduite (même
+      // pattern que le fix patient #3825). La résolution effective par le
+      // roster du cabinet se fait ensuite dans
+      // `CabinetAppointmentsRepositoryImpl` (via `CabinetAgendaRepository.
+      // listPractitioners`), ce DTO reste une lecture fidèle du JSON.
       practitionerName: (json['practitioner_name'] as String?) ??
           ((json['provider'] as Map<String, dynamic>?)?['display_name']
               as String?) ??
