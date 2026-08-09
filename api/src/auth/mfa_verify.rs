@@ -62,10 +62,9 @@ pub async fn mfa_verify(
     }
 
     let key_manager = key_manager_from_env()?;
-    let (secret_ciphertext, secret_key_ref) =
-        encrypt_totp_secret(&body.totp_secret, &key_manager)
-            .await
-            .map_err(|_| AppError::Internal)?;
+    let (secret_ciphertext, secret_key_ref) = encrypt_totp_secret(&body.totp_secret, &key_manager)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
