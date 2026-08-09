@@ -25,6 +25,7 @@ CabinetAppointment _appointment({
   String id = 'rdv-1',
   String patientName = 'Jean Dupont',
   CabinetAppointmentStatus status = CabinetAppointmentStatus.confirmed,
+  String practitionerName = 'Dr Martin',
 }) =>
     CabinetAppointment(
       id: id,
@@ -32,7 +33,7 @@ CabinetAppointment _appointment({
       patientId: 'pat-1',
       patientName: patientName,
       practitionerId: 'prat-1',
-      practitionerName: 'Dr Martin',
+      practitionerName: practitionerName,
       startsAt: DateTime(2026, 7, 15, 9, 0),
       duration: const Duration(minutes: 30),
       motif: '',
@@ -345,6 +346,32 @@ void main() {
       expect(find.text('Jean Dupont'), findsOneWidget);
       expect(find.text('Marie Curie'), findsNothing);
       expect(find.text('Pierre Martin'), findsNothing);
+    });
+
+    testWidgets(
+        'affiche "<praticien> · <date>" quand practitionerName est renseigné',
+        (tester) async {
+      final appointments = [
+        _appointment(practitionerName: 'Dr Hugo Marin'),
+      ];
+      when(() => bloc.state).thenReturn(AppointmentsLoaded(appointments));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Dr Hugo Marin ·'), findsOneWidget);
+    });
+
+    testWidgets(
+        'affiche seulement la date, sans séparateur pendant, '
+        'quand practitionerName est vide', (tester) async {
+      final appointments = [
+        _appointment(practitionerName: ''),
+      ];
+      when(() => bloc.state).thenReturn(AppointmentsLoaded(appointments));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('·'), findsNothing);
     });
   });
 }
