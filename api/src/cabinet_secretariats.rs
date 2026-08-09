@@ -506,11 +506,12 @@ pub async fn provision_staff(
         // ailleurs viole cet index (23505) → 409 métier plutôt que 500 (#3746).
         sqlx::query(
             "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
-             VALUES ($1, $2, 'secretary', true) \
+             VALUES ($1, $2, $3, true) \
              ON CONFLICT (cabinet_id, user_id) DO NOTHING",
         )
         .bind(claims.cabinet_id)
         .bind(uid)
+        .bind(&body.role)
         .execute(&mut *tx)
         .await
         .map_err(|e| {
@@ -564,10 +565,11 @@ pub async fn provision_staff(
 
         sqlx::query(
             "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
-             VALUES ($1, $2, 'secretary', true)",
+             VALUES ($1, $2, $3, true)",
         )
         .bind(claims.cabinet_id)
         .bind(uid)
+        .bind(&body.role)
         .execute(&mut *tx)
         .await
         .map_err(|e| {
