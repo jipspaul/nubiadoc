@@ -532,6 +532,7 @@ async fn create_series_overlapping_provider_unavailability_returns_409_slot_take
     let db = owner_pool().await;
     let f = insert_fixture(&db, "unavailability").await;
     let provider_id = Uuid::new_v4();
+    let provider_user_id = Uuid::new_v4();
 
     {
         let mut tx = db.begin().await.unwrap();
@@ -541,12 +542,24 @@ async fn create_series_overlapping_provider_unavailability_returns_409_slot_take
             .await
             .unwrap();
         sqlx::query(
-            "INSERT INTO provider (id, practitioner_id, cabinet_id, display_name) \
-             VALUES ($1, $2, $3, 'Dr Series Unavailability')",
+            "INSERT INTO app_user (id, email, password_hash, kind) \
+             VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(provider_user_id)
+        .bind(format!(
+            "appt-series-unavailability-provider+{provider_user_id}@nubia.test"
+        ))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, display_name) \
+             VALUES ($1, $2, $3, $4, 'Dr Series Unavailability')",
         )
         .bind(provider_id)
         .bind(f.practitioner_id)
         .bind(f.cabinet_id)
+        .bind(provider_user_id)
         .execute(&mut *tx)
         .await
         .unwrap();
@@ -629,6 +642,11 @@ async fn create_series_overlapping_provider_unavailability_returns_409_slot_take
             .ok();
         sqlx::query("DELETE FROM provider WHERE id = $1")
             .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM app_user WHERE id = $1")
+            .bind(provider_user_id)
             .execute(&mut *tx)
             .await
             .ok();
