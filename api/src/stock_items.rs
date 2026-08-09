@@ -1,7 +1,7 @@
 //! Handlers inventaire cabinet (#4144), sur `stock_item`/`stock_movement`
 //! (migration 0192, #4143) :
 //! - `GET/POST /v1/cabinet/stock-items`
-//! - `POST /v1/cabinet/stock-items/:id/movements`
+//! - `GET/POST /v1/cabinet/stock-items/:id/movements`
 //!
 //! `ProSecretaryPlusClaims` (secretary/practitioner/admin/manager) : la
 //! gestion d'inventaire est une tâche opérationnelle du cabinet, pas une
@@ -320,4 +320,82 @@ pub async fn add_stock_movement(
             quantity_on_hand,
         }),
     ))
+}
+
+// ── GET /v1/cabinet/stock-items/:id/movements ────────────────────────────────
+
+/// Un mouvement de stock (réception, consommation, ajustement, péremption).
+#[derive(Serialize)]
+pub struct StockMovementDto {
+    pub id: Uuid,
+    pub delta: i32,
+    pub reason: String,
+    pub expiry_date: Option<chrono::NaiveDate>,
+    pub consultation_act_id: Option<Uuid>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// `GET /v1/cabinet/stock-items/:id/movements` — liste les mouvements d'un
+/// article, du plus récent au plus ancien (#4832 : le ledger était
+/// write-only, aucun endpoint ne relisait `expiry_date`/`consultation_act_id`
+/// — même défaut déjà corrigé pour le registre de stérilisation, cf.
+/// `sterilization.rs` `list_sterilized_pouches`, #4354).
+///
+/// Article inexistant/hors tenant → 404.
+pub async fn list_stock_movements(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(item_id): Path<Uuid>,
+) -> Result<Json<Vec<StockMovementDto>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let item_exists = sqlx::query("SELECT 1 FROM stock_item WHERE id = $1 AND cabinet_id = $2")
+        .bind(item_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    if item_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let rows = sqlx::query(
+        "SELECT id, delta, reason, expiry_date, consultation_act_id, created_at \
+         FROM stock_movement \
+         WHERE stock_item_id = $1 AND cabinet_id = $2 \
+         ORDER BY created_at DESC",
+    )
+    .bind(item_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let movements = rows
+        .into_iter()
+        .map(|row| {
+            Ok(StockMovementDto {
+                id: row.try_get("id").map_err(|_| AppError::Internal)?,
+                delta: row.try_get("delta").map_err(|_| AppError::Internal)?,
+                reason: row.try_get("reason").map_err(|_| AppError::Internal)?,
+                expiry_date: row
+                    .try_get("expiry_date")
+                    .map_err(|_| AppError::Internal)?,
+                consultation_act_id: row
+                    .try_get("consultation_act_id")
+                    .map_err(|_| AppError::Internal)?,
+                created_at: row.try_get("created_at").map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(movements))
 }
