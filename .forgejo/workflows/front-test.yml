@@ -28,6 +28,10 @@ concurrency:
 jobs:
   front-test:
     runs-on: docker
+    # Un job hung (serveur d'analyse Dart wedgé, RAM #19) ne crashe PAS : les
+    # retry-loops ne l'attrapent pas et il gèle l'unique runner (capacity:1)
+    # → toute la CI bloquée. Le timeout force l'échec (~15min nominal + marge).
+    timeout-minutes: 25
     container:
       image: flutter-ci:stable
     steps:
