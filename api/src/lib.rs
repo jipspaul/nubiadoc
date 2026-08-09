@@ -22,6 +22,7 @@ pub use realtime::WsHub;
 pub use reminder_dispatch::{
     dispatch_pending_reminders, run_dispatch_loop, ReminderDispatchError, ReminderDispatchSummary,
 };
+pub use scaleway_storage_signer::ScalewayStorageSigner;
 pub use twilio_sms::TwilioSmsSender;
 pub use yousign_client::YousignClient;
 
@@ -108,6 +109,7 @@ mod reminder_dispatch;
 mod reminders;
 mod reviews;
 mod routes;
+mod scaleway_storage_signer;
 mod scheduling;
 mod sterilization;
 mod stock_items;
@@ -436,6 +438,26 @@ pub fn app_with_quote_signature_client(
         state,
         Arc::new(StubJobDispatcher),
         Arc::new(StubStorageSigner),
+        Arc::new(WsHub::new()),
+        quote_signature_client,
+        Arc::new(StubAlmaClient),
+    )
+}
+
+/// Variante de production : combine un `QuoteSignatureClient` réel (Yousign,
+/// #4064) et un `StorageSigner` réel (Scaleway, #4717) — utilisée par
+/// `main.rs`. `app_with_quote_signature_client` seul câblait `StubStorageSigner`
+/// en dur, ce qui rendait tous les exports/téléchargements non-fonctionnels
+/// en production (URL vers `storage.example.com`, domaine fantôme).
+pub fn app_for_production(
+    state: AppState,
+    quote_signature_client: Arc<dyn QuoteSignatureClient>,
+    signer: Arc<dyn StorageSigner>,
+) -> Router {
+    build_router(
+        state,
+        Arc::new(StubJobDispatcher),
+        signer,
         Arc::new(WsHub::new()),
         quote_signature_client,
         Arc::new(StubAlmaClient),
