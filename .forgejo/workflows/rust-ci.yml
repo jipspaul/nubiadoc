@@ -104,6 +104,11 @@ jobs:
       DATABASE_URL: postgres://nubia_owner@localhost:5432/nubia
       APP_DATABASE_URL: postgres://nubia_app@localhost:5432/nubia
       SEED_DATABASE_URL: postgres://nubia_seed@localhost:5432/nubia
+      # Clé KMS (POC/dev, LocalKeyManager) requise par le chiffrement du secret
+      # TOTP en base (#4652 : mfa_enrollment.secret_ciphertext) et par
+      # interop::patient. Valeur fixe dédiée à la CI, sans lien avec un secret
+      # de prod — 32 octets base64 arbitraires.
+      KMS_MASTER_KEY: "OD68321jvf9GBPBsQV2I8Gu9WSnF0Rd4yboac+krXjE="
     steps:
       - uses: actions/checkout@v4
       - name: Provisionne Postgres + PostGIS inline
