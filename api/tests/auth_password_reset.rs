@@ -89,6 +89,82 @@ async fn reset_valid_token_returns_204_and_updates_password() {
 }
 
 #[tokio::test]
+async fn reset_valid_token_disables_mfa_and_removes_enrollment() {
+    let Some(state) = test_state().await else {
+        return;
+    };
+    let Some(owner_db) = owner_pool().await else {
+        return;
+    };
+    let email = format!("reset_mfa_{}@test.local", Uuid::new_v4());
+    let token = Uuid::new_v4().to_string();
+
+    let user_id: Uuid = sqlx::query(
+        "INSERT INTO app_user (email, password_hash, kind, totp_enabled, \
+         password_reset_token, password_reset_expires_at) \
+         VALUES ($1, 'placeholder', 'pro', true, \
+                 encode(digest($2, 'sha256'), 'hex'), now() + interval '1 hour') \
+         RETURNING id",
+    )
+    .bind(&email)
+    .bind(&token)
+    .fetch_one(&owner_db)
+    .await
+    .expect("insert test user")
+    .try_get("id")
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO mfa_enrollment (app_user_id, secret_ciphertext, secret_key_ref, verified) \
+         VALUES ($1, '\\x00'::bytea, 'test-key', true)",
+    )
+    .bind(user_id)
+    .execute(&owner_db)
+    .await
+    .expect("insert mfa enrollment");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/password/reset")
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"token":"{}","new_password":"NewPass1"}}"#,
+                    token
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let row = sqlx::query("SELECT totp_enabled FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&owner_db)
+        .await
+        .expect("fetch user after reset");
+    let totp_enabled: bool = row.try_get("totp_enabled").unwrap();
+    assert!(!totp_enabled, "totp_enabled must be false after reset");
+
+    let count: i64 = sqlx::query("SELECT count(*) AS c FROM mfa_enrollment WHERE app_user_id = $1")
+        .bind(user_id)
+        .fetch_one(&owner_db)
+        .await
+        .unwrap()
+        .try_get("c")
+        .unwrap();
+    assert_eq!(count, 0, "mfa_enrollment must be removed after reset");
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&owner_db)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn reset_expired_token_returns_410_link_expired() {
     let Some(state) = test_state().await else {
         return;
