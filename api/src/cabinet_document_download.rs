@@ -164,11 +164,12 @@ pub async fn download_cabinet_patient_document(
     let category: String = row.try_get("category").map_err(|_| AppError::Internal)?;
 
     // §14 : un non-praticien ne peut télécharger qu'une catégorie administrative.
-    // NotFound (et non Forbidden) pour rester indistinct de l'inexistence et
-    // cohérent avec list_patient_documents qui masque déjà le clinique
-    // (anti-énumération, cf. issue #4757).
+    // Forbidden ici (et non NotFound) : à ce stade l'existence du document est
+    // déjà établie côté R10 (secrétaire in-scope) — masquer via 404 romprait le
+    // contrat attendu (§14) sans bénéfice anti-énumération, la garde R10
+    // ci-dessus gérant déjà le cas hors-scope en 404 (cf. issue #4757).
     if !is_practitioner && !NON_CLINICAL_CATEGORIES.contains(&category.as_str()) {
-        return Err(AppError::NotFound);
+        return Err(AppError::Forbidden);
     }
 
     let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
