@@ -4587,6 +4587,14 @@ pub async fn pro_verification(
         return Err(AppError::ValidationError);
     }
 
+    // Validation de format réglementaire (norme ADELI/RPPS française) : RPPS = 11
+    // chiffres, ADELI = 9 chiffres. Rejette avant toute insertion `pending`.
+    let expected_len = if body.id_type == "rpps" { 11 } else { 9 };
+    if body.identifier.len() != expected_len || !body.identifier.chars().all(|c| c.is_ascii_digit())
+    {
+        return Err(AppError::ValidationError);
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Pose le contexte tenant (SET LOCAL) pour que les policies RLS provider s'appliquent.
