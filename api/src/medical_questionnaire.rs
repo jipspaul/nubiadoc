@@ -74,12 +74,36 @@ pub struct PatchMedicalQuestionnaireBody {
 
 /// `payload` : objet libre (questionnaire libre, aucun vocabulaire fermé
 /// n'est demandé par l'issue) — seule contrainte : un objet, pas un
-/// scalaire/tableau (même garde minimale que `periodontal_chart`).
+/// scalaire/tableau (même garde minimale que `periodontal_chart`). On
+/// rejette aussi récursivement tout octet NUL dans les chaînes du JSON :
+/// Postgres refuse `\u0000` dans un `jsonb` (limitation native du type
+/// `text` sous-jacent) et l'erreur SQL correspondante tombait sinon dans
+/// un `map_err(|_| AppError::Internal)` générique (500 au lieu de 422).
 fn validate_payload(value: &Value) -> Result<(), AppError> {
     if !value.is_object() {
         return Err(AppError::ValidationError);
     }
-    Ok(())
+    reject_nul_byte_recursive(value)
+}
+
+fn reject_nul_byte_recursive(value: &Value) -> Result<(), AppError> {
+    match value {
+        Value::String(s) => crate::text_validation::reject_nul_byte(s),
+        Value::Array(items) => {
+            for item in items {
+                reject_nul_byte_recursive(item)?;
+            }
+            Ok(())
+        }
+        Value::Object(map) => {
+            for (key, val) in map {
+                crate::text_validation::reject_nul_byte(key)?;
+                reject_nul_byte_recursive(val)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }
 
 fn row_to_response(row: sqlx::postgres::PgRow) -> Result<MedicalQuestionnaireResponse, AppError> {
