@@ -219,6 +219,10 @@ pub(crate) enum AppError {
     /// dans ce cabinet (index unique `(cabinet_id, reference)`, migration
     /// 0192) — même choix que `StepNumberTaken`/`PouchCodeAlreadyUsed`.
     StockReferenceAlreadyUsed,
+    /// `POST /v1/cabinet/ccam-stock-mappings` (#4798) : ce couple
+    /// `(cabinet_id, ccam_code, stock_item_id)` a déjà un mapping (index
+    /// unique, migration 0192) — même choix que `StockReferenceAlreadyUsed`.
+    StockMappingAlreadyExists,
     /// `POST /v1/cabinet/consultations/:id/acts` (#4411) : un acte strictement
     /// identique (même `ccam_code`/`tooth`/`amount_cents`) est déjà présent
     /// sur cette séance — protège contre un double-submit/retry réseau qui
@@ -483,6 +487,11 @@ impl IntoResponse for AppError {
             AppError::StockReferenceAlreadyUsed => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "stock_reference_already_used"})),
+            )
+                .into_response(),
+            AppError::StockMappingAlreadyExists => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "stock_mapping_already_exists"})),
             )
                 .into_response(),
             AppError::DuplicateAct => (
