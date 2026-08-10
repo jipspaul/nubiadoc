@@ -38,4 +38,8 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/cabinet/secretariats/:id/staff",
             axum::routing::post(cabinet_secretariats::provision_staff),
         )
+        .route(
+            "/v1/cabinet/membership/:user_id/permissions",
+            axum::routing::patch(cabinet_secretariats::patch_membership_permissions),
+        )
 }

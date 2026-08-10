@@ -699,6 +699,87 @@ pub async fn provision_staff(
     ))
 }
 
+/// Corps de `PATCH /v1/cabinet/membership/:user_id/permissions`.
+#[derive(Deserialize)]
+pub struct PatchMembershipPermissionsBody {
+    /// `Some(false)` retire l'accès facturation (#4081) ; `Some(true)` ou
+    /// absence de clé revient au comportement par défaut (autorisé par le
+    /// rôle grossier, cf. `permissions.rs::membership_allows`).
+    pub billing: Option<bool>,
+}
+
+/// Réponse de `PATCH /v1/cabinet/membership/:user_id/permissions`.
+#[derive(Serialize)]
+pub struct MembershipPermissionsResponse {
+    pub user_id: Uuid,
+    pub permissions: serde_json::Value,
+}
+
+/// `PATCH /v1/cabinet/membership/:user_id/permissions`
+///
+/// Seul point d'écriture de `cabinet_membership.permissions` (#4081) : sans
+/// cette route, la colonne restait figée à sa valeur par défaut `'{}'` pour
+/// tout membership (`provision_staff` ne l'écrit jamais), rendant le
+/// refus d'accès facturation structurellement inatteignable en production
+/// malgré l'extracteur `ProBillingClaims` qui le lit et le fait respecter.
+///
+/// Rôles `admin` ou `manager` requis. Membre absent ou inactif → `404`.
+/// Merge la clé `billing` dans le jsonb existant (`||`), sans écraser
+/// d'éventuelles autres clés futures (`patients`, `messaging`, ...).
+pub async fn patch_membership_permissions(
+    State(state): State<AppState>,
+    claims: ProAdminOrManagerClaims,
+    Path(target_user_id): Path<Uuid>,
+    Json(body): Json<PatchMembershipPermissionsBody>,
+) -> Result<Json<MembershipPermissionsResponse>, AppError> {
+    let Some(billing) = body.billing else {
+        return Err(AppError::ValidationError);
+    };
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE cabinet_membership \
+         SET permissions = permissions || jsonb_build_object('billing', $3::boolean) \
+         WHERE cabinet_id = $1 AND user_id = $2 AND active = true \
+         RETURNING permissions",
+    )
+    .bind(claims.cabinet_id)
+    .bind(target_user_id)
+    .bind(billing)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        return Err(AppError::NotFound);
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let permissions: serde_json::Value =
+        row.try_get("permissions").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        actor_id = %claims.sub,
+        user_id = %target_user_id,
+        billing,
+        "membership permissions updated"
+    );
+
+    Ok(Json(MembershipPermissionsResponse {
+        user_id: target_user_id,
+        permissions,
+    }))
+}
+
 fn is_unique_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
