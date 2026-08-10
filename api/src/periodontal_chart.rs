@@ -59,6 +59,7 @@ fn validate_object(value: &Value) -> Result<(), AppError> {
     if !value.is_object() {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte_in_json(value)?;
     Ok(())
 }
 

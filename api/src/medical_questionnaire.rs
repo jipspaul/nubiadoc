@@ -74,11 +74,14 @@ pub struct PatchMedicalQuestionnaireBody {
 
 /// `payload` : objet libre (questionnaire libre, aucun vocabulaire fermé
 /// n'est demandé par l'issue) — seule contrainte : un objet, pas un
-/// scalaire/tableau (même garde minimale que `periodontal_chart`).
+/// scalaire/tableau (même garde minimale que `periodontal_chart`), et
+/// aucune chaîne imbriquée ne contient d'octet NUL (Postgres jsonb le
+/// refuse nativement, sinon 500 masqué en écriture, #4809).
 fn validate_payload(value: &Value) -> Result<(), AppError> {
     if !value.is_object() {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte_in_json(value)?;
     Ok(())
 }
 

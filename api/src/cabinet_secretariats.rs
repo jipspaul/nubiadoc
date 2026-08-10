@@ -5,6 +5,7 @@
 //! `POST /v1/cabinet/secretariats`                           → créer (admin)
 //! `PATCH  /v1/cabinet/secretariats/:id`                     → renommer (admin)
 //! `DELETE /v1/cabinet/secretariats/:id`                     → supprimer (admin)
+//! `GET    /v1/cabinet/secretariats/:id/members`             → lister membres actifs
 //! `POST   /v1/cabinet/secretariats/:id/members`             → ajouter membre (admin)
 //! `DELETE /v1/cabinet/secretariats/:id/members/:user_id`    → retirer membre (admin)
 //! `POST   /v1/cabinet/secretariats/:id/staff`               → provisionner secrétaire (admin)
@@ -57,6 +58,85 @@ pub struct SecretariatMemberItem {
 pub struct AddSecretariatMemberBody {
     pub user_id: Uuid,
     pub role: String,
+}
+
+/// Un membre actif tel que retourné par `GET /v1/cabinet/secretariats/:id/members`.
+#[derive(Serialize)]
+pub struct SecretariatMemberListItem {
+    pub user_id: Uuid,
+    pub role: String,
+    pub active: bool,
+    pub created_at: String,
+}
+
+/// `GET /v1/cabinet/secretariats/:id/members`
+///
+/// Liste les membres actifs d'un secrétariat. Accessible à tous les membres pro du cabinet.
+/// Secrétariat absent ou hors cabinet → `404`.
+pub async fn list_secretariat_members(
+    State(state): State<AppState>,
+    claims: ProMemberClaims,
+    Path(secretariat_id): Path<Uuid>,
+) -> Result<Json<Vec<SecretariatMemberListItem>>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Vérifie que le secrétariat appartient au cabinet courant.
+    let sec_exists = sqlx::query("SELECT 1 FROM secretariat WHERE id = $1 AND cabinet_id = $2")
+        .bind(secretariat_id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    if sec_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    let rows = sqlx::query(
+        "SELECT user_id, role, active, created_at \
+         FROM secretariat_membership \
+         WHERE secretariat_id = $1 AND cabinet_id = $2 AND active = true \
+         ORDER BY created_at ASC",
+    )
+    .bind(secretariat_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let items = rows
+        .into_iter()
+        .map(|row| {
+            let user_id: Uuid = row.try_get("user_id").map_err(|_| AppError::Internal)?;
+            let role: String = row.try_get("role").map_err(|_| AppError::Internal)?;
+            let active: bool = row.try_get("active").map_err(|_| AppError::Internal)?;
+            let created_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("created_at").map_err(|_| AppError::Internal)?;
+            Ok(SecretariatMemberListItem {
+                user_id,
+                role,
+                active,
+                created_at: created_at.to_rfc3339(),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        secretariat_id = %secretariat_id,
+        count = items.len(),
+        "secretariat members listed"
+    );
+
+    Ok(Json(items))
 }
 
 /// `GET /v1/cabinet/secretariats`
@@ -506,11 +586,12 @@ pub async fn provision_staff(
         // ailleurs viole cet index (23505) → 409 métier plutôt que 500 (#3746).
         sqlx::query(
             "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
-             VALUES ($1, $2, 'secretary', true) \
+             VALUES ($1, $2, $3, true) \
              ON CONFLICT (cabinet_id, user_id) DO NOTHING",
         )
         .bind(claims.cabinet_id)
         .bind(uid)
+        .bind(&body.role)
         .execute(&mut *tx)
         .await
         .map_err(|e| {
@@ -564,10 +645,11 @@ pub async fn provision_staff(
 
         sqlx::query(
             "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
-             VALUES ($1, $2, 'secretary', true)",
+             VALUES ($1, $2, $3, true)",
         )
         .bind(claims.cabinet_id)
         .bind(uid)
+        .bind(&body.role)
         .execute(&mut *tx)
         .await
         .map_err(|e| {
@@ -615,6 +697,87 @@ pub async fn provision_staff(
             activation_token,
         }),
     ))
+}
+
+/// Corps de `PATCH /v1/cabinet/membership/:user_id/permissions`.
+#[derive(Deserialize)]
+pub struct PatchMembershipPermissionsBody {
+    /// `Some(false)` retire l'accès facturation (#4081) ; `Some(true)` ou
+    /// absence de clé revient au comportement par défaut (autorisé par le
+    /// rôle grossier, cf. `permissions.rs::membership_allows`).
+    pub billing: Option<bool>,
+}
+
+/// Réponse de `PATCH /v1/cabinet/membership/:user_id/permissions`.
+#[derive(Serialize)]
+pub struct MembershipPermissionsResponse {
+    pub user_id: Uuid,
+    pub permissions: serde_json::Value,
+}
+
+/// `PATCH /v1/cabinet/membership/:user_id/permissions`
+///
+/// Seul point d'écriture de `cabinet_membership.permissions` (#4081) : sans
+/// cette route, la colonne restait figée à sa valeur par défaut `'{}'` pour
+/// tout membership (`provision_staff` ne l'écrit jamais), rendant le
+/// refus d'accès facturation structurellement inatteignable en production
+/// malgré l'extracteur `ProBillingClaims` qui le lit et le fait respecter.
+///
+/// Rôles `admin` ou `manager` requis. Membre absent ou inactif → `404`.
+/// Merge la clé `billing` dans le jsonb existant (`||`), sans écraser
+/// d'éventuelles autres clés futures (`patients`, `messaging`, ...).
+pub async fn patch_membership_permissions(
+    State(state): State<AppState>,
+    claims: ProAdminOrManagerClaims,
+    Path(target_user_id): Path<Uuid>,
+    Json(body): Json<PatchMembershipPermissionsBody>,
+) -> Result<Json<MembershipPermissionsResponse>, AppError> {
+    let Some(billing) = body.billing else {
+        return Err(AppError::ValidationError);
+    };
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE cabinet_membership \
+         SET permissions = permissions || jsonb_build_object('billing', $3::boolean) \
+         WHERE cabinet_id = $1 AND user_id = $2 AND active = true \
+         RETURNING permissions",
+    )
+    .bind(claims.cabinet_id)
+    .bind(target_user_id)
+    .bind(billing)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let Some(row) = row else {
+        return Err(AppError::NotFound);
+    };
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let permissions: serde_json::Value =
+        row.try_get("permissions").map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        actor_id = %claims.sub,
+        user_id = %target_user_id,
+        billing,
+        "membership permissions updated"
+    );
+
+    Ok(Json(MembershipPermissionsResponse {
+        user_id: target_user_id,
+        permissions,
+    }))
 }
 
 fn is_unique_violation(e: &sqlx::Error) -> bool {

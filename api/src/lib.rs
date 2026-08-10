@@ -22,6 +22,7 @@ pub use realtime::WsHub;
 pub use reminder_dispatch::{
     dispatch_pending_reminders, run_dispatch_loop, ReminderDispatchError, ReminderDispatchSummary,
 };
+pub use scaleway_storage_signer::ScalewayStorageSigner;
 pub use twilio_sms::TwilioSmsSender;
 pub use yousign_client::YousignClient;
 
@@ -56,6 +57,7 @@ mod cabinet_secretariats;
 mod cabinet_stats;
 mod cabinet_team_messages;
 mod ccam_acts;
+mod ccam_stock_mappings;
 mod clinical;
 mod consultation_act_create;
 mod consultation_act_stock;
@@ -108,6 +110,7 @@ mod reminder_dispatch;
 mod reminders;
 mod reviews;
 mod routes;
+mod scaleway_storage_signer;
 mod scheduling;
 mod sterilization;
 mod stock_items;
@@ -436,6 +439,26 @@ pub fn app_with_quote_signature_client(
         state,
         Arc::new(StubJobDispatcher),
         Arc::new(StubStorageSigner),
+        Arc::new(WsHub::new()),
+        quote_signature_client,
+        Arc::new(StubAlmaClient),
+    )
+}
+
+/// Variante pour la production : `QuoteSignatureClient` **et** `StorageSigner`
+/// personnalisés (#4717 — `StubStorageSigner` câblé en dur en production
+/// générait des URL vers `storage.example.com`, un domaine fantôme jamais
+/// résolu en DNS public, rendant tout export/téléchargement de document
+/// non-fonctionnel pour l'utilisateur final).
+pub fn app_with_quote_signature_client_and_signer(
+    state: AppState,
+    quote_signature_client: Arc<dyn QuoteSignatureClient>,
+    signer: Arc<dyn StorageSigner>,
+) -> Router {
+    build_router(
+        state,
+        Arc::new(StubJobDispatcher),
+        signer,
         Arc::new(WsHub::new()),
         quote_signature_client,
         Arc::new(StubAlmaClient),

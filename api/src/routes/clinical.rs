@@ -60,7 +60,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route(
             "/v1/cabinet/patients/:id/implants",
-            post(implant_passport::create_implant),
+            get(implant_passport::list_cabinet_implants).post(implant_passport::create_implant),
         )
         .route(
             "/v1/cabinet/patients/:id/prescriptions",
@@ -70,6 +70,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/cabinet/patients/:id/orthodontics",
             get(orthodontics::list_orthodontic_treatments)
                 .post(orthodontics::create_orthodontic_treatment),
+        )
+        .route(
+            "/v1/cabinet/orthodontics/:id",
+            patch(orthodontics::patch_orthodontic_treatment),
         )
         .route(
             "/v1/cabinet/orthodontics/:id/steps",

@@ -9,6 +9,13 @@ class PrescriptionApi {
   PrescriptionApi(ApiClient client) : _dio = client.dio;
 
   /// POST /v1/cabinet/prescriptions
+  ///
+  /// La route ne renvoie QUE `{prescription_id}` (pas l'ordonnance complète) —
+  /// parser cette réponse comme un [PrescriptionDto] jetait un TypeError
+  /// (`json['id']` null → cast String) alors que la création AVAIT réussi côté
+  /// serveur, d'où le « ça ne fonctionne pas » vu à l'usage. On lit l'id puis on
+  /// re-GET l'objet complet via l'endpoint canonique (même pattern que
+  /// apply-template, cf. [getPrescription]).
   Future<PrescriptionDto> createPrescription({
     required String patientId,
     required List<PrescriptionItem> items,
@@ -22,27 +29,35 @@ class PrescriptionApi {
             .toList(),
       },
     );
-    return PrescriptionDto.fromJson(response.data!);
+    final prescriptionId = response.data!['prescription_id'] as String;
+    return getPrescription(prescriptionId);
   }
 
   /// POST /v1/cabinet/prescriptions/{id}/sign
+  ///
+  /// La route ne renvoie QUE `{signed_at, document_id}` — même mismatch que la
+  /// création. On re-GET l'objet complet (statut passé à `signed`).
   Future<PrescriptionDto> signPrescription(String id) async {
-    final response = await _dio.post<Map<String, dynamic>>(
+    await _dio.post<Map<String, dynamic>>(
       '/cabinet/prescriptions/$id/sign',
     );
-    return PrescriptionDto.fromJson(response.data!);
+    return getPrescription(id);
   }
 
   /// POST /v1/cabinet/prescriptions/{id}/send
+  ///
+  /// La route renvoie l'`OrderDto` de la commande pharmacie créée, PAS
+  /// l'ordonnance — on re-GET l'ordonnance (statut passé à `sent`) pour rendre
+  /// un [PrescriptionDto] valide.
   Future<PrescriptionDto> sendToPharmacy({
     required String prescriptionId,
     required String pharmacyId,
   }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
+    await _dio.post<Map<String, dynamic>>(
       '/cabinet/prescriptions/$prescriptionId/send',
       data: {'pharmacy_id': pharmacyId},
     );
-    return PrescriptionDto.fromJson(response.data!);
+    return getPrescription(prescriptionId);
   }
 
   /// GET /v1/cabinet/prescriptions/{id} — utilisé pour re-fetch l'ordonnance

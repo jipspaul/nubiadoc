@@ -42,9 +42,11 @@ pub struct PatientAlertsResponse {
 ///
 /// Facture impayée échue : au moins un devis `signed` du patient dont
 /// `signed_at` a plus de [`OVERDUE_INVOICE_DELAY_DAYS`] jours ET dont le
-/// solde patient (même formule que `patient_detail::balance_due_cents`) est
-/// encore positif. Document manquant : aucune `document.category =
-/// 'carte_mutuelle'` non supprimée pour ce patient.
+/// solde patient — part patient nette des devis signés (`quote_item.unit_amount
+/// - amo_part - amc_part`, même formule que `patient_share_cents` exposée par
+/// `GET /cabinet/quotes/:id`, #4794), pas le montant brut du devis — moins les
+/// paiements enregistrés, est encore positif. Document manquant : aucune
+/// `document.category = 'carte_mutuelle'` non supprimée pour ce patient.
 pub async fn get_patient_alerts(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -76,9 +78,12 @@ pub async fn get_patient_alerts(
     let overdue_row = sqlx::query(
         "SELECT \
            (( \
-             COALESCE((SELECT SUM(total_amount) FROM quote \
-                       WHERE patient_id = $1 AND cabinet_id = $2 \
-                         AND status = 'signed' AND deleted_at IS NULL), 0) \
+             COALESCE((SELECT SUM(qi.qty * qi.unit_amount \
+                               - COALESCE(qi.amo_part, 0) - COALESCE(qi.amc_part, 0)) \
+                       FROM quote_item qi \
+                       JOIN quote q ON q.id = qi.quote_id \
+                       WHERE q.patient_id = $1 AND q.cabinet_id = $2 \
+                         AND q.status = 'signed' AND q.deleted_at IS NULL), 0) \
              - \
              COALESCE((SELECT SUM(amount) FROM payment \
                        WHERE patient_id = $1 AND cabinet_id = $2 \
