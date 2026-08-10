@@ -462,7 +462,7 @@ async fn patch_medical_questionnaire_nul_byte_in_payload_returns_422() {
                 .body(Body::from(
                     json!({
                         "cabinet_id": f.cabinet_id,
-                        "payload": {"note": "abc\u0000def"}
+                        "payload": {"note": "abc\u{0}def"}
                     })
                     .to_string(),
                 ))
