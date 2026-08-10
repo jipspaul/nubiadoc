@@ -40,6 +40,17 @@ GoRouterRedirect buildAuthGuard(
       return authenticated ? homeRoute : loginRoute;
     }
 
+    // Auth state not resolved yet (token store read still in flight): the
+    // default `isAuthenticated == false` would otherwise bounce a direct
+    // navigation/reload/deep-link (e.g. `/stock`) to [loginRoute] BEFORE the
+    // real state is known, then a second bounce from [loginRoute] to
+    // [homeRoute] once resolved — losing the originally requested location
+    // for good (#4813). Stay put until resolved; `refreshListenable` (the
+    // notifier itself) re-triggers this guard once `notifyListeners()` fires
+    // from `markAuthenticated`/`markUnauthenticated`, so the correct
+    // redirect (or none) is applied right after resolution.
+    if (!notifier.isResolved) return null;
+
     if (!authenticated && !onAuthRoute) return loginRoute;
     if (authenticated && bounceWhenAuthenticated.contains(location)) {
       return homeRoute;
