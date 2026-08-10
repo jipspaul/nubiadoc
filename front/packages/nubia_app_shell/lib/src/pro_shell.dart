@@ -20,6 +20,8 @@ class ProShell extends StatefulWidget {
     this.bodyBuilder,
     this.trailingActions = const [],
     this.onSignOut,
+    this.currentRoute,
+    this.onNavigate,
   });
 
   final ProConfig config;
@@ -36,6 +38,21 @@ class ProShell extends StatefulWidget {
 
   final VoidCallback? onSignOut;
 
+  /// Current go_router location (e.g. `state.uri.path`), used to select the
+  /// destination whose [ProNavDestination.route] matches on build AND on
+  /// every rebuild (direct navigation, reload, browser back/forward).
+  ///
+  /// When omitted, [ProShell] falls back to its own local `_index` state
+  /// (legacy behaviour, kept for callers that don't route destinations
+  /// individually).
+  final String? currentRoute;
+
+  /// Called when the user picks a destination in the rail/drawer. When
+  /// provided, [ProShell] delegates navigation to the caller (typically
+  /// `context.go(destination.route)`) instead of only updating its local
+  /// state — this is what keeps the URL in sync with the selected tab.
+  final void Function(ProNavDestination destination)? onNavigate;
+
   @override
   State<ProShell> createState() => _ProShellState();
 }
@@ -47,10 +64,34 @@ class _ProShellState extends State<ProShell> {
       .where((d) => !d.requiresClinical || widget.session.canAccessClinical)
       .toList();
 
+  /// Selects the destination that matches [widget.currentRoute] when the
+  /// caller drives navigation from go_router; falls back to the local
+  /// `_index` (updated by [onDestinationSelected]/[onTap]) otherwise. This
+  /// keeps the selected tab in sync with the URL on first build AND on any
+  /// rebuild triggered by a direct navigation, reload or browser
+  /// back/forward — none of which go through `setState` locally.
+  int _resolveIndex(List<ProNavDestination> destinations) {
+    final route = widget.currentRoute;
+    if (route != null) {
+      final matched = destinations.indexWhere((d) => d.route == route);
+      if (matched != -1) return matched;
+    }
+    return _index.clamp(0, destinations.length - 1);
+  }
+
+  void _select(List<ProNavDestination> destinations, int i) {
+    final destination = destinations[i];
+    if (widget.onNavigate != null) {
+      widget.onNavigate!(destination);
+    } else {
+      setState(() => _index = i);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final destinations = _destinations;
-    final index = _index.clamp(0, destinations.length - 1);
+    final index = _resolveIndex(destinations);
     final current = destinations[index];
 
     return LayoutBuilder(
@@ -113,7 +154,7 @@ class _ProShellState extends State<ProShell> {
         children: [
           NavigationRail(
             selectedIndex: index,
-            onDestinationSelected: (i) => setState(() => _index = i),
+            onDestinationSelected: (i) => _select(destinations, i),
             labelType: labelType,
             // Monogramme Nubia — le FlutterLogo par défaut faisait
             // « démo non finie » (#3363/#3375).
@@ -187,7 +228,7 @@ class _ProShellState extends State<ProShell> {
                   selected: i == index,
                   onTap: () {
                     Navigator.of(context).pop();
-                    setState(() => _index = i);
+                    _select(destinations, i);
                   },
                 ),
               const Spacer(),
