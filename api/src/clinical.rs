@@ -1005,6 +1005,15 @@ pub async fn list_patient_documents(
         }
     }
 
+    // Un cursor corrompu/indécodable doit être rejeté par 422 avant toute
+    // autre vérification (existence patient, relation de soin, scope
+    // secrétariat) — sinon il est silencieusement ignoré (repli page 1),
+    // ou masqué par un 403/404 métier trompeur (#4755).
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(doc_decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1078,10 +1087,6 @@ pub async fn list_patient_documents(
         }
     }
 
-    let cursor = match params.cursor.as_deref() {
-        Some(s) => Some(doc_decode_cursor(s).ok_or(AppError::ValidationError)?),
-        None => None,
-    };
     let fetch_limit = limit + 1;
 
     let (cursor_at, cursor_id) = cursor
