@@ -375,9 +375,13 @@ async fn cabinet_document_download_practitioner_without_appointment_returns_403(
 // Le secrétariat DOIT être en scope (sinon la garde R10 renvoie 404 avant
 // même d'atteindre la garde §14 — cf. test 4b) : with_appointment=true crée
 // l'appointment nécessaire au JOIN R10 (provider → provider_secretariat).
+//
+// NotFound (et non Forbidden) : la LISTE (list_patient_documents) masque déjà
+// les catégories cliniques au secrétariat ; un 403 ici révélerait l'existence
+// d'un document clinique (oracle d'existence, cf. issue #4757).
 
 #[tokio::test]
-async fn cabinet_document_download_secretary_clinical_category_returns_403() {
+async fn cabinet_document_download_secretary_clinical_category_returns_404() {
     if !db_available() {
         return;
     }
@@ -402,7 +406,7 @@ async fn cabinet_document_download_secretary_clinical_category_returns_403() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     cleanup(&db, &f).await;
 }
