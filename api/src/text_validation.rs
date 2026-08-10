@@ -18,6 +18,30 @@ pub fn reject_nul_byte(s: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// `422 validation_error` si une chaîne quelconque du JSON (clé ou valeur,
+/// à toute profondeur) contient un octet NUL, sinon `Ok(())`. Pour les
+/// champs `payload: Value` libres (JSONB) où `reject_nul_byte` seul ne
+/// couvre pas le contenu imbriqué (#4809).
+pub fn reject_nul_byte_in_json(value: &serde_json::Value) -> Result<(), AppError> {
+    match value {
+        serde_json::Value::String(s) => reject_nul_byte(s),
+        serde_json::Value::Array(items) => {
+            for item in items {
+                reject_nul_byte_in_json(item)?;
+            }
+            Ok(())
+        }
+        serde_json::Value::Object(map) => {
+            for (key, val) in map {
+                reject_nul_byte(key)?;
+                reject_nul_byte_in_json(val)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

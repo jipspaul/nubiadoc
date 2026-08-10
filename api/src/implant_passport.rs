@@ -138,6 +138,135 @@ pub async fn export_implant_passport(
         .map_err(|_| AppError::Internal)
 }
 
+// ── GET /v1/cabinet/patients/:id/implants ──────────────────────────────────
+
+/// Un implant du passeport implantaire, vue cabinet (avec `implant_ref`,
+/// traçabilité médico-légale — jamais restitué côté patient, cf. #4830).
+#[derive(Serialize)]
+pub struct CabinetImplantItem {
+    pub id: Uuid,
+    pub brand: String,
+    pub implant_ref: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lot_number: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub placement_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tooth_position: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+/// Réponse de `GET /v1/cabinet/patients/:id/implants`.
+#[derive(Serialize)]
+pub struct CabinetImplantPassportResponse {
+    pub data: Vec<CabinetImplantItem>,
+}
+
+/// `GET /v1/cabinet/patients/:id/implants` — liste les implants posés à un
+/// patient, vue cabinet (#4830).
+///
+/// Praticien uniquement (`ProPractitionerClaims`). `patient_id` (path)
+/// inexistant ou hors tenant → `404`. Garde §14 (relation de soin, même
+/// pattern que `create_implant`/`prescription_list.rs`) : praticien sans
+/// `appointment` avec ce patient → `403`. Contrairement à
+/// `GET /v1/implant-passport` (vue patient), inclut `implant_ref` —
+/// traçabilité dispositif médical (rappel de lot) requise à la saisie mais
+/// jamais restituée avant ce correctif.
+pub async fn list_cabinet_implants(
+    State(state): State<AppState>,
+    claims: ProPractitionerClaims,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<CabinetImplantPassportResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let patient_exists = sqlx::query(
+        "SELECT 1 FROM patient WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if patient_exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    // Garde §14 (relation de soin) — même pattern que create_implant.
+    let has_appointment = sqlx::query(
+        "SELECT 1 FROM appointment a \
+         JOIN practitioner p ON p.id = a.practitioner_id \
+         WHERE a.patient_id = $1 AND a.cabinet_id = $2 \
+           AND p.user_id = $3 AND a.deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if has_appointment.is_none() {
+        return Err(AppError::Forbidden);
+    }
+
+    let rows = sqlx::query(
+        "SELECT id, brand, implant_ref, lot_number, placement_date, tooth_position, notes \
+         FROM implant_passport \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+         ORDER BY placement_date DESC NULLS LAST, id DESC",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut data: Vec<CabinetImplantItem> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let brand: String = row.try_get("brand").map_err(|_| AppError::Internal)?;
+        let implant_ref: String = row.try_get("implant_ref").map_err(|_| AppError::Internal)?;
+        let lot_number: Option<String> =
+            row.try_get("lot_number").map_err(|_| AppError::Internal)?;
+        let placement_date: Option<chrono::NaiveDate> = row
+            .try_get("placement_date")
+            .map_err(|_| AppError::Internal)?;
+        let tooth_position: Option<String> = row
+            .try_get("tooth_position")
+            .map_err(|_| AppError::Internal)?;
+        let notes: Option<String> = row.try_get("notes").map_err(|_| AppError::Internal)?;
+
+        data.push(CabinetImplantItem {
+            id,
+            brand,
+            implant_ref,
+            lot_number,
+            placement_date: placement_date.map(|d| d.to_string()),
+            tooth_position,
+            notes,
+        });
+    }
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        patient_id = %patient_id,
+        count = data.len(),
+        "cabinet implants listed"
+    );
+
+    Ok(Json(CabinetImplantPassportResponse { data }))
+}
+
 // ── POST /v1/cabinet/patients/:id/implants ────────────────────────────────
 
 /// Corps de `POST /v1/cabinet/patients/:id/implants`.

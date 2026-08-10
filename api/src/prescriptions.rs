@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
-    AppState, SignatureClient,
+    AppState, ObjectStorage, SignatureClient,
 };
 
 // ── POST /v1/cabinet/prescriptions ───────────────────────────────────────────
@@ -245,6 +245,7 @@ pub async fn sign_prescription(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
     Extension(sig_client): Extension<Arc<dyn SignatureClient>>,
+    Extension(object_storage): Extension<Arc<dyn ObjectStorage>>,
     Path(prescription_id): Path<Uuid>,
 ) -> Result<Json<SignPrescriptionResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -258,7 +259,7 @@ pub async fn sign_prescription(
 
     // Lecture de la prescription — 404 si hors tenant (RLS fail-closed).
     let row = sqlx::query(
-        "SELECT id, patient_id, practitioner_id, status \
+        "SELECT id, patient_id, practitioner_id, status, created_at \
          FROM prescription \
          WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
@@ -274,6 +275,8 @@ pub async fn sign_prescription(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+    let prescription_created_at: chrono::DateTime<chrono::Utc> =
+        row.try_get("created_at").map_err(|_| AppError::Internal)?;
 
     // Seul le praticien prescripteur peut signer sa propre ordonnance : la
     // signature eIDAS (AES) engage sa responsabilité. Le scope cabinet (RLS) ne
@@ -314,25 +317,95 @@ pub async fn sign_prescription(
 
     let signature_id: Uuid = sig_row.try_get("id").map_err(|_| AppError::Internal)?;
 
-    // Génère le PDF d'ordonnance (stub : clé Object Storage, sha256 nul).
-    // NUB-T3 : remplacer par génération PDF réelle + upload chiffré Object Storage.
-    let storage_key = Uuid::new_v4().to_string();
+    // Lignes de l'ordonnance — nécessaires au rendu du PDF.
+    let item_rows = sqlx::query(
+        "SELECT label, form, posology, duration, quantity \
+         FROM prescription_item \
+         WHERE prescription_id = $1 AND cabinet_id = $2",
+    )
+    .bind(prescription_id)
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let items: Vec<PrescriptionItemInput> = item_rows
+        .into_iter()
+        .map(|r| {
+            Ok::<_, AppError>(PrescriptionItemInput {
+                label: r.try_get("label").map_err(|_| AppError::Internal)?,
+                form: r.try_get("form").map_err(|_| AppError::Internal)?,
+                posology: r.try_get("posology").map_err(|_| AppError::Internal)?,
+                duration: r.try_get("duration").map_err(|_| AppError::Internal)?,
+                quantity: r.try_get("quantity").map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Identité patient/praticien — affichées sur le PDF d'ordonnance.
+    let patient_row = sqlx::query("SELECT first_name, last_name FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let patient_name = format!(
+        "{} {}",
+        patient_row
+            .try_get::<String, _>("first_name")
+            .map_err(|_| AppError::Internal)?,
+        patient_row
+            .try_get::<String, _>("last_name")
+            .map_err(|_| AppError::Internal)?
+    );
+
+    let practitioner_row = sqlx::query(
+        "SELECT COALESCE(pv.display_name, 'Praticien') AS display_name \
+         FROM practitioner pr \
+         LEFT JOIN provider pv ON pv.practitioner_id = pr.id \
+         WHERE pr.id = $1 \
+         LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let practitioner_name: String = practitioner_row
+        .try_get("display_name")
+        .map_err(|_| AppError::Internal)?;
+
+    // Génère le PDF d'ordonnance (contenu réel — remplace le stub NUB-T3) puis
+    // l'upload dans l'Object Storage via le client injecté (Scaleway/MinIO en
+    // prod, in-memory en test) : `storage_key` référence désormais un objet
+    // effectivement uploadé, plus une clé fantôme.
+    let pdf_bytes = render_prescription_pdf(
+        prescription_id,
+        &patient_name,
+        &practitioner_name,
+        prescription_created_at,
+        &items,
+    );
+    let size_bytes = pdf_bytes.len() as i64;
+    let storage_key = format!("ordonnance/{}.pdf", prescription_id);
     let filename = format!("ordonnance-{}.pdf", prescription_id);
+    object_storage
+        .upload(&storage_key, "application/pdf", pdf_bytes.clone())
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     let doc_row = sqlx::query(
         "INSERT INTO document \
          (cabinet_id, patient_id, category, storage_key, filename, mime_type, \
           sha256, scan_status, uploaded_by, size_bytes) \
          VALUES ($1, $2, 'ordonnance', $3, $4, 'application/pdf', \
-                 $5, 'clean', $6, 0) \
+                 encode(digest($5, 'sha256'), 'hex'), 'clean', $6, $7) \
          RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(patient_id)
     .bind(&storage_key)
     .bind(&filename)
-    .bind(format!("{:0>64}", "0")) // sha256 stub
+    .bind(&pdf_bytes)
     .bind(claims.sub)
+    .bind(size_bytes)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -569,4 +642,90 @@ pub async fn list_account_prescriptions(
         .collect::<Result<Vec<_>, AppError>>()?;
 
     Ok(Json(AccountPrescriptionsResponse { data }))
+}
+
+// ── Génération PDF de l'ordonnance signée ────────────────────────────────────
+
+/// Génère le contenu binaire (PDF minimal valide) de l'ordonnance signée.
+///
+/// Remplace le stub NUB-T3 (`size_bytes=0`, `sha256` nul) : construit un vrai
+/// PDF (structure `%PDF-1.4` + objets + stream de contenu texte) à partir des
+/// lignes de prescription, du patient et du praticien. Pas de dépendance
+/// externe (crate PDF) : la structure minimale suffit à obtenir un document
+/// ouvrable par n'importe quel lecteur PDF, avec un contenu réel et non nul —
+/// c'est le strict nécessaire pour corriger le bug (taille et hash réels,
+/// document lisible par la pharmacie).
+fn render_prescription_pdf(
+    prescription_id: Uuid,
+    patient_name: &str,
+    practitioner_name: &str,
+    created_at: chrono::DateTime<chrono::Utc>,
+    items: &[PrescriptionItemInput],
+) -> Vec<u8> {
+    let escape = |s: &str| {
+        s.replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)")
+    };
+
+    let mut lines: Vec<String> = vec![
+        "Ordonnance".to_string(),
+        format!("Patient : {}", patient_name),
+        format!("Praticien : {}", practitioner_name),
+        format!("Date : {}", created_at.to_rfc3339()),
+        format!("Reference : {}", prescription_id),
+        String::new(),
+    ];
+    for item in items {
+        let mut line = item.label.clone();
+        if let Some(form) = &item.form {
+            line.push_str(&format!(" ({})", form));
+        }
+        line.push_str(&format!(" - {}", item.posology));
+        line.push_str(&format!(" - {}", item.duration));
+        if let Some(quantity) = &item.quantity {
+            line.push_str(&format!(" - QSP {}", quantity));
+        }
+        lines.push(line);
+    }
+
+    let mut content = String::from("BT /F1 12 Tf 50 780 Td 14 TL\n");
+    for line in &lines {
+        content.push_str(&format!("({}) Tj T*\n", escape(line)));
+    }
+    content.push_str("ET");
+
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> \
+         /MediaBox [0 0 595 842] /Contents 4 0 R >>"
+            .to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{}\nendstream",
+            content.len(),
+            content
+        ),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+    ];
+
+    let mut pdf = String::from("%PDF-1.4\n");
+    let mut offsets = Vec::with_capacity(objects.len());
+    for (i, obj) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.push_str(&format!("{} 0 obj\n{}\nendobj\n", i + 1, obj));
+    }
+    let xref_offset = pdf.len();
+    pdf.push_str(&format!("xref\n0 {}\n", objects.len() + 1));
+    pdf.push_str("0000000000 65535 f \n");
+    for off in &offsets {
+        pdf.push_str(&format!("{:010} 00000 n \n", off));
+    }
+    pdf.push_str(&format!(
+        "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
+        objects.len() + 1,
+        xref_offset
+    ));
+
+    pdf.into_bytes()
 }

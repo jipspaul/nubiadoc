@@ -149,6 +149,19 @@ async fn insert_fixtures(db: &PgPool) -> Fixtures {
     .await
     .unwrap();
 
+    // #4644 : le reste-dû est calculé depuis les quote_item (part patient),
+    // pas depuis quote.total_amount — sans ligne, reste dû = 0 et tout
+    // échéancier serait rejeté 422. 1 acte à 150.00 (part patient pleine).
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount) \
+         VALUES ($1, $2, 'Acte de test', 1, 150.00)",
+    )
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     Fixtures {

@@ -129,9 +129,15 @@ class _LoadedViewState extends State<_LoadedView> {
 
   @override
   Widget build(BuildContext context) {
-    final practitioners = <String, String>{};
+    // #4666 : roster complet (via state.practitionerNames, résolu depuis
+    // ListCabinetPractitionersUseCase) — ne pas reconstruire depuis
+    // `entries` seules : un praticien sans créneau/RDV cette semaine
+    // disparaissait alors du filtre et du picker « Nouveau RDV ».
+    final practitioners = <String, String>{...widget.state.practitionerNames};
     for (final e in widget.state.entries) {
-      practitioners[e.practitionerId] = e.practitionerName;
+      if (e.practitionerName.isNotEmpty) {
+        practitioners.putIfAbsent(e.practitionerId, () => e.practitionerName);
+      }
     }
 
     final filteredEntries = _practitionerFilter == null
@@ -241,8 +247,10 @@ class _LoadedViewState extends State<_LoadedView> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: filteredEntries.length,
-                    itemBuilder: (context, i) =>
-                        _EntryCard(entry: filteredEntries[i]),
+                    itemBuilder: (context, i) => _EntryCard(
+                      entry: filteredEntries[i],
+                      practitionerNames: practitioners,
+                    ),
                   ),
                 ),
         ),
@@ -477,8 +485,13 @@ String _initialsFrom(String? name) {
 }
 
 class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.entry});
+  const _EntryCard({required this.entry, this.practitionerNames = const {}});
   final AgendaEntry entry;
+
+  /// Roster practitioner_id -> nom (#4666), utilisé en repli quand
+  /// `entry.practitionerName` est vide (ex : agenda enrichi par un slot
+  /// dont le nom n'aurait pas été résolu côté DTO).
+  final Map<String, String> practitionerNames;
 
   @override
   Widget build(BuildContext context) {
@@ -490,13 +503,17 @@ class _EntryCard extends StatelessWidget {
     final endTime =
         '${entry.endsAt.hour.toString().padLeft(2, '0')}:${entry.endsAt.minute.toString().padLeft(2, '0')}';
 
+    final practitionerName = entry.practitionerName.isNotEmpty
+        ? entry.practitionerName
+        : (practitionerNames[entry.practitionerId] ?? '');
+
     // Sous-titre : motif administratif du RDV + praticien (aucune donnée
     // clinique — cloisonnement secrétariat).
     final subtitleParts = <String>[
       if (entry.motif != null && entry.motif!.isNotEmpty) entry.motif!,
       // #4608 : ne pas ajouter un nom de praticien vide (sinon un
       // séparateur ' · ' pendant apparaissait sur cette ligne).
-      if (entry.practitionerName.isNotEmpty) entry.practitionerName,
+      if (practitionerName.isNotEmpty) practitionerName,
     ];
 
     // Bloc statut (+ action Confirmer) séparé de la ligne nom/motif (#3896) :

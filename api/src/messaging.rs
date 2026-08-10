@@ -453,8 +453,11 @@ pub async fn mark_conversation_read(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(conversation_id): Path<Uuid>,
-    Json(body): Json<MarkReadBody>,
+    body: Option<Json<MarkReadBody>>,
 ) -> Result<StatusCode, AppError> {
+    let body = body.map(|Json(b)| b).unwrap_or(MarkReadBody {
+        last_read_message_id: None,
+    });
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Scope RLS patient — policies conversation_patient_read.

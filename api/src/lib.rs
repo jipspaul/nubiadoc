@@ -22,6 +22,7 @@ pub use realtime::WsHub;
 pub use reminder_dispatch::{
     dispatch_pending_reminders, run_dispatch_loop, ReminderDispatchError, ReminderDispatchSummary,
 };
+pub use scaleway_storage_signer::ScalewayStorageSigner;
 pub use twilio_sms::TwilioSmsSender;
 pub use yousign_client::YousignClient;
 
@@ -47,6 +48,7 @@ mod cabinet_document_download;
 mod cabinet_info;
 mod cabinet_messaging;
 mod cabinet_payments_manual;
+mod cabinet_payouts;
 mod cabinet_quote_item_parts;
 mod cabinet_quotes;
 mod cabinet_quotes_export;
@@ -55,10 +57,12 @@ mod cabinet_secretariats;
 mod cabinet_stats;
 mod cabinet_team_messages;
 mod ccam_acts;
+mod ccam_stock_mappings;
 mod clinical;
 mod consultation_act_create;
 mod consultation_act_stock;
 mod consultation_acts;
+mod consultation_clinique_read;
 mod consultation_context;
 mod consultations;
 mod cr_templates;
@@ -106,6 +110,7 @@ mod reminder_dispatch;
 mod reminders;
 mod reviews;
 mod routes;
+mod scaleway_storage_signer;
 mod scheduling;
 mod sterilization;
 mod stock_items;
@@ -130,6 +135,36 @@ pub struct StubStorageClient;
 impl StorageClient for StubStorageClient {
     fn sign_url(&self, key: &str, expires_in_secs: u64) -> String {
         format!("https://storage.stub/{key}?expires={expires_in_secs}")
+    }
+}
+
+/// Trait d'upload d'objets binaires (documents chiffrés) — swappable (in-memory
+/// en test, Scaleway/MinIO en prod). Distinct de `StorageClient` (signature
+/// d'URL) : ce trait couvre l'écriture effective de l'objet, corrigeant le
+/// stub historique où `storage_key` référençait une clé jamais uploadée
+/// (issue #4626 — ordonnance signée inutilisable en production).
+#[async_trait::async_trait]
+pub trait ObjectStorage: Send + Sync {
+    /// Uploade `bytes` sous `key` avec le `content_type` donné.
+    async fn upload(&self, key: &str, content_type: &str, bytes: Vec<u8>) -> Result<(), String>;
+}
+
+/// Implémentation en mémoire pour les tests et le dev local — pas de dépendance
+/// réseau, mais l'upload est réellement effectué (contrairement au stub
+/// historique qui ne faisait qu'inventer un UUID sans jamais écrire l'objet).
+#[derive(Default)]
+pub struct InMemoryObjectStorage {
+    objects: std::sync::Mutex<std::collections::HashMap<String, (String, Vec<u8>)>>,
+}
+
+#[async_trait::async_trait]
+impl ObjectStorage for InMemoryObjectStorage {
+    async fn upload(&self, key: &str, content_type: &str, bytes: Vec<u8>) -> Result<(), String> {
+        self.objects
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?
+            .insert(key.to_string(), (content_type.to_string(), bytes));
+        Ok(())
     }
 }
 
@@ -410,6 +445,26 @@ pub fn app_with_quote_signature_client(
     )
 }
 
+/// Variante pour la production : `QuoteSignatureClient` **et** `StorageSigner`
+/// personnalisés (#4717 — `StubStorageSigner` câblé en dur en production
+/// générait des URL vers `storage.example.com`, un domaine fantôme jamais
+/// résolu en DNS public, rendant tout export/téléchargement de document
+/// non-fonctionnel pour l'utilisateur final).
+pub fn app_with_quote_signature_client_and_signer(
+    state: AppState,
+    quote_signature_client: Arc<dyn QuoteSignatureClient>,
+    signer: Arc<dyn StorageSigner>,
+) -> Router {
+    build_router(
+        state,
+        Arc::new(StubJobDispatcher),
+        signer,
+        Arc::new(WsHub::new()),
+        quote_signature_client,
+        Arc::new(StubAlmaClient),
+    )
+}
+
 /// Variante pour les tests qui injectent un `AlmaClient` personnalisé (#4163 :
 /// vérifier que la souscription est bien appelée à la création d'un
 /// échéancier `provider='alma'`).
@@ -452,6 +507,9 @@ fn build_router(
         .layer(Extension(hub))
         .layer(Extension(
             Arc::new(StubStorageClient) as Arc<dyn StorageClient>
+        ))
+        .layer(Extension(
+            Arc::new(InMemoryObjectStorage::default()) as Arc<dyn ObjectStorage>
         ))
         .layer(Extension(dispatcher))
         .layer(Extension(signer))

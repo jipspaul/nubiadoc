@@ -283,6 +283,8 @@ pub struct ProviderItem {
 
 #[derive(Serialize)]
 pub struct FacetItem {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
     pub value: String,
     pub count: i64,
 }
@@ -980,11 +982,11 @@ pub async fn search_providers(
 
     // Facets: global counts for listed providers (filter-independent at MVP)
     let specialty_rows = sqlx::query(
-        "SELECT s.label AS value, COUNT(p.id)::bigint AS count \
+        "SELECT s.id AS id, s.label AS value, COUNT(p.id)::bigint AS count \
          FROM provider p \
          LEFT JOIN specialty s ON s.id = p.specialty_id \
          WHERE p.is_listed = true AND s.label IS NOT NULL \
-         GROUP BY s.label \
+         GROUP BY s.id, s.label \
          ORDER BY count DESC \
          LIMIT 20",
     )
@@ -1007,6 +1009,7 @@ pub async fn search_providers(
         .iter()
         .map(|r| {
             Ok(FacetItem {
+                id: r.try_get("id").map_err(|_| AppError::Internal)?,
                 value: r.try_get("value").map_err(|_| AppError::Internal)?,
                 count: r.try_get("count").map_err(|_| AppError::Internal)?,
             })
@@ -1017,6 +1020,7 @@ pub async fn search_providers(
         .iter()
         .map(|r| {
             Ok(FacetItem {
+                id: None,
                 value: r.try_get("value").map_err(|_| AppError::Internal)?,
                 count: r.try_get("count").map_err(|_| AppError::Internal)?,
             })

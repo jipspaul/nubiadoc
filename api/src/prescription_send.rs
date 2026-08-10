@@ -38,7 +38,7 @@ pub struct SendPrescriptionBody {
 /// - Ordonnance déjà délivrée (une commande `picked_up`) → 409 `already_ordered` (#4402).
 /// - Pharmacie inconnue ou non listée → 404.
 /// - Patient sans compte app (impossible de suivre la commande) → 422.
-/// - Commande active déjà existante pour cette ordonnance → 409.
+/// - Commande active déjà existante pour cette ordonnance → 409 `already_ordered`.
 /// - Consentement patient tracé (`consent_record`, purpose `partage_pharmacie`,
 ///   evidence `{channel, collected_by}`) ; transition `signed → sent`.
 pub async fn send_prescription(
@@ -193,7 +193,7 @@ pub async fn send_prescription(
     .await
     .map_err(|e| match &e {
         sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
-            AppError::InvalidStatus
+            AppError::AlreadyOrdered
         }
         _ => AppError::Internal,
     })?;

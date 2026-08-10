@@ -166,9 +166,13 @@ const VALID_PROVIDERS: &[&str] = &["stripe", "gocardless", "alma"];
 /// Immutabilité du devis signé (même garde que `billing_payments.rs`) :
 /// devis autre que `status = 'signed'` → `409 invalid_status`. `installments`
 /// vide, un `amount_cents` ≤ 0, ou `provider` hors `VALID_PROVIDERS` → `422`.
-/// `total_amount` = somme des jalons (pas nécessairement égal au montant du
-/// devis — un échéancier peut ne couvrir qu'une partie, ex. hors acompte
-/// déjà réglé). `provider = "alma"` (#4163) déclenche la souscription
+/// `total_amount` = somme des jalons ; peut être inférieur au reste-dû (un
+/// échéancier peut ne couvrir qu'une partie, ex. hors acompte déjà réglé)
+/// mais jamais le dépasser (#4644) : garde stricte identique à
+/// `create_manual_payment` (#4311/#4573), sur le reste-à-charge patient
+/// (part AMO/AMC exclue) moins les paiements `pending`/`paid` déjà
+/// enregistrés, sous verrou `FOR UPDATE` sur la ligne `quote` — dépassement
+/// → `422 validation_error`. `provider = "alma"` (#4163) déclenche la souscription
 /// synchrone auprès d'`AlmaClient` — un refus/timeout provider fait échouer
 /// toute la création (`500`), pas d'échéancier fantôme non souscrit.
 pub async fn create_payment_schedule(
@@ -191,6 +195,10 @@ pub async fn create_payment_schedule(
     }
     for installment in &body.installments {
         crate::text_validation::reject_nul_byte(&installment.date)?;
+        installment
+            .date
+            .parse::<chrono::NaiveDate>()
+            .map_err(|_| AppError::ValidationError)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -201,9 +209,13 @@ pub async fn create_payment_schedule(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // Verrou FOR UPDATE (même pattern que cabinet_payments_manual.rs::create_manual_payment,
+    // #4311/#4573) : sérialise avec tout autre encaissement/échéancier concurrent sur le
+    // même devis pour que le calcul du reste-dû ci-dessous soit à jour.
     let quote_row = sqlx::query(
         "SELECT patient_id, status FROM quote \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+         FOR UPDATE",
     )
     .bind(quote_id)
     .bind(claims.cabinet_id)
@@ -233,6 +245,42 @@ pub async fn create_payment_schedule(
         .collect();
     let total_cents: i64 = installments.iter().map(|i| i.amount_cents).sum();
     let installments_json = serde_json::to_value(&installments).map_err(|_| AppError::Internal)?;
+
+    // #4644 : garde stricte sur le reste-dû réel du devis signé — même calcul que
+    // create_manual_payment (#4311/#4573) : reste-à-charge patient (total lignes -
+    // part AMO - part AMC) moins les paiements déjà pending/paid. Un échéancier ne
+    // peut pas engager le patient sur un montant sans rapport avec le devis signé.
+    let patient_share_row = sqlx::query(
+        "SELECT coalesce(sum((qi.qty * qi.unit_amount \
+             - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
+             AS patient_share_cents \
+         FROM quote_item qi WHERE qi.quote_id = $1",
+    )
+    .bind(quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let patient_share_cents: i64 = patient_share_row
+        .try_get("patient_share_cents")
+        .map_err(|_| AppError::Internal)?;
+
+    let already_committed_row = sqlx::query(
+        "SELECT COALESCE(SUM(amount * 100), 0)::bigint AS committed_cents \
+         FROM payment \
+         WHERE quote_id = $1 AND status IN ('pending', 'paid')",
+    )
+    .bind(quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let already_committed_cents: i64 = already_committed_row
+        .try_get("committed_cents")
+        .map_err(|_| AppError::Internal)?;
+    let remaining_due_cents = patient_share_cents - already_committed_cents;
+
+    if total_cents > remaining_due_cents {
+        return Err(AppError::ValidationError);
+    }
 
     let schedule_row = sqlx::query(
         "INSERT INTO payment_schedule \

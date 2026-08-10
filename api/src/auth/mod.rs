@@ -3,6 +3,7 @@
 pub mod forgot_password;
 pub mod login;
 pub mod logout;
+pub mod mfa_crypto;
 pub mod mfa_enroll;
 pub mod mfa_verify;
 pub mod refresh;
@@ -218,6 +219,10 @@ pub(crate) enum AppError {
     /// dans ce cabinet (index unique `(cabinet_id, reference)`, migration
     /// 0192) — même choix que `StepNumberTaken`/`PouchCodeAlreadyUsed`.
     StockReferenceAlreadyUsed,
+    /// `POST /v1/cabinet/ccam-stock-mappings` (#4798) : ce couple
+    /// `(cabinet_id, ccam_code, stock_item_id)` a déjà un mapping (index
+    /// unique, migration 0192) — même choix que `StockReferenceAlreadyUsed`.
+    StockMappingAlreadyExists,
     /// `POST /v1/cabinet/consultations/:id/acts` (#4411) : un acte strictement
     /// identique (même `ccam_code`/`tooth`/`amount_cents`) est déjà présent
     /// sur cette séance — protège contre un double-submit/retry réseau qui
@@ -482,6 +487,11 @@ impl IntoResponse for AppError {
             AppError::StockReferenceAlreadyUsed => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "stock_reference_already_used"})),
+            )
+                .into_response(),
+            AppError::StockMappingAlreadyExists => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "stock_mapping_already_exists"})),
             )
                 .into_response(),
             AppError::DuplicateAct => (
@@ -1040,6 +1050,22 @@ pub async fn patch_cabinet(
     claims: ProAdminClaims,
     Json(body): Json<PatchCabinetBody>,
 ) -> Result<Json<CabinetResponse>, AppError> {
+    if let Some(name) = &body.name {
+        crate::text_validation::reject_nul_byte(name)?;
+    }
+    if let Some(siret) = &body.siret {
+        crate::text_validation::reject_nul_byte(siret)?;
+    }
+    if let Some(addr) = &body.address {
+        crate::text_validation::reject_nul_byte(addr)?;
+    }
+    if let Some(phone) = &body.phone {
+        crate::text_validation::reject_nul_byte(phone)?;
+    }
+    if let Some(s) = &body.settings {
+        crate::text_validation::reject_nul_byte_in_json(s)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -4583,6 +4609,14 @@ pub async fn pro_verification(
     Json(body): Json<ProVerificationBody>,
 ) -> Result<(StatusCode, Json<ProVerificationResponse>), AppError> {
     if body.id_type != "rpps" && body.id_type != "adeli" {
+        return Err(AppError::ValidationError);
+    }
+
+    // Validation de format réglementaire (norme ADELI/RPPS française) : RPPS = 11
+    // chiffres, ADELI = 9 chiffres. Rejette avant toute insertion `pending`.
+    let expected_len = if body.id_type == "rpps" { 11 } else { 9 };
+    if body.identifier.len() != expected_len || !body.identifier.chars().all(|c| c.is_ascii_digit())
+    {
         return Err(AppError::ValidationError);
     }
 

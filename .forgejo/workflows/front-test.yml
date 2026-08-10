@@ -28,6 +28,10 @@ concurrency:
 jobs:
   front-test:
     runs-on: docker
+    # Un job hung (serveur d'analyse Dart wedgé, RAM #19) ne crashe PAS : les
+    # retry-loops ne l'attrapent pas et il gèle l'unique runner (capacity:1)
+    # → toute la CI bloquée. Le timeout force l'échec (~15min nominal + marge).
+    timeout-minutes: 25
     container:
       image: flutter-ci:stable
     steps:
@@ -53,10 +57,27 @@ jobs:
       - name: Analyze (melos)
         working-directory: front
         run: |
+          set -o pipefail
           export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
-          melos analyze
+          # Retry sur CRASH du serveur d'analyse Dart (RAM défectueuse #19 :
+          # 'Bad state: analysis server crashed unexpectedly'). Une vraie erreur
+          # d'analyse (lignes 'error -') sort tout de suite, pas de retry masquant.
+          for a in 1 2 3; do
+            if melos analyze 2>&1 | tee /tmp/ft-analyze.log; then exit 0; fi
+            grep -qiE 'analysis server crashed|crashed unexpectedly|Bad state|Segmentation|SIGSEGV|core dumped|Killed|Out of memory' /tmp/ft-analyze.log \
+              || { echo 'echec analyze reel (pas RAM) -> stop'; exit 1; }
+            echo 'crash serveur analyse (RAM ?) -> nouvelle tentative'
+          done
+          exit 1
       - name: Test (melos — packages with test/ dir)
         working-directory: front
         run: |
+          set -o pipefail
           export PATH="${PUB_CACHE:-$HOME/.pub-cache}/bin:$PATH"
-          melos test --no-select
+          for a in 1 2 3; do
+            if melos test --no-select 2>&1 | tee /tmp/ft-test.log; then exit 0; fi
+            grep -qiE 'crashed|Bad state|Segmentation|SIGSEGV|core dumped|Killed|Out of memory' /tmp/ft-test.log \
+              || { echo 'echec test reel (pas RAM) -> stop'; exit 1; }
+            echo 'crash (RAM ?) -> nouvelle tentative'
+          done
+          exit 1

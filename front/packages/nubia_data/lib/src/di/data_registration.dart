@@ -29,6 +29,7 @@ import '../remote/cabinet_medical_questionnaire/cabinet_medical_questionnaire_ap
 import '../remote/treatment_plans/treatment_plans_api.dart';
 import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
+import '../remote/cabinet_payouts/cabinet_payouts_api.dart';
 import '../remote/cabinet_stats/cabinet_stats_api.dart';
 import '../remote/audit_log/audit_log_api.dart';
 import '../remote/clinical/clinical_session_api.dart';
@@ -82,6 +83,7 @@ import '../repositories/cabinet_medical_questionnaire_repository_impl.dart';
 import '../repositories/treatment_plans_repository_impl.dart';
 import '../repositories/cabinet_team_messages_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
+import '../repositories/cabinet_payouts_repository_impl.dart';
 import '../repositories/cabinet_stats_repository_impl.dart';
 import '../repositories/audit_log_repository_impl.dart';
 import '../repositories/cached_appointments_repository_impl.dart';
@@ -570,6 +572,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetStatsApi>(
       () => CabinetStatsApi(gi()),
     )
+    ..registerLazySingleton<CabinetPayoutsApi>(
+      () => CabinetPayoutsApi(gi()),
+    )
     ..registerLazySingleton<AuditLogApi>(
       () => AuditLogApi(gi()),
     )
@@ -652,6 +657,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetStatsRepository>(
       () => CabinetStatsRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<CabinetPayoutsRepository>(
+      () => CabinetPayoutsRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<AuditLogRepository>(
       () => AuditLogRepositoryImpl(gi()),
     )
@@ -710,6 +718,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => CallNextUseCase(gi()))
     ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
     ..registerFactory(() => GetCabinetActivityStatsUseCase(gi()))
+    ..registerFactory(() => GetCabinetPayoutsUseCase(gi()))
     ..registerFactory(() => GetCabinetBillingStatsUseCase(gi()))
     ..registerFactory(() => GetAuditLogUseCase(gi()))
     ..registerFactory(() => GetCabinetQuoteUseCase(gi()))

@@ -97,6 +97,11 @@ class ProConfig {
         route: '/cabinet-stats',
       ),
       shell.ProNavDestination(
+        label: 'Rapprochement bancaire',
+        icon: Icons.account_balance_outlined,
+        route: '/cabinet-payouts',
+      ),
+      shell.ProNavDestination(
         label: "Journal d'accès",
         icon: Icons.history_outlined,
         route: auditLogRoute,
