@@ -825,10 +825,21 @@ pub async fn offer_waiting_list_slot(
     let proposed_at = match explicit_proposed_at {
         // Créneau explicite : doit correspondre exactement à un slot ouvert.
         Some(ts) => {
+            // #4660 : même garde provider_unavailability que create_appointment
+            // (appointments_create.rs:265-271) — un slot 'open' pendant une
+            // indisponibilité déclarée ne doit pas être proposé au patient.
+            // NB: retrigger CI (ICE rustc transitoire sur interop_oauth_token,
+            // sans lien avec ce diff).
             let real_slot = sqlx::query(
                 "SELECT 1 FROM availability_slot \
                  WHERE provider_id = $1 AND starts_at = $2 AND status = 'open' \
-                   AND deleted_at IS NULL",
+                   AND deleted_at IS NULL \
+                   AND NOT EXISTS ( \
+                       SELECT 1 FROM provider_unavailability pu \
+                       WHERE pu.provider_id = availability_slot.provider_id \
+                         AND pu.starts_at < availability_slot.ends_at \
+                         AND pu.ends_at > availability_slot.starts_at \
+                   )",
             )
             .bind(provider_id)
             .bind(ts)
@@ -842,11 +853,18 @@ pub async fn offer_waiting_list_slot(
         }
         // #4536 : pas de créneau fourni par l'appelant → le back choisit le
         // prochain slot ouvert du provider (au-delà du même délai de 5 min).
+        // #4660 : exclut aussi les slots chevauchant une indisponibilité.
         None => {
             let next: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
                 "SELECT starts_at FROM availability_slot \
                  WHERE provider_id = $1 AND status = 'open' AND deleted_at IS NULL \
                    AND starts_at > $2 \
+                   AND NOT EXISTS ( \
+                       SELECT 1 FROM provider_unavailability pu \
+                       WHERE pu.provider_id = availability_slot.provider_id \
+                         AND pu.starts_at < availability_slot.ends_at \
+                         AND pu.ends_at > availability_slot.starts_at \
+                   ) \
                  ORDER BY starts_at ASC LIMIT 1",
             )
             .bind(provider_id)
