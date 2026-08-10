@@ -1050,6 +1050,22 @@ pub async fn patch_cabinet(
     claims: ProAdminClaims,
     Json(body): Json<PatchCabinetBody>,
 ) -> Result<Json<CabinetResponse>, AppError> {
+    if let Some(name) = &body.name {
+        crate::text_validation::reject_nul_byte(name)?;
+    }
+    if let Some(siret) = &body.siret {
+        crate::text_validation::reject_nul_byte(siret)?;
+    }
+    if let Some(addr) = &body.address {
+        crate::text_validation::reject_nul_byte(addr)?;
+    }
+    if let Some(phone) = &body.phone {
+        crate::text_validation::reject_nul_byte(phone)?;
+    }
+    if let Some(s) = &body.settings {
+        crate::text_validation::reject_nul_byte_in_json(s)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
