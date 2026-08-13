@@ -93,7 +93,7 @@ class _OrdersViewState extends State<OrdersView> {
           onRetry: () =>
               context.read<OrdersBloc>().add(const OrdersRefreshRequested()),
         );
-      case OrdersLoaded():
+      case OrdersLoaded(:final pendingOrderId):
         final orders = state.visible;
         if (orders.isEmpty) {
           return const NubiaEmptyState(
@@ -117,6 +117,7 @@ class _OrdersViewState extends State<OrdersView> {
               return OrderRow(
                 order: order,
                 onTap: () => context.go('/orders/${order.id}'),
+                actionInProgress: pendingOrderId == order.id,
               );
             },
           ),

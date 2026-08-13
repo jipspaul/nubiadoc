@@ -51,6 +51,8 @@ void main() {
   OrdersBloc buildBloc() => OrdersBloc(
         list: ListPharmacyOrdersUseCase(repo),
         watch: WatchPharmacyOrdersUseCase(events),
+        accept: AcceptPharmacyOrderUseCase(repo),
+        ready: MarkPharmacyOrderReadyUseCase(repo),
       );
 
   group('OrdersBloc', () {
@@ -123,6 +125,52 @@ void main() {
         expect(state.filter, PharmacyOrderStatus.received);
         expect(state.visible.map((o) => o.id), ['o3']);
       },
+    );
+
+    blocTest<OrdersBloc, OrdersState>(
+      'transition de ligne (Préparer) même sémantique que le détail',
+      build: () {
+        when(() => repo.accept('o1')).thenAnswer(
+          (_) async => Right(order('o1', PharmacyOrderStatus.preparing)),
+        );
+        return buildBloc();
+      },
+      seed: () => OrdersLoaded(
+          orders: [order('o1', PharmacyOrderStatus.received)]),
+      act: (bloc) => bloc.add(
+        const OrdersTransitionRequested('o1', PharmacyOrderStatus.preparing),
+      ),
+      expect: () => [
+        OrdersLoaded(
+          orders: [order('o1', PharmacyOrderStatus.received)],
+          pendingOrderId: 'o1',
+        ),
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.preparing)]),
+      ],
+      verify: (_) => verify(() => repo.accept('o1')).called(1),
+    );
+
+    blocTest<OrdersBloc, OrdersState>(
+      'transition de ligne refusée par le serveur (409) → OrdersError',
+      build: () {
+        when(() => repo.markReady('o1')).thenAnswer(
+          (_) async => const Left(
+              ServerFailure(message: 'Action impossible.', statusCode: 409)),
+        );
+        return buildBloc();
+      },
+      seed: () => OrdersLoaded(
+          orders: [order('o1', PharmacyOrderStatus.preparing)]),
+      act: (bloc) => bloc.add(
+        const OrdersTransitionRequested('o1', PharmacyOrderStatus.ready),
+      ),
+      expect: () => [
+        OrdersLoaded(
+          orders: [order('o1', PharmacyOrderStatus.preparing)],
+          pendingOrderId: 'o1',
+        ),
+        isA<OrdersError>(),
+      ],
     );
   });
 
@@ -238,6 +286,65 @@ void main() {
       final waitSpan = root.children!.first as TextSpan;
       expect(waitSpan.style?.color, tokens.textTertiary);
       expect(waitSpan.style?.fontWeight, FontWeight.w400);
+    });
+
+    testWidgets('le bouton d\'action de ligne suit le statut', (tester) async {
+      for (final (status, key) in [
+        (PharmacyOrderStatus.received, 'order_row_prepare_o1'),
+        (PharmacyOrderStatus.preparing, 'order_row_ready_o1'),
+        (PharmacyOrderStatus.ready, 'order_row_deliver_o1'),
+      ]) {
+        final bloc = MockOrdersBloc();
+        when(() => bloc.state)
+            .thenReturn(OrdersLoaded(orders: [order('o1', status)]));
+        await tester.pumpApp(
+          BlocProvider<OrdersBloc>.value(
+            value: bloc,
+            child: const OrdersView(),
+          ),
+        );
+        expect(find.byKey(Key(key)), findsOneWidget,
+            reason: 'statut $status → bouton $key');
+        await tester.pumpWidget(Container()); // reset entre itérations
+      }
+    });
+
+    testWidgets('aucun bouton d\'action de ligne pour un état terminal',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.pickedUp)]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      expect(find.byKey(const Key('order_row_prepare_o1')), findsNothing);
+      expect(find.byKey(const Key('order_row_ready_o1')), findsNothing);
+      expect(find.byKey(const Key('order_row_deliver_o1')), findsNothing);
+    });
+
+    testWidgets('« Préparer » envoie OrdersTransitionRequested sans naviguer',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.received)]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('order_row_prepare_o1')));
+
+      verify(() => bloc.add(const OrdersTransitionRequested(
+            'o1',
+            PharmacyOrderStatus.preparing,
+          ))).called(1);
     });
   });
 

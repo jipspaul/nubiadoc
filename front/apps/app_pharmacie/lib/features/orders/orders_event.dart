@@ -37,3 +37,16 @@ class OrdersStreamUpdated extends OrdersEvent {
   @override
   List<Object?> get props => [orders];
 }
+
+/// Action de transition émise depuis la ligne — même sémantique que le
+/// détail (`OrderDetailAcceptRequested`/`OrderDetailReadyRequested`) :
+/// received→preparing ou preparing→ready. Le serveur reste l'autorité.
+class OrdersTransitionRequested extends OrdersEvent {
+  const OrdersTransitionRequested(this.orderId, this.target);
+
+  final String orderId;
+  final PharmacyOrderStatus target;
+
+  @override
+  List<Object?> get props => [orderId, target];
+}

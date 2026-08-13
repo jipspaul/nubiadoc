@@ -13,18 +13,22 @@ class OrdersLoading extends OrdersState {
 }
 
 class OrdersLoaded extends OrdersState {
-  const OrdersLoaded({required this.orders, this.filter});
+  const OrdersLoaded({required this.orders, this.filter, this.pendingOrderId});
 
   /// File complète (non filtrée) — le filtre s'applique à l'affichage.
   final List<PharmacyOrder> orders;
   final PharmacyOrderStatus? filter;
+
+  /// Commande dont la transition de ligne (Préparer/Marquer prête) est en
+  /// cours — pilote le loading du bouton de la ligne concernée.
+  final String? pendingOrderId;
 
   List<PharmacyOrder> get visible => filter == null
       ? orders
       : orders.where((order) => order.status == filter).toList();
 
   @override
-  List<Object?> get props => [orders, filter];
+  List<Object?> get props => [orders, filter, pendingOrderId];
 }
 
 class OrdersError extends OrdersState {

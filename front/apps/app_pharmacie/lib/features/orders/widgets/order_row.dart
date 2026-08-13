@@ -1,16 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../orders_bloc.dart';
+import '../orders_event.dart';
 import 'order_status_pill.dart';
 import 'order_wait.dart';
 
-/// Une commande dans la file (patient minimisé + heure de réception + statut).
+/// Une commande dans la file (patient minimisé + heure de réception + statut
+/// + action de transition contextuelle au statut).
 class OrderRow extends StatelessWidget {
-  const OrderRow({super.key, required this.order, this.onTap});
+  const OrderRow({
+    super.key,
+    required this.order,
+    this.onTap,
+    this.actionInProgress = false,
+  });
 
   final PharmacyOrder order;
   final VoidCallback? onTap;
+
+  /// Transition de ligne (Préparer/Marquer prête) en cours pour cette
+  /// commande — pilote le loading du bouton d'action.
+  final bool actionInProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -50,9 +64,73 @@ class OrderRow extends StatelessWidget {
                 color: tokens.textTertiary,
               ),
         ),
-        trailing: OrderStatusPill(status: order.status),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            OrderStatusPill(status: order.status),
+            const SizedBox(width: 8),
+            _RowAction(order: order, inProgress: actionInProgress),
+          ],
+        ),
         onTap: onTap,
       ),
     );
+  }
+}
+
+/// Bouton d'action contextuel au statut — miroir des libellés/transitions du
+/// détail (`_ContextualAction`, `order_detail_page.dart`) mais sans le refus,
+/// réservé au détail. Aucun bouton pour un état terminal.
+class _RowAction extends StatelessWidget {
+  const _RowAction({required this.order, required this.inProgress});
+
+  final PharmacyOrder order;
+  final bool inProgress;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (order.status) {
+      case PharmacyOrderStatus.received:
+        return NubiaButton(
+          key: Key('order_row_prepare_${order.id}'),
+          label: 'Préparer',
+          icon: Icons.play_arrow,
+          size: NubiaButtonSize.sm,
+          isLoading: inProgress,
+          onPressed: inProgress ? null : () => _requestTransition(context),
+        );
+      case PharmacyOrderStatus.preparing:
+        return NubiaButton(
+          key: Key('order_row_ready_${order.id}'),
+          label: 'Marquer prête',
+          icon: Icons.done_all,
+          variant: NubiaButtonVariant.secondary,
+          size: NubiaButtonSize.sm,
+          isLoading: inProgress,
+          onPressed: inProgress ? null : () => _requestTransition(context),
+        );
+      case PharmacyOrderStatus.ready:
+        return NubiaButton(
+          key: Key('order_row_deliver_${order.id}'),
+          label: 'Délivrer',
+          icon: Icons.qr_code_scanner,
+          variant: NubiaButtonVariant.secondary,
+          size: NubiaButtonSize.sm,
+          onPressed: () => context.go('/orders/${order.id}/pickup'),
+        );
+      case PharmacyOrderStatus.pickedUp:
+      case PharmacyOrderStatus.rejected:
+      case PharmacyOrderStatus.cancelled:
+        return const SizedBox.shrink();
+    }
+  }
+
+  void _requestTransition(BuildContext context) {
+    final target = switch (order.status) {
+      PharmacyOrderStatus.received => PharmacyOrderStatus.preparing,
+      PharmacyOrderStatus.preparing => PharmacyOrderStatus.ready,
+      _ => throw StateError('Pas de transition de ligne pour ${order.status}'),
+    };
+    context.read<OrdersBloc>().add(OrdersTransitionRequested(order.id, target));
   }
 }
