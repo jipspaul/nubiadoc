@@ -39,6 +39,7 @@ class NubiaColors {
   static const warningBg = Color(0xFFFEF3C7);
   static const dangerFg = Color(0xFFB91C1C);
   static const dangerBg = Color(0xFFFEE2E2);
+  static const dangerBorder = Color(0xFFFECACA);
   static const infoFg = Color(0xFF0E7490);
   static const infoBg = Color(0xFFCFFAFE);
 }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'substitution_tags.dart';
+
 /// Une ligne d'ordonnance : molécule (`label` + `form`) en gras, posologie
 /// (`posology` + `duration`) en clair dessous, quantité (`quantity`) mise en
-/// avant à droite. Tags substituable, alerte interaction et case de
-/// préparation : tickets dédiés (hors périmètre ici).
+/// avant à droite, mentions substituable/non substituable en tags. Alerte
+/// interaction et case de préparation : tickets dédiés (hors périmètre ici).
 class PrescriptionLineTile extends StatelessWidget {
   const PrescriptionLineTile({super.key, required this.item});
 
@@ -41,6 +43,8 @@ class PrescriptionLineTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(posology, style: theme.textTheme.bodySmall),
+                const SizedBox(height: 6),
+                SubstitutionTags(item: item),
               ],
             ),
           ),

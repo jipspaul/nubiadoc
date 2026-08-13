@@ -8,16 +8,33 @@ class PrescriptionItem extends Equatable {
   final String duration;
   final String quantity;
 
+  /// Mention qui engage le pharmacien : substituable ou non (MTE).
+  final bool substitutable;
+
+  /// Générique effectivement délivré, si substitué (ex. "Amoxicilline
+  /// Biogaran").
+  final String? dispensedGeneric;
+
   const PrescriptionItem({
     required this.label,
     this.form,
     required this.posology,
     required this.duration,
     required this.quantity,
+    this.substitutable = true,
+    this.dispensedGeneric,
   });
 
   @override
-  List<Object?> get props => [label, form, posology, duration, quantity];
+  List<Object?> get props => [
+        label,
+        form,
+        posology,
+        duration,
+        quantity,
+        substitutable,
+        dispensedGeneric,
+      ];
 }
 
 enum PrescriptionStatus { draft, signed, sent }
