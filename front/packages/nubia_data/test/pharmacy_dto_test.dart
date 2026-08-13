@@ -10,6 +10,8 @@ void main() {
         'pharmacy_id': 'p1',
         'pharmacy_name': 'Pharmacie du Port',
         'patient_display_name': 'Jean D.',
+        'prescriber_name': 'Dr A. Rousseau',
+        'prescriber_practice': 'Cabinet Nubia Opéra',
         'prescription_id': 'rx1',
         'status': 'preparing',
         'received_at': '2026-07-01T10:00:00Z',
@@ -21,6 +23,8 @@ void main() {
       expect(order.status, PharmacyOrderStatus.preparing);
       expect(order.pharmacyName, 'Pharmacie du Port');
       expect(order.patientDisplayName, 'Jean D.');
+      expect(order.prescriberName, 'Dr A. Rousseau');
+      expect(order.prescriberPractice, 'Cabinet Nubia Opéra');
       expect(order.updatedAt, DateTime.utc(2026, 7, 1, 11));
       expect(order.readyAt, isNull);
     });
@@ -31,6 +35,8 @@ void main() {
       expect(order.status, PharmacyOrderStatus.received);
       expect(order.pharmacyId, '');
       expect(order.prescriptionId, '');
+      expect(order.prescriberName, isNull);
+      expect(order.prescriberPractice, isNull);
       // updatedAt retombe sur createdAt.
       expect(order.updatedAt, order.createdAt);
     });

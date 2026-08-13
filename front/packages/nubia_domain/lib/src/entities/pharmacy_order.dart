@@ -48,6 +48,8 @@ class PharmacyOrder extends Equatable {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+  final String? prescriberName;
+  final String? prescriberPractice;
   final String prescriptionId;
   final PharmacyOrderStatus status;
   final String? rejectionReason;
@@ -61,6 +63,8 @@ class PharmacyOrder extends Equatable {
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.prescriberName,
+    this.prescriberPractice,
     required this.prescriptionId,
     required this.status,
     this.rejectionReason,

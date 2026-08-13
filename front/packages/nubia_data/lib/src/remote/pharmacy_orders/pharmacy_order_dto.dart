@@ -5,6 +5,8 @@ class PharmacyOrderDto {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+  final String? prescriberName;
+  final String? prescriberPractice;
   final String prescriptionId;
   final String status;
   final String? rejectionReason;
@@ -18,6 +20,8 @@ class PharmacyOrderDto {
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.prescriberName,
+    this.prescriberPractice,
     required this.prescriptionId,
     required this.status,
     this.rejectionReason,
@@ -33,6 +37,8 @@ class PharmacyOrderDto {
         pharmacyId: json['pharmacy_id'] as String? ?? '',
         pharmacyName: json['pharmacy_name'] as String?,
         patientDisplayName: json['patient_display_name'] as String?,
+        prescriberName: json['prescriber_name'] as String?,
+        prescriberPractice: json['prescriber_practice'] as String?,
         prescriptionId: json['prescription_id'] as String? ?? '',
         status: json['status'] as String? ?? 'received',
         rejectionReason: json['rejection_reason'] as String?,
@@ -50,6 +56,8 @@ class PharmacyOrderDto {
       pharmacyId: pharmacyId,
       pharmacyName: pharmacyName,
       patientDisplayName: patientDisplayName,
+      prescriberName: prescriberName,
+      prescriberPractice: prescriberPractice,
       prescriptionId: prescriptionId,
       status: parseStatus(status),
       rejectionReason: rejectionReason,
