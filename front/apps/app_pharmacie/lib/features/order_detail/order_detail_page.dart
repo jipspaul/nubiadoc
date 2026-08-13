@@ -150,17 +150,13 @@ class OrderDetailBody extends StatelessWidget {
         PickupInfoCard(order: order),
         if (items.isNotEmpty) ...[
           const SizedBox(height: 16),
-          PrescriptionLinesPanel(items: items),
+          PrescriptionLinesPanel(
+            items: items,
+            onOpenDocument: () => context
+                .read<OrderDetailBloc>()
+                .add(const OrderDetailDocumentRequested()),
+          ),
         ],
-        const SizedBox(height: 16),
-        NubiaButton(
-          key: const Key('order_detail_open_document'),
-          label: 'Ouvrir l\'ordonnance (PDF)',
-          variant: NubiaButtonVariant.secondary,
-          onPressed: () => context
-              .read<OrderDetailBloc>()
-              .add(const OrderDetailDocumentRequested()),
-        ),
       ],
     );
   }

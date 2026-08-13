@@ -6,8 +6,8 @@ import 'prescription_line_tile.dart';
 
 /// Panneau « lecture » de l'ordonnance (volet gauche) : bloc prescripteur
 /// puis lignes lisibles (molécule, posologie en clair, quantité en gros à
-/// droite). Le PDF (« Voir l'original ») reste le recours à côté, ticket
-/// dédié — ce panneau ne le remplace pas.
+/// droite). Le PDF reste accessible via « Voir l'original » dans l'en-tête
+/// — un recours, plus le seul accès.
 ///
 /// [prescriberName]/[rpps]/[prescribedAt]/[validUntil] : la donnée n'est pas
 /// encore plombée jusqu'ici (ticket dédié) — `null` affiche un tiret, en
@@ -16,6 +16,7 @@ class PrescriptionLinesPanel extends StatelessWidget {
   const PrescriptionLinesPanel({
     super.key,
     required this.items,
+    required this.onOpenDocument,
     this.prescriberName,
     this.rpps,
     this.prescribedAt,
@@ -23,6 +24,7 @@ class PrescriptionLinesPanel extends StatelessWidget {
   });
 
   final List<PrescriptionItem> items;
+  final VoidCallback onOpenDocument;
   final String? prescriberName;
   final String? rpps;
   final DateTime? prescribedAt;
@@ -53,6 +55,8 @@ class PrescriptionLinesPanel extends StatelessWidget {
                   style: theme.textTheme.titleLarge,
                 ),
               ),
+              const SizedBox(width: 8),
+              _OriginalDocumentLink(onTap: onOpenDocument),
             ],
           ),
           const SizedBox(height: 16),
@@ -89,6 +93,49 @@ class PrescriptionLinesPanel extends StatelessWidget {
             PrescriptionLineTile(item: items[i]),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Lien discret vers le PDF d'origine — recours, plus le seul accès (le PDF
+/// appelle `core.openDocumentUrl` et quitte donc l'app).
+class _OriginalDocumentLink extends StatelessWidget {
+  const _OriginalDocumentLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const StadiumBorder(side: BorderSide(color: NubiaColors.n200)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const Key('order_detail_open_document'),
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.picture_as_pdf,
+                size: 16,
+                color: NubiaColors.brand700,
+              ),
+              SizedBox(width: 6),
+              Text(
+                'Voir l\'original',
+                style: TextStyle(
+                  color: NubiaColors.brand700,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
