@@ -29,6 +29,8 @@ pub struct RegisterDeviceResponse {
 /// (migration 0052) filtre sur `app.current_user_id`. Platform invalide → 422.
 /// UNIQUE partiel actif sur `(app_user_id, platform) WHERE deleted_at IS NULL` :
 /// l'insert upsert soft-delete + insert pour garantir l'unicité par (user, platform).
+/// Idempotent sur (user, platform, fcm_token) : un ré-enregistrement du même token
+/// renvoie l'id du device actif existant sans soft-delete/re-insert (#4850).
 #[tracing::instrument(skip_all, fields(user_id = %claims.sub, platform = %body.platform))]
 pub async fn register_device(
     State(state): State<AppState>,
@@ -44,7 +46,6 @@ pub async fn register_device(
     }
 
     let user_id = claims.sub;
-    let device_id = Uuid::new_v4();
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -54,6 +55,38 @@ pub async fn register_device(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+    // Idempotence (#4850) : si un device actif existe déjà pour ce (user, platform,
+    // fcm_token), ne pas régénérer d'id — évite l'accumulation de lignes soft-deleted
+    // à chaque relance de l'app et garde l'id logique stable pour le client.
+    let existing_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM device \
+         WHERE app_user_id = $1 AND platform = $2 AND fcm_token = $3 AND deleted_at IS NULL",
+    )
+    .bind(user_id)
+    .bind(&body.platform)
+    .bind(&body.fcm_token)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(device_id) = existing_id {
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+
+        tracing::info!(
+            user_id = %user_id,
+            platform = %body.platform,
+            device_id = %device_id,
+            "device already registered (idempotent)"
+        );
+
+        return Ok((
+            StatusCode::CREATED,
+            Json(RegisterDeviceResponse { id: device_id }),
+        ));
+    }
+
+    let device_id = Uuid::new_v4();
 
     // Soft-delete l'éventuel device actif existant pour cette (user, platform).
     sqlx::query(

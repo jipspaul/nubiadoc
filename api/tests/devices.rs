@@ -188,6 +188,84 @@ async fn devices_post_invalid_platform_returns_422() {
         .ok();
 }
 
+// ── Test 4bis : même fcm_token réenregistré par le MÊME user → id stable (#4850) ──────
+
+#[tokio::test]
+async fn devices_post_same_token_same_user_returns_same_id() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+    let token = format!("tok_stable_{}", Uuid::new_v4());
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("device-4850+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    async fn register(state: AppState, user_id: Uuid, token: &str) -> Uuid {
+        let response = app(state)
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/devices")
+                    .header("content-type", "application/json")
+                    .header(
+                        "Authorization",
+                        format!("Bearer {}", make_patient_jwt(user_id)),
+                    )
+                    .body(Body::from(
+                        json!({"fcm_token": token, "platform": "android"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        v["id"].as_str().unwrap().parse().unwrap()
+    }
+
+    let id_1 = register(state.clone(), user_id, &token).await;
+    let id_2 = register(state.clone(), user_id, &token).await;
+
+    assert_eq!(
+        id_1, id_2,
+        "un ré-enregistrement du même fcm_token doit renvoyer le même id"
+    );
+
+    let row_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM device WHERE app_user_id = $1")
+            .bind(user_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        row_count, 1,
+        "un ré-enregistrement identique ne doit pas créer de nouvelle ligne"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 4 : même fcm_token réenregistré par un AUTRE user → invalide l'ancien (#3789) ──
 
 #[tokio::test]
