@@ -7,9 +7,10 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'devis_bloc.dart';
 import 'quote_delay.dart';
 import 'widgets/devis_kpis.dart';
+import 'widgets/devis_status_facets.dart';
 
 /// Devis d'officine — corps de la destination « Devis ».
-class PharmacyDevisView extends StatelessWidget {
+class PharmacyDevisView extends StatefulWidget {
   const PharmacyDevisView({super.key});
 
   static const _labels = {
@@ -40,6 +41,13 @@ class PharmacyDevisView extends StatelessWidget {
       '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
 
   @override
+  State<PharmacyDevisView> createState() => _PharmacyDevisViewState();
+}
+
+class _PharmacyDevisViewState extends State<PharmacyDevisView> {
+  DevisStatusFacet _facet = DevisStatusFacet.all;
+
+  @override
   Widget build(BuildContext context) {
     return BlocBuilder<PharmacyDevisBloc, PharmacyDevisState>(
       builder: (context, state) {
@@ -61,15 +69,21 @@ class PharmacyDevisView extends StatelessWidget {
                 subtitle: 'Créez un devis depuis le détail d\'une commande.',
               );
             }
+            final filtered = quotes.where(_facet.matches).toList();
             return Column(
               children: [
                 DevisKpiBanner(quotes: quotes),
+                DevisStatusFacetBar(
+                  quotes: quotes,
+                  selected: _facet,
+                  onSelected: (facet) => setState(() => _facet = facet),
+                ),
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: quotes.length,
+                    itemCount: filtered.length,
                     itemBuilder: (context, index) {
-                      final quote = quotes[index];
+                      final quote = filtered[index];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _QuoteCard(
