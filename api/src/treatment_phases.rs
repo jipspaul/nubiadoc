@@ -131,6 +131,7 @@ pub async fn create_treatment_phase(
     if title.is_empty() {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte(&title)?;
     if body.position < 0 {
         return Err(AppError::ValidationError);
     }
@@ -138,6 +139,7 @@ pub async fn create_treatment_phase(
         if act.label.trim().is_empty() || act.amount_cents < 0 {
             return Err(AppError::ValidationError);
         }
+        crate::text_validation::reject_nul_byte(&act.label)?;
         if let Some(tooth) = &act.tooth {
             if !is_valid_fdi_tooth(tooth) {
                 return Err(AppError::ValidationError);
