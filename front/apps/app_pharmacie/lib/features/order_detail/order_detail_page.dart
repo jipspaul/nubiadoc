@@ -12,6 +12,7 @@ import 'order_detail_event.dart';
 import 'order_detail_state.dart';
 import 'widgets/order_status_stepper.dart';
 import 'widgets/pickup_info_card.dart';
+import 'widgets/prescription_lines_panel.dart';
 
 /// Détail d'une commande : infos de retrait, PDF d'ordonnance et action de
 /// transition contextuelle (pilotée par [PharmacyOrderStatus.canTransitionTo] —
@@ -57,10 +58,14 @@ class OrderDetailBody extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             case OrderDetailError(:final message):
               return NubiaErrorWidget(message: message);
-            case OrderDetailLoaded(:final order, :final actionInProgress):
-              return _buildLoaded(context, order, actionInProgress);
+            case OrderDetailLoaded(
+                :final order,
+                :final items,
+                :final actionInProgress
+              ):
+              return _buildLoaded(context, order, items, actionInProgress);
             case OrderDetailDocumentReady(:final order):
-              return _buildLoaded(context, order, false);
+              return _buildLoaded(context, order, const [], false);
           }
         },
       ),
@@ -77,6 +82,7 @@ class OrderDetailBody extends StatelessWidget {
   Widget _buildLoaded(
     BuildContext context,
     PharmacyOrder order,
+    List<PrescriptionItem> items,
     bool actionInProgress,
   ) {
     return LayoutBuilder(
@@ -94,7 +100,8 @@ class OrderDetailBody extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: _buildReadPane(context, order)),
+                          Expanded(
+                              child: _buildReadPane(context, order, items)),
                           const SizedBox(width: 16),
                           Container(
                             width: _executionPaneWidth,
@@ -119,7 +126,7 @@ class OrderDetailBody extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildReadPane(context, order),
+                        _buildReadPane(context, order, items),
                         const SizedBox(height: 24),
                         _buildExecutionPane(context, order, actionInProgress),
                       ],
@@ -132,11 +139,19 @@ class OrderDetailBody extends StatelessWidget {
   }
 
   /// Volet gauche — ce qui se lit (l'ordonnance).
-  Widget _buildReadPane(BuildContext context, PharmacyOrder order) {
+  Widget _buildReadPane(
+    BuildContext context,
+    PharmacyOrder order,
+    List<PrescriptionItem> items,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PickupInfoCard(order: order),
+        if (items.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          PrescriptionLinesPanel(items: items),
+        ],
         const SizedBox(height: 16),
         NubiaButton(
           key: const Key('order_detail_open_document'),

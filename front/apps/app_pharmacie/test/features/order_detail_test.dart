@@ -13,6 +13,7 @@ import 'package:app_pharmacie/features/order_detail/order_detail_page.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_state.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/order_status_stepper.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/pickup_info_card.dart';
+import 'package:app_pharmacie/features/order_detail/widgets/prescription_lines_panel.dart';
 
 class MockPharmacyOrdersRepository extends Mock
     implements PharmacyOrdersRepository {}
@@ -256,6 +257,51 @@ void main() {
         ),
       );
       expect(find.byType(OrderStatusStepper), findsOneWidget);
+    });
+
+    testWidgets(
+        'les lignes de l\'ordonnance sont affichées avec en-tête, '
+        'bloc prescripteur et quantité (#4877)', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.received),
+          items: prescriptionItems,
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byType(PrescriptionLinesPanel), findsOneWidget);
+      expect(find.text('Ordonnance — 1 ligne'), findsOneWidget);
+      expect(find.text('Prescripteur'), findsOneWidget);
+      expect(find.text('RPPS'), findsOneWidget);
+      expect(find.text('Prescrite le'), findsOneWidget);
+      expect(find.text('Valable jusqu\'au'), findsOneWidget);
+      expect(find.text('Paracétamol 1 g — comprimé'), findsOneWidget);
+      expect(
+        find.text('1 cp × 3 / jour si douleur, 5 jours'),
+        findsOneWidget,
+      );
+      expect(find.text('QSP 15 cp'), findsOneWidget);
+    });
+
+    testWidgets(
+        'aucune ligne d\'ordonnance → le panneau ne s\'affiche pas',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.received)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byType(PrescriptionLinesPanel), findsNothing);
     });
   });
 }
