@@ -127,8 +127,37 @@ void main() {
         BlocProvider<StockBloc>.value(
             value: bloc, child: const Scaffold(body: StockView())),
       );
+      await tester.tap(find.byKey(const Key('stock_facet_accepted')));
+      await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('stock_fulfill_s1')), findsOneWidget);
+      expect(find.byKey(const Key('stock_accept_s1')), findsNothing);
+    });
+
+    testWidgets('facettes de statut : compteurs et filtrage', (tester) async {
+      final requests = [
+        stockRequest(StockRequestStatus.sent),
+        stockRequest(StockRequestStatus.accepted),
+        stockRequest(StockRequestStatus.fulfilled),
+        stockRequest(StockRequestStatus.rejected),
+      ];
+      final bloc = MockStockBloc();
+      when(() => bloc.state).thenReturn(StockLoaded(requests));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      expect(find.text('À répondre (1)'), findsOneWidget);
+      expect(find.text('Acceptées (1)'), findsOneWidget);
+      expect(find.text('Honorées (1)'), findsOneWidget);
+      expect(find.text('Refusées (1)'), findsOneWidget);
+      expect(find.byKey(const Key('stock_accept_s1')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('stock_facet_fulfilled')));
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const Key('stock_accept_s1')), findsNothing);
     });
   });

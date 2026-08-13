@@ -5,9 +5,10 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'stock_bloc.dart';
 import 'stock_delay.dart';
+import 'stock_status_facet_chip.dart';
 
 /// Demandes de stock reçues des cabinets — corps de la destination « Stock ».
-class StockView extends StatelessWidget {
+class StockView extends StatefulWidget {
   const StockView({super.key});
 
   static const _labels = {
@@ -27,7 +28,22 @@ class StockView extends StatelessWidget {
   };
 
   @override
+  State<StockView> createState() => _StockViewState();
+}
+
+class _StockViewState extends State<StockView> {
+  StockRequestStatus _facet = StockRequestStatus.sent;
+
+  @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final facets = <(StockRequestStatus, String, Color)>[
+      (StockRequestStatus.sent, 'À répondre', tokens.infoFg),
+      (StockRequestStatus.accepted, 'Acceptées', tokens.warningFg),
+      (StockRequestStatus.fulfilled, 'Honorées', tokens.successFg),
+      (StockRequestStatus.rejected, 'Refusées', tokens.dangerFg),
+    ];
+
     return BlocBuilder<StockBloc, StockState>(
       builder: (context, state) {
         switch (state) {
@@ -40,27 +56,53 @@ class StockView extends StatelessWidget {
                   context.read<StockBloc>().add(const StockLoadRequested()),
             );
           case StockLoaded(:final requests, :final respondingId):
-            if (requests.isEmpty) {
-              return const NubiaEmptyState(
-                icon: Icons.inventory_2_outlined,
-                title: 'Aucune demande de stock',
-                subtitle:
-                    'Les demandes envoyées par les cabinets apparaîtront ici.',
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: requests.length,
-              itemBuilder: (context, index) {
-                final request = requests[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _StockRequestCard(
-                    request: request,
-                    responding: respondingId == request.id,
+            final filtered =
+                requests.where((r) => r.status == _facet).toList();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (status, label, dotColor) in facets)
+                        StockStatusFacetChip(
+                          key: Key('stock_facet_${status.name}'),
+                          label: label,
+                          count: requests.where((r) => r.status == status).length,
+                          dotColor: dotColor,
+                          selected: status == _facet,
+                          onTap: () => setState(() => _facet = status),
+                        ),
+                    ],
                   ),
-                );
-              },
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? const NubiaEmptyState(
+                          icon: Icons.inventory_2_outlined,
+                          title: 'Aucune demande de stock',
+                          subtitle:
+                              'Les demandes envoyées par les cabinets apparaîtront ici.',
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final request = filtered[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _StockRequestCard(
+                                request: request,
+                                responding: respondingId == request.id,
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             );
         }
       },
