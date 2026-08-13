@@ -146,13 +146,26 @@ class _StockRequestCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: NubiaButton(
+                // Refus irréversible engageant la relation commerciale : action
+                // secondaire teintée danger, jamais à égalité avec l'accept.
+                SizedBox(
+                  height: 44,
+                  child: OutlinedButton(
                     key: Key('stock_reject_${request.id}'),
-                    label: 'Refuser — motif obligatoire',
-                    variant: NubiaButtonVariant.secondary,
-                    onPressed:
-                        responding ? null : () => _askRejectNote(context, bloc),
+                    onPressed: responding
+                        ? null
+                        : () => _askRejectNote(context, bloc),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tokens.dangerFg,
+                      side: const BorderSide(color: NubiaColors.dangerBorder),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      minimumSize: const Size(0, 44),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Refuser — motif obligatoire',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
                   ),
                 ),
               ],
