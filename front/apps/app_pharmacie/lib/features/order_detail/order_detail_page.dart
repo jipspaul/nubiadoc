@@ -178,6 +178,104 @@ class OrderDetailBody extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         _ContextualAction(order: order, inProgress: actionInProgress),
+        if (order.hasBillingSummary) ...[
+          const SizedBox(height: 24),
+          _BillingSummaryCard(order: order),
+        ],
+      ],
+    );
+  }
+}
+
+/// Bloc facturation (pied du volet droit) : Montant total, part AMO, part
+/// AMC, à encaisser — même vocabulaire et même formatage que l'app Patient
+/// (helper `formatQuoteCents` partagé, cf. #4063/#4888). N'apparaît que si
+/// le back a renseigné la ventilation ([PharmacyOrder.hasBillingSummary]).
+class _BillingSummaryCard extends StatelessWidget {
+  const _BillingSummaryCard({required this.order});
+
+  final PharmacyOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return NubiaCard(
+      key: const Key('order_billing_summary'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _BillingRow(
+            label: 'Montant total',
+            amountCents: order.billingTotalCents!,
+          ),
+          const SizedBox(height: 8),
+          _BillingRow(
+            label: 'Part Assurance Maladie (AMO)',
+            amountCents: -order.billingAmoShareCents!,
+          ),
+          const SizedBox(height: 8),
+          _BillingRow(
+            label: 'Part mutuelle (AMC)',
+            amountCents: -order.billingAmcShareCents!,
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'À encaisser',
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: cs.onSurface),
+                ),
+              ),
+              Text(
+                formatQuoteCents(order.billingPatientShareCents!),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: tabularFigures,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne « libellé — montant » du bloc facturation.
+class _BillingRow extends StatelessWidget {
+  const _BillingRow({required this.label, required this.amountCents});
+
+  final String label;
+  final int amountCents;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ),
+        Text(
+          formatQuoteCents(amountCents),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: cs.onSurface,
+            fontFeatures: tabularFigures,
+          ),
+        ),
       ],
     );
   }

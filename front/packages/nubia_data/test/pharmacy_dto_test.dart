@@ -33,6 +33,25 @@ void main() {
       expect(order.prescriptionId, '');
       // updatedAt retombe sur createdAt.
       expect(order.updatedAt, order.createdAt);
+      // Pas de ventilation facturation tant que le back ne l'envoie pas
+      // (#4888) : le bloc facturation ne s'affiche pas.
+      expect(order.hasBillingSummary, isFalse);
+    });
+
+    test('ventilation facturation (#4888)', () {
+      final order = PharmacyOrderDto.fromJson({
+        'id': 'o3',
+        'billing_total_cents': 2480,
+        'billing_amo_share_cents': 1636,
+        'billing_amc_share_cents': 644,
+        'billing_patient_share_cents': 200,
+      }).toDomain();
+
+      expect(order.hasBillingSummary, isTrue);
+      expect(order.billingTotalCents, 2480);
+      expect(order.billingAmoShareCents, 1636);
+      expect(order.billingAmcShareCents, 644);
+      expect(order.billingPatientShareCents, 200);
     });
 
     test('statut inconnu → received (défensif)', () {

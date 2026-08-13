@@ -12,6 +12,10 @@ class PharmacyOrderDto {
   final String? updatedAt;
   final String? readyAt;
   final String? pickedUpAt;
+  final int? billingTotalCents;
+  final int? billingAmoShareCents;
+  final int? billingAmcShareCents;
+  final int? billingPatientShareCents;
 
   const PharmacyOrderDto({
     required this.id,
@@ -25,6 +29,10 @@ class PharmacyOrderDto {
     this.updatedAt,
     this.readyAt,
     this.pickedUpAt,
+    this.billingTotalCents,
+    this.billingAmoShareCents,
+    this.billingAmcShareCents,
+    this.billingPatientShareCents,
   });
 
   factory PharmacyOrderDto.fromJson(Map<String, dynamic> json) =>
@@ -41,6 +49,13 @@ class PharmacyOrderDto {
         updatedAt: json['updated_at'] as String?,
         readyAt: json['ready_at'] as String?,
         pickedUpAt: json['picked_up_at'] as String?,
+        billingTotalCents: (json['billing_total_cents'] as num?)?.toInt(),
+        billingAmoShareCents:
+            (json['billing_amo_share_cents'] as num?)?.toInt(),
+        billingAmcShareCents:
+            (json['billing_amc_share_cents'] as num?)?.toInt(),
+        billingPatientShareCents:
+            (json['billing_patient_share_cents'] as num?)?.toInt(),
       );
 
   PharmacyOrder toDomain() {
@@ -57,6 +72,10 @@ class PharmacyOrderDto {
       updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : created,
       readyAt: readyAt != null ? DateTime.parse(readyAt!) : null,
       pickedUpAt: pickedUpAt != null ? DateTime.parse(pickedUpAt!) : null,
+      billingTotalCents: billingTotalCents,
+      billingAmoShareCents: billingAmoShareCents,
+      billingAmcShareCents: billingAmcShareCents,
+      billingPatientShareCents: billingPatientShareCents,
     );
   }
 

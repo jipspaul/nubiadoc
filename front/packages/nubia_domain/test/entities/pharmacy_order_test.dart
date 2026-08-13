@@ -116,6 +116,26 @@ void main() {
         isNot(equals(makeOrder(PharmacyOrderStatus.preparing))),
       );
     });
+
+    test('hasBillingSummary uniquement si les 4 montants sont renseignés '
+        '(#4888)', () {
+      expect(makeOrder(PharmacyOrderStatus.received).hasBillingSummary,
+          isFalse);
+
+      final billed = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.ready,
+        createdAt: DateTime.utc(2026, 7, 1),
+        updatedAt: DateTime.utc(2026, 7, 2),
+        billingTotalCents: 2480,
+        billingAmoShareCents: 1636,
+        billingAmcShareCents: 644,
+        billingPatientShareCents: 200,
+      );
+      expect(billed.hasBillingSummary, isTrue);
+    });
   });
 
   group('PharmacyQuote', () {
