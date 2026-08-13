@@ -120,10 +120,28 @@ class _StockRequestCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           for (final item in request.items)
-            Text(
-              '• ${item.quantity} × ${item.label}'
-              '${item.note != null ? ' (${item.note})' : ''}',
-              style: theme.textTheme.bodyMedium,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      '• ${item.quantity} × ${item.label}'
+                      '${item.note != null ? ' (${item.note})' : ''}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  if (item.availability != null)
+                    Text(
+                      _availabilityLabel(item.availability!),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: _availabilityColor(item.availability!, tokens),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
             ),
           if (request.responseNote != null) ...[
             const SizedBox(height: 4),
@@ -227,5 +245,25 @@ class _StockRequestCard extends StatelessWidget {
         note: note,
       ));
     }
+  }
+
+  String _availabilityLabel(StockItemAvailability availability) {
+    return switch (availability.status) {
+      StockItemAvailabilityStatus.inStock => 'En stock',
+      StockItemAvailabilityStatus.limited =>
+        '${availability.quantityAvailable ?? 0} dispo',
+      StockItemAvailabilityStatus.outOfStock => 'Rupture',
+    };
+  }
+
+  Color _availabilityColor(
+    StockItemAvailability availability,
+    NubiaTokens tokens,
+  ) {
+    return switch (availability.status) {
+      StockItemAvailabilityStatus.inStock => tokens.successFg,
+      StockItemAvailabilityStatus.limited => tokens.warningFg,
+      StockItemAvailabilityStatus.outOfStock => tokens.dangerFg,
+    };
   }
 }
