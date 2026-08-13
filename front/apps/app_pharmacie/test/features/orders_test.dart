@@ -23,14 +23,19 @@ class MockPharmacyOrderEventsPort extends Mock
 class MockOrdersBloc extends MockBloc<OrdersEvent, OrdersState>
     implements OrdersBloc {}
 
-PharmacyOrder order(String id, PharmacyOrderStatus status) => PharmacyOrder(
+PharmacyOrder order(String id, PharmacyOrderStatus status) =>
+    orderAt(id, status, DateTime(2026, 7, 1, 10));
+
+PharmacyOrder orderAt(
+        String id, PharmacyOrderStatus status, DateTime createdAt) =>
+    PharmacyOrder(
       id: id,
       pharmacyId: 'p1',
       patientDisplayName: 'Jean D.',
       prescriptionId: 'rx1',
       status: status,
-      createdAt: DateTime(2026, 7, 1, 10),
-      updatedAt: DateTime(2026, 7, 1, 10),
+      createdAt: createdAt,
+      updatedAt: createdAt,
     );
 
 void main() {
@@ -171,6 +176,68 @@ void main() {
       verify(() =>
               bloc.add(const OrdersFilterChanged(PharmacyOrderStatus.ready)))
           .called(1);
+    });
+
+    testWidgets(
+        'commande received en retard (> 2 h) → libellé rouge + fond urgent',
+        (tester) async {
+      final lateOrder = orderAt(
+        'o1',
+        PharmacyOrderStatus.received,
+        DateTime.now().subtract(const Duration(hours: 2, minutes: 30)),
+      );
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(OrdersLoaded(orders: [lateOrder]));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+
+      expect(find.textContaining('Attend 2 h 30'), findsOneWidget);
+      final tokens = NubiaTokens.light;
+      final richText =
+          tester.widget<Text>(find.textContaining('Attend 2 h 30'));
+      final root = richText.textSpan! as TextSpan;
+      final waitSpan = root.children!.first as TextSpan;
+      expect(waitSpan.style?.color, tokens.dangerFg);
+      expect(waitSpan.style?.fontWeight, FontWeight.w700);
+
+      final decoratedBox = tester.widget<DecoratedBox>(
+        find.byKey(const Key('order_row_o1')),
+      );
+      expect((decoratedBox.decoration as BoxDecoration).color, tokens.dangerBg);
+    });
+
+    testWidgets('commande preparing récente (< 60 min) → libellé en minutes',
+        (tester) async {
+      final recentOrder = orderAt(
+        'o1',
+        PharmacyOrderStatus.preparing,
+        DateTime.now().subtract(const Duration(minutes: 24)),
+      );
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(OrdersLoaded(orders: [recentOrder]));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+
+      expect(find.textContaining('Attend 24 min'), findsOneWidget);
+      final tokens = NubiaTokens.light;
+      final richText =
+          tester.widget<Text>(find.textContaining('Attend 24 min'));
+      final root = richText.textSpan! as TextSpan;
+      final waitSpan = root.children!.first as TextSpan;
+      expect(waitSpan.style?.color, tokens.textTertiary);
+      expect(waitSpan.style?.fontWeight, FontWeight.w400);
     });
   });
 
