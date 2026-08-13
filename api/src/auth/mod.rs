@@ -1052,6 +1052,9 @@ pub async fn patch_cabinet(
 ) -> Result<Json<CabinetResponse>, AppError> {
     if let Some(name) = &body.name {
         crate::text_validation::reject_nul_byte(name)?;
+        if name.trim().is_empty() {
+            return Err(AppError::ValidationError);
+        }
     }
     if let Some(siret) = &body.siret {
         crate::text_validation::reject_nul_byte(siret)?;
