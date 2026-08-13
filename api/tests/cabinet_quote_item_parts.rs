@@ -1,9 +1,9 @@
 //! Tests d'intégration : PATCH /v1/cabinet/quotes/:id/items/:item_id/parts (#4069)
 //!
 //! Réaffectation manuelle AMO/AMC après retour de remboursement — doit
-//! fonctionner même sur un devis `signed` (voir doc de module
-//! `cabinet_quote_item_parts.rs`) et tracer l'ancien/nouveau montant dans
-//! `audit_log`.
+//! fonctionner même sur un devis `signed` tant que la part patient de la
+//! ligne n'augmente pas (voir doc de module `cabinet_quote_item_parts.rs`,
+//! garde-fou #4873) et tracer l'ancien/nouveau montant dans `audit_log`.
 
 use axum::{
     body::Body,
@@ -196,7 +196,11 @@ async fn patch_parts(
     (status, value)
 }
 
-// ── Test 1 : devis SIGNED — corrige amo_part, écrit un audit_log ────────────
+// ── Test 1 : devis SIGNED — corrige amo_part sans augmenter la part patient,
+// écrit un audit_log ──────────────────────────────────────────────────────
+//
+// Seed : amount=10000, amo=7000, amc=2000 -> part patient = 1000. Patch
+// amo_part_cents=8000 (amc inchangé) -> part patient = 0 <= 1000 : autorisé.
 
 #[tokio::test]
 async fn patch_parts_on_signed_quote_updates_item_and_writes_audit_log() {
@@ -212,12 +216,12 @@ async fn patch_parts_on_signed_quote_updates_item_and_writes_audit_log() {
         f.quote_id,
         f.item_id,
         make_pro_jwt(user_id, f.cabinet_id, "secretary"),
-        json!({ "amo_part_cents": 5000 }),
+        json!({ "amo_part_cents": 8000 }),
     )
     .await;
 
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(resp["amo_part_cents"], 5000);
+    assert_eq!(resp["amo_part_cents"], 8000);
     // amc_part_cents non fourni : doit rester inchangé (2000 = 20.00 EUR seed).
     assert_eq!(resp["amc_part_cents"], 2000);
 
@@ -231,7 +235,7 @@ async fn patch_parts_on_signed_quote_updates_item_and_writes_audit_log() {
     .unwrap();
     let amo_cents: i64 = item_row.try_get("amo_cents").unwrap();
     let amc_cents: i64 = item_row.try_get("amc_cents").unwrap();
-    assert_eq!(amo_cents, 5000);
+    assert_eq!(amo_cents, 8000);
     assert_eq!(amc_cents, 2000);
 
     // audit_log : append-only, pas de SELECT pour nubia_app -> vérifié via owner_pool.
@@ -247,8 +251,47 @@ async fn patch_parts_on_signed_quote_updates_item_and_writes_audit_log() {
     .unwrap();
     let metadata: serde_json::Value = audit_row.try_get("metadata").unwrap();
     assert_eq!(metadata["old_amo_part_cents"], 7000);
-    assert_eq!(metadata["new_amo_part_cents"], 5000);
+    assert_eq!(metadata["new_amo_part_cents"], 8000);
     assert_eq!(metadata["quote_id"], f.quote_id.to_string());
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 1b : devis SIGNED — patch qui AUGMENTE la part patient -> 409 ──────
+// (#4873 : sans ça, réduire amo_part après signature fait grimper le reste à
+// charge au-delà de ce que le patient a signé, cf. repro de l'issue.)
+
+#[tokio::test]
+async fn patch_parts_on_signed_quote_increasing_patient_share_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db, "signed").await;
+    let user_id = Uuid::new_v4();
+
+    // amo 7000 -> 0, amc inchangé (2000) : part patient 1000 -> 8000.
+    let (status, resp) = patch_parts(
+        state_with(app_pool().await),
+        f.quote_id,
+        f.item_id,
+        make_pro_jwt(user_id, f.cabinet_id, "secretary"),
+        json!({ "amo_part_cents": 0 }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(resp["code"], "quote_locked");
+
+    // Doit rester inchangé (pas d'écriture partielle).
+    let item_row =
+        sqlx::query("SELECT (amo_part * 100)::bigint AS amo_cents FROM quote_item WHERE id = $1")
+            .bind(f.item_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    let amo_cents: i64 = item_row.try_get("amo_cents").unwrap();
+    assert_eq!(amo_cents, 7000, "aucune écriture ne doit avoir eu lieu");
 
     cleanup(&db, &f).await;
 }
