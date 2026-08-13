@@ -289,3 +289,126 @@ async fn open_support_conversation_admin_creates_and_is_idempotent_and_isolated(
     cleanup(&db, cabinet_a, admin_a).await;
     cleanup(&db, cabinet_b, admin_b).await;
 }
+
+// ── Test : secrétariat du même cabinet → 404 en lecture ET écriture sur le
+// fil platform_support par accès direct id (#4843) ─────────────────────────
+
+#[tokio::test]
+async fn platform_support_conversation_hidden_from_secretary_direct_access() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, admin_id) = insert_cabinet_with_admin(&db, "sec-bypass").await;
+    let secretary_id = Uuid::new_v4();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Admin ouvre le fil de support.
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/support/conversations")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_jwt(admin_id, cabinet_id, "admin")),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let conversation_id: Uuid = v["conversation_id"].as_str().unwrap().parse().unwrap();
+
+    // Admin poste un message dans le fil.
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/conversations/{}/messages",
+                    conversation_id
+                ))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_pro_jwt(admin_id, cabinet_id, "admin")),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"body": "Bonjour, question sur la facturation"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Secrétariat du même cabinet : lecture directe par id → 404 (pas de fuite).
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/conversations/{}/messages",
+                    conversation_id
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(secretary_id, cabinet_id, "secretary")
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "le secrétariat ne doit pas pouvoir lire le fil platform_support par accès direct id"
+    );
+
+    // Secrétariat du même cabinet : écriture directe par id → 404 (pas d'intrusion).
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/conversations/{}/messages",
+                    conversation_id
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(secretary_id, cabinet_id, "secretary")
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"body": "secretary intruding on support thread"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "le secrétariat ne doit pas pouvoir écrire dans le fil platform_support par accès direct id"
+    );
+
+    cleanup(&db, cabinet_id, admin_id).await;
+}

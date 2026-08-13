@@ -394,10 +394,12 @@ pub async fn get_cabinet_conversation_messages(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Conversation du cabinet, hors fils cliniques pour un secrétaire (§07 §4.1).
+    // Conversation du cabinet, hors fils cliniques pour un secrétaire (§07 §4.1)
+    // et hors fil de support admin↔plateforme pour tout rôle non-admin (#4843).
     sqlx::query(
         "SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2 \
-         AND (scope != 'clinical' OR $3 != 'secretary')",
+         AND (scope != 'clinical' OR $3 != 'secretary') \
+         AND (scope != 'platform_support' OR $3 = 'admin')",
     )
     .bind(conversation_id)
     .bind(claims.cabinet_id)
@@ -478,10 +480,12 @@ pub async fn send_cabinet_message(
         .map_err(|_| AppError::Internal)?;
 
     // Conversation du cabinet uniquement (RLS + garde explicite), hors fils
-    // cliniques pour un secrétaire (§07 §4.1).
+    // cliniques pour un secrétaire (§07 §4.1) et hors fil de support
+    // admin↔plateforme pour tout rôle non-admin (#4843).
     sqlx::query(
         "SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2 \
-         AND (scope != 'clinical' OR $3 != 'secretary')",
+         AND (scope != 'clinical' OR $3 != 'secretary') \
+         AND (scope != 'platform_support' OR $3 = 'admin')",
     )
     .bind(conversation_id)
     .bind(claims.cabinet_id)
@@ -558,10 +562,12 @@ pub async fn mark_cabinet_conversation_read(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Conversation du cabinet, hors fils cliniques pour un secrétaire (§07 §4.1).
+    // Conversation du cabinet, hors fils cliniques pour un secrétaire (§07 §4.1)
+    // et hors fil de support admin↔plateforme pour tout rôle non-admin (#4843).
     sqlx::query(
         "SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2 \
-         AND (scope != 'clinical' OR $3 != 'secretary')",
+         AND (scope != 'clinical' OR $3 != 'secretary') \
+         AND (scope != 'platform_support' OR $3 = 'admin')",
     )
     .bind(conversation_id)
     .bind(claims.cabinet_id)
