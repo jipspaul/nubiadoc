@@ -25,7 +25,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route(
             "/v1/cabinet/stock-items/:id/movements",
-            axum::routing::post(stock_items::add_stock_movement),
+            get(stock_items::list_stock_movements).post(stock_items::add_stock_movement),
         )
         .route(
             "/v1/cabinet/ccam-stock-mappings",
