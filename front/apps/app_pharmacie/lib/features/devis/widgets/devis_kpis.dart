@@ -4,40 +4,44 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 /// Agrégats du bandeau de compteurs de l'écran Devis (#4897).
 ///
-/// « actifs » = tous les devis suivis à l'écran (`quotes.length`) ; le
-/// compteur « brouillons non envoyés » fait l'objet d'un autre ticket
-/// (voir point 8 des notes design) et n'est pas calculé ici.
+/// « actifs » = tous les devis suivis à l'écran (`quotes.length`).
 class DevisKpis {
   const DevisKpis({
     required this.activeCount,
     required this.pendingCount,
     required this.acceptedAmountCents,
+    required this.draftCount,
   });
 
   factory DevisKpis.fromQuotes(List<PharmacyQuote> quotes) {
     var pendingCount = 0;
     var acceptedAmountCents = 0;
+    var draftCount = 0;
     for (final quote in quotes) {
       if (quote.status == PharmacyQuoteStatus.sent) {
         pendingCount++;
       } else if (quote.status == PharmacyQuoteStatus.accepted) {
         acceptedAmountCents += quote.totalCents;
+      } else if (quote.status == PharmacyQuoteStatus.draft) {
+        draftCount++;
       }
     }
     return DevisKpis(
       activeCount: quotes.length,
       pendingCount: pendingCount,
       acceptedAmountCents: acceptedAmountCents,
+      draftCount: draftCount,
     );
   }
 
   final int activeCount;
   final int pendingCount;
   final int acceptedAmountCents;
+  final int draftCount;
 }
 
 /// Bandeau de compteurs en tête de l'écran Devis : devis actifs, en attente
-/// de réponse (ambre) et montant accepté.
+/// de réponse (ambre), brouillons non envoyés (rouge) et montant accepté.
 class DevisKpiBanner extends StatelessWidget {
   const DevisKpiBanner({super.key, required this.quotes});
 
@@ -62,6 +66,12 @@ class DevisKpiBanner extends StatelessWidget {
             value: '${kpis.pendingCount}',
             label: 'en attente de réponse',
             valueColor: tokens.warningFg,
+          ),
+          const SizedBox(width: 24),
+          _DevisKpiStat(
+            value: '${kpis.draftCount}',
+            label: 'brouillons non envoyés',
+            valueColor: tokens.dangerFg,
           ),
           const SizedBox(width: 24),
           _DevisKpiStat(
