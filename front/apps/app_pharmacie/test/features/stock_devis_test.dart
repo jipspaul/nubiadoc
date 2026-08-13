@@ -126,6 +126,50 @@ void main() {
       expect(find.byKey(const Key('stock_fulfill_s1')), findsOneWidget);
       expect(find.byKey(const Key('stock_accept_s1')), findsNothing);
     });
+
+    testWidgets(
+        'ligne partiellement disponible + reçue → bandeau d\'avertissement',
+        (tester) async {
+      final bloc = MockStockBloc();
+      final request = StockRequest(
+        id: 's1',
+        pharmacyId: 'p1',
+        cabinetName: 'Cabinet Dupont',
+        items: const [
+          StockRequestItem(
+            label: 'Compresses stériles',
+            quantity: 10,
+            availability: StockItemAvailability.partial,
+          ),
+        ],
+        status: StockRequestStatus.sent,
+        createdAt: DateTime(2026, 7, 1),
+      );
+      when(() => bloc.state).thenReturn(StockLoaded([request]));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      expect(find.byKey(const Key('stock_partial_availability_banner')),
+          findsOneWidget);
+      expect(find.text('Une ligne partiellement disponible.'), findsOneWidget);
+    });
+
+    testWidgets('aucune ligne partielle → pas de bandeau', (tester) async {
+      final bloc = MockStockBloc();
+      when(() => bloc.state)
+          .thenReturn(StockLoaded([stockRequest(StockRequestStatus.sent)]));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      expect(find.byKey(const Key('stock_partial_availability_banner')),
+          findsNothing);
+    });
   });
 
   group('PharmacyDevisBloc', () {

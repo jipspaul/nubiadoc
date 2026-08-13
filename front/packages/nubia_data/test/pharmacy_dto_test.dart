@@ -99,6 +99,24 @@ void main() {
       expect(request.items.last.quantity, 2);
       expect(request.status, StockRequestStatus.accepted);
     });
+
+    test('availability jsonb → StockItemAvailability', () {
+      final request = StockRequestDto.fromJson({
+        'id': 's1',
+        'pharmacy_id': 'p1',
+        'items': [
+          {'label': 'Compresses', 'qty': 10, 'availability': 'partial'},
+          {'label': 'Sérum phy', 'qty': 2, 'availability': 'full'},
+          {'label': 'Gaze', 'qty': 1},
+        ],
+        'status': 'sent',
+        'created_at': '2026-07-01T10:00:00Z',
+      }).toDomain();
+
+      expect(request.items[0].availability, StockItemAvailability.partial);
+      expect(request.items[1].availability, StockItemAvailability.full);
+      expect(request.items[2].availability, isNull);
+    });
   });
 
   group('PharmacyQuoteDto', () {
