@@ -40,6 +40,7 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
       (event, emit) => _transition(emit, (id) => _reject(id, event.reason)),
     );
     on<OrderDetailDocumentRequested>(_onDocumentRequested);
+    on<OrderDetailLinePreparedToggled>(_onLinePreparedToggled);
   }
 
   Future<void> _onLoad(
@@ -74,11 +75,16 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
       current.order,
       items: current.items,
       actionInProgress: true,
+      preparedLineIndices: current.preparedLineIndices,
     ));
     final result = await action(current.order.id);
     result.fold(
       (failure) => emit(OrderDetailError(failure.message)),
-      (order) => emit(OrderDetailLoaded(order, items: current.items)),
+      (order) => emit(OrderDetailLoaded(
+        order,
+        items: current.items,
+        preparedLineIndices: current.preparedLineIndices,
+      )),
     );
   }
 
@@ -97,5 +103,24 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
         emit(OrderDetailLoaded(current.order, items: current.items));
       },
     );
+  }
+
+  void _onLinePreparedToggled(
+    OrderDetailLinePreparedToggled event,
+    Emitter<OrderDetailState> emit,
+  ) {
+    final current = state;
+    if (current is! OrderDetailLoaded) return;
+
+    final preparedLineIndices = Set<int>.from(current.preparedLineIndices);
+    if (!preparedLineIndices.remove(event.index)) {
+      preparedLineIndices.add(event.index);
+    }
+    emit(OrderDetailLoaded(
+      current.order,
+      items: current.items,
+      actionInProgress: current.actionInProgress,
+      preparedLineIndices: preparedLineIndices,
+    ));
   }
 }

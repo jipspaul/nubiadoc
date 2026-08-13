@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
@@ -144,6 +145,29 @@ void main() {
       expect: () => [
         const OrderDetailLoading(),
         OrderDetailLoaded(order(PharmacyOrderStatus.received)),
+      ],
+    );
+
+    blocTest<OrderDetailBloc, OrderDetailState>(
+      'coche puis décoche une ligne (#4882)',
+      build: buildBloc,
+      seed: () => OrderDetailLoaded(
+        order(PharmacyOrderStatus.preparing),
+        items: prescriptionItems,
+      ),
+      act: (bloc) => bloc
+        ..add(const OrderDetailLinePreparedToggled(0))
+        ..add(const OrderDetailLinePreparedToggled(0)),
+      expect: () => [
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          items: prescriptionItems,
+          preparedLineIndices: const {0},
+        ),
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          items: prescriptionItems,
+        ),
       ],
     );
 
@@ -302,6 +326,52 @@ void main() {
         ),
       );
       expect(find.byType(PrescriptionLinesPanel), findsNothing);
+    });
+
+    testWidgets(
+        'preparing : le compteur affiche "X sur N préparées" et désactive '
+        'Marquer prête tant que toutes les lignes ne sont pas cochées '
+        '(#4882)', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          items: prescriptionItems,
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.text('0 sur 1 préparées'), findsOneWidget);
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('order_action_ready')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets(
+        'preparing : Marquer prête s\'active une fois toutes les lignes '
+        'cochées et émet OrderDetailReadyRequested (#4882)', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          items: prescriptionItems,
+          preparedLineIndices: const {0},
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.text('1 sur 1 préparées'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('order_action_ready')));
+      verify(() => bloc.add(const OrderDetailReadyRequested())).called(1);
     });
   });
 }
