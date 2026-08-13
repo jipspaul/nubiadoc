@@ -71,8 +71,9 @@ class PickupScanBody extends StatelessWidget {
                   ),
                 const SizedBox(height: 16),
                 if (state is PickupScanInvalidCode) ...[
-                  _InlineError(
+                  _InvalidCodeError(
                     key: const Key('pickup_invalid_code'),
+                    cause: state.cause,
                     message: state.message,
                   ),
                   const SizedBox(height: 8),
@@ -280,6 +281,85 @@ class _MismatchColumn extends StatelessWidget {
               ?.copyWith(color: color, fontWeight: FontWeight.w600),
         ),
       ],
+    );
+  }
+}
+
+/// Une conduite distincte par cause (#4884) : code inconnu (404), commande
+/// pas au bon statut (409) ou code expiré (410) n'appellent pas la même
+/// action du pharmacien.
+class _InvalidCodeError extends StatelessWidget {
+  const _InvalidCodeError({
+    super.key,
+    required this.cause,
+    required this.message,
+  });
+
+  final PickupScanInvalidCause cause;
+  final String message;
+
+  String get _title {
+    switch (cause) {
+      case PickupScanInvalidCause.unknownCode:
+        return 'Code inconnu';
+      case PickupScanInvalidCause.wrongStatus:
+        return 'Commande pas au bon statut';
+      case PickupScanInvalidCause.expired:
+        return 'Code expiré';
+    }
+  }
+
+  String get _guidance {
+    switch (cause) {
+      case PickupScanInvalidCause.unknownCode:
+        return 'Revérifiez le code sur l\'ordonnance et réessayez.';
+      case PickupScanInvalidCause.wrongStatus:
+        return 'Cette commande n\'est pas au bon état pour être retirée.';
+      case PickupScanInvalidCause.expired:
+        return 'Ce code a expiré — régénérez-le puis rescannez.';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.dangerBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: NubiaColors.dangerBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.error_outline, color: tokens.dangerFg, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _title,
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(color: tokens.dangerFg, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _guidance,
+            style: theme.textTheme.bodyMedium?.copyWith(color: tokens.dangerFg),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: tokens.dangerFg.withOpacity(0.8)),
+          ),
+        ],
+      ),
     );
   }
 }
