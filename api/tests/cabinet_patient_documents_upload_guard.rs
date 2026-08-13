@@ -65,6 +65,16 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
+fn make_scoped_secretary_token(sub: Uuid, cabinet_id: Uuid, secretariat_id: Uuid) -> String {
+    encode(
+        &Header::default(),
+        &json!({"sub": sub, "kind": "pro", "cabinet_id": cabinet_id, "role": "secretary",
+                "secretariat_id": secretariat_id, "exp": exp()}),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
     encode(
         &Header::default(),
@@ -120,6 +130,155 @@ async fn insert_fixtures(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     tx.commit().await.unwrap();
 
     (cabinet_id, user_id, patient_id)
+}
+
+/// Place le patient dans le scope R10 d'une secrétaire (#4870) : secrétariat +
+/// provider (lié à un praticien) + appointment confirmé patient/praticien,
+/// exactement comme `cabinet_document_download.rs::seed`. Sans ça, la garde
+/// R10 côté écriture (ajoutée par cette PR, symétrique de `list_patient_documents`)
+/// renvoie 404 à toute secrétaire dont le `secretariat_id` n'est pas scopé sur ce
+/// patient — y compris pour une catégorie non-clinique par ailleurs autorisée.
+/// Retourne le `secretariat_id` à placer dans le JWT de la secrétaire.
+async fn scope_secretary_to_patient(db: &PgPool, cabinet_id: Uuid, patient_id: Uuid) -> Uuid {
+    let secretariat_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("docupload3834-prac+{}@nubia.test", prac_user_id))
+    .execute(db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Secrétariat Upload Test')",
+    )
+    .bind(secretariat_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, display_name, specialite) \
+         VALUES ($1, $2, $3, $4, 'Dr Upload Test', 'dentaire')",
+    )
+    .bind(provider_id)
+    .bind(prac_id)
+    .bind(cabinet_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+         VALUES ($1, $2, true)",
+    )
+    .bind(provider_id)
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() - interval '1 day', \
+                 now() - interval '1 day' + interval '30 min', 'confirmed')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    secretariat_id
+}
+
+/// Nettoie les fixtures créées par `scope_secretary_to_patient`. Doit être
+/// appelé AVANT `cleanup_fixtures` : `appointment` référence `patient` et
+/// `practitioner` sans `ON DELETE CASCADE` (#0005_scheduling.sql).
+async fn cleanup_secretary_scope(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    patient_id: Uuid,
+    secretariat_id: Uuid,
+) {
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE patient_id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query(
+        "DELETE FROM provider_secretariat WHERE secretariat_id = $1",
+    )
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
+    let provider_user: Option<Uuid> = sqlx::query_scalar(
+        "SELECT user_id FROM provider WHERE cabinet_id = $1 AND display_name = 'Dr Upload Test'",
+    )
+    .bind(cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .ok()
+    .flatten();
+    sqlx::query("DELETE FROM provider WHERE cabinet_id = $1 AND display_name = 'Dr Upload Test'")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM secretariat WHERE id = $1")
+        .bind(secretariat_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE cabinet_id = $1 AND user_id = $2")
+        .bind(cabinet_id)
+        .bind(provider_user)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    if let Some(user_id) = provider_user {
+        sqlx::query("DELETE FROM app_user WHERE id = $1")
+            .bind(user_id)
+            .execute(db)
+            .await
+            .ok();
+    }
 }
 
 async fn cleanup_fixtures(db: &PgPool, cabinet_id: Uuid, user_id: Uuid, patient_id: Uuid) {
@@ -237,7 +396,12 @@ async fn upload_non_clinical_category_by_secretary_returns_201() {
     }
     let db = owner_pool().await;
     let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
-    let token = make_secretary_token(user_id, cabinet_id);
+    // R10 (#4870) : la secrétaire doit être scopée sur ce patient pour que
+    // la garde de scope secrétariat, désormais aussi appliquée en écriture,
+    // la laisse passer — même sans ça une catégorie non-clinique doit rester
+    // autorisée, mais seulement si le patient est dans son scope.
+    let secretariat_id = scope_secretary_to_patient(&db, cabinet_id, patient_id).await;
+    let token = make_scoped_secretary_token(user_id, cabinet_id, secretariat_id);
 
     let status = upload(patient_id, &token, "devis", app_pool().await).await;
     assert_eq!(
@@ -246,6 +410,7 @@ async fn upload_non_clinical_category_by_secretary_returns_201() {
         "une catégorie administrative (devis) doit rester autorisée à une secrétaire"
     );
 
+    cleanup_secretary_scope(&db, cabinet_id, patient_id, secretariat_id).await;
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
 
