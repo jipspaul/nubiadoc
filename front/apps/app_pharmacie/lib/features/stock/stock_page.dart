@@ -5,6 +5,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'stock_bloc.dart';
 import 'stock_delay.dart';
+import 'widgets/stock_kpis.dart';
 
 /// Demandes de stock reçues des cabinets — corps de la destination « Stock ».
 class StockView extends StatelessWidget {
@@ -48,19 +49,26 @@ class StockView extends StatelessWidget {
                     'Les demandes envoyées par les cabinets apparaîtront ici.',
               );
             }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: requests.length,
-              itemBuilder: (context, index) {
-                final request = requests[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _StockRequestCard(
-                    request: request,
-                    responding: respondingId == request.id,
+            return Column(
+              children: [
+                StockKpiBanner(requests: requests),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: requests.length,
+                    itemBuilder: (context, index) {
+                      final request = requests[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _StockRequestCard(
+                          request: request,
+                          responding: respondingId == request.id,
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+              ],
             );
         }
       },
