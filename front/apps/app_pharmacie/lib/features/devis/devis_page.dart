@@ -4,6 +4,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
+import 'quote_delay.dart';
 
 /// Devis d'officine — corps de la destination « Devis ».
 class PharmacyDevisView extends StatelessWidget {
@@ -79,6 +80,13 @@ class _QuoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final delay = quoteDelayOf(quote);
+    final delayColor = switch (delay.tone) {
+      QuoteDelayTone.neutral => tokens.textTertiary,
+      QuoteDelayTone.soon => tokens.warningFg,
+      QuoteDelayTone.late => tokens.dangerFg,
+    };
     return NubiaCard(
       key: Key('quote_${quote.id}'),
       child: Column(
@@ -88,9 +96,21 @@ class _QuoteCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(
-                  quote.patientDisplayName ?? 'Patient',
-                  style: theme.textTheme.titleSmall,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      quote.patientDisplayName ?? 'Patient',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      delay.label,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: delayColor,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               StatusPill(
