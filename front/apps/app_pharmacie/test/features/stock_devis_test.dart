@@ -36,10 +36,12 @@ StockRequest stockRequest(StockRequestStatus status) => StockRequest(
       createdAt: DateTime(2026, 7, 1),
     );
 
-PharmacyQuote quote(PharmacyQuoteStatus status) => PharmacyQuote(
+PharmacyQuote quote(PharmacyQuoteStatus status, {String? orderId}) =>
+    PharmacyQuote(
       id: 'q1',
       pharmacyId: 'p1',
       patientDisplayName: 'Jean D.',
+      orderId: orderId,
       items: const [
         PharmacyQuoteItem(
             label: 'Bain de bouche', quantity: 2, unitPriceCents: 450),
@@ -183,6 +185,40 @@ void main() {
       expect(find.byKey(const Key('quote_send_q1')), findsNothing);
       expect(find.text('Accepté'), findsOneWidget);
       expect(find.text('Accepté le 01/07'), findsOneWidget);
+    });
+
+    testWidgets('devis expiré → bouton Réémettre, pas d\'envoi',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(
+          [quote(PharmacyQuoteStatus.expired, orderId: 'o1')]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.byKey(const Key('quote_reissue_q1')), findsOneWidget);
+      expect(find.text('Réémettre'), findsOneWidget);
+      expect(find.byKey(const Key('quote_send_q1')), findsNothing);
+      expect(find.byKey(const Key('quote_view_q1')), findsNothing);
+    });
+
+    testWidgets('devis refusé → bouton Voir, pas d\'envoi ni de réémission',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(
+          [quote(PharmacyQuoteStatus.refused, orderId: 'o1')]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.byKey(const Key('quote_view_q1')), findsOneWidget);
+      expect(find.text('Voir'), findsOneWidget);
+      expect(find.byKey(const Key('quote_send_q1')), findsNothing);
+      expect(find.byKey(const Key('quote_reissue_q1')), findsNothing);
     });
   });
 }
