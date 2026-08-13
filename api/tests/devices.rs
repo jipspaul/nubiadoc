@@ -248,12 +248,11 @@ async fn devices_post_same_token_same_user_returns_same_id() {
         "un ré-enregistrement du même fcm_token doit renvoyer le même id"
     );
 
-    let row_count: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM device WHERE app_user_id = $1")
-            .bind(user_id)
-            .fetch_one(&db)
-            .await
-            .unwrap();
+    let row_count: i64 = sqlx::query_scalar("SELECT count(*) FROM device WHERE app_user_id = $1")
+        .bind(user_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
     assert_eq!(
         row_count, 1,
         "un ré-enregistrement identique ne doit pas créer de nouvelle ligne"
