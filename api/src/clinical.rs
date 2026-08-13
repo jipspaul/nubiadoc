@@ -1220,6 +1220,9 @@ pub struct UploadPatientDocumentResponse {
 /// passeport_implantaire, consentement) demandée par un non-praticien → 403
 /// (même garde que `list_patient_documents` côté lecture).
 ///
+/// R10 : une secrétaire hors du secrétariat en charge du patient → 404
+/// (même garde que `list_patient_documents` côté lecture, #4870).
+///
 /// Champs multipart :
 /// - `file` : binaire requis, non vide (PDF / JPEG / PNG ≤ 20 Mo). MIME déclaré
 ///   vérifié → 422 sinon ; 0 octet → 422 aussi (#3875, symétrique de documents.rs).
@@ -1350,6 +1353,35 @@ pub async fn upload_patient_document(
 
         if has_appointment.is_none() {
             return Err(AppError::Forbidden);
+        }
+    }
+
+    // R10 : même garde de scope secrétariat qu'en lecture (list_patient_documents,
+    // #3821/#3823) — sans elle, une secrétaire pouvait écrire un document dans le
+    // dossier d'un patient hors de son secrétariat, patient qu'elle ne peut ni
+    // lister ni relire (404) une fois l'upload fait (#4870).
+    if claims.role == "secretary" {
+        let in_scope = match claims.secretariat_id {
+            Some(secretariat_id) => sqlx::query(
+                "SELECT 1 FROM appointment a \
+                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                 WHERE a.patient_id = $1 \
+                   AND a.deleted_at IS NULL \
+                   AND a.status <> 'cancelled' \
+                   AND ps.secretariat_id = $2 \
+                   AND ps.active = true",
+            )
+            .bind(patient_id)
+            .bind(secretariat_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .is_some(),
+            None => false,
+        };
+        if !in_scope {
+            return Err(AppError::NotFound);
         }
     }
 
