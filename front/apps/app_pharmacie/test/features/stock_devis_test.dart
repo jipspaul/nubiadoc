@@ -253,6 +253,69 @@ void main() {
       final tokens = NubiaTokens.light;
       expect(pendingValue.style?.color, tokens.warningFg);
     });
+
+    testWidgets('recherche filtre par patient ou article', (tester) async {
+      final quotes = [
+        PharmacyQuote(
+          id: 'q1',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean Dupont',
+          items: const [
+            PharmacyQuoteItem(
+                label: 'Bain de bouche', quantity: 2, unitPriceCents: 450),
+          ],
+          totalCents: 900,
+          status: PharmacyQuoteStatus.draft,
+          createdAt: DateTime(2026, 7, 1),
+        ),
+        PharmacyQuote(
+          id: 'q2',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Alice Martin',
+          items: const [
+            PharmacyQuoteItem(
+                label: 'Compresses stériles',
+                quantity: 1,
+                unitPriceCents: 300),
+          ],
+          totalCents: 300,
+          status: PharmacyQuoteStatus.draft,
+          createdAt: DateTime(2026, 7, 1),
+        ),
+      ];
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(quotes));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.text('Jean Dupont'), findsOneWidget);
+      expect(find.text('Alice Martin'), findsOneWidget);
+
+      final searchField = find.byKey(const Key('devis_search'));
+      expect(searchField, findsOneWidget);
+      expect(find.text('Patient, article…'), findsOneWidget);
+
+      await tester.enterText(searchField, 'alice');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jean Dupont'), findsNothing);
+      expect(find.text('Alice Martin'), findsOneWidget);
+
+      await tester.enterText(searchField, 'compresses');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jean Dupont'), findsNothing);
+      expect(find.text('Alice Martin'), findsOneWidget);
+
+      await tester.enterText(searchField, '');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jean Dupont'), findsOneWidget);
+      expect(find.text('Alice Martin'), findsOneWidget);
+    });
   });
 
   group('DevisKpis', () {
