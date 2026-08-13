@@ -60,7 +60,7 @@ class _StockViewState extends State<StockView> {
       builder: (context, state) {
         switch (state) {
           case StockLoading():
-            return const Center(child: CircularProgressIndicator());
+            return const _StockLoadingSkeleton();
           case StockError(:final message):
             return NubiaErrorWidget(
               message: message,
@@ -132,6 +132,58 @@ class _StockViewState extends State<StockView> {
             );
         }
       },
+    );
+  }
+}
+
+/// Squelette de chargement — cartes fantômes plutôt qu'un spinner nu,
+/// au même rythme que la file des commandes (`orders_page.dart`).
+class _StockLoadingSkeleton extends StatelessWidget {
+  const _StockLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _StockRequestSkeletonCard(),
+          SizedBox(height: 12),
+          _StockRequestSkeletonCard(),
+          SizedBox(height: 12),
+          _StockRequestSkeletonCard(),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockRequestSkeletonCard extends StatelessWidget {
+  const _StockRequestSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: NubiaSkeletonLoader(height: 16, width: 160)),
+              SizedBox(width: 12),
+              NubiaSkeletonLoader(height: 20, width: 72),
+            ],
+          ),
+          SizedBox(height: 6),
+          NubiaSkeletonLoader(height: 12, width: 90),
+          SizedBox(height: 12),
+          NubiaSkeletonLoader(height: 14, width: double.infinity),
+          SizedBox(height: 6),
+          NubiaSkeletonLoader(height: 14, width: double.infinity),
+          SizedBox(height: 12),
+          NubiaSkeletonLoader(height: 44, width: double.infinity),
+        ],
+      ),
     );
   }
 }
