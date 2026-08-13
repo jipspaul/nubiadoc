@@ -63,7 +63,18 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
       builder: (context, state) {
         switch (state) {
           case PharmacyDevisLoading():
-            return const Center(child: CircularProgressIndicator());
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  SizedBox(height: 12),
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  SizedBox(height: 12),
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                ],
+              ),
+            );
           case PharmacyDevisError(:final message):
             return NubiaErrorWidget(
               message: message,
