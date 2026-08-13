@@ -486,7 +486,8 @@ async fn call_next_calls_head_of_visible_waiting_room() {
         "waiting-room doit voir les 2 RDV checked_in (jour + veille dans la fenêtre ±24h)"
     );
     assert_eq!(
-        wr_data[0]["appointment_id"], stale_appt_id.to_string(),
+        wr_data[0]["appointment_id"],
+        stale_appt_id.to_string(),
         "le RDV de la veille, checked-in en premier, doit être en tête de la salle d'attente"
     );
 
@@ -509,7 +510,8 @@ async fn call_next_calls_head_of_visible_waiting_room() {
     let call_body: serde_json::Value = serde_json::from_slice(&call_bytes).unwrap();
     assert_eq!(call_body["called"], true);
     assert_eq!(
-        call_body["appointment_id"], stale_appt_id.to_string(),
+        call_body["appointment_id"],
+        stale_appt_id.to_string(),
         "call-next doit appeler le patient en tête de la file VISIBLE, pas sauter au RDV du jour"
     );
 
