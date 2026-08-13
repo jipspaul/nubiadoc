@@ -36,8 +36,23 @@ class PharmacyDevisView extends StatefulWidget {
     PharmacyQuoteStatus.expired: Icons.event_busy,
   };
 
-  static String formatCents(int cents) =>
-      '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
+  static String formatCents(int cents) {
+    final str = (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
+    final commaIndex = str.indexOf(',');
+    return '${_groupThousands(str.substring(0, commaIndex))}'
+        '${str.substring(commaIndex)} €';
+  }
+
+  static String _groupThousands(String digits) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
 
   @override
   State<PharmacyDevisView> createState() => _PharmacyDevisViewState();
