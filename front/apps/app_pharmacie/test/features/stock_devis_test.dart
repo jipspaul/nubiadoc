@@ -167,6 +167,7 @@ void main() {
       expect(find.text('Jean D.'), findsOneWidget);
       expect(find.text('Total : 9,00 €'), findsOneWidget);
       expect(find.byKey(const Key('quote_send_q1')), findsOneWidget);
+      expect(find.textContaining('Créé'), findsOneWidget);
     });
 
     testWidgets('devis accepté → pas de bouton d\'envoi', (tester) async {
@@ -181,6 +182,7 @@ void main() {
 
       expect(find.byKey(const Key('quote_send_q1')), findsNothing);
       expect(find.text('Accepté'), findsOneWidget);
+      expect(find.text('Accepté le 01/07'), findsOneWidget);
     });
   });
 }
