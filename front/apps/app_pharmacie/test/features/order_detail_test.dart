@@ -11,6 +11,7 @@ import 'package:app_pharmacie/features/order_detail/order_detail_bloc.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_event.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_page.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_state.dart';
+import 'package:app_pharmacie/features/order_detail/widgets/order_status_stepper.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/pickup_info_card.dart';
 
 class MockPharmacyOrdersRepository extends Mock
@@ -145,7 +146,65 @@ void main() {
       expect(find.byKey(const Key('order_action_accept')), findsNothing);
       expect(find.byKey(const Key('order_action_ready')), findsNothing);
       expect(find.byKey(const Key('order_action_scan')), findsNothing);
-      expect(find.text('Retirée'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(PickupInfoCard),
+          matching: find.text('Retirée'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('le fil de statut affiche les 4 étapes avec leurs libellés',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.ready)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      for (var i = 0; i < 4; i++) {
+        expect(find.byKey(Key('order_status_step_$i')), findsOneWidget);
+      }
+      expect(find.text('Reçue'), findsWidgets);
+      expect(find.text('Préparation'), findsOneWidget);
+      expect(find.text('Prête'), findsWidgets);
+      expect(find.text('Retirée'), findsWidgets);
+    });
+
+    testWidgets(
+        'pour status == ready, Reçue et Préparation sont franchies (check), '
+        'Prête est courante (numéro 3), Retirée à venir (numéro 4)',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.ready)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byIcon(Icons.check), findsNWidgets(2));
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
+    });
+
+    testWidgets('un statut terminal (rejected) ne fait pas planter le fil',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.rejected)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byType(OrderStatusStepper), findsOneWidget);
     });
   });
 }
