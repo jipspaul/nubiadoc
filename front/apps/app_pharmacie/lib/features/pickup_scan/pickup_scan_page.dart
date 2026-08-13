@@ -24,12 +24,21 @@ class PickupScanPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider<PickupScanCubit>(
       create: (_) => GetIt.instance<PickupScanCubit>(),
-      child: PickupScanBody(orderId: orderId),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Scanner le retrait'),
+          leading:
+              BackButton(onPressed: () => context.go('/orders/$orderId')),
+        ),
+        body: PickupScanBody(orderId: orderId),
+      ),
     );
   }
 }
 
-/// Corps de l'écran — public pour les tests widget.
+/// Corps du scan — public pour les tests widget et pour être monté comme
+/// panneau du volet droit (voir [OrderDetailBody]) en plus de son usage en
+/// page complète via [PickupScanPage] (accès direct par route).
 class PickupScanBody extends StatelessWidget {
   const PickupScanBody({super.key, required this.orderId});
 
@@ -37,65 +46,59 @@ class PickupScanBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scanner le retrait'),
-        leading: BackButton(onPressed: () => context.go('/orders/$orderId')),
-      ),
-      body: BlocBuilder<PickupScanCubit, PickupScanState>(
-        builder: (context, state) {
-          if (state is PickupScanSuccess) {
-            return _SuccessView(state: state);
-          }
-          if (state is PickupScanMismatch) {
-            return _MismatchView(state: state);
-          }
-          final submitting = state is PickupScanSubmitting;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (QrScannerView.isSupported)
-                  QrScannerView(
-                    onCode: (code) => context
-                        .read<PickupScanCubit>()
-                        .submit(code, expectedOrderId: orderId),
-                  )
-                else
-                  const NubiaCard(
-                    child: Text(
-                      'Le scan caméra n\'est pas disponible sur cette '
-                      'plateforme — saisissez le code ci-dessous.',
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                if (state is PickupScanInvalidCode) ...[
-                  _InlineError(
-                    key: const Key('pickup_invalid_code'),
-                    message: state.message,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                if (state is PickupScanError) ...[
-                  _InlineError(message: state.message),
-                  const SizedBox(height: 8),
-                ],
-                ManualCodeField(
-                  enabled: !submitting,
-                  onSubmit: (code) => context
+    return BlocBuilder<PickupScanCubit, PickupScanState>(
+      builder: (context, state) {
+        if (state is PickupScanSuccess) {
+          return _SuccessView(state: state);
+        }
+        if (state is PickupScanMismatch) {
+          return _MismatchView(state: state);
+        }
+        final submitting = state is PickupScanSubmitting;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (QrScannerView.isSupported)
+                QrScannerView(
+                  onCode: (code) => context
                       .read<PickupScanCubit>()
                       .submit(code, expectedOrderId: orderId),
+                )
+              else
+                const NubiaCard(
+                  child: Text(
+                    'Le scan caméra n\'est pas disponible sur cette '
+                    'plateforme — saisissez le code ci-dessous.',
+                  ),
                 ),
-                if (submitting) ...[
-                  const SizedBox(height: 16),
-                  const Center(child: CircularProgressIndicator()),
-                ],
+              const SizedBox(height: 16),
+              if (state is PickupScanInvalidCode) ...[
+                _InlineError(
+                  key: const Key('pickup_invalid_code'),
+                  message: state.message,
+                ),
+                const SizedBox(height: 8),
               ],
-            ),
-          );
-        },
-      ),
+              if (state is PickupScanError) ...[
+                _InlineError(message: state.message),
+                const SizedBox(height: 8),
+              ],
+              ManualCodeField(
+                enabled: !submitting,
+                onSubmit: (code) => context
+                    .read<PickupScanCubit>()
+                    .submit(code, expectedOrderId: orderId),
+              ),
+              if (submitting) ...[
+                const SizedBox(height: 16),
+                const Center(child: CircularProgressIndicator()),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
