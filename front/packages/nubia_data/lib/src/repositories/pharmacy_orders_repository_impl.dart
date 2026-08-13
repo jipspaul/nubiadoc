@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:nubia_data/src/remote/pharmacy_orders/pharmacy_orders_api.dart';
 import 'package:nubia_data/src/repositories/pharmacy_failure_mapper.dart';
 import 'package:nubia_domain/src/entities/pharmacy_order.dart';
+import 'package:nubia_domain/src/entities/prescription.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/repositories/pharmacy_orders_repository.dart';
 
@@ -61,5 +62,17 @@ class PharmacyOrdersRepositoryImpl implements PharmacyOrdersRepository {
       guardPharmacyCall(
         () => _api.getDocumentUrl(id),
         errorMessage: 'Impossible d’ouvrir l’ordonnance.',
+      );
+
+  @override
+  Future<Either<Failure, List<PrescriptionItem>>> getPrescriptionItems(
+    String id,
+  ) =>
+      guardPharmacyCall(
+        () async {
+          final dtos = await _api.getItems(id);
+          return dtos.map((dto) => dto.toDomain()).toList();
+        },
+        errorMessage: 'Impossible de charger les lignes de l’ordonnance.',
       );
 }

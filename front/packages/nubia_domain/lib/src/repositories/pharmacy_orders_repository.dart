@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/entities/pharmacy_order.dart';
+import 'package:nubia_domain/src/entities/prescription.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 
 /// Commandes click-and-collect, vue pharmacie (JWT kind="pharma").
@@ -27,4 +28,9 @@ abstract class PharmacyOrdersRepository {
 
   /// GET /v1/pharmacy/orders/{id}/document — URL signée du PDF d'ordonnance.
   Future<Either<Failure, String>> getPrescriptionUrl(String id);
+
+  /// GET /v1/pharmacy/orders/{id}/items — lignes de l'ordonnance à délivrer.
+  Future<Either<Failure, List<PrescriptionItem>>> getPrescriptionItems(
+    String id,
+  );
 }

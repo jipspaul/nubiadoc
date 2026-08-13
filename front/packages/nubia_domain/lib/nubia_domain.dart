@@ -173,6 +173,7 @@ export 'src/usecases/pharmacy/get_pharmacy_memberships_use_case.dart';
 export 'src/usecases/pharmacy/get_patient_pharmacy_order_use_case.dart';
 export 'src/usecases/pharmacy/get_patient_pharmacy_use_case.dart';
 export 'src/usecases/pharmacy/get_pharmacy_order_prescription_url_use_case.dart';
+export 'src/usecases/pharmacy/get_pharmacy_order_prescription_use_case.dart';
 export 'src/usecases/pharmacy/get_pharmacy_order_use_case.dart';
 export 'src/usecases/pharmacy/get_pickup_token_use_case.dart';
 export 'src/usecases/pharmacy/list_my_prescriptions_use_case.dart';
