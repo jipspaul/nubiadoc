@@ -121,10 +121,22 @@ class _QuoteCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           for (final item in quote.items)
-            Text(
-              '• ${item.quantity} × ${item.label} — '
-              '${PharmacyDevisView.formatCents(item.unitPriceCents)}',
-              style: theme.textTheme.bodyMedium,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '• ${item.quantity} × ${item.label}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  Text(
+                    PharmacyDevisView.formatCents(item.totalCents),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
             ),
           const SizedBox(height: 8),
           Text(
