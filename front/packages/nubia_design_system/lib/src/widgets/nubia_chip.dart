@@ -28,6 +28,7 @@ class NubiaChip extends StatelessWidget {
     this.variant = NubiaChipVariant.filter,
     this.selected = false,
     this.icon,
+    this.count,
     this.onTap,
     this.onRemove,
   });
@@ -36,6 +37,9 @@ class NubiaChip extends StatelessWidget {
   final NubiaChipVariant variant;
   final bool selected;
   final IconData? icon;
+
+  /// Badge numérique optionnel affiché à droite du libellé. `null` = pas de badge.
+  final int? count;
   final VoidCallback? onTap;
   final VoidCallback? onRemove;
 
@@ -72,6 +76,25 @@ class NubiaChip extends StatelessWidget {
               color: foreground,
             ),
           ),
+          if (count != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: selected ? NubiaColors.brand200 : NubiaColors.n100,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$count',
+                style: textTheme.labelSmall?.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: selected ? NubiaColors.brand800 : NubiaColors.n600,
+                ),
+              ),
+            ),
+          ],
           if (variant == NubiaChipVariant.input) ...[
             const SizedBox(width: 6),
             InkWell(
