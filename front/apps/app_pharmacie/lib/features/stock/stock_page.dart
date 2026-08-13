@@ -33,6 +33,18 @@ class StockView extends StatefulWidget {
 
 class _StockViewState extends State<StockView> {
   StockRequestStatus _facet = StockRequestStatus.sent;
+  String _query = '';
+
+  List<StockRequest> _filter(List<StockRequest> requests) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return requests;
+    return requests
+        .where((request) =>
+            (request.cabinetName ?? '').toLowerCase().contains(query) ||
+            request.items
+                .any((item) => item.label.toLowerCase().contains(query)))
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +69,7 @@ class _StockViewState extends State<StockView> {
             );
           case StockLoaded(:final requests, :final respondingId):
             final filtered =
-                requests.where((r) => r.status == _facet).toList();
+                _filter(requests.where((r) => r.status == _facet).toList());
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -77,6 +89,20 @@ class _StockViewState extends State<StockView> {
                           onTap: () => setState(() => _facet = status),
                         ),
                     ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 230,
+                      child: NubiaSearchBar(
+                        key: const Key('stock_search'),
+                        hint: 'Cabinet, article…',
+                        onChanged: (value) => setState(() => _query = value),
+                      ),
+                    ),
                   ),
                 ),
                 Expanded(
