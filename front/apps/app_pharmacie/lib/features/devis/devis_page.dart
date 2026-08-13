@@ -9,7 +9,7 @@ import 'quote_delay.dart';
 import 'widgets/devis_kpis.dart';
 
 /// Devis d'officine — corps de la destination « Devis ».
-class PharmacyDevisView extends StatelessWidget {
+class PharmacyDevisView extends StatefulWidget {
   const PharmacyDevisView({super.key});
 
   static const _labels = {
@@ -40,6 +40,24 @@ class PharmacyDevisView extends StatelessWidget {
       '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
 
   @override
+  State<PharmacyDevisView> createState() => _PharmacyDevisViewState();
+}
+
+class _PharmacyDevisViewState extends State<PharmacyDevisView> {
+  String _query = '';
+
+  List<PharmacyQuote> _filter(List<PharmacyQuote> quotes) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return quotes;
+    return quotes
+        .where((quote) =>
+            (quote.patientDisplayName ?? '').toLowerCase().contains(query) ||
+            quote.items
+                .any((item) => item.label.toLowerCase().contains(query)))
+        .toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return BlocBuilder<PharmacyDevisBloc, PharmacyDevisState>(
       builder: (context, state) {
@@ -61,15 +79,30 @@ class PharmacyDevisView extends StatelessWidget {
                 subtitle: 'Créez un devis depuis le détail d\'une commande.',
               );
             }
+            final filtered = _filter(quotes);
             return Column(
               children: [
                 DevisKpiBanner(quotes: quotes),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 230,
+                      child: NubiaSearchBar(
+                        key: const Key('devis_search'),
+                        hint: 'Patient, article…',
+                        onChanged: (value) => setState(() => _query = value),
+                      ),
+                    ),
+                  ),
+                ),
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: quotes.length,
+                    itemCount: filtered.length,
                     itemBuilder: (context, index) {
-                      final quote = quotes[index];
+                      final quote = filtered[index];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _QuoteCard(
