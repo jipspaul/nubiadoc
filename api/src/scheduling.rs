@@ -338,8 +338,8 @@ pub async fn call_next_patient(
     // FOR UPDATE SKIP LOCKED évite les doubles appels concurrents.
     // Fenêtre GLISSANTE (now ± 1 jour), PAS `date_trunc('day', now())` : un patient
     // qui a check-in juste avant minuit et attend encore doit rester appelable après
-    // minuit (le date_trunc l'excluait — bug de la salle d'attente qui « oublie » un
-    // présent au passage de minuit ; test call_next_practitioner_happy_path).
+    // minuit. Même fenêtre que `get_waiting_room` (#4869) : les deux endpoints doivent
+    // partager le même périmètre pour rester cohérents (test call_next_practitioner_happy_path).
     let maybe_apt = if let Some(practitioner_id) = practitioner_filter {
         sqlx::query(
             "SELECT id, patient_id FROM appointment \
@@ -476,9 +476,9 @@ pub async fn call_next_patient(
     }))
 }
 
-// ── Waiting room (file du jour) ───────────────────────────────────────────────
+// ── Waiting room ───────────────────────────────────────────────────────────
 
-/// Un poste dans la file d'attente temps-réel (patients checked_in ou in_consultation aujourd'hui).
+/// Un poste dans la file d'attente temps-réel (patients checked_in ou in_consultation).
 #[derive(Serialize)]
 pub struct WaitingRoomEntry {
     pub appointment_id: Uuid,
@@ -497,8 +497,11 @@ pub struct WaitingRoomResponse {
 
 /// `GET /v1/cabinet/waiting-room` — file d'attente temps-réel du cabinet (§E.2).
 ///
-/// Retourne les RDV du jour `checked_in` (arrivé, en attente) et `in_progress`
+/// Retourne les RDV `checked_in` (arrivé, en attente) et `in_progress`
 /// (consultation en cours, exposé comme `in_consultation`), triés FIFO.
+/// Fenêtre GLISSANTE (now ± 1 jour), identique à `call_next_patient` : un patient
+/// qui a check-in juste avant minuit et attend encore reste visible après minuit
+/// (les deux endpoints doivent partager le même périmètre — #4869).
 /// Token pro requis (secretary, practitioner, admin) — patient → 403.
 /// `cabinet_id` extrait du JWT. RLS via `app.current_cabinet_id`.
 /// Cloisonnement clinique : secrétariat reçoit initiales du patient, pro reçoit nom complet.
@@ -527,8 +530,8 @@ pub async fn get_waiting_room(
                  WHERE a.deleted_at IS NULL \
                    AND a.checkin_at IS NOT NULL \
                    AND a.status IN ('checked_in', 'in_progress') \
-                   AND a.starts_at >= date_trunc('day', now()) \
-                   AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
+                   AND a.starts_at >= now() - interval '1 day' \
+                   AND a.starts_at < now() + interval '1 day' \
                    AND EXISTS ( \
                        SELECT 1 FROM provider pr \
                        JOIN provider_secretariat ps ON ps.provider_id = pr.id \
@@ -557,8 +560,8 @@ pub async fn get_waiting_room(
              WHERE a.deleted_at IS NULL \
                AND a.checkin_at IS NOT NULL \
                AND a.status IN ('checked_in', 'in_progress') \
-               AND a.starts_at >= date_trunc('day', now()) \
-               AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
+               AND a.starts_at >= now() - interval '1 day' \
+               AND a.starts_at < now() + interval '1 day' \
                AND pr.cabinet_id = $1 \
                AND pr.user_id = $2 \
              ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC",
@@ -578,8 +581,8 @@ pub async fn get_waiting_room(
              WHERE a.deleted_at IS NULL \
                AND a.checkin_at IS NOT NULL \
                AND a.status IN ('checked_in', 'in_progress') \
-               AND a.starts_at >= date_trunc('day', now()) \
-               AND a.starts_at < date_trunc('day', now()) + interval '1 day' \
+               AND a.starts_at >= now() - interval '1 day' \
+               AND a.starts_at < now() + interval '1 day' \
              ORDER BY a.checkin_at ASC NULLS LAST, a.starts_at ASC",
         )
         .fetch_all(&mut *tx)
