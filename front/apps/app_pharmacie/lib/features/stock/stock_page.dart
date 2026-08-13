@@ -4,6 +4,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'stock_bloc.dart';
+import 'stock_delay.dart';
 
 /// Demandes de stock reçues des cabinets — corps de la destination « Stock ».
 class StockView extends StatelessWidget {
@@ -76,7 +77,14 @@ class _StockRequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
     final bloc = context.read<StockBloc>();
+    final delay = stockDelayOf(request);
+    final delayColor = switch (delay.tone) {
+      StockDelayTone.neutral => tokens.textTertiary,
+      StockDelayTone.soon => tokens.warningFg,
+      StockDelayTone.late => tokens.dangerFg,
+    };
 
     return NubiaCard(
       key: Key('stock_request_${request.id}'),
@@ -87,9 +95,21 @@ class _StockRequestCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(
-                  request.cabinetName ?? 'Cabinet',
-                  style: theme.textTheme.titleSmall,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      request.cabinetName ?? 'Cabinet',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      delay.label,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: delayColor,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               StatusPill(
