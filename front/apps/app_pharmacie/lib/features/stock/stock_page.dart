@@ -149,7 +149,7 @@ class _StockRequestCard extends StatelessWidget {
                 Expanded(
                   child: NubiaButton(
                     key: Key('stock_reject_${request.id}'),
-                    label: 'Refuser',
+                    label: 'Refuser — motif obligatoire',
                     variant: NubiaButtonVariant.secondary,
                     onPressed:
                         responding ? null : () => _askRejectNote(context, bloc),
@@ -179,31 +179,39 @@ class _StockRequestCard extends StatelessWidget {
     final controller = TextEditingController();
     final note = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Refuser la demande'),
-        content: NubiaTextField(
-          controller: controller,
-          label: 'Note (optionnelle)',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            key: const Key('stock_reject_confirm'),
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Refuser'),
-          ),
-        ],
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) {
+          final canConfirm = controller.text.trim().isNotEmpty;
+          return AlertDialog(
+            title: const Text('Refuser la demande'),
+            content: NubiaTextField(
+              controller: controller,
+              label: 'Motif du refus',
+              onChanged: (_) => setState(() {}),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Annuler'),
+              ),
+              TextButton(
+                key: const Key('stock_reject_confirm'),
+                onPressed: canConfirm
+                    ? () =>
+                        Navigator.of(dialogContext).pop(controller.text.trim())
+                    : null,
+                child: const Text('Refuser'),
+              ),
+            ],
+          );
+        },
       ),
     );
-    if (note != null) {
+    if (note != null && note.isNotEmpty) {
       bloc.add(StockRespondRequested(
         request.id,
         StockRequestResponse.reject,
-        note: note.isEmpty ? null : note,
+        note: note,
       ));
     }
   }
