@@ -330,9 +330,11 @@ pub struct StockMovementDto {
     pub id: Uuid,
     pub delta: i32,
     pub reason: String,
-    pub expiry_date: Option<chrono::NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expiry_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub consultation_act_id: Option<Uuid>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: String,
 }
 
 /// `GET /v1/cabinet/stock-items/:id/movements` — liste les mouvements d'un
@@ -382,17 +384,19 @@ pub async fn list_stock_movements(
     let movements = rows
         .into_iter()
         .map(|row| {
+            let expiry_date: Option<chrono::NaiveDate> =
+                row.try_get("expiry_date").map_err(|_| AppError::Internal)?;
+            let created_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("created_at").map_err(|_| AppError::Internal)?;
             Ok(StockMovementDto {
                 id: row.try_get("id").map_err(|_| AppError::Internal)?,
                 delta: row.try_get("delta").map_err(|_| AppError::Internal)?,
                 reason: row.try_get("reason").map_err(|_| AppError::Internal)?,
-                expiry_date: row
-                    .try_get("expiry_date")
-                    .map_err(|_| AppError::Internal)?,
+                expiry_date: expiry_date.map(|d| d.to_string()),
                 consultation_act_id: row
                     .try_get("consultation_act_id")
                     .map_err(|_| AppError::Internal)?,
-                created_at: row.try_get("created_at").map_err(|_| AppError::Internal)?,
+                created_at: created_at.to_rfc3339(),
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
