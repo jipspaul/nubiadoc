@@ -15,6 +15,11 @@ class PrescriptionItem extends Equatable {
   /// Biogaran").
   final String? dispensedGeneric;
 
+  /// Alerte d'interaction médicamenteuse à afficher sous la ligne (fournie
+  /// par le back), ex. "AVK déclaré au dossier patient. Surveillance de
+  /// l'INR recommandée ; à signaler au patient." Null/vide : pas d'alerte.
+  final String? interactionWarning;
+
   const PrescriptionItem({
     required this.label,
     this.form,
@@ -23,6 +28,7 @@ class PrescriptionItem extends Equatable {
     required this.quantity,
     this.substitutable = true,
     this.dispensedGeneric,
+    this.interactionWarning,
   });
 
   @override
@@ -34,6 +40,7 @@ class PrescriptionItem extends Equatable {
         quantity,
         substitutable,
         dispensedGeneric,
+        interactionWarning,
       ];
 }
 
