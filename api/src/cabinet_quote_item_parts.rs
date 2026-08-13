@@ -6,16 +6,22 @@
 //! initiale (#4062 : estimation automatique à 70% du tarif de référence,
 //! jamais garantie exacte). Trace l'ancien et le nouveau montant dans
 //! `audit_log` (append-only, `metadata` jsonb).
-//! Quand : après clôture/signature d'un devis — DÉLIBÉRÉMENT indépendant du
-//! statut `quote.status` (fonctionne sur un devis `signed`) : cette route ne
-//! touche que `quote_item`, jamais `quote`, donc le trigger
-//! `enforce_quote_immutable` (migration 0051, ne porte que sur `quote`) ne
-//! s'applique pas ici — c'est exactement le point de l'issue (corriger
-//! après coup un devis déjà signé, cité comme point de veto démo).
+//! Quand : après clôture/signature d'un devis — reste possible sur un devis
+//! `signed` (cette route ne touche que `quote_item`, jamais `quote`, donc le
+//! trigger `enforce_quote_immutable`, migration 0051, ne s'applique pas ici),
+//! MAIS bornée : sur un devis `signed`, la part patient de la ligne
+//! (`amount − amo_part − amc_part`) ne peut pas AUGMENTER par rapport à sa
+//! valeur au moment de l'appel → 409 `quote_locked` sinon (#4873). Sans ça,
+//! réduire `amo_part`/`amc_part` après signature fait grimper le reste à
+//! charge au-delà de ce que le patient a consenti en signant, alors que tous
+//! les plafonds de paiement (`billing_payments.rs`,
+//! `cabinet_payments_manual.rs`, `payment_schedules.rs`) recalculent la part
+//! patient en direct depuis `quote_item`.
 //! Pourquoi un module dédié : `cabinet_quotes.rs` était déjà à 604 lignes
 //! (CLAUDE.md plafond 700), même pattern que `cabinet_quotes_patch.rs`.
 //! Modes d'échec : ligne inexistante/hors devis/hors cabinet → 404 ; aucun
-//! des deux champs fourni ou valeur négative → 422.
+//! des deux champs fourni ou valeur négative → 422 ; somme > montant ligne
+//! → 422 ; devis `signed` et part patient de la ligne en hausse → 409.
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -54,8 +60,10 @@ pub struct PatchQuoteItemPartsResponse {
 ///   valeur actuelle) ne doit pas dépasser le montant de la ligne → 422
 ///   sinon (#4309) — sinon le reste à charge patient devient négatif.
 /// - Ligne inexistante, hors devis (`:id`) ou hors cabinet → 404.
-/// - Fonctionne quel que soit `quote.status` (y compris `signed`) : voir
-///   commentaire de module.
+/// - Fonctionne quel que soit `quote.status` (y compris `signed`), mais si
+///   `signed`, la part patient de la ligne ne peut pas augmenter par rapport
+///   à sa valeur actuelle → 409 `quote_locked` sinon (#4873, voir
+///   commentaire de module).
 /// - Trace `{old,new}_{amo,amc}_part_cents` dans `audit_log.metadata`
 ///   (action `reallocate_quote_item_parts`, append-only).
 pub async fn patch_quote_item_parts(
@@ -80,11 +88,13 @@ pub async fn patch_quote_item_parts(
         .map_err(|_| AppError::Internal)?;
 
     let before = sqlx::query(
-        "SELECT (amo_part * 100)::bigint AS amo_part_cents, \
-                (amc_part * 100)::bigint AS amc_part_cents, \
-                (qty * unit_amount * 100)::bigint AS amount_cents \
-         FROM quote_item \
-         WHERE id = $1 AND quote_id = $2 AND cabinet_id = $3",
+        "SELECT (qi.amo_part * 100)::bigint AS amo_part_cents, \
+                (qi.amc_part * 100)::bigint AS amc_part_cents, \
+                (qi.qty * qi.unit_amount * 100)::bigint AS amount_cents, \
+                q.status AS quote_status \
+         FROM quote_item qi \
+         JOIN quote q ON q.id = qi.quote_id \
+         WHERE qi.id = $1 AND qi.quote_id = $2 AND qi.cabinet_id = $3",
     )
     .bind(item_id)
     .bind(quote_id)
@@ -99,17 +109,34 @@ pub async fn patch_quote_item_parts(
     let amount_cents: i64 = before
         .try_get("amount_cents")
         .map_err(|_| AppError::Internal)?;
+    let quote_status: String = before
+        .try_get("quote_status")
+        .map_err(|_| AppError::Internal)?;
+
+    let old_amo = old_amo_part_cents.unwrap_or(0);
+    let old_amc = old_amc_part_cents.unwrap_or(0);
 
     // #4309 : la somme effective (champ patché ou valeur inchangée pour
     // l'autre) ne doit pas dépasser le montant de la ligne.
-    let effective_amo = body
-        .amo_part_cents
-        .unwrap_or(old_amo_part_cents.unwrap_or(0));
-    let effective_amc = body
-        .amc_part_cents
-        .unwrap_or(old_amc_part_cents.unwrap_or(0));
+    let effective_amo = body.amo_part_cents.unwrap_or(old_amo);
+    let effective_amc = body.amc_part_cents.unwrap_or(old_amc);
     if effective_amo + effective_amc > amount_cents {
         return Err(AppError::ValidationError);
+    }
+
+    // #4873 : un devis signé fige le reste à charge consenti par le
+    // patient. `enforce_quote_immutable` (migration 0051) ne porte que sur
+    // `quote`, pas `quote_item` — sans ce garde-fou, réduire amo/amc_part
+    // après signature ferait grimper la part patient recalculée en direct
+    // par tous les plafonds de paiement, au-delà de ce que le patient a
+    // signé. Les corrections qui baissent (ou laissent inchangée) la part
+    // patient de la ligne restent autorisées (#4069).
+    if quote_status == "signed" {
+        let old_patient_share = amount_cents - old_amo - old_amc;
+        let new_patient_share = amount_cents - effective_amo - effective_amc;
+        if new_patient_share > old_patient_share {
+            return Err(AppError::QuoteLocked);
+        }
     }
 
     let updated = sqlx::query(
