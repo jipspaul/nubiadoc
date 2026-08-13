@@ -14,18 +14,25 @@ import 'orders_state.dart';
 class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
   final ListPharmacyOrdersUseCase _list;
   final WatchPharmacyOrdersUseCase _watch;
+  final AcceptPharmacyOrderUseCase _accept;
+  final MarkPharmacyOrderReadyUseCase _ready;
   StreamSubscription<List<PharmacyOrder>>? _subscription;
 
   OrdersBloc({
     required ListPharmacyOrdersUseCase list,
     required WatchPharmacyOrdersUseCase watch,
+    required AcceptPharmacyOrderUseCase accept,
+    required MarkPharmacyOrderReadyUseCase ready,
   })  : _list = list,
         _watch = watch,
+        _accept = accept,
+        _ready = ready,
         super(const OrdersLoading()) {
     on<OrdersSubscribed>(_onSubscribed);
     on<OrdersRefreshRequested>(_onRefreshRequested);
     on<OrdersFilterChanged>(_onFilterChanged);
     on<OrdersStreamUpdated>(_onStreamUpdated);
+    on<OrdersTransitionRequested>(_onTransitionRequested);
   }
 
   Future<void> _onSubscribed(
@@ -76,6 +83,37 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       _ => null,
     };
     emit(OrdersLoaded(orders: event.orders, filter: filter));
+  }
+
+  Future<void> _onTransitionRequested(
+    OrdersTransitionRequested event,
+    Emitter<OrdersState> emit,
+  ) async {
+    final current = state;
+    if (current is! OrdersLoaded || current.pendingOrderId != null) return;
+    if (event.target != PharmacyOrderStatus.preparing &&
+        event.target != PharmacyOrderStatus.ready) {
+      return;
+    }
+
+    emit(OrdersLoaded(
+      orders: current.orders,
+      filter: current.filter,
+      pendingOrderId: event.orderId,
+    ));
+    final result = event.target == PharmacyOrderStatus.preparing
+        ? await _accept(event.orderId)
+        : await _ready(event.orderId);
+    result.fold(
+      (failure) => emit(OrdersError(failure.message)),
+      (updated) => emit(OrdersLoaded(
+        orders: [
+          for (final order in current.orders)
+            if (order.id == updated.id) updated else order,
+        ],
+        filter: current.filter,
+      )),
+    );
   }
 
   @override
