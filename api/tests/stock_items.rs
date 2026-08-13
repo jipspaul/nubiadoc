@@ -439,6 +439,160 @@ async fn duplicate_reference_returns_409() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 2a (#4832) : GET des mouvements — ledger relisible ─────────────────
+
+#[tokio::test]
+async fn list_stock_movements_returns_ledger_with_reason_and_expiry() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &token,
+        Some(json!({"reference": "GANTS-LEDGER", "label": "Gants latex", "unit": "boite"})),
+    )
+    .await;
+    let item_id = created["item_id"].as_str().unwrap().to_string();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &token,
+        Some(json!({"delta": 10, "reason": "reception"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(resp["quantity_on_hand"], 10);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &token,
+        Some(json!({"delta": -1, "reason": "peremption", "expiry_date": "2027-01-01"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let peremption_movement_id = resp["movement_id"].as_str().unwrap().to_string();
+
+    // #4832 : la route était POST-only (405 en GET) — le ledger doit
+    // maintenant être relisible, du plus récent au plus ancien.
+    let (status, movements) = call(
+        state_with(app_pool().await),
+        "GET",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let movements = movements.as_array().unwrap();
+    assert_eq!(movements.len(), 2);
+
+    let latest = &movements[0];
+    assert_eq!(latest["id"], peremption_movement_id);
+    assert_eq!(latest["delta"], -1);
+    assert_eq!(latest["reason"], "peremption");
+    assert_eq!(latest["expiry_date"], "2027-01-01");
+
+    let earliest = &movements[1];
+    assert_eq!(earliest["delta"], 10);
+    assert_eq!(earliest["reason"], "reception");
+    assert!(earliest.get("expiry_date").is_none());
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 2b (#4832) : GET des mouvements hors tenant → 404 ──────────────────
+
+#[tokio::test]
+async fn list_stock_movements_from_other_cabinet_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &token,
+        Some(json!({"reference": "GANTS-LEDGER-2", "label": "Gants latex", "unit": "boite"})),
+    )
+    .await;
+    let item_id = created["item_id"].as_str().unwrap().to_string();
+
+    let other_cabinet_id = Uuid::new_v4();
+    let other_user_id = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(other_cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(other_user_id)
+        .bind(format!("stock-ledger-other+{other_user_id}@nubia.test"))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) \
+             VALUES ($1, 'Cabinet Stock Ledger Other', 'dentaire')",
+        )
+        .bind(other_cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+    let other_token = make_secretary_token(other_user_id, other_cabinet_id);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "GET",
+        &format!("/v1/cabinet/stock-items/{item_id}/movements"),
+        &other_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(other_cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(other_cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(other_user_id)
+        .execute(&db)
+        .await
+        .ok();
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 3 : mouvement hors tenant → 404 ─────────────────────────────────────
 
 #[tokio::test]
