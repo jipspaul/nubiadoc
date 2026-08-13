@@ -19,10 +19,16 @@ class StatusPill extends StatelessWidget {
     super.key,
     required this.label,
     required this.variant,
+    this.icon,
   });
 
   final String label;
   final StatusPillVariant variant;
+
+  /// Icône optionnelle affichée avant le libellé — utile quand deux statuts
+  /// partagent le même [variant] (ex. `error`) et doivent rester
+  /// distinguables visuellement.
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -52,12 +58,21 @@ class StatusPill extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(100),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: fg,
-              fontWeight: FontWeight.w500,
-            ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: fg),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: fg,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -24,6 +25,14 @@ class PharmacyDevisView extends StatelessWidget {
     PharmacyQuoteStatus.accepted: StatusPillVariant.success,
     PharmacyQuoteStatus.refused: StatusPillVariant.error,
     PharmacyQuoteStatus.expired: StatusPillVariant.error,
+  };
+
+  /// `refused` et `expired` partagent le variant `error` : seule l'icône
+  /// (et l'action proposée sous la carte) les distingue — un refus est une
+  /// décision du patient, une expiration un délai dépassé.
+  static const _icons = {
+    PharmacyQuoteStatus.refused: Icons.cancel,
+    PharmacyQuoteStatus.expired: Icons.event_busy,
   };
 
   static String formatCents(int cents) =>
@@ -116,6 +125,7 @@ class _QuoteCard extends StatelessWidget {
               StatusPill(
                 label: PharmacyDevisView._labels[quote.status]!,
                 variant: PharmacyDevisView._variants[quote.status]!,
+                icon: PharmacyDevisView._icons[quote.status],
               ),
             ],
           ),
@@ -154,6 +164,29 @@ class _QuoteCard extends StatelessWidget {
                   : () => context
                       .read<PharmacyDevisBloc>()
                       .add(PharmacyDevisSendRequested(quote.id)),
+            ),
+          ] else if (quote.status == PharmacyQuoteStatus.expired &&
+              quote.orderId != null) ...[
+            // Occasion manquée (délai dépassé) : un nouveau devis peut être
+            // réémis depuis la commande d'origine — contrairement à un
+            // refus, qui est une décision terminale du patient.
+            const SizedBox(height: 12),
+            NubiaButton(
+              key: Key('quote_reissue_${quote.id}'),
+              label: 'Réémettre',
+              icon: Icons.refresh,
+              variant: NubiaButtonVariant.secondary,
+              onPressed: () => context.go('/orders/${quote.orderId}'),
+            ),
+          ] else if (quote.status == PharmacyQuoteStatus.refused &&
+              quote.orderId != null) ...[
+            const SizedBox(height: 12),
+            NubiaButton(
+              key: Key('quote_view_${quote.id}'),
+              label: 'Voir',
+              icon: Icons.visibility,
+              variant: NubiaButtonVariant.tertiary,
+              onPressed: () => context.go('/orders/${quote.orderId}'),
             ),
           ],
         ],
