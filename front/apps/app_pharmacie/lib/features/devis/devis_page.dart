@@ -6,6 +6,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'devis_bloc.dart';
 import 'quote_delay.dart';
+import 'widgets/devis_kpis.dart';
 
 /// Devis d'officine — corps de la destination « Devis ».
 class PharmacyDevisView extends StatelessWidget {
@@ -60,19 +61,26 @@ class PharmacyDevisView extends StatelessWidget {
                 subtitle: 'Créez un devis depuis le détail d\'une commande.',
               );
             }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: quotes.length,
-              itemBuilder: (context, index) {
-                final quote = quotes[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _QuoteCard(
-                    quote: quote,
-                    sending: sendingId == quote.id,
+            return Column(
+              children: [
+                DevisKpiBanner(quotes: quotes),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: quotes.length,
+                    itemBuilder: (context, index) {
+                      final quote = quotes[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _QuoteCard(
+                          quote: quote,
+                          sending: sendingId == quote.id,
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+              ],
             );
         }
       },

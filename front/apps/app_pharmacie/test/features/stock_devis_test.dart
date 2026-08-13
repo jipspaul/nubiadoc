@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
 import 'package:app_pharmacie/features/devis/devis_bloc.dart';
 import 'package:app_pharmacie/features/devis/devis_page.dart';
+import 'package:app_pharmacie/features/devis/widgets/devis_kpis.dart';
 import 'package:app_pharmacie/features/stock/stock_bloc.dart';
 import 'package:app_pharmacie/features/stock/stock_page.dart';
 
@@ -36,9 +38,10 @@ StockRequest stockRequest(StockRequestStatus status) => StockRequest(
       createdAt: DateTime(2026, 7, 1),
     );
 
-PharmacyQuote quote(PharmacyQuoteStatus status, {String? orderId}) =>
+PharmacyQuote quote(PharmacyQuoteStatus status,
+        {String? orderId, String id = 'q1', int totalCents = 900}) =>
     PharmacyQuote(
-      id: 'q1',
+      id: id,
       pharmacyId: 'p1',
       patientDisplayName: 'Jean D.',
       orderId: orderId,
@@ -46,7 +49,7 @@ PharmacyQuote quote(PharmacyQuoteStatus status, {String? orderId}) =>
         PharmacyQuoteItem(
             label: 'Bain de bouche', quantity: 2, unitPriceCents: 450),
       ],
-      totalCents: 900,
+      totalCents: totalCents,
       status: status,
       createdAt: DateTime(2026, 7, 1),
     );
@@ -219,6 +222,53 @@ void main() {
       expect(find.text('Voir'), findsOneWidget);
       expect(find.byKey(const Key('quote_send_q1')), findsNothing);
       expect(find.byKey(const Key('quote_reissue_q1')), findsNothing);
+    });
+
+    testWidgets('bandeau de compteurs : actifs, en attente, montant accepté',
+        (tester) async {
+      final quotes = [
+        quote(PharmacyQuoteStatus.draft, id: 'q1'),
+        quote(PharmacyQuoteStatus.sent, id: 'q2'),
+        quote(PharmacyQuoteStatus.sent, id: 'q3'),
+        quote(PharmacyQuoteStatus.accepted, id: 'q4', totalCents: 120000),
+        quote(PharmacyQuoteStatus.accepted, id: 'q5', totalCents: 64000),
+        quote(PharmacyQuoteStatus.refused, id: 'q6', orderId: 'o1'),
+      ];
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(quotes));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.text('6'), findsOneWidget);
+      expect(find.text('devis actifs'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('en attente de réponse'), findsOneWidget);
+      expect(find.text('1 840,00 €'), findsOneWidget);
+      expect(find.text('montant accepté'), findsOneWidget);
+
+      final pendingValue = tester.widget<Text>(find.text('2'));
+      final tokens = NubiaTokens.light;
+      expect(pendingValue.style?.color, tokens.warningFg);
+    });
+  });
+
+  group('DevisKpis', () {
+    test('agrège actifs, en attente et montant accepté', () {
+      final quotes = [
+        quote(PharmacyQuoteStatus.draft, id: 'q1'),
+        quote(PharmacyQuoteStatus.sent, id: 'q2'),
+        quote(PharmacyQuoteStatus.accepted, id: 'q3', totalCents: 500),
+        quote(PharmacyQuoteStatus.expired, id: 'q4'),
+      ];
+
+      final kpis = DevisKpis.fromQuotes(quotes);
+
+      expect(kpis.activeCount, 4);
+      expect(kpis.pendingCount, 1);
+      expect(kpis.acceptedAmountCents, 500);
     });
   });
 }
