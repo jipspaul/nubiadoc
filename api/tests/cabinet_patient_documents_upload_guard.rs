@@ -239,13 +239,11 @@ async fn cleanup_secretary_scope(
         .execute(&mut *tx)
         .await
         .ok();
-    sqlx::query(
-        "DELETE FROM provider_secretariat WHERE secretariat_id = $1",
-    )
-    .bind(secretariat_id)
-    .execute(&mut *tx)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM provider_secretariat WHERE secretariat_id = $1")
+        .bind(secretariat_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     let provider_user: Option<Uuid> = sqlx::query_scalar(
         "SELECT user_id FROM provider WHERE cabinet_id = $1 AND display_name = 'Dr Upload Test'",
     )
