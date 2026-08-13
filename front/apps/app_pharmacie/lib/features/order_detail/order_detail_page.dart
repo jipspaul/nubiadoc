@@ -206,13 +206,13 @@ class _ContextualAction extends StatelessWidget {
                   ? null
                   : () => bloc.add(const OrderDetailAcceptRequested()),
             ),
-            const SizedBox(height: 8),
-            NubiaButton(
-              key: const Key('order_action_reject'),
-              label: 'Refuser la commande',
-              variant: NubiaButtonVariant.secondary,
-              onPressed:
-                  inProgress ? null : () => _askRejectReason(context, bloc),
+            const SizedBox(height: 24),
+            Center(
+              child: _RejectLink(
+                key: const Key('order_action_reject'),
+                enabled: !inProgress,
+                onPressed: () => _askRejectReason(context, bloc),
+              ),
             ),
           ],
         );
@@ -269,5 +269,47 @@ class _ContextualAction extends StatelessWidget {
     if (reason != null && reason.isNotEmpty) {
       bloc.add(OrderDetailRejectRequested(reason));
     }
+  }
+}
+
+/// Lien discret « Refuser la commande » — action exigeant un motif et menant
+/// à un état terminal (`rejected`), volontairement éloignée du geste
+/// principal plutôt qu'un [NubiaButton] pleine largeur.
+class _RejectLink extends StatelessWidget {
+  const _RejectLink({
+    super.key,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final dangerFg = Theme.of(context).extension<NubiaTokens>()?.dangerFg ??
+        NubiaColors.dangerFg;
+    final color = enabled ? dangerFg : dangerFg.withValues(alpha: 0.4);
+    return InkWell(
+      onTap: enabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.block, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(
+              'Refuser la commande',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: color),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
