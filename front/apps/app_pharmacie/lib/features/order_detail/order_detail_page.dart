@@ -66,37 +66,100 @@ class OrderDetailBody extends StatelessWidget {
     );
   }
 
+  /// Seuil (px) à partir duquel les deux volets tiennent côte à côte
+  /// (cible tablette/desktop, ex. tablette 1258×834 paysage).
+  static const double _twoPaneBreakpoint = 900;
+
+  /// Largeur fixe du volet droit (exécution) sur cible large.
+  static const double _executionPaneWidth = 436;
+
   Widget _buildLoaded(
     BuildContext context,
     PharmacyOrder order,
     bool actionInProgress,
   ) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PickupInfoCard(order: order),
-          const SizedBox(height: 16),
-          NubiaButton(
-            key: const Key('order_detail_open_document'),
-            label: 'Ouvrir l\'ordonnance (PDF)',
-            variant: NubiaButtonVariant.secondary,
-            onPressed: () => context
-                .read<OrderDetailBloc>()
-                .add(const OrderDetailDocumentRequested()),
-          ),
-          const SizedBox(height: 8),
-          NubiaButton(
-            key: const Key('order_detail_create_quote'),
-            label: 'Créer un devis',
-            variant: NubiaButtonVariant.secondary,
-            onPressed: () => showQuoteComposerSheet(context, orderId: order.id),
-          ),
-          const SizedBox(height: 24),
-          _ContextualAction(order: order, inProgress: actionInProgress),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTwoPane = constraints.maxWidth >= _twoPaneBreakpoint;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: isTwoPane
+              ? IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: _buildReadPane(context, order)),
+                      const SizedBox(width: 16),
+                      Container(
+                        width: _executionPaneWidth,
+                        padding: const EdgeInsets.only(left: 16),
+                        decoration: BoxDecoration(
+                          color: NubiaColors.n0,
+                          border: Border(
+                            left: BorderSide(
+                              color: Theme.of(context)
+                                      .extension<NubiaTokens>()
+                                      ?.borderSubtle ??
+                                  NubiaColors.n200,
+                            ),
+                          ),
+                        ),
+                        child: _buildExecutionPane(
+                            context, order, actionInProgress),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildReadPane(context, order),
+                    const SizedBox(height: 24),
+                    _buildExecutionPane(context, order, actionInProgress),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
+  /// Volet gauche — ce qui se lit (l'ordonnance).
+  Widget _buildReadPane(BuildContext context, PharmacyOrder order) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PickupInfoCard(order: order),
+        const SizedBox(height: 16),
+        NubiaButton(
+          key: const Key('order_detail_open_document'),
+          label: 'Ouvrir l\'ordonnance (PDF)',
+          variant: NubiaButtonVariant.secondary,
+          onPressed: () => context
+              .read<OrderDetailBloc>()
+              .add(const OrderDetailDocumentRequested()),
+        ),
+      ],
+    );
+  }
+
+  /// Volet droit — ce qui s'exécute (préparation, scan, encaissement).
+  Widget _buildExecutionPane(
+    BuildContext context,
+    PharmacyOrder order,
+    bool actionInProgress,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        NubiaButton(
+          key: const Key('order_detail_create_quote'),
+          label: 'Créer un devis',
+          variant: NubiaButtonVariant.secondary,
+          onPressed: () => showQuoteComposerSheet(context, orderId: order.id),
+        ),
+        const SizedBox(height: 24),
+        _ContextualAction(order: order, inProgress: actionInProgress),
+      ],
     );
   }
 }
