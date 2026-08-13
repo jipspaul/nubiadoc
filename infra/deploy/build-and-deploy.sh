@@ -11,8 +11,8 @@
 #   2. assemble l'image API (COPY-only, amd64) -> tar
 #   3. flutter build web x3 (API_BASE_URL baké au build)
 #   4. provisionne le LXC (podman) si besoin
-#   5. pousse binaire/image, sources console, migrations, seed, bundles web
-#   6. lance deploy.sh sur le LXC (build console amd64 natif + run de la stack)
+#   5. pousse binaire/image, migrations, seed, bundles web
+#   6. lance deploy.sh sur le LXC (run de la stack)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -112,12 +112,6 @@ tar czf - -C "$OUT/api-ctx" . | SSH 'tar xzf - -C /opt/nubia/api-ctx'
 SSH 'rm -rf /opt/nubia/migrations /opt/nubia/seed && mkdir -p /opt/nubia/migrations /opt/nubia/seed'
 tar czf - -C "$ROOT/db/migrations" . | SSH 'tar xzf - -C /opt/nubia/migrations'
 tar czf - -C "$ROOT/db/seed" . | SSH 'tar xzf - -C /opt/nubia/seed'
-# sources console (sans node_modules/dist)
-SSH 'rm -rf /opt/nubia/web-console-src && mkdir -p /opt/nubia/web-console-src'
-tar czf - -C "$ROOT/web-console" \
-    --exclude=node_modules --exclude=dist --exclude=.astro \
-    --exclude=test-results --exclude=playwright-report --exclude=blob-flows . \
-  | SSH 'tar xzf - -C /opt/nubia/web-console-src'
 # bundles flutter
 for d in patient praticien secretary pharmacie; do
   SSH "rm -rf /opt/nubia/www/$d && mkdir -p /opt/nubia/www/$d"
@@ -134,6 +128,5 @@ cat <<EOF
    praticien   http://${HOST}:8082
    secrétariat http://${HOST}:8083
    pharmacie   http://${HOST}:8084
-   console     http://${HOST}:4321
    api         http://${HOST}:3000/v1/health
 EOF

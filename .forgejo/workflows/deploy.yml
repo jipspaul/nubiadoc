@@ -5,8 +5,8 @@
 #   - l'API Rust est CROSS-compilée en binaire musl statique amd64 (cargo-zigbuild,
 #     pas de QEMU) directement sur le runner ;
 #   - les 3 fronts Flutter sont buildés en web (statique, indépendant de l'arch) ;
-#   - tout est poussé sur le LXC, qui assemble les images (api COPY-only + console
-#     Astro) en amd64 NATIF et (re)démarre la stack podman.
+#   - tout est poussé sur le LXC, qui assemble l'image API (COPY-only) en amd64
+#     NATIF et (re)démarre la stack podman.
 #
 # Tourne dans `flutter-ci:stable` (déjà présente sur le runner) + installe la
 # chaîne de cross-compilation Rust au runtime, MISE EN CACHE entre les runs
