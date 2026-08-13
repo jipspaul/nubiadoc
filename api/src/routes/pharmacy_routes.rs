@@ -24,6 +24,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(pharmacy::orders::get_pharmacy_order_document),
         )
         .route(
+            "/v1/pharmacy/orders/:id/items",
+            get(pharmacy::orders::get_pharmacy_order_items),
+        )
+        .route(
             "/v1/pharmacy/orders/:id/accept",
             axum::routing::post(pharmacy::orders::accept_pharmacy_order),
         )

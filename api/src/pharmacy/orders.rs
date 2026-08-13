@@ -2,8 +2,10 @@
 //! cross-tenant + suivi de commande.
 //!
 //! Vue pharmacie : `GET /v1/pharmacy/orders[?status=]`, `GET …/{id}`,
-//! `GET …/{id}/document` (URL signée du PDF — la pharmacie ne lit jamais les
-//! tables cliniques).
+//! `GET …/{id}/document` (URL signée du PDF), `GET …/{id}/items` (lignes de
+//! l'ordonnance minimisées — #4876 : la pharmacie ne lit toujours pas les
+//! tables cliniques du patient, seules les lignes `prescription_item` de la
+//! commande le sont).
 //! Vue patient : `POST /v1/account/prescriptions/{id}/order`,
 //! `GET /v1/account/orders[/{id}]`, `GET|PUT /v1/account/pharmacy`.
 //! Vue cabinet : `GET /v1/cabinet/patients/{id}/pharmacy` (présélection à
@@ -242,6 +244,86 @@ pub async fn get_pharmacy_order_document(
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
     Ok(Json(OrderDocumentResponse { url }))
+}
+
+/// Une ligne d'ordonnance minimisée pour la vue pharmacie (#4876) — molécule,
+/// forme, posologie, durée, quantité : rien de clinique au-delà (pas d'id,
+/// pas de lien patient).
+#[derive(Serialize)]
+pub struct OrderItemDto {
+    pub label: String,
+    pub form: Option<String>,
+    pub posology: String,
+    pub duration: String,
+    pub quantity: Option<String>,
+}
+
+/// Réponse de `GET /v1/pharmacy/orders/{id}/items`.
+#[derive(Serialize)]
+pub struct OrderItemsResponse {
+    pub data: Vec<OrderItemDto>,
+}
+
+/// `GET /v1/pharmacy/orders/{id}/items` — lignes de l'ordonnance à délivrer
+/// (#4876) : jusqu'ici la pharmacie ne pouvait lire que le PDF
+/// (`get_pharmacy_order_document`) ; le métier du pharmacien (substitution,
+/// posologie) exige les lignes structurées.
+///
+/// Même cloisonnement cycle de vie que `/document` : commande cancelled/
+/// rejected → 404. RLS `prescription_item_pharmacy_read` (0227) borne aux
+/// lignes des commandes de la pharmacie courante — la pharmacie ne lit
+/// toujours pas `prescription` ni les autres tables cliniques.
+pub async fn get_pharmacy_order_items(
+    State(state): State<AppState>,
+    claims: PharmaMemberClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<OrderItemsResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(claims.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let order_row = sqlx::query(
+        "SELECT prescription_id FROM pharmacy_order \
+         WHERE id = $1 AND status IN ('received', 'preparing', 'ready', 'picked_up')",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    let prescription_id: Uuid = order_row
+        .try_get("prescription_id")
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT label, form, posology, duration, quantity \
+         FROM prescription_item WHERE prescription_id = $1",
+    )
+    .bind(prescription_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .iter()
+        .map(|row| {
+            Ok::<_, AppError>(OrderItemDto {
+                label: row.try_get("label").map_err(|_| AppError::Internal)?,
+                form: row.try_get("form").map_err(|_| AppError::Internal)?,
+                posology: row.try_get("posology").map_err(|_| AppError::Internal)?,
+                duration: row.try_get("duration").map_err(|_| AppError::Internal)?,
+                quantity: row.try_get("quantity").map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Json(OrderItemsResponse { data }))
 }
 
 // ── Vue patient : commandes ───────────────────────────────────────────────────

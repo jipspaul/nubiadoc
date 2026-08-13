@@ -356,6 +356,7 @@ void _registerPharmacy(GetIt gi) {
     ..registerFactory(() => RejectPharmacyOrderUseCase(gi()))
     ..registerFactory(() => ConfirmPharmacyPickupUseCase(gi()))
     ..registerFactory(() => GetPharmacyOrderPrescriptionUrlUseCase(gi()))
+    ..registerFactory(() => GetPharmacyOrderPrescriptionUseCase(gi()))
     ..registerFactory(() => WatchPharmacyOrdersUseCase(gi()))
     ..registerFactory(() => ListStockRequestsUseCase(gi()))
     ..registerFactory(() => RespondStockRequestUseCase(gi()))

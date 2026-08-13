@@ -41,7 +41,18 @@ void main() {
         ready: MarkPharmacyOrderReadyUseCase(repo),
         reject: RejectPharmacyOrderUseCase(repo),
         prescriptionUrl: GetPharmacyOrderPrescriptionUrlUseCase(repo),
+        prescriptionItems: GetPharmacyOrderPrescriptionUseCase(repo),
       );
+
+  const prescriptionItems = [
+    PrescriptionItem(
+      label: 'Paracétamol 1 g',
+      form: 'comprimé',
+      posology: '1 cp × 3 / jour si douleur',
+      duration: '5 jours',
+      quantity: 'QSP 15 cp',
+    ),
+  ];
 
   group('OrderDetailBloc', () {
     blocTest<OrderDetailBloc, OrderDetailState>(
@@ -93,6 +104,46 @@ void main() {
           bloc.add(const OrderDetailRejectRequested('Produit indisponible')),
       verify: (_) =>
           verify(() => repo.reject('o1', 'Produit indisponible')).called(1),
+    );
+
+    blocTest<OrderDetailBloc, OrderDetailState>(
+      'le chargement peuple les lignes de l\'ordonnance (#4876)',
+      build: () {
+        when(() => repo.getById('o1')).thenAnswer(
+          (_) async => Right(order(PharmacyOrderStatus.received)),
+        );
+        when(() => repo.getPrescriptionItems('o1')).thenAnswer(
+          (_) async => const Right(prescriptionItems),
+        );
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const OrderDetailLoadRequested('o1')),
+      expect: () => [
+        const OrderDetailLoading(),
+        OrderDetailLoaded(order(PharmacyOrderStatus.received)),
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.received),
+          items: prescriptionItems,
+        ),
+      ],
+    );
+
+    blocTest<OrderDetailBloc, OrderDetailState>(
+      'un échec de lecture des lignes n\'efface pas la commande déjà chargée',
+      build: () {
+        when(() => repo.getById('o1')).thenAnswer(
+          (_) async => Right(order(PharmacyOrderStatus.received)),
+        );
+        when(() => repo.getPrescriptionItems('o1')).thenAnswer(
+          (_) async => const Left(ServerFailure(message: 'Indisponible.')),
+        );
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const OrderDetailLoadRequested('o1')),
+      expect: () => [
+        const OrderDetailLoading(),
+        OrderDetailLoaded(order(PharmacyOrderStatus.received)),
+      ],
     );
 
     blocTest<OrderDetailBloc, OrderDetailState>(
