@@ -10,6 +10,7 @@ import '../devis/widgets/quote_composer_sheet.dart';
 import 'order_detail_bloc.dart';
 import 'order_detail_event.dart';
 import 'order_detail_state.dart';
+import 'widgets/order_status_stepper.dart';
 import 'widgets/pickup_info_card.dart';
 
 /// Détail d'une commande : infos de retrait, PDF d'ordonnance et action de
@@ -83,41 +84,48 @@ class OrderDetailBody extends StatelessWidget {
         final isTwoPane = constraints.maxWidth >= _twoPaneBreakpoint;
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          child: isTwoPane
-              ? IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(child: _buildReadPane(context, order)),
-                      const SizedBox(width: 16),
-                      Container(
-                        width: _executionPaneWidth,
-                        padding: const EdgeInsets.only(left: 16),
-                        decoration: BoxDecoration(
-                          color: NubiaColors.n0,
-                          border: Border(
-                            left: BorderSide(
-                              color: Theme.of(context)
-                                      .extension<NubiaTokens>()
-                                      ?.borderSubtle ??
-                                  NubiaColors.n200,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              OrderStatusStepper(status: order.status),
+              const SizedBox(height: 16),
+              isTwoPane
+                  ? IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: _buildReadPane(context, order)),
+                          const SizedBox(width: 16),
+                          Container(
+                            width: _executionPaneWidth,
+                            padding: const EdgeInsets.only(left: 16),
+                            decoration: BoxDecoration(
+                              color: NubiaColors.n0,
+                              border: Border(
+                                left: BorderSide(
+                                  color: Theme.of(context)
+                                          .extension<NubiaTokens>()
+                                          ?.borderSubtle ??
+                                      NubiaColors.n200,
+                                ),
+                              ),
                             ),
+                            child: _buildExecutionPane(
+                                context, order, actionInProgress),
                           ),
-                        ),
-                        child: _buildExecutionPane(
-                            context, order, actionInProgress),
+                        ],
                       ),
-                    ],
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildReadPane(context, order),
-                    const SizedBox(height: 24),
-                    _buildExecutionPane(context, order, actionInProgress),
-                  ],
-                ),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildReadPane(context, order),
+                        const SizedBox(height: 24),
+                        _buildExecutionPane(context, order, actionInProgress),
+                      ],
+                    ),
+            ],
+          ),
         );
       },
     );
