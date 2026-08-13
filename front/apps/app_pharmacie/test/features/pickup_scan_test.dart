@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
 import 'package:app_pharmacie/features/pickup_scan/pickup_scan_cubit.dart';
+import 'package:app_pharmacie/features/pickup_scan/pickup_scan_page.dart';
 import 'package:app_pharmacie/features/pickup_scan/widgets/manual_code_field.dart';
 
 class MockPharmacyOrdersRepository extends Mock
@@ -129,6 +130,34 @@ void main() {
       expect: () => const <PickupScanState>[],
       verify: (_) => verifyNever(() => repo.confirmPickup(any())),
     );
+  });
+
+  group('PickupScanBody (widget)', () {
+    testWidgets('tap sur "Réessayer" après un échec ramène l\'état idle',
+        (tester) async {
+      when(() => repo.confirmPickup('inconnu'))
+          .thenAnswer((_) async => const Left(NotFoundFailure()));
+      final cubit = buildCubit();
+
+      await tester.pumpApp(
+        BlocProvider<PickupScanCubit>.value(
+          value: cubit,
+          child: const PickupScanBody(orderId: 'o1'),
+        ),
+      );
+
+      await cubit.submit('inconnu', expectedOrderId: 'o1');
+      await tester.pumpAndSettle();
+
+      expect(cubit.state, isA<PickupScanInvalidCode>());
+      expect(find.byKey(const Key('pickup_error_retry')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pickup_error_retry')));
+      await tester.pumpAndSettle();
+
+      expect(cubit.state, isA<PickupScanIdle>());
+      expect(find.byKey(const Key('pickup_error_retry')), findsNothing);
+    });
   });
 
   group('ManualCodeField (widget)', () {

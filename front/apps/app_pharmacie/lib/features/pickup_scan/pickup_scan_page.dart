@@ -76,9 +76,25 @@ class PickupScanBody extends StatelessWidget {
                     message: state.message,
                   ),
                   const SizedBox(height: 8),
+                  NubiaButton(
+                    key: const Key('pickup_error_retry'),
+                    label: 'Réessayer',
+                    icon: Icons.qr_code_scanner,
+                    variant: NubiaButtonVariant.destructive,
+                    onPressed: () => context.read<PickupScanCubit>().reset(),
+                  ),
+                  const SizedBox(height: 8),
                 ],
                 if (state is PickupScanError) ...[
                   _InlineError(message: state.message),
+                  const SizedBox(height: 8),
+                  NubiaButton(
+                    key: const Key('pickup_error_retry'),
+                    label: 'Réessayer',
+                    icon: Icons.qr_code_scanner,
+                    variant: NubiaButtonVariant.destructive,
+                    onPressed: () => context.read<PickupScanCubit>().reset(),
+                  ),
                   const SizedBox(height: 8),
                 ],
                 ManualCodeField(
@@ -214,6 +230,7 @@ class _MismatchView extends StatelessWidget {
                       child: NubiaButton(
                         key: const Key('pickup_mismatch_retry'),
                         label: 'Réessayer',
+                        icon: Icons.qr_code_scanner,
                         variant: NubiaButtonVariant.destructive,
                         onPressed: () =>
                             context.read<PickupScanCubit>().reset(),
