@@ -103,7 +103,7 @@ class _PharmaMessagingBody extends StatelessWidget {
 /// ouvert s'affichent côte à côte, coiffés par l'en-tête « Messages ».
 /// En dessous du seuil, un seul volet à la fois — le fil remplace la liste,
 /// comme côté patient.
-class _MessagingMasterDetail extends StatelessWidget {
+class _MessagingMasterDetail extends StatefulWidget {
   const _MessagingMasterDetail({
     required this.conversations,
     required this.selectedConversationId,
@@ -118,16 +118,36 @@ class _MessagingMasterDetail extends StatelessWidget {
   final Widget? detail;
 
   @override
+  State<_MessagingMasterDetail> createState() =>
+      _MessagingMasterDetailState();
+}
+
+class _MessagingMasterDetailState extends State<_MessagingMasterDetail> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final conversations = widget.conversations;
     final unreadConversations =
         conversations.where((c) => c.unreadCount > 0).length;
+    final filteredConversations =
+        _filterConversations(conversations, _searchQuery);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= _wideBreakpoint;
+        final isWide =
+            constraints.maxWidth >= _MessagingMasterDetail._wideBreakpoint;
         final list = _ConversationsList(
-          conversations: conversations,
-          selectedConversationId: isWide ? selectedConversationId : null,
+          conversations: filteredConversations,
+          selectedConversationId:
+              isWide ? widget.selectedConversationId : null,
         );
 
         final Widget body;
@@ -136,7 +156,7 @@ class _MessagingMasterDetail extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                width: _listWidth,
+                width: _MessagingMasterDetail._listWidth,
                 child: DecoratedBox(
                   decoration: const BoxDecoration(
                     border: Border(
@@ -147,7 +167,7 @@ class _MessagingMasterDetail extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: detail ??
+                child: widget.detail ??
                     const NubiaEmptyState(
                       key: Key('pharma_messaging_no_selection'),
                       icon: Icons.forum_outlined,
@@ -159,15 +179,18 @@ class _MessagingMasterDetail extends StatelessWidget {
             ],
           );
         } else {
-          body = detail ?? list;
+          body = widget.detail ?? list;
         }
 
         return Column(
           children: [
-            if (isWide || detail == null)
+            if (isWide || widget.detail == null)
               _MessagingHeader(
                 conversationCount: conversations.length,
                 unreadCount: unreadConversations,
+                searchController: _searchController,
+                onSearchChanged: (query) =>
+                    setState(() => _searchQuery = query),
               ),
             Expanded(child: body),
           ],
@@ -177,16 +200,37 @@ class _MessagingMasterDetail extends StatelessWidget {
   }
 }
 
+/// Filtre les conversations sur le nom du patient ou la référence commande
+/// (insensible à la casse) — agit uniquement sur l'affichage, la liste
+/// chargée par le bloc reste intacte (#4931).
+List<CabinetConversation> _filterConversations(
+  List<CabinetConversation> conversations,
+  String query,
+) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return conversations;
+  return conversations.where((conv) {
+    final matchesPatient = conv.patientName.toLowerCase().contains(q);
+    final matchesOrder = conv.orderRef?.toLowerCase().contains(q) ?? false;
+    return matchesPatient || matchesOrder;
+  }).toList();
+}
+
 /// En-tête « Messages · X conversations · Y non lues » coiffant les deux
-/// volets sur poste comptoir (maquette design-v2).
+/// volets sur poste comptoir (maquette design-v2), avec le champ de
+/// recherche des conversations (#4931) à droite.
 class _MessagingHeader extends StatelessWidget {
   const _MessagingHeader({
     required this.conversationCount,
     required this.unreadCount,
+    required this.searchController,
+    required this.onSearchChanged,
   });
 
   final int conversationCount;
   final int unreadCount;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -204,21 +248,59 @@ class _MessagingHeader extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         border: Border(bottom: BorderSide(color: tokens.borderSubtle)),
       ),
-      child: Text.rich(
-        TextSpan(
-          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          children: [
-            const TextSpan(text: 'Messages'),
-            TextSpan(
-              text:
-                  ' · $conversationCount $conversationsLabel · $unreadCount $unreadLabel',
-              style: textTheme.bodyMedium?.copyWith(
-                color: tokens.textTertiary,
-                fontWeight: FontWeight.w400,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                children: [
+                  const TextSpan(text: 'Messages'),
+                  TextSpan(
+                    text:
+                        ' · $conversationCount $conversationsLabel · $unreadCount $unreadLabel',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: tokens.textTertiary,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 240,
+            child: TextField(
+              key: const Key('pharma_messaging_search'),
+              controller: searchController,
+              onChanged: onSearchChanged,
+              style: textTheme.bodySmall,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Patient, n° de commande…',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                prefixIconConstraints:
+                    const BoxConstraints(minWidth: 34, minHeight: 0),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: NubiaColors.n200),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: NubiaColors.n200),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: const BorderSide(color: NubiaColors.brand700),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
