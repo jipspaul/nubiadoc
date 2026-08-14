@@ -1421,12 +1421,29 @@ pub async fn confirm_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // R10 : secrétaire scopée au secrétariat actif — ne confirme que les RDV
+    // de praticiens assignés à SON secrétariat (même garde que get_cabinet_agenda/
+    // get_waiting_room, jusqu'ici absente ici -> confirmation cross-secrétariat).
+    let secretariat_scope = if claims.role == "secretary" {
+        Some(claims.secretariat_id.ok_or(AppError::NotFound)?)
+    } else {
+        None
+    };
+
     let row = sqlx::query(
-        "SELECT id, status FROM appointment \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+        "SELECT id, status FROM appointment a \
+         WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
+           AND ($3::uuid IS NULL OR EXISTS ( \
+               SELECT 1 FROM provider pr \
+               JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+               WHERE pr.practitioner_id = a.practitioner_id \
+                 AND ps.secretariat_id = $3 \
+                 AND ps.active = true \
+           ))",
     )
     .bind(appt_id)
     .bind(claims.cabinet_id)
+    .bind(secretariat_scope)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
@@ -1530,12 +1547,28 @@ pub async fn no_show_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // R10 : secrétaire scopée au secrétariat actif — même garde que
+    // confirm_appointment/get_waiting_room, jusqu'ici absente ici.
+    let secretariat_scope = if claims.role == "secretary" {
+        Some(claims.secretariat_id.ok_or(AppError::NotFound)?)
+    } else {
+        None
+    };
+
     let row = sqlx::query(
-        "SELECT id, status, slot_id, starts_at FROM appointment \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+        "SELECT id, status, slot_id, starts_at FROM appointment a \
+         WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
+           AND ($3::uuid IS NULL OR EXISTS ( \
+               SELECT 1 FROM provider pr \
+               JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+               WHERE pr.practitioner_id = a.practitioner_id \
+                 AND ps.secretariat_id = $3 \
+                 AND ps.active = true \
+           ))",
     )
     .bind(appt_id)
     .bind(claims.cabinet_id)
+    .bind(secretariat_scope)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
@@ -1858,12 +1891,30 @@ pub async fn patch_cabinet_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // R10 : secrétaire scopée au secrétariat actif — même garde que
+    // confirm_appointment/no_show_appointment/get_waiting_room, jusqu'ici
+    // absente ici (secrétaire pouvait déplacer/éditer le RDV d'un praticien
+    // assigné à un AUTRE secrétariat du même cabinet).
+    let secretariat_scope = if claims.role == "secretary" {
+        Some(claims.secretariat_id.ok_or(AppError::NotFound)?)
+    } else {
+        None
+    };
+
     let row = sqlx::query(
-        "SELECT id, status, slot_id, practitioner_id, starts_at FROM appointment \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
+        "SELECT id, status, slot_id, practitioner_id, starts_at FROM appointment a \
+         WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
+           AND ($3::uuid IS NULL OR EXISTS ( \
+               SELECT 1 FROM provider pr \
+               JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+               WHERE pr.practitioner_id = a.practitioner_id \
+                 AND ps.secretariat_id = $3 \
+                 AND ps.active = true \
+           ))",
     )
     .bind(appt_id)
     .bind(claims.cabinet_id)
+    .bind(secretariat_scope)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
@@ -2186,6 +2237,27 @@ pub async fn create_cabinet_slot(
     } else {
         None
     };
+
+    // Refuse un créneau qui chevauche un rendez-vous actif du même praticien :
+    // la seule contrainte DB active sur availability_slot (slot_practitioner_no_overlap)
+    // ne couvre pas les chevauchements avec `appointment`, ce qui laissait créer des
+    // créneaux "fantômes" (is_available:true mais 409 slot_taken à la réservation).
+    let overlapping_appointment = sqlx::query(
+        "SELECT 1 FROM appointment \
+         WHERE practitioner_id = $1 \
+           AND status NOT IN ('cancelled', 'no_show') \
+           AND starts_at < $2 \
+           AND ends_at > $3",
+    )
+    .bind(practitioner_id)
+    .bind(ends_at)
+    .bind(starts_at)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if overlapping_appointment.is_some() {
+        return Err(AppError::SlotTaken);
+    }
 
     let slot_id = Uuid::new_v4();
 

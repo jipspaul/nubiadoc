@@ -5,6 +5,9 @@ export 'src/theme/nubia_colors.dart';
 export 'src/theme/nubia_theme.dart';
 export 'src/theme/nubia_tokens.dart';
 
+// Format
+export 'src/format/money_format.dart';
+
 // Widgets
 export 'src/widgets/amount_header.dart';
 export 'src/widgets/nubia_app_bar.dart';

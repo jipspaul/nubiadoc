@@ -7,6 +7,8 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../devis/widgets/quote_composer_sheet.dart';
+import '../pickup_scan/pickup_scan_cubit.dart';
+import '../pickup_scan/pickup_scan_page.dart';
 import 'order_detail_bloc.dart';
 import 'order_detail_event.dart';
 import 'order_detail_state.dart';
@@ -61,11 +63,18 @@ class OrderDetailBody extends StatelessWidget {
             case OrderDetailLoaded(
                 :final order,
                 :final items,
-                :final actionInProgress
+                :final actionInProgress,
+                :final preparedLineIndices
               ):
-              return _buildLoaded(context, order, items, actionInProgress);
+              return _buildLoaded(
+                context,
+                order,
+                items,
+                actionInProgress,
+                preparedLineIndices,
+              );
             case OrderDetailDocumentReady(:final order):
-              return _buildLoaded(context, order, const [], false);
+              return _buildLoaded(context, order, const [], false, const {});
           }
         },
       ),
@@ -84,6 +93,7 @@ class OrderDetailBody extends StatelessWidget {
     PharmacyOrder order,
     List<PrescriptionItem> items,
     bool actionInProgress,
+    Set<int> preparedLineIndices,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -101,7 +111,9 @@ class OrderDetailBody extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Expanded(
-                              child: _buildReadPane(context, order, items)),
+                            child: _buildReadPane(
+                                context, order, items, preparedLineIndices),
+                          ),
                           const SizedBox(width: 16),
                           Container(
                             width: _executionPaneWidth,
@@ -117,8 +129,8 @@ class OrderDetailBody extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            child: _buildExecutionPane(
-                                context, order, actionInProgress),
+                            child: _buildExecutionPane(context, order, items,
+                                actionInProgress, preparedLineIndices),
                           ),
                         ],
                       ),
@@ -126,9 +138,11 @@ class OrderDetailBody extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildReadPane(context, order, items),
+                        _buildReadPane(
+                            context, order, items, preparedLineIndices),
                         const SizedBox(height: 24),
-                        _buildExecutionPane(context, order, actionInProgress),
+                        _buildExecutionPane(context, order, items,
+                            actionInProgress, preparedLineIndices),
                       ],
                     ),
             ],
@@ -143,7 +157,10 @@ class OrderDetailBody extends StatelessWidget {
     BuildContext context,
     PharmacyOrder order,
     List<PrescriptionItem> items,
+    Set<int> preparedLineIndices,
   ) {
+    final bloc = context.read<OrderDetailBloc>();
+    final canTogglePrepared = order.status == PharmacyOrderStatus.preparing;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -152,9 +169,13 @@ class OrderDetailBody extends StatelessWidget {
           const SizedBox(height: 16),
           PrescriptionLinesPanel(
             items: items,
-            onOpenDocument: () => context
-                .read<OrderDetailBloc>()
-                .add(const OrderDetailDocumentRequested()),
+            onOpenDocument: () =>
+                bloc.add(const OrderDetailDocumentRequested()),
+            preparedLineIndices: preparedLineIndices,
+            onLinePreparedChanged: canTogglePrepared
+                ? (index, _) =>
+                    bloc.add(OrderDetailLinePreparedToggled(index))
+                : null,
           ),
         ],
       ],
@@ -165,7 +186,9 @@ class OrderDetailBody extends StatelessWidget {
   Widget _buildExecutionPane(
     BuildContext context,
     PharmacyOrder order,
+    List<PrescriptionItem> items,
     bool actionInProgress,
+    Set<int> preparedLineIndices,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -177,21 +200,158 @@ class OrderDetailBody extends StatelessWidget {
           onPressed: () => showQuoteComposerSheet(context, orderId: order.id),
         ),
         const SizedBox(height: 24),
-        _ContextualAction(order: order, inProgress: actionInProgress),
+        _ContextualAction(
+          order: order,
+          inProgress: actionInProgress,
+          totalLines: items.length,
+          preparedLines: preparedLineIndices.length,
+        ),
+        if (order.hasBillingSummary) ...[
+          const SizedBox(height: 24),
+          _BillingSummaryCard(order: order),
+        ],
+      ],
+    );
+  }
+}
+
+/// Bloc facturation (pied du volet droit) : Montant total, part AMO, part
+/// AMC, à encaisser — même vocabulaire et même formatage que l'app Patient
+/// (helper `formatQuoteCents` partagé, cf. #4063/#4888). N'apparaît que si
+/// le back a renseigné la ventilation ([PharmacyOrder.hasBillingSummary]).
+class _BillingSummaryCard extends StatelessWidget {
+  const _BillingSummaryCard({required this.order});
+
+  final PharmacyOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return NubiaCard(
+      key: const Key('order_billing_summary'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _BillingRow(
+            label: 'Montant total',
+            amountCents: order.billingTotalCents!,
+          ),
+          const SizedBox(height: 8),
+          _BillingRow(
+            label: 'Part Assurance Maladie (AMO)',
+            amountCents: -order.billingAmoShareCents!,
+          ),
+          const SizedBox(height: 8),
+          _BillingRow(
+            label: 'Part mutuelle (AMC)',
+            amountCents: -order.billingAmcShareCents!,
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'À encaisser',
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: cs.onSurface),
+                ),
+              ),
+              Text(
+                formatQuoteCents(order.billingPatientShareCents!),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: tabularFigures,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne « libellé — montant » du bloc facturation.
+class _BillingRow extends StatelessWidget {
+  const _BillingRow({required this.label, required this.amountCents});
+
+  final String label;
+  final int amountCents;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ),
+        Text(
+          formatQuoteCents(amountCents),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: cs.onSurface,
+            fontFeatures: tabularFigures,
+          ),
+        ),
       ],
     );
   }
 }
 
 /// Bouton d'action unique selon le statut (aucun pour un état terminal).
-class _ContextualAction extends StatelessWidget {
-  const _ContextualAction({required this.order, required this.inProgress});
+class _ContextualAction extends StatefulWidget {
+  const _ContextualAction({
+    required this.order,
+    required this.inProgress,
+    this.totalLines = 0,
+    this.preparedLines = 0,
+  });
 
   final PharmacyOrder order;
   final bool inProgress;
 
+  /// Nombre total de lignes d'ordonnance — alimente le compteur « X sur N
+  /// préparées » qui conditionne preparing → ready.
+  final int totalLines;
+
+  /// Nombre de lignes cochées « préparée ».
+  final int preparedLines;
+
+  @override
+  State<_ContextualAction> createState() => _ContextualActionState();
+}
+
+class _ContextualActionState extends State<_ContextualAction> {
+  /// Le scan de retrait est un panneau (pas une page) : l'ordonnance reste
+  /// visible dans le volet gauche pendant le scan — voir #4886. La route
+  /// `/orders/:id/pickup` reste conservée pour l'accès direct.
+  bool _scanning = false;
+
+  @override
+  void didUpdateWidget(covariant _ContextualAction oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.order.id != widget.order.id) {
+      _scanning = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final order = widget.order;
+    final inProgress = widget.inProgress;
+    final totalLines = widget.totalLines;
+    final preparedLines = widget.preparedLines;
     final bloc = context.read<OrderDetailBloc>();
     switch (order.status) {
       case PharmacyOrderStatus.received:
@@ -217,19 +377,43 @@ class _ContextualAction extends StatelessWidget {
           ],
         );
       case PharmacyOrderStatus.preparing:
-        return NubiaButton(
-          key: const Key('order_action_ready'),
-          label: 'Marquer prête',
-          isLoading: inProgress,
-          onPressed: inProgress
-              ? null
-              : () => bloc.add(const OrderDetailReadyRequested()),
+        final allPrepared = totalLines == 0 || preparedLines >= totalLines;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (totalLines > 0) ...[
+              Text(
+                key: const Key('order_ready_progress'),
+                '$preparedLines sur $totalLines préparées',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context)
+                          .extension<NubiaTokens>()
+                          ?.textTertiary,
+                    ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            NubiaButton(
+              key: const Key('order_action_ready'),
+              label: 'Marquer prête',
+              isLoading: inProgress,
+              onPressed: inProgress || !allPrepared
+                  ? null
+                  : () => bloc.add(const OrderDetailReadyRequested()),
+            ),
+          ],
         );
       case PharmacyOrderStatus.ready:
+        if (_scanning) {
+          return BlocProvider<PickupScanCubit>(
+            create: (_) => GetIt.instance<PickupScanCubit>(),
+            child: PickupScanBody(orderId: order.id),
+          );
+        }
         return NubiaButton(
           key: const Key('order_action_scan'),
           label: 'Scanner le retrait',
-          onPressed: () => context.go('/orders/${order.id}/pickup'),
+          onPressed: () => setState(() => _scanning = true),
         );
       case PharmacyOrderStatus.pickedUp:
       case PharmacyOrderStatus.rejected:

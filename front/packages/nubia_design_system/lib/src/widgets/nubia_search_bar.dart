@@ -21,6 +21,7 @@ class NubiaSearchBar extends StatefulWidget {
   const NubiaSearchBar({
     super.key,
     this.controller,
+    this.focusNode,
     this.hint = 'Rechercher',
     this.onChanged,
     this.onSubmitted,
@@ -30,6 +31,7 @@ class NubiaSearchBar extends StatefulWidget {
   });
 
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final String hint;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
@@ -96,6 +98,7 @@ class _NubiaSearchBarState extends State<NubiaSearchBar> {
             Expanded(
               child: TextField(
                 controller: _controller,
+                focusNode: widget.focusNode,
                 enabled: widget.enabled,
                 onChanged: widget.onChanged,
                 onSubmitted: widget.onSubmitted,

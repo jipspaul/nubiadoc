@@ -42,6 +42,25 @@ void main() {
       // updatedAt retombe sur createdAt.
       expect(order.updatedAt, order.createdAt);
       expect(order.lineCount, isNull);
+      // Pas de ventilation facturation tant que le back ne l'envoie pas
+      // (#4888) : le bloc facturation ne s'affiche pas.
+      expect(order.hasBillingSummary, isFalse);
+    });
+
+    test('ventilation facturation (#4888)', () {
+      final order = PharmacyOrderDto.fromJson({
+        'id': 'o3',
+        'billing_total_cents': 2480,
+        'billing_amo_share_cents': 1636,
+        'billing_amc_share_cents': 644,
+        'billing_patient_share_cents': 200,
+      }).toDomain();
+
+      expect(order.hasBillingSummary, isTrue);
+      expect(order.billingTotalCents, 2480);
+      expect(order.billingAmoShareCents, 1636);
+      expect(order.billingAmcShareCents, 644);
+      expect(order.billingPatientShareCents, 200);
     });
 
     test('line_count absent → dérivé de la longueur de lines', () {
@@ -119,6 +138,36 @@ void main() {
       expect(request.items.first.quantity, 10);
       expect(request.items.last.quantity, 2);
       expect(request.status, StockRequestStatus.accepted);
+      expect(request.items.first.availability, isNull);
+    });
+
+    test('availability_status jsonb → StockItemAvailability', () {
+      final items = StockRequestDto.fromJson({
+        'id': 's1',
+        'pharmacy_id': 'p1',
+        'items': [
+          {'label': 'Compresses', 'qty': 10, 'availability_status': 'in_stock'},
+          {
+            'label': 'Gants nitrile',
+            'qty': 5,
+            'availability_status': 'limited',
+            'available_qty': 2,
+          },
+          {'label': 'Masques', 'qty': 3, 'availability_status': 'out_of_stock'},
+          {'label': 'Compresses B', 'qty': 4},
+        ],
+        'status': 'sent',
+        'created_at': '2026-07-01T10:00:00Z',
+      }).toDomain().items;
+
+      expect(
+          items[0].availability!.status, StockItemAvailabilityStatus.inStock);
+      expect(
+          items[1].availability!.status, StockItemAvailabilityStatus.limited);
+      expect(items[1].availability!.quantityAvailable, 2);
+      expect(items[2].availability!.status,
+          StockItemAvailabilityStatus.outOfStock);
+      expect(items[3].availability, isNull);
     });
   });
 

@@ -48,6 +48,10 @@ class PharmacyOrder extends Equatable {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+
+  /// Référence courte affichable (ex. `CMD-4821`, colonne contexte #4926) —
+  /// `null` tant que le contrat back ne l'expose pas.
+  final String? orderRef;
   final String? prescriberName;
   final String? prescriberPractice;
   final String prescriptionId;
@@ -59,11 +63,20 @@ class PharmacyOrder extends Equatable {
   final DateTime? pickedUpAt;
   final int? lineCount;
 
+  /// Ventilation facturation (fournie par le back, cf. #4063 côté patient) —
+  /// null tant qu'aucun devis n'est facturé sur la commande : le bloc
+  /// facturation ne s'affiche alors pas (#4888).
+  final int? billingTotalCents;
+  final int? billingAmoShareCents;
+  final int? billingAmcShareCents;
+  final int? billingPatientShareCents; // « à encaisser »
+
   const PharmacyOrder({
     required this.id,
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.orderRef,
     this.prescriberName,
     this.prescriberPractice,
     required this.prescriptionId,
@@ -74,10 +87,22 @@ class PharmacyOrder extends Equatable {
     this.readyAt,
     this.pickedUpAt,
     this.lineCount,
+    this.billingTotalCents,
+    this.billingAmoShareCents,
+    this.billingAmcShareCents,
+    this.billingPatientShareCents,
   });
 
   /// Le QR de retrait n'existe que pour une commande prête.
   bool get canShowPickupCode => status == PharmacyOrderStatus.ready;
+
+  /// Le bloc facturation ne s'affiche que si le back a renseigné les 4
+  /// montants (pas de calcul front — #4888).
+  bool get hasBillingSummary =>
+      billingTotalCents != null &&
+      billingAmoShareCents != null &&
+      billingAmcShareCents != null &&
+      billingPatientShareCents != null;
 
   @override
   List<Object?> get props => [id, status, updatedAt];

@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'devis_bloc.dart';
 import 'quote_delay.dart';
 import 'widgets/devis_kpis.dart';
+import 'widgets/devis_status_facets.dart';
 
 /// Devis d'officine — corps de la destination « Devis ».
 class PharmacyDevisView extends StatefulWidget {
@@ -59,12 +60,14 @@ class PharmacyDevisView extends StatefulWidget {
 }
 
 class _PharmacyDevisViewState extends State<PharmacyDevisView> {
+  DevisStatusFacet _facet = DevisStatusFacet.all;
   String _query = '';
 
   List<PharmacyQuote> _filter(List<PharmacyQuote> quotes) {
+    final byFacet = quotes.where(_facet.matches);
     final query = _query.trim().toLowerCase();
-    if (query.isEmpty) return quotes;
-    return quotes
+    if (query.isEmpty) return byFacet.toList();
+    return byFacet
         .where((quote) =>
             (quote.patientDisplayName ?? '').toLowerCase().contains(query) ||
             quote.items
@@ -78,7 +81,18 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
       builder: (context, state) {
         switch (state) {
           case PharmacyDevisLoading():
-            return const Center(child: CircularProgressIndicator());
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  SizedBox(height: 12),
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  SizedBox(height: 12),
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                ],
+              ),
+            );
           case PharmacyDevisError(:final message):
             return NubiaErrorWidget(
               message: message,
@@ -98,6 +112,11 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
             return Column(
               children: [
                 DevisKpiBanner(quotes: quotes),
+                DevisStatusFacetBar(
+                  quotes: quotes,
+                  selected: _facet,
+                  onSelected: (facet) => setState(() => _facet = facet),
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Align(

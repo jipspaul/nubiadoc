@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../orders/widgets/order_status_pill.dart';
 import 'pharma_messaging_bloc.dart';
 import 'pharma_messaging_event.dart';
 import 'pharma_messaging_state.dart';
@@ -17,15 +18,17 @@ class PharmaMessagingPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<PharmaMessagingBloc>()
         ..add(const PharmaMessagingConversationsLoadRequested()),
-      child: const _PharmaMessagingBody(),
+      child: const PharmaMessagingView(),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
 
-class _PharmaMessagingBody extends StatelessWidget {
-  const _PharmaMessagingBody();
+/// Corps de l'écran « Messages » — consommable seul en test, en fournissant
+/// un [PharmaMessagingBloc] via `BlocProvider.value` (miroir de `OrdersView`).
+class PharmaMessagingView extends StatelessWidget {
+  const PharmaMessagingView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +76,7 @@ class _PharmaMessagingBody extends StatelessWidget {
             conversations: conversations,
             selectedConversationId: conversation.id,
             detail: _ThreadView(state: state),
+            contextPanel: _ConversationContextPanel(state: state),
           ),
         PharmaMessagingThreadError(
           :final conversationId,
@@ -107,6 +111,7 @@ class _MessagingMasterDetail extends StatefulWidget {
     required this.conversations,
     required this.selectedConversationId,
     required this.detail,
+    this.contextPanel,
   });
 
   static const _wideBreakpoint = 900.0;
@@ -115,6 +120,10 @@ class _MessagingMasterDetail extends StatefulWidget {
   final List<CabinetConversation> conversations;
   final String? selectedConversationId;
   final Widget? detail;
+
+  /// Colonne contexte (patient / commandes / horaires, #4926) — affichée
+  /// uniquement quand un fil est ouvert (donc `null` pour les autres états).
+  final Widget? contextPanel;
 
   @override
   State<_MessagingMasterDetail> createState() =>
@@ -192,6 +201,7 @@ class _MessagingMasterDetailState extends State<_MessagingMasterDetail> {
                           'Choisissez un patient dans la liste pour afficher le fil.',
                     ),
               ),
+              if (widget.contextPanel != null) widget.contextPanel!,
             ],
           );
         } else {
@@ -853,26 +863,35 @@ class _ThreadViewState extends State<_ThreadView> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '⏎ envoyer · ⇧⏎ nouvelle ligne',
-                style:
-                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+              Flexible(
+                child: Text(
+                  '⏎ envoyer · ⇧⏎ nouvelle ligne',
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+                ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.shield_outlined,
-                    size: 14,
-                    color: tokens.textTertiary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Aucun conseil médical par écrit',
-                    style: textTheme.bodySmall
-                        ?.copyWith(color: tokens.textTertiary),
-                  ),
-                ],
+              const SizedBox(width: 8),
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 14,
+                      color: tokens.textTertiary,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'Aucun conseil médical par écrit',
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: tokens.textTertiary),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1008,6 +1027,344 @@ class _OrderAttachmentCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Colonne de contexte (aside droite, 288px) affichée à côté du fil ouvert :
+/// identité patient, commandes passées, horaires du jour de l'officine
+/// (#4926). Purement organisationnel — aucune donnée médicale/diagnostic.
+class _ConversationContextPanel extends StatelessWidget {
+  const _ConversationContextPanel({required this.state});
+
+  static const _width = 288.0;
+
+  final PharmaMessagingThreadLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
+    return SizedBox(
+      key: const Key('pharma_messaging_context_panel'),
+      width: _width,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: tokens.borderSubtle)),
+        ),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _PatientSection(conversation: state.conversation),
+            const SizedBox(height: 20),
+            _OrdersSection(orders: state.patientOrders),
+            const SizedBox(height: 20),
+            const _HoursSection(),
+            const SizedBox(height: 20),
+            const _ComplianceNote(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// En-tête de section de la colonne contexte : icône + titre, badge de
+/// total optionnel à droite (ex. nombre de commandes).
+class _ContextSectionHeader extends StatelessWidget {
+  const _ContextSectionHeader({
+    required this.icon,
+    required this.title,
+    this.badgeCount,
+  });
+
+  final IconData icon;
+  final String title;
+  final int? badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: tokens.textTertiary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style:
+                textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        if (badgeCount != null) NubiaBadge.count(count: badgeCount!),
+      ],
+    );
+  }
+}
+
+/// Ligne clé/valeur (« Nom : Julie Martin ») — valeur en tabular-nums quand
+/// [tabularNums] (numéros, horaires).
+class _ContextKeyValueRow extends StatelessWidget {
+  const _ContextKeyValueRow({
+    required this.label,
+    required this.value,
+    this.tabularNums = false,
+  });
+
+  final String label;
+  final String value;
+  final bool tabularNums;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text.rich(
+        TextSpan(
+          style: textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+          children: [
+            TextSpan(text: '$label : '),
+            TextSpan(
+              text: value,
+              style: textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+                fontFeatures: tabularNums
+                    ? const [FontFeature.tabularFigures()]
+                    : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Section « Patiente » : nom, téléphone (tabular-nums), officine.
+class _PatientSection extends StatelessWidget {
+  const _PatientSection({required this.conversation});
+
+  final CabinetConversation conversation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('pharma_messaging_ctx_patient'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ContextSectionHeader(icon: Icons.person, title: 'Patiente'),
+        _ContextKeyValueRow(label: 'Nom', value: conversation.patientName),
+        _ContextKeyValueRow(
+          label: 'Téléphone',
+          value: conversation.patientPhone ?? '—',
+          tabularNums: true,
+        ),
+        // « Titulaire ici » : cette colonne ne sert que le contexte de
+        // l'officine en cours, pas un choix multi-pharmacie (#4926).
+        const _ContextKeyValueRow(label: 'Pharmacie', value: 'Titulaire ici'),
+      ],
+    );
+  }
+}
+
+/// Section « Commandes » : historique des commandes du patient, badge total
+/// dans l'en-tête, pastille de statut par ligne.
+class _OrdersSection extends StatelessWidget {
+  const _OrdersSection({required this.orders});
+
+  final List<PharmacyOrder> orders;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+
+    return Column(
+      key: const Key('pharma_messaging_ctx_orders'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ContextSectionHeader(
+          icon: Icons.receipt_long,
+          title: 'Commandes',
+          badgeCount: orders.length,
+        ),
+        if (orders.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Aucune commande',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: tokens.textTertiary),
+            ),
+          )
+        else
+          for (final order in orders) _OrderContextRow(order: order),
+      ],
+    );
+  }
+}
+
+/// Une commande dans la section « Commandes » : n°, sous-ligne jour +
+/// nombre de lignes, pastille de statut.
+class _OrderContextRow extends StatelessWidget {
+  const _OrderContextRow({required this.order});
+
+  final PharmacyOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    // Fallback dérivé de l'id réel tant que `order_ref` n'est pas exposé
+    // par le contrat back (#4926) — jamais de donnée inventée. On prend au
+    // plus 4 caractères (les id courts, ex. « o1 » en test, sont plus courts
+    // que 4 → pas de RangeError sur substring).
+    final rawId = order.id.replaceAll('-', '');
+    final ref = order.orderRef ??
+        'CMD-${rawId.substring(0, rawId.length < 4 ? rawId.length : 4).toUpperCase()}';
+    final lines = order.lineCount;
+    final day = _relativeDay(order.createdAt);
+    final subtitle =
+        lines == null ? day : '$day · $lines ${lines >= 2 ? 'lignes' : 'ligne'}';
+
+    return Padding(
+      key: Key('pharma_messaging_ctx_order_${order.id}'),
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.inventory_2_outlined,
+              size: 16, color: tokens.textTertiary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ref,
+                  style: textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: textTheme.labelSmall
+                      ?.copyWith(color: tokens.textTertiary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OrderStatusPill(status: order.status),
+        ],
+      ),
+    );
+  }
+}
+
+/// Section « Horaires aujourd'hui ». Pas de contrat back pour les horaires
+/// d'officine à ce jour (#4926, cf. issue : « à créer ») — contenu fixe en
+/// attendant, comme autorisé au stade POC (`AGENTS.md` racine).
+class _HoursSection extends StatelessWidget {
+  const _HoursSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      key: const Key('pharma_messaging_ctx_hours'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ContextSectionHeader(
+          icon: Icons.local_pharmacy,
+          title: "Horaires aujourd'hui",
+        ),
+        const _ContextKeyValueRow(
+          label: 'Ouverture',
+          value: '08:30 – 19:30',
+          tabularNums: true,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text.rich(
+            TextSpan(
+              style:
+                  textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+              children: [
+                const TextSpan(text: 'Actuellement : '),
+                TextSpan(
+                  text: 'Ouvert',
+                  style: TextStyle(
+                    color: tokens.successFg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Note de cadrage réglementaire en bas de colonne : cette messagerie sert
+/// l'organisation d'une délivrance, jamais le conseil pharmaceutique.
+class _ComplianceNote extends StatelessWidget {
+  const _ComplianceNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      key: const Key('pharma_messaging_ctx_note'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: tokens.infoBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield, size: 16, color: tokens.infoFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "Cette messagerie sert à l'organisation d'une délivrance : "
+              'disponibilité, horaires, substitution. Un conseil '
+              'pharmaceutique se donne au comptoir ou par téléphone.',
+              style: textTheme.labelSmall?.copyWith(color: tokens.infoFg),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Jour relatif court (« Aujourd'hui », « Hier » ou `jj/MM`) pour la
+/// sous-ligne des commandes de la colonne contexte.
+String _relativeDay(DateTime dt) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(dt.year, dt.month, dt.day);
+  final diff = today.difference(day).inDays;
+  if (diff == 0) return "Aujourd'hui";
+  if (diff == 1) return 'Hier';
+  return '${dt.day.toString().padLeft(2, '0')}/'
+      '${dt.month.toString().padLeft(2, '0')}';
 }
 
 // ---------------------------------------------------------------------------

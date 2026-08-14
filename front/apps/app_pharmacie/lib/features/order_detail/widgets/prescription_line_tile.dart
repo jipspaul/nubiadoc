@@ -4,15 +4,31 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'substitution_tags.dart';
 
-/// Une ligne d'ordonnance : molécule (`label` + `form`) en gras, posologie
-/// (`posology` + `duration`) en clair dessous, quantité (`quantity`) mise en
-/// avant à droite, mentions substituable/non substituable en tags, et
-/// l'encart d'alerte d'interaction (`interactionWarning`) si la ligne en
-/// porte une. Case de préparation : ticket dédié (hors périmètre ici).
+/// Une ligne d'ordonnance : case de préparation à gauche (trace ce qui a été
+/// réellement sorti des rayons), molécule (`label` + `form`) en gras,
+/// posologie (`posology` + `duration`) en clair dessous, quantité
+/// (`quantity`) mise en avant à droite, mentions substituable/non
+/// substituable en tags, et l'encart d'alerte d'interaction
+/// (`interactionWarning`) si la ligne en porte une. La case
+/// (`prepared`/`onPreparedChanged`) alimente le compteur « X sur N
+/// préparées » de l'écran (garde-fou d'interface, hors du flux serveur).
 class PrescriptionLineTile extends StatelessWidget {
-  const PrescriptionLineTile({super.key, required this.item});
+  const PrescriptionLineTile({
+    super.key,
+    required this.item,
+    this.prepared = false,
+    this.onPreparedChanged,
+  });
 
   final PrescriptionItem item;
+
+  /// La ligne a été préparée (sortie des rayons) — geste d'interface, ne
+  /// déclenche à lui seul aucune transition serveur.
+  final bool prepared;
+
+  /// `null` désactive/masque la case (ex. commande déjà au-delà de
+  /// `preparing`).
+  final ValueChanged<bool>? onPreparedChanged;
 
   static const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
 
@@ -32,6 +48,20 @@ class PrescriptionLineTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (onPreparedChanged != null) ...[
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: Center(
+                child: NubiaCheckbox(
+                  key: const Key('prescription_line_prepared'),
+                  value: prepared,
+                  onChanged: onPreparedChanged,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

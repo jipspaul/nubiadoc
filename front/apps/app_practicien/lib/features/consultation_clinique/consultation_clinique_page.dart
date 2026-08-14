@@ -14,6 +14,7 @@ import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
+import 'widgets/patient_alerts_box.dart';
 
 /// Body-only content for the consultation au fauteuil.
 /// Requires [ConsultationCliniqueBloc] to be provided via [BlocProvider] by the caller.
@@ -151,6 +152,14 @@ class ConsultationCliniquePage extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+
+/// Seuils de bascule imposés par la maquette design-v2 (#4935) — décidés via
+/// `LayoutBuilder` sur la largeur *disponible*, jamais `MediaQuery`, car
+/// l'app peut tourner en écran partagé et se redimensionner.
+const _kThreeColumnBreakpoint = 1280.0;
+const _kTwoColumnBreakpoint = 900.0;
+const _kContextColumnWidth = 288.0;
+const _kSideColumnWidth = 376.0;
 
 class _LoadedView extends StatefulWidget {
   const _LoadedView({required this.state});
@@ -343,54 +352,165 @@ class _LoadedViewState extends State<_LoadedView> {
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: NubiaCard(
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              // #4935 — bascule décidée sur la largeur *disponible* du corps
+              // (jamais MediaQuery : la fenêtre se redimensionne et l'app
+              // tourne en écran partagé).
+              final isAtLeastTwoColumns = width >= _kTwoColumnBreakpoint;
+
+              final centerColumn = _CenterColumn(
+                key: const Key('consultation_center_panel'),
+                session: session,
+                selectedTooth: _selectedTooth,
+                onPickTooth: _pickTooth,
+                onClearTooth: () => setState(() => _selectedTooth = null),
+                scrollable: isAtLeastTwoColumns,
+              );
+              final sideColumn = _SideColumn(
+                key: const Key('consultation_side_panel'),
+                textTheme: textTheme,
+                noteController: _noteController,
+                actionInProgress: state.actionInProgress,
+                onPickCrTemplate: _pickCrTemplate,
+                onSaveNote: () => context.read<ConsultationCliniqueBloc>().add(
+                      ConsultationCliniqueNoteSaveRequested(
+                          _noteController.text),
+                    ),
+                selectedTooth: _selectedTooth,
+                // #3402 — l'éditeur d'acte fournit la dent + le montant,
+                // transmis au POST .../acts (le total reflète alors la
+                // somme des montants).
+                onActSubmitted: ({
+                  required String code,
+                  required String label,
+                  String? tooth,
+                  required int amountCents,
+                }) =>
+                    context.read<ConsultationCliniqueBloc>().add(
+                          ConsultationCliniqueActAddRequested(
+                            ccamCode: code,
+                            label: label,
+                            tooth: tooth,
+                            amountCents: amountCents,
+                          ),
+                        ),
+                scrollable: isAtLeastTwoColumns,
+              );
+
+              if (width >= _kThreeColumnBreakpoint) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: _kContextColumnWidth,
+                      child: _ContextColumn(
+                        key: const Key('consultation_context_panel'),
+                        alerts: session.medicalAlerts,
+                      ),
+                    ),
+                    Expanded(child: centerColumn),
+                    SizedBox(width: _kSideColumnWidth, child: sideColumn),
+                  ],
+                );
+              }
+              if (isAtLeastTwoColumns) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: centerColumn),
+                    SizedBox(width: _kSideColumnWidth, child: sideColumn),
+                  ],
+                );
+              }
+              return SingleChildScrollView(
+                key: const Key('consultation_single_column'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [centerColumn, sideColumn],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Colonne « Contexte » (288 px, ≥ 1280 px uniquement) — scaffold #4935.
+/// En tête, l'encart « Alertes du dossier » (#4936) quand le dossier porte
+/// des alertes médicales passives ([alerts] non vide) ; le reste (historique,
+/// plan de traitement) reste un squelette « à venir », tickets dédiés.
+class _ContextColumn extends StatelessWidget {
+  const _ContextColumn({super.key, required this.alerts});
+
+  final List<MedicalAlert> alerts;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(0, 0, 8, 8),
+      child: Column(
+        // La clé `consultation_context_column_layout` (#4936) n'existe que
+        // lorsqu'un encart d'alertes est réellement rendu — sinon la colonne
+        // reste le simple squelette « à venir ».
+        key: alerts.isEmpty
+            ? null
+            : const Key('consultation_context_column_layout'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (alerts.isNotEmpty) ...[
+            PatientAlertsBox(alerts: alerts),
+            const SizedBox(height: 12),
+          ],
+          NubiaCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Note de séance', style: textTheme.titleSmall),
-                    TextButton.icon(
-                      key: const Key('cr_template_picker_button'),
-                      onPressed: _pickCrTemplate,
-                      icon: const Icon(Icons.description_outlined, size: 18),
-                      label: const Text('Modèle'),
-                    ),
-                  ],
-                ),
+                Text('Contexte patient', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
-                TextField(
-                  key: const Key('consultation_note_field'),
-                  controller: _noteController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Observations cliniques...',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: NubiaButton(
-                    key: const Key('save_note_button'),
-                    size: NubiaButtonSize.sm,
-                    icon: Icons.save_outlined,
-                    label: 'Enregistrer la note',
-                    onPressed: state.actionInProgress
-                        ? null
-                        : () => context.read<ConsultationCliniqueBloc>().add(
-                              ConsultationCliniqueNoteSaveRequested(
-                                  _noteController.text),
-                            ),
-                  ),
+                Text(
+                  'Historique et plan de traitement arrivent bientôt.',
+                  style: textTheme.bodySmall,
                 ),
               ],
             ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Colonne « Arcade + actes » — sélecteur de dent et liste des actes
+/// enregistrés. `scrollable` gère son propre défilement en layout 2/3
+/// colonnes (hauteur bornée par la Row) ; en 1 colonne elle est déjà
+/// intégrée au `SingleChildScrollView` parent.
+class _CenterColumn extends StatelessWidget {
+  const _CenterColumn({
+    super.key,
+    required this.session,
+    required this.selectedTooth,
+    required this.onPickTooth,
+    required this.onClearTooth,
+    required this.scrollable,
+  });
+
+  final ClinicalSession session;
+  final String? selectedTooth;
+  final VoidCallback onPickTooth;
+  final VoidCallback onClearTooth;
+  final bool scrollable;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Row(
@@ -398,48 +518,24 @@ class _LoadedViewState extends State<_LoadedView> {
               Expanded(
                 child: OutlinedButton.icon(
                   key: const Key('act_tooth_picker_button'),
-                  onPressed: _pickTooth,
+                  onPressed: onPickTooth,
                   icon: const Icon(Icons.grid_view_outlined, size: 18),
                   label: Text(
-                    _selectedTooth == null
+                    selectedTooth == null
                         ? 'Choisir une dent'
-                        : 'Dent $_selectedTooth',
+                        : 'Dent $selectedTooth',
                   ),
                 ),
               ),
-              if (_selectedTooth != null)
+              if (selectedTooth != null)
                 IconButton(
                   key: const Key('act_tooth_picker_clear'),
                   icon: const Icon(Icons.close),
                   tooltip: 'Retirer la dent sélectionnée',
-                  onPressed: () => setState(() => _selectedTooth = null),
+                  onPressed: onClearTooth,
                 ),
             ],
           ),
-        ),
-        CcamPicker(
-          key: const Key('ccam_picker'),
-          useCase: GetIt.instance<GetActsUseCase>(),
-          favoritesUseCase: GetIt.instance<FavoriteActsUseCase>(),
-          // #4048 — la dent choisie via le schéma dentaire pré-remplit
-          // l'éditeur d'acte au lieu de la saisie texte libre.
-          selectedTooth: _selectedTooth,
-          // #3402 — l'éditeur d'acte fournit la dent + le montant, transmis au
-          // POST .../acts (le total reflète alors la somme des montants).
-          onActSubmitted: ({
-            required String code,
-            required String label,
-            String? tooth,
-            required int amountCents,
-          }) =>
-              context.read<ConsultationCliniqueBloc>().add(
-                    ConsultationCliniqueActAddRequested(
-                      ccamCode: code,
-                      label: label,
-                      tooth: tooth,
-                      amountCents: amountCents,
-                    ),
-                  ),
         ),
         if (session.acts.isNotEmpty)
           Padding(
@@ -464,7 +560,8 @@ class _LoadedViewState extends State<_LoadedView> {
             ),
           ),
         const SizedBox(height: 8),
-        Expanded(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: session.acts.isEmpty
               ? const NubiaEmptyState(
                   key: Key('consultation_empty'),
@@ -473,6 +570,9 @@ class _LoadedViewState extends State<_LoadedView> {
                   subtitle: 'Recherchez un acte CCAM pour l\'ajouter.',
                 )
               : ListView.builder(
+                  key: const Key('consultation_acts_list'),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: session.acts.length,
                   itemBuilder: (context, i) => _ActTile(act: session.acts[i]),
@@ -480,6 +580,108 @@ class _LoadedViewState extends State<_LoadedView> {
         ),
       ],
     );
+    return scrollable ? SingleChildScrollView(child: content) : content;
+  }
+}
+
+/// Colonne « Saisie + note » (376 px) — recherche/ajout d'acte CCAM et note
+/// de séance. `scrollable` suit la même logique que [_CenterColumn].
+class _SideColumn extends StatelessWidget {
+  const _SideColumn({
+    super.key,
+    required this.textTheme,
+    required this.noteController,
+    required this.actionInProgress,
+    required this.onPickCrTemplate,
+    required this.onSaveNote,
+    required this.selectedTooth,
+    required this.onActSubmitted,
+    required this.scrollable,
+  });
+
+  final TextTheme textTheme;
+  final TextEditingController noteController;
+  final bool actionInProgress;
+  final VoidCallback onPickCrTemplate;
+  final VoidCallback onSaveNote;
+  final String? selectedTooth;
+  final void Function({
+    required String code,
+    required String label,
+    String? tooth,
+    required int amountCents,
+  }) onActSubmitted;
+  final bool scrollable;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: NubiaCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'Note de séance',
+                        style: textTheme.titleSmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton.icon(
+                      key: const Key('cr_template_picker_button'),
+                      onPressed: onPickCrTemplate,
+                      icon: const Icon(Icons.description_outlined, size: 18),
+                      label: const Text('Modèle'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('consultation_note_field'),
+                  controller: noteController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Observations cliniques...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: NubiaButton(
+                    key: const Key('save_note_button'),
+                    size: NubiaButtonSize.sm,
+                    icon: Icons.save_outlined,
+                    label: 'Enregistrer la note',
+                    onPressed: actionInProgress ? null : onSaveNote,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: CcamPicker(
+            key: const Key('ccam_picker'),
+            useCase: GetIt.instance<GetActsUseCase>(),
+            favoritesUseCase: GetIt.instance<FavoriteActsUseCase>(),
+            // #4048 — la dent choisie via le schéma dentaire pré-remplit
+            // l'éditeur d'acte au lieu de la saisie texte libre.
+            selectedTooth: selectedTooth,
+            onActSubmitted: onActSubmitted,
+          ),
+        ),
+      ],
+    );
+    return scrollable ? SingleChildScrollView(child: content) : content;
   }
 }
 

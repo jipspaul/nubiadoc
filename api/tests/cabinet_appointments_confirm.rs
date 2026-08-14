@@ -32,7 +32,7 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
+fn make_secretary_token(sub: Uuid, cabinet_id: Uuid, secretariat_id: Uuid) -> String {
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -45,6 +45,9 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
             "kind": "pro",
             "cabinet_id": cabinet_id,
             "role": "secretary",
+            // R10 : la secrétaire est scopée à un secrétariat actif — sans ce
+            // claim, confirm renvoie 404 (cf. scheduling.rs::confirm_appointment).
+            "secretariat_id": secretariat_id,
             "exp": exp,
         }),
         &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
@@ -71,14 +74,19 @@ fn make_patient_token(sub: Uuid, account_id: Uuid) -> String {
     .unwrap()
 }
 
-/// Insère les fixtures minimales : cabinet + praticien + patient + RDV.
+/// Insère les fixtures minimales : cabinet, praticien, provider, secretariat,
+/// provider_secretariat(active), patient et RDV.
 /// `status` est le statut initial du RDV inséré.
-/// Retourne `(cabinet_id, prac_id, prac_user_id, appt_id)`.
+/// Le lien `provider_secretariat` scope la secrétaire au secrétariat renvoyé
+/// (claim `secretariat_id` du token) — sans lui, confirm renvoie 404 (R10).
+/// Retourne `(cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id)`.
 /// Utilise `nubia_seed` (SEED_DATABASE_URL) qui a les droits DDL sur toutes les tables fixtures.
-async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid) {
+async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
     let appt_id = Uuid::new_v4();
 
@@ -117,6 +125,37 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid) {
         .unwrap();
 
     sqlx::query(
+        "INSERT INTO provider (id, cabinet_id, practitioner_id, user_id, display_name, rpps_verified, is_listed) \
+         VALUES ($1, $2, $3, $4, 'Dr Confirm', true, false)",
+    )
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec Confirm Test')",
+    )
+    .bind(secretariat_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+         VALUES ($1, $2, true)",
+    )
+    .bind(provider_id)
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
          VALUES ($1, $2, 'Patient', 'Confirm')",
     )
@@ -142,7 +181,7 @@ async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid) {
 
     tx.commit().await.unwrap();
 
-    (cabinet_id, prac_id, prac_user_id, appt_id)
+    (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id)
 }
 
 async fn cleanup_fixture(
@@ -174,6 +213,31 @@ async fn cleanup_fixture(
 
     // Les autres tables fixtures sont accessibles via nubia_seed.
     let mut tx = seed_db.begin().await.unwrap();
+    // secretariat / provider_secretariat FORCE la RLS : positionner le GUC tenant
+    // pour que les DELETE ci-dessous voient bien leurs lignes.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query(
+        "DELETE FROM provider_secretariat WHERE provider_id IN \
+         (SELECT id FROM provider WHERE cabinet_id = $1)",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
+    sqlx::query("DELETE FROM secretariat WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM patient WHERE cabinet_id = $1")
         .bind(cabinet_id)
         .execute(&mut *tx)
@@ -208,7 +272,8 @@ async fn confirm_appointment_secretary_requested_returns_200() {
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&seed_db, "requested").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture(&seed_db, "requested").await;
 
     let state = AppState {
         db: app_db.clone(),
@@ -218,7 +283,7 @@ async fn confirm_appointment_secretary_requested_returns_200() {
     let server = app(state);
 
     let secretary_id = Uuid::new_v4();
-    let token = make_secretary_token(secretary_id, cabinet_id);
+    let token = make_secretary_token(secretary_id, cabinet_id, secretariat_id);
     let response = server
         .oneshot(
             Request::builder()
@@ -262,7 +327,8 @@ async fn confirm_appointment_already_confirmed_returns_409() {
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&seed_db, "confirmed").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture(&seed_db, "confirmed").await;
 
     let state = AppState {
         db: app_db.clone(),
@@ -272,7 +338,7 @@ async fn confirm_appointment_already_confirmed_returns_409() {
     let server = app(state);
 
     let secretary_id = Uuid::new_v4();
-    let token = make_secretary_token(secretary_id, cabinet_id);
+    let token = make_secretary_token(secretary_id, cabinet_id, secretariat_id);
     let response = server
         .oneshot(
             Request::builder()
@@ -315,7 +381,8 @@ async fn confirm_appointment_patient_token_returns_403() {
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
 
-    let (cabinet_id, prac_id, prac_user_id, appt_id) = insert_fixture(&seed_db, "requested").await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, secretariat_id) =
+        insert_fixture(&seed_db, "requested").await;
 
     let state = AppState {
         db: app_db.clone(),
@@ -324,6 +391,9 @@ async fn confirm_appointment_patient_token_returns_403() {
     };
     let server = app(state);
 
+    // `secretariat_id` non pertinent ici : le token patient est rejeté (403)
+    // par l'extracteur avant toute requête scopée au secrétariat.
+    let _ = secretariat_id;
     let patient_user_id = Uuid::new_v4();
     let patient_account_id = Uuid::new_v4();
     let token = make_patient_token(patient_user_id, patient_account_id);

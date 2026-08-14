@@ -1,12 +1,14 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
 import 'package:app_pharmacie/features/pickup_scan/pickup_scan_cubit.dart';
+import 'package:app_pharmacie/features/pickup_scan/pickup_scan_page.dart';
 import 'package:app_pharmacie/features/pickup_scan/widgets/manual_code_field.dart';
 
 class MockPharmacyOrdersRepository extends Mock
@@ -72,7 +74,7 @@ void main() {
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
-      '409 (double scan) → InvalidCode',
+      '409 (double scan) → InvalidCode, cause wrongStatus',
       build: () {
         when(() => repo.confirmPickup(any())).thenAnswer(
           (_) async => const Left(ServerFailure(
@@ -83,12 +85,18 @@ void main() {
         return buildCubit();
       },
       act: (cubit) => cubit.submit('tok-x', expectedOrderId: 'o1'),
-      expect: () =>
-          [const PickupScanSubmitting(), isA<PickupScanInvalidCode>()],
+      expect: () => [
+        const PickupScanSubmitting(),
+        isA<PickupScanInvalidCode>().having(
+          (s) => s.cause,
+          'cause',
+          PickupScanInvalidCause.wrongStatus,
+        ),
+      ],
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
-      '410 (token expiré) → InvalidCode',
+      '410 (token expiré) → InvalidCode, cause expired',
       build: () {
         when(() => repo.confirmPickup(any())).thenAnswer(
           (_) async => const Left(ServerFailure(
@@ -97,12 +105,18 @@ void main() {
         return buildCubit();
       },
       act: (cubit) => cubit.submit('tok-x', expectedOrderId: 'o1'),
-      expect: () =>
-          [const PickupScanSubmitting(), isA<PickupScanInvalidCode>()],
+      expect: () => [
+        const PickupScanSubmitting(),
+        isA<PickupScanInvalidCode>().having(
+          (s) => s.cause,
+          'cause',
+          PickupScanInvalidCause.expired,
+        ),
+      ],
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
-      'token inconnu (404) → InvalidCode ; erreur réseau → Error',
+      'token inconnu (404) → InvalidCode, cause unknownCode ; erreur réseau → Error',
       build: () {
         when(() => repo.confirmPickup('inconnu'))
             .thenAnswer((_) async => const Left(NotFoundFailure()));
@@ -116,7 +130,11 @@ void main() {
       },
       expect: () => [
         const PickupScanSubmitting(),
-        isA<PickupScanInvalidCode>(),
+        isA<PickupScanInvalidCode>().having(
+          (s) => s.cause,
+          'cause',
+          PickupScanInvalidCause.unknownCode,
+        ),
         const PickupScanSubmitting(),
         isA<PickupScanError>(),
       ],
@@ -129,6 +147,34 @@ void main() {
       expect: () => const <PickupScanState>[],
       verify: (_) => verifyNever(() => repo.confirmPickup(any())),
     );
+  });
+
+  group('PickupScanBody (widget)', () {
+    testWidgets('tap sur "Réessayer" après un échec ramène l\'état idle',
+        (tester) async {
+      when(() => repo.confirmPickup('inconnu'))
+          .thenAnswer((_) async => const Left(NotFoundFailure()));
+      final cubit = buildCubit();
+
+      await tester.pumpApp(
+        BlocProvider<PickupScanCubit>.value(
+          value: cubit,
+          child: const Scaffold(body: PickupScanBody(orderId: 'o1')),
+        ),
+      );
+
+      await cubit.submit('inconnu', expectedOrderId: 'o1');
+      await tester.pumpAndSettle();
+
+      expect(cubit.state, isA<PickupScanInvalidCode>());
+      expect(find.byKey(const Key('pickup_error_retry')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pickup_error_retry')));
+      await tester.pumpAndSettle();
+
+      expect(cubit.state, isA<PickupScanIdle>());
+      expect(find.byKey(const Key('pickup_error_retry')), findsNothing);
+    });
   });
 
   group('ManualCodeField (widget)', () {
