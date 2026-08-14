@@ -356,7 +356,7 @@ void main() {
       expect(find.text('Part mutuelle (AMC)'), findsOneWidget);
       expect(find.text('−6,44 €'), findsOneWidget);
       expect(find.text('À encaisser'), findsOneWidget);
-      expect(find.text('2,00 €'), findsOneWidget);
+      expect(find.text('2 €'), findsOneWidget);
     });
   });
 }
