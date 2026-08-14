@@ -365,7 +365,7 @@ class _InvalidCodeError extends StatelessWidget {
 }
 
 class _InlineError extends StatelessWidget {
-  const _InlineError({super.key, required this.message});
+  const _InlineError({required this.message});
 
   final String message;
 
