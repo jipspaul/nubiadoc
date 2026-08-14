@@ -645,6 +645,18 @@ class _MessageBubble extends StatelessWidget {
                     color: isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
                   ),
             ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: isCabinet ? Alignment.centerRight : Alignment.centerLeft,
+              child: Text(
+                _formatTimestamp(message.sentAt),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: isCabinet
+                          ? Colors.white.withOpacity(0.7)
+                          : NubiaColors.n400,
+                    ),
+              ),
+            ),
             if (order != null) ...[
               const SizedBox(height: 8),
               _OrderAttachmentCard(order: order, sent: isCabinet),
