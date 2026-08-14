@@ -17,6 +17,13 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
   final AcceptPharmacyOrderUseCase _accept;
   final MarkPharmacyOrderReadyUseCase _ready;
   StreamSubscription<List<PharmacyOrder>>? _subscription;
+  Timer? _refreshTimer;
+
+  /// Rafraîchissement périodique auto (poste fixe au comptoir, sans geste
+  /// tactile) — ordre de grandeur cohérent avec l'indicateur de fraîcheur de
+  /// la maquette (« il y a 12 s »). S'ajoute au pull-to-refresh, ne le
+  /// remplace pas.
+  static const _autoRefreshInterval = Duration(seconds: 15);
 
   OrdersBloc({
     required ListPharmacyOrdersUseCase list,
@@ -32,6 +39,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     on<OrdersRefreshRequested>(_onRefreshRequested);
     on<OrdersFilterChanged>(_onFilterChanged);
     on<OrdersStreamUpdated>(_onStreamUpdated);
+    on<OrdersAutoRefreshTicked>(_onAutoRefreshTicked);
     on<OrdersTransitionRequested>(_onTransitionRequested);
   }
 
@@ -46,6 +54,11 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       onError:
           (_) {}, // les erreurs de poll sont silencieuses (retry au tick suivant)
     );
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(
+      _autoRefreshInterval,
+      (_) => add(const OrdersAutoRefreshTicked()),
+    );
   }
 
   Future<void> _onRefreshRequested(
@@ -54,7 +67,13 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
   ) =>
       _load(emit);
 
-  Future<void> _load(Emitter<OrdersState> emit) async {
+  Future<void> _onAutoRefreshTicked(
+    OrdersAutoRefreshTicked event,
+    Emitter<OrdersState> emit,
+  ) =>
+      _load(emit, silent: true);
+
+  Future<void> _load(Emitter<OrdersState> emit, {bool silent = false}) async {
     final filter = switch (state) {
       OrdersLoaded(:final filter) => filter,
       _ => null,
@@ -62,11 +81,15 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
     try {
       final result = await _list();
       result.fold(
-        (failure) => emit(OrdersError(failure.message)),
+        (failure) {
+          if (!silent) emit(OrdersError(failure.message));
+        },
         (orders) => emit(OrdersLoaded(orders: orders, filter: filter)),
       );
     } catch (_) {
-      emit(const OrdersError('Impossible de charger les commandes.'));
+      if (!silent) {
+        emit(const OrdersError('Impossible de charger les commandes.'));
+      }
     }
   }
 
@@ -118,6 +141,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
 
   @override
   Future<void> close() async {
+    _refreshTimer?.cancel();
     await _subscription?.cancel();
     return super.close();
   }

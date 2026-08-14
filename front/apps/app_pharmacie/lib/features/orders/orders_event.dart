@@ -28,6 +28,13 @@ class OrdersFilterChanged extends OrdersEvent {
   List<Object?> get props => [filter];
 }
 
+/// Tick du rafraîchissement périodique auto (poste fixe au comptoir) — vient
+/// s'ajouter au pull-to-refresh tactile, ne le remplace pas. Échec silencieux
+/// (retry au tick suivant), comme le flux temps réel.
+class OrdersAutoRefreshTicked extends OrdersEvent {
+  const OrdersAutoRefreshTicked();
+}
+
 /// Nouvelle photographie de la file reçue du flux temps réel.
 class OrdersStreamUpdated extends OrdersEvent {
   const OrdersStreamUpdated(this.orders);
