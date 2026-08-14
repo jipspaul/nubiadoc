@@ -29,11 +29,17 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
   /// enregistré (le back a refusé la requête, 409 clinical_risk_warning).
   final String? clinicalRiskWarning;
 
+  /// Horodatage du dernier enregistrement réussi de la note de séance
+  /// (#4943) — alimente l'indicateur « Enregistré à HH:MM », qui remplace le
+  /// bouton d'enregistrement manuel explicite.
+  final DateTime? lastNoteSavedAt;
+
   const ConsultationCliniqueLoaded({
     required this.session,
     this.actionInProgress = false,
     this.actionError,
     this.clinicalRiskWarning,
+    this.lastNoteSavedAt,
   });
 
   ConsultationCliniqueLoaded copyWith({
@@ -43,6 +49,7 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
     bool clearActionError = false,
     String? clinicalRiskWarning,
     bool clearClinicalRiskWarning = false,
+    DateTime? lastNoteSavedAt,
   }) =>
       ConsultationCliniqueLoaded(
         session: session ?? this.session,
@@ -52,11 +59,17 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
         clinicalRiskWarning: clearClinicalRiskWarning
             ? null
             : (clinicalRiskWarning ?? this.clinicalRiskWarning),
+        lastNoteSavedAt: lastNoteSavedAt ?? this.lastNoteSavedAt,
       );
 
   @override
-  List<Object?> get props =>
-      [session, actionInProgress, actionError, clinicalRiskWarning];
+  List<Object?> get props => [
+        session,
+        actionInProgress,
+        actionError,
+        clinicalRiskWarning,
+        lastNoteSavedAt,
+      ];
 }
 
 class ConsultationCliniqueError extends ConsultationCliniqueState {
