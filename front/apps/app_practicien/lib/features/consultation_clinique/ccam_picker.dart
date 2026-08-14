@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 class CcamAct {
@@ -79,6 +80,8 @@ class CcamPicker extends StatefulWidget {
 
 class _CcamPickerState extends State<CcamPicker> {
   final _controller = TextEditingController();
+  // Focus du champ de recherche via ⌘K (#4941) — voir `_handleShortcutKey`.
+  final _searchFocusNode = FocusNode();
   List<CcamAct>? _suggestions;
   List<CcamAct>? _favorites;
 
@@ -86,12 +89,35 @@ class _CcamPickerState extends State<CcamPicker> {
   void initState() {
     super.initState();
     _loadFavorites();
+    // Ré-affiche/masque le badge ⌘K selon que le champ est vide (#4941),
+    // même en dehors de `_onChanged` (ex. `clear()` programmatique).
+    _controller.addListener(_handleQueryChanged);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_handleQueryChanged);
     _controller.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleQueryChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// ⌘K place le focus sur la recherche d'acte (#4941, point 4 de la
+  /// maquette). Ignoré si le champ a déjà le focus, pour ne jamais
+  /// intercepter la frappe normale (ex. note de séance ailleurs à l'écran).
+  KeyEventResult _handleShortcutKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.keyK &&
+        HardwareKeyboard.instance.isMetaPressed &&
+        !_searchFocusNode.hasFocus) {
+      _searchFocusNode.requestFocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   Future<void> _loadFavorites() async {
@@ -161,74 +187,111 @@ class _CcamPickerState extends State<CcamPicker> {
   Widget build(BuildContext context) {
     final suggestions = _suggestions;
     final favorites = _favorites;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (favorites != null && favorites.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Favoris',
-                style: Theme.of(context).textTheme.titleSmall,
+    return Focus(
+      autofocus: true,
+      skipTraversal: true,
+      onKeyEvent: _handleShortcutKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (favorites != null && favorites.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Favoris',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ),
             ),
-          ),
-          ListView.builder(
-            key: const Key('ccam_favorites'),
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: favorites.length,
-            itemBuilder: (context, i) => ListRow(
-              key: Key('ccam_favorite_${favorites[i].code}'),
-              leading: const Icon(Icons.star, size: 22),
-              title: favorites[i].label,
-              subtitle: favorites[i].code,
-              trailing: _favoriteToggleButton(favorites[i]),
-              onTap: () => _select(favorites[i]),
+            ListView.builder(
+              key: const Key('ccam_favorites'),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: favorites.length,
+              itemBuilder: (context, i) => ListRow(
+                key: Key('ccam_favorite_${favorites[i].code}'),
+                leading: const Icon(Icons.star, size: 22),
+                title: favorites[i].label,
+                subtitle: favorites[i].code,
+                trailing: _favoriteToggleButton(favorites[i]),
+                onTap: () => _select(favorites[i]),
+              ),
+            ),
+          ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            child: NubiaSearchBar(
+              key: const Key('ccam_search_field'),
+              controller: _controller,
+              focusNode: _searchFocusNode,
+              onChanged: _onChanged,
+              hint: 'Code CCAM ou libellé',
+              // Badge ⌘K (#4941, point 4 de la maquette) — masqué une fois
+              // la saisie commencée, comme la pastille « / » de OrdersView.
+              locationChip: _controller.text.isEmpty
+                  ? const _CcamShortcutBadge()
+                  : null,
             ),
           ),
+          if (suggestions != null)
+            suggestions.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'Aucun acte trouvé',
+                      key: const Key('ccam_no_results'),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  )
+                : ListView.builder(
+                    key: const Key('ccam_suggestions'),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: suggestions.length,
+                    itemBuilder: (context, i) => ListRow(
+                      key: Key('ccam_act_${suggestions[i].code}'),
+                      leading: const Icon(Icons.add_circle_outline, size: 22),
+                      title: suggestions[i].label,
+                      subtitle: suggestions[i].code,
+                      trailing: widget.favoritesUseCase == null
+                          ? null
+                          : _favoriteToggleButton(suggestions[i]),
+                      onTap: () => _select(suggestions[i]),
+                    ),
+                  ),
         ],
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-          child: NubiaTextField(
-            key: const Key('ccam_search_field'),
-            variant: NubiaTextFieldVariant.search,
-            controller: _controller,
-            onChanged: _onChanged,
-            hint: 'Rechercher un acte CCAM',
-          ),
-        ),
-        if (suggestions != null)
-          suggestions.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Aucun acte trouvé',
-                    key: const Key('ccam_no_results'),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                )
-              : ListView.builder(
-                  key: const Key('ccam_suggestions'),
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: suggestions.length,
-                  itemBuilder: (context, i) => ListRow(
-                    key: Key('ccam_act_${suggestions[i].code}'),
-                    leading: const Icon(Icons.add_circle_outline, size: 22),
-                    title: suggestions[i].label,
-                    subtitle: suggestions[i].code,
-                    trailing: widget.favoritesUseCase == null
-                        ? null
-                        : _favoriteToggleButton(suggestions[i]),
-                    onTap: () => _select(suggestions[i]),
-                  ),
-                ),
-      ],
+      ),
+    );
+  }
+}
+
+/// Badge « ⌘K » (#4941) — indique le raccourci qui focus le champ de
+/// recherche d'acte, même style que `_SearchShortcutHint` (orders_page.dart).
+class _CcamShortcutBadge extends StatelessWidget {
+  const _CcamShortcutBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Text(
+        '⌘K',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
     );
   }
 }

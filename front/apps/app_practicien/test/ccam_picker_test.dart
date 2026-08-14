@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -207,6 +208,57 @@ void main() {
 
       expect(find.byKey(const Key('ccam_no_results')), findsOneWidget);
       expect(find.byKey(const Key('ccam_suggestions')), findsNothing);
+    });
+
+    testWidgets(
+        'badge ⌘K visible sur le champ vide, masqué une fois la saisie '
+        'commencée (#4941)', (tester) async {
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
+      await tester.pumpAndSettle();
+
+      expect(find.text('⌘K'), findsOneWidget);
+
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'a');
+      await tester.pump();
+
+      expect(find.text('⌘K'), findsNothing);
+    });
+
+    testWidgets('⌘K place le focus sur la recherche d\'acte (#4941)',
+        (tester) async {
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyK);
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyK);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+
+      final focusNode = tester
+          .widget<TextField>(find.descendant(
+            of: find.byKey(const Key('ccam_search_field')),
+            matching: find.byType(TextField),
+          ))
+          .focusNode;
+      expect(focusNode?.hasFocus, isTrue);
+    });
+
+    testWidgets(
+        '⌘K n\'intercepte pas la frappe normale de la lettre K (#4941)',
+        (tester) async {
+      when(() => useCase.search(any()))
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester.pumpWidget(_wrap(useCase, submitted.add));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'kkkk');
+      await tester.pumpAndSettle();
+
+      verify(() => useCase.search('kkkk')).called(1);
     });
   });
 
