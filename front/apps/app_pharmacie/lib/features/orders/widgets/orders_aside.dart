@@ -8,6 +8,7 @@ import '../../pharma_messaging/pharma_messaging_state.dart';
 import '../../stock/stock_bloc.dart';
 import '../orders_bloc.dart';
 import '../orders_state.dart';
+import 'daily_flow_bars.dart';
 import 'order_wait.dart';
 
 /// Colonne latérale « À traiter » — agrège les signaux hors tableau de la
@@ -76,6 +77,8 @@ class OrdersAside extends StatelessWidget {
                 variant: entry.badgeVariant,
               ),
             ),
+          if (ordersState is OrdersLoaded)
+            DailyFlowBars(orders: ordersState.orders),
           const Padding(
             padding: EdgeInsets.all(16),
             child: _PrivacyNotice(),
