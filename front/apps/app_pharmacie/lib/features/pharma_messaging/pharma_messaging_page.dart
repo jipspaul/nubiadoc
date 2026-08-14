@@ -8,7 +8,7 @@ import 'pharma_messaging_bloc.dart';
 import 'pharma_messaging_event.dart';
 import 'pharma_messaging_state.dart';
 
-/// Écran "Messages" côté praticien — liste des conversations patient + thread.
+/// Écran "Messages" côté pharmacien — liste des conversations patient + thread.
 class PharmaMessagingPage extends StatelessWidget {
   const PharmaMessagingPage({super.key});
 
@@ -306,7 +306,7 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Cabinet = practitioner's side (right), patient = left
+    // Cabinet = officine (right), patient = left
     final isCabinet = message.sender == MessageSender.cabinet;
     final cs = Theme.of(context).colorScheme;
     return Align(
