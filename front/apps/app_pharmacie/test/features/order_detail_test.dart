@@ -31,6 +31,20 @@ PharmacyOrder order(PharmacyOrderStatus status) => PharmacyOrder(
       updatedAt: DateTime(2026, 7, 1, 10),
     );
 
+PharmacyOrder billedOrder(PharmacyOrderStatus status) => PharmacyOrder(
+      id: 'o1',
+      pharmacyId: 'p1',
+      patientDisplayName: 'Jean D.',
+      prescriptionId: 'rx1',
+      status: status,
+      createdAt: DateTime(2026, 7, 1, 10),
+      updatedAt: DateTime(2026, 7, 1, 10),
+      billingTotalCents: 2480,
+      billingAmoShareCents: 1636,
+      billingAmcShareCents: 644,
+      billingPatientShareCents: 200,
+    );
+
 void main() {
   late MockPharmacyOrdersRepository repo;
 
@@ -302,6 +316,47 @@ void main() {
         ),
       );
       expect(find.byType(PrescriptionLinesPanel), findsNothing);
+    });
+
+    testWidgets(
+        'aucune ventilation facturation → le bloc ne s\'affiche pas (#4888)',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.received)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byKey(const Key('order_billing_summary')), findsNothing);
+    });
+
+    testWidgets(
+        'le bloc facturation affiche total, AMO, AMC et à encaisser avec le '
+        'formatage euros de l\'app Patient (#4888)', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          billedOrder(PharmacyOrderStatus.ready),
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byKey(const Key('order_billing_summary')), findsOneWidget);
+      expect(find.text('Montant total'), findsOneWidget);
+      expect(find.text('24,80 €'), findsOneWidget);
+      expect(find.text('Part Assurance Maladie (AMO)'), findsOneWidget);
+      expect(find.text('−16,36 €'), findsOneWidget);
+      expect(find.text('Part mutuelle (AMC)'), findsOneWidget);
+      expect(find.text('−6,44 €'), findsOneWidget);
+      expect(find.text('À encaisser'), findsOneWidget);
+      expect(find.text('2 €'), findsOneWidget);
     });
   });
 }
