@@ -55,12 +55,17 @@ class ToothGrid extends StatelessWidget {
     required this.colorFor,
     required this.onTap,
     this.keyPrefix = 'tooth',
+    this.toothSize = ToothButton.defaultSize,
   });
 
   final FdiQuadrants quadrants;
   final Color Function(String toothCode) colorFor;
   final void Function(String toothCode) onTap;
   final String keyPrefix;
+
+  /// Taille d'une case dent (largeur × hauteur). Par défaut 32×32 ; la
+  /// consultation PC (#4940) passe 44×50 pour des cibles tactiles.
+  final Size toothSize;
 
   @override
   Widget build(BuildContext context) {
@@ -71,12 +76,14 @@ class ToothGrid extends StatelessWidget {
           colorFor: colorFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
+          toothSize: toothSize,
         ),
         ToothRow(
           codes: quadrants.upperLeft,
           colorFor: colorFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
+          toothSize: toothSize,
         ),
         const SizedBox(height: 16),
         ToothRow(
@@ -84,12 +91,14 @@ class ToothGrid extends StatelessWidget {
           colorFor: colorFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
+          toothSize: toothSize,
         ),
         ToothRow(
           codes: quadrants.lowerLeft,
           colorFor: colorFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
+          toothSize: toothSize,
         ),
       ],
     );
@@ -103,12 +112,14 @@ class ToothRow extends StatelessWidget {
     required this.colorFor,
     required this.onTap,
     this.keyPrefix = 'tooth',
+    this.toothSize = ToothButton.defaultSize,
   });
 
   final List<String> codes;
   final Color Function(String toothCode) colorFor;
   final void Function(String toothCode) onTap;
   final String keyPrefix;
+  final Size toothSize;
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +134,7 @@ class ToothRow extends StatelessWidget {
               code: code,
               color: colorFor(code),
               onTap: () => onTap(code),
+              size: toothSize,
             ),
           ),
       ],
@@ -136,11 +148,16 @@ class ToothButton extends StatelessWidget {
     required this.code,
     required this.color,
     required this.onTap,
+    this.size = defaultSize,
   });
+
+  /// Taille historique (schéma dentaire patient, `DentalChartPage`).
+  static const defaultSize = Size(32, 32);
 
   final String code;
   final Color color;
   final VoidCallback onTap;
+  final Size size;
 
   @override
   Widget build(BuildContext context) {
@@ -148,8 +165,8 @@ class ToothButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 32,
-        height: 32,
+        width: size.width,
+        height: size.height,
         decoration: BoxDecoration(
           color: color,
           border: Border.all(color: Colors.grey.shade400),
