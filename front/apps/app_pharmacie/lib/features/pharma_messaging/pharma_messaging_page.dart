@@ -806,40 +806,75 @@ class _ThreadViewState extends State<_ThreadView> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: TextField(
+                child: NubiaTextField(
                   key: const Key('pharma_messaging_input'),
                   controller: _controller,
-                  decoration: InputDecoration(
-                    hintText: 'Votre message…',
-                    filled: true,
-                    fillColor: cs.surfaceContainerHighest,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+                  variant: NubiaTextFieldVariant.multiline,
+                  hint: 'Votre réponse…',
+                  borderRadius: 12,
                   onSubmitted: (_) => _send(),
                 ),
               ),
               const SizedBox(width: 8),
-              state.sending
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : IconButton.filled(
-                      key: const Key('pharma_messaging_send_button'),
-                      icon: const Icon(Icons.send),
-                      onPressed: _send,
-                    ),
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: state.sending
+                    ? const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : IconButton.filled(
+                        key: const Key('pharma_messaging_send_button'),
+                        style: IconButton.styleFrom(
+                          backgroundColor: NubiaColors.brand700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.send),
+                        onPressed: _send,
+                      ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          key: const Key('pharma_messaging_composer_hint'),
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '⏎ envoyer · ⇧⏎ nouvelle ligne',
+                style:
+                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.shield_outlined,
+                    size: 14,
+                    color: tokens.textTertiary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Aucun conseil médical par écrit',
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: tokens.textTertiary),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
