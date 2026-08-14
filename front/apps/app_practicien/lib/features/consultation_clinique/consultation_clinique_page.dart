@@ -570,7 +570,13 @@ class _SideColumn extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Note de séance', style: textTheme.titleSmall),
+                    Flexible(
+                      child: Text(
+                        'Note de séance',
+                        style: textTheme.titleSmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     TextButton.icon(
                       key: const Key('cr_template_picker_button'),
                       onPressed: onPickCrTemplate,
