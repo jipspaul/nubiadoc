@@ -137,6 +137,21 @@ void main() {
       // Ne participe pas à l'identité de refresh (props = [id, status, updatedAt]).
       expect(withPrescriber, equals(withoutPrescriber));
     });
+
+    test('lineCount nullable, rétro-compatible', () {
+      expect(makeOrder(PharmacyOrderStatus.received).lineCount, isNull);
+
+      final withLineCount = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.received,
+        createdAt: DateTime.utc(2026, 7, 1),
+        updatedAt: DateTime.utc(2026, 7, 2),
+        lineCount: 3,
+      );
+      expect(withLineCount.lineCount, 3);
+    });
   });
 
   group('PharmacyQuote', () {

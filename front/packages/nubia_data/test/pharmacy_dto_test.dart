@@ -16,6 +16,7 @@ void main() {
         'status': 'preparing',
         'received_at': '2026-07-01T10:00:00Z',
         'updated_at': '2026-07-01T11:00:00Z',
+        'line_count': 4,
       });
       final order = dto.toDomain();
 
@@ -27,6 +28,7 @@ void main() {
       expect(order.prescriberPractice, 'Cabinet Nubia Opéra');
       expect(order.updatedAt, DateTime.utc(2026, 7, 1, 11));
       expect(order.readyAt, isNull);
+      expect(order.lineCount, 4);
     });
 
     test('champs manquants → valeurs défensives', () {
@@ -39,6 +41,19 @@ void main() {
       expect(order.prescriberPractice, isNull);
       // updatedAt retombe sur createdAt.
       expect(order.updatedAt, order.createdAt);
+      expect(order.lineCount, isNull);
+    });
+
+    test('line_count absent → dérivé de la longueur de lines', () {
+      final order = PharmacyOrderDto.fromJson({
+        'id': 'o3',
+        'lines': [
+          {'label': 'Amoxicilline'},
+          {'label': 'Doliprane'},
+        ],
+      }).toDomain();
+
+      expect(order.lineCount, 2);
     });
 
     test('statut inconnu → received (défensif)', () {
