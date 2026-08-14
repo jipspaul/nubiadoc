@@ -69,6 +69,8 @@ class OrderRow extends StatelessWidget {
           children: [
             _PrescriberColumn(order: order),
             const SizedBox(width: 16),
+            _LineCountColumn(order: order),
+            const SizedBox(width: 16),
             OrderStatusPill(status: order.status),
             const SizedBox(width: 8),
             _RowAction(order: order, inProgress: actionInProgress),
@@ -124,6 +126,46 @@ class _PrescriberColumn extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Colonne « Lignes » : nombre de lignes de l'ordonnance, aligné à droite
+/// (chiffre en tabular-nums au-dessus, sous-libellé pluralisé en dessous).
+/// `lineCount == null` → rien (pas de « 0 » trompeur, la donnée peut
+/// simplement ne pas être connue).
+class _LineCountColumn extends StatelessWidget {
+  const _LineCountColumn({required this.order});
+
+  final PharmacyOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = order.lineCount;
+    if (count == null) {
+      return const SizedBox.shrink();
+    }
+
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$count',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: NubiaColors.n700,
+                fontWeight: FontWeight.w700,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+        ),
+        Text(
+          count >= 2 ? 'lignes' : 'ligne',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: tokens.textTertiary,
+              ),
+        ),
+      ],
     );
   }
 }
