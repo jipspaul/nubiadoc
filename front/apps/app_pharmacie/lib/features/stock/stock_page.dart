@@ -6,6 +6,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'stock_bloc.dart';
 import 'stock_delay.dart';
 import 'stock_status_facet_chip.dart';
+import 'widgets/stock_kpis.dart';
 
 /// Demandes de stock reçues des cabinets — corps de la destination « Stock ».
 class StockView extends StatefulWidget {
@@ -73,6 +74,7 @@ class _StockViewState extends State<StockView> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                StockKpiBanner(requests: requests),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Wrap(
@@ -268,6 +270,15 @@ class _StockRequestCard extends StatelessWidget {
             Text('Note : ${request.responseNote}',
                 style: theme.textTheme.bodySmall),
           ],
+          if (request.status == StockRequestStatus.sent &&
+              request.items.any(
+                (item) =>
+                    item.availability?.status ==
+                    StockItemAvailabilityStatus.limited,
+              )) ...[
+            const SizedBox(height: 12),
+            const _PartialAvailabilityBanner(),
+          ],
           if (request.status == StockRequestStatus.sent) ...[
             const SizedBox(height: 12),
             Row(
@@ -385,5 +396,53 @@ class _StockRequestCard extends StatelessWidget {
       StockItemAvailabilityStatus.limited => tokens.warningFg,
       StockItemAvailabilityStatus.outOfStock => tokens.dangerFg,
     };
+  }
+}
+
+/// Rappel que l'acceptation engage la totalité de la demande quand ≥ 1 ligne
+/// est en disponibilité partielle : pas d'acceptation partielle possible,
+/// la réserve doit être précisée dans la note de réponse.
+class _PartialAvailabilityBanner extends StatelessWidget {
+  const _PartialAvailabilityBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      key: const Key('stock_partial_availability_banner'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: tokens.warningBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: NubiaColors.warningBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 18, color: tokens.warningFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
+                children: const [
+                  TextSpan(
+                    text: 'Une ligne partiellement disponible.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(
+                    text: ' Accepter engage la totalité de la demande — '
+                        'précisez la réserve dans la note de réponse.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

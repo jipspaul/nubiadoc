@@ -548,5 +548,31 @@ void main() {
       expect(session.patientName, 'Marc Dubois');
       expect(session.startedAt, DateTime.utc(2026, 7, 6, 9, 30));
     });
+
+    test('fromJson remonte medical_alerts du détail (#4936)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'id': 'cs-4',
+        'appointment_id': 'aa-4',
+        'status': 'in_progress',
+        'acts': [],
+        'medical_alerts': [
+          {'kind': 'allergie', 'label': 'Pénicilline'},
+          {'kind': 'medico_legal', 'label': 'Anticoagulant (AVK)'},
+        ],
+      }).toDomain();
+      expect(session.medicalAlerts, hasLength(2));
+      expect(session.medicalAlerts.first.kind, 'allergie');
+      expect(session.medicalAlerts.first.label, 'Pénicilline');
+      expect(session.medicalAlerts.last.kind, 'medico_legal');
+    });
+
+    test('fromJson sans medical_alerts → liste vide (route start/liste)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'appointment_id': 'aa-5',
+        'consultation_id': 'cs-5',
+        'status': 'in_progress',
+      }).toDomain();
+      expect(session.medicalAlerts, isEmpty);
+    });
   });
 }
