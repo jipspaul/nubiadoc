@@ -361,6 +361,11 @@ class _LoadedViewState extends State<_LoadedView> {
                           ),
                         ),
                 scrollable: isAtLeastTwoColumns,
+                // #4939 — dès 1280 px la note de séance devient permanente
+                // (co-visible avec « Ajouter un acte », jamais sous la ligne
+                // de flottaison). Sous ce seuil : comportement tablette
+                // d'origine (colonne défilante) inchangé.
+                pinnedNote: width >= _kThreeColumnBreakpoint,
               );
 
               if (width >= _kThreeColumnBreakpoint) {
@@ -549,6 +554,13 @@ class _CenterColumn extends StatelessWidget {
 
 /// Colonne « Saisie + note » (376 px) — recherche/ajout d'acte CCAM et note
 /// de séance. `scrollable` suit la même logique que [_CenterColumn].
+///
+/// #4939 — dès 1280 px (`pinnedNote`), « Ajouter un acte » et « Note de
+/// séance » restent co-visibles en permanence : la note passe en
+/// `Expanded`/flex:1 et occupe toute la hauteur restante, le bloc d'ajout
+/// d'acte étant plafonné (défilement interne) pour ne jamais la repousser
+/// sous la ligne de flottaison. Sous 1280 px, comportement tablette
+/// d'origine inchangé (colonne défilante, note puis ajout d'acte).
 class _SideColumn extends StatelessWidget {
   const _SideColumn({
     super.key,
@@ -560,6 +572,7 @@ class _SideColumn extends StatelessWidget {
     required this.selectedTooth,
     required this.onActSubmitted,
     required this.scrollable,
+    required this.pinnedNote,
   });
 
   final TextTheme textTheme;
@@ -575,73 +588,123 @@ class _SideColumn extends StatelessWidget {
     required int amountCents,
   }) onActSubmitted;
   final bool scrollable;
+  final bool pinnedNote;
 
-  @override
-  Widget build(BuildContext context) {
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: NubiaCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _addActSection() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: CcamPicker(
+        key: const Key('ccam_picker'),
+        useCase: GetIt.instance<GetActsUseCase>(),
+        favoritesUseCase: GetIt.instance<FavoriteActsUseCase>(),
+        // #4048 — la dent choisie via le schéma dentaire pré-remplit
+        // l'éditeur d'acte au lieu de la saisie texte libre.
+        selectedTooth: selectedTooth,
+        onActSubmitted: onActSubmitted,
+      ),
+    );
+  }
+
+  /// `expand` (permanent-note ≥ 1280 px) : la zone de texte remplit toute la
+  /// hauteur restante de la carte au lieu d'une taille fixe (`maxLines: 4`).
+  Widget _noteSection(BuildContext context, {required bool expand}) {
+    final field = TextField(
+      key: const Key('consultation_note_field'),
+      controller: noteController,
+      maxLines: expand ? null : 4,
+      expands: expand,
+      textAlignVertical: expand ? TextAlignVertical.top : null,
+      decoration: const InputDecoration(
+        hintText: 'Observations cliniques...',
+        border: OutlineInputBorder(),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: NubiaCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Note de séance',
-                        style: textTheme.titleSmall,
-                        overflow: TextOverflow.ellipsis,
+                Expanded(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_note,
+                          size: 18,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Note de séance',
+                          style: textTheme.titleSmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    TextButton.icon(
-                      key: const Key('cr_template_picker_button'),
-                      onPressed: onPickCrTemplate,
-                      icon: const Icon(Icons.description_outlined, size: 18),
-                      label: const Text('Modèle'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  key: const Key('consultation_note_field'),
-                  controller: noteController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Observations cliniques...',
-                    border: OutlineInputBorder(),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: NubiaButton(
-                    key: const Key('save_note_button'),
-                    size: NubiaButtonSize.sm,
-                    icon: Icons.save_outlined,
-                    label: 'Enregistrer la note',
-                    onPressed: actionInProgress ? null : onSaveNote,
-                  ),
+                TextButton.icon(
+                  key: const Key('cr_template_picker_button'),
+                  onPressed: onPickCrTemplate,
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                  label: const Text('Modèle'),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 8),
+            expand ? Expanded(child: field) : field,
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: NubiaButton(
+                key: const Key('save_note_button'),
+                size: NubiaButtonSize.sm,
+                icon: Icons.save_outlined,
+                label: 'Enregistrer la note',
+                onPressed: actionInProgress ? null : onSaveNote,
+              ),
+            ),
+          ],
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: CcamPicker(
-            key: const Key('ccam_picker'),
-            useCase: GetIt.instance<GetActsUseCase>(),
-            favoritesUseCase: GetIt.instance<FavoriteActsUseCase>(),
-            // #4048 — la dent choisie via le schéma dentaire pré-remplit
-            // l'éditeur d'acte au lieu de la saisie texte libre.
-            selectedTooth: selectedTooth,
-            onActSubmitted: onActSubmitted,
-          ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (pinnedNote) {
+      return LayoutBuilder(
+        builder: (context, constraints) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Plafonné à 50 % de la hauteur disponible et défilable en
+            // interne : la recherche d'acte (favoris + résultats) ne peut
+            // donc jamais repousser la note sous la ligne de flottaison.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: constraints.maxHeight * 0.5,
+              ),
+              child: SingleChildScrollView(
+                shrinkWrap: true,
+                child: _addActSection(),
+              ),
+            ),
+            Expanded(child: _noteSection(context, expand: true)),
+          ],
         ),
+      );
+    }
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _noteSection(context, expand: false),
+        _addActSection(),
       ],
     );
     return scrollable ? SingleChildScrollView(child: content) : content;
