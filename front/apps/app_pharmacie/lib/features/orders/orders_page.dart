@@ -10,9 +10,37 @@ import 'orders_bloc.dart';
 import 'orders_event.dart';
 import 'orders_state.dart';
 import 'widgets/order_row.dart';
+import 'widgets/orders_aside.dart';
 
-/// File des commandes entrantes — corps de l'écran « Commandes »,
-/// consommable dans le bodyBuilder du ProShell.
+/// Corps de l'écran « Commandes » — file (tableau) + colonne latérale
+/// « À traiter », consommable dans le bodyBuilder du ProShell. L'aside se
+/// replie sous [_asideBreakpoint] de largeur disponible.
+class OrdersScreen extends StatelessWidget {
+  const OrdersScreen({super.key});
+
+  static const _asideBreakpoint = 900.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _asideBreakpoint) {
+          return const OrdersView();
+        }
+        return const Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: OrdersView()),
+            SizedBox(width: 320, child: OrdersAside()),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// File des commandes entrantes — tableau de la file, consommable seul
+/// (utilisé aussi par [OrdersScreen] sur petite largeur).
 class OrdersView extends StatefulWidget {
   const OrdersView({super.key});
 
