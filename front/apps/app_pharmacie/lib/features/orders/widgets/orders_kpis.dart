@@ -86,30 +86,38 @@ class OrdersKpiBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _OrdersKpiStat(
-            key: const Key('orders_kpi_urgent'),
-            value: '${kpis.urgentCount}',
-            label: 'à préparer d\'urgence',
-            valueColor: tokens.dangerFg,
+          Expanded(
+            child: _OrdersKpiStat(
+              key: const Key('orders_kpi_urgent'),
+              value: '${kpis.urgentCount}',
+              label: 'à préparer d\'urgence',
+              valueColor: tokens.dangerFg,
+            ),
           ),
           const SizedBox(width: 24),
-          _OrdersKpiStat(
-            key: const Key('orders_kpi_preparing'),
-            value: '${kpis.preparingCount}',
-            label: 'en préparation',
-            valueColor: tokens.warningFg,
+          Expanded(
+            child: _OrdersKpiStat(
+              key: const Key('orders_kpi_preparing'),
+              value: '${kpis.preparingCount}',
+              label: 'en préparation',
+              valueColor: tokens.warningFg,
+            ),
           ),
           const SizedBox(width: 24),
-          _OrdersKpiStat(
-            key: const Key('orders_kpi_ready'),
-            value: '${kpis.readyCount}',
-            label: 'prêtes à retirer',
+          Expanded(
+            child: _OrdersKpiStat(
+              key: const Key('orders_kpi_ready'),
+              value: '${kpis.readyCount}',
+              label: 'prêtes à retirer',
+            ),
           ),
           const SizedBox(width: 24),
-          _OrdersKpiStat(
-            key: const Key('orders_kpi_picked_up_today'),
-            value: '${kpis.pickedUpTodayCount}',
-            label: 'délivrées aujourd\'hui',
+          Expanded(
+            child: _OrdersKpiStat(
+              key: const Key('orders_kpi_picked_up_today'),
+              value: '${kpis.pickedUpTodayCount}',
+              label: 'délivrées aujourd\'hui',
+            ),
           ),
         ],
       ),
