@@ -340,6 +340,98 @@ void main() {
     });
 
     testWidgets(
+        'facettes de statut : libellés, compteurs et « Refusés / expirés » agrège refused+expired',
+        (tester) async {
+      final quotes = [
+        quote(PharmacyQuoteStatus.draft, id: 'q1'),
+        quote(PharmacyQuoteStatus.sent, id: 'q2'),
+        quote(PharmacyQuoteStatus.sent, id: 'q3'),
+        quote(PharmacyQuoteStatus.accepted, id: 'q4', totalCents: 100),
+        quote(PharmacyQuoteStatus.accepted, id: 'q5', totalCents: 200),
+        quote(PharmacyQuoteStatus.accepted, id: 'q6', totalCents: 300),
+        quote(PharmacyQuoteStatus.refused, id: 'q7', orderId: 'o1'),
+        quote(PharmacyQuoteStatus.expired, id: 'q8', orderId: 'o1'),
+        quote(PharmacyQuoteStatus.expired, id: 'q9', orderId: 'o1'),
+        quote(PharmacyQuoteStatus.expired, id: 'q10', orderId: 'o1'),
+        quote(PharmacyQuoteStatus.expired, id: 'q11', orderId: 'o1'),
+      ];
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(quotes));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.text('Tous'), findsOneWidget);
+      expect(find.text('Brouillons'), findsOneWidget);
+      expect(find.text('Envoyés'), findsOneWidget);
+      expect(find.text('Acceptés'), findsOneWidget);
+      expect(find.text('Refusés / expirés'), findsOneWidget);
+
+      // « Tous » (11) partage son compteur avec le bandeau KPI (devis
+      // actifs) ; « Envoyés » (2) partage le sien avec « en attente de
+      // réponse » ; « Brouillons » (1) partage le sien avec le KPI
+      // « brouillons non envoyés » (#4897) — duplication attendue, pas une
+      // collision de test.
+      expect(find.text('11'), findsNWidgets(2));
+      expect(find.text('2'), findsNWidgets(2));
+      expect(find.text('1'), findsNWidgets(2));
+      // Acceptés et Refusés/expirés n'ont pas d'équivalent dans le bandeau
+      // KPI : compteur unique.
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
+    });
+
+    testWidgets('« Tous » actif par défaut ; sélectionner une facette filtre',
+        (tester) async {
+      final quotes = [
+        quote(PharmacyQuoteStatus.draft, id: 'q1'),
+        quote(PharmacyQuoteStatus.sent, id: 'q2'),
+        quote(PharmacyQuoteStatus.accepted, id: 'q3'),
+        quote(PharmacyQuoteStatus.refused, id: 'q4', orderId: 'o1'),
+        quote(PharmacyQuoteStatus.expired, id: 'q5', orderId: 'o1'),
+      ];
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(quotes));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      // « Tous » actif par défaut : le premier devis de la liste est affiché.
+      expect(find.byKey(const Key('quote_q1')), findsOneWidget);
+
+      await tester.tap(find.text('Acceptés'));
+      await tester.pump();
+
+      expect(find.byKey(const Key('quote_q3')), findsOneWidget);
+      expect(find.byKey(const Key('quote_q1')), findsNothing);
+
+      // La facette « Refusés / expirés » est la dernière du bandeau
+      // horizontal et déborde de la surface de test (800px) : il faut la
+      // faire défiler dans la vue avant de pouvoir taper dessus.
+      await tester.ensureVisible(find.text('Refusés / expirés'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Refusés / expirés'));
+      await tester.pump();
+
+      expect(find.byKey(const Key('quote_q4')), findsOneWidget);
+      expect(find.byKey(const Key('quote_q5')), findsOneWidget);
+      expect(find.byKey(const Key('quote_q3')), findsNothing);
+
+      // Le bandeau a défilé vers la droite : « Tous » (première facette) est
+      // maintenant hors surface à gauche, on le ramène avant de taper.
+      await tester.ensureVisible(find.text('Tous'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tous'));
+      await tester.pump();
+
+      expect(find.byKey(const Key('quote_q1')), findsOneWidget);
+    });
+
+    testWidgets(
         'bandeau de compteurs : actifs, en attente, brouillons, montant accepté',
         (tester) async {
       final quotes = [
@@ -358,19 +450,28 @@ void main() {
             value: bloc, child: const Scaffold(body: PharmacyDevisView())),
       );
 
-      expect(find.text('6'), findsOneWidget);
+      // Recherches bornées au bandeau KPI : la rangée de facettes de statut
+      // (#4898) affiche aussi « Tous 6 » et « Envoyés 2 », des doublons
+      // volontaires des mêmes agrégats.
+      final banner = find.byType(DevisKpiBanner);
+      expect(find.descendant(of: banner, matching: find.text('6')),
+          findsOneWidget);
       expect(find.text('devis actifs'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.text('2')),
+          findsOneWidget);
       expect(find.text('en attente de réponse'), findsOneWidget);
-      expect(find.text('1'), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.text('1')),
+          findsOneWidget);
       expect(find.text('brouillons non envoyés'), findsOneWidget);
       expect(find.text('1 840,00 €'), findsOneWidget);
       expect(find.text('montant accepté'), findsOneWidget);
 
       final tokens = NubiaTokens.light;
-      final pendingValue = tester.widget<Text>(find.text('2'));
+      final pendingValue = tester.widget<Text>(
+          find.descendant(of: banner, matching: find.text('2')));
       expect(pendingValue.style?.color, tokens.warningFg);
-      final draftValue = tester.widget<Text>(find.text('1'));
+      final draftValue = tester.widget<Text>(
+          find.descendant(of: banner, matching: find.text('1')));
       expect(draftValue.style?.color, tokens.dangerFg);
     });
 
