@@ -10,6 +10,7 @@ import 'orders_bloc.dart';
 import 'orders_event.dart';
 import 'orders_state.dart';
 import 'widgets/order_row.dart';
+import 'widgets/orders_kpis.dart';
 
 /// File des commandes entrantes — corps de l'écran « Commandes »,
 /// consommable dans le bodyBuilder du ProShell.
@@ -64,6 +65,7 @@ class _OrdersViewState extends State<OrdersView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (state is OrdersLoaded) OrdersKpiBanner(orders: state.orders),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(

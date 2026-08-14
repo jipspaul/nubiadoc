@@ -13,6 +13,7 @@ import 'package:app_pharmacie/features/orders/orders_event.dart';
 import 'package:app_pharmacie/features/orders/orders_page.dart';
 import 'package:app_pharmacie/features/orders/orders_state.dart';
 import 'package:app_pharmacie/features/orders/widgets/order_status_pill.dart';
+import 'package:app_pharmacie/features/orders/widgets/orders_kpis.dart';
 
 class MockPharmacyOrdersRepository extends Mock
     implements PharmacyOrdersRepository {}
@@ -424,6 +425,90 @@ void main() {
           (widget.decoration! as BoxDecoration).shape == BoxShape.circle &&
           (widget.decoration! as BoxDecoration).color == NubiaColors.brand600);
       expect(dotFinder, findsOneWidget);
+    });
+  });
+
+  group('OrdersKpis', () {
+    test('agrège urgentes, en préparation, prêtes et délivrées du jour', () {
+      final now = DateTime(2026, 7, 1, 15);
+      final orders = [
+        orderAt('o1', PharmacyOrderStatus.received,
+            now.subtract(const Duration(hours: 3))), // urgente (> 2h)
+        orderAt('o2', PharmacyOrderStatus.received,
+            now.subtract(const Duration(minutes: 10))), // pas urgente
+        orderAt('o3', PharmacyOrderStatus.preparing, now),
+        orderAt('o4', PharmacyOrderStatus.preparing, now),
+        orderAt('o5', PharmacyOrderStatus.ready, now),
+        PharmacyOrder(
+          id: 'o6',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean D.',
+          prescriptionId: 'rx1',
+          status: PharmacyOrderStatus.pickedUp,
+          createdAt: now.subtract(const Duration(hours: 5)),
+          updatedAt: now,
+          pickedUpAt: now.subtract(const Duration(hours: 1)),
+        ),
+        PharmacyOrder(
+          id: 'o7',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean D.',
+          prescriptionId: 'rx1',
+          status: PharmacyOrderStatus.pickedUp,
+          createdAt: now.subtract(const Duration(days: 2)),
+          updatedAt: now,
+          pickedUpAt: now.subtract(const Duration(days: 1)), // pas aujourd'hui
+        ),
+      ];
+
+      final kpis = OrdersKpis.fromOrders(orders, now: now);
+
+      expect(kpis.urgentCount, 1);
+      expect(kpis.preparingCount, 2);
+      expect(kpis.readyCount, 1);
+      expect(kpis.pickedUpTodayCount, 1);
+    });
+  });
+
+  group('OrdersView (widget) — bandeau KPI', () {
+    testWidgets('affiche les 4 compteurs avec les bonnes couleurs',
+        (tester) async {
+      final now = DateTime.now();
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [
+          orderAt('o1', PharmacyOrderStatus.received,
+              now.subtract(const Duration(hours: 3))),
+          orderAt('o2', PharmacyOrderStatus.preparing, now),
+        ]),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final tokens = NubiaTokens.light;
+
+      final urgentValue = tester.widget<Text>(find.descendant(
+        of: find.byKey(const Key('orders_kpi_urgent')),
+        matching: find.text('1'),
+      ));
+      expect(urgentValue.style?.color, tokens.dangerFg);
+
+      final preparingValue = tester.widget<Text>(find.descendant(
+        of: find.byKey(const Key('orders_kpi_preparing')),
+        matching: find.text('1'),
+      ));
+      expect(preparingValue.style?.color, tokens.warningFg);
+
+      expect(find.text('à préparer d\'urgence'), findsOneWidget);
+      expect(find.text('en préparation'), findsOneWidget);
+      expect(find.text('prêtes à retirer'), findsOneWidget);
+      expect(find.text('délivrées aujourd\'hui'), findsOneWidget);
     });
   });
 
