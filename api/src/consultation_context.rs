@@ -66,6 +66,12 @@ pub struct ConsultationContextResponse {
     /// Patient de la séance — sert au cloisonnement de l'historique
     /// « Dernières séances » (#4937, filtre `patient_id` sur `listSessions`).
     pub patient_id: Uuid,
+    /// Nom affichable du patient (#4945 — barre d'identité patient).
+    pub patient_name: String,
+    /// Date de naissance du patient, `YYYY-MM-DD` (#4945). `None` si absente
+    /// du dossier patient.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patient_birth_date: Option<String>,
     /// Alertes médicales du dossier patient (allergies + flags médico-légaux
     /// structurés, #4103). Tableau vide si le dossier n'a aucune alerte —
     /// jamais d'entrée inventée côté front (#4936).
@@ -96,14 +102,19 @@ pub async fn get_consultation_context(
         .map_err(|_| AppError::Internal)?;
 
     // Séance + display_name du praticien via provider (peut être NULL si provider absent)
-    // + patient_id de l'appointment (#4937 — cloisonnement de l'historique patient).
+    // + patient_id/nom/date de naissance de l'appointment (#4937 — cloisonnement
+    // de l'historique patient ; #4945 — barre d'identité patient).
     let session_row = sqlx::query(
         "SELECT cs.id, cs.appointment_id, cs.practitioner_id, cs.status, \
                 cs.started_at, cs.completed_at, cs.note_ciphertext, cs.note_key_ref, \
                 a.patient_id, \
+                COALESCE(pat.first_name || ' ' || pat.last_name, '') AS patient_name, \
+                pat.birth_date, \
                 COALESCE(p.display_name, '') AS display_name \
          FROM consultation_session cs \
          JOIN appointment a ON a.id = cs.appointment_id \
+         LEFT JOIN patient pat ON pat.id = a.patient_id \
+                               AND pat.cabinet_id = cs.cabinet_id \
          LEFT JOIN provider p ON p.practitioner_id = cs.practitioner_id \
                               AND p.cabinet_id = cs.cabinet_id \
          WHERE cs.id = $1 AND cs.cabinet_id = $2",
@@ -127,6 +138,12 @@ pub async fn get_consultation_context(
         .map_err(|_| AppError::Internal)?;
     let patient_id: Uuid = session_row
         .try_get("patient_id")
+        .map_err(|_| AppError::Internal)?;
+    let patient_name: String = session_row
+        .try_get("patient_name")
+        .map_err(|_| AppError::Internal)?;
+    let patient_birth_date: Option<chrono::NaiveDate> = session_row
+        .try_get("birth_date")
         .map_err(|_| AppError::Internal)?;
 
     // RLS strict E.2.16.c : le praticien appelant doit avoir eu au moins un
@@ -255,6 +272,8 @@ pub async fn get_consultation_context(
         note,
         acts,
         patient_id,
+        patient_name,
+        patient_birth_date: patient_birth_date.map(|d| d.to_string()),
         medical_alerts,
     }))
 }
