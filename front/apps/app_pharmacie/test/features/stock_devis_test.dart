@@ -324,12 +324,14 @@ void main() {
 
       // « Tous » (11) partage son compteur avec le bandeau KPI (devis
       // actifs) ; « Envoyés » (2) partage le sien avec « en attente de
-      // réponse » — duplication attendue, pas une collision de test.
+      // réponse » ; « Brouillons » (1) partage le sien avec le KPI
+      // « brouillons non envoyés » (#4897) — duplication attendue, pas une
+      // collision de test.
       expect(find.text('11'), findsNWidgets(2));
       expect(find.text('2'), findsNWidgets(2));
-      // Brouillons, Acceptés, Refusés/expirés n'ont pas d'équivalent dans le
-      // bandeau KPI : compteur unique.
-      expect(find.text('1'), findsOneWidget);
+      expect(find.text('1'), findsNWidgets(2));
+      // Acceptés et Refusés/expirés n'ont pas d'équivalent dans le bandeau
+      // KPI : compteur unique.
       expect(find.text('3'), findsOneWidget);
       expect(find.text('5'), findsOneWidget);
     });
@@ -382,7 +384,8 @@ void main() {
       expect(find.byKey(const Key('quote_q1')), findsOneWidget);
     });
 
-    testWidgets('bandeau de compteurs : actifs, en attente, montant accepté',
+    testWidgets(
+        'bandeau de compteurs : actifs, en attente, brouillons, montant accepté',
         (tester) async {
       final quotes = [
         quote(PharmacyQuoteStatus.draft, id: 'q1'),
@@ -410,13 +413,19 @@ void main() {
       expect(find.descendant(of: banner, matching: find.text('2')),
           findsOneWidget);
       expect(find.text('en attente de réponse'), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.text('1')),
+          findsOneWidget);
+      expect(find.text('brouillons non envoyés'), findsOneWidget);
       expect(find.text('1 840,00 €'), findsOneWidget);
       expect(find.text('montant accepté'), findsOneWidget);
 
+      final tokens = NubiaTokens.light;
       final pendingValue = tester.widget<Text>(
           find.descendant(of: banner, matching: find.text('2')));
-      final tokens = NubiaTokens.light;
       expect(pendingValue.style?.color, tokens.warningFg);
+      final draftValue = tester.widget<Text>(
+          find.descendant(of: banner, matching: find.text('1')));
+      expect(draftValue.style?.color, tokens.dangerFg);
     });
 
     testWidgets('recherche filtre par patient ou article', (tester) async {
@@ -484,7 +493,7 @@ void main() {
   });
 
   group('DevisKpis', () {
-    test('agrège actifs, en attente et montant accepté', () {
+    test('agrège actifs, en attente, brouillons et montant accepté', () {
       final quotes = [
         quote(PharmacyQuoteStatus.draft, id: 'q1'),
         quote(PharmacyQuoteStatus.sent, id: 'q2'),
@@ -497,6 +506,7 @@ void main() {
       expect(kpis.activeCount, 4);
       expect(kpis.pendingCount, 1);
       expect(kpis.acceptedAmountCents, 500);
+      expect(kpis.draftCount, 1);
     });
   });
 }

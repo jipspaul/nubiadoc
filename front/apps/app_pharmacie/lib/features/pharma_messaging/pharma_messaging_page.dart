@@ -201,7 +201,7 @@ class _MessagingMasterDetailState extends State<_MessagingMasterDetail> {
                           'Choisissez un patient dans la liste pour afficher le fil.',
                     ),
               ),
-              if (contextPanel != null) contextPanel!,
+              if (widget.contextPanel != null) widget.contextPanel!,
             ],
           );
         } else {
@@ -863,26 +863,35 @@ class _ThreadViewState extends State<_ThreadView> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '⏎ envoyer · ⇧⏎ nouvelle ligne',
-                style:
-                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+              Flexible(
+                child: Text(
+                  '⏎ envoyer · ⇧⏎ nouvelle ligne',
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+                ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.shield_outlined,
-                    size: 14,
-                    color: tokens.textTertiary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Aucun conseil médical par écrit',
-                    style: textTheme.bodySmall
-                        ?.copyWith(color: tokens.textTertiary),
-                  ),
-                ],
+              const SizedBox(width: 8),
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 14,
+                      color: tokens.textTertiary,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'Aucun conseil médical par écrit',
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: tokens.textTertiary),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
