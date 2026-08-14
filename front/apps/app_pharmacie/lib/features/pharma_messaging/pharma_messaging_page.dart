@@ -47,7 +47,7 @@ class _PharmaMessagingBody extends StatelessWidget {
                   key: Key('pharma_messaging_empty'),
                   icon: Icons.chat_bubble_outline,
                   title: 'Aucun message',
-                  subtitle: 'Vos conversations cabinet apparaîtront ici',
+                  subtitle: 'Vos conversations patients apparaîtront ici',
                 )
               : _ConversationsList(conversations: conversations),
         PharmaMessagingThreadLoading() => const Center(
