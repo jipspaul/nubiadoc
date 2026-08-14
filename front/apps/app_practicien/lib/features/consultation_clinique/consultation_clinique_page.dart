@@ -375,7 +375,7 @@ class _LoadedViewState extends State<_LoadedView> {
                   key: const Key('complete_consultation_button'),
                   size: NubiaButtonSize.sm,
                   icon: Icons.check,
-                  label: 'Terminer',
+                  label: 'Terminer la séance',
                   onPressed: state.actionInProgress || session.isFinished
                       ? null
                       : () => context.read<ConsultationCliniqueBloc>().add(
