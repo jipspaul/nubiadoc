@@ -57,6 +57,7 @@ mod cabinet_secretariats;
 mod cabinet_stats;
 mod cabinet_team_messages;
 mod ccam_acts;
+mod ccam_stock_mappings;
 mod clinical;
 mod consultation_act_create;
 mod consultation_act_stock;

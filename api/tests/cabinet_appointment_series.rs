@@ -520,6 +520,142 @@ async fn create_series_overlapping_blocked_slot_returns_409_slot_taken() {
     cleanup_fixture(&db, &f).await;
 }
 
+/// #4656 : une occurrence chevauchant une `provider_unavailability` active
+/// (#4647/#4649) → 409 `slot_taken`, aucun RDV créé — parité avec la garde
+/// `availability_slot.status='blocked'` ci-dessus, qui ne consultait pas
+/// cette nouvelle table.
+#[tokio::test]
+async fn create_series_overlapping_provider_unavailability_returns_409_slot_taken() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixture(&db, "unavailability").await;
+    let provider_id = Uuid::new_v4();
+    let provider_user_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) \
+             VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(provider_user_id)
+        .bind(format!(
+            "appt-series-unavailability-provider+{provider_user_id}@nubia.test"
+        ))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO provider (id, practitioner_id, cabinet_id, user_id, display_name) \
+             VALUES ($1, $2, $3, $4, 'Dr Series Unavailability')",
+        )
+        .bind(provider_id)
+        .bind(f.practitioner_id)
+        .bind(f.cabinet_id)
+        .bind(provider_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO provider_unavailability (id, provider_id, starts_at, ends_at, reason) \
+             VALUES ($1, $2, '2028-01-18T00:00:00Z', '2028-01-19T00:00:00Z', 'QA vacances test')",
+        )
+        .bind(Uuid::new_v4())
+        .bind(provider_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/appointments/series")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), f.cabinet_id, "secretary")
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "practitioner_id": f.practitioner_id,
+                        "patient_id": f.patient_id,
+                        "motif": "QA-overlap-unavailability",
+                        "occurrences": [
+                            {"starts_at": "2028-01-18T09:00:00Z", "ends_at": "2028-01-18T09:30:00Z"}
+                        ]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["code"], "slot_taken");
+
+    let db_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM appointment WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        db_count, 0,
+        "aucun RDV créé sur l'indisponibilité praticien"
+    );
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(f.cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM provider_unavailability WHERE provider_id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM provider WHERE id = $1")
+            .bind(provider_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM app_user WHERE id = $1")
+            .bind(provider_user_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.unwrap();
+    }
+
+    cleanup_fixture(&db, &f).await;
+}
+
 /// #4408 : une occurrence chevauchant un `availability_slot` publié `open`
 /// doit le consommer (`booked`), comme `create_cabinet_appointment` et
 /// `create_appointment` — sinon le créneau reste visible dans

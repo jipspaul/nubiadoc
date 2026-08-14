@@ -13,6 +13,7 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
   final MarkPharmacyOrderReadyUseCase _ready;
   final RejectPharmacyOrderUseCase _reject;
   final GetPharmacyOrderPrescriptionUrlUseCase _prescriptionUrl;
+  final GetPharmacyOrderPrescriptionUseCase _prescriptionItems;
 
   OrderDetailBloc({
     required GetPharmacyOrderUseCase get,
@@ -20,11 +21,13 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
     required MarkPharmacyOrderReadyUseCase ready,
     required RejectPharmacyOrderUseCase reject,
     required GetPharmacyOrderPrescriptionUrlUseCase prescriptionUrl,
+    required GetPharmacyOrderPrescriptionUseCase prescriptionItems,
   })  : _get = get,
         _accept = accept,
         _ready = ready,
         _reject = reject,
         _prescriptionUrl = prescriptionUrl,
+        _prescriptionItems = prescriptionItems,
         super(const OrderDetailLoading()) {
     on<OrderDetailLoadRequested>(_onLoad);
     on<OrderDetailAcceptRequested>(
@@ -45,9 +48,18 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
   ) async {
     emit(const OrderDetailLoading());
     final result = await _get(event.orderId);
-    result.fold(
-      (failure) => emit(OrderDetailError(failure.message)),
-      (order) => emit(OrderDetailLoaded(order)),
+    await result.fold(
+      (failure) async => emit(OrderDetailError(failure.message)),
+      (order) async {
+        emit(OrderDetailLoaded(order));
+        // Dégradation douce : un échec de lecture des lignes n'efface pas la
+        // commande déjà chargée — le PDF (openDocumentUrl) reste le recours.
+        final itemsResult = await _prescriptionItems(order.id);
+        itemsResult.fold(
+          (failure) {},
+          (items) => emit(OrderDetailLoaded(order, items: items)),
+        );
+      },
     );
   }
 
@@ -58,11 +70,15 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
     final current = state;
     if (current is! OrderDetailLoaded || current.actionInProgress) return;
 
-    emit(OrderDetailLoaded(current.order, actionInProgress: true));
+    emit(OrderDetailLoaded(
+      current.order,
+      items: current.items,
+      actionInProgress: true,
+    ));
     final result = await action(current.order.id);
     result.fold(
       (failure) => emit(OrderDetailError(failure.message)),
-      (order) => emit(OrderDetailLoaded(order)),
+      (order) => emit(OrderDetailLoaded(order, items: current.items)),
     );
   }
 
@@ -78,7 +94,7 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
       (failure) => emit(OrderDetailError(failure.message)),
       (url) {
         emit(OrderDetailDocumentReady(current.order, url));
-        emit(OrderDetailLoaded(current.order));
+        emit(OrderDetailLoaded(current.order, items: current.items));
       },
     );
   }

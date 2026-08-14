@@ -424,6 +424,58 @@ async fn patch_medical_questionnaire_updates_and_submits() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 3bis : PATCH avec un octet NUL dans payload → 422 (pas 500) ────────
+
+#[tokio::test]
+async fn patch_medical_questionnaire_nul_byte_in_payload_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, true).await;
+    let token = make_patient_token(f.patient_user_id, f.account_id);
+    let state = make_state(app_pool().await);
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({"cabinet_id": f.cabinet_id, "payload": {"allergies": "aucune"}})
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let patch_resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri("/v1/account/medical-questionnaire")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "cabinet_id": f.cabinet_id,
+                        "payload": {"note": "abc\u{0}def"}
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(patch_resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 4 : PATCH sans brouillon existant → 404 ─────────────────────────────
 
 #[tokio::test]

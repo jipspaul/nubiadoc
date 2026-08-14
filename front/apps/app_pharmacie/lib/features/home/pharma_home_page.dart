@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -41,12 +42,35 @@ class PharmaHomePage extends StatelessWidget {
       config: PharmaConfig.shellConfig,
       session: session,
       onSignOut: () => context.read<PharmaAuthCubit>().signOut(),
+      // Synchronise l'onglet sélectionné avec l'URL go_router dans les 2
+      // sens : `currentRoute` pilote la sélection depuis `state.uri.path`
+      // (navigation directe / reload / retour navigateur, #4813), et
+      // `onNavigate` pousse l'URL via `context.go` quand l'utilisateur
+      // clique une destination dans le rail/drawer.
+      currentRoute: GoRouterState.of(context).uri.path,
+      onNavigate: (destination) => context.go(destination.route),
       bodyBuilder: (ctx, destination) {
         if (destination.route == PharmaConfig.ordersRoute) {
-          return BlocProvider<OrdersBloc>(
-            create: (_) =>
-                GetIt.instance<OrdersBloc>()..add(const OrdersSubscribed()),
-            child: const OrdersView(),
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider<OrdersBloc>(
+                create: (_) => GetIt.instance<OrdersBloc>()
+                  ..add(const OrdersSubscribed()),
+              ),
+              // L'aside « À traiter » agrège aussi les demandes de stock et
+              // les messages du cabinet non lus (#4916) — chargés ici pour
+              // rester disponibles sans navigation ni appel réseau depuis
+              // l'aside elle-même.
+              BlocProvider<StockBloc>(
+                create: (_) => GetIt.instance<StockBloc>()
+                  ..add(const StockLoadRequested()),
+              ),
+              BlocProvider<PharmaMessagingBloc>(
+                create: (_) => GetIt.instance<PharmaMessagingBloc>()
+                  ..add(const PharmaMessagingConversationsLoadRequested()),
+              ),
+            ],
+            child: const OrdersScreen(),
           );
         }
         if (destination.route == '/stock') {

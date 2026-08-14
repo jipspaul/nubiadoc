@@ -1177,6 +1177,14 @@ pub struct AvailabilityQuery {
 /// Route publique, pas de JWT. Provider inexistant ou `is_listed=false` → `404`.
 /// Créneaux filtrés `status='open'` + `online_booking=true` + `starts_at > now()`,
 /// bornables par `?from=&to=` (RFC3339) et `?motif=`, triés ASC, limite 50.
+///
+/// Exclut les créneaux couverts par une `provider_unavailability` active via
+/// `provider_unavailable_at()` (migration 0220), même mécanisme que
+/// `/search/slots`/`/search/providers` depuis #4655/#4656 : cette route est
+/// publique (RLS bloque un `NOT EXISTS` direct sur `provider_unavailability`
+/// sans `app.current_cabinet_id`), d'où la fonction `SECURITY DEFINER`. Avant
+/// ce correctif, un créneau pendant une indisponibilité restait annoncé
+/// disponible ici alors que `POST /v1/bookings` le refusait déjà en 409 (#4853).
 pub async fn get_provider_availability(
     State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
@@ -1207,7 +1215,7 @@ pub async fn get_provider_availability(
     let rows = sqlx::query_as!(
         AvailabilitySlotRow,
         r#"SELECT id AS "slot_id!", starts_at, ends_at, motif
-           FROM availability_slot
+           FROM availability_slot sl
            WHERE provider_id = $1
              AND status = 'open'
              AND deleted_at IS NULL
@@ -1216,6 +1224,7 @@ pub async fn get_provider_availability(
              AND ($2::timestamptz IS NULL OR starts_at >= $2)
              AND ($3::timestamptz IS NULL OR starts_at < $3)
              AND ($4::text IS NULL OR motif = $4)
+             AND NOT provider_unavailable_at(sl.provider_id, sl.starts_at, sl.ends_at)
            ORDER BY starts_at ASC
            LIMIT 50"#,
         provider_id,

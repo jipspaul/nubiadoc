@@ -1,9 +1,8 @@
 #!/bin/sh
 # Orchestration SUR le LXC Alpine (idempotent, ré-exécutable à chaque déploiement).
 # - charge l'image API (binaire musl cross-compilé, poussée en tar)
-# - (re)construit l'image console Astro depuis les sources (node amd64 natif sur le LXC)
 # - démarre/maj postgres, applique migrations + seed
-# - démarre/maj api, console, web (nginx statique)
+# - démarre/maj api, web (nginx statique)
 # Tous les conteneurs sont en réseau host -> joignables sur l'IP du LXC.
 #
 # Postmortem 2026-06-24 : tous les containers DOWN simultanément (502 sur les 4
@@ -68,11 +67,6 @@ echo "[deploy] build image api (COPY-only, binaire musl pré-compilé)"
 # d'image à chaque déploiement (COPY-only, donc quasi instantané).
 podman build --no-cache -t localhost/nubia-api:latest -f api-ctx/api.Dockerfile api-ctx
 
-echo "[deploy] build image console (node amd64 natif)"
-podman build --build-arg PUBLIC_API_BASE="$PUBLIC_API_BASE" \
-  -t localhost/nubia-console:latest \
-  -f web-console-src/Dockerfile web-console-src
-
 echo "[deploy] postgres"
 podman volume inspect nubia_pg >/dev/null 2>&1 || podman volume create nubia_pg >/dev/null
 if podman container exists nubia-pg; then
@@ -127,17 +121,6 @@ podman run -d --name nubia-api --network host --restart unless-stopped \
 # port 2575 contourne Caddy — le filtrer au niveau hôte/LXC aux IP des
 # partenaires EAI attendus avant toute mise en service réelle.
 
-echo "[deploy] console"
-podman rm -f nubia-console >/dev/null 2>&1 || true
-# Astro SSR + node : 768Mi (node base ~150Mi + SSR working set).
-# Healthcheck via `node` (et non wget) car l'image node:alpine n'a PAS wget —
-# le healthcheck wget restait "starting" silencieusement (postmortem 2026-06-27).
-podman run -d --name nubia-console --network host --restart unless-stopped \
-  --health-cmd='node -e "require(\"http\").get(\"http://127.0.0.1:4321/\",r=>process.exit(r.statusCode<500?0:1)).on(\"error\",()=>process.exit(1))"' \
-  --health-interval=30s --health-timeout=5s --health-retries=3 --health-start-period=10s \
-  -e HOST=0.0.0.0 -e PORT=4321 -e PUBLIC_API_BASE="$PUBLIC_API_BASE" \
-  localhost/nubia-console:latest >/dev/null
-
 echo "[deploy] web (nginx statique 8081/8082/8083/8084)"
 podman rm -f nubia-web >/dev/null 2>&1 || true
 # nginx statique : 256Mi largement suffisant (juste sert des fichiers).
@@ -148,10 +131,10 @@ podman run -d --name nubia-web --network host --restart unless-stopped \
   -v /opt/nubia/www:/www:ro \
   docker.io/library/nginx:alpine >/dev/null
 
-echo "[deploy] attente 30s puis vérif que tous les 4 containers sont Up..."
+echo "[deploy] attente 30s puis vérif que tous les 3 containers sont Up..."
 sleep 30
 FAILED=""
-for c in nubia-pg nubia-api nubia-console nubia-web; do
+for c in nubia-pg nubia-api nubia-web; do
   STATUS=$(podman inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo "missing")
   HEALTH=$(podman inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null || echo "n/a")
   printf "  %-18s status=%-10s health=%s\n" "$c" "$STATUS" "$HEALTH"

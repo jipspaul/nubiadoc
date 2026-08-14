@@ -17,6 +17,14 @@ class CabinetConversation extends Equatable {
   /// message, qui peut être un message normal postérieur.
   final MessageUrgency triageFlag;
 
+  /// Référence de la commande liée à la conversation (ex. `CMD-4821`, #4923).
+  /// `null` quand la conversation n'est rattachée à aucune commande.
+  final String? orderRef;
+
+  /// Libellé court du statut de la commande liée (ex. « Prête », « En
+  /// prépa », #4923). `null` quand [orderRef] est `null`.
+  final String? orderStatusLabel;
+
   const CabinetConversation({
     required this.id,
     required this.patientId,
@@ -26,6 +34,8 @@ class CabinetConversation extends Equatable {
     this.lastMessage,
     this.lastMessagePreview,
     this.triageFlag = MessageUrgency.normal,
+    this.orderRef,
+    this.orderStatusLabel,
   });
 
   @override

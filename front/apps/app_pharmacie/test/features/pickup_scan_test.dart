@@ -1,12 +1,14 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
 import 'package:app_pharmacie/features/pickup_scan/pickup_scan_cubit.dart';
+import 'package:app_pharmacie/features/pickup_scan/pickup_scan_page.dart';
 import 'package:app_pharmacie/features/pickup_scan/widgets/manual_code_field.dart';
 
 class MockPharmacyOrdersRepository extends Mock
@@ -15,10 +17,11 @@ class MockPharmacyOrdersRepository extends Mock
 class MockPickupScanCubit extends MockCubit<PickupScanState>
     implements PickupScanCubit {}
 
-PharmacyOrder pickedUp() => PharmacyOrder(
-      id: 'o1',
+PharmacyOrder pickedUp({String id = 'o1', String patient = 'Jean D.'}) =>
+    PharmacyOrder(
+      id: id,
       pharmacyId: 'p1',
-      patientDisplayName: 'Jean D.',
+      patientDisplayName: patient,
       prescriptionId: 'rx1',
       status: PharmacyOrderStatus.pickedUp,
       createdAt: DateTime(2026, 7, 1, 10),
@@ -41,12 +44,33 @@ void main() {
             .thenAnswer((_) async => Right(pickedUp()));
         return buildCubit();
       },
-      act: (cubit) => cubit.submit('  tok-1  '),
+      act: (cubit) => cubit.submit('  tok-1  ', expectedOrderId: 'o1'),
       expect: () => [
         const PickupScanSubmitting(),
         PickupScanSuccess(pickedUp()),
       ],
       verify: (_) => verify(() => repo.confirmPickup('tok-1')).called(1),
+    );
+
+    blocTest<PickupScanCubit, PickupScanState>(
+      'token valide mais commande différente → Mismatch, pas Success',
+      build: () {
+        when(() => repo.confirmPickup('tok-marc')).thenAnswer(
+          (_) async =>
+              Right(pickedUp(id: 'o2-marc', patient: 'Marc Dubois')),
+        );
+        return buildCubit();
+      },
+      act: (cubit) =>
+          cubit.submit('tok-marc', expectedOrderId: 'o1-julie'),
+      expect: () => [
+        const PickupScanSubmitting(),
+        PickupScanMismatch(
+          expectedOrderId: 'o1-julie',
+          scannedOrder: pickedUp(id: 'o2-marc', patient: 'Marc Dubois'),
+        ),
+      ],
+      verify: (_) => verify(() => repo.confirmPickup('tok-marc')).called(1),
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
@@ -60,7 +84,7 @@ void main() {
         );
         return buildCubit();
       },
-      act: (cubit) => cubit.submit('tok-x'),
+      act: (cubit) => cubit.submit('tok-x', expectedOrderId: 'o1'),
       expect: () =>
           [const PickupScanSubmitting(), isA<PickupScanInvalidCode>()],
     );
@@ -74,7 +98,7 @@ void main() {
         );
         return buildCubit();
       },
-      act: (cubit) => cubit.submit('tok-x'),
+      act: (cubit) => cubit.submit('tok-x', expectedOrderId: 'o1'),
       expect: () =>
           [const PickupScanSubmitting(), isA<PickupScanInvalidCode>()],
     );
@@ -89,8 +113,8 @@ void main() {
         return buildCubit();
       },
       act: (cubit) async {
-        await cubit.submit('inconnu');
-        await cubit.submit('reseau');
+        await cubit.submit('inconnu', expectedOrderId: 'o1');
+        await cubit.submit('reseau', expectedOrderId: 'o1');
       },
       expect: () => [
         const PickupScanSubmitting(),
@@ -103,10 +127,38 @@ void main() {
     blocTest<PickupScanCubit, PickupScanState>(
       'code vide → aucun appel',
       build: buildCubit,
-      act: (cubit) => cubit.submit('   '),
+      act: (cubit) => cubit.submit('   ', expectedOrderId: 'o1'),
       expect: () => const <PickupScanState>[],
       verify: (_) => verifyNever(() => repo.confirmPickup(any())),
     );
+  });
+
+  group('PickupScanBody (widget)', () {
+    testWidgets('tap sur "Réessayer" après un échec ramène l\'état idle',
+        (tester) async {
+      when(() => repo.confirmPickup('inconnu'))
+          .thenAnswer((_) async => const Left(NotFoundFailure()));
+      final cubit = buildCubit();
+
+      await tester.pumpApp(
+        BlocProvider<PickupScanCubit>.value(
+          value: cubit,
+          child: const PickupScanBody(orderId: 'o1'),
+        ),
+      );
+
+      await cubit.submit('inconnu', expectedOrderId: 'o1');
+      await tester.pumpAndSettle();
+
+      expect(cubit.state, isA<PickupScanInvalidCode>());
+      expect(find.byKey(const Key('pickup_error_retry')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pickup_error_retry')));
+      await tester.pumpAndSettle();
+
+      expect(cubit.state, isA<PickupScanIdle>());
+      expect(find.byKey(const Key('pickup_error_retry')), findsNothing);
+    });
   });
 
   group('ManualCodeField (widget)', () {

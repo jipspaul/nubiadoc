@@ -27,7 +27,8 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route(
             "/v1/cabinet/secretariats/:id/members",
-            axum::routing::post(cabinet_secretariats::add_secretariat_member),
+            axum::routing::get(cabinet_secretariats::list_secretariat_members)
+                .post(cabinet_secretariats::add_secretariat_member),
         )
         .route(
             "/v1/cabinet/secretariats/:id/members/:user_id",
@@ -36,5 +37,9 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         .route(
             "/v1/cabinet/secretariats/:id/staff",
             axum::routing::post(cabinet_secretariats::provision_staff),
+        )
+        .route(
+            "/v1/cabinet/membership/:user_id/permissions",
+            axum::routing::patch(cabinet_secretariats::patch_membership_permissions),
         )
 }

@@ -85,7 +85,10 @@ pub async fn list_cabinet_patients(
     let offset: i64 = params.offset.unwrap_or(0).max(0);
     let fetch_limit = limit + 1;
 
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
     let (cursor_at, cursor_id) = cursor
         .map(|(at, id)| (Some(at), Some(id)))
         .unwrap_or((None, None));
@@ -624,7 +627,10 @@ pub async fn list_patient_notes(
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
     let fetch_limit = limit + 1;
 
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
     let (cursor_at, cursor_id) = cursor
         .map(|(at, id)| (Some(at), Some(id)))
         .unwrap_or((None, None));
@@ -999,6 +1005,15 @@ pub async fn list_patient_documents(
         }
     }
 
+    // Un cursor corrompu/indécodable doit être rejeté par 422 avant toute
+    // autre vérification (existence patient, relation de soin, scope
+    // secrétariat) — sinon il est silencieusement ignoré (repli page 1),
+    // ou masqué par un 403/404 métier trompeur (#4755).
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(doc_decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -1072,7 +1087,6 @@ pub async fn list_patient_documents(
         }
     }
 
-    let cursor = params.cursor.as_deref().and_then(doc_decode_cursor);
     let fetch_limit = limit + 1;
 
     let (cursor_at, cursor_id) = cursor
@@ -1206,6 +1220,9 @@ pub struct UploadPatientDocumentResponse {
 /// passeport_implantaire, consentement) demandée par un non-praticien → 403
 /// (même garde que `list_patient_documents` côté lecture).
 ///
+/// R10 : une secrétaire hors du secrétariat en charge du patient → 404
+/// (même garde que `list_patient_documents` côté lecture, #4870).
+///
 /// Champs multipart :
 /// - `file` : binaire requis, non vide (PDF / JPEG / PNG ≤ 20 Mo). MIME déclaré
 ///   vérifié → 422 sinon ; 0 octet → 422 aussi (#3875, symétrique de documents.rs).
@@ -1336,6 +1353,35 @@ pub async fn upload_patient_document(
 
         if has_appointment.is_none() {
             return Err(AppError::Forbidden);
+        }
+    }
+
+    // R10 : même garde de scope secrétariat qu'en lecture (list_patient_documents,
+    // #3821/#3823) — sans elle, une secrétaire pouvait écrire un document dans le
+    // dossier d'un patient hors de son secrétariat, patient qu'elle ne peut ni
+    // lister ni relire (404) une fois l'upload fait (#4870).
+    if claims.role == "secretary" {
+        let in_scope = match claims.secretariat_id {
+            Some(secretariat_id) => sqlx::query(
+                "SELECT 1 FROM appointment a \
+                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                 WHERE a.patient_id = $1 \
+                   AND a.deleted_at IS NULL \
+                   AND a.status <> 'cancelled' \
+                   AND ps.secretariat_id = $2 \
+                   AND ps.active = true",
+            )
+            .bind(patient_id)
+            .bind(secretariat_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .is_some(),
+            None => false,
+        };
+        if !in_scope {
+            return Err(AppError::NotFound);
         }
     }
 

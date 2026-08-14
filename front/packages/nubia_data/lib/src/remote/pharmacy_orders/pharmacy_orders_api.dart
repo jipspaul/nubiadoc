@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/pharmacy_orders/pharmacy_order_dto.dart';
+import 'package:nubia_data/src/remote/prescriptions/prescription_dto.dart';
 import 'package:nubia_domain/src/entities/pharmacy_order.dart';
 
 /// Commandes click-and-collect, espace pharmacie (/v1/pharmacy/orders*).
@@ -66,5 +67,16 @@ class PharmacyOrdersApi {
     final response =
         await _dio.get<Map<String, dynamic>>('/pharmacy/orders/$id/document');
     return response.data!['url'] as String;
+  }
+
+  /// Lignes de l'ordonnance à délivrer (#4876) — molécule, forme, posologie,
+  /// durée, quantité. Complète le PDF (`getDocumentUrl`), qui reste le recours.
+  Future<List<PrescriptionItemDto>> getItems(String id) async {
+    final response =
+        await _dio.get<Map<String, dynamic>>('/pharmacy/orders/$id/items');
+    final data = response.data!['data'] as List<dynamic>? ?? const [];
+    return data
+        .map((e) => PrescriptionItemDto.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }

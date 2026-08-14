@@ -48,6 +48,8 @@ class PharmacyOrder extends Equatable {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+  final String? prescriberName;
+  final String? prescriberPractice;
   final String prescriptionId;
   final PharmacyOrderStatus status;
   final String? rejectionReason;
@@ -55,12 +57,15 @@ class PharmacyOrder extends Equatable {
   final DateTime updatedAt;
   final DateTime? readyAt;
   final DateTime? pickedUpAt;
+  final int? lineCount;
 
   const PharmacyOrder({
     required this.id,
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.prescriberName,
+    this.prescriberPractice,
     required this.prescriptionId,
     required this.status,
     this.rejectionReason,
@@ -68,6 +73,7 @@ class PharmacyOrder extends Equatable {
     required this.updatedAt,
     this.readyAt,
     this.pickedUpAt,
+    this.lineCount,
   });
 
   /// Le QR de retrait n'existe que pour une commande prête.

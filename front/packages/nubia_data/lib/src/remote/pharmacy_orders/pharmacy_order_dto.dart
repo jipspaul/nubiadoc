@@ -5,6 +5,8 @@ class PharmacyOrderDto {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+  final String? prescriberName;
+  final String? prescriberPractice;
   final String prescriptionId;
   final String status;
   final String? rejectionReason;
@@ -12,12 +14,15 @@ class PharmacyOrderDto {
   final String? updatedAt;
   final String? readyAt;
   final String? pickedUpAt;
+  final int? lineCount;
 
   const PharmacyOrderDto({
     required this.id,
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.prescriberName,
+    this.prescriberPractice,
     required this.prescriptionId,
     required this.status,
     this.rejectionReason,
@@ -25,6 +30,7 @@ class PharmacyOrderDto {
     this.updatedAt,
     this.readyAt,
     this.pickedUpAt,
+    this.lineCount,
   });
 
   factory PharmacyOrderDto.fromJson(Map<String, dynamic> json) =>
@@ -33,6 +39,8 @@ class PharmacyOrderDto {
         pharmacyId: json['pharmacy_id'] as String? ?? '',
         pharmacyName: json['pharmacy_name'] as String?,
         patientDisplayName: json['patient_display_name'] as String?,
+        prescriberName: json['prescriber_name'] as String?,
+        prescriberPractice: json['prescriber_practice'] as String?,
         prescriptionId: json['prescription_id'] as String? ?? '',
         status: json['status'] as String? ?? 'received',
         rejectionReason: json['rejection_reason'] as String?,
@@ -41,6 +49,8 @@ class PharmacyOrderDto {
         updatedAt: json['updated_at'] as String?,
         readyAt: json['ready_at'] as String?,
         pickedUpAt: json['picked_up_at'] as String?,
+        lineCount: json['line_count'] as int? ??
+            (json['lines'] as List?)?.length,
       );
 
   PharmacyOrder toDomain() {
@@ -50,6 +60,8 @@ class PharmacyOrderDto {
       pharmacyId: pharmacyId,
       pharmacyName: pharmacyName,
       patientDisplayName: patientDisplayName,
+      prescriberName: prescriberName,
+      prescriberPractice: prescriberPractice,
       prescriptionId: prescriptionId,
       status: parseStatus(status),
       rejectionReason: rejectionReason,
@@ -57,6 +69,7 @@ class PharmacyOrderDto {
       updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : created,
       readyAt: readyAt != null ? DateTime.parse(readyAt!) : null,
       pickedUpAt: pickedUpAt != null ? DateTime.parse(pickedUpAt!) : null,
+      lineCount: lineCount,
     );
   }
 

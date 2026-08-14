@@ -13,15 +13,23 @@ class OrderDetailLoading extends OrderDetailState {
 }
 
 class OrderDetailLoaded extends OrderDetailState {
-  const OrderDetailLoaded(this.order, {this.actionInProgress = false});
+  const OrderDetailLoaded(
+    this.order, {
+    this.items = const [],
+    this.actionInProgress = false,
+  });
 
   final PharmacyOrder order;
+
+  /// Lignes de l'ordonnance (molécule, posologie, quantité…) — dégradation
+  /// douce : vide si leur lecture échoue, le PDF reste le recours.
+  final List<PrescriptionItem> items;
 
   /// Une transition est en cours (bouton en loading, double-tap bloqué).
   final bool actionInProgress;
 
   @override
-  List<Object?> get props => [order, actionInProgress];
+  List<Object?> get props => [order, items, actionInProgress];
 }
 
 /// L'URL signée du PDF est prête — la page l'ouvre puis revient à Loaded.

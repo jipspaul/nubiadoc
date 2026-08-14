@@ -11,7 +11,9 @@ import 'package:app_pharmacie/features/order_detail/order_detail_bloc.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_event.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_page.dart';
 import 'package:app_pharmacie/features/order_detail/order_detail_state.dart';
+import 'package:app_pharmacie/features/order_detail/widgets/order_status_stepper.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/pickup_info_card.dart';
+import 'package:app_pharmacie/features/order_detail/widgets/prescription_lines_panel.dart';
 
 class MockPharmacyOrdersRepository extends Mock
     implements PharmacyOrdersRepository {}
@@ -40,7 +42,18 @@ void main() {
         ready: MarkPharmacyOrderReadyUseCase(repo),
         reject: RejectPharmacyOrderUseCase(repo),
         prescriptionUrl: GetPharmacyOrderPrescriptionUrlUseCase(repo),
+        prescriptionItems: GetPharmacyOrderPrescriptionUseCase(repo),
       );
+
+  const prescriptionItems = [
+    PrescriptionItem(
+      label: 'Paracétamol 1 g',
+      form: 'comprimé',
+      posology: '1 cp × 3 / jour si douleur',
+      duration: '5 jours',
+      quantity: 'QSP 15 cp',
+    ),
+  ];
 
   group('OrderDetailBloc', () {
     blocTest<OrderDetailBloc, OrderDetailState>(
@@ -95,6 +108,46 @@ void main() {
     );
 
     blocTest<OrderDetailBloc, OrderDetailState>(
+      'le chargement peuple les lignes de l\'ordonnance (#4876)',
+      build: () {
+        when(() => repo.getById('o1')).thenAnswer(
+          (_) async => Right(order(PharmacyOrderStatus.received)),
+        );
+        when(() => repo.getPrescriptionItems('o1')).thenAnswer(
+          (_) async => const Right(prescriptionItems),
+        );
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const OrderDetailLoadRequested('o1')),
+      expect: () => [
+        const OrderDetailLoading(),
+        OrderDetailLoaded(order(PharmacyOrderStatus.received)),
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.received),
+          items: prescriptionItems,
+        ),
+      ],
+    );
+
+    blocTest<OrderDetailBloc, OrderDetailState>(
+      'un échec de lecture des lignes n\'efface pas la commande déjà chargée',
+      build: () {
+        when(() => repo.getById('o1')).thenAnswer(
+          (_) async => Right(order(PharmacyOrderStatus.received)),
+        );
+        when(() => repo.getPrescriptionItems('o1')).thenAnswer(
+          (_) async => const Left(ServerFailure(message: 'Indisponible.')),
+        );
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(const OrderDetailLoadRequested('o1')),
+      expect: () => [
+        const OrderDetailLoading(),
+        OrderDetailLoaded(order(PharmacyOrderStatus.received)),
+      ],
+    );
+
+    blocTest<OrderDetailBloc, OrderDetailState>(
       'le PDF passe par DocumentReady puis revient à Loaded',
       build: () {
         when(() => repo.getPrescriptionUrl('o1'))
@@ -145,7 +198,110 @@ void main() {
       expect(find.byKey(const Key('order_action_accept')), findsNothing);
       expect(find.byKey(const Key('order_action_ready')), findsNothing);
       expect(find.byKey(const Key('order_action_scan')), findsNothing);
-      expect(find.text('Retirée'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(PickupInfoCard),
+          matching: find.text('Retirée'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('le fil de statut affiche les 4 étapes avec leurs libellés',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.ready)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      for (var i = 0; i < 4; i++) {
+        expect(find.byKey(Key('order_status_step_$i')), findsOneWidget);
+      }
+      expect(find.text('Reçue'), findsWidgets);
+      expect(find.text('Préparation'), findsOneWidget);
+      expect(find.text('Prête'), findsWidgets);
+      expect(find.text('Retirée'), findsWidgets);
+    });
+
+    testWidgets(
+        'pour status == ready, Reçue et Préparation sont franchies (check), '
+        'Prête est courante (numéro 3), Retirée à venir (numéro 4)',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.ready)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byIcon(Icons.check), findsNWidgets(2));
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
+    });
+
+    testWidgets('un statut terminal (rejected) ne fait pas planter le fil',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.rejected)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byType(OrderStatusStepper), findsOneWidget);
+    });
+
+    testWidgets(
+        'les lignes de l\'ordonnance sont affichées avec en-tête, '
+        'bloc prescripteur et quantité (#4877)', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.received),
+          items: prescriptionItems,
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byType(PrescriptionLinesPanel), findsOneWidget);
+      expect(find.text('Ordonnance — 1 ligne'), findsOneWidget);
+      expect(find.text('Prescripteur'), findsOneWidget);
+      expect(find.text('RPPS'), findsOneWidget);
+      expect(find.text('Prescrite le'), findsOneWidget);
+      expect(find.text('Valable jusqu\'au'), findsOneWidget);
+      expect(find.text('Paracétamol 1 g — comprimé'), findsOneWidget);
+      expect(
+        find.text('1 cp × 3 / jour si douleur, 5 jours'),
+        findsOneWidget,
+      );
+      expect(find.text('QSP 15 cp'), findsOneWidget);
+    });
+
+    testWidgets(
+        'aucune ligne d\'ordonnance → le panneau ne s\'affiche pas',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.received)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byType(PrescriptionLinesPanel), findsNothing);
     });
   });
 }

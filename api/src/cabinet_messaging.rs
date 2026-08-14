@@ -111,7 +111,10 @@ pub async fn list_cabinet_conversations(
 
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
     let fetch_limit = limit + 1;
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     // Filtre scope dans la CTE (références à c.scope).
     let scope_filter = match (claims.role.as_str(), params.scope.as_deref()) {
@@ -391,10 +394,12 @@ pub async fn get_cabinet_conversation_messages(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Conversation du cabinet, hors fils cliniques pour un secrétaire (§07 §4.1).
+    // Conversation du cabinet, hors fils cliniques pour un secrétaire (§07 §4.1)
+    // et hors fil de support admin↔plateforme pour tout rôle non-admin (#4843).
     sqlx::query(
         "SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2 \
-         AND (scope != 'clinical' OR $3 != 'secretary')",
+         AND (scope != 'clinical' OR $3 != 'secretary') \
+         AND (scope != 'platform_support' OR $3 = 'admin')",
     )
     .bind(conversation_id)
     .bind(claims.cabinet_id)
@@ -475,10 +480,12 @@ pub async fn send_cabinet_message(
         .map_err(|_| AppError::Internal)?;
 
     // Conversation du cabinet uniquement (RLS + garde explicite), hors fils
-    // cliniques pour un secrétaire (§07 §4.1).
+    // cliniques pour un secrétaire (§07 §4.1) et hors fil de support
+    // admin↔plateforme pour tout rôle non-admin (#4843).
     sqlx::query(
         "SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2 \
-         AND (scope != 'clinical' OR $3 != 'secretary')",
+         AND (scope != 'clinical' OR $3 != 'secretary') \
+         AND (scope != 'platform_support' OR $3 = 'admin')",
     )
     .bind(conversation_id)
     .bind(claims.cabinet_id)
@@ -555,10 +562,12 @@ pub async fn mark_cabinet_conversation_read(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Conversation du cabinet, hors fils cliniques pour un secrétaire (§07 §4.1).
+    // Conversation du cabinet, hors fils cliniques pour un secrétaire (§07 §4.1)
+    // et hors fil de support admin↔plateforme pour tout rôle non-admin (#4843).
     sqlx::query(
         "SELECT 1 FROM conversation WHERE id = $1 AND cabinet_id = $2 \
-         AND (scope != 'clinical' OR $3 != 'secretary')",
+         AND (scope != 'clinical' OR $3 != 'secretary') \
+         AND (scope != 'platform_support' OR $3 = 'admin')",
     )
     .bind(conversation_id)
     .bind(claims.cabinet_id)

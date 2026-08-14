@@ -36,47 +36,59 @@ final class PharmaMessagingConversationsError extends PharmaMessagingState {
 
 final class PharmaMessagingThreadLoading extends PharmaMessagingState {
   final String conversationId;
+  // Liste conservée pendant le chargement du fil pour le layout deux
+  // volets (#4925) : la colonne liste reste affichée sur poste comptoir.
+  final List<CabinetConversation> conversations;
 
-  const PharmaMessagingThreadLoading(this.conversationId);
+  const PharmaMessagingThreadLoading(
+    this.conversationId, {
+    this.conversations = const [],
+  });
 
   @override
-  List<Object?> get props => [conversationId];
+  List<Object?> get props => [conversationId, conversations];
 }
 
 final class PharmaMessagingThreadLoaded extends PharmaMessagingState {
   final CabinetConversation conversation;
   final List<Message> messages;
   final bool sending;
+  final List<CabinetConversation> conversations;
 
   const PharmaMessagingThreadLoaded({
     required this.conversation,
     required this.messages,
     this.sending = false,
+    this.conversations = const [],
   });
 
   PharmaMessagingThreadLoaded copyWith({
     List<Message>? messages,
     bool? sending,
+    List<CabinetConversation>? conversations,
   }) =>
       PharmaMessagingThreadLoaded(
         conversation: conversation,
         messages: messages ?? this.messages,
         sending: sending ?? this.sending,
+        conversations: conversations ?? this.conversations,
       );
 
   @override
-  List<Object?> get props => [conversation, messages, sending];
+  List<Object?> get props => [conversation, messages, sending, conversations];
 }
 
 final class PharmaMessagingThreadError extends PharmaMessagingState {
   final String conversationId;
   final String message;
+  final List<CabinetConversation> conversations;
 
   const PharmaMessagingThreadError({
     required this.conversationId,
     required this.message,
+    this.conversations = const [],
   });
 
   @override
-  List<Object?> get props => [conversationId, message];
+  List<Object?> get props => [conversationId, message, conversations];
 }

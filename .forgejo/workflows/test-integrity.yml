@@ -34,6 +34,8 @@ concurrency:
 jobs:
   integrity:
     runs-on: docker
+    # Garde-fou anti-hang (cf. front-test) : check purement git/diff, très court.
+    timeout-minutes: 15
     container:
       image: node:22-bookworm
     steps:

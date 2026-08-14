@@ -28,6 +28,13 @@ class OrdersFilterChanged extends OrdersEvent {
   List<Object?> get props => [filter];
 }
 
+/// Tick du rafraîchissement périodique auto (poste fixe au comptoir) — vient
+/// s'ajouter au pull-to-refresh tactile, ne le remplace pas. Échec silencieux
+/// (retry au tick suivant), comme le flux temps réel.
+class OrdersAutoRefreshTicked extends OrdersEvent {
+  const OrdersAutoRefreshTicked();
+}
+
 /// Nouvelle photographie de la file reçue du flux temps réel.
 class OrdersStreamUpdated extends OrdersEvent {
   const OrdersStreamUpdated(this.orders);
@@ -36,4 +43,17 @@ class OrdersStreamUpdated extends OrdersEvent {
 
   @override
   List<Object?> get props => [orders];
+}
+
+/// Action de transition émise depuis la ligne — même sémantique que le
+/// détail (`OrderDetailAcceptRequested`/`OrderDetailReadyRequested`) :
+/// received→preparing ou preparing→ready. Le serveur reste l'autorité.
+class OrdersTransitionRequested extends OrdersEvent {
+  const OrdersTransitionRequested(this.orderId, this.target);
+
+  final String orderId;
+  final PharmacyOrderStatus target;
+
+  @override
+  List<Object?> get props => [orderId, target];
 }

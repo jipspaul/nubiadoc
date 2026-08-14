@@ -90,7 +90,10 @@ pub async fn list_quotes(
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
     let fetch_limit = limit + 1;
 
-    let cursor = params.cursor.as_deref().and_then(decode_cursor);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     let status_clause = if params.status.is_some() {
         " AND q.status = $2"
@@ -582,6 +585,7 @@ pub struct PaymentItem {
     pub status: String,
     pub amount_cents: i64,
     pub currency: String,
+    pub method: Option<String>,
     pub created_at: String,
 }
 
@@ -611,7 +615,7 @@ pub async fn list_payments(
     let rows = sqlx::query(
         "SELECT id, quote_id, pharmacy_quote_id, kind, status, \
                 (amount * 100)::bigint AS amount_cents, \
-                currency, created_at \
+                currency, method, created_at \
          FROM payment \
          ORDER BY created_at DESC \
          LIMIT 100",
@@ -638,6 +642,7 @@ pub async fn list_payments(
                 status: r.try_get("status").map_err(|_| AppError::Internal)?,
                 amount_cents: r.try_get("amount_cents").map_err(|_| AppError::Internal)?,
                 currency: currency.trim().to_string(),
+                method: r.try_get("method").map_err(|_| AppError::Internal)?,
                 created_at: created_at.to_rfc3339(),
             })
         })
