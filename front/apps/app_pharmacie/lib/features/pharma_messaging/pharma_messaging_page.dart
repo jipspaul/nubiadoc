@@ -612,6 +612,7 @@ class _MessageBubble extends StatelessWidget {
     final isCabinet = message.sender == MessageSender.cabinet;
     final cs = Theme.of(context).colorScheme;
     final order = message.attachedOrder;
+    final isUrgent = message.urgency == MessageUrgency.urgent;
     return Align(
       alignment: isCabinet ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -623,11 +624,21 @@ class _MessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: isCabinet ? cs.primaryContainer : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
+          border: isUrgent
+              ? Border.all(color: NubiaColors.dangerBorder)
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isUrgent) ...[
+              const NubiaBadge.label(
+                label: 'Urgent',
+                variant: NubiaBadgeVariant.error,
+              ),
+              const SizedBox(height: 6),
+            ],
             Text(
               message.text ?? '',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
