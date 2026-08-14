@@ -49,18 +49,47 @@ class _PharmaMessagingBody extends StatelessWidget {
                   title: 'Aucun message',
                   subtitle: 'Vos conversations patients apparaîtront ici',
                 )
-              : _ConversationsList(conversations: conversations),
-        PharmaMessagingThreadLoading() => const Center(
-            key: Key('pharma_messaging_thread_loading'),
-            child: CircularProgressIndicator(),
+              : _MessagingMasterDetail(
+                  conversations: conversations,
+                  selectedConversationId: null,
+                  detail: null,
+                ),
+        PharmaMessagingThreadLoading(
+          :final conversationId,
+          :final conversations,
+        ) =>
+          _MessagingMasterDetail(
+            conversations: conversations,
+            selectedConversationId: conversationId,
+            detail: const Center(
+              key: Key('pharma_messaging_thread_loading'),
+              child: CircularProgressIndicator(),
+            ),
           ),
-        PharmaMessagingThreadLoaded() => _ThreadView(state: state),
-        PharmaMessagingThreadError(:final message) => NubiaErrorWidget(
-            key: const Key('pharma_messaging_thread_error'),
-            message: message,
-            onRetry: () => context
-                .read<PharmaMessagingBloc>()
-                .add(const PharmaMessagingBackRequested()),
+        PharmaMessagingThreadLoaded(
+          :final conversation,
+          :final conversations
+        ) =>
+          _MessagingMasterDetail(
+            conversations: conversations,
+            selectedConversationId: conversation.id,
+            detail: _ThreadView(state: state),
+          ),
+        PharmaMessagingThreadError(
+          :final conversationId,
+          :final message,
+          :final conversations
+        ) =>
+          _MessagingMasterDetail(
+            conversations: conversations,
+            selectedConversationId: conversationId,
+            detail: NubiaErrorWidget(
+              key: const Key('pharma_messaging_thread_error'),
+              message: message,
+              onRetry: () => context
+                  .read<PharmaMessagingBloc>()
+                  .add(const PharmaMessagingBackRequested()),
+            ),
           ),
       },
     );
@@ -69,10 +98,142 @@ class _PharmaMessagingBody extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _ConversationsList extends StatelessWidget {
-  const _ConversationsList({required this.conversations});
+/// Layout maître-détail (#4925) : sur poste comptoir (>= [_wideBreakpoint]),
+/// la liste des conversations (344px, bordure droite `--n200`) et le fil
+/// ouvert s'affichent côte à côte, coiffés par l'en-tête « Messages ».
+/// En dessous du seuil, un seul volet à la fois — le fil remplace la liste,
+/// comme côté patient.
+class _MessagingMasterDetail extends StatelessWidget {
+  const _MessagingMasterDetail({
+    required this.conversations,
+    required this.selectedConversationId,
+    required this.detail,
+  });
+
+  static const _wideBreakpoint = 900.0;
+  static const _listWidth = 344.0;
 
   final List<CabinetConversation> conversations;
+  final String? selectedConversationId;
+  final Widget? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final unreadConversations =
+        conversations.where((c) => c.unreadCount > 0).length;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= _wideBreakpoint;
+        final list = _ConversationsList(
+          conversations: conversations,
+          selectedConversationId: isWide ? selectedConversationId : null,
+        );
+
+        final Widget body;
+        if (isWide) {
+          body = Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: _listWidth,
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      right: BorderSide(color: NubiaColors.n200),
+                    ),
+                  ),
+                  child: list,
+                ),
+              ),
+              Expanded(
+                child: detail ??
+                    const NubiaEmptyState(
+                      key: Key('pharma_messaging_no_selection'),
+                      icon: Icons.forum_outlined,
+                      title: 'Sélectionnez une conversation',
+                      subtitle:
+                          'Choisissez un patient dans la liste pour afficher le fil.',
+                    ),
+              ),
+            ],
+          );
+        } else {
+          body = detail ?? list;
+        }
+
+        return Column(
+          children: [
+            if (isWide || detail == null)
+              _MessagingHeader(
+                conversationCount: conversations.length,
+                unreadCount: unreadConversations,
+              ),
+            Expanded(child: body),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// En-tête « Messages · X conversations · Y non lues » coiffant les deux
+/// volets sur poste comptoir (maquette design-v2).
+class _MessagingHeader extends StatelessWidget {
+  const _MessagingHeader({
+    required this.conversationCount,
+    required this.unreadCount,
+  });
+
+  final int conversationCount;
+  final int unreadCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final conversationsLabel =
+        conversationCount == 1 ? 'conversation' : 'conversations';
+    final unreadLabel = unreadCount == 1 ? 'non lue' : 'non lues';
+
+    return Container(
+      key: const Key('pharma_messaging_header'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(bottom: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: Text.rich(
+        TextSpan(
+          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          children: [
+            const TextSpan(text: 'Messages'),
+            TextSpan(
+              text:
+                  ' · $conversationCount $conversationsLabel · $unreadCount $unreadLabel',
+              style: textTheme.bodyMedium?.copyWith(
+                color: tokens.textTertiary,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _ConversationsList extends StatelessWidget {
+  const _ConversationsList({
+    required this.conversations,
+    this.selectedConversationId,
+  });
+
+  final List<CabinetConversation> conversations;
+  final String? selectedConversationId;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +246,7 @@ class _ConversationsList extends StatelessWidget {
         final isUnread = conv.unreadCount > 0;
         final isUrgent = conv.lastMessage?.urgency == MessageUrgency.urgent;
         final timestamp = conv.lastMessageAt ?? conv.lastMessage?.sentAt;
+        final isSelected = conv.id == selectedConversationId;
 
         // #3854 : GET /pharmacy/conversations n'a jamais émis `last_message`
         // (objet imbriqué) — seul `last_message_preview` (string) est réel,
@@ -97,7 +259,7 @@ class _ConversationsList extends StatelessWidget {
                 ? '${conv.unreadCount} message(s) non lu(s)'
                 : 'Aucun message');
 
-        return ListRow(
+        final row = ListRow(
           key: Key('conv_${conv.id}'),
           leading: NubiaAvatar(initials: _initials(conv.patientName)),
           title: conv.patientName,
@@ -117,6 +279,18 @@ class _ConversationsList extends StatelessWidget {
           onTap: () => context
               .read<PharmaMessagingBloc>()
               .add(PharmaMessagingThreadOpened(conv)),
+        );
+
+        if (!isSelected) return row;
+
+        return DecoratedBox(
+          decoration: const BoxDecoration(
+            color: NubiaColors.brand50,
+            border: Border(
+              left: BorderSide(color: NubiaColors.brand700, width: 3),
+            ),
+          ),
+          child: row,
         );
       },
     );
