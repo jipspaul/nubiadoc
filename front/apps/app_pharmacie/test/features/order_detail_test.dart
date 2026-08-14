@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -15,6 +16,8 @@ import 'package:app_pharmacie/features/order_detail/order_detail_state.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/order_status_stepper.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/pickup_info_card.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/prescription_lines_panel.dart';
+import 'package:app_pharmacie/features/pickup_scan/pickup_scan_cubit.dart';
+import 'package:app_pharmacie/features/pickup_scan/widgets/manual_code_field.dart';
 
 class MockPharmacyOrdersRepository extends Mock
     implements PharmacyOrdersRepository {}
@@ -221,6 +224,43 @@ void main() {
             reason: 'statut $status → bouton $key');
         await tester.pumpWidget(Container()); // reset entre itérations
       }
+    });
+
+    testWidgets(
+        'le scan de retrait s\'affiche comme panneau (#4886) — l\'ordonnance '
+        'reste visible, pas de navigation', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.ready),
+          items: prescriptionItems,
+        ),
+      );
+      GetIt.instance.registerFactory<PickupScanCubit>(
+        () => PickupScanCubit(
+          confirmPickup: ConfirmPharmacyPickupUseCase(repo),
+        ),
+      );
+      addTearDown(() => GetIt.instance.unregister<PickupScanCubit>());
+
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+
+      await tester.ensureVisible(find.byKey(const Key('order_action_scan')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('order_action_scan')));
+      await tester.pumpAndSettle();
+
+      // Le panneau de scan remplace le bouton, sans navigation : l'ordonnance
+      // (volet gauche) reste affichée en même temps.
+      expect(find.byType(ManualCodeField), findsOneWidget);
+      expect(find.byType(PickupInfoCard), findsOneWidget);
+      expect(find.byType(PrescriptionLinesPanel), findsOneWidget);
+      expect(find.byKey(const Key('order_action_scan')), findsNothing);
     });
 
     testWidgets('aucun bouton d\'action pour un état terminal', (tester) async {

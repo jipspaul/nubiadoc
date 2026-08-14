@@ -7,6 +7,8 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../devis/widgets/quote_composer_sheet.dart';
+import '../pickup_scan/pickup_scan_cubit.dart';
+import '../pickup_scan/pickup_scan_page.dart';
 import 'order_detail_bloc.dart';
 import 'order_detail_event.dart';
 import 'order_detail_state.dart';
@@ -308,7 +310,7 @@ class _BillingRow extends StatelessWidget {
 }
 
 /// Bouton d'action unique selon le statut (aucun pour un état terminal).
-class _ContextualAction extends StatelessWidget {
+class _ContextualAction extends StatefulWidget {
   const _ContextualAction({
     required this.order,
     required this.inProgress,
@@ -327,7 +329,29 @@ class _ContextualAction extends StatelessWidget {
   final int preparedLines;
 
   @override
+  State<_ContextualAction> createState() => _ContextualActionState();
+}
+
+class _ContextualActionState extends State<_ContextualAction> {
+  /// Le scan de retrait est un panneau (pas une page) : l'ordonnance reste
+  /// visible dans le volet gauche pendant le scan — voir #4886. La route
+  /// `/orders/:id/pickup` reste conservée pour l'accès direct.
+  bool _scanning = false;
+
+  @override
+  void didUpdateWidget(covariant _ContextualAction oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.order.id != widget.order.id) {
+      _scanning = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final order = widget.order;
+    final inProgress = widget.inProgress;
+    final totalLines = widget.totalLines;
+    final preparedLines = widget.preparedLines;
     final bloc = context.read<OrderDetailBloc>();
     switch (order.status) {
       case PharmacyOrderStatus.received:
@@ -380,10 +404,16 @@ class _ContextualAction extends StatelessWidget {
           ],
         );
       case PharmacyOrderStatus.ready:
+        if (_scanning) {
+          return BlocProvider<PickupScanCubit>(
+            create: (_) => GetIt.instance<PickupScanCubit>(),
+            child: PickupScanBody(orderId: order.id),
+          );
+        }
         return NubiaButton(
           key: const Key('order_action_scan'),
           label: 'Scanner le retrait',
-          onPressed: () => context.go('/orders/${order.id}/pickup'),
+          onPressed: () => setState(() => _scanning = true),
         );
       case PharmacyOrderStatus.pickedUp:
       case PharmacyOrderStatus.rejected:

@@ -159,7 +159,7 @@ void main() {
       await tester.pumpApp(
         BlocProvider<PickupScanCubit>.value(
           value: cubit,
-          child: const PickupScanBody(orderId: 'o1'),
+          child: const Scaffold(body: PickupScanBody(orderId: 'o1')),
         ),
       );
 
