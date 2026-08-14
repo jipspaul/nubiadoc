@@ -57,26 +57,34 @@ class DevisKpiBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _DevisKpiStat(
-            value: '${kpis.activeCount}',
-            label: 'devis actifs',
+          Expanded(
+            child: _DevisKpiStat(
+              value: '${kpis.activeCount}',
+              label: 'devis actifs',
+            ),
           ),
           const SizedBox(width: 24),
-          _DevisKpiStat(
-            value: '${kpis.pendingCount}',
-            label: 'en attente de réponse',
-            valueColor: tokens.warningFg,
+          Expanded(
+            child: _DevisKpiStat(
+              value: '${kpis.pendingCount}',
+              label: 'en attente de réponse',
+              valueColor: tokens.warningFg,
+            ),
           ),
           const SizedBox(width: 24),
-          _DevisKpiStat(
-            value: '${kpis.draftCount}',
-            label: 'brouillons non envoyés',
-            valueColor: tokens.dangerFg,
+          Expanded(
+            child: _DevisKpiStat(
+              value: '${kpis.draftCount}',
+              label: 'brouillons non envoyés',
+              valueColor: tokens.dangerFg,
+            ),
           ),
           const SizedBox(width: 24),
-          _DevisKpiStat(
-            value: CurrencyUtils.format(kpis.acceptedAmountCents),
-            label: 'montant accepté',
+          Expanded(
+            child: _DevisKpiStat(
+              value: CurrencyUtils.format(kpis.acceptedAmountCents),
+              label: 'montant accepté',
+            ),
           ),
         ],
       ),
