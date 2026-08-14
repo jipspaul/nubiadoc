@@ -363,6 +363,14 @@ class _LoadedViewState extends State<_LoadedView> {
                   ),
                 ),
                 const SizedBox(width: 12),
+                _SessionTotal(
+                  // #3402 — même calcul que le total transmis au POST
+                  // .../acts : somme des `amountCents` des actes enregistrés.
+                  totalCents: session.acts.fold<int>(
+                      0, (sum, act) => sum + (act.amountCents ?? 0)),
+                  textTheme: textTheme,
+                ),
+                const SizedBox(width: 12),
                 NubiaButton(
                   key: const Key('complete_consultation_button'),
                   size: NubiaButtonSize.sm,
@@ -776,6 +784,41 @@ class _PatientIdentitySubtitle extends StatelessWidget {
       style: textTheme.bodySmall?.copyWith(
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
+    );
+  }
+}
+
+/// Total de la séance, barre d'identité patient (#4946) : libellé « TOTAL
+/// SÉANCE » en capitales grises + montant en chiffres tabulaires, aligné à
+/// droite juste avant le bouton « Terminer ». Réutilise le formateur euros
+/// commun du design system ([formatQuoteCents]) pour rester cohérent avec le
+/// reste de l'app.
+class _SessionTotal extends StatelessWidget {
+  const _SessionTotal({required this.totalCents, required this.textTheme});
+
+  final int totalCents;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('consultation_session_total'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          'TOTAL SÉANCE',
+          style: textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          formatQuoteCents(totalCents),
+          style: textTheme.headlineSmall?.copyWith(
+            fontFeatures: tabularFigures,
+          ),
+        ),
+      ],
     );
   }
 }
