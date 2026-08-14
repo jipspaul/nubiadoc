@@ -67,12 +67,62 @@ class OrderRow extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            _PrescriberColumn(order: order),
+            const SizedBox(width: 16),
             OrderStatusPill(status: order.status),
             const SizedBox(width: 8),
             _RowAction(order: order, inProgress: actionInProgress),
           ],
         ),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// Colonne « Prescripteur » : médecin + cabinet en sous-ligne. Savoir de qui
+/// vient l'ordonnance conditionne les questions à poser au patient en cas de
+/// doute. Pas de placeholder si l'un des deux champs manque.
+class _PrescriberColumn extends StatelessWidget {
+  const _PrescriberColumn({required this.order});
+
+  final PharmacyOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = order.prescriberName;
+    if (name == null || name.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final practice = order.prescriberPractice;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 140),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: NubiaColors.n700,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+          if (practice != null && practice.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              practice,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: NubiaColors.n500,
+                  ),
+            ),
+          ],
+        ],
       ),
     );
   }
