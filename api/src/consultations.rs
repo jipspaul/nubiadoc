@@ -647,10 +647,12 @@ pub async fn list_consultations(
             let first_act_ccam_code: Option<String> = r
                 .try_get("first_act_ccam_code")
                 .map_err(|_| AppError::Internal)?;
-            let first_act_label: Option<String> =
-                r.try_get("first_act_label").map_err(|_| AppError::Internal)?;
-            let first_act_tooth: Option<String> =
-                r.try_get("first_act_tooth").map_err(|_| AppError::Internal)?;
+            let first_act_label: Option<String> = r
+                .try_get("first_act_label")
+                .map_err(|_| AppError::Internal)?;
+            let first_act_tooth: Option<String> = r
+                .try_get("first_act_tooth")
+                .map_err(|_| AppError::Internal)?;
             let first_act_amount_cents: Option<i32> = r
                 .try_get("first_act_amount_cents")
                 .map_err(|_| AppError::Internal)?;
