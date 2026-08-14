@@ -185,6 +185,9 @@ class _LoadedViewState extends State<_LoadedView> {
         child: ToothGrid(
           quadrants: FdiQuadrants.permanent,
           keyPrefix: 'act_tooth_picker',
+          // Poste cabinet (PC) : tactile mural ou souris dans la même
+          // séance, cibles 44×50 px (#4940) au lieu des 32×32 par défaut.
+          toothSize: const Size(44, 50),
           colorFor: (code) => code == _selectedTooth
               ? Theme.of(ctx).colorScheme.primary
               : Colors.grey.shade100,
