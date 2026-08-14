@@ -370,6 +370,8 @@ void main() {
         ),
       );
       expect(find.text('1 sur 1 préparées'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('order_action_ready')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('order_action_ready')));
       verify(() => bloc.add(const OrderDetailReadyRequested())).called(1);
     });
