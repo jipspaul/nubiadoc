@@ -574,5 +574,30 @@ void main() {
       }).toDomain();
       expect(session.medicalAlerts, isEmpty);
     });
+
+    test('fromJson remonte patient_birth_date du détail (#4945)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'id': 'cs-6',
+        'appointment_id': 'aa-6',
+        'status': 'in_progress',
+        'acts': [],
+        'patient_name': 'Camille Moreau',
+        'patient_birth_date': '1992-03-12',
+      }).toDomain();
+      final birthDate = session.patientBirthDate;
+      expect(birthDate, isNotNull);
+      expect(birthDate!.year, 1992);
+      expect(birthDate.month, 3);
+      expect(birthDate.day, 12);
+    });
+
+    test('fromJson sans patient_birth_date → null (route start/liste)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'appointment_id': 'aa-7',
+        'consultation_id': 'cs-7',
+        'status': 'in_progress',
+      }).toDomain();
+      expect(session.patientBirthDate, isNull);
+    });
   });
 }

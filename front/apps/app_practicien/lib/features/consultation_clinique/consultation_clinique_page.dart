@@ -267,12 +267,8 @@ class _LoadedViewState extends State<_LoadedView> {
     final state = widget.state;
     final session = state.session;
     final textTheme = Theme.of(context).textTheme;
-    final totalCents = session.acts.fold<int>(
-      0,
-      (sum, a) => sum + (a.amountCents ?? 0),
-    );
 
-    final body = _buildBody(context, state, session, textTheme, totalCents);
+    final body = _buildBody(context, state, session, textTheme);
     final patientId = session.patientId;
     if (patientId == null) return body;
 
@@ -306,7 +302,6 @@ class _LoadedViewState extends State<_LoadedView> {
     ConsultationCliniqueLoaded state,
     ClinicalSession session,
     TextTheme textTheme,
-    int totalCents,
   ) {
     return Column(
       children: [
@@ -316,8 +311,14 @@ class _LoadedViewState extends State<_LoadedView> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: NubiaCard(
+            key: const Key('patient_identity_bar'),
             child: Row(
               children: [
+                NubiaAvatar(
+                  initials: _patientInitials(session.patientName),
+                  radius: 20,
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,8 +327,11 @@ class _LoadedViewState extends State<_LoadedView> {
                         children: [
                           Flexible(
                             child: Text(
-                              'Consultation au fauteuil',
-                              style: textTheme.titleMedium,
+                              session.patientName?.trim().isNotEmpty == true
+                                  ? session.patientName!.trim()
+                                  : 'Patient',
+                              style: textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -337,22 +341,23 @@ class _LoadedViewState extends State<_LoadedView> {
                                 ? 'Annulée'
                                 : session.isCompleted
                                     ? 'Terminée'
-                                    : 'En cours',
+                                    : 'Séance en cours',
                             variant: session.isCancelled
                                 ? StatusPillVariant.warning
                                 : session.isCompleted
                                     ? StatusPillVariant.success
                                     : StatusPillVariant.info,
+                            icon: session.isCancelled || session.isCompleted
+                                ? null
+                                : Icons.info_outline,
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '${session.acts.length} acte(s) CCAM · ${_euros(totalCents)}',
-                        style: textTheme.bodySmall?.copyWith(
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      _PatientIdentitySubtitle(
+                        birthDate: session.patientBirthDate,
+                        practitionerName: session.practitionerName,
+                        textTheme: textTheme,
                       ),
                     ],
                   ),
@@ -741,6 +746,70 @@ String _formatTime(DateTime dt) {
   final hh = d.hour.toString().padLeft(2, '0');
   final min = d.minute.toString().padLeft(2, '0');
   return '$hh:$min';
+}
+
+/// Sous-titre de la barre d'identité patient (#4945) — « âge ans · né(e) le
+/// JJ/MM/AAAA · praticien ». N'affiche que les segments dont la donnée est
+/// disponible (ex. date de naissance absente du dossier patient).
+class _PatientIdentitySubtitle extends StatelessWidget {
+  const _PatientIdentitySubtitle({
+    required this.birthDate,
+    required this.practitionerName,
+    required this.textTheme,
+  });
+
+  final DateTime? birthDate;
+  final String? practitionerName;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final practitioner = practitionerName?.trim();
+    final parts = <String>[
+      if (birthDate != null) '${_age(birthDate!)} ans',
+      if (birthDate != null) 'né(e) le ${_formatBirthDate(birthDate!)}',
+      if (practitioner != null && practitioner.isNotEmpty) practitioner,
+    ];
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Text(
+      parts.join(' · '),
+      style: textTheme.bodySmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+/// Initiales (max 2 lettres) du patient pour l'avatar de la barre d'identité
+/// (#4945) — même convention que `waiting_room_page.dart::_initials`.
+String _patientInitials(String? patientName) {
+  final name = patientName?.trim() ?? '';
+  final parts =
+      name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+      .toUpperCase();
+}
+
+/// Âge en années révolues à partir d'une date de naissance (heure locale).
+int _age(DateTime birthDate) {
+  final now = DateTime.now();
+  final d = birthDate.toLocal();
+  var age = now.year - d.year;
+  if (now.month < d.month || (now.month == d.month && now.day < d.day)) {
+    age--;
+  }
+  return age;
+}
+
+/// Date de naissance JJ/MM/AAAA (heure locale) — format imposé par la
+/// maquette design-v2 pour la barre d'identité patient (#4945).
+String _formatBirthDate(DateTime dt) {
+  final d = dt.toLocal();
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  return '$dd/$mm/${d.year}';
 }
 
 /// Formatte un montant en centimes vers un libellé euros.

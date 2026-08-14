@@ -70,6 +70,9 @@ class ClinicalSessionDto {
   /// `practitioner.display_name` de la liste et du détail.
   final String? practitionerName;
 
+  /// Date de naissance du patient (`YYYY-MM-DD`, détail uniquement — #4945).
+  final String? patientBirthDate;
+
   /// Alertes du dossier patient (détail uniquement, absent de la route liste
   /// — #4936). Vide par défaut.
   final List<MedicalAlert> medicalAlerts;
@@ -84,6 +87,7 @@ class ClinicalSessionDto {
     this.patientId,
     this.startedAt,
     this.practitionerName,
+    this.patientBirthDate,
     this.medicalAlerts = const [],
   });
 
@@ -104,6 +108,7 @@ class ClinicalSessionDto {
         practitionerName:
             (json['practitioner'] as Map<String, dynamic>?)?['display_name']
                 as String?,
+        patientBirthDate: json['patient_birth_date'] as String?,
         medicalAlerts: (json['medical_alerts'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(
@@ -125,6 +130,9 @@ class ClinicalSessionDto {
     patientId: patientId,
     startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
     practitionerName: practitionerName,
+    patientBirthDate: patientBirthDate == null
+        ? null
+        : DateTime.tryParse(patientBirthDate!),
     medicalAlerts: medicalAlerts,
   );
 }

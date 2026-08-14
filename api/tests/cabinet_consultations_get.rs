@@ -301,6 +301,8 @@ async fn consultation_get_practitioner_returns_200() {
     );
     assert_eq!(v["practitioner"]["id"], prac_id.to_string());
     assert_eq!(v["practitioner"]["display_name"], "Dr. Test Consultation");
+    // #4945 — barre d'identité patient : nom du patient de la séance.
+    assert_eq!(v["patient_name"], "Patient Consultation");
     assert!(v["acts"].is_array(), "acts doit être un tableau");
     // #4936 — pas de dossier médical pour ce patient → aucune alerte inventée.
     assert_eq!(v["medical_alerts"], serde_json::json!([]));
@@ -403,6 +405,68 @@ async fn consultation_get_returns_medical_alerts_from_record() {
             .ok();
         tx.commit().await.ok();
     }
+    cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
+}
+
+// ── Test : date de naissance du patient renvoyée (#4945 — barre d'identité) ───
+
+#[tokio::test]
+async fn consultation_get_returns_patient_birth_date() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_consultation_fixture(&db).await;
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE patient SET birth_date = '1992-03-12' WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(v["patient_birth_date"], "1992-03-12");
+
     cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
 }
 

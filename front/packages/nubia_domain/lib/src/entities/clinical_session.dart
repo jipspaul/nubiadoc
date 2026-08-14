@@ -62,6 +62,11 @@ class ClinicalSession extends Equatable {
   /// la consultation d'un confrère dans l'historique).
   final String? practitionerName;
 
+  /// Date de naissance du patient de la séance (#4945 — barre d'identité
+  /// patient, sous-titre « <âge> ans · née le JJ/MM/AAAA »). `null` si
+  /// absente du dossier patient.
+  final DateTime? patientBirthDate;
+
   /// Alertes médicales du dossier patient (détail uniquement — absent de la
   /// route liste, #4936). Liste vide si le dossier n'a aucune alerte.
   final List<MedicalAlert> medicalAlerts;
@@ -76,6 +81,7 @@ class ClinicalSession extends Equatable {
     this.patientId,
     this.startedAt,
     this.practitionerName,
+    this.patientBirthDate,
     this.medicalAlerts = const [],
   });
 
@@ -100,6 +106,7 @@ class ClinicalSession extends Equatable {
         patientId,
         startedAt,
         practitionerName,
+        patientBirthDate,
         medicalAlerts,
       ];
 }
