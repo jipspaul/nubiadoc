@@ -5,6 +5,10 @@ class CabinetConversation extends Equatable {
   final String id;
   final String patientId;
   final String patientName;
+
+  /// Téléphone du patient (`patient_phone`, #4926 colonne contexte) —
+  /// `null` quand le contrat back ne l'expose pas encore.
+  final String? patientPhone;
   final int unreadCount;
   final DateTime? lastMessageAt;
   final Message? lastMessage;
@@ -17,15 +21,26 @@ class CabinetConversation extends Equatable {
   /// message, qui peut être un message normal postérieur.
   final MessageUrgency triageFlag;
 
+  /// Référence de la commande liée à la conversation (ex. `CMD-4821`, #4923).
+  /// `null` quand la conversation n'est rattachée à aucune commande.
+  final String? orderRef;
+
+  /// Libellé court du statut de la commande liée (ex. « Prête », « En
+  /// prépa », #4923). `null` quand [orderRef] est `null`.
+  final String? orderStatusLabel;
+
   const CabinetConversation({
     required this.id,
     required this.patientId,
     required this.patientName,
+    this.patientPhone,
     required this.unreadCount,
     this.lastMessageAt,
     this.lastMessage,
     this.lastMessagePreview,
     this.triageFlag = MessageUrgency.normal,
+    this.orderRef,
+    this.orderStatusLabel,
   });
 
   @override

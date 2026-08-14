@@ -42,14 +42,29 @@ class PickupScanMismatch extends PickupScanState {
   List<Object?> get props => [expectedOrderId, scannedOrder];
 }
 
+/// Cause précise d'un refus de scan — permet à l'UI d'afficher une conduite
+/// distincte pour chacune des trois erreurs (#4884) plutôt qu'un texte
+/// générique unique.
+enum PickupScanInvalidCause {
+  /// 404 — le code ne correspond à aucun token connu.
+  unknownCode,
+
+  /// 409 — le code est connu mais la commande n'est pas au bon statut.
+  wrongStatus,
+
+  /// 410 — le code était valide mais a expiré.
+  expired,
+}
+
 /// Code refusé (409 statut, 410 expiré, 404 inconnu) — message actionnable.
 class PickupScanInvalidCode extends PickupScanState {
-  const PickupScanInvalidCode(this.message);
+  const PickupScanInvalidCode(this.message, this.cause);
 
   final String message;
+  final PickupScanInvalidCause cause;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, cause];
 }
 
 class PickupScanError extends PickupScanState {
@@ -78,11 +93,9 @@ class PickupScanCubit extends Cubit<PickupScanState> {
     final result = await _confirmPickup(trimmed);
     result.fold(
       (failure) {
-        final invalid = failure is NotFoundFailure ||
-            (failure is ServerFailure &&
-                (failure.statusCode == 409 || failure.statusCode == 410));
-        if (invalid) {
-          emit(PickupScanInvalidCode(failure.message));
+        final cause = _invalidCause(failure);
+        if (cause != null) {
+          emit(PickupScanInvalidCode(failure.message, cause));
         } else {
           emit(PickupScanError(failure.message));
         }
@@ -105,4 +118,15 @@ class PickupScanCubit extends Cubit<PickupScanState> {
 
   /// Repart pour un nouveau scan après un échec.
   void reset() => emit(const PickupScanIdle());
+
+  /// 404/409/410 sont trois causes distinctes (#4884) — `null` pour les
+  /// autres échecs (réseau, etc.), qui restent des `PickupScanError`.
+  PickupScanInvalidCause? _invalidCause(Failure failure) {
+    if (failure is NotFoundFailure) return PickupScanInvalidCause.unknownCode;
+    if (failure is ServerFailure) {
+      if (failure.statusCode == 409) return PickupScanInvalidCause.wrongStatus;
+      if (failure.statusCode == 410) return PickupScanInvalidCause.expired;
+    }
+    return null;
+  }
 }

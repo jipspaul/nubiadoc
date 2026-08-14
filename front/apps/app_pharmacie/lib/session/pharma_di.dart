@@ -29,6 +29,8 @@ void registerPharma(GetIt gi) {
     () => OrdersBloc(
       list: gi<ListPharmacyOrdersUseCase>(),
       watch: gi<WatchPharmacyOrdersUseCase>(),
+      accept: gi<AcceptPharmacyOrderUseCase>(),
+      ready: gi<MarkPharmacyOrderReadyUseCase>(),
     ),
   );
 
@@ -44,6 +46,7 @@ void registerPharma(GetIt gi) {
       listConversations: gi<ListCabinetConversationsUseCase>(),
       getMessages: gi<GetCabinetConversationUseCase>(),
       sendMessage: gi<SendMessageCabinetUseCase>(),
+      listOrders: gi<ListPharmacyOrdersUseCase>(),
     ),
   );
 

@@ -5,6 +5,9 @@ class PharmacyOrderDto {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+  final String? orderRef;
+  final String? prescriberName;
+  final String? prescriberPractice;
   final String prescriptionId;
   final String status;
   final String? rejectionReason;
@@ -12,6 +15,7 @@ class PharmacyOrderDto {
   final String? updatedAt;
   final String? readyAt;
   final String? pickedUpAt;
+  final int? lineCount;
   final int? billingTotalCents;
   final int? billingAmoShareCents;
   final int? billingAmcShareCents;
@@ -22,6 +26,9 @@ class PharmacyOrderDto {
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.orderRef,
+    this.prescriberName,
+    this.prescriberPractice,
     required this.prescriptionId,
     required this.status,
     this.rejectionReason,
@@ -29,6 +36,7 @@ class PharmacyOrderDto {
     this.updatedAt,
     this.readyAt,
     this.pickedUpAt,
+    this.lineCount,
     this.billingTotalCents,
     this.billingAmoShareCents,
     this.billingAmcShareCents,
@@ -41,6 +49,9 @@ class PharmacyOrderDto {
         pharmacyId: json['pharmacy_id'] as String? ?? '',
         pharmacyName: json['pharmacy_name'] as String?,
         patientDisplayName: json['patient_display_name'] as String?,
+        orderRef: json['order_ref'] as String?,
+        prescriberName: json['prescriber_name'] as String?,
+        prescriberPractice: json['prescriber_practice'] as String?,
         prescriptionId: json['prescription_id'] as String? ?? '',
         status: json['status'] as String? ?? 'received',
         rejectionReason: json['rejection_reason'] as String?,
@@ -49,6 +60,8 @@ class PharmacyOrderDto {
         updatedAt: json['updated_at'] as String?,
         readyAt: json['ready_at'] as String?,
         pickedUpAt: json['picked_up_at'] as String?,
+        lineCount: json['line_count'] as int? ??
+            (json['lines'] as List?)?.length,
         billingTotalCents: (json['billing_total_cents'] as num?)?.toInt(),
         billingAmoShareCents:
             (json['billing_amo_share_cents'] as num?)?.toInt(),
@@ -65,6 +78,9 @@ class PharmacyOrderDto {
       pharmacyId: pharmacyId,
       pharmacyName: pharmacyName,
       patientDisplayName: patientDisplayName,
+      orderRef: orderRef,
+      prescriberName: prescriberName,
+      prescriberPractice: prescriberPractice,
       prescriptionId: prescriptionId,
       status: parseStatus(status),
       rejectionReason: rejectionReason,
@@ -72,6 +88,7 @@ class PharmacyOrderDto {
       updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : created,
       readyAt: readyAt != null ? DateTime.parse(readyAt!) : null,
       pickedUpAt: pickedUpAt != null ? DateTime.parse(pickedUpAt!) : null,
+      lineCount: lineCount,
       billingTotalCents: billingTotalCents,
       billingAmoShareCents: billingAmoShareCents,
       billingAmcShareCents: billingAmcShareCents,

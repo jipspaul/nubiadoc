@@ -28,16 +28,31 @@ class NubiaChip extends StatelessWidget {
     this.variant = NubiaChipVariant.filter,
     this.selected = false,
     this.icon,
+    this.count,
     this.onTap,
     this.onRemove,
+    this.selectedBackground,
+    this.selectedForeground,
   });
 
   final String label;
   final NubiaChipVariant variant;
   final bool selected;
   final IconData? icon;
+
+  /// Badge numérique optionnel affiché à droite du libellé. `null` = pas de badge.
+  final int? count;
   final VoidCallback? onTap;
   final VoidCallback? onRemove;
+
+  /// Fond de l'état sélectionné. `null` = ton émeraude par défaut
+  /// (`brand50`/`brand200`). Permet un ton alternatif (ex. `n900` pour une
+  /// facette « active » sombre) sans changer le comportement des chips
+  /// existants.
+  final Color? selectedBackground;
+
+  /// Texte/icône de l'état sélectionné quand [selectedBackground] est fourni.
+  final Color? selectedForeground;
 
   @override
   Widget build(BuildContext context) {
@@ -45,11 +60,19 @@ class NubiaChip extends StatelessWidget {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
     final bool enabled = onTap != null || onRemove != null;
+    final bool customTone = selected && selectedBackground != null;
 
-    final Color background =
-        selected ? NubiaColors.brand50 : Colors.transparent;
-    Color borderColor = selected ? NubiaColors.brand200 : tokens.borderDefault;
-    Color foreground = selected ? NubiaColors.brand800 : scheme.onSurface;
+    final Color background = selected
+        ? (selectedBackground ?? NubiaColors.brand50)
+        : Colors.transparent;
+    Color borderColor = selected
+        ? (selectedBackground ?? NubiaColors.brand200)
+        : tokens.borderDefault;
+    Color foreground = selected
+        ? (customTone
+            ? (selectedForeground ?? scheme.onSurface)
+            : NubiaColors.brand800)
+        : scheme.onSurface;
     if (!enabled) {
       foreground = tokens.textTertiary;
       if (!selected) borderColor = tokens.borderSubtle;
@@ -72,6 +95,31 @@ class NubiaChip extends StatelessWidget {
               color: foreground,
             ),
           ),
+          if (count != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: selected
+                    ? (customTone
+                        ? foreground.withOpacity(0.2)
+                        : NubiaColors.brand200)
+                    : NubiaColors.n100,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$count',
+                style: textTheme.labelSmall?.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: selected
+                      ? (customTone ? foreground : NubiaColors.brand800)
+                      : NubiaColors.n600,
+                ),
+              ),
+            ),
+          ],
           if (variant == NubiaChipVariant.input) ...[
             const SizedBox(width: 6),
             InkWell(

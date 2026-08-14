@@ -58,6 +58,9 @@ class MessageDto {
   final String urgency;
   final String sentAt;
   final String? readAt;
+  final String? orderRef;
+  final int? orderLineCount;
+  final int? orderAmountDueCents;
 
   const MessageDto({
     required this.id,
@@ -68,6 +71,9 @@ class MessageDto {
     required this.urgency,
     required this.sentAt,
     this.readAt,
+    this.orderRef,
+    this.orderLineCount,
+    this.orderAmountDueCents,
   });
 
   /// Contrat réel : {id, body, sender, created_at, read_at} — pas de
@@ -89,6 +95,9 @@ class MessageDto {
         urgency: json['urgency'] as String? ?? 'normal',
         sentAt: (json['sent_at'] as String?) ?? (json['created_at'] as String),
         readAt: json['read_at'] as String?,
+        orderRef: json['order_ref'] as String?,
+        orderLineCount: (json['order_line_count'] as num?)?.toInt(),
+        orderAmountDueCents: (json['order_amount_due_cents'] as num?)?.toInt(),
       );
 
   Message toDomain() => Message(
@@ -102,5 +111,12 @@ class MessageDto {
             urgency == 'urgent' ? MessageUrgency.urgent : MessageUrgency.normal,
         sentAt: DateTime.parse(sentAt),
         readAt: readAt == null ? null : DateTime.parse(readAt!),
+        attachedOrder: orderRef == null
+            ? null
+            : MessageOrderAttachment(
+                orderRef: orderRef!,
+                lineCount: orderLineCount ?? 0,
+                amountDueCents: orderAmountDueCents ?? 0,
+              ),
       );
 }

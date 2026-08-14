@@ -43,6 +43,10 @@ class Message extends Equatable {
   final DateTime sentAt;
   final DateTime? readAt;
 
+  /// Commande jointe au message (#4924), affichée en carte dans le fil.
+  /// `null` quand le message ne porte aucune commande.
+  final MessageOrderAttachment? attachedOrder;
+
   const Message({
     required this.id,
     required this.conversationId,
@@ -52,8 +56,26 @@ class Message extends Equatable {
     required this.urgency,
     required this.sentAt,
     this.readAt,
+    this.attachedOrder,
   });
 
   @override
   List<Object?> get props => [id];
+}
+
+/// Référence de commande jointe à un [Message] (#4924) — n° de commande,
+/// nombre de lignes et reste à payer, affichés en carte dans le fil.
+class MessageOrderAttachment extends Equatable {
+  final String orderRef;
+  final int lineCount;
+  final int amountDueCents;
+
+  const MessageOrderAttachment({
+    required this.orderRef,
+    required this.lineCount,
+    required this.amountDueCents,
+  });
+
+  @override
+  List<Object?> get props => [orderRef, lineCount, amountDueCents];
 }
