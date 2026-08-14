@@ -8,6 +8,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'ccam_picker.dart';
 import 'cr_template_picker.dart';
 import 'sterilization_scan_page.dart';
+import 'widgets/recent_sessions_box.dart';
 import '../dental_chart/tooth_grid.dart';
 import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
@@ -250,6 +251,42 @@ class _LoadedViewState extends State<_LoadedView> {
       (sum, a) => sum + (a.amountCents ?? 0),
     );
 
+    final body = _buildBody(context, state, session, textTheme, totalCents);
+    final patientId = session.patientId;
+    if (patientId == null) return body;
+
+    // Colonne de contexte gauche (≥ 1280 px) — encart « Dernières séances »
+    // du patient de la séance en cours (#4937).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1280) return body;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 280,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 0, 16),
+                child: RecentSessionsBox(
+                  patientId: patientId,
+                  excludeSessionId: session.id,
+                ),
+              ),
+            ),
+            Expanded(child: body),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    ConsultationCliniqueLoaded state,
+    ClinicalSession session,
+    TextTheme textTheme,
+    int totalCents,
+  ) {
     return Column(
       children: [
         if (state.actionInProgress)
@@ -651,6 +688,16 @@ class _SideColumn extends StatelessWidget {
 /// Formatte un montant en centimes vers un libellé euros.
 String _euros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
 
+/// Date courte JJ/MM (heure locale) — réutilisée par [_HistoriqueTile] et par
+/// `RecentSessionsBox` (#4937, encart « Dernières séances ») pour éviter de
+/// dupliquer le format de date.
+String formatShortDate(DateTime dt) {
+  final d = dt.toLocal();
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  return '$dd/$mm';
+}
+
 // ---------------------------------------------------------------------------
 
 class _ActTile extends StatelessWidget {
@@ -777,11 +824,9 @@ class _HistoriqueTile extends StatelessWidget {
 
   String _formatStart(DateTime dt) {
     final d = dt.toLocal();
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
     final hh = d.hour.toString().padLeft(2, '0');
     final min = d.minute.toString().padLeft(2, '0');
-    return '$dd/$mm $hh:$min';
+    return '${formatShortDate(dt)} $hh:$min';
   }
 
   StatusPillVariant get _statusVariant {

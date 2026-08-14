@@ -63,6 +63,9 @@ pub struct ConsultationContextResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
     pub acts: Vec<ConsultationActItem>,
+    /// Patient de la séance — sert au cloisonnement de l'historique
+    /// « Dernières séances » (#4937, filtre `patient_id` sur `listSessions`).
+    pub patient_id: Uuid,
     /// Alertes médicales du dossier patient (allergies + flags médico-légaux
     /// structurés, #4103). Tableau vide si le dossier n'a aucune alerte —
     /// jamais d'entrée inventée côté front (#4936).
@@ -92,12 +95,15 @@ pub async fn get_consultation_context(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Séance + display_name du praticien via provider (peut être NULL si provider absent).
+    // Séance + display_name du praticien via provider (peut être NULL si provider absent)
+    // + patient_id de l'appointment (#4937 — cloisonnement de l'historique patient).
     let session_row = sqlx::query(
         "SELECT cs.id, cs.appointment_id, cs.practitioner_id, cs.status, \
                 cs.started_at, cs.completed_at, cs.note_ciphertext, cs.note_key_ref, \
+                a.patient_id, \
                 COALESCE(p.display_name, '') AS display_name \
          FROM consultation_session cs \
+         JOIN appointment a ON a.id = cs.appointment_id \
          LEFT JOIN provider p ON p.practitioner_id = cs.practitioner_id \
                               AND p.cabinet_id = cs.cabinet_id \
          WHERE cs.id = $1 AND cs.cabinet_id = $2",
@@ -119,16 +125,19 @@ pub async fn get_consultation_context(
     let status: String = session_row
         .try_get("status")
         .map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = session_row
+        .try_get("patient_id")
+        .map_err(|_| AppError::Internal)?;
 
     // RLS strict E.2.16.c : le praticien appelant doit avoir eu au moins un
     // appointment avec le patient de cette séance (§14 — miroir de medical_record.rs).
     let has_appointment = sqlx::query(
         "SELECT 1 FROM appointment a \
          JOIN practitioner p ON p.id = a.practitioner_id \
-         WHERE a.patient_id = (SELECT patient_id FROM appointment WHERE id = $1 AND cabinet_id = $2) \
+         WHERE a.patient_id = $1 \
            AND a.cabinet_id = $2 AND p.user_id = $3 AND a.deleted_at IS NULL",
     )
-    .bind(appointment_id)
+    .bind(patient_id)
     .bind(claims.cabinet_id)
     .bind(claims.sub)
     .fetch_optional(&mut *tx)
@@ -171,15 +180,8 @@ pub async fn get_consultation_context(
 
     // Alertes du dossier (#4936) — dernier dossier médical du patient de la
     // séance (même requête que `consultation_act_create.rs::add_consultation_act`
-    // pour la garde anticoagulants).
-    let patient_id: Uuid =
-        sqlx::query_scalar("SELECT patient_id FROM appointment WHERE id = $1 AND cabinet_id = $2")
-            .bind(appointment_id)
-            .bind(claims.cabinet_id)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
-
+    // pour la garde anticoagulants). `patient_id` déjà récupéré via la jointure
+    // `appointment` ci-dessus (#4937).
     let record_row = sqlx::query(
         "SELECT data_ciphertext FROM medical_record \
          WHERE patient_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
@@ -252,6 +254,7 @@ pub async fn get_consultation_context(
         },
         note,
         acts,
+        patient_id,
         medical_alerts,
     }))
 }

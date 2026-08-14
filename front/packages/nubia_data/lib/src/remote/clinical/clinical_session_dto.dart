@@ -62,6 +62,7 @@ class ClinicalSessionDto {
   final List<ClinicalActDto> acts;
   final String? note;
   final String? patientName;
+  final String? patientId;
   final String? startedAt;
 
   /// Nom affichable du praticien propriétaire de la séance (#3403 — distinguer
@@ -80,6 +81,7 @@ class ClinicalSessionDto {
     required this.acts,
     this.note,
     this.patientName,
+    this.patientId,
     this.startedAt,
     this.practitionerName,
     this.medicalAlerts = const [],
@@ -97,6 +99,7 @@ class ClinicalSessionDto {
             .toList(),
         note: json['note'] as String?,
         patientName: json['patient_name'] as String?,
+        patientId: json['patient_id'] as String?,
         startedAt: json['started_at'] as String?,
         practitionerName:
             (json['practitioner'] as Map<String, dynamic>?)?['display_name']
@@ -119,6 +122,7 @@ class ClinicalSessionDto {
     acts: acts.map((a) => a.toDomain()).toList(),
     note: note,
     patientName: patientName,
+    patientId: patientId,
     startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
     practitionerName: practitionerName,
     medicalAlerts: medicalAlerts,
