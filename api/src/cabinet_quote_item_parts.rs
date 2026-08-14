@@ -7,21 +7,23 @@
 //! jamais garantie exacte). Trace l'ancien et le nouveau montant dans
 //! `audit_log` (append-only, `metadata` jsonb).
 //! Quand : après clôture/signature d'un devis — reste possible sur un devis
-//! `signed` (cette route ne touche que `quote_item`, jamais `quote`, donc le
-//! trigger `enforce_quote_immutable`, migration 0051, ne s'applique pas ici),
-//! MAIS bornée : sur un devis `signed`, la part patient de la ligne
-//! (`amount − amo_part − amc_part`) ne peut pas AUGMENTER par rapport à sa
-//! valeur au moment de l'appel → 409 `quote_locked` sinon (#4873). Sans ça,
-//! réduire `amo_part`/`amc_part` après signature fait grimper le reste à
-//! charge au-delà de ce que le patient a consenti en signant, alors que tous
-//! les plafonds de paiement (`billing_payments.rs`,
+//! `sent` ou `signed` (cette route ne touche que `quote_item`, jamais
+//! `quote`, donc le trigger `enforce_quote_immutable`, migration 0051, ne
+//! s'applique pas ici), MAIS bornée : sur un devis non-`draft`, la part
+//! patient de la ligne (`amount − amo_part − amc_part`) ne peut pas
+//! AUGMENTER par rapport à sa valeur au moment de l'appel → 409
+//! `quote_locked` sinon (#4873, #5473). Sans ça, réduire
+//! `amo_part`/`amc_part` après envoi/signature fait grimper le reste à
+//! charge au-delà de ce que le patient a vu/consenti, alors que tous les
+//! plafonds de paiement (`billing_payments.rs`,
 //! `cabinet_payments_manual.rs`, `payment_schedules.rs`) recalculent la part
 //! patient en direct depuis `quote_item`.
 //! Pourquoi un module dédié : `cabinet_quotes.rs` était déjà à 604 lignes
 //! (CLAUDE.md plafond 700), même pattern que `cabinet_quotes_patch.rs`.
 //! Modes d'échec : ligne inexistante/hors devis/hors cabinet → 404 ; aucun
 //! des deux champs fourni ou valeur négative → 422 ; somme > montant ligne
-//! → 422 ; devis `signed` et part patient de la ligne en hausse → 409.
+//! → 422 ; devis non-`draft` (`sent`/`signed`) et part patient de la ligne
+//! en hausse → 409.
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -60,10 +62,10 @@ pub struct PatchQuoteItemPartsResponse {
 ///   valeur actuelle) ne doit pas dépasser le montant de la ligne → 422
 ///   sinon (#4309) — sinon le reste à charge patient devient négatif.
 /// - Ligne inexistante, hors devis (`:id`) ou hors cabinet → 404.
-/// - Fonctionne quel que soit `quote.status` (y compris `signed`), mais si
-///   `signed`, la part patient de la ligne ne peut pas augmenter par rapport
-///   à sa valeur actuelle → 409 `quote_locked` sinon (#4873, voir
-///   commentaire de module).
+/// - Fonctionne quel que soit `quote.status`, mais si non-`draft`
+///   (`sent`/`signed`), la part patient de la ligne ne peut pas augmenter
+///   par rapport à sa valeur actuelle → 409 `quote_locked` sinon (#4873,
+///   #5473, voir commentaire de module).
 /// - Trace `{old,new}_{amo,amc}_part_cents` dans `audit_log.metadata`
 ///   (action `reallocate_quote_item_parts`, append-only).
 pub async fn patch_quote_item_parts(
@@ -124,14 +126,16 @@ pub async fn patch_quote_item_parts(
         return Err(AppError::ValidationError);
     }
 
-    // #4873 : un devis signé fige le reste à charge consenti par le
-    // patient. `enforce_quote_immutable` (migration 0051) ne porte que sur
-    // `quote`, pas `quote_item` — sans ce garde-fou, réduire amo/amc_part
-    // après signature ferait grimper la part patient recalculée en direct
-    // par tous les plafonds de paiement, au-delà de ce que le patient a
-    // signé. Les corrections qui baissent (ou laissent inchangée) la part
-    // patient de la ligne restent autorisées (#4069).
-    if quote_status == "signed" {
+    // #4873/#5473 : un devis `sent` (déjà vu par le patient, #4432) ou
+    // `signed` fige le reste à charge consenti par le patient.
+    // `enforce_quote_immutable` (migration 0051) ne porte que sur `quote`,
+    // pas `quote_item` — sans ce garde-fou, réduire amo/amc_part sur un
+    // devis `sent` ou `signed` ferait grimper la part patient recalculée en
+    // direct par tous les plafonds de paiement, au-delà de ce que le
+    // patient a vu/consenti. Les corrections qui baissent (ou laissent
+    // inchangée) la part patient de la ligne restent autorisées (#4069),
+    // et `draft` reste librement éditable.
+    if quote_status != "draft" {
         let old_patient_share = amount_cents - old_amo - old_amc;
         let new_patient_share = amount_cents - effective_amo - effective_amc;
         if new_patient_share > old_patient_share {
