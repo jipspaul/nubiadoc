@@ -36,7 +36,13 @@ class PatientAlertsBox extends StatelessWidget {
             children: [
               Icon(Icons.warning, size: 18, color: tokens.warningFg),
               const SizedBox(width: 8),
-              Text('Alertes du dossier', style: textTheme.titleSmall),
+              Flexible(
+                child: Text(
+                  'Alertes du dossier',
+                  style: textTheme.titleSmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),

@@ -10,6 +10,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'package:app_practicien/features/consultation_clinique/ccam_picker.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_bloc.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_page.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_state.dart';
