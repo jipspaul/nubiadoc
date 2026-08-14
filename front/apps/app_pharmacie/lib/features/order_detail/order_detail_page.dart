@@ -35,8 +35,18 @@ class OrderDetailPage extends StatelessWidget {
 }
 
 /// Corps de l'écran détail — public pour les tests widget.
-class OrderDetailBody extends StatelessWidget {
+class OrderDetailBody extends StatefulWidget {
   const OrderDetailBody({super.key});
+
+  @override
+  State<OrderDetailBody> createState() => _OrderDetailBodyState();
+}
+
+class _OrderDetailBodyState extends State<OrderDetailBody> {
+  /// Index des lignes cochées (préparées) — geste d'interface, conservé
+  /// pendant la préparation ; ne déclenche à lui seul aucune transition
+  /// serveur (voir ticket compteur/gating).
+  final Set<int> _checkedLines = {};
 
   @override
   Widget build(BuildContext context) {
@@ -154,6 +164,14 @@ class OrderDetailBody extends StatelessWidget {
           const SizedBox(height: 16),
           PrescriptionLinesPanel(
             items: items,
+            checkedLines: _checkedLines,
+            onLineCheckedChanged: (index, checked) => setState(() {
+              if (checked) {
+                _checkedLines.add(index);
+              } else {
+                _checkedLines.remove(index);
+              }
+            }),
             onOpenDocument: () => context
                 .read<OrderDetailBloc>()
                 .add(const OrderDetailDocumentRequested()),
@@ -228,13 +246,13 @@ class _ContextualActionState extends State<_ContextualAction> {
                   ? null
                   : () => bloc.add(const OrderDetailAcceptRequested()),
             ),
-            const SizedBox(height: 8),
-            NubiaButton(
-              key: const Key('order_action_reject'),
-              label: 'Refuser la commande',
-              variant: NubiaButtonVariant.secondary,
-              onPressed:
-                  inProgress ? null : () => _askRejectReason(context, bloc),
+            const SizedBox(height: 24),
+            Center(
+              child: _RejectLink(
+                key: const Key('order_action_reject'),
+                enabled: !inProgress,
+                onPressed: () => _askRejectReason(context, bloc),
+              ),
             ),
           ],
         );
@@ -297,5 +315,47 @@ class _ContextualActionState extends State<_ContextualAction> {
     if (reason != null && reason.isNotEmpty) {
       bloc.add(OrderDetailRejectRequested(reason));
     }
+  }
+}
+
+/// Lien discret « Refuser la commande » — action exigeant un motif et menant
+/// à un état terminal (`rejected`), volontairement éloignée du geste
+/// principal plutôt qu'un [NubiaButton] pleine largeur.
+class _RejectLink extends StatelessWidget {
+  const _RejectLink({
+    super.key,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final dangerFg = Theme.of(context).extension<NubiaTokens>()?.dangerFg ??
+        NubiaColors.dangerFg;
+    final color = enabled ? dangerFg : dangerFg.withValues(alpha: 0.4);
+    return InkWell(
+      onTap: enabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.block, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(
+              'Refuser la commande',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: color),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

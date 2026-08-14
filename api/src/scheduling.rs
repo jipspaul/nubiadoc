@@ -2187,6 +2187,27 @@ pub async fn create_cabinet_slot(
         None
     };
 
+    // Refuse un créneau qui chevauche un rendez-vous actif du même praticien :
+    // la seule contrainte DB active sur availability_slot (slot_practitioner_no_overlap)
+    // ne couvre pas les chevauchements avec `appointment`, ce qui laissait créer des
+    // créneaux "fantômes" (is_available:true mais 409 slot_taken à la réservation).
+    let overlapping_appointment = sqlx::query(
+        "SELECT 1 FROM appointment \
+         WHERE practitioner_id = $1 \
+           AND status NOT IN ('cancelled', 'no_show') \
+           AND starts_at < $2 \
+           AND ends_at > $3",
+    )
+    .bind(practitioner_id)
+    .bind(ends_at)
+    .bind(starts_at)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if overlapping_appointment.is_some() {
+        return Err(AppError::SlotTaken);
+    }
+
     let slot_id = Uuid::new_v4();
 
     let result = sqlx::query(

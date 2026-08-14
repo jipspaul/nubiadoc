@@ -41,6 +41,9 @@ enum NubiaTextFieldVariant {
 ///   #4538 — un chat/composer doit pouvoir se soumettre ainsi, réflexe
 ///   universel). `null` par défaut : aucun changement de comportement pour
 ///   les champs existants qui ne le renseignent pas.
+/// - [borderRadius] : rayon du contour (variantes `outlined`/`multiline`
+///   uniquement, #4933). `null` par défaut : garde le rayon Material par
+///   défaut pour les champs existants qui ne le renseignent pas.
 class NubiaTextField extends StatefulWidget {
   const NubiaTextField({
     super.key,
@@ -54,6 +57,7 @@ class NubiaTextField extends StatefulWidget {
     this.onSubmitted,
     this.maxLines,
     this.enabled = true,
+    this.borderRadius,
   });
 
   final NubiaTextFieldVariant variant;
@@ -66,6 +70,7 @@ class NubiaTextField extends StatefulWidget {
   final ValueChanged<String>? onSubmitted;
   final int? maxLines;
   final bool enabled;
+  final double? borderRadius;
 
   @override
   State<NubiaTextField> createState() => _NubiaTextFieldState();
@@ -140,7 +145,13 @@ class _NubiaTextFieldState extends State<NubiaTextField> {
   }
 
   InputDecoration _outlined(BuildContext context) {
-    return _base(context).copyWith(border: const OutlineInputBorder());
+    return _base(context).copyWith(
+      border: OutlineInputBorder(
+        borderRadius: widget.borderRadius != null
+            ? BorderRadius.circular(widget.borderRadius!)
+            : const BorderRadius.all(Radius.circular(4)),
+      ),
+    );
   }
 
   InputDecoration _filled(BuildContext context) {

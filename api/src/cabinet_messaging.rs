@@ -116,12 +116,16 @@ pub async fn list_cabinet_conversations(
         None => None,
     };
 
-    // Filtre scope dans la CTE (références à c.scope).
+    // Filtre scope dans la CTE (références à c.scope). Le fil de support
+    // admin↔plateforme (#4169) doit rester invisible pour tout rôle non-admin,
+    // cohérent avec la garde posée sur les endpoints d'accès direct (#4843).
     let scope_filter = match (claims.role.as_str(), params.scope.as_deref()) {
-        ("secretary", _) => " AND c.scope != 'clinical'",
+        ("secretary", _) => " AND c.scope != 'clinical' AND c.scope != 'platform_support'",
         (_, Some("clinical")) => " AND c.scope = 'clinical'",
-        (_, Some(_)) => " AND c.scope != 'clinical'",
-        (_, None) => "",
+        ("admin", Some(_)) => " AND c.scope != 'clinical'",
+        (_, Some(_)) => " AND c.scope != 'clinical' AND c.scope != 'platform_support'",
+        ("admin", None) => "",
+        (_, None) => " AND c.scope != 'platform_support'",
     };
 
     // Clause cursor dans la SELECT externe (pas d'alias de table — colonnes viennent de la CTE).
