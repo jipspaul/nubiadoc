@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -623,50 +624,67 @@ class _SideColumn extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: NubiaCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Note de séance',
-                        style: textTheme.titleSmall,
-                        overflow: TextOverflow.ellipsis,
+          // ⌘S force l'enregistrement de la note (#4942, point 4 de la
+          // maquette) — l'enregistrement automatique n'est pas remplacé,
+          // ce raccourci ne fait que déclencher le même événement que
+          // `save_note_button`. Scopé au volet note (pas un raccourci
+          // global écran), même esprit que ⌘K sur `CcamPicker` (#4941).
+          child: CallbackShortcuts(
+            bindings: <ShortcutActivator, VoidCallback>{
+              const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+                  () {
+                if (!actionInProgress) onSaveNote();
+              },
+            },
+            child: NubiaCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Note de séance',
+                          style: textTheme.titleSmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    TextButton.icon(
-                      key: const Key('cr_template_picker_button'),
-                      onPressed: onPickCrTemplate,
-                      icon: const Icon(Icons.description_outlined, size: 18),
-                      label: const Text('Modèle'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  key: const Key('consultation_note_field'),
-                  controller: noteController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Observations cliniques...',
-                    border: OutlineInputBorder(),
+                      TextButton.icon(
+                        key: const Key('cr_template_picker_button'),
+                        onPressed: onPickCrTemplate,
+                        icon: const Icon(Icons.description_outlined, size: 18),
+                        label: const Text('Modèle'),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: NubiaButton(
-                    key: const Key('save_note_button'),
-                    size: NubiaButtonSize.sm,
-                    icon: Icons.save_outlined,
-                    label: 'Enregistrer la note',
-                    onPressed: actionInProgress ? null : onSaveNote,
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('consultation_note_field'),
+                    controller: noteController,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'Observations cliniques...',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      const _NoteSaveShortcutBadge(),
+                      const SizedBox(width: 8),
+                      NubiaButton(
+                        key: const Key('save_note_button'),
+                        size: NubiaButtonSize.sm,
+                        icon: Icons.save_outlined,
+                        label: 'Enregistrer la note',
+                        onPressed: actionInProgress ? null : onSaveNote,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -685,6 +703,34 @@ class _SideColumn extends StatelessWidget {
       ],
     );
     return scrollable ? SingleChildScrollView(child: content) : content;
+  }
+}
+
+/// Badge « ⌘S » (#4942, point 4 de la maquette) — indique le raccourci qui
+/// force l'enregistrement de la note, même style que `_CcamShortcutBadge`
+/// (ccam_picker.dart, #4941).
+class _NoteSaveShortcutBadge extends StatelessWidget {
+  const _NoteSaveShortcutBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      key: const Key('note_save_shortcut_badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Text(
+        '⌘S',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
   }
 }
 
