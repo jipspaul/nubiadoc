@@ -13,6 +13,7 @@ import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
+import 'widgets/patient_alerts_box.dart';
 
 /// Body-only content for the consultation au fauteuil.
 /// Requires [ConsultationCliniqueBloc] to be provided via [BlocProvider] by the caller.
@@ -366,10 +367,11 @@ class _LoadedViewState extends State<_LoadedView> {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: _kContextColumnWidth,
                       child: _ContextColumn(
-                        key: Key('consultation_context_panel'),
+                        key: const Key('consultation_context_panel'),
+                        alerts: session.medicalAlerts,
                       ),
                     ),
                     Expanded(child: centerColumn),
@@ -401,29 +403,47 @@ class _LoadedViewState extends State<_LoadedView> {
   }
 }
 
-/// Colonne « Contexte » (288 px, ≥ 1280 px uniquement) — squelette pour
-/// #4935 : alertes, historique et plan de traitement sont traités par des
-/// tickets dédiés, non repris ici.
+/// Colonne « Contexte » (288 px, ≥ 1280 px uniquement) — scaffold #4935.
+/// En tête, l'encart « Alertes du dossier » (#4936) quand le dossier porte
+/// des alertes médicales passives ([alerts] non vide) ; le reste (historique,
+/// plan de traitement) reste un squelette « à venir », tickets dédiés.
 class _ContextColumn extends StatelessWidget {
-  const _ContextColumn({super.key});
+  const _ContextColumn({super.key, required this.alerts});
+
+  final List<MedicalAlert> alerts;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(0, 0, 8, 8),
-      child: NubiaCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Contexte patient', style: textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Text(
-              'Alertes, historique et plan de traitement arrivent bientôt.',
-              style: textTheme.bodySmall,
-            ),
+      child: Column(
+        // La clé `consultation_context_column_layout` (#4936) n'existe que
+        // lorsqu'un encart d'alertes est réellement rendu — sinon la colonne
+        // reste le simple squelette « à venir ».
+        key: alerts.isEmpty
+            ? null
+            : const Key('consultation_context_column_layout'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (alerts.isNotEmpty) ...[
+            PatientAlertsBox(alerts: alerts),
+            const SizedBox(height: 12),
           ],
-        ),
+          NubiaCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Contexte patient', style: textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Text(
+                  'Historique et plan de traitement arrivent bientôt.',
+                  style: textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

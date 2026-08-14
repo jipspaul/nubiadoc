@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
+    medical_record::{decrypt_stub, MedicoLegalFlags},
     AppState,
 };
 
@@ -37,6 +38,17 @@ pub struct PractitionerSummary {
     pub display_name: String,
 }
 
+/// Alerte médicale passive listée dans l'encart « Alertes du dossier » de la
+/// colonne contexte (#4936) — AFFICHAGE PASSIF uniquement (périmètre
+/// non-dispositif-médical), aucun contrôle ici : le blocage
+/// anticoagulants/acte invasif reste dans `consultation_act_create.rs` (#4057).
+/// `kind` : `allergie` | `medico_legal`.
+#[derive(Serialize)]
+pub struct MedicalAlertItem {
+    pub kind: String,
+    pub label: String,
+}
+
 /// Réponse de `GET /v1/cabinet/consultations/:id`.
 #[derive(Serialize)]
 pub struct ConsultationContextResponse {
@@ -51,6 +63,10 @@ pub struct ConsultationContextResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
     pub acts: Vec<ConsultationActItem>,
+    /// Alertes médicales du dossier patient (allergies + flags médico-légaux
+    /// structurés, #4103). Tableau vide si le dossier n'a aucune alerte —
+    /// jamais d'entrée inventée côté front (#4936).
+    pub medical_alerts: Vec<MedicalAlertItem>,
 }
 
 /// `GET /v1/cabinet/consultations/:id` — contexte clinique d'une séance au fauteuil.
@@ -153,7 +169,51 @@ pub async fn get_consultation_context(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Alertes du dossier (#4936) — dernier dossier médical du patient de la
+    // séance (même requête que `consultation_act_create.rs::add_consultation_act`
+    // pour la garde anticoagulants).
+    let patient_id: Uuid =
+        sqlx::query_scalar("SELECT patient_id FROM appointment WHERE id = $1 AND cabinet_id = $2")
+            .bind(appointment_id)
+            .bind(claims.cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+    let record_row = sqlx::query(
+        "SELECT data_ciphertext FROM medical_record \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND deleted_at IS NULL \
+         ORDER BY updated_at DESC LIMIT 1",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let mut medical_alerts: Vec<MedicalAlertItem> = Vec::new();
+    if let Some(row) = record_row {
+        let ciphertext: Vec<u8> = row
+            .try_get("data_ciphertext")
+            .map_err(|_| AppError::Internal)?;
+        if let Some(data) = decrypt_stub(&ciphertext) {
+            for entry in data["allergies"].as_array().into_iter().flatten() {
+                if let Some(label) = allergy_label(entry) {
+                    medical_alerts.push(MedicalAlertItem {
+                        kind: "allergie".to_string(),
+                        label,
+                    });
+                }
+            }
+            let medico_legal: MedicoLegalFlags = data
+                .get("medico_legal")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            medical_alerts.extend(medico_legal_alerts(&medico_legal));
+        }
+    }
 
     let mut acts: Vec<ConsultationActItem> = Vec::with_capacity(act_rows.len());
     for row in act_rows {
@@ -192,7 +252,61 @@ pub async fn get_consultation_context(
         },
         note,
         acts,
+        medical_alerts,
     }))
+}
+
+/// Extrait un libellé d'alerte affichable depuis une entrée `allergies[]`
+/// (`jsonb` libre, même tolérance que `medical_record.rs` / le front
+/// `medical_record_dto.dart::_entryToDisplayString` : chaîne brute ou objet
+/// `{"name"|"label": "..."}`). `None` si l'entrée est vide/illisible — jamais
+/// d'alerte inventée.
+fn allergy_label(entry: &serde_json::Value) -> Option<String> {
+    let label = if let Some(s) = entry.as_str() {
+        s
+    } else {
+        entry
+            .get("name")
+            .or_else(|| entry.get("label"))
+            .and_then(|v| v.as_str())?
+    };
+    let label = label.trim();
+    if label.is_empty() {
+        None
+    } else {
+        Some(label.to_string())
+    }
+}
+
+/// Traduit les flags médico-légaux structurés (#4103) en alertes affichables.
+/// Seuls les flags à `true` produisent une entrée.
+fn medico_legal_alerts(flags: &MedicoLegalFlags) -> Vec<MedicalAlertItem> {
+    let mut alerts = Vec::new();
+    if flags.anticoagulants {
+        alerts.push(MedicalAlertItem {
+            kind: "medico_legal".to_string(),
+            label: "Anticoagulant (AVK)".to_string(),
+        });
+    }
+    if flags.bisphosphonates {
+        alerts.push(MedicalAlertItem {
+            kind: "medico_legal".to_string(),
+            label: "Bisphosphonates".to_string(),
+        });
+    }
+    if flags.risque_endocardite {
+        alerts.push(MedicalAlertItem {
+            kind: "medico_legal".to_string(),
+            label: "Risque d'endocardite".to_string(),
+        });
+    }
+    if flags.ald {
+        alerts.push(MedicalAlertItem {
+            kind: "medico_legal".to_string(),
+            label: "ALD".to_string(),
+        });
+    }
+    alerts
 }
 
 /// Déchiffre une note de séance : préfixe `"STUB_ENC:"` puis XOR 0xFF octet

@@ -48,5 +48,27 @@ void main() {
       expect(cancelled.isFinished, isTrue);
       expect(inProgress.isFinished, isFalse);
     });
+
+    // #4936 — encart « Alertes du dossier » : vide par défaut, jamais
+    // d'alerte inventée pour un dossier sans donnée.
+    test('medicalAlerts est vide par défaut', () {
+      const session = ClinicalSession(
+        id: 'h1',
+        appointmentId: 'a1',
+        status: 'in_progress',
+        acts: [],
+      );
+      expect(session.medicalAlerts, isEmpty);
+    });
+  });
+
+  group('MedicalAlert', () {
+    test('égalité par kind + label', () {
+      const a = MedicalAlert(kind: 'allergie', label: 'Pénicilline');
+      const b = MedicalAlert(kind: 'allergie', label: 'Pénicilline');
+      const c = MedicalAlert(kind: 'medico_legal', label: 'Pénicilline');
+      expect(a, equals(b));
+      expect(a, isNot(equals(c)));
+    });
   });
 }
