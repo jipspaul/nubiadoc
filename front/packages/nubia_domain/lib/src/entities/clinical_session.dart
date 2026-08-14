@@ -37,6 +37,10 @@ class ClinicalSession extends Equatable {
   /// #3371 : la carte titrait par l'UUID de séance).
   final String? patientName;
 
+  /// Id du patient de la séance — sert au cloisonnement de l'historique
+  /// « Dernières séances » (#4937, filtre `patientId` sur `listSessions`).
+  final String? patientId;
+
   /// Début de séance (liste uniquement).
   final DateTime? startedAt;
 
@@ -51,6 +55,7 @@ class ClinicalSession extends Equatable {
     required this.acts,
     this.note,
     this.patientName,
+    this.patientId,
     this.startedAt,
     this.practitionerName,
   });
@@ -73,6 +78,7 @@ class ClinicalSession extends Equatable {
         acts,
         note,
         patientName,
+        patientId,
         startedAt,
         practitionerName,
       ];

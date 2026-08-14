@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
-    consultation_context::PractitionerSummary,
+    consultation_context::{ConsultationActItem, PractitionerSummary},
     notify,
     patient_guardianship::aggregate_guardianship,
     AppState,
@@ -532,6 +532,8 @@ pub async fn set_consultation_note(
 /// Un élément de `GET /v1/cabinet/consultations` (historique des séances).
 /// Volontairement sans note clinique : la liste sert l'historique (praticien),
 /// le détail chiffré passe par `GET /v1/cabinet/consultations/:id`.
+/// `acts` ne contient que le premier acte (créé en premier) de la séance —
+/// utilisé par l'encart « Dernières séances » (#4937), pas la liste complète.
 #[derive(Serialize)]
 pub struct ConsultationListItem {
     pub id: Uuid,
@@ -544,6 +546,7 @@ pub struct ConsultationListItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
     pub acts_count: i64,
+    pub acts: Vec<ConsultationActItem>,
 }
 
 /// Réponse de `GET /v1/cabinet/consultations`.
@@ -596,13 +599,24 @@ pub async fn list_consultations(
                 COALESCE(prov.display_name, '') AS practitioner_name, \
                 (SELECT count(*) FROM consultation_act ca \
                   WHERE ca.appointment_id = cs.appointment_id \
-                    AND ca.cabinet_id = cs.cabinet_id) AS acts_count \
+                    AND ca.cabinet_id = cs.cabinet_id) AS acts_count, \
+                fa.id AS first_act_id, fa.ccam_code AS first_act_ccam_code, \
+                fa.label AS first_act_label, fa.tooth AS first_act_tooth, \
+                fa.amount_cents AS first_act_amount_cents \
          FROM consultation_session cs \
          JOIN appointment a ON a.id = cs.appointment_id \
          LEFT JOIN patient pat ON pat.id = a.patient_id \
                                AND pat.cabinet_id = cs.cabinet_id \
          LEFT JOIN provider prov ON prov.practitioner_id = cs.practitioner_id \
                                  AND prov.cabinet_id = cs.cabinet_id \
+         LEFT JOIN LATERAL ( \
+             SELECT ca.id, ca.ccam_code, ca.label, ca.tooth, ca.amount_cents \
+             FROM consultation_act ca \
+             WHERE ca.appointment_id = cs.appointment_id \
+               AND ca.cabinet_id = cs.cabinet_id \
+             ORDER BY ca.created_at ASC \
+             LIMIT 1 \
+         ) fa ON true \
          WHERE cs.cabinet_id = $1 \
            AND ($2::uuid IS NULL OR a.patient_id = $2) \
            AND ($3::text IS NULL OR cs.status = $3) \
@@ -626,6 +640,30 @@ pub async fn list_consultations(
                 r.try_get("started_at").map_err(|_| AppError::Internal)?;
             let completed_at: Option<chrono::DateTime<chrono::Utc>> =
                 r.try_get("completed_at").map_err(|_| AppError::Internal)?;
+            // Premier acte (créé en premier) de la séance, s'il existe — voir
+            // le LATERAL join `fa` ci-dessus (#4937, encart « Dernières séances »).
+            let first_act_id: Option<Uuid> =
+                r.try_get("first_act_id").map_err(|_| AppError::Internal)?;
+            let first_act_ccam_code: Option<String> = r
+                .try_get("first_act_ccam_code")
+                .map_err(|_| AppError::Internal)?;
+            let first_act_label: Option<String> =
+                r.try_get("first_act_label").map_err(|_| AppError::Internal)?;
+            let first_act_tooth: Option<String> =
+                r.try_get("first_act_tooth").map_err(|_| AppError::Internal)?;
+            let first_act_amount_cents: Option<i32> = r
+                .try_get("first_act_amount_cents")
+                .map_err(|_| AppError::Internal)?;
+            let acts = match (first_act_id, first_act_ccam_code, first_act_label) {
+                (Some(id), Some(ccam_code), Some(label)) => vec![ConsultationActItem {
+                    id,
+                    ccam_code,
+                    label,
+                    tooth: first_act_tooth,
+                    amount_cents: first_act_amount_cents.unwrap_or(0),
+                }],
+                _ => vec![],
+            };
             Ok(ConsultationListItem {
                 id: r.try_get("id").map_err(|_| AppError::Internal)?,
                 appointment_id: r
@@ -645,6 +683,7 @@ pub async fn list_consultations(
                 started_at: started_at.to_rfc3339(),
                 completed_at: completed_at.map(|t| t.to_rfc3339()),
                 acts_count: r.try_get("acts_count").map_err(|_| AppError::Internal)?,
+                acts,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
