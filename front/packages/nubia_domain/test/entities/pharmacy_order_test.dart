@@ -116,6 +116,27 @@ void main() {
         isNot(equals(makeOrder(PharmacyOrderStatus.preparing))),
       );
     });
+
+    test('prescriberName et prescriberPractice nullable, hors égalité', () {
+      final withoutPrescriber = makeOrder(PharmacyOrderStatus.received);
+      expect(withoutPrescriber.prescriberName, isNull);
+      expect(withoutPrescriber.prescriberPractice, isNull);
+
+      final withPrescriber = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.received,
+        createdAt: DateTime.utc(2026, 7, 1),
+        updatedAt: DateTime.utc(2026, 7, 2),
+        prescriberName: 'Dr A. Rousseau',
+        prescriberPractice: 'Cabinet Nubia Opéra',
+      );
+      expect(withPrescriber.prescriberName, 'Dr A. Rousseau');
+      expect(withPrescriber.prescriberPractice, 'Cabinet Nubia Opéra');
+      // Ne participe pas à l'identité de refresh (props = [id, status, updatedAt]).
+      expect(withPrescriber, equals(withoutPrescriber));
+    });
   });
 
   group('PharmacyQuote', () {
