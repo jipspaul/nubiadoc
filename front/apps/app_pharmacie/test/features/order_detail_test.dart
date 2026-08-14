@@ -212,6 +212,8 @@ void main() {
         ),
       );
 
+      await tester.ensureVisible(find.byKey(const Key('order_action_scan')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('order_action_scan')));
       await tester.pumpAndSettle();
 
