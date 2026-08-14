@@ -31,6 +31,19 @@ use uuid::Uuid;
 
 use crate::auth::AppError;
 
+/// `account_guardianship.relationship` décrit le sens dépendant→tuteur
+/// (ex. "Jade est l'enfant de Marc"). Pour l'entrée `guardians` (sens
+/// tuteur→dépendant), il faut inverser le libellé plutôt que le réutiliser
+/// tel quel (#4746 : Marc, le tuteur, s'affichait comme "enfant").
+fn invert_relationship(relationship: &str) -> String {
+    match relationship {
+        "enfant" => "parent",
+        "parent" => "enfant",
+        other => other,
+    }
+    .to_string()
+}
+
 /// Un lien de tutelle, dans un sens ou dans l'autre.
 #[derive(serde::Serialize)]
 pub struct GuardianshipLink {
@@ -81,7 +94,7 @@ pub(crate) async fn aggregate_guardianship(
             dependent_ids.push(dependent_account_id);
             dependent_relationships.insert(dependent_account_id, relationship);
         } else {
-            guardian_links.push((guardian_account_id, relationship));
+            guardian_links.push((guardian_account_id, invert_relationship(&relationship)));
         }
     }
 

@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState, StorageClient, StorageSigner,
+    AppState, StorageSigner,
 };
 
 const VALID_CATEGORIES: &[&str] = &[
@@ -326,7 +326,7 @@ pub struct DocumentDetail {
 pub async fn get_document(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
-    Extension(storage): Extension<Arc<dyn StorageClient>>,
+    Extension(signer): Extension<Arc<dyn StorageSigner>>,
     Path(doc_id): Path<Uuid>,
     Query(params): Query<PatientAccountQuery>,
 ) -> Result<Json<DocumentDetail>, AppError> {
@@ -375,8 +375,9 @@ pub async fn get_document(
     let storage_key: String = row.try_get("storage_key").map_err(|_| AppError::Internal)?;
     let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
 
-    // URL signée valable 15 minutes.
-    let signed_url = storage.sign_url(&storage_key, 900);
+    // URL signée valable 15 minutes — signer réel (Scaleway en prod, #4717),
+    // jamais le StorageClient/StubStorageClient hardcodé sur storage.stub (#4835).
+    let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
     let signed_url_expires_at = chrono::Utc::now() + chrono::Duration::seconds(900);
 
     // Audit — uniquement si le document appartient à un cabinet.
