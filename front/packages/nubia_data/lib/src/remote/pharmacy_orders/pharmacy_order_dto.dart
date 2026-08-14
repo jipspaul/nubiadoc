@@ -14,6 +14,7 @@ class PharmacyOrderDto {
   final String? updatedAt;
   final String? readyAt;
   final String? pickedUpAt;
+  final int? lineCount;
 
   const PharmacyOrderDto({
     required this.id,
@@ -29,6 +30,7 @@ class PharmacyOrderDto {
     this.updatedAt,
     this.readyAt,
     this.pickedUpAt,
+    this.lineCount,
   });
 
   factory PharmacyOrderDto.fromJson(Map<String, dynamic> json) =>
@@ -47,6 +49,8 @@ class PharmacyOrderDto {
         updatedAt: json['updated_at'] as String?,
         readyAt: json['ready_at'] as String?,
         pickedUpAt: json['picked_up_at'] as String?,
+        lineCount: json['line_count'] as int? ??
+            (json['lines'] as List?)?.length,
       );
 
   PharmacyOrder toDomain() {
@@ -65,6 +69,7 @@ class PharmacyOrderDto {
       updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : created,
       readyAt: readyAt != null ? DateTime.parse(readyAt!) : null,
       pickedUpAt: pickedUpAt != null ? DateTime.parse(pickedUpAt!) : null,
+      lineCount: lineCount,
     );
   }
 
