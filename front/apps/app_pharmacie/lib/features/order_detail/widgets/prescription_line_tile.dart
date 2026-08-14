@@ -9,22 +9,26 @@ import 'substitution_tags.dart';
 /// posologie (`posology` + `duration`) en clair dessous, quantité
 /// (`quantity`) mise en avant à droite, mentions substituable/non
 /// substituable en tags, et l'encart d'alerte d'interaction
-/// (`interactionWarning`) si la ligne en porte une.
+/// (`interactionWarning`) si la ligne en porte une. La case
+/// (`prepared`/`onPreparedChanged`) alimente le compteur « X sur N
+/// préparées » de l'écran (garde-fou d'interface, hors du flux serveur).
 class PrescriptionLineTile extends StatelessWidget {
   const PrescriptionLineTile({
     super.key,
     required this.item,
-    this.checked = false,
-    this.onCheckedChanged,
+    this.prepared = false,
+    this.onPreparedChanged,
   });
 
   final PrescriptionItem item;
 
   /// La ligne a été préparée (sortie des rayons) — geste d'interface, ne
   /// déclenche à lui seul aucune transition serveur.
-  final bool checked;
+  final bool prepared;
 
-  final ValueChanged<bool>? onCheckedChanged;
+  /// `null` désactive/masque la case (ex. commande déjà au-delà de
+  /// `preparing`).
+  final ValueChanged<bool>? onPreparedChanged;
 
   static const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
 
@@ -44,17 +48,20 @@ class PrescriptionLineTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 44,
-            height: 44,
-            child: Center(
-              child: NubiaCheckbox(
-                value: checked,
-                onChanged: onCheckedChanged,
+          if (onPreparedChanged != null) ...[
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: Center(
+                child: NubiaCheckbox(
+                  key: const Key('prescription_line_prepared'),
+                  value: prepared,
+                  onChanged: onPreparedChanged,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 4),
+            const SizedBox(width: 4),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

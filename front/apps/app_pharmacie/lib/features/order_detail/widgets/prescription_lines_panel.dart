@@ -17,27 +17,27 @@ class PrescriptionLinesPanel extends StatelessWidget {
     super.key,
     required this.items,
     required this.onOpenDocument,
-    this.checkedLines = const {},
-    this.onLineCheckedChanged,
     this.prescriberName,
     this.rpps,
     this.prescribedAt,
     this.validUntil,
+    this.preparedLineIndices = const {},
+    this.onLinePreparedChanged,
   });
 
   final List<PrescriptionItem> items;
   final VoidCallback onOpenDocument;
 
-  /// Index des lignes déjà préparées (sorties des rayons).
-  final Set<int> checkedLines;
-
-  /// `null` : les cases sont désactivées (ex. panneau en lecture seule).
-  final void Function(int index, bool checked)? onLineCheckedChanged;
-
   final String? prescriberName;
   final String? rpps;
   final DateTime? prescribedAt;
   final DateTime? validUntil;
+
+  /// Index des lignes cochées « préparée ».
+  final Set<int> preparedLineIndices;
+
+  /// `null` désactive les cases (ex. commande déjà au-delà de `preparing`).
+  final void Function(int index, bool prepared)? onLinePreparedChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -101,10 +101,10 @@ class PrescriptionLinesPanel extends StatelessWidget {
               Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
             PrescriptionLineTile(
               item: items[i],
-              checked: checkedLines.contains(i),
-              onCheckedChanged: onLineCheckedChanged == null
+              prepared: preparedLineIndices.contains(i),
+              onPreparedChanged: onLinePreparedChanged == null
                   ? null
-                  : (checked) => onLineCheckedChanged!(i, checked),
+                  : (value) => onLinePreparedChanged!(i, value),
             ),
           ],
         ],
