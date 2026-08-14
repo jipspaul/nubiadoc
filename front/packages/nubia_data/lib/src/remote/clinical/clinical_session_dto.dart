@@ -73,6 +73,12 @@ class ClinicalSessionDto {
   /// — #4936). Vide par défaut.
   final List<MedicalAlert> medicalAlerts;
 
+  /// Id du patient de la séance (détail uniquement — #4938).
+  final String? patientId;
+
+  /// Plan de traitement actif du patient (détail uniquement — #4938).
+  final ActivePlanSummary? activePlan;
+
   const ClinicalSessionDto({
     required this.id,
     required this.appointmentId,
@@ -83,6 +89,8 @@ class ClinicalSessionDto {
     this.startedAt,
     this.practitionerName,
     this.medicalAlerts = const [],
+    this.patientId,
+    this.activePlan,
   });
 
   factory ClinicalSessionDto.fromJson(Map<String, dynamic> json) =>
@@ -110,6 +118,21 @@ class ClinicalSessionDto {
               ),
             )
             .toList(),
+        patientId: json['patient_id'] as String?,
+        activePlan: (json['active_plan'] as Map<String, dynamic>?) == null
+            ? null
+            : _activePlanFromJson(
+                json['active_plan'] as Map<String, dynamic>,
+              ),
+      );
+
+  static ActivePlanSummary _activePlanFromJson(Map<String, dynamic> json) =>
+      ActivePlanSummary(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        currentPhase: (json['current_phase'] as num).toInt(),
+        totalPhases: (json['total_phases'] as num).toInt(),
+        totalCostCents: (json['total_cost_cents'] as num).toInt(),
       );
 
   ClinicalSession toDomain() => ClinicalSession(
@@ -122,5 +145,7 @@ class ClinicalSessionDto {
     startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
     practitionerName: practitionerName,
     medicalAlerts: medicalAlerts,
+    patientId: patientId,
+    activePlan: activePlan,
   );
 }

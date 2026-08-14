@@ -13,6 +13,7 @@ import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
+import 'widgets/active_plan_box.dart';
 import 'widgets/patient_alerts_box.dart';
 
 /// Body-only content for the consultation au fauteuil.
@@ -372,6 +373,8 @@ class _LoadedViewState extends State<_LoadedView> {
                       child: _ContextColumn(
                         key: const Key('consultation_context_panel'),
                         alerts: session.medicalAlerts,
+                        patientId: session.patientId,
+                        activePlan: session.activePlan,
                       ),
                     ),
                     Expanded(child: centerColumn),
@@ -405,29 +408,43 @@ class _LoadedViewState extends State<_LoadedView> {
 
 /// Colonne « Contexte » (288 px, ≥ 1280 px uniquement) — scaffold #4935.
 /// En tête, l'encart « Alertes du dossier » (#4936) quand le dossier porte
-/// des alertes médicales passives ([alerts] non vide) ; le reste (historique,
-/// plan de traitement) reste un squelette « à venir », tickets dédiés.
+/// des alertes médicales passives ([alerts] non vide), puis l'encart « Plan
+/// en cours » (#4938) quand le patient a un plan de traitement actif
+/// ([activePlan] non nul) ; le reste (historique) reste un squelette
+/// « à venir », ticket dédié.
 class _ContextColumn extends StatelessWidget {
-  const _ContextColumn({super.key, required this.alerts});
+  const _ContextColumn({
+    super.key,
+    required this.alerts,
+    required this.patientId,
+    required this.activePlan,
+  });
 
   final List<MedicalAlert> alerts;
+  final String? patientId;
+  final ActivePlanSummary? activePlan;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final showActivePlan = activePlan != null && patientId != null;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(0, 0, 8, 8),
       child: Column(
         // La clé `consultation_context_column_layout` (#4936) n'existe que
-        // lorsqu'un encart d'alertes est réellement rendu — sinon la colonne
-        // reste le simple squelette « à venir ».
-        key: alerts.isEmpty
+        // lorsqu'un encart (alertes ou plan actif) est réellement rendu —
+        // sinon la colonne reste le simple squelette « à venir ».
+        key: alerts.isEmpty && !showActivePlan
             ? null
             : const Key('consultation_context_column_layout'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (alerts.isNotEmpty) ...[
             PatientAlertsBox(alerts: alerts),
+            const SizedBox(height: 12),
+          ],
+          if (showActivePlan) ...[
+            ActivePlanBox(patientId: patientId!, plan: activePlan!),
             const SizedBox(height: 12),
           ],
           NubiaCard(
@@ -437,7 +454,7 @@ class _ContextColumn extends StatelessWidget {
                 Text('Contexte patient', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
                 Text(
-                  'Historique et plan de traitement arrivent bientôt.',
+                  'Historique arrive bientôt.',
                   style: textTheme.bodySmall,
                 ),
               ],
