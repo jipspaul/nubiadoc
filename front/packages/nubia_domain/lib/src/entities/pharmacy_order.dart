@@ -48,6 +48,10 @@ class PharmacyOrder extends Equatable {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+
+  /// Référence courte affichable (ex. `CMD-4821`, colonne contexte #4926) —
+  /// `null` tant que le contrat back ne l'expose pas.
+  final String? orderRef;
   final String? prescriberName;
   final String? prescriberPractice;
   final String prescriptionId;
@@ -64,6 +68,7 @@ class PharmacyOrder extends Equatable {
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.orderRef,
     this.prescriberName,
     this.prescriberPractice,
     required this.prescriptionId,
