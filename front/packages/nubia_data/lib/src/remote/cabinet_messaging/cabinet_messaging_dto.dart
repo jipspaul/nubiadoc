@@ -12,6 +12,8 @@ class CabinetConversationDto {
   final MessageDto? lastMessage;
   final String? lastMessagePreview;
   final String triageFlag;
+  final String? orderRef;
+  final String? orderStatusLabel;
 
   const CabinetConversationDto({
     required this.id,
@@ -22,6 +24,8 @@ class CabinetConversationDto {
     this.lastMessage,
     this.lastMessagePreview,
     this.triageFlag = 'normal',
+    this.orderRef,
+    this.orderStatusLabel,
   });
 
   factory CabinetConversationDto.fromJson(Map<String, dynamic> json) {
@@ -48,6 +52,8 @@ class CabinetConversationDto {
           : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
       lastMessagePreview: json['last_message_preview'] as String?,
       triageFlag: json['triage_flag'] as String? ?? 'normal',
+      orderRef: json['order_ref'] as String?,
+      orderStatusLabel: json['order_status_label'] as String?,
     );
   }
 
@@ -63,6 +69,8 @@ class CabinetConversationDto {
         triageFlag: triageFlag == 'urgent'
             ? MessageUrgency.urgent
             : MessageUrgency.normal,
+        orderRef: orderRef,
+        orderStatusLabel: orderStatusLabel,
       );
 }
 

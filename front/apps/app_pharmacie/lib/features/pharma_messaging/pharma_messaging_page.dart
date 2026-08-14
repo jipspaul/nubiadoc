@@ -101,7 +101,12 @@ class _ConversationsList extends StatelessWidget {
           key: Key('conv_${conv.id}'),
           leading: NubiaAvatar(initials: _initials(conv.patientName)),
           title: conv.patientName,
-          subtitle: subtitle,
+          subtitleWidget: _ConversationSubtitle(
+            subtitle: subtitle,
+            unread: isUnread,
+            orderRef: conv.orderRef,
+            orderStatusLabel: conv.orderStatusLabel,
+          ),
           unread: isUnread,
           showDivider: index != conversations.length - 1,
           trailing: _ConversationTrailing(
@@ -114,6 +119,129 @@ class _ConversationsList extends StatelessWidget {
               .add(PharmaMessagingThreadOpened(conv)),
         );
       },
+    );
+  }
+}
+
+/// Sous-titre d'une conversation : aperçu du dernier message puis, s'il y a
+/// une commande liée, la rangée de tags commande + statut (#4923).
+class _ConversationSubtitle extends StatelessWidget {
+  const _ConversationSubtitle({
+    required this.subtitle,
+    required this.unread,
+    required this.orderRef,
+    required this.orderStatusLabel,
+  });
+
+  final String subtitle;
+  final bool unread;
+  final String? orderRef;
+  final String? orderStatusLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: textTheme.bodySmall?.copyWith(
+            color: unread ? cs.onSurfaceVariant : tokens.textTertiary,
+            fontWeight: unread ? FontWeight.w500 : FontWeight.w400,
+          ),
+        ),
+        if (orderRef != null) ...[
+          const SizedBox(height: 4),
+          _ConversationOrderTags(
+            orderRef: orderRef!,
+            orderStatusLabel: orderStatusLabel,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Rangée de tags commande sous une ligne de conversation : référence
+/// commande (émeraude) + statut court (neutre).
+class _ConversationOrderTags extends StatelessWidget {
+  const _ConversationOrderTags({
+    required this.orderRef,
+    required this.orderStatusLabel,
+  });
+
+  final String orderRef;
+  final String? orderStatusLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _OrderTag(
+          label: orderRef,
+          background: NubiaColors.brand50,
+          foreground: NubiaColors.brand800,
+          borderColor: NubiaColors.brand100,
+          textTheme: textTheme,
+        ),
+        if (orderStatusLabel != null) ...[
+          const SizedBox(width: 6),
+          _OrderTag(
+            label: orderStatusLabel!,
+            background: NubiaColors.n100,
+            foreground: NubiaColors.n600,
+            textTheme: textTheme,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Pastille rectangulaire à coins peu arrondis (5px) du design v2, utilisée
+/// pour les tags commande/statut — distincte de [NubiaBadge] (pill) et
+/// [NubiaChip] (stadium).
+class _OrderTag extends StatelessWidget {
+  const _OrderTag({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.textTheme,
+    this.borderColor,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+  final Color? borderColor;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(5),
+        border: borderColor == null ? null : Border.all(color: borderColor!),
+      ),
+      child: Text(
+        label,
+        style: textTheme.labelSmall?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
