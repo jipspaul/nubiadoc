@@ -27,6 +27,7 @@ class PrescriptionLinesPanel extends StatelessWidget {
 
   final List<PrescriptionItem> items;
   final VoidCallback onOpenDocument;
+
   final String? prescriberName;
   final String? rpps;
   final DateTime? prescribedAt;

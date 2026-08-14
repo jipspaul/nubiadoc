@@ -9,13 +9,15 @@ void main() {
   testWidgets('ligne substituable sans générique affiche le tag Substituable',
       (tester) async {
     await tester.pumpApp(
-      const PrescriptionLineTile(
-        item: PrescriptionItem(
-          label: 'Paracétamol 1 g',
-          form: 'comprimé',
-          posology: '1 cp jusqu\'à 3 fois par jour si douleur',
-          duration: '',
-          quantity: '8 comprimés',
+      Scaffold(
+        body: const PrescriptionLineTile(
+          item: PrescriptionItem(
+            label: 'Paracétamol 1 g',
+            form: 'comprimé',
+            posology: '1 cp jusqu\'à 3 fois par jour si douleur',
+            duration: '',
+            quantity: '8 comprimés',
+          ),
         ),
       ),
     );
@@ -28,14 +30,16 @@ void main() {
   testWidgets('ligne substituable avec générique délivré affiche les deux tags',
       (tester) async {
     await tester.pumpApp(
-      const PrescriptionLineTile(
-        item: PrescriptionItem(
-          label: 'Amoxicilline 1 g',
-          form: 'comprimé dispersible',
-          posology: '1 comprimé matin et soir',
-          duration: '7 jours',
-          quantity: '14 comprimés',
-          dispensedGeneric: 'Amoxicilline Biogaran',
+      Scaffold(
+        body: const PrescriptionLineTile(
+          item: PrescriptionItem(
+            label: 'Amoxicilline 1 g',
+            form: 'comprimé dispersible',
+            posology: '1 comprimé matin et soir',
+            duration: '7 jours',
+            quantity: '14 comprimés',
+            dispensedGeneric: 'Amoxicilline Biogaran',
+          ),
         ),
       ),
     );
@@ -50,14 +54,16 @@ void main() {
   testWidgets('ligne non substituable affiche le tag Non substituable — MTE',
       (tester) async {
     await tester.pumpApp(
-      const PrescriptionLineTile(
-        item: PrescriptionItem(
-          label: 'Chlorhexidine 0,12 %',
-          form: 'bain de bouche',
-          posology: '2 bains de bouche par jour après les repas',
-          duration: '10 jours',
-          quantity: '1 flacon 300 ml',
-          substitutable: false,
+      Scaffold(
+        body: const PrescriptionLineTile(
+          item: PrescriptionItem(
+            label: 'Chlorhexidine 0,12 %',
+            form: 'bain de bouche',
+            posology: '2 bains de bouche par jour après les repas',
+            duration: '10 jours',
+            quantity: '1 flacon 300 ml',
+            substitutable: false,
+          ),
         ),
       ),
     );
@@ -69,15 +75,17 @@ void main() {
   testWidgets('ligne avec alerte interaction affiche l\'encart warning',
       (tester) async {
     await tester.pumpApp(
-      const PrescriptionLineTile(
-        item: PrescriptionItem(
-          label: 'Amoxicilline 1 g',
-          form: 'comprimé dispersible',
-          posology: '1 comprimé matin et soir',
-          duration: '7 jours',
-          quantity: '14 comprimés',
-          interactionWarning: 'AVK déclaré au dossier patient. '
-              'Surveillance de l\'INR recommandée ; à signaler au patient.',
+      Scaffold(
+        body: const PrescriptionLineTile(
+          item: PrescriptionItem(
+            label: 'Amoxicilline 1 g',
+            form: 'comprimé dispersible',
+            posology: '1 comprimé matin et soir',
+            duration: '7 jours',
+            quantity: '14 comprimés',
+            interactionWarning: 'AVK déclaré au dossier patient. '
+                'Surveillance de l\'INR recommandée ; à signaler au patient.',
+          ),
         ),
       ),
     );
@@ -90,13 +98,15 @@ void main() {
   testWidgets('ligne sans alerte interaction n\'affiche aucun encart',
       (tester) async {
     await tester.pumpApp(
-      const PrescriptionLineTile(
-        item: PrescriptionItem(
-          label: 'Paracétamol 1 g',
-          form: 'comprimé',
-          posology: '1 cp jusqu\'à 3 fois par jour si douleur',
-          duration: '',
-          quantity: '8 comprimés',
+      Scaffold(
+        body: const PrescriptionLineTile(
+          item: PrescriptionItem(
+            label: 'Paracétamol 1 g',
+            form: 'comprimé',
+            posology: '1 cp jusqu\'à 3 fois par jour si douleur',
+            duration: '',
+            quantity: '8 comprimés',
+          ),
         ),
       ),
     );
