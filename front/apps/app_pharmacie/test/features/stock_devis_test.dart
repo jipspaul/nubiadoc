@@ -118,6 +118,45 @@ void main() {
       expect(find.byKey(const Key('stock_reject_s1')), findsOneWidget);
     });
 
+    testWidgets('état de disponibilité par ligne', (tester) async {
+      final bloc = MockStockBloc();
+      final request = StockRequest(
+        id: 's1',
+        pharmacyId: 'p1',
+        cabinetName: 'Cabinet Dupont',
+        items: const [
+          StockRequestItem(
+            label: 'Compresses stériles',
+            quantity: 10,
+            availability: StockItemAvailability(
+              status: StockItemAvailabilityStatus.inStock,
+            ),
+          ),
+          StockRequestItem(
+            label: 'Gants nitrile taille M',
+            quantity: 5,
+            availability: StockItemAvailability(
+              status: StockItemAvailabilityStatus.limited,
+              quantityAvailable: 2,
+            ),
+          ),
+          StockRequestItem(label: 'Masques FFP2', quantity: 4),
+        ],
+        status: StockRequestStatus.sent,
+        createdAt: DateTime(2026, 7, 1),
+      );
+      when(() => bloc.state).thenReturn(StockLoaded([request]));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      expect(find.text('En stock'), findsOneWidget);
+      expect(find.text('2 dispo'), findsOneWidget);
+      expect(find.text('Rupture'), findsNothing);
+    });
+
     testWidgets('demande acceptée → bouton Honorer', (tester) async {
       final bloc = MockStockBloc();
       when(() => bloc.state)
@@ -127,8 +166,37 @@ void main() {
         BlocProvider<StockBloc>.value(
             value: bloc, child: const Scaffold(body: StockView())),
       );
+      await tester.tap(find.byKey(const Key('stock_facet_accepted')));
+      await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('stock_fulfill_s1')), findsOneWidget);
+      expect(find.byKey(const Key('stock_accept_s1')), findsNothing);
+    });
+
+    testWidgets('facettes de statut : compteurs et filtrage', (tester) async {
+      final requests = [
+        stockRequest(StockRequestStatus.sent),
+        stockRequest(StockRequestStatus.accepted),
+        stockRequest(StockRequestStatus.fulfilled),
+        stockRequest(StockRequestStatus.rejected),
+      ];
+      final bloc = MockStockBloc();
+      when(() => bloc.state).thenReturn(StockLoaded(requests));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      expect(find.text('À répondre (1)'), findsOneWidget);
+      expect(find.text('Acceptées (1)'), findsOneWidget);
+      expect(find.text('Honorées (1)'), findsOneWidget);
+      expect(find.text('Refusées (1)'), findsOneWidget);
+      expect(find.byKey(const Key('stock_accept_s1')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('stock_facet_fulfilled')));
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const Key('stock_accept_s1')), findsNothing);
     });
   });

@@ -33,8 +33,18 @@ class OrderDetailPage extends StatelessWidget {
 }
 
 /// Corps de l'écran détail — public pour les tests widget.
-class OrderDetailBody extends StatelessWidget {
+class OrderDetailBody extends StatefulWidget {
   const OrderDetailBody({super.key});
+
+  @override
+  State<OrderDetailBody> createState() => _OrderDetailBodyState();
+}
+
+class _OrderDetailBodyState extends State<OrderDetailBody> {
+  /// Index des lignes cochées (préparées) — geste d'interface, conservé
+  /// pendant la préparation ; ne déclenche à lui seul aucune transition
+  /// serveur (voir ticket compteur/gating).
+  final Set<int> _checkedLines = {};
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +162,14 @@ class OrderDetailBody extends StatelessWidget {
           const SizedBox(height: 16),
           PrescriptionLinesPanel(
             items: items,
+            checkedLines: _checkedLines,
+            onLineCheckedChanged: (index, checked) => setState(() {
+              if (checked) {
+                _checkedLines.add(index);
+              } else {
+                _checkedLines.remove(index);
+              }
+            }),
             onOpenDocument: () => context
                 .read<OrderDetailBloc>()
                 .add(const OrderDetailDocumentRequested()),

@@ -54,6 +54,21 @@ void main() {
       expect(titleText.style?.fontWeight, FontWeight.w600);
     });
 
+    testWidgets('subtitleWidget rend un widget libre à la place de subtitle', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const ListRow(
+            title: 'Commande',
+            subtitleWidget: Text('Reçue à 08:12'),
+          ),
+        ),
+      );
+
+      expect(find.text('Reçue à 08:12'), findsOneWidget);
+    });
+
     testWidgets('déclenche onTap', (tester) async {
       var tapped = 0;
       await tester.pumpWidget(
