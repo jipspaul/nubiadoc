@@ -452,7 +452,7 @@ pub async fn create_pharmacy_quote_payment_intent(
     // status='sent', donc un devis déjà 'accepted' deviendrait invisible sous
     // FOR UPDATE — la garde reste-dû ci-dessous suffit à empêcher la race.
     let quote_row = sqlx::query(
-        "SELECT pq.status, pq.total_cents, po.cabinet_id \
+        "SELECT pq.status, pq.total_cents, po.cabinet_id, po.status AS order_status \
          FROM pharmacy_quote pq \
          JOIN pharmacy_order po ON po.id = pq.order_id \
          WHERE pq.id = $1 AND pq.patient_account_id = $2",
@@ -473,8 +473,16 @@ pub async fn create_pharmacy_quote_payment_intent(
     let cabinet_id: Uuid = quote_row
         .try_get("cabinet_id")
         .map_err(|_| AppError::Internal)?;
+    let order_status: String = quote_row
+        .try_get("order_status")
+        .map_err(|_| AppError::Internal)?;
 
-    if status != "accepted" {
+    // #4415/#5476 : la commande ancre doit rester active au moment du
+    // paiement — sinon une commande rejetée/annulée après acceptation du
+    // devis reste payable (charge fantôme sur des médicaments jamais
+    // délivrés).
+    if status != "accepted" || !matches!(order_status.as_str(), "received" | "preparing" | "ready")
+    {
         return Err(AppError::InvalidStatus);
     }
 
