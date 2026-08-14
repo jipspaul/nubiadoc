@@ -908,9 +908,12 @@ class _OrderContextRow extends StatelessWidget {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
     // Fallback dérivé de l'id réel tant que `order_ref` n'est pas exposé
-    // par le contrat back (#4926) — jamais de donnée inventée.
+    // par le contrat back (#4926) — jamais de donnée inventée. On prend au
+    // plus 4 caractères (les id courts, ex. « o1 » en test, sont plus courts
+    // que 4 → pas de RangeError sur substring).
+    final rawId = order.id.replaceAll('-', '');
     final ref = order.orderRef ??
-        'CMD-${order.id.replaceAll('-', '').substring(0, 4).toUpperCase()}';
+        'CMD-${rawId.substring(0, rawId.length < 4 ? rawId.length : 4).toUpperCase()}';
     final lines = order.lineCount;
     final day = _relativeDay(order.createdAt);
     final subtitle =

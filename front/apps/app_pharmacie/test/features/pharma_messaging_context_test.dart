@@ -62,10 +62,16 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    // La vue est un corps de ProShell : en production elle est montée sous le
+    // Material d'un Scaffold. Le champ de saisie (TextField) et le bouton
+    // d'envoi (IconButton) exigent cet ancêtre Material — on le fournit ici
+    // via un Scaffold, comme les autres tests widget de la messagerie.
     await tester.pumpApp(
-      BlocProvider<PharmaMessagingBloc>.value(
-        value: bloc,
-        child: const PharmaMessagingView(),
+      Scaffold(
+        body: BlocProvider<PharmaMessagingBloc>.value(
+          value: bloc,
+          child: const PharmaMessagingView(),
+        ),
       ),
     );
   }
