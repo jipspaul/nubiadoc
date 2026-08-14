@@ -437,6 +437,7 @@ class _MessageBubble extends StatelessWidget {
     // Cabinet = officine (right), patient = left
     final isCabinet = message.sender == MessageSender.cabinet;
     final cs = Theme.of(context).colorScheme;
+    final order = message.attachedOrder;
     return Align(
       alignment: isCabinet ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -449,12 +450,81 @@ class _MessageBubble extends StatelessWidget {
           color: isCabinet ? cs.primaryContainer : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(
-          message.text ?? '',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-              ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message.text ?? '',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+                  ),
+            ),
+            if (order != null) ...[
+              const SizedBox(height: 8),
+              _OrderAttachmentCard(order: order, sent: isCabinet),
+            ],
+          ],
         ),
+      ),
+    );
+  }
+}
+
+/// Carte commande jointe dans une bulle du fil (#4924) : icône, n° de
+/// commande + nb de lignes, reste à payer. Surimpression claire dans une
+/// bulle envoyée (émeraude), teinte `--brand50` dans une bulle reçue.
+class _OrderAttachmentCard extends StatelessWidget {
+  const _OrderAttachmentCard({required this.order, required this.sent});
+
+  final MessageOrderAttachment order;
+  final bool sent;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final background =
+        sent ? Colors.white.withOpacity(0.16) : NubiaColors.brand50;
+    final borderColor =
+        sent ? Colors.white.withOpacity(0.3) : NubiaColors.brand100;
+    final foreground = sent ? Colors.white : NubiaColors.brand800;
+    final linesLabel =
+        order.lineCount == 1 ? '1 ligne' : '${order.lineCount} lignes';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.inventory_2, size: 18, color: foreground),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${order.orderRef} · $linesLabel',
+                  style: textTheme.labelMedium?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${CurrencyUtils.format(order.amountDueCents)} à régler au comptoir',
+                  style: textTheme.labelSmall?.copyWith(color: foreground),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
