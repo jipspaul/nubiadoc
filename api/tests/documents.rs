@@ -396,7 +396,7 @@ async fn download_wrong_patient_returns_404() {
     }
 }
 
-// ── Test : signer retourne None (TTL expiré / presigner indisponible) → 410 ───
+// ── Test : signer retourne None (config manquante, lien jamais généré) → 502 ──
 
 struct ExpiredStorageSigner;
 
@@ -407,7 +407,7 @@ impl StorageSigner for ExpiredStorageSigner {
 }
 
 #[tokio::test]
-async fn download_signer_expired_returns_410() {
+async fn download_signer_unavailable_returns_502() {
     if !db_available() {
         return;
     }
@@ -509,8 +509,8 @@ async fn download_signer_expired_returns_410() {
 
     assert_eq!(
         response.status(),
-        StatusCode::GONE,
-        "signer indisponible doit retourner 410 link_expired"
+        StatusCode::BAD_GATEWAY,
+        "signer indisponible (lien jamais généré) doit retourner 502 upstream_unavailable, pas 410 link_expired"
     );
 
     // Cleanup
