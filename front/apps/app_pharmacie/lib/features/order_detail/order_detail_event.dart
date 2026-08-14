@@ -40,3 +40,15 @@ class OrderDetailRejectRequested extends OrderDetailEvent {
 class OrderDetailDocumentRequested extends OrderDetailEvent {
   const OrderDetailDocumentRequested();
 }
+
+/// Bascule l'état « préparée » d'une ligne d'ordonnance (case à cocher) —
+/// alimente le compteur « X sur N préparées » qui conditionne le passage à
+/// Prête.
+class OrderDetailLinePreparedToggled extends OrderDetailEvent {
+  const OrderDetailLinePreparedToggled(this.index);
+
+  final int index;
+
+  @override
+  List<Object?> get props => [index];
+}

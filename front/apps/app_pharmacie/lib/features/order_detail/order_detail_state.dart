@@ -17,6 +17,7 @@ class OrderDetailLoaded extends OrderDetailState {
     this.order, {
     this.items = const [],
     this.actionInProgress = false,
+    this.preparedLineIndices = const {},
   });
 
   final PharmacyOrder order;
@@ -28,8 +29,14 @@ class OrderDetailLoaded extends OrderDetailState {
   /// Une transition est en cours (bouton en loading, double-tap bloqué).
   final bool actionInProgress;
 
+  /// Index des lignes cochées « préparée » — garde-fou d'interface pour le
+  /// compteur « X sur N préparées » qui conditionne preparing → ready (le
+  /// serveur reste l'autorité, 409 remonté en erreur).
+  final Set<int> preparedLineIndices;
+
   @override
-  List<Object?> get props => [order, items, actionInProgress];
+  List<Object?> get props =>
+      [order, items, actionInProgress, preparedLineIndices];
 }
 
 /// L'URL signée du PDF est prête — la page l'ouvre puis revient à Loaded.

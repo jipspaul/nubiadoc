@@ -69,6 +69,10 @@ class ClinicalSessionDto {
   /// `practitioner.display_name` de la liste et du détail.
   final String? practitionerName;
 
+  /// Alertes du dossier patient (détail uniquement, absent de la route liste
+  /// — #4936). Vide par défaut.
+  final List<MedicalAlert> medicalAlerts;
+
   const ClinicalSessionDto({
     required this.id,
     required this.appointmentId,
@@ -78,6 +82,7 @@ class ClinicalSessionDto {
     this.patientName,
     this.startedAt,
     this.practitionerName,
+    this.medicalAlerts = const [],
   });
 
   factory ClinicalSessionDto.fromJson(Map<String, dynamic> json) =>
@@ -96,6 +101,15 @@ class ClinicalSessionDto {
         practitionerName:
             (json['practitioner'] as Map<String, dynamic>?)?['display_name']
                 as String?,
+        medicalAlerts: (json['medical_alerts'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(
+              (a) => MedicalAlert(
+                kind: a['kind'] as String,
+                label: a['label'] as String,
+              ),
+            )
+            .toList(),
       );
 
   ClinicalSession toDomain() => ClinicalSession(
@@ -107,5 +121,6 @@ class ClinicalSessionDto {
     patientName: patientName,
     startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
     practitionerName: practitionerName,
+    medicalAlerts: medicalAlerts,
   );
 }
