@@ -5,6 +5,10 @@ class CabinetConversation extends Equatable {
   final String id;
   final String patientId;
   final String patientName;
+
+  /// Téléphone du patient (`patient_phone`, #4926 colonne contexte) —
+  /// `null` quand le contrat back ne l'expose pas encore.
+  final String? patientPhone;
   final int unreadCount;
   final DateTime? lastMessageAt;
   final Message? lastMessage;
@@ -29,6 +33,7 @@ class CabinetConversation extends Equatable {
     required this.id,
     required this.patientId,
     required this.patientName,
+    this.patientPhone,
     required this.unreadCount,
     this.lastMessageAt,
     this.lastMessage,

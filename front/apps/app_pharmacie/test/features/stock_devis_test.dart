@@ -118,6 +118,45 @@ void main() {
       expect(find.byKey(const Key('stock_reject_s1')), findsOneWidget);
     });
 
+    testWidgets('état de disponibilité par ligne', (tester) async {
+      final bloc = MockStockBloc();
+      final request = StockRequest(
+        id: 's1',
+        pharmacyId: 'p1',
+        cabinetName: 'Cabinet Dupont',
+        items: const [
+          StockRequestItem(
+            label: 'Compresses stériles',
+            quantity: 10,
+            availability: StockItemAvailability(
+              status: StockItemAvailabilityStatus.inStock,
+            ),
+          ),
+          StockRequestItem(
+            label: 'Gants nitrile taille M',
+            quantity: 5,
+            availability: StockItemAvailability(
+              status: StockItemAvailabilityStatus.limited,
+              quantityAvailable: 2,
+            ),
+          ),
+          StockRequestItem(label: 'Masques FFP2', quantity: 4),
+        ],
+        status: StockRequestStatus.sent,
+        createdAt: DateTime(2026, 7, 1),
+      );
+      when(() => bloc.state).thenReturn(StockLoaded([request]));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      expect(find.text('En stock'), findsOneWidget);
+      expect(find.text('2 dispo'), findsOneWidget);
+      expect(find.text('Rupture'), findsNothing);
+    });
+
     testWidgets('demande acceptée → bouton Honorer', (tester) async {
       final bloc = MockStockBloc();
       when(() => bloc.state)

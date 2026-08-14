@@ -5,6 +5,7 @@ class PharmacyOrderDto {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+  final String? orderRef;
   final String? prescriberName;
   final String? prescriberPractice;
   final String prescriptionId;
@@ -21,6 +22,7 @@ class PharmacyOrderDto {
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.orderRef,
     this.prescriberName,
     this.prescriberPractice,
     required this.prescriptionId,
@@ -39,6 +41,7 @@ class PharmacyOrderDto {
         pharmacyId: json['pharmacy_id'] as String? ?? '',
         pharmacyName: json['pharmacy_name'] as String?,
         patientDisplayName: json['patient_display_name'] as String?,
+        orderRef: json['order_ref'] as String?,
         prescriberName: json['prescriber_name'] as String?,
         prescriberPractice: json['prescriber_practice'] as String?,
         prescriptionId: json['prescription_id'] as String? ?? '',
@@ -60,6 +63,7 @@ class PharmacyOrderDto {
       pharmacyId: pharmacyId,
       pharmacyName: pharmacyName,
       patientDisplayName: patientDisplayName,
+      orderRef: orderRef,
       prescriberName: prescriberName,
       prescriberPractice: prescriberPractice,
       prescriptionId: prescriptionId,

@@ -140,15 +140,24 @@ pub async fn list_cabinet_patients(
                 },
             }));
         }
-        " AND EXISTS (\
-           SELECT 1 FROM appointment a \
-           JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
-           JOIN provider_secretariat ps ON ps.provider_id = pr.id \
-           WHERE a.patient_id = p.id \
-             AND a.deleted_at IS NULL \
-             AND a.status <> 'cancelled' \
-             AND ps.secretariat_id = $6 \
-             AND ps.active = true\
+        // #5428 : un patient walk-in (quick_create_patient) n'a par construction
+        // aucun appointment à la création — sans le OR ci-dessous, la secrétaire
+        // qui vient de le créer ne le retrouve ni en liste ni en détail tant
+        // qu'aucun RDV n'existe (dead-end). `created_by_secretariat_id` est posé
+        // à la création (clinical.rs::quick_create_patient) et reste un scope
+        // secrétariat, pas un accès ouvert.
+        " AND (\
+           EXISTS (\
+             SELECT 1 FROM appointment a \
+             JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+             JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+             WHERE a.patient_id = p.id \
+               AND a.deleted_at IS NULL \
+               AND a.status <> 'cancelled' \
+               AND ps.secretariat_id = $6 \
+               AND ps.active = true\
+           ) \
+           OR p.created_by_secretariat_id = $6\
          )"
     } else {
         ""
@@ -521,9 +530,19 @@ pub async fn quick_create_patient(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #5428 : trace le secrétariat créateur (walk-in, aucun appointment à la
+    // création) pour que la garde R10 (list_cabinet_patients / get_cabinet_patient)
+    // puisse voir ce patient sans attendre un premier RDV. NULL pour un créateur
+    // practitioner/admin (non scopé secrétariat, pas concerné par la garde).
+    let created_by_secretariat_id = if claims.role == "secretary" {
+        claims.secretariat_id
+    } else {
+        None
+    };
+
     let row = sqlx::query(
-        "INSERT INTO patient (cabinet_id, first_name, last_name, birth_date, contact) \
-         VALUES ($1, $2, $3, $4, $5) \
+        "INSERT INTO patient (cabinet_id, first_name, last_name, birth_date, contact, created_by_secretariat_id) \
+         VALUES ($1, $2, $3, $4, $5, $6) \
          RETURNING id, created_at",
     )
     .bind(claims.cabinet_id)
@@ -531,6 +550,7 @@ pub async fn quick_create_patient(
     .bind(&last_name)
     .bind(birth_date)
     .bind(&contact)
+    .bind(created_by_secretariat_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
