@@ -43,7 +43,7 @@ async fn app_pool() -> PgPool {
     PgPool::connect(&url).await.unwrap()
 }
 
-fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
+fn make_secretary_token(sub: Uuid, cabinet_id: Uuid, secretariat_id: Uuid) -> String {
     let exp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -56,6 +56,9 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
             "kind": "pro",
             "cabinet_id": cabinet_id,
             "role": "secretary",
+            // R10 : la secrétaire est scopée à un secrétariat actif — sans ce
+            // claim, no-show renvoie 404 (cf. scheduling.rs::no_show_appointment).
+            "secretariat_id": secretariat_id,
             "exp": exp,
         }),
         &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
@@ -67,16 +70,20 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
 /// `status` est le statut initial du RDV inséré, `starts_at_offset` un
 /// intervalle SQL relatif à `now()` (ex. `"- interval '2 hours'"` pour un
 /// RDV passé, `"+ interval '2 hours'"` pour un RDV à venir — #4369).
-/// Retourne `(cabinet_id, prac_id, prac_user_id, appt_id, slot_id)`.
+/// La secrétaire est scopée au secrétariat via `provider_secretariat(active)` :
+/// on relie le praticien du RDV à un secrétariat, dont l'id est renvoyé pour
+/// alimenter le claim `secretariat_id` du token (R10).
+/// Retourne `(cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id)`.
 async fn insert_fixture_at(
     db: &PgPool,
     status: &str,
     starts_at_offset: &str,
-) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+) -> (Uuid, Uuid, Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
     let provider_id = Uuid::new_v4();
+    let secretariat_id = Uuid::new_v4();
     let patient_id = Uuid::new_v4();
     let appt_id = Uuid::new_v4();
     let slot_id = Uuid::new_v4();
@@ -127,6 +134,25 @@ async fn insert_fixture_at(
     .unwrap();
 
     sqlx::query(
+        "INSERT INTO secretariat (id, cabinet_id, name) VALUES ($1, $2, 'Sec NoShow Route Test')",
+    )
+    .bind(secretariat_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider_secretariat (provider_id, secretariat_id, active) \
+         VALUES ($1, $2, true)",
+    )
+    .bind(provider_id)
+    .bind(secretariat_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
          VALUES ($1, $2, 'Patient', 'NoShowRoute')",
     )
@@ -164,11 +190,18 @@ async fn insert_fixture_at(
 
     tx.commit().await.unwrap();
 
-    (cabinet_id, prac_id, prac_user_id, appt_id, slot_id)
+    (
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+        secretariat_id,
+    )
 }
 
 /// RDV déjà passé (`starts_at` -2h) — cas nominal des tests existants.
-async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, Uuid, Uuid) {
     insert_fixture_at(db, status, "- interval '2 hours'").await
 }
 
@@ -200,8 +233,28 @@ async fn cleanup_fixture(
     tx.commit().await.ok();
 
     let mut tx = seed_db.begin().await.unwrap();
+    // secretariat / provider_secretariat FORCE la RLS : positionner le GUC tenant
+    // pour que les DELETE ci-dessous voient bien leurs lignes.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
     sqlx::query("DELETE FROM availability_slot WHERE id = $1")
         .bind(slot_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query(
+        "DELETE FROM provider_secretariat WHERE provider_id IN \
+         (SELECT id FROM provider WHERE cabinet_id = $1)",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .ok();
+    sqlx::query("DELETE FROM secretariat WHERE cabinet_id = $1")
+        .bind(cabinet_id)
         .execute(&mut *tx)
         .await
         .ok();
@@ -266,7 +319,7 @@ async fn no_show_from_confirmed_returns_200_frees_slot_and_audits() {
     }
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
         insert_fixture(&seed_db, "confirmed").await;
 
     let state = AppState {
@@ -274,7 +327,7 @@ async fn no_show_from_confirmed_returns_200_frees_slot_and_audits() {
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
-    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
     let (status, body) = post_no_show(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::OK, "body: {body}");
@@ -330,7 +383,7 @@ async fn no_show_from_cancelled_returns_409() {
     }
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
         insert_fixture(&seed_db, "cancelled").await;
 
     let state = AppState {
@@ -338,7 +391,7 @@ async fn no_show_from_cancelled_returns_409() {
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
-    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
     let (status, body) = post_no_show(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
@@ -366,7 +419,7 @@ async fn no_show_from_confirmed_future_appointment_returns_409_too_early() {
     }
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
         insert_fixture_at(&seed_db, "confirmed", "+ interval '2 hours'").await;
 
     let state = AppState {
@@ -374,7 +427,7 @@ async fn no_show_from_confirmed_future_appointment_returns_409_too_early() {
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
-    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
     let (status, body) = post_no_show(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
@@ -419,7 +472,7 @@ async fn no_show_from_checked_in_future_appointment_returns_200() {
     }
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
         insert_fixture_at(&seed_db, "checked_in", "+ interval '40 minutes'").await;
 
     let state = AppState {
@@ -427,7 +480,7 @@ async fn no_show_from_checked_in_future_appointment_returns_200() {
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
-    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
     let (status, body) = post_no_show(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::OK, "body: {body}");
@@ -455,7 +508,7 @@ async fn no_show_from_in_progress_without_session_returns_200() {
     }
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
         insert_fixture_at(&seed_db, "in_progress", "+ interval '40 minutes'").await;
 
     let state = AppState {
@@ -463,7 +516,7 @@ async fn no_show_from_in_progress_without_session_returns_200() {
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
-    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
     let (status, body) = post_no_show(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::OK, "body: {body}");
@@ -491,7 +544,7 @@ async fn no_show_from_in_progress_with_active_session_returns_409() {
     }
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
         insert_fixture_at(&seed_db, "in_progress", "- interval '2 hours'").await;
 
     let mut tx = app_db.begin().await.unwrap();
@@ -517,7 +570,7 @@ async fn no_show_from_in_progress_with_active_session_returns_409() {
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
-    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
     let (status, body) = post_no_show(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
@@ -556,7 +609,7 @@ async fn no_show_from_done_returns_409() {
     }
     let seed_db = seed_pool().await;
     let app_db = app_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id) =
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
         insert_fixture(&seed_db, "done").await;
 
     let state = AppState {
@@ -564,7 +617,7 @@ async fn no_show_from_done_returns_409() {
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
-    let token = make_secretary_token(Uuid::new_v4(), cabinet_id);
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
     let (status, body) = post_no_show(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
