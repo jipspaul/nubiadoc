@@ -6,6 +6,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'stock_bloc.dart';
 import 'stock_delay.dart';
 import 'stock_status_facet_chip.dart';
+import 'widgets/stock_kpis.dart';
 
 /// Demandes de stock reçues des cabinets — corps de la destination « Stock ».
 class StockView extends StatefulWidget {
@@ -73,6 +74,7 @@ class _StockViewState extends State<StockView> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                StockKpiBanner(requests: requests),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Wrap(
