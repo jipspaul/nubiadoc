@@ -303,6 +303,60 @@ void main() {
     });
 
     testWidgets(
+        'les compteurs de filtre reflètent la file complète, pas la vue '
+        'filtrée', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(
+          orders: [
+            order('o1', PharmacyOrderStatus.received),
+            order('o2', PharmacyOrderStatus.received),
+            order('o3', PharmacyOrderStatus.preparing),
+            order('o4', PharmacyOrderStatus.ready),
+          ],
+          filter: PharmacyOrderStatus.ready,
+        ),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_filter_all')),
+          matching: find.text('4'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_filter_received')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_filter_preparing')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_filter_ready')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
         'commande received en retard (> 2 h) → libellé rouge + fond urgent',
         (tester) async {
       final lateOrder = orderAt(
