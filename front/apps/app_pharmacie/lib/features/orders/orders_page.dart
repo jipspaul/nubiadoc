@@ -12,6 +12,7 @@ import 'orders_event.dart';
 import 'orders_state.dart';
 import 'widgets/order_row.dart';
 import 'widgets/orders_aside.dart';
+import 'widgets/orders_kpis.dart';
 
 /// Corps de l'écran « Commandes » — file (tableau) + colonne latérale
 /// « À traiter », consommable dans le bodyBuilder du ProShell. L'aside se
@@ -132,6 +133,7 @@ class _OrdersViewState extends State<OrdersView> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (state is OrdersLoaded) OrdersKpiBanner(orders: state.orders),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Align(
