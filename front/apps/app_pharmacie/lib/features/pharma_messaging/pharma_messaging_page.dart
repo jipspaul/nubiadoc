@@ -61,9 +61,8 @@ class _PharmaMessagingBody extends StatelessWidget {
           _MessagingMasterDetail(
             conversations: conversations,
             selectedConversationId: conversationId,
-            detail: const Center(
+            detail: const _ThreadSkeleton(
               key: Key('pharma_messaging_thread_loading'),
-              child: CircularProgressIndicator(),
             ),
           ),
         PharmaMessagingThreadLoaded(
@@ -1026,6 +1025,34 @@ class _ConversationsSkeleton extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(bottom: 12),
             child: NubiaSkeletonLoader(height: 56, borderRadius: 12),
+          ),
+      ],
+    );
+  }
+}
+
+/// Squelette de chargement du fil : bulles alternées gauche/droite,
+/// cohérent avec [_ConversationsSkeleton] (#4934).
+class _ThreadSkeleton extends StatelessWidget {
+  const _ThreadSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      children: [
+        for (var i = 0; i < 6; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Align(
+              alignment:
+                  i.isEven ? Alignment.centerLeft : Alignment.centerRight,
+              child: NubiaSkeletonLoader(
+                width: 180 + (i % 3) * 40,
+                height: 40,
+                borderRadius: 16,
+              ),
+            ),
           ),
       ],
     );
