@@ -128,6 +128,50 @@ void main() {
     );
 
     blocTest<OrdersBloc, OrdersState>(
+      'le tick périodique auto recharge la file (filtre conservé)',
+      build: () {
+        when(() => repo.list()).thenAnswer(
+          (_) async => Right([order('o1', PharmacyOrderStatus.received)]),
+        );
+        return buildBloc();
+      },
+      act: (bloc) async {
+        bloc.add(const OrdersSubscribed());
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const OrdersFilterChanged(PharmacyOrderStatus.received));
+        bloc.add(const OrdersAutoRefreshTicked());
+      },
+      verify: (bloc) {
+        final state = bloc.state as OrdersLoaded;
+        expect(state.filter, PharmacyOrderStatus.received);
+        verify(() => repo.list()).called(2);
+      },
+    );
+
+    blocTest<OrdersBloc, OrdersState>(
+      'un tick périodique en échec reste silencieux (pas d\'OrdersError)',
+      build: () {
+        when(() => repo.list()).thenAnswer(
+          (_) async => Right([order('o1', PharmacyOrderStatus.received)]),
+        );
+        return buildBloc();
+      },
+      act: (bloc) async {
+        bloc.add(const OrdersSubscribed());
+        await Future<void>.delayed(Duration.zero);
+        when(() => repo.list())
+            .thenAnswer((_) async => const Left(NetworkFailure()));
+        bloc.add(const OrdersAutoRefreshTicked());
+      },
+      expect: () => [
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.received)]),
+      ],
+      verify: (bloc) {
+        expect(bloc.state, isA<OrdersLoaded>());
+      },
+    );
+
+    blocTest<OrdersBloc, OrdersState>(
       'transition de ligne (Préparer) même sémantique que le détail',
       build: () {
         when(() => repo.accept('o1')).thenAnswer(
