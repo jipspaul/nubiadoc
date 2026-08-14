@@ -292,7 +292,8 @@ void main() {
       expect(find.byKey(const Key('quote_reissue_q1')), findsNothing);
     });
 
-    testWidgets('bandeau de compteurs : actifs, en attente, montant accepté',
+    testWidgets(
+        'bandeau de compteurs : actifs, en attente, brouillons, montant accepté',
         (tester) async {
       final quotes = [
         quote(PharmacyQuoteStatus.draft, id: 'q1'),
@@ -314,12 +315,16 @@ void main() {
       expect(find.text('devis actifs'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
       expect(find.text('en attente de réponse'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('brouillons non envoyés'), findsOneWidget);
       expect(find.text('1 840,00 €'), findsOneWidget);
       expect(find.text('montant accepté'), findsOneWidget);
 
-      final pendingValue = tester.widget<Text>(find.text('2'));
       final tokens = NubiaTokens.light;
+      final pendingValue = tester.widget<Text>(find.text('2'));
       expect(pendingValue.style?.color, tokens.warningFg);
+      final draftValue = tester.widget<Text>(find.text('1'));
+      expect(draftValue.style?.color, tokens.dangerFg);
     });
 
     testWidgets('recherche filtre par patient ou article', (tester) async {
@@ -387,7 +392,7 @@ void main() {
   });
 
   group('DevisKpis', () {
-    test('agrège actifs, en attente et montant accepté', () {
+    test('agrège actifs, en attente, brouillons et montant accepté', () {
       final quotes = [
         quote(PharmacyQuoteStatus.draft, id: 'q1'),
         quote(PharmacyQuoteStatus.sent, id: 'q2'),
@@ -400,6 +405,7 @@ void main() {
       expect(kpis.activeCount, 4);
       expect(kpis.pendingCount, 1);
       expect(kpis.acceptedAmountCents, 500);
+      expect(kpis.draftCount, 1);
     });
   });
 }
