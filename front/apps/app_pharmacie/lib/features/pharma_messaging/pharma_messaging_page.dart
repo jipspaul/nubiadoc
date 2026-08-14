@@ -497,6 +497,17 @@ class _ThreadViewState extends State<_ThreadView> {
     _controller.clear();
   }
 
+  void _insertQuickReply(String text) {
+    _controller.text = text;
+    _controller.selection =
+        TextSelection.collapsed(offset: _controller.text.length);
+  }
+
+  void _attachOrder() {
+    // TODO(#4930) : rattachement de commande — la pièce jointe commande
+    // n'existe pas encore côté composer.
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
@@ -556,6 +567,34 @@ class _ThreadViewState extends State<_ThreadView> {
                 ),
         ),
         Divider(height: 1, color: tokens.borderSubtle),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Wrap(
+            key: const Key('pharma_messaging_quick_replies'),
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              NubiaChip(
+                key: const Key('pharma_messaging_quick_reply_closing_time'),
+                icon: Icons.schedule,
+                label: 'Nous fermons à 19h30',
+                onTap: () => _insertQuickReply('Nous fermons à 19h30'),
+              ),
+              NubiaChip(
+                key: const Key('pharma_messaging_quick_reply_order_ready'),
+                icon: Icons.inventory_2,
+                label: 'Votre commande est prête',
+                onTap: () => _insertQuickReply('Votre commande est prête'),
+              ),
+              NubiaChip(
+                key: const Key('pharma_messaging_quick_reply_attach_order'),
+                icon: Icons.link,
+                label: 'Joindre la commande',
+                onTap: _attachOrder,
+              ),
+            ],
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
