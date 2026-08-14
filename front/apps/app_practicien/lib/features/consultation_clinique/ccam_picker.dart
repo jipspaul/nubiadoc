@@ -57,6 +57,11 @@ class CcamPicker extends StatefulWidget {
   /// Reste modifiable dans l'éditeur (l'utilisateur peut corriger).
   final String? selectedTooth;
 
+  /// Focus externe optionnel du champ de recherche (#4948) — partagé avec la
+  /// recherche globale de la barre du haut, en plus du raccourci ⌘K interne
+  /// (#4941). `null` : un `FocusNode` interne est créé (comportement inchangé).
+  final FocusNode? searchFocusNode;
+
   /// Appelé une fois l'acte pleinement saisi (code + dent + montant) via
   /// l'éditeur (#3402). Le montant est en centimes ; la dent est facultative.
   final void Function({
@@ -72,6 +77,7 @@ class CcamPicker extends StatefulWidget {
     required this.onActSubmitted,
     this.selectedTooth,
     this.favoritesUseCase,
+    this.searchFocusNode,
   });
 
   @override
@@ -81,13 +87,20 @@ class CcamPicker extends StatefulWidget {
 class _CcamPickerState extends State<CcamPicker> {
   final _controller = TextEditingController();
   // Focus du champ de recherche via ⌘K (#4941) — voir `_handleShortcutKey`.
-  final _searchFocusNode = FocusNode();
+  // Externe si fourni (#4948, partagé avec la recherche globale de la barre
+  // du haut), sinon un `FocusNode` interne est créé et possédé ici.
+  FocusNode? _ownedSearchFocusNode;
+  FocusNode get _searchFocusNode =>
+      widget.searchFocusNode ?? _ownedSearchFocusNode!;
   List<CcamAct>? _suggestions;
   List<CcamAct>? _favorites;
 
   @override
   void initState() {
     super.initState();
+    if (widget.searchFocusNode == null) {
+      _ownedSearchFocusNode = FocusNode();
+    }
     _loadFavorites();
     // Ré-affiche/masque le badge ⌘K selon que le champ est vide (#4941),
     // même en dehors de `_onChanged` (ex. `clear()` programmatique).
@@ -98,7 +111,7 @@ class _CcamPickerState extends State<CcamPicker> {
   void dispose() {
     _controller.removeListener(_handleQueryChanged);
     _controller.dispose();
-    _searchFocusNode.dispose();
+    _ownedSearchFocusNode?.dispose();
     super.dispose();
   }
 
@@ -230,9 +243,8 @@ class _CcamPickerState extends State<CcamPicker> {
               hint: 'Code CCAM ou libellé',
               // Badge ⌘K (#4941, point 4 de la maquette) — masqué une fois
               // la saisie commencée, comme la pastille « / » de OrdersView.
-              locationChip: _controller.text.isEmpty
-                  ? const _CcamShortcutBadge()
-                  : null,
+              locationChip:
+                  _controller.text.isEmpty ? const _CcamShortcutBadge() : null,
             ),
           ),
           if (suggestions != null)
