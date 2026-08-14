@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get_it/get_it.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -172,6 +174,20 @@ class _LoadedView extends StatefulWidget {
 class _LoadedViewState extends State<_LoadedView> {
   late final TextEditingController _noteController;
 
+  /// Débounce de l'auto-save de la note de séance (#4943) — la note n'a plus
+  /// de bouton d'enregistrement manuel explicite : elle se sauvegarde après
+  /// une pause de frappe.
+  Timer? _noteSaveDebounce;
+
+  void _onNoteChanged(String value) {
+    _noteSaveDebounce?.cancel();
+    _noteSaveDebounce = Timer(const Duration(milliseconds: 800), () {
+      context
+          .read<ConsultationCliniqueBloc>()
+          .add(ConsultationCliniqueNoteSaveRequested(value));
+    });
+  }
+
   /// Dent sélectionnée pour le prochain acte CCAM (#4048) — pré-remplit
   /// `CcamPicker`/`CcamActEditorDialog` au lieu de la saisie texte libre.
   String? _selectedTooth;
@@ -217,6 +233,7 @@ class _LoadedViewState extends State<_LoadedView> {
     );
     if (template != null) {
       _noteController.text = template.bodyTemplate;
+      _onNoteChanged(template.bodyTemplate);
     }
   }
 
@@ -240,6 +257,7 @@ class _LoadedViewState extends State<_LoadedView> {
 
   @override
   void dispose() {
+    _noteSaveDebounce?.cancel();
     _noteController.dispose();
     super.dispose();
   }
@@ -376,12 +394,9 @@ class _LoadedViewState extends State<_LoadedView> {
                 key: const Key('consultation_side_panel'),
                 textTheme: textTheme,
                 noteController: _noteController,
-                actionInProgress: state.actionInProgress,
                 onPickCrTemplate: _pickCrTemplate,
-                onSaveNote: () => context.read<ConsultationCliniqueBloc>().add(
-                      ConsultationCliniqueNoteSaveRequested(
-                          _noteController.text),
-                    ),
+                onNoteChanged: _onNoteChanged,
+                lastNoteSavedAt: state.lastNoteSavedAt,
                 selectedTooth: _selectedTooth,
                 // #3402 — l'éditeur d'acte fournit la dent + le montant,
                 // transmis au POST .../acts (le total reflète alors la
@@ -594,9 +609,9 @@ class _SideColumn extends StatelessWidget {
     super.key,
     required this.textTheme,
     required this.noteController,
-    required this.actionInProgress,
     required this.onPickCrTemplate,
-    required this.onSaveNote,
+    required this.onNoteChanged,
+    required this.lastNoteSavedAt,
     required this.selectedTooth,
     required this.onActSubmitted,
     required this.scrollable,
@@ -604,9 +619,9 @@ class _SideColumn extends StatelessWidget {
 
   final TextTheme textTheme;
   final TextEditingController noteController;
-  final bool actionInProgress;
   final VoidCallback onPickCrTemplate;
-  final VoidCallback onSaveNote;
+  final ValueChanged<String> onNoteChanged;
+  final DateTime? lastNoteSavedAt;
   final String? selectedTooth;
   final void Function({
     required String code,
@@ -650,22 +665,14 @@ class _SideColumn extends StatelessWidget {
                   key: const Key('consultation_note_field'),
                   controller: noteController,
                   maxLines: 4,
+                  onChanged: onNoteChanged,
                   decoration: const InputDecoration(
                     hintText: 'Observations cliniques...',
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: NubiaButton(
-                    key: const Key('save_note_button'),
-                    size: NubiaButtonSize.sm,
-                    icon: Icons.save_outlined,
-                    label: 'Enregistrer la note',
-                    onPressed: actionInProgress ? null : onSaveNote,
-                  ),
-                ),
+                _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
               ],
             ),
           ),
@@ -686,6 +693,54 @@ class _SideColumn extends StatelessWidget {
     );
     return scrollable ? SingleChildScrollView(child: content) : content;
   }
+}
+
+/// Indicateur d'état de l'auto-save de la note de séance (#4943) —
+/// remplace le bouton « Enregistrer la note » : icône `cloud_done` + horaire
+/// du dernier enregistrement réussi, rien tant qu'aucun enregistrement n'a
+/// encore eu lieu. Le badge ⌘S rappelle le raccourci manuel — son
+/// déclenchement effectif est traité par un ticket dédié.
+class _NoteSaveStatus extends StatelessWidget {
+  const _NoteSaveStatus({required this.lastSavedAt});
+
+  final DateTime? lastSavedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final savedAt = lastSavedAt;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        if (savedAt != null)
+          Row(
+            key: const Key('note_save_status'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_done, size: 16, color: tokens.successFg),
+              const SizedBox(width: 4),
+              Text(
+                'Enregistré à ${_formatTime(savedAt)}',
+                style: textTheme.bodySmall?.copyWith(color: tokens.successFg),
+              ),
+            ],
+          )
+        else
+          const SizedBox.shrink(),
+        const NubiaBadge.label(label: '⌘S'),
+      ],
+    );
+  }
+}
+
+/// Heure courte HH:MM (24 h, heure locale) — format imposé par la maquette
+/// design-v2 pour l'indicateur d'auto-save de la note (#4943).
+String _formatTime(DateTime dt) {
+  final d = dt.toLocal();
+  final hh = d.hour.toString().padLeft(2, '0');
+  final min = d.minute.toString().padLeft(2, '0');
+  return '$hh:$min';
 }
 
 /// Formatte un montant en centimes vers un libellé euros.
