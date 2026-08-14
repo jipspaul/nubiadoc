@@ -74,7 +74,7 @@ void main() {
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
-      '409 (double scan) → InvalidCode',
+      '409 (double scan) → InvalidCode, cause wrongStatus',
       build: () {
         when(() => repo.confirmPickup(any())).thenAnswer(
           (_) async => const Left(ServerFailure(
@@ -85,12 +85,18 @@ void main() {
         return buildCubit();
       },
       act: (cubit) => cubit.submit('tok-x', expectedOrderId: 'o1'),
-      expect: () =>
-          [const PickupScanSubmitting(), isA<PickupScanInvalidCode>()],
+      expect: () => [
+        const PickupScanSubmitting(),
+        isA<PickupScanInvalidCode>().having(
+          (s) => s.cause,
+          'cause',
+          PickupScanInvalidCause.wrongStatus,
+        ),
+      ],
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
-      '410 (token expiré) → InvalidCode',
+      '410 (token expiré) → InvalidCode, cause expired',
       build: () {
         when(() => repo.confirmPickup(any())).thenAnswer(
           (_) async => const Left(ServerFailure(
@@ -99,12 +105,18 @@ void main() {
         return buildCubit();
       },
       act: (cubit) => cubit.submit('tok-x', expectedOrderId: 'o1'),
-      expect: () =>
-          [const PickupScanSubmitting(), isA<PickupScanInvalidCode>()],
+      expect: () => [
+        const PickupScanSubmitting(),
+        isA<PickupScanInvalidCode>().having(
+          (s) => s.cause,
+          'cause',
+          PickupScanInvalidCause.expired,
+        ),
+      ],
     );
 
     blocTest<PickupScanCubit, PickupScanState>(
-      'token inconnu (404) → InvalidCode ; erreur réseau → Error',
+      'token inconnu (404) → InvalidCode, cause unknownCode ; erreur réseau → Error',
       build: () {
         when(() => repo.confirmPickup('inconnu'))
             .thenAnswer((_) async => const Left(NotFoundFailure()));
@@ -118,7 +130,11 @@ void main() {
       },
       expect: () => [
         const PickupScanSubmitting(),
-        isA<PickupScanInvalidCode>(),
+        isA<PickupScanInvalidCode>().having(
+          (s) => s.cause,
+          'cause',
+          PickupScanInvalidCause.unknownCode,
+        ),
         const PickupScanSubmitting(),
         isA<PickupScanError>(),
       ],
