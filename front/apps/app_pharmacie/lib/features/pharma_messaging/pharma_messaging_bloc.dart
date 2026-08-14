@@ -49,25 +49,45 @@ class PharmaMessagingBloc
     PharmaMessagingThreadOpened event,
     Emitter<PharmaMessagingState> emit,
   ) async {
-    emit(PharmaMessagingThreadLoading(event.conversation.id));
+    final conversations = _conversationsOf(state);
+    emit(PharmaMessagingThreadLoading(
+      event.conversation.id,
+      conversations: conversations,
+    ));
     try {
       final result = await _getMessages(event.conversation.id);
       result.fold(
         (failure) => safeEmit(PharmaMessagingThreadError(
           conversationId: event.conversation.id,
           message: failure.message,
+          conversations: conversations,
         )),
         (messages) => safeEmit(PharmaMessagingThreadLoaded(
           conversation: event.conversation,
           messages: messages,
+          conversations: conversations,
         )),
       );
     } catch (_) {
       safeEmit(PharmaMessagingThreadError(
-          conversationId: event.conversation.id,
-          message: 'Erreur de chargement.'));
+        conversationId: event.conversation.id,
+        message: 'Erreur de chargement.',
+        conversations: conversations,
+      ));
     }
   }
+
+  /// Conversations connues par l'état courant, quel qu'il soit — permet de
+  /// garder la colonne liste affichée pendant l'ouverture d'un fil (#4925).
+  List<CabinetConversation> _conversationsOf(PharmaMessagingState state) =>
+      switch (state) {
+        PharmaMessagingConversationsLoaded(:final conversations) =>
+          conversations,
+        PharmaMessagingThreadLoading(:final conversations) => conversations,
+        PharmaMessagingThreadLoaded(:final conversations) => conversations,
+        PharmaMessagingThreadError(:final conversations) => conversations,
+        _ => const [],
+      };
 
   Future<void> _onSend(
     PharmaMessagingSendRequested event,
