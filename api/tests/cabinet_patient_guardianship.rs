@@ -132,9 +132,13 @@ async fn insert_fixture(db: &PgPool, suffix: &str) -> Fixture {
     .unwrap();
 
     sqlx::query(
+        // `relationship` est stocké dans le sens dépendant→tuteur : ici
+        // « Léa (mineure) est l'enfant de Paul (tuteur) » → 'enfant'. La fiche
+        // patient inverse ce libellé pour l'entrée `guardians` (sens tuteur→
+        // dépendant) et doit donc afficher Paul comme 'parent' (#4746).
         "INSERT INTO account_guardianship \
          (guardian_account_id, dependent_account_id, relationship, active) \
-         VALUES ($1, $2, 'parent', true)",
+         VALUES ($1, $2, 'enfant', true)",
     )
     .bind(guardian_account_id)
     .bind(dependent_account_id)
