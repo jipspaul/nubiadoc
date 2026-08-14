@@ -10,10 +10,13 @@ void main() {
         'pharmacy_id': 'p1',
         'pharmacy_name': 'Pharmacie du Port',
         'patient_display_name': 'Jean D.',
+        'prescriber_name': 'Dr A. Rousseau',
+        'prescriber_practice': 'Cabinet Nubia Opéra',
         'prescription_id': 'rx1',
         'status': 'preparing',
         'received_at': '2026-07-01T10:00:00Z',
         'updated_at': '2026-07-01T11:00:00Z',
+        'line_count': 4,
       });
       final order = dto.toDomain();
 
@@ -21,8 +24,11 @@ void main() {
       expect(order.status, PharmacyOrderStatus.preparing);
       expect(order.pharmacyName, 'Pharmacie du Port');
       expect(order.patientDisplayName, 'Jean D.');
+      expect(order.prescriberName, 'Dr A. Rousseau');
+      expect(order.prescriberPractice, 'Cabinet Nubia Opéra');
       expect(order.updatedAt, DateTime.utc(2026, 7, 1, 11));
       expect(order.readyAt, isNull);
+      expect(order.lineCount, 4);
     });
 
     test('champs manquants → valeurs défensives', () {
@@ -31,8 +37,23 @@ void main() {
       expect(order.status, PharmacyOrderStatus.received);
       expect(order.pharmacyId, '');
       expect(order.prescriptionId, '');
+      expect(order.prescriberName, isNull);
+      expect(order.prescriberPractice, isNull);
       // updatedAt retombe sur createdAt.
       expect(order.updatedAt, order.createdAt);
+      expect(order.lineCount, isNull);
+    });
+
+    test('line_count absent → dérivé de la longueur de lines', () {
+      final order = PharmacyOrderDto.fromJson({
+        'id': 'o3',
+        'lines': [
+          {'label': 'Amoxicilline'},
+          {'label': 'Doliprane'},
+        ],
+      }).toDomain();
+
+      expect(order.lineCount, 2);
     });
 
     test('statut inconnu → received (défensif)', () {
@@ -98,24 +119,36 @@ void main() {
       expect(request.items.first.quantity, 10);
       expect(request.items.last.quantity, 2);
       expect(request.status, StockRequestStatus.accepted);
+      expect(request.items.first.availability, isNull);
     });
 
-    test('availability jsonb → StockItemAvailability', () {
-      final request = StockRequestDto.fromJson({
+    test('availability_status jsonb → StockItemAvailability', () {
+      final items = StockRequestDto.fromJson({
         'id': 's1',
         'pharmacy_id': 'p1',
         'items': [
-          {'label': 'Compresses', 'qty': 10, 'availability': 'partial'},
-          {'label': 'Sérum phy', 'qty': 2, 'availability': 'full'},
-          {'label': 'Gaze', 'qty': 1},
+          {'label': 'Compresses', 'qty': 10, 'availability_status': 'in_stock'},
+          {
+            'label': 'Gants nitrile',
+            'qty': 5,
+            'availability_status': 'limited',
+            'available_qty': 2,
+          },
+          {'label': 'Masques', 'qty': 3, 'availability_status': 'out_of_stock'},
+          {'label': 'Compresses B', 'qty': 4},
         ],
         'status': 'sent',
         'created_at': '2026-07-01T10:00:00Z',
-      }).toDomain();
+      }).toDomain().items;
 
-      expect(request.items[0].availability, StockItemAvailability.partial);
-      expect(request.items[1].availability, StockItemAvailability.full);
-      expect(request.items[2].availability, isNull);
+      expect(
+          items[0].availability!.status, StockItemAvailabilityStatus.inStock);
+      expect(
+          items[1].availability!.status, StockItemAvailabilityStatus.limited);
+      expect(items[1].availability!.quantityAvailable, 2);
+      expect(items[2].availability!.status,
+          StockItemAvailabilityStatus.outOfStock);
+      expect(items[3].availability, isNull);
     });
   });
 

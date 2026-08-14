@@ -5,9 +5,10 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'stock_bloc.dart';
 import 'stock_delay.dart';
+import 'stock_status_facet_chip.dart';
 
 /// Demandes de stock reçues des cabinets — corps de la destination « Stock ».
-class StockView extends StatelessWidget {
+class StockView extends StatefulWidget {
   const StockView({super.key});
 
   static const _labels = {
@@ -27,12 +28,39 @@ class StockView extends StatelessWidget {
   };
 
   @override
+  State<StockView> createState() => _StockViewState();
+}
+
+class _StockViewState extends State<StockView> {
+  StockRequestStatus _facet = StockRequestStatus.sent;
+  String _query = '';
+
+  List<StockRequest> _filter(List<StockRequest> requests) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return requests;
+    return requests
+        .where((request) =>
+            (request.cabinetName ?? '').toLowerCase().contains(query) ||
+            request.items
+                .any((item) => item.label.toLowerCase().contains(query)))
+        .toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final facets = <(StockRequestStatus, String, Color)>[
+      (StockRequestStatus.sent, 'À répondre', tokens.infoFg),
+      (StockRequestStatus.accepted, 'Acceptées', tokens.warningFg),
+      (StockRequestStatus.fulfilled, 'Honorées', tokens.successFg),
+      (StockRequestStatus.rejected, 'Refusées', tokens.dangerFg),
+    ];
+
     return BlocBuilder<StockBloc, StockState>(
       builder: (context, state) {
         switch (state) {
           case StockLoading():
-            return const Center(child: CircularProgressIndicator());
+            return const _StockLoadingSkeleton();
           case StockError(:final message):
             return NubiaErrorWidget(
               message: message,
@@ -40,30 +68,122 @@ class StockView extends StatelessWidget {
                   context.read<StockBloc>().add(const StockLoadRequested()),
             );
           case StockLoaded(:final requests, :final respondingId):
-            if (requests.isEmpty) {
-              return const NubiaEmptyState(
-                icon: Icons.inventory_2_outlined,
-                title: 'Aucune demande de stock',
-                subtitle:
-                    'Les demandes envoyées par les cabinets apparaîtront ici.',
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: requests.length,
-              itemBuilder: (context, index) {
-                final request = requests[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _StockRequestCard(
-                    request: request,
-                    responding: respondingId == request.id,
+            final filtered =
+                _filter(requests.where((r) => r.status == _facet).toList());
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (status, label, dotColor) in facets)
+                        StockStatusFacetChip(
+                          key: Key('stock_facet_${status.name}'),
+                          label: label,
+                          count: requests.where((r) => r.status == status).length,
+                          dotColor: dotColor,
+                          selected: status == _facet,
+                          onTap: () => setState(() => _facet = status),
+                        ),
+                    ],
                   ),
-                );
-              },
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 230,
+                      child: NubiaSearchBar(
+                        key: const Key('stock_search'),
+                        hint: 'Cabinet, article…',
+                        onChanged: (value) => setState(() => _query = value),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? const NubiaEmptyState(
+                          icon: Icons.inventory_2_outlined,
+                          title: 'Aucune demande de stock',
+                          subtitle:
+                              'Les demandes envoyées par les cabinets apparaîtront ici.',
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final request = filtered[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _StockRequestCard(
+                                request: request,
+                                responding: respondingId == request.id,
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             );
         }
       },
+    );
+  }
+}
+
+/// Squelette de chargement — cartes fantômes plutôt qu'un spinner nu,
+/// au même rythme que la file des commandes (`orders_page.dart`).
+class _StockLoadingSkeleton extends StatelessWidget {
+  const _StockLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _StockRequestSkeletonCard(),
+          SizedBox(height: 12),
+          _StockRequestSkeletonCard(),
+          SizedBox(height: 12),
+          _StockRequestSkeletonCard(),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockRequestSkeletonCard extends StatelessWidget {
+  const _StockRequestSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: NubiaSkeletonLoader(height: 16, width: 160)),
+              SizedBox(width: 12),
+              NubiaSkeletonLoader(height: 20, width: 72),
+            ],
+          ),
+          SizedBox(height: 6),
+          NubiaSkeletonLoader(height: 12, width: 90),
+          SizedBox(height: 12),
+          NubiaSkeletonLoader(height: 14, width: double.infinity),
+          SizedBox(height: 6),
+          NubiaSkeletonLoader(height: 14, width: double.infinity),
+          SizedBox(height: 12),
+          NubiaSkeletonLoader(height: 44, width: double.infinity),
+        ],
+      ),
     );
   }
 }
@@ -120,10 +240,28 @@ class _StockRequestCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           for (final item in request.items)
-            Text(
-              '• ${item.quantity} × ${item.label}'
-              '${item.note != null ? ' (${item.note})' : ''}',
-              style: theme.textTheme.bodyMedium,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      '• ${item.quantity} × ${item.label}'
+                      '${item.note != null ? ' (${item.note})' : ''}',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  if (item.availability != null)
+                    Text(
+                      _availabilityLabel(item.availability!),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: _availabilityColor(item.availability!, tokens),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
             ),
           if (request.responseNote != null) ...[
             const SizedBox(height: 4),
@@ -132,7 +270,9 @@ class _StockRequestCard extends StatelessWidget {
           ],
           if (request.status == StockRequestStatus.sent &&
               request.items.any(
-                (item) => item.availability == StockItemAvailability.partial,
+                (item) =>
+                    item.availability?.status ==
+                    StockItemAvailabilityStatus.limited,
               )) ...[
             const SizedBox(height: 12),
             const _PartialAvailabilityBanner(),
@@ -234,6 +374,26 @@ class _StockRequestCard extends StatelessWidget {
         note: note,
       ));
     }
+  }
+
+  String _availabilityLabel(StockItemAvailability availability) {
+    return switch (availability.status) {
+      StockItemAvailabilityStatus.inStock => 'En stock',
+      StockItemAvailabilityStatus.limited =>
+        '${availability.quantityAvailable ?? 0} dispo',
+      StockItemAvailabilityStatus.outOfStock => 'Rupture',
+    };
+  }
+
+  Color _availabilityColor(
+    StockItemAvailability availability,
+    NubiaTokens tokens,
+  ) {
+    return switch (availability.status) {
+      StockItemAvailabilityStatus.inStock => tokens.successFg,
+      StockItemAvailabilityStatus.limited => tokens.warningFg,
+      StockItemAvailabilityStatus.outOfStock => tokens.dangerFg,
+    };
   }
 }
 

@@ -51,10 +51,26 @@ class PharmaHomePage extends StatelessWidget {
       onNavigate: (destination) => context.go(destination.route),
       bodyBuilder: (ctx, destination) {
         if (destination.route == PharmaConfig.ordersRoute) {
-          return BlocProvider<OrdersBloc>(
-            create: (_) =>
-                GetIt.instance<OrdersBloc>()..add(const OrdersSubscribed()),
-            child: const OrdersView(),
+          return MultiBlocProvider(
+            providers: [
+              BlocProvider<OrdersBloc>(
+                create: (_) => GetIt.instance<OrdersBloc>()
+                  ..add(const OrdersSubscribed()),
+              ),
+              // L'aside « À traiter » agrège aussi les demandes de stock et
+              // les messages du cabinet non lus (#4916) — chargés ici pour
+              // rester disponibles sans navigation ni appel réseau depuis
+              // l'aside elle-même.
+              BlocProvider<StockBloc>(
+                create: (_) => GetIt.instance<StockBloc>()
+                  ..add(const StockLoadRequested()),
+              ),
+              BlocProvider<PharmaMessagingBloc>(
+                create: (_) => GetIt.instance<PharmaMessagingBloc>()
+                  ..add(const PharmaMessagingConversationsLoadRequested()),
+              ),
+            ],
+            child: const OrdersScreen(),
           );
         }
         if (destination.route == '/stock') {

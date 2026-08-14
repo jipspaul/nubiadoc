@@ -3,8 +3,23 @@ import 'package:equatable/equatable.dart';
 /// Statuts d'une demande de stock cabinet → pharmacie.
 enum StockRequestStatus { sent, accepted, rejected, fulfilled, cancelled }
 
-/// Disponibilité d'une ligne de demande de stock côté pharmacie.
-enum StockItemAvailability { full, partial }
+/// État de disponibilité d'une ligne de demande de stock, côté pharmacie.
+enum StockItemAvailabilityStatus { inStock, limited, outOfStock }
+
+/// Disponibilité d'une ligne, exposée par l'API pharmacie (jamais côté
+/// cabinet, qui l'ignore à la création).
+class StockItemAvailability extends Equatable {
+  final StockItemAvailabilityStatus status;
+  final int? quantityAvailable;
+
+  const StockItemAvailability({
+    required this.status,
+    this.quantityAvailable,
+  });
+
+  @override
+  List<Object?> get props => [status, quantityAvailable];
+}
 
 /// Une ligne d'une demande de stock (jamais de donnée patient).
 class StockRequestItem extends Equatable {

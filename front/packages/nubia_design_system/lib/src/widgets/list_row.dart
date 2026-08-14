@@ -11,6 +11,9 @@ import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 ///
 /// - [title] : texte principal.
 /// - [subtitle] : texte secondaire optionnel (tronqué sur une ligne).
+/// - [subtitleWidget] : remplace [subtitle] par un widget libre (ex. texte
+///   multi-ligne avec tonalité de couleur) quand un simple `String` ne
+///   suffit pas. Ignoré si [subtitle] est fourni.
 /// - [leading] : widget de gauche optionnel (avatar / icône).
 /// - [trailing] : widget de droite optionnel (badge / valeur / chevron).
 /// - [unread] : variante non-lu (point `primary` + titre renforcé).
@@ -21,6 +24,7 @@ class ListRow extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
+    this.subtitleWidget,
     this.leading,
     this.trailing,
     this.unread = false,
@@ -30,6 +34,7 @@ class ListRow extends StatelessWidget {
 
   final String title;
   final String? subtitle;
+  final Widget? subtitleWidget;
   final Widget? leading;
   final Widget? trailing;
   final bool unread;
@@ -94,6 +99,9 @@ class ListRow extends StatelessWidget {
                         fontWeight: unread ? FontWeight.w500 : FontWeight.w400,
                       ),
                     ),
+                  ] else if (subtitleWidget != null) ...[
+                    const SizedBox(height: 2),
+                    subtitleWidget!,
                   ],
                 ],
               ),

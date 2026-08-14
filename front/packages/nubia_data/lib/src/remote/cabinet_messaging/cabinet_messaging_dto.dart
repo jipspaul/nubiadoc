@@ -7,21 +7,27 @@ class CabinetConversationDto {
   final String id;
   final String patientId;
   final String patientName;
+  final String? patientPhone;
   final int unreadCount;
   final String? lastMessageAt;
   final MessageDto? lastMessage;
   final String? lastMessagePreview;
   final String triageFlag;
+  final String? orderRef;
+  final String? orderStatusLabel;
 
   const CabinetConversationDto({
     required this.id,
     required this.patientId,
     required this.patientName,
+    this.patientPhone,
     required this.unreadCount,
     this.lastMessageAt,
     this.lastMessage,
     this.lastMessagePreview,
     this.triageFlag = 'normal',
+    this.orderRef,
+    this.orderStatusLabel,
   });
 
   factory CabinetConversationDto.fromJson(Map<String, dynamic> json) {
@@ -41,6 +47,7 @@ class CabinetConversationDto {
       id: json['id'] as String,
       patientId: json['patient_id'] as String? ?? '',
       patientName: patientName,
+      patientPhone: json['patient_phone'] as String?,
       unreadCount: (json['unread_count'] as num? ?? 0).toInt(),
       lastMessageAt: json['last_message_at'] as String?,
       lastMessage: json['last_message'] == null
@@ -48,6 +55,8 @@ class CabinetConversationDto {
           : MessageDto.fromJson(json['last_message'] as Map<String, dynamic>),
       lastMessagePreview: json['last_message_preview'] as String?,
       triageFlag: json['triage_flag'] as String? ?? 'normal',
+      orderRef: json['order_ref'] as String?,
+      orderStatusLabel: json['order_status_label'] as String?,
     );
   }
 
@@ -55,6 +64,7 @@ class CabinetConversationDto {
         id: id,
         patientId: patientId,
         patientName: patientName,
+        patientPhone: patientPhone,
         unreadCount: unreadCount,
         lastMessageAt:
             lastMessageAt == null ? null : DateTime.parse(lastMessageAt!),
@@ -63,6 +73,8 @@ class CabinetConversationDto {
         triageFlag: triageFlag == 'urgent'
             ? MessageUrgency.urgent
             : MessageUrgency.normal,
+        orderRef: orderRef,
+        orderStatusLabel: orderStatusLabel,
       );
 }
 
