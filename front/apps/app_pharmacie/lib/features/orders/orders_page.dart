@@ -130,6 +130,10 @@ class _OrdersViewState extends State<OrdersView> {
               OrdersLoaded(:final filter) => filter,
               _ => null,
             };
+            final allOrders = switch (state) {
+              OrdersLoaded(:final orders) => orders,
+              _ => null,
+            };
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -165,6 +169,14 @@ class _OrdersViewState extends State<OrdersView> {
                                 key: Key(
                                     'orders_filter_${value?.name ?? 'all'}'),
                                 label: label,
+                                count: allOrders == null
+                                    ? null
+                                    : value == null
+                                        ? allOrders.length
+                                        : allOrders
+                                            .where((order) =>
+                                                order.status == value)
+                                            .length,
                                 selected: value == currentFilter,
                                 onTap: () => context
                                     .read<OrdersBloc>()

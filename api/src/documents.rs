@@ -377,7 +377,12 @@ pub async fn get_document(
 
     // URL signée valable 15 minutes — signer réel (Scaleway en prod, #4717),
     // jamais le StorageClient/StubStorageClient hardcodé sur storage.stub (#4835).
-    let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
+    // `signer.sign() == None` : le lien n'a jamais été généré (signer non
+    // configuré, ex. `SCW_*` absentes), pas "expiré" — 502 upstream_unavailable,
+    // pas 410 link_expired (régression #4835 constatée en prod après #5395).
+    let signed_url = signer
+        .sign(&storage_key)
+        .ok_or(AppError::UpstreamUnavailable)?;
     let signed_url_expires_at = chrono::Utc::now() + chrono::Duration::seconds(900);
 
     // Audit — uniquement si le document appartient à un cabinet.
@@ -434,7 +439,7 @@ pub struct DownloadUrlResponse {
 /// `GET /v1/documents/{id}/download` — URL signée expirante (TTL = 300 s).
 ///
 /// Génère une URL fraîche à chaque appel. Pas de 302 : le front lit le JSON.
-/// Doc inexistant → `404`. Signer inaccessible → `410 link_expired`.
+/// Doc inexistant → `404`. Signer indisponible (lien jamais généré) → `502 upstream_unavailable`.
 /// Audit : action `read_document` (zéro PII).
 pub async fn download_document(
     State(state): State<AppState>,
@@ -480,8 +485,12 @@ pub async fn download_document(
     let cabinet_id: Option<Uuid> = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
     let audit_cab_id = cabinet_id.unwrap_or(Uuid::nil());
 
-    // Génère une URL signée fraîche — 410 si le signer ne peut pas produire de lien.
-    let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
+    // Génère une URL signée fraîche — 502 upstream_unavailable si le signer
+    // n'a jamais pu produire de lien (config manquante), pas 410 link_expired
+    // qui signifierait un lien généré puis lapsé (régression #4835).
+    let signed_url = signer
+        .sign(&storage_key)
+        .ok_or(AppError::UpstreamUnavailable)?;
 
     // Audit — action read_document, zéro PII.
     // Pour les docs plateforme (cabinet_id IS NULL) on utilise le nil UUID comme convention.
