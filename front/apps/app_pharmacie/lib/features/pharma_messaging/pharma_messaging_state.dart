@@ -55,27 +55,36 @@ final class PharmaMessagingThreadLoaded extends PharmaMessagingState {
   final bool sending;
   final List<CabinetConversation> conversations;
 
+  /// Commandes passées du patient de cette conversation, pour la colonne
+  /// contexte (#4926) — meilleur effort côté client (filtrage par nom
+  /// affiché, cf. `PharmaMessagingBloc._patientOrdersOf`).
+  final List<PharmacyOrder> patientOrders;
+
   const PharmaMessagingThreadLoaded({
     required this.conversation,
     required this.messages,
     this.sending = false,
     this.conversations = const [],
+    this.patientOrders = const [],
   });
 
   PharmaMessagingThreadLoaded copyWith({
     List<Message>? messages,
     bool? sending,
     List<CabinetConversation>? conversations,
+    List<PharmacyOrder>? patientOrders,
   }) =>
       PharmaMessagingThreadLoaded(
         conversation: conversation,
         messages: messages ?? this.messages,
         sending: sending ?? this.sending,
         conversations: conversations ?? this.conversations,
+        patientOrders: patientOrders ?? this.patientOrders,
       );
 
   @override
-  List<Object?> get props => [conversation, messages, sending, conversations];
+  List<Object?> get props =>
+      [conversation, messages, sending, conversations, patientOrders];
 }
 
 final class PharmaMessagingThreadError extends PharmaMessagingState {
