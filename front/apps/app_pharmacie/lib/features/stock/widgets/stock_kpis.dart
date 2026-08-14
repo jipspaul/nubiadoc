@@ -65,26 +65,34 @@ class StockKpiBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _StockKpiStat(
-            value: '${kpis.toRespondCount}',
-            label: 'à répondre',
-            valueColor: tokens.dangerFg,
+          Expanded(
+            child: _StockKpiStat(
+              value: '${kpis.toRespondCount}',
+              label: 'à répondre',
+              valueColor: tokens.dangerFg,
+            ),
           ),
           const SizedBox(width: 24),
-          _StockKpiStat(
-            value: '${kpis.toDeliverCount}',
-            label: 'acceptées, à livrer',
-            valueColor: tokens.warningFg,
+          Expanded(
+            child: _StockKpiStat(
+              value: '${kpis.toDeliverCount}',
+              label: 'acceptées, à livrer',
+              valueColor: tokens.warningFg,
+            ),
           ),
           const SizedBox(width: 24),
-          _StockKpiStat(
-            value: '${kpis.fulfilledCount}',
-            label: 'honorées ce mois',
+          Expanded(
+            child: _StockKpiStat(
+              value: '${kpis.fulfilledCount}',
+              label: 'honorées ce mois',
+            ),
           ),
           const SizedBox(width: 24),
-          _StockKpiStat(
-            value: '${kpis.partnerCabinetsCount}',
-            label: 'cabinets partenaires',
+          Expanded(
+            child: _StockKpiStat(
+              value: '${kpis.partnerCabinetsCount}',
+              label: 'cabinets partenaires',
+            ),
           ),
         ],
       ),
