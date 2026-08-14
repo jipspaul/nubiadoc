@@ -125,6 +125,7 @@ class _MessagingMasterDetail extends StatefulWidget {
 class _MessagingMasterDetailState extends State<_MessagingMasterDetail> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  _ConversationFacet _facet = _ConversationFacet.all;
 
   @override
   void dispose() {
@@ -137,17 +138,33 @@ class _MessagingMasterDetailState extends State<_MessagingMasterDetail> {
     final conversations = widget.conversations;
     final unreadConversations =
         conversations.where((c) => c.unreadCount > 0).length;
-    final filteredConversations =
-        _filterConversations(conversations, _searchQuery);
+    final urgentConversations = conversations
+        .where((c) => c.triageFlag == MessageUrgency.urgent)
+        .length;
+    final searchFiltered = _filterConversations(conversations, _searchQuery);
+    final filteredConversations = _filterByFacet(searchFiltered, _facet);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide =
             constraints.maxWidth >= _MessagingMasterDetail._wideBreakpoint;
-        final list = _ConversationsList(
-          conversations: filteredConversations,
-          selectedConversationId:
-              isWide ? widget.selectedConversationId : null,
+        final list = Column(
+          children: [
+            _ConversationFacetBar(
+              facet: _facet,
+              allCount: conversations.length,
+              unreadCount: unreadConversations,
+              urgentCount: urgentConversations,
+              onChanged: (facet) => setState(() => _facet = facet),
+            ),
+            Expanded(
+              child: _ConversationsList(
+                conversations: filteredConversations,
+                selectedConversationId:
+                    isWide ? widget.selectedConversationId : null,
+              ),
+            ),
+          ],
         );
 
         final Widget body;
@@ -214,6 +231,117 @@ List<CabinetConversation> _filterConversations(
     final matchesOrder = conv.orderRef?.toLowerCase().contains(q) ?? false;
     return matchesPatient || matchesOrder;
   }).toList();
+}
+
+/// Facette de tri de la liste des conversations (#4932).
+enum _ConversationFacet { all, unread, urgent }
+
+/// Filtre les conversations selon la facette active. « Urgentes » se base
+/// sur `triageFlag` (source de vérité de la liste, #3556) — pas sur
+/// `lastMessage?.urgency`, propre au badge de rangée existant.
+List<CabinetConversation> _filterByFacet(
+  List<CabinetConversation> conversations,
+  _ConversationFacet facet,
+) {
+  switch (facet) {
+    case _ConversationFacet.all:
+      return conversations;
+    case _ConversationFacet.unread:
+      return conversations.where((c) => c.unreadCount > 0).toList();
+    case _ConversationFacet.urgent:
+      return conversations
+          .where((c) => c.triageFlag == MessageUrgency.urgent)
+          .toList();
+  }
+}
+
+/// Barre de facettes « Toutes / Non lues / Urgentes » coiffant la liste des
+/// conversations (maquette design-v2, #4932) : une seule facette active à
+/// la fois, chacune avec son compteur.
+class _ConversationFacetBar extends StatelessWidget {
+  const _ConversationFacetBar({
+    required this.facet,
+    required this.allCount,
+    required this.unreadCount,
+    required this.urgentCount,
+    required this.onChanged,
+  });
+
+  final _ConversationFacet facet;
+  final int allCount;
+  final int unreadCount;
+  final int urgentCount;
+  final ValueChanged<_ConversationFacet> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('pharma_messaging_facets'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _FacetChip(
+            value: _ConversationFacet.all,
+            label: 'Toutes',
+            count: allCount,
+            selected: facet == _ConversationFacet.all,
+            onChanged: onChanged,
+          ),
+          _FacetChip(
+            value: _ConversationFacet.unread,
+            label: 'Non lues',
+            count: unreadCount,
+            selected: facet == _ConversationFacet.unread,
+            onChanged: onChanged,
+          ),
+          _FacetChip(
+            value: _ConversationFacet.urgent,
+            label: 'Urgentes',
+            count: urgentCount,
+            selected: facet == _ConversationFacet.urgent,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Puce d'une facette : émeraude/stone du DS, ton sombre `n900` à l'état
+/// actif (maquette design-v2, une seule facette active à la fois).
+class _FacetChip extends StatelessWidget {
+  const _FacetChip({
+    required this.value,
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final _ConversationFacet value;
+  final String label;
+  final int count;
+  final bool selected;
+  final ValueChanged<_ConversationFacet> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaChip(
+      key: Key('pharma_messaging_facet_${value.name}'),
+      label: label,
+      count: count,
+      selected: selected,
+      selectedBackground: NubiaColors.n900,
+      selectedForeground: Colors.white,
+      onTap: () => onChanged(value),
+    );
+  }
 }
 
 /// En-tête « Messages · X conversations · Y non lues » coiffant les deux
