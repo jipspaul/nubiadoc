@@ -47,6 +47,10 @@ fn make_patient_jwt(user_id: Uuid, account_id: Uuid) -> String {
 }
 
 /// Crée cabinet + praticien + patient + RDV avec checkin_at optionnel.
+/// `starts_at_sql` est une expression SQL (ex. `"now()"`) bornant le RDV dans
+/// la journée courante — cf. `insert_extra_appt` pour le cas où plusieurs RDV
+/// du même praticien doivent tenir dans la fenêtre "aujourd'hui" sans se
+/// chevaucher (contrainte `appointment_no_overlap`).
 /// Retourne (cabinet_id, prac_id, patient_id, appt_id).
 async fn insert_fixture(
     db: &PgPool,
@@ -54,6 +58,7 @@ async fn insert_fixture(
     patient_account_id: Uuid,
     status: &str,
     checkin_at_sql: Option<&str>,
+    starts_at_sql: &str,
 ) -> (Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
@@ -98,7 +103,7 @@ async fn insert_fixture(
     sqlx::query(&format!(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) \
-         VALUES ($1, $2, $3, $4, now(), now() + INTERVAL '30 min', $5, 'test', {checkin_sql})"
+         VALUES ($1, $2, $3, $4, {starts_at_sql}, ({starts_at_sql}) + INTERVAL '30 min', $5, 'test', {checkin_sql})"
     ))
     .bind(appt_id)
     .bind(cabinet_id)
@@ -184,10 +189,16 @@ async fn insert_stale_fixture(
 }
 
 /// Insère un RDV supplémentaire (autre patient) avec checkin_at passé pour simuler file d'attente.
+/// `base_sql` est la même expression SQL (ex. `queue_position_3_safe_base()`, cf. le test appelant)
+/// que celle passée à `insert_fixture` pour l'ancre : tous les RDV d'un même praticien pour un test
+/// donné doivent partager la même base temporelle pour rester non chevauchants (contrainte
+/// `appointment_no_overlap`) tout en restant dans la fenêtre "aujourd'hui" (cf. postmortem #4646 —
+/// un clamp par appel indépendant faisait chevaucher deux RDV extra clampés à la même valeur).
 async fn insert_extra_appt(
     db: &PgPool,
     cabinet_id: Uuid,
     prac_id: Uuid,
+    base_sql: &str,
     slot_offset_min: i64,
     checkin_offset_min: i64,
 ) -> Uuid {
@@ -212,21 +223,12 @@ async fn insert_extra_appt(
     .await
     .unwrap();
 
-    // `starts_at` est borné au jour courant (LEAST avec 23h30) : la requête
-    // de comptage de la file (appointments_read_extras) filtre sur
-    // `starts_at` dans [aujourd'hui 00:00, aujourd'hui 24:00[. Sans ce clamp,
-    // un run proche de minuit fait franchir `now() + INTERVAL '{slot_offset_min}
-    // min'` au jour suivant → le RDV extra sort silencieusement de la fenêtre
-    // "aujourd'hui" → position comptée en moins → assertion `position 3` en
-    // échec intermittent (flake observé en CI, cf. postmortem #4646).
     sqlx::query(&format!(
         "INSERT INTO appointment \
          (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif, checkin_at) \
          VALUES ($1, $2, $3, $4, \
-           LEAST(now() + INTERVAL '{slot_offset_min} min', \
-                 date_trunc('day', now()) + INTERVAL '23 hours 30 minutes'), \
-           LEAST(now() + INTERVAL '{slot_offset_min} min', \
-                 date_trunc('day', now()) + INTERVAL '23 hours 30 minutes') + INTERVAL '30 min', \
+           ({base_sql}) + INTERVAL '{slot_offset_min} min', \
+           ({base_sql}) + INTERVAL '{slot_offset_min} min' + INTERVAL '30 min', \
            'checked_in', 'extra', \
            now() - INTERVAL '{checkin_offset_min} min')"
     ))
@@ -354,6 +356,7 @@ async fn get_queue_wrong_patient_returns_404() {
         patient_account_id,
         "checked_in",
         Some("now()"),
+        "now()",
     )
     .await;
 
@@ -449,6 +452,7 @@ async fn get_queue_position_1_when_no_prior_checkins() {
         patient_account_id,
         "checked_in",
         Some("now()"),
+        "now()",
     )
     .await;
 
@@ -544,6 +548,13 @@ async fn get_queue_position_3_when_two_prior_checkins() {
     .await
     .unwrap();
 
+    // Base temporelle partagée par l'ancre et les 2 extras (95 min de créneaux
+    // au total) : bornée pour toujours tenir dans la fenêtre "aujourd'hui" même
+    // proche de minuit, sans faire chevaucher deux RDV du même praticien
+    // (contrainte `appointment_no_overlap`) — cf. doc de `insert_extra_appt`.
+    const SAFE_BASE_SQL: &str =
+        "LEAST(now(), date_trunc('day', now()) + INTERVAL '1 day' - INTERVAL '95 minutes')";
+
     // Patient checké en dernier : ancre son checkin_at franchement après les
     // extras (now() - 2/5 min) pour que l'ordre de la file soit déterministe
     // même si l'insertion des extras est retardée sous charge parallèle.
@@ -553,12 +564,13 @@ async fn get_queue_position_3_when_two_prior_checkins() {
         patient_account_id,
         "checked_in",
         Some("now() + interval '1 hour'"),
+        SAFE_BASE_SQL,
     )
     .await;
 
     // 2 patients checkés AVANT lui (2 et 5 minutes avant).
-    insert_extra_appt(&db, cabinet_id, prac_id, 35, 5).await;
-    insert_extra_appt(&db, cabinet_id, prac_id, 65, 2).await;
+    insert_extra_appt(&db, cabinet_id, prac_id, SAFE_BASE_SQL, 35, 5).await;
+    insert_extra_appt(&db, cabinet_id, prac_id, SAFE_BASE_SQL, 65, 2).await;
 
     let state = AppState {
         db: app_pool().await,

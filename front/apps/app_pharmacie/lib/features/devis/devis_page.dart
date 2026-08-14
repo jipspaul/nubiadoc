@@ -37,8 +37,23 @@ class PharmacyDevisView extends StatefulWidget {
     PharmacyQuoteStatus.expired: Icons.event_busy,
   };
 
-  static String formatCents(int cents) =>
-      '${(cents / 100).toStringAsFixed(2).replaceAll('.', ',')} €';
+  static String formatCents(int cents) {
+    final str = (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
+    final commaIndex = str.indexOf(',');
+    return '${_groupThousands(str.substring(0, commaIndex))}'
+        '${str.substring(commaIndex)} €';
+  }
+
+  static String _groupThousands(String digits) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
 
   @override
   State<PharmacyDevisView> createState() => _PharmacyDevisViewState();
@@ -46,6 +61,19 @@ class PharmacyDevisView extends StatefulWidget {
 
 class _PharmacyDevisViewState extends State<PharmacyDevisView> {
   DevisStatusFacet _facet = DevisStatusFacet.all;
+  String _query = '';
+
+  List<PharmacyQuote> _filter(List<PharmacyQuote> quotes) {
+    final byFacet = quotes.where(_facet.matches);
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return byFacet.toList();
+    return byFacet
+        .where((quote) =>
+            (quote.patientDisplayName ?? '').toLowerCase().contains(query) ||
+            quote.items
+                .any((item) => item.label.toLowerCase().contains(query)))
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +81,18 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
       builder: (context, state) {
         switch (state) {
           case PharmacyDevisLoading():
-            return const Center(child: CircularProgressIndicator());
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  SizedBox(height: 12),
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                  SizedBox(height: 12),
+                  NubiaSkeletonLoader(height: 160, borderRadius: 12),
+                ],
+              ),
+            );
           case PharmacyDevisError(:final message):
             return NubiaErrorWidget(
               message: message,
@@ -69,7 +108,7 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
                 subtitle: 'Créez un devis depuis le détail d\'une commande.',
               );
             }
-            final filtered = quotes.where(_facet.matches).toList();
+            final filtered = _filter(quotes);
             return Column(
               children: [
                 DevisKpiBanner(quotes: quotes),
@@ -77,6 +116,20 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
                   quotes: quotes,
                   selected: _facet,
                   onSelected: (facet) => setState(() => _facet = facet),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 230,
+                      child: NubiaSearchBar(
+                        key: const Key('devis_search'),
+                        hint: 'Patient, article…',
+                        onChanged: (value) => setState(() => _query = value),
+                      ),
+                    ),
+                  ),
                 ),
                 Expanded(
                   child: ListView.builder(

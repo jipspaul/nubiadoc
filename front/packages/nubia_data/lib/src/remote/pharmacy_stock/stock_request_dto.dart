@@ -43,6 +43,7 @@ class StockRequestDto {
                 label: item['label'] as String? ?? '',
                 quantity: (item['qty'] ?? item['quantity']) as int? ?? 1,
                 note: item['note'] as String?,
+                availability: _parseAvailability(item),
               ),
             )
             .toList(),
@@ -50,6 +51,29 @@ class StockRequestDto {
         responseNote: responseNote,
         createdAt: DateTime.parse(createdAt),
       );
+
+  static StockItemAvailability? _parseAvailability(
+    Map<String, dynamic> item,
+  ) {
+    final status = item['availability_status'] as String?;
+    switch (status) {
+      case 'in_stock':
+        return const StockItemAvailability(
+          status: StockItemAvailabilityStatus.inStock,
+        );
+      case 'limited':
+        return StockItemAvailability(
+          status: StockItemAvailabilityStatus.limited,
+          quantityAvailable: item['available_qty'] as int?,
+        );
+      case 'out_of_stock':
+        return const StockItemAvailability(
+          status: StockItemAvailabilityStatus.outOfStock,
+        );
+      default:
+        return null;
+    }
+  }
 
   static StockRequestStatus _parseStatus(String value) {
     switch (value) {

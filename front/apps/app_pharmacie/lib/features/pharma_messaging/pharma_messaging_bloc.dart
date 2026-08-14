@@ -11,14 +11,17 @@ class PharmaMessagingBloc
   final ListCabinetConversationsUseCase _listConversations;
   final GetCabinetConversationUseCase _getMessages;
   final SendMessageCabinetUseCase _sendMessage;
+  final ListPharmacyOrdersUseCase _listOrders;
 
   PharmaMessagingBloc({
     required ListCabinetConversationsUseCase listConversations,
     required GetCabinetConversationUseCase getMessages,
     required SendMessageCabinetUseCase sendMessage,
+    required ListPharmacyOrdersUseCase listOrders,
   })  : _listConversations = listConversations,
         _getMessages = getMessages,
         _sendMessage = sendMessage,
+        _listOrders = listOrders,
         super(const PharmaMessagingInitial()) {
     on<PharmaMessagingConversationsLoadRequested>(_onConversationsLoad);
     on<PharmaMessagingThreadOpened>(_onThreadOpened);
@@ -49,23 +52,69 @@ class PharmaMessagingBloc
     PharmaMessagingThreadOpened event,
     Emitter<PharmaMessagingState> emit,
   ) async {
-    emit(PharmaMessagingThreadLoading(event.conversation.id));
+    final conversations = _conversationsOf(state);
+    emit(PharmaMessagingThreadLoading(
+      event.conversation.id,
+      conversations: conversations,
+    ));
     try {
       final result = await _getMessages(event.conversation.id);
-      result.fold(
-        (failure) => safeEmit(PharmaMessagingThreadError(
+      await result.fold(
+        (failure) async => safeEmit(PharmaMessagingThreadError(
           conversationId: event.conversation.id,
           message: failure.message,
+          conversations: conversations,
         )),
-        (messages) => safeEmit(PharmaMessagingThreadLoaded(
+        (messages) async => safeEmit(PharmaMessagingThreadLoaded(
           conversation: event.conversation,
           messages: messages,
+          conversations: conversations,
+          patientOrders: await _patientOrdersOf(event.conversation),
         )),
       );
     } catch (_) {
       safeEmit(PharmaMessagingThreadError(
-          conversationId: event.conversation.id,
-          message: 'Erreur de chargement.'));
+        conversationId: event.conversation.id,
+        message: 'Erreur de chargement.',
+        conversations: conversations,
+      ));
+    }
+  }
+
+  /// Conversations connues par l'état courant, quel qu'il soit — permet de
+  /// garder la colonne liste affichée pendant l'ouverture d'un fil (#4925).
+  List<CabinetConversation> _conversationsOf(PharmaMessagingState state) =>
+      switch (state) {
+        PharmaMessagingConversationsLoaded(:final conversations) =>
+          conversations,
+        PharmaMessagingThreadLoading(:final conversations) => conversations,
+        PharmaMessagingThreadLoaded(:final conversations) => conversations,
+        PharmaMessagingThreadError(:final conversations) => conversations,
+        _ => const [],
+      };
+
+  /// Historique des commandes du patient pour la colonne contexte (#4926).
+  /// `GET /v1/pharmacy/orders` n'est pas filtrable par patient (pas de
+  /// `patient_id` dans le contrat, seulement `patient_display_name`) —
+  /// on récupère les commandes de l'officine et on filtre côté client par
+  /// nom affiché. Un échec ici ne doit pas empêcher l'ouverture du fil : la
+  /// colonne contexte s'affiche simplement sans section commandes.
+  Future<List<PharmacyOrder>> _patientOrdersOf(
+    CabinetConversation conversation,
+  ) async {
+    try {
+      final result = await _listOrders();
+      return result.fold(
+        (_) => const [],
+        (orders) => orders
+            .where((o) =>
+                o.patientDisplayName?.trim().toLowerCase() ==
+                conversation.patientName.trim().toLowerCase())
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+      );
+    } catch (_) {
+      return const [];
     }
   }
 

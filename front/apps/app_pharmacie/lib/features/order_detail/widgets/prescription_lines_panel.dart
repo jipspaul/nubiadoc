@@ -17,6 +17,8 @@ class PrescriptionLinesPanel extends StatelessWidget {
     super.key,
     required this.items,
     required this.onOpenDocument,
+    this.checkedLines = const {},
+    this.onLineCheckedChanged,
     this.prescriberName,
     this.rpps,
     this.prescribedAt,
@@ -25,6 +27,13 @@ class PrescriptionLinesPanel extends StatelessWidget {
 
   final List<PrescriptionItem> items;
   final VoidCallback onOpenDocument;
+
+  /// Index des lignes déjà préparées (sorties des rayons).
+  final Set<int> checkedLines;
+
+  /// `null` : les cases sont désactivées (ex. panneau en lecture seule).
+  final void Function(int index, bool checked)? onLineCheckedChanged;
+
   final String? prescriberName;
   final String? rpps;
   final DateTime? prescribedAt;
@@ -90,7 +99,13 @@ class PrescriptionLinesPanel extends StatelessWidget {
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0)
               Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
-            PrescriptionLineTile(item: items[i]),
+            PrescriptionLineTile(
+              item: items[i],
+              checked: checkedLines.contains(i),
+              onCheckedChanged: onLineCheckedChanged == null
+                  ? null
+                  : (checked) => onLineCheckedChanged!(i, checked),
+            ),
           ],
         ],
       ),
