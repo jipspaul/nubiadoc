@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -51,6 +52,8 @@ class OrdersView extends StatefulWidget {
 class _OrdersViewState extends State<OrdersView> {
   Completer<void>? _refreshCompleter;
   Timer? _freshnessTicker;
+  final _searchFocusNode = FocusNode();
+  String _query = '';
 
   static const _filters = <(String, PharmacyOrderStatus?)>[
     ('Toutes', null),
@@ -72,58 +75,106 @@ class _OrdersViewState extends State<OrdersView> {
   @override
   void dispose() {
     _freshnessTicker?.cancel();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Filtrage 100 % client — nom du patient ou n° de commande, insensible à
+  /// la casse. Se combine au filtre de statut déjà appliqué par
+  /// [OrdersLoaded.visible] : aucun appel réseau supplémentaire.
+  List<PharmacyOrder> _search(List<PharmacyOrder> orders) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return orders;
+    return orders
+        .where((order) =>
+            (order.patientDisplayName ?? '').toLowerCase().contains(query) ||
+            order.id.toLowerCase().contains(query))
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<OrdersBloc, OrdersState>(
-      listener: (context, state) {
-        if (state is OrdersLoaded || state is OrdersError) {
-          _refreshCompleter?.complete();
-          _refreshCompleter = null;
+    // Raccourci « / » (pied de la maquette « / rechercher ») : focus le
+    // champ de recherche depuis n'importe où dans la file, tant que ce
+    // champ n'a pas déjà le focus (sinon on laisse taper le caractère).
+    return Focus(
+      autofocus: true,
+      skipTraversal: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.slash &&
+            !_searchFocusNode.hasFocus) {
+          _searchFocusNode.requestFocus();
+          return KeyEventResult.handled;
         }
+        return KeyEventResult.ignored;
       },
-      builder: (context, state) {
-        final currentFilter = switch (state) {
-          OrdersLoaded(:final filter) => filter,
-          _ => null,
-        };
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final (label, value) in _filters)
-                          NubiaChip(
-                            key: Key('orders_filter_${value?.name ?? 'all'}'),
-                            label: label,
-                            selected: value == currentFilter,
-                            onTap: () => context
-                                .read<OrdersBloc>()
-                                .add(OrdersFilterChanged(value)),
-                          ),
-                      ],
+      child: BlocConsumer<OrdersBloc, OrdersState>(
+        listener: (context, state) {
+          if (state is OrdersLoaded || state is OrdersError) {
+            _refreshCompleter?.complete();
+            _refreshCompleter = null;
+          }
+        },
+        builder: (context, state) {
+          final currentFilter = switch (state) {
+            OrdersLoaded(:final filter) => filter,
+            _ => null,
+          };
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: 280,
+                    child: NubiaSearchBar(
+                      key: const Key('orders_search'),
+                      focusNode: _searchFocusNode,
+                      hint: 'Patient, n° commande…',
+                      onChanged: (value) => setState(() => _query = value),
+                      locationChip: _query.isEmpty
+                          ? const _SearchShortcutHint()
+                          : null,
                     ),
                   ),
-                  if (state is OrdersLoaded) ...[
-                    const SizedBox(width: 8),
-                    _FreshnessIndicator(updatedAt: state.updatedAt),
-                  ],
-                ],
+                ),
               ),
-            ),
-            Expanded(child: _buildBody(context, state)),
-          ],
-        );
-      },
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final (label, value) in _filters)
+                            NubiaChip(
+                              key: Key('orders_filter_${value?.name ?? 'all'}'),
+                              label: label,
+                              selected: value == currentFilter,
+                              onTap: () => context
+                                  .read<OrdersBloc>()
+                                  .add(OrdersFilterChanged(value)),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (state is OrdersLoaded) ...[
+                      const SizedBox(width: 8),
+                      _FreshnessIndicator(updatedAt: state.updatedAt),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(child: _buildBody(context, state)),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -149,7 +200,7 @@ class _OrdersViewState extends State<OrdersView> {
               context.read<OrdersBloc>().add(const OrdersRefreshRequested()),
         );
       case OrdersLoaded(:final pendingOrderId):
-        final orders = state.visible;
+        final orders = _search(state.visible);
         if (orders.isEmpty) {
           return const NubiaEmptyState(
             icon: Icons.shopping_bag_outlined,
@@ -178,6 +229,32 @@ class _OrdersViewState extends State<OrdersView> {
           ),
         );
     }
+  }
+}
+
+/// Indice du raccourci clavier « / » — affiché à droite du champ de
+/// recherche tant qu'il est vide (maquette : pied de page « / rechercher »).
+class _SearchShortcutHint extends StatelessWidget {
+  const _SearchShortcutHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Text(
+        '/',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
   }
 }
 

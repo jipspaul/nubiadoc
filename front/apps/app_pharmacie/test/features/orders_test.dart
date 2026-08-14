@@ -38,6 +38,21 @@ PharmacyOrder orderAt(
       updatedAt: createdAt,
     );
 
+PharmacyOrder orderNamed(
+  String id,
+  String patientDisplayName, [
+  PharmacyOrderStatus status = PharmacyOrderStatus.received,
+]) =>
+    PharmacyOrder(
+      id: id,
+      pharmacyId: 'p1',
+      patientDisplayName: patientDisplayName,
+      prescriptionId: 'rx1',
+      status: status,
+      createdAt: DateTime(2026, 7, 1, 10),
+      updatedAt: DateTime(2026, 7, 1, 10),
+    );
+
 void main() {
   late MockPharmacyOrdersRepository repo;
   late MockPharmacyOrderEventsPort events;
@@ -396,6 +411,109 @@ void main() {
             'o1',
             PharmacyOrderStatus.preparing,
           ))).called(1);
+    });
+
+    testWidgets('recherche par nom de patient filtre la liste (client)',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [
+          orderNamed('o1', 'Jean Dupont'),
+          orderNamed('o2', 'Alice Martin'),
+        ]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final field = find.descendant(
+        of: find.byKey(const Key('orders_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'alice');
+      await tester.pump();
+
+      expect(find.text('Alice Martin'), findsOneWidget);
+      expect(find.text('Jean Dupont'), findsNothing);
+    });
+
+    testWidgets('recherche par n° de commande filtre la liste (client)',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [
+          orderNamed('CMD-1001', 'Jean Dupont'),
+          orderNamed('CMD-2002', 'Alice Martin'),
+        ]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final field = find.descendant(
+        of: find.byKey(const Key('orders_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, '2002');
+      await tester.pump();
+
+      expect(find.text('Alice Martin'), findsOneWidget);
+      expect(find.text('Jean Dupont'), findsNothing);
+    });
+
+    testWidgets('la recherche se combine au filtre de statut sélectionné',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(
+          orders: [
+            orderNamed('o1', 'Alice Martin', PharmacyOrderStatus.received),
+            orderNamed('o2', 'Alice Martin', PharmacyOrderStatus.ready),
+          ],
+          filter: PharmacyOrderStatus.ready,
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final field = find.descendant(
+        of: find.byKey(const Key('orders_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'alice');
+      await tester.pump();
+
+      expect(find.byKey(const Key('order_row_o1')), findsNothing);
+      expect(find.byKey(const Key('order_row_o2')), findsOneWidget);
+    });
+
+    testWidgets('placeholder exact du champ de recherche', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.received)]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.text('Patient, n° commande…'), findsOneWidget);
     });
 
     testWidgets(
