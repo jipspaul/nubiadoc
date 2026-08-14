@@ -16,6 +16,8 @@ class _MockGetMessages extends Mock implements GetCabinetConversationUseCase {}
 
 class _MockSendMessage extends Mock implements SendMessageCabinetUseCase {}
 
+class _MockListOrders extends Mock implements ListPharmacyOrdersUseCase {}
+
 CabinetConversation _conversation(
   String id,
   String patientName, {
@@ -34,11 +36,13 @@ void main() {
   late _MockListConversations mockListConversations;
   late _MockGetMessages mockGetMessages;
   late _MockSendMessage mockSendMessage;
+  late _MockListOrders mockListOrders;
 
   setUp(() async {
     mockListConversations = _MockListConversations();
     mockGetMessages = _MockGetMessages();
     mockSendMessage = _MockSendMessage();
+    mockListOrders = _MockListOrders();
 
     await GetIt.instance.reset();
     GetIt.instance.registerFactory<PharmaMessagingBloc>(
@@ -46,6 +50,7 @@ void main() {
         listConversations: mockListConversations,
         getMessages: mockGetMessages,
         sendMessage: mockSendMessage,
+        listOrders: mockListOrders,
       ),
     );
   });
