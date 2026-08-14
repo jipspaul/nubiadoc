@@ -22,6 +22,7 @@ class OrdersView extends StatefulWidget {
 
 class _OrdersViewState extends State<OrdersView> {
   Completer<void>? _refreshCompleter;
+  Timer? _freshnessTicker;
 
   static const _filters = <(String, PharmacyOrderStatus?)>[
     ('Toutes', null),
@@ -29,6 +30,22 @@ class _OrdersViewState extends State<OrdersView> {
     ('En préparation', PharmacyOrderStatus.preparing),
     ('Prêtes', PharmacyOrderStatus.ready),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Fait vivre le texte relatif de l'indicateur de fraîcheur (« il y a
+    // N s ») sans attendre de nouvelle donnée réseau.
+    _freshnessTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _freshnessTicker?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,19 +66,29 @@ class _OrdersViewState extends State<OrdersView> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              child: Row(
                 children: [
-                  for (final (label, value) in _filters)
-                    NubiaChip(
-                      key: Key('orders_filter_${value?.name ?? 'all'}'),
-                      label: label,
-                      selected: value == currentFilter,
-                      onTap: () => context
-                          .read<OrdersBloc>()
-                          .add(OrdersFilterChanged(value)),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final (label, value) in _filters)
+                          NubiaChip(
+                            key: Key('orders_filter_${value?.name ?? 'all'}'),
+                            label: label,
+                            selected: value == currentFilter,
+                            onTap: () => context
+                                .read<OrdersBloc>()
+                                .add(OrdersFilterChanged(value)),
+                          ),
+                      ],
                     ),
+                  ),
+                  if (state is OrdersLoaded) ...[
+                    const SizedBox(width: 8),
+                    _FreshnessIndicator(updatedAt: state.updatedAt),
+                  ],
                 ],
               ),
             ),
@@ -124,4 +151,43 @@ class _OrdersViewState extends State<OrdersView> {
         );
     }
   }
+}
+
+/// Pastille verte + texte relatif — âge de la dernière donnée reçue.
+class _FreshnessIndicator extends StatelessWidget {
+  const _FreshnessIndicator({required this.updatedAt});
+
+  final DateTime updatedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: NubiaColors.brand600,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          'Mise à jour il y a ${_relativeAge(updatedAt)}',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: NubiaColors.n500),
+        ),
+      ],
+    );
+  }
+}
+
+String _relativeAge(DateTime updatedAt) {
+  final elapsed = DateTime.now().difference(updatedAt);
+  if (elapsed.inSeconds < 60) return '${elapsed.inSeconds} s';
+  if (elapsed.inMinutes < 60) return '${elapsed.inMinutes} min';
+  return '${elapsed.inHours} h';
 }

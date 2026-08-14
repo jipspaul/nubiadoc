@@ -96,7 +96,11 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
   void _onFilterChanged(OrdersFilterChanged event, Emitter<OrdersState> emit) {
     final current = state;
     if (current is OrdersLoaded) {
-      emit(OrdersLoaded(orders: current.orders, filter: event.filter));
+      emit(OrdersLoaded(
+        orders: current.orders,
+        filter: event.filter,
+        updatedAt: current.updatedAt,
+      ));
     }
   }
 
@@ -123,6 +127,7 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
       orders: current.orders,
       filter: current.filter,
       pendingOrderId: event.orderId,
+      updatedAt: current.updatedAt,
     ));
     final result = event.target == PharmacyOrderStatus.preparing
         ? await _accept(event.orderId)

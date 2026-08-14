@@ -231,6 +231,7 @@ void main() {
           child: const OrdersView(),
         ),
       );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
 
       expect(find.text('Jean D.'), findsOneWidget);
       expect(find.text('Prête'), findsOneWidget);
@@ -238,7 +239,7 @@ void main() {
 
     testWidgets('état vide → NubiaEmptyState', (tester) async {
       final bloc = MockOrdersBloc();
-      when(() => bloc.state).thenReturn(const OrdersLoaded(orders: []));
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: []));
 
       await tester.pumpApp(
         BlocProvider<OrdersBloc>.value(
@@ -246,6 +247,7 @@ void main() {
           child: const OrdersView(),
         ),
       );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
 
       expect(find.text('Aucune commande'), findsOneWidget);
     });
@@ -263,6 +265,7 @@ void main() {
           child: const OrdersView(),
         ),
       );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
       await tester.tap(find.byKey(const Key('orders_filter_ready')));
 
       verify(() =>
@@ -288,6 +291,7 @@ void main() {
           child: const OrdersView(),
         ),
       );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
 
       expect(find.textContaining('Attend 2 h 30'), findsOneWidget);
       final tokens = NubiaTokens.light;
@@ -321,6 +325,7 @@ void main() {
           child: const OrdersView(),
         ),
       );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
 
       expect(find.textContaining('Attend 24 min'), findsOneWidget);
       final tokens = NubiaTokens.light;
@@ -365,6 +370,7 @@ void main() {
           child: const OrdersView(),
         ),
       );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
       expect(find.byKey(const Key('order_row_prepare_o1')), findsNothing);
       expect(find.byKey(const Key('order_row_ready_o1')), findsNothing);
       expect(find.byKey(const Key('order_row_deliver_o1')), findsNothing);
@@ -382,6 +388,7 @@ void main() {
           child: const OrdersView(),
         ),
       );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
 
       await tester.tap(find.byKey(const Key('order_row_prepare_o1')));
 
@@ -389,6 +396,34 @@ void main() {
             'o1',
             PharmacyOrderStatus.preparing,
           ))).called(1);
+    });
+
+    testWidgets(
+        'indicateur de fraîcheur : pastille verte + texte relatif en bout '
+        'de barre de filtres', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(
+          orders: [order('o1', PharmacyOrderStatus.received)],
+          updatedAt: DateTime.now().subtract(const Duration(seconds: 12)),
+        ),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.textContaining('Mise à jour il y a 12 s'), findsOneWidget);
+      final dotFinder = find.byWidgetPredicate((widget) =>
+          widget is Container &&
+          widget.decoration is BoxDecoration &&
+          (widget.decoration! as BoxDecoration).shape == BoxShape.circle &&
+          (widget.decoration! as BoxDecoration).color == NubiaColors.brand600);
+      expect(dotFinder, findsOneWidget);
     });
   });
 
