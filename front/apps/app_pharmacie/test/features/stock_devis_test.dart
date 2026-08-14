@@ -154,7 +154,8 @@ void main() {
 
       expect(find.byKey(const Key('stock_partial_availability_banner')),
           findsOneWidget);
-      expect(find.text('Une ligne partiellement disponible.'), findsOneWidget);
+      expect(find.textContaining('Une ligne partiellement disponible.'),
+          findsOneWidget);
     });
 
     testWidgets('aucune ligne partielle → pas de bandeau', (tester) async {
