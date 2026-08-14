@@ -48,6 +48,10 @@ class PharmacyOrder extends Equatable {
   final String pharmacyId;
   final String? pharmacyName;
   final String? patientDisplayName;
+
+  /// Référence courte affichable (ex. `CMD-4821`, colonne contexte #4926) —
+  /// `null` tant que le contrat back ne l'expose pas.
+  final String? orderRef;
   final String? prescriberName;
   final String? prescriberPractice;
   final String prescriptionId;
@@ -57,12 +61,14 @@ class PharmacyOrder extends Equatable {
   final DateTime updatedAt;
   final DateTime? readyAt;
   final DateTime? pickedUpAt;
+  final int? lineCount;
 
   const PharmacyOrder({
     required this.id,
     required this.pharmacyId,
     this.pharmacyName,
     this.patientDisplayName,
+    this.orderRef,
     this.prescriberName,
     this.prescriberPractice,
     required this.prescriptionId,
@@ -72,6 +78,7 @@ class PharmacyOrder extends Equatable {
     required this.updatedAt,
     this.readyAt,
     this.pickedUpAt,
+    this.lineCount,
   });
 
   /// Le QR de retrait n'existe que pour une commande prête.
