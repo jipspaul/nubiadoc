@@ -180,7 +180,14 @@ async fn insert_consultation_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uu
 
     tx.commit().await.unwrap();
 
-    (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id)
+    (
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
 }
 
 async fn cleanup_fixture(

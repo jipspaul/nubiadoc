@@ -172,14 +172,13 @@ pub async fn get_consultation_context(
     // Alertes du dossier (#4936) — dernier dossier médical du patient de la
     // séance (même requête que `consultation_act_create.rs::add_consultation_act`
     // pour la garde anticoagulants).
-    let patient_id: Uuid = sqlx::query_scalar(
-        "SELECT patient_id FROM appointment WHERE id = $1 AND cabinet_id = $2",
-    )
-    .bind(appointment_id)
-    .bind(claims.cabinet_id)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid =
+        sqlx::query_scalar("SELECT patient_id FROM appointment WHERE id = $1 AND cabinet_id = $2")
+            .bind(appointment_id)
+            .bind(claims.cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
     let record_row = sqlx::query(
         "SELECT data_ciphertext FROM medical_record \
@@ -196,7 +195,9 @@ pub async fn get_consultation_context(
 
     let mut medical_alerts: Vec<MedicalAlertItem> = Vec::new();
     if let Some(row) = record_row {
-        let ciphertext: Vec<u8> = row.try_get("data_ciphertext").map_err(|_| AppError::Internal)?;
+        let ciphertext: Vec<u8> = row
+            .try_get("data_ciphertext")
+            .map_err(|_| AppError::Internal)?;
         if let Some(data) = decrypt_stub(&ciphertext) {
             for entry in data["allergies"].as_array().into_iter().flatten() {
                 if let Some(label) = allergy_label(entry) {
