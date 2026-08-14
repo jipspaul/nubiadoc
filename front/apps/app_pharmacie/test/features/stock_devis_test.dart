@@ -292,6 +292,11 @@ void main() {
       expect(find.byKey(const Key('quote_q3')), findsOneWidget);
       expect(find.byKey(const Key('quote_q1')), findsNothing);
 
+      // La facette « Refusés / expirés » est la dernière du bandeau
+      // horizontal et déborde de la surface de test (800px) : il faut la
+      // faire défiler dans la vue avant de pouvoir taper dessus.
+      await tester.ensureVisible(find.text('Refusés / expirés'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Refusés / expirés'));
       await tester.pump();
 
@@ -299,6 +304,10 @@ void main() {
       expect(find.byKey(const Key('quote_q5')), findsOneWidget);
       expect(find.byKey(const Key('quote_q3')), findsNothing);
 
+      // Le bandeau a défilé vers la droite : « Tous » (première facette) est
+      // maintenant hors surface à gauche, on le ramène avant de taper.
+      await tester.ensureVisible(find.text('Tous'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Tous'));
       await tester.pump();
 
