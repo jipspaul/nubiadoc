@@ -23,6 +23,20 @@ class ClinicalAct extends Equatable {
       [id, ccamCode, label, tooth, amountCents, included];
 }
 
+/// Alerte médicale passive du dossier patient (allergie ou flag
+/// médico-légal, #4103) — AFFICHAGE PASSIF uniquement (périmètre
+/// non-dispositif-médical), jamais de contrôle ni de recommandation.
+/// `kind` : 'allergie' | 'medico_legal'.
+class MedicalAlert extends Equatable {
+  final String kind;
+  final String label;
+
+  const MedicalAlert({required this.kind, required this.label});
+
+  @override
+  List<Object?> get props => [kind, label];
+}
+
 /// The clinical session context returned by GET /v1/cabinet/consultations/{id}.
 class ClinicalSession extends Equatable {
   final String id;
@@ -44,6 +58,10 @@ class ClinicalSession extends Equatable {
   /// la consultation d'un confrère dans l'historique).
   final String? practitionerName;
 
+  /// Alertes médicales du dossier patient (détail uniquement — absent de la
+  /// route liste, #4936). Liste vide si le dossier n'a aucune alerte.
+  final List<MedicalAlert> medicalAlerts;
+
   const ClinicalSession({
     required this.id,
     required this.appointmentId,
@@ -53,6 +71,7 @@ class ClinicalSession extends Equatable {
     this.patientName,
     this.startedAt,
     this.practitionerName,
+    this.medicalAlerts = const [],
   });
 
   bool get isCompleted => status == 'completed';
@@ -75,6 +94,7 @@ class ClinicalSession extends Equatable {
         patientName,
         startedAt,
         practitionerName,
+        medicalAlerts,
       ];
 }
 

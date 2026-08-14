@@ -13,6 +13,13 @@ import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
+import 'widgets/patient_alerts_box.dart';
+
+/// Largeur PC à partir de laquelle la colonne contexte gauche apparaît
+/// (maquette `praticien-consultation-pc.png`, #4936). En-dessous, les
+/// alertes restent des pastilles dans l'en-tête (repli 2 colonnes, hors
+/// périmètre de ce ticket).
+const double kConsultationContextColumnMinWidth = 1280;
 
 /// Body-only content for the consultation au fauteuil.
 /// Requires [ConsultationCliniqueBloc] to be provided via [BlocProvider] by the caller.
@@ -241,7 +248,7 @@ class _LoadedViewState extends State<_LoadedView> {
       (sum, a) => sum + (a.amountCents ?? 0),
     );
 
-    return Column(
+    final mainColumn = Column(
       children: [
         if (state.actionInProgress)
           const LinearProgressIndicator(
@@ -442,6 +449,34 @@ class _LoadedViewState extends State<_LoadedView> {
                 ),
         ),
       ],
+    );
+
+    // Colonne contexte gauche (PC ≥ 1280 px, maquette
+    // `praticien-consultation-pc.png`, #4936) : encart « Alertes du dossier »
+    // en tête. Sous ce seuil (repli 2 colonnes, hors périmètre de ce ticket),
+    // les alertes restent des pastilles dans l'en-tête — pas d'encart ici.
+    if (session.medicalAlerts.isEmpty) return mainColumn;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < kConsultationContextColumnMinWidth) {
+          return mainColumn;
+        }
+        return Row(
+          key: const Key('consultation_context_column_layout'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 280,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 0, 8),
+                child: PatientAlertsBox(alerts: session.medicalAlerts),
+              ),
+            ),
+            Expanded(child: mainColumn),
+          ],
+        );
+      },
     );
   }
 }
