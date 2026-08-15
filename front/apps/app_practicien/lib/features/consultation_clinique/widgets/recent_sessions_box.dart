@@ -3,7 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-import '../consultation_clinique_page.dart' show formatShortDate;
+import 'consultation_format_utils.dart' show formatShortDate;
 
 /// Encart « Dernières séances » (#4937) — colonne de contexte gauche (≥ 1280
 /// px) de la consultation au fauteuil. Historique récent du patient de la
