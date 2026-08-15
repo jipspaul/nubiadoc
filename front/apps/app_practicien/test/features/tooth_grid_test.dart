@@ -13,7 +13,7 @@ void main() {
           child: ToothGrid(
             quadrants: FdiQuadrants.permanent,
             keyPrefix: 'tooth',
-            colorFor: (_) => Colors.grey.shade100,
+            stateFor: (_) => ToothVisual(background: Colors.grey.shade100),
             onTap: (_) {},
             toothSize: toothSize ?? ToothButton.defaultSize,
           ),

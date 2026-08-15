@@ -77,23 +77,32 @@ class _DentalStatusBoxState extends State<DentalStatusBox> {
       builder: (context, snapshot) {
         final teeth = snapshot.data ?? const <String, ToothState>{};
 
-        Color colorFor(String code) {
+        ToothVisual visualFor(String code) {
           switch (_categoryOf(code, teeth)) {
             case _ToothCategory.session:
-              return cs.primary;
+              return ToothVisual(
+                background: cs.primary,
+                borderColor: NubiaColors.n300,
+              );
             case _ToothCategory.watch:
-              return NubiaColors.warningBg;
+              return const ToothVisual(
+                background: NubiaColors.warningBg,
+                borderColor: NubiaColors.warningBorder,
+                statusDot: NubiaColors.warningFg,
+              );
             case _ToothCategory.past:
-              return NubiaColors.n100;
+              return const ToothVisual(
+                background: NubiaColors.n100,
+                borderColor: NubiaColors.n300,
+                statusDot: NubiaColors.n400,
+              );
             case _ToothCategory.healthy:
-              return NubiaColors.n0;
+              return const ToothVisual(
+                background: NubiaColors.n0,
+                borderColor: NubiaColors.n300,
+              );
           }
         }
-
-        Color borderColorFor(String code) =>
-            _categoryOf(code, teeth) == _ToothCategory.watch
-                ? NubiaColors.warningBorder
-                : NubiaColors.n300;
 
         return NubiaCard(
           key: const Key('dental_status_box'),
@@ -121,8 +130,7 @@ class _DentalStatusBoxState extends State<DentalStatusBox> {
                 keyPrefix: 'consultation_tooth',
                 // Poste cabinet (PC) : cibles tactiles 44×50 px (#4940).
                 toothSize: const Size(44, 50),
-                colorFor: colorFor,
-                borderColorFor: borderColorFor,
+                stateFor: visualFor,
                 isSelected: (code) => code == widget.selectedTooth,
                 onTap: widget.onToothTap,
               ),
@@ -188,9 +196,8 @@ class _LegendEntry extends StatelessWidget {
           height: 12,
           decoration: BoxDecoration(
             color: color,
-            border: borderColor != null
-                ? Border.all(color: borderColor!)
-                : null,
+            border:
+                borderColor != null ? Border.all(color: borderColor!) : null,
             borderRadius: BorderRadius.circular(3),
           ),
         ),

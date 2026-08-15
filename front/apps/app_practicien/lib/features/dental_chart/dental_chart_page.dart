@@ -152,11 +152,13 @@ class _DentalChartBodyState extends State<_DentalChartBody> {
           ToothGrid(
             quadrants: quadrants,
             keyPrefix: 'dental_chart_tooth',
-            colorFor: (code) {
+            stateFor: (code) {
               final status = teeth[code]?.status;
-              return status != null
-                  ? kToothStatusColors[status] ?? Colors.grey.shade300
-                  : Colors.grey.shade100;
+              return ToothVisual(
+                background: status != null
+                    ? kToothStatusColors[status] ?? Colors.grey.shade300
+                    : Colors.grey.shade100,
+              );
             },
             onTap: _pickStatus,
           ),
