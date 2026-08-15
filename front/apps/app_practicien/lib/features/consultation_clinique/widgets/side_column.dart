@@ -26,6 +26,7 @@ class SideColumn extends StatelessWidget {
     required this.onNoteChanged,
     required this.lastNoteSavedAt,
     required this.selectedTooth,
+    required this.onClearSelectedTooth,
     required this.onActSubmitted,
     required this.scrollable,
     required this.actSearchFocusNode,
@@ -37,6 +38,9 @@ class SideColumn extends StatelessWidget {
   final ValueChanged<String> onNoteChanged;
   final DateTime? lastNoteSavedAt;
   final String? selectedTooth;
+  // #4959 — efface la dent sélectionnée depuis la croix de la pastille en
+  // tête du panneau « Ajouter un acte ».
+  final VoidCallback onClearSelectedTooth;
   // #4948 — focus partagé avec la recherche globale de la barre du haut.
   final FocusNode actSearchFocusNode;
   final void Function({
@@ -93,6 +97,14 @@ class SideColumn extends StatelessWidget {
             ),
           ),
         ),
+        // #4959 — pastille « Dent NN sélectionnée » en tête du panneau
+        // « Ajouter un acte », visible uniquement si une dent est
+        // sélectionnée (#4048, schéma dentaire).
+        if (selectedTooth != null)
+          _SelectedToothPill(
+            tooth: selectedTooth!,
+            onClear: onClearSelectedTooth,
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: CcamPicker(
@@ -111,6 +123,62 @@ class SideColumn extends StatelessWidget {
       ],
     );
     return scrollable ? SingleChildScrollView(child: content) : content;
+  }
+}
+
+/// Pastille « Dent NN sélectionnée » (#4959, point 2 de la maquette) — rappelle
+/// la dent choisie via le schéma dentaire (#4048) avant l'ajout d'un acte, et
+/// permet de l'effacer via la croix (`act_tooth_picker_clear`, clé
+/// conservée pour les tests de retrait de dent).
+class _SelectedToothPill extends StatelessWidget {
+  const _SelectedToothPill({required this.tooth, required this.onClear});
+
+  final String tooth;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: const Key('selected_tooth_pill'),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: NubiaColors.brand50,
+        border: Border.all(color: NubiaColors.brand200),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.medical_services,
+            size: 18,
+            color: NubiaColors.brand600,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Dent $tooth sélectionnée',
+              style: textTheme.labelMedium?.copyWith(
+                color: NubiaColors.brand800,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            key: const Key('act_tooth_picker_clear'),
+            onPressed: onClear,
+            icon: const Icon(Icons.close, size: 18),
+            color: NubiaColors.brand800,
+            tooltip: 'Effacer la dent sélectionnée',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        ],
+      ),
+    );
   }
 }
 

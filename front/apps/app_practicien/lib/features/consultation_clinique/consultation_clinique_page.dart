@@ -197,6 +197,12 @@ class _LoadedViewState extends State<_LoadedView> {
     setState(() => _selectedTooth = _selectedTooth == code ? null : code);
   }
 
+  /// Efface la dent sélectionnée depuis la croix de la pastille du panneau
+  /// « Ajouter un acte » (#4959).
+  void _clearSelectedTooth() {
+    setState(() => _selectedTooth = null);
+  }
+
   /// Ouvre le sélecteur de modèle de CR (#4125) et pré-remplit la note de
   /// séance avec le corps du modèle choisi — trié par pertinence selon le
   /// `ccam_code` du premier acte ajouté à la séance.
@@ -324,6 +330,7 @@ class _LoadedViewState extends State<_LoadedView> {
                 onNoteChanged: _onNoteChanged,
                 lastNoteSavedAt: state.lastNoteSavedAt,
                 selectedTooth: _selectedTooth,
+                onClearSelectedTooth: _clearSelectedTooth,
                 actSearchFocusNode: _actSearchFocusNode,
                 // #3402 — l'éditeur d'acte fournit la dent + le montant,
                 // transmis au POST .../acts (le total reflète alors la
