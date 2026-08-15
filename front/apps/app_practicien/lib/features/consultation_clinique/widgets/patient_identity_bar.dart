@@ -148,7 +148,7 @@ class PatientIdentityBar extends StatelessWidget {
                   key: const Key('complete_consultation_button'),
                   size: NubiaButtonSize.sm,
                   icon: Icons.check,
-                  label: 'Terminer',
+                  label: 'Terminer la séance',
                   onPressed: onCompletePressed,
                 ),
               ],
