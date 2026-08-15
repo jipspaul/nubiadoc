@@ -102,11 +102,17 @@ pub async fn list_consultation_acts(
         return Err(AppError::Forbidden);
     }
 
+    // #4951 — statut de traçabilité stérilisation, même EXISTS que
+    // `consultation_context.rs::get_consultation_context`.
     let act_rows = sqlx::query(
-        "SELECT id, ccam_code, label, tooth, amount_cents, created_at \
-         FROM consultation_act \
-         WHERE appointment_id = $1 AND cabinet_id = $2 \
-         ORDER BY created_at ASC",
+        "SELECT ca.id, ca.ccam_code, ca.label, ca.tooth, ca.amount_cents, ca.created_at, \
+                EXISTS ( \
+                    SELECT 1 FROM sterilized_pouch sp \
+                    WHERE sp.consultation_act_id = ca.id AND sp.cabinet_id = ca.cabinet_id \
+                ) AS sterilized \
+         FROM consultation_act ca \
+         WHERE ca.appointment_id = $1 AND ca.cabinet_id = $2 \
+         ORDER BY ca.created_at ASC",
     )
     .bind(appointment_id)
     .bind(claims.cabinet_id)
@@ -127,6 +133,7 @@ pub async fn list_consultation_acts(
             .map_err(|_| AppError::Internal)?;
         let act_created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let sterilized: bool = row.try_get("sterilized").map_err(|_| AppError::Internal)?;
         data.push(ConsultationActItem {
             id: act_id,
             ccam_code,
@@ -134,6 +141,7 @@ pub async fn list_consultation_acts(
             tooth,
             amount_cents,
             created_at: act_created_at.to_rfc3339(),
+            sterilized,
         });
     }
 

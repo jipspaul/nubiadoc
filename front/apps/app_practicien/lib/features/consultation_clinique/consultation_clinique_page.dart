@@ -1019,12 +1019,65 @@ class _ActTile extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(width: 12),
+                _SterilizationStatusBadge(act: act),
               ],
             ),
           ),
         ),
         Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
       ],
+    );
+  }
+}
+
+/// Pastille d'état de traçabilité stérilisation par acte (#4951, maquette
+/// design-v2 « Actes de la séance ») : carré vert `verified` si une pochette
+/// a été scannée pour cet acte (`ClinicalAct.sterilized`), sinon carré
+/// neutre `qr_code_scanner` ouvrant [SterilizationScanPage] pour CET acte
+/// (son `id` — pas `session.acts.last`, contrairement au bouton global
+/// « Scanner une pochette stérilisée » ci-dessus, #4139).
+class _SterilizationStatusBadge extends StatelessWidget {
+  const _SterilizationStatusBadge({required this.act});
+  final ClinicalAct act;
+
+  static const _size = 32.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final sterilized = act.sterilized;
+
+    final box = Container(
+      key: Key('sterilization_status_${act.id}'),
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: sterilized ? tokens.successBg : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: sterilized ? NubiaColors.successBorder : tokens.borderDefault,
+        ),
+      ),
+      child: Icon(
+        sterilized ? Icons.verified : Icons.qr_code_scanner,
+        size: 18,
+        color: sterilized ? tokens.successFg : tokens.textTertiary,
+      ),
+    );
+
+    if (sterilized) return box;
+
+    return InkWell(
+      key: Key('sterilization_scan_act_button_${act.id}'),
+      borderRadius: BorderRadius.circular(6),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SterilizationScanPage(consultationActId: act.id),
+        ),
+      ),
+      child: box,
     );
   }
 }
