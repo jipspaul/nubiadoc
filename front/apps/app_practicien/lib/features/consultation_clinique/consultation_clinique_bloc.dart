@@ -127,10 +127,17 @@ class ConsultationCliniqueBloc
           actionError: failure.message,
         )),
         (_) async {
+          final now = DateTime.now();
           final reload = await _getSession(current.session.id);
           reload.fold(
-            (_) => safeEmit(current.copyWith(actionInProgress: false)),
-            (s) => safeEmit(ConsultationCliniqueLoaded(session: s)),
+            (_) => safeEmit(current.copyWith(
+              actionInProgress: false,
+              lastNoteSavedAt: now,
+            )),
+            (s) => safeEmit(ConsultationCliniqueLoaded(
+              session: s,
+              lastNoteSavedAt: now,
+            )),
           );
         },
       );

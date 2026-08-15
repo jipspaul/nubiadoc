@@ -147,7 +147,15 @@ void main() {
       // 1 seule catégorie active (attente > 2 h) alors que son propre
       // compteur affiche aussi 1 patient : le total de l'en-tête reste 1
       // (nombre de catégories), pas la somme des compteurs.
-      expect(find.text('1'), findsNWidgets(2));
+      // Recherche restreinte à l'aside : le bandeau KPI d'OrdersView (frère
+      // sous OrdersScreen) affiche aussi des chiffres.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_aside')),
+          matching: find.text('1'),
+        ),
+        findsNWidgets(2),
+      );
     });
 
     testWidgets('aucun signal → aside sans entrée mais bandeau conservé',
@@ -163,7 +171,15 @@ void main() {
       expect(find.text('Commandes en attente > 2 h'), findsNothing);
       expect(find.text('Messages du cabinet'), findsNothing);
       expect(find.text('Demandes de stock'), findsNothing);
-      expect(find.text('0'), findsOneWidget);
+      // Restreint à l'aside : le bandeau KPI d'OrdersView (frère sous
+      // OrdersScreen) affiche aussi des « 0 » quand la file est vide.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_aside')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.textContaining(
             "aucune donnée clinique au-delà de l'ordonnance à délivrer"),

@@ -3,7 +3,9 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
@@ -14,6 +16,8 @@ import 'package:app_pharmacie/features/order_detail/order_detail_state.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/order_status_stepper.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/pickup_info_card.dart';
 import 'package:app_pharmacie/features/order_detail/widgets/prescription_lines_panel.dart';
+import 'package:app_pharmacie/features/pickup_scan/pickup_scan_cubit.dart';
+import 'package:app_pharmacie/features/pickup_scan/widgets/manual_code_field.dart';
 
 class MockPharmacyOrdersRepository extends Mock
     implements PharmacyOrdersRepository {}
@@ -29,6 +33,20 @@ PharmacyOrder order(PharmacyOrderStatus status) => PharmacyOrder(
       status: status,
       createdAt: DateTime(2026, 7, 1, 10),
       updatedAt: DateTime(2026, 7, 1, 10),
+    );
+
+PharmacyOrder billedOrder(PharmacyOrderStatus status) => PharmacyOrder(
+      id: 'o1',
+      pharmacyId: 'p1',
+      patientDisplayName: 'Jean D.',
+      prescriptionId: 'rx1',
+      status: status,
+      createdAt: DateTime(2026, 7, 1, 10),
+      updatedAt: DateTime(2026, 7, 1, 10),
+      billingTotalCents: 2480,
+      billingAmoShareCents: 1636,
+      billingAmcShareCents: 644,
+      billingPatientShareCents: 200,
     );
 
 void main() {
@@ -148,6 +166,29 @@ void main() {
     );
 
     blocTest<OrderDetailBloc, OrderDetailState>(
+      'coche puis décoche une ligne (#4882)',
+      build: buildBloc,
+      seed: () => OrderDetailLoaded(
+        order(PharmacyOrderStatus.preparing),
+        items: prescriptionItems,
+      ),
+      act: (bloc) => bloc
+        ..add(const OrderDetailLinePreparedToggled(0))
+        ..add(const OrderDetailLinePreparedToggled(0)),
+      expect: () => [
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          items: prescriptionItems,
+          preparedLineIndices: const {0},
+        ),
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          items: prescriptionItems,
+        ),
+      ],
+    );
+
+    blocTest<OrderDetailBloc, OrderDetailState>(
       'le PDF passe par DocumentReady puis revient à Loaded',
       build: () {
         when(() => repo.getPrescriptionUrl('o1'))
@@ -183,6 +224,43 @@ void main() {
             reason: 'statut $status → bouton $key');
         await tester.pumpWidget(Container()); // reset entre itérations
       }
+    });
+
+    testWidgets(
+        'le scan de retrait s\'affiche comme panneau (#4886) — l\'ordonnance '
+        'reste visible, pas de navigation', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.ready),
+          items: prescriptionItems,
+        ),
+      );
+      GetIt.instance.registerFactory<PickupScanCubit>(
+        () => PickupScanCubit(
+          confirmPickup: ConfirmPharmacyPickupUseCase(repo),
+        ),
+      );
+      addTearDown(() => GetIt.instance.unregister<PickupScanCubit>());
+
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+
+      await tester.ensureVisible(find.byKey(const Key('order_action_scan')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('order_action_scan')));
+      await tester.pumpAndSettle();
+
+      // Le panneau de scan remplace le bouton, sans navigation : l'ordonnance
+      // (volet gauche) reste affichée en même temps.
+      expect(find.byType(ManualCodeField), findsOneWidget);
+      expect(find.byType(PickupInfoCard), findsOneWidget);
+      expect(find.byType(PrescriptionLinesPanel), findsOneWidget);
+      expect(find.byKey(const Key('order_action_scan')), findsNothing);
     });
 
     testWidgets('aucun bouton d\'action pour un état terminal', (tester) async {
@@ -302,6 +380,95 @@ void main() {
         ),
       );
       expect(find.byType(PrescriptionLinesPanel), findsNothing);
+    });
+
+    testWidgets(
+        'preparing : le compteur affiche "X sur N préparées" et désactive '
+        'Marquer prête tant que toutes les lignes ne sont pas cochées '
+        '(#4882)', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          items: prescriptionItems,
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.text('0 sur 1 préparées'), findsOneWidget);
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('order_action_ready')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets(
+        'preparing : Marquer prête s\'active une fois toutes les lignes '
+        'cochées et émet OrderDetailReadyRequested (#4882)', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          items: prescriptionItems,
+          preparedLineIndices: const {0},
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.text('1 sur 1 préparées'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('order_action_ready')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('order_action_ready')));
+      verify(() => bloc.add(const OrderDetailReadyRequested())).called(1);
+    });
+
+    testWidgets(
+        'aucune ventilation facturation → le bloc ne s\'affiche pas (#4888)',
+        (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state)
+          .thenReturn(OrderDetailLoaded(order(PharmacyOrderStatus.received)));
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byKey(const Key('order_billing_summary')), findsNothing);
+    });
+
+    testWidgets(
+        'le bloc facturation affiche total, AMO, AMC et à encaisser avec le '
+        'formatage euros de l\'app Patient (#4888)', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          billedOrder(PharmacyOrderStatus.ready),
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(),
+        ),
+      );
+      expect(find.byKey(const Key('order_billing_summary')), findsOneWidget);
+      expect(find.text('Montant total'), findsOneWidget);
+      expect(find.text('24,80 €'), findsOneWidget);
+      expect(find.text('Part Assurance Maladie (AMO)'), findsOneWidget);
+      expect(find.text('−16,36 €'), findsOneWidget);
+      expect(find.text('Part mutuelle (AMC)'), findsOneWidget);
+      expect(find.text('−6,44 €'), findsOneWidget);
+      expect(find.text('À encaisser'), findsOneWidget);
+      expect(find.text('2 €'), findsOneWidget);
     });
   });
 }

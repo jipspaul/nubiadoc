@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get_it/get_it.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,11 +10,13 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'ccam_picker.dart';
 import 'cr_template_picker.dart';
 import 'sterilization_scan_page.dart';
+import 'widgets/recent_sessions_box.dart';
 import '../dental_chart/tooth_grid.dart';
 import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
+import 'widgets/patient_alerts_box.dart';
 
 /// Body-only content for the consultation au fauteuil.
 /// Requires [ConsultationCliniqueBloc] to be provided via [BlocProvider] by the caller.
@@ -170,6 +174,20 @@ class _LoadedView extends StatefulWidget {
 class _LoadedViewState extends State<_LoadedView> {
   late final TextEditingController _noteController;
 
+  /// Débounce de l'auto-save de la note de séance (#4943) — la note n'a plus
+  /// de bouton d'enregistrement manuel explicite : elle se sauvegarde après
+  /// une pause de frappe.
+  Timer? _noteSaveDebounce;
+
+  void _onNoteChanged(String value) {
+    _noteSaveDebounce?.cancel();
+    _noteSaveDebounce = Timer(const Duration(milliseconds: 800), () {
+      context
+          .read<ConsultationCliniqueBloc>()
+          .add(ConsultationCliniqueNoteSaveRequested(value));
+    });
+  }
+
   /// Dent sélectionnée pour le prochain acte CCAM (#4048) — pré-remplit
   /// `CcamPicker`/`CcamActEditorDialog` au lieu de la saisie texte libre.
   String? _selectedTooth;
@@ -183,6 +201,9 @@ class _LoadedViewState extends State<_LoadedView> {
         child: ToothGrid(
           quadrants: FdiQuadrants.permanent,
           keyPrefix: 'act_tooth_picker',
+          // Poste cabinet (PC) : tactile mural ou souris dans la même
+          // séance, cibles 44×50 px (#4940) au lieu des 32×32 par défaut.
+          toothSize: const Size(44, 50),
           colorFor: (code) => code == _selectedTooth
               ? Theme.of(ctx).colorScheme.primary
               : Colors.grey.shade100,
@@ -212,6 +233,7 @@ class _LoadedViewState extends State<_LoadedView> {
     );
     if (template != null) {
       _noteController.text = template.bodyTemplate;
+      _onNoteChanged(template.bodyTemplate);
     }
   }
 
@@ -235,6 +257,7 @@ class _LoadedViewState extends State<_LoadedView> {
 
   @override
   void dispose() {
+    _noteSaveDebounce?.cancel();
     _noteController.dispose();
     super.dispose();
   }
@@ -244,11 +267,42 @@ class _LoadedViewState extends State<_LoadedView> {
     final state = widget.state;
     final session = state.session;
     final textTheme = Theme.of(context).textTheme;
-    final totalCents = session.acts.fold<int>(
-      0,
-      (sum, a) => sum + (a.amountCents ?? 0),
-    );
 
+    final body = _buildBody(context, state, session, textTheme);
+    final patientId = session.patientId;
+    if (patientId == null) return body;
+
+    // Colonne de contexte gauche (≥ 1280 px) — encart « Dernières séances »
+    // du patient de la séance en cours (#4937).
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1280) return body;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 280,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 0, 16),
+                child: RecentSessionsBox(
+                  patientId: patientId,
+                  excludeSessionId: session.id,
+                ),
+              ),
+            ),
+            Expanded(child: body),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    ConsultationCliniqueLoaded state,
+    ClinicalSession session,
+    TextTheme textTheme,
+  ) {
     return Column(
       children: [
         if (state.actionInProgress)
@@ -257,8 +311,14 @@ class _LoadedViewState extends State<_LoadedView> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: NubiaCard(
+            key: const Key('patient_identity_bar'),
             child: Row(
               children: [
+                NubiaAvatar(
+                  initials: _patientInitials(session.patientName),
+                  radius: 20,
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,8 +327,11 @@ class _LoadedViewState extends State<_LoadedView> {
                         children: [
                           Flexible(
                             child: Text(
-                              'Consultation au fauteuil',
-                              style: textTheme.titleMedium,
+                              session.patientName?.trim().isNotEmpty == true
+                                  ? session.patientName!.trim()
+                                  : 'Patient',
+                              style: textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -278,25 +341,34 @@ class _LoadedViewState extends State<_LoadedView> {
                                 ? 'Annulée'
                                 : session.isCompleted
                                     ? 'Terminée'
-                                    : 'En cours',
+                                    : 'Séance en cours',
                             variant: session.isCancelled
                                 ? StatusPillVariant.warning
                                 : session.isCompleted
                                     ? StatusPillVariant.success
                                     : StatusPillVariant.info,
+                            icon: session.isCancelled || session.isCompleted
+                                ? null
+                                : Icons.info_outline,
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '${session.acts.length} acte(s) CCAM · ${_euros(totalCents)}',
-                        style: textTheme.bodySmall?.copyWith(
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      _PatientIdentitySubtitle(
+                        birthDate: session.patientBirthDate,
+                        practitionerName: session.practitionerName,
+                        textTheme: textTheme,
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(width: 12),
+                _SessionTotal(
+                  // #3402 — même calcul que le total transmis au POST
+                  // .../acts : somme des `amountCents` des actes enregistrés.
+                  totalCents: session.acts.fold<int>(
+                      0, (sum, act) => sum + (act.amountCents ?? 0)),
+                  textTheme: textTheme,
                 ),
                 const SizedBox(width: 12),
                 NubiaButton(
@@ -335,12 +407,9 @@ class _LoadedViewState extends State<_LoadedView> {
                 key: const Key('consultation_side_panel'),
                 textTheme: textTheme,
                 noteController: _noteController,
-                actionInProgress: state.actionInProgress,
                 onPickCrTemplate: _pickCrTemplate,
-                onSaveNote: () => context.read<ConsultationCliniqueBloc>().add(
-                      ConsultationCliniqueNoteSaveRequested(
-                          _noteController.text),
-                    ),
+                onNoteChanged: _onNoteChanged,
+                lastNoteSavedAt: state.lastNoteSavedAt,
                 selectedTooth: _selectedTooth,
                 // #3402 — l'éditeur d'acte fournit la dent + le montant,
                 // transmis au POST .../acts (le total reflète alors la
@@ -366,10 +435,11 @@ class _LoadedViewState extends State<_LoadedView> {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: _kContextColumnWidth,
                       child: _ContextColumn(
-                        key: Key('consultation_context_panel'),
+                        key: const Key('consultation_context_panel'),
+                        alerts: session.medicalAlerts,
                       ),
                     ),
                     Expanded(child: centerColumn),
@@ -401,29 +471,47 @@ class _LoadedViewState extends State<_LoadedView> {
   }
 }
 
-/// Colonne « Contexte » (288 px, ≥ 1280 px uniquement) — squelette pour
-/// #4935 : alertes, historique et plan de traitement sont traités par des
-/// tickets dédiés, non repris ici.
+/// Colonne « Contexte » (288 px, ≥ 1280 px uniquement) — scaffold #4935.
+/// En tête, l'encart « Alertes du dossier » (#4936) quand le dossier porte
+/// des alertes médicales passives ([alerts] non vide) ; le reste (historique,
+/// plan de traitement) reste un squelette « à venir », tickets dédiés.
 class _ContextColumn extends StatelessWidget {
-  const _ContextColumn({super.key});
+  const _ContextColumn({super.key, required this.alerts});
+
+  final List<MedicalAlert> alerts;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(0, 0, 8, 8),
-      child: NubiaCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Contexte patient', style: textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Text(
-              'Alertes, historique et plan de traitement arrivent bientôt.',
-              style: textTheme.bodySmall,
-            ),
+      child: Column(
+        // La clé `consultation_context_column_layout` (#4936) n'existe que
+        // lorsqu'un encart d'alertes est réellement rendu — sinon la colonne
+        // reste le simple squelette « à venir ».
+        key: alerts.isEmpty
+            ? null
+            : const Key('consultation_context_column_layout'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (alerts.isNotEmpty) ...[
+            PatientAlertsBox(alerts: alerts),
+            const SizedBox(height: 12),
           ],
-        ),
+          NubiaCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Contexte patient', style: textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Text(
+                  'Historique et plan de traitement arrivent bientôt.',
+                  style: textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -534,9 +622,9 @@ class _SideColumn extends StatelessWidget {
     super.key,
     required this.textTheme,
     required this.noteController,
-    required this.actionInProgress,
     required this.onPickCrTemplate,
-    required this.onSaveNote,
+    required this.onNoteChanged,
+    required this.lastNoteSavedAt,
     required this.selectedTooth,
     required this.onActSubmitted,
     required this.scrollable,
@@ -544,9 +632,9 @@ class _SideColumn extends StatelessWidget {
 
   final TextTheme textTheme;
   final TextEditingController noteController;
-  final bool actionInProgress;
   final VoidCallback onPickCrTemplate;
-  final VoidCallback onSaveNote;
+  final ValueChanged<String> onNoteChanged;
+  final DateTime? lastNoteSavedAt;
   final String? selectedTooth;
   final void Function({
     required String code,
@@ -590,22 +678,14 @@ class _SideColumn extends StatelessWidget {
                   key: const Key('consultation_note_field'),
                   controller: noteController,
                   maxLines: 4,
+                  onChanged: onNoteChanged,
                   decoration: const InputDecoration(
                     hintText: 'Observations cliniques...',
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: NubiaButton(
-                    key: const Key('save_note_button'),
-                    size: NubiaButtonSize.sm,
-                    icon: Icons.save_outlined,
-                    label: 'Enregistrer la note',
-                    onPressed: actionInProgress ? null : onSaveNote,
-                  ),
-                ),
+                _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
               ],
             ),
           ),
@@ -628,8 +708,165 @@ class _SideColumn extends StatelessWidget {
   }
 }
 
+/// Indicateur d'état de l'auto-save de la note de séance (#4943) —
+/// remplace le bouton « Enregistrer la note » : icône `cloud_done` + horaire
+/// du dernier enregistrement réussi, rien tant qu'aucun enregistrement n'a
+/// encore eu lieu. Le badge ⌘S rappelle le raccourci manuel — son
+/// déclenchement effectif est traité par un ticket dédié.
+class _NoteSaveStatus extends StatelessWidget {
+  const _NoteSaveStatus({required this.lastSavedAt});
+
+  final DateTime? lastSavedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final savedAt = lastSavedAt;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        if (savedAt != null)
+          Row(
+            key: const Key('note_save_status'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_done, size: 16, color: tokens.successFg),
+              const SizedBox(width: 4),
+              Text(
+                'Enregistré à ${_formatTime(savedAt)}',
+                style: textTheme.bodySmall?.copyWith(color: tokens.successFg),
+              ),
+            ],
+          )
+        else
+          const SizedBox.shrink(),
+        const NubiaBadge.label(label: '⌘S'),
+      ],
+    );
+  }
+}
+
+/// Heure courte HH:MM (24 h, heure locale) — format imposé par la maquette
+/// design-v2 pour l'indicateur d'auto-save de la note (#4943).
+String _formatTime(DateTime dt) {
+  final d = dt.toLocal();
+  final hh = d.hour.toString().padLeft(2, '0');
+  final min = d.minute.toString().padLeft(2, '0');
+  return '$hh:$min';
+}
+
+/// Sous-titre de la barre d'identité patient (#4945) — « âge ans · né(e) le
+/// JJ/MM/AAAA · praticien ». N'affiche que les segments dont la donnée est
+/// disponible (ex. date de naissance absente du dossier patient).
+class _PatientIdentitySubtitle extends StatelessWidget {
+  const _PatientIdentitySubtitle({
+    required this.birthDate,
+    required this.practitionerName,
+    required this.textTheme,
+  });
+
+  final DateTime? birthDate;
+  final String? practitionerName;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final practitioner = practitionerName?.trim();
+    final parts = <String>[
+      if (birthDate != null) '${_age(birthDate!)} ans',
+      if (birthDate != null) 'né(e) le ${_formatBirthDate(birthDate!)}',
+      if (practitioner != null && practitioner.isNotEmpty) practitioner,
+    ];
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Text(
+      parts.join(' · '),
+      style: textTheme.bodySmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+/// Total de la séance, barre d'identité patient (#4946) : libellé « TOTAL
+/// SÉANCE » en capitales grises + montant en chiffres tabulaires, aligné à
+/// droite juste avant le bouton « Terminer ». Réutilise le formateur euros
+/// commun du design system ([formatQuoteCents]) pour rester cohérent avec le
+/// reste de l'app.
+class _SessionTotal extends StatelessWidget {
+  const _SessionTotal({required this.totalCents, required this.textTheme});
+
+  final int totalCents;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('consultation_session_total'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          'TOTAL SÉANCE',
+          style: textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Text(
+          formatQuoteCents(totalCents),
+          style: textTheme.headlineSmall?.copyWith(
+            fontFeatures: tabularFigures,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Initiales (max 2 lettres) du patient pour l'avatar de la barre d'identité
+/// (#4945) — même convention que `waiting_room_page.dart::_initials`.
+String _patientInitials(String? patientName) {
+  final name = patientName?.trim() ?? '';
+  final parts =
+      name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+      .toUpperCase();
+}
+
+/// Âge en années révolues à partir d'une date de naissance (heure locale).
+int _age(DateTime birthDate) {
+  final now = DateTime.now();
+  final d = birthDate.toLocal();
+  var age = now.year - d.year;
+  if (now.month < d.month || (now.month == d.month && now.day < d.day)) {
+    age--;
+  }
+  return age;
+}
+
+/// Date de naissance JJ/MM/AAAA (heure locale) — format imposé par la
+/// maquette design-v2 pour la barre d'identité patient (#4945).
+String _formatBirthDate(DateTime dt) {
+  final d = dt.toLocal();
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  return '$dd/$mm/${d.year}';
+}
+
 /// Formatte un montant en centimes vers un libellé euros.
 String _euros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
+
+/// Date courte JJ/MM (heure locale) — réutilisée par [_HistoriqueTile] et par
+/// `RecentSessionsBox` (#4937, encart « Dernières séances ») pour éviter de
+/// dupliquer le format de date.
+String formatShortDate(DateTime dt) {
+  final d = dt.toLocal();
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  return '$dd/$mm';
+}
 
 // ---------------------------------------------------------------------------
 
@@ -757,11 +994,9 @@ class _HistoriqueTile extends StatelessWidget {
 
   String _formatStart(DateTime dt) {
     final d = dt.toLocal();
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
     final hh = d.hour.toString().padLeft(2, '0');
     final min = d.minute.toString().padLeft(2, '0');
-    return '$dd/$mm $hh:$min';
+    return '${formatShortDate(dt)} $hh:$min';
   }
 
   StatusPillVariant get _statusVariant {

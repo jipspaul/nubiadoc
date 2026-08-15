@@ -88,8 +88,8 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
 }
 
 /// Insère le jeu de fixtures minimal pour une séance de consultation.
-/// Retourne `(cabinet_id, prac_id, prac_user_id, appt_id, session_id)`.
-async fn insert_consultation_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+/// Retourne `(cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id)`.
+async fn insert_consultation_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid, Uuid) {
     let cabinet_id = Uuid::new_v4();
     let prac_user_id = Uuid::new_v4();
     let prac_id = Uuid::new_v4();
@@ -180,7 +180,14 @@ async fn insert_consultation_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uu
 
     tx.commit().await.unwrap();
 
-    (cabinet_id, prac_id, prac_user_id, appt_id, session_id)
+    (
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
 }
 
 async fn cleanup_fixture(
@@ -251,7 +258,7 @@ async fn consultation_get_practitioner_returns_200() {
         return;
     }
     let db = owner_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, session_id) =
+    let (cabinet_id, prac_id, prac_user_id, _patient_id, appt_id, session_id) =
         insert_consultation_fixture(&db).await;
 
     let state = AppState {
@@ -294,7 +301,171 @@ async fn consultation_get_practitioner_returns_200() {
     );
     assert_eq!(v["practitioner"]["id"], prac_id.to_string());
     assert_eq!(v["practitioner"]["display_name"], "Dr. Test Consultation");
+    // #4945 — barre d'identité patient : nom du patient de la séance.
+    assert_eq!(v["patient_name"], "Patient Consultation");
     assert!(v["acts"].is_array(), "acts doit être un tableau");
+    // #4936 — pas de dossier médical pour ce patient → aucune alerte inventée.
+    assert_eq!(v["medical_alerts"], serde_json::json!([]));
+
+    cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
+}
+
+// ── Test 7 : alertes du dossier — allergie + flag médico-légal (#4936) ────────
+
+#[tokio::test]
+async fn consultation_get_returns_medical_alerts_from_record() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_consultation_fixture(&db).await;
+
+    let ciphertext = format!(
+        "STUB_ENC:{}",
+        serde_json::json!({
+            "allergies": ["Pénicilline"],
+            "treatments": [],
+            "history": null,
+            "medico_legal": { "anticoagulants": true }
+        })
+    );
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO medical_record (cabinet_id, patient_id, data_ciphertext, data_key_ref) \
+             VALUES ($1, $2, $3, 'stub-key-ref')",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(ciphertext.as_bytes())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let alerts = v["medical_alerts"].as_array().unwrap();
+    assert_eq!(alerts.len(), 2);
+    assert!(alerts
+        .iter()
+        .any(|a| a["kind"] == "allergie" && a["label"] == "Pénicilline"));
+    assert!(alerts
+        .iter()
+        .any(|a| a["kind"] == "medico_legal" && a["label"] == "Anticoagulant (AVK)"));
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM medical_record WHERE patient_id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
+}
+
+// ── Test : date de naissance du patient renvoyée (#4945 — barre d'identité) ───
+
+#[tokio::test]
+async fn consultation_get_returns_patient_birth_date() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_consultation_fixture(&db).await;
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE patient SET birth_date = '1992-03-12' WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(v["patient_birth_date"], "1992-03-12");
 
     cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
 }
@@ -307,7 +478,7 @@ async fn consultation_get_secretary_returns_403() {
         return;
     }
     let db = owner_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, session_id) =
+    let (cabinet_id, prac_id, prac_user_id, _patient_id, appt_id, session_id) =
         insert_consultation_fixture(&db).await;
 
     let secretary_id = Uuid::new_v4();
@@ -346,7 +517,7 @@ async fn consultation_get_other_cabinet_provider_returns_404() {
         return;
     }
     let db = owner_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, session_id) =
+    let (cabinet_id, prac_id, prac_user_id, _patient_id, appt_id, session_id) =
         insert_consultation_fixture(&db).await;
 
     // Praticien valide mais appartenant à un cabinet différent.
@@ -391,7 +562,7 @@ async fn consultation_get_patient_token_returns_403() {
         return;
     }
     let db = owner_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, appt_id, session_id) =
+    let (cabinet_id, prac_id, prac_user_id, _patient_id, appt_id, session_id) =
         insert_consultation_fixture(&db).await;
 
     let patient_user_id = Uuid::new_v4();

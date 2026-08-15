@@ -36,7 +36,8 @@ abstract class ClinicalSessionRepository {
   });
 
   /// GET /v1/cabinet/consultations — historique des séances du cabinet (#3232).
-  /// Résumés sans actes ni note clinique (le détail passe par [getSession]).
+  /// Résumés sans note clinique (le détail passe par [getSession]) ; `acts` ne
+  /// contient que le premier acte de la séance (#4937), pas la liste complète.
   Future<Either<Failure, List<ClinicalSession>>> listSessions({
     String? patientId,
     String? status,

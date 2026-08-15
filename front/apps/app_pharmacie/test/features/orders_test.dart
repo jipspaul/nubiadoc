@@ -13,6 +13,7 @@ import 'package:app_pharmacie/features/orders/orders_event.dart';
 import 'package:app_pharmacie/features/orders/orders_page.dart';
 import 'package:app_pharmacie/features/orders/orders_state.dart';
 import 'package:app_pharmacie/features/orders/widgets/order_status_pill.dart';
+import 'package:app_pharmacie/features/orders/widgets/orders_kpis.dart';
 
 class MockPharmacyOrdersRepository extends Mock
     implements PharmacyOrdersRepository {}
@@ -36,6 +37,21 @@ PharmacyOrder orderAt(
       status: status,
       createdAt: createdAt,
       updatedAt: createdAt,
+    );
+
+PharmacyOrder orderNamed(
+  String id,
+  String patientDisplayName, [
+  PharmacyOrderStatus status = PharmacyOrderStatus.received,
+]) =>
+    PharmacyOrder(
+      id: id,
+      pharmacyId: 'p1',
+      patientDisplayName: patientDisplayName,
+      prescriptionId: 'rx1',
+      status: status,
+      createdAt: DateTime(2026, 7, 1, 10),
+      updatedAt: DateTime(2026, 7, 1, 10),
     );
 
 PharmacyOrder orderWithLineCount(
@@ -287,6 +303,60 @@ void main() {
     });
 
     testWidgets(
+        'les compteurs de filtre reflètent la file complète, pas la vue '
+        'filtrée', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(
+          orders: [
+            order('o1', PharmacyOrderStatus.received),
+            order('o2', PharmacyOrderStatus.received),
+            order('o3', PharmacyOrderStatus.preparing),
+            order('o4', PharmacyOrderStatus.ready),
+          ],
+          filter: PharmacyOrderStatus.ready,
+        ),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_filter_all')),
+          matching: find.text('4'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_filter_received')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_filter_preparing')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('orders_filter_ready')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
         'commande received en retard (> 2 h) → libellé rouge + fond urgent',
         (tester) async {
       final lateOrder = orderAt(
@@ -411,6 +481,109 @@ void main() {
           ))).called(1);
     });
 
+    testWidgets('recherche par nom de patient filtre la liste (client)',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [
+          orderNamed('o1', 'Jean Dupont'),
+          orderNamed('o2', 'Alice Martin'),
+        ]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final field = find.descendant(
+        of: find.byKey(const Key('orders_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'alice');
+      await tester.pump();
+
+      expect(find.text('Alice Martin'), findsOneWidget);
+      expect(find.text('Jean Dupont'), findsNothing);
+    });
+
+    testWidgets('recherche par n° de commande filtre la liste (client)',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [
+          orderNamed('CMD-1001', 'Jean Dupont'),
+          orderNamed('CMD-2002', 'Alice Martin'),
+        ]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final field = find.descendant(
+        of: find.byKey(const Key('orders_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, '2002');
+      await tester.pump();
+
+      expect(find.text('Alice Martin'), findsOneWidget);
+      expect(find.text('Jean Dupont'), findsNothing);
+    });
+
+    testWidgets('la recherche se combine au filtre de statut sélectionné',
+        (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(
+          orders: [
+            orderNamed('o1', 'Alice Martin', PharmacyOrderStatus.received),
+            orderNamed('o2', 'Alice Martin', PharmacyOrderStatus.ready),
+          ],
+          filter: PharmacyOrderStatus.ready,
+        ),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final field = find.descendant(
+        of: find.byKey(const Key('orders_search')),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'alice');
+      await tester.pump();
+
+      expect(find.byKey(const Key('order_row_o1')), findsNothing);
+      expect(find.byKey(const Key('order_row_o2')), findsOneWidget);
+    });
+
+    testWidgets('placeholder exact du champ de recherche', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.received)]),
+      );
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      expect(find.text('Patient, n° commande…'), findsOneWidget);
+    });
+
     testWidgets(
         'indicateur de fraîcheur : pastille verte + texte relatif en bout '
         'de barre de filtres', (tester) async {
@@ -440,6 +613,90 @@ void main() {
     });
   });
 
+  group('OrdersKpis', () {
+    test('agrège urgentes, en préparation, prêtes et délivrées du jour', () {
+      final now = DateTime(2026, 7, 1, 15);
+      final orders = [
+        orderAt('o1', PharmacyOrderStatus.received,
+            now.subtract(const Duration(hours: 3))), // urgente (> 2h)
+        orderAt('o2', PharmacyOrderStatus.received,
+            now.subtract(const Duration(minutes: 10))), // pas urgente
+        orderAt('o3', PharmacyOrderStatus.preparing, now),
+        orderAt('o4', PharmacyOrderStatus.preparing, now),
+        orderAt('o5', PharmacyOrderStatus.ready, now),
+        PharmacyOrder(
+          id: 'o6',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean D.',
+          prescriptionId: 'rx1',
+          status: PharmacyOrderStatus.pickedUp,
+          createdAt: now.subtract(const Duration(hours: 5)),
+          updatedAt: now,
+          pickedUpAt: now.subtract(const Duration(hours: 1)),
+        ),
+        PharmacyOrder(
+          id: 'o7',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean D.',
+          prescriptionId: 'rx1',
+          status: PharmacyOrderStatus.pickedUp,
+          createdAt: now.subtract(const Duration(days: 2)),
+          updatedAt: now,
+          pickedUpAt: now.subtract(const Duration(days: 1)), // pas aujourd'hui
+        ),
+      ];
+
+      final kpis = OrdersKpis.fromOrders(orders, now: now);
+
+      expect(kpis.urgentCount, 1);
+      expect(kpis.preparingCount, 2);
+      expect(kpis.readyCount, 1);
+      expect(kpis.pickedUpTodayCount, 1);
+    });
+  });
+
+  group('OrdersView (widget) — bandeau KPI', () {
+    testWidgets('affiche les 4 compteurs avec les bonnes couleurs',
+        (tester) async {
+      final now = DateTime.now();
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [
+          orderAt('o1', PharmacyOrderStatus.received,
+              now.subtract(const Duration(hours: 3))),
+          orderAt('o2', PharmacyOrderStatus.preparing, now),
+        ]),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      final tokens = NubiaTokens.light;
+
+      final urgentValue = tester.widget<Text>(find.descendant(
+        of: find.byKey(const Key('orders_kpi_urgent')),
+        matching: find.text('1'),
+      ));
+      expect(urgentValue.style?.color, tokens.dangerFg);
+
+      final preparingValue = tester.widget<Text>(find.descendant(
+        of: find.byKey(const Key('orders_kpi_preparing')),
+        matching: find.text('1'),
+      ));
+      expect(preparingValue.style?.color, tokens.warningFg);
+
+      expect(find.text('à préparer d\'urgence'), findsOneWidget);
+      expect(find.text('en préparation'), findsOneWidget);
+      expect(find.text('prêtes à retirer'), findsOneWidget);
+      expect(find.text('délivrées aujourd\'hui'), findsOneWidget);
+    });
+  });
+
   group('Colonne « Lignes »', () {
     testWidgets('pluriel « lignes » pour un compteur >= 2', (tester) async {
       final bloc = MockOrdersBloc();
@@ -457,7 +714,13 @@ void main() {
       );
       addTearDown(() => tester.pumpWidget(const SizedBox()));
 
-      expect(find.text('2'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('order_row_o1')),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('lignes'), findsOneWidget);
       expect(find.text('ligne'), findsNothing);
     });
@@ -478,7 +741,13 @@ void main() {
       );
       addTearDown(() => tester.pumpWidget(const SizedBox()));
 
-      expect(find.text('1'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('order_row_o1')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('ligne'), findsOneWidget);
       expect(find.text('lignes'), findsNothing);
     });
