@@ -174,6 +174,12 @@ class _LoadedView extends StatefulWidget {
 class _LoadedViewState extends State<_LoadedView> {
   late final TextEditingController _noteController;
 
+  /// Focus partagé entre la recherche globale de la barre du haut (#4948) et
+  /// la recherche d'acte CCAM du volet droit (`CcamPicker`) : en l'absence
+  /// d'une recherche transverse (patient/ordonnance), la barre du haut ouvre
+  /// la palette d'acte existante — même cible que le raccourci ⌘K (#4941).
+  final FocusNode _actSearchFocusNode = FocusNode();
+
   /// Débounce de l'auto-save de la note de séance (#4943) — la note n'a plus
   /// de bouton d'enregistrement manuel explicite : elle se sauvegarde après
   /// une pause de frappe.
@@ -259,6 +265,7 @@ class _LoadedViewState extends State<_LoadedView> {
   void dispose() {
     _noteSaveDebounce?.cancel();
     _noteController.dispose();
+    _actSearchFocusNode.dispose();
     super.dispose();
   }
 
@@ -312,77 +319,104 @@ class _LoadedViewState extends State<_LoadedView> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: NubiaCard(
             key: const Key('patient_identity_bar'),
-            child: Row(
-              children: [
-                NubiaAvatar(
-                  initials: _patientInitials(session.patientName),
-                  radius: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+            // #4948 — la recherche globale ne s'affiche qu'à partir de la
+            // largeur *disponible* de la barre (jamais MediaQuery, cf.
+            // #4935) : sous ce seuil elle écraserait l'identité patient.
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final showGlobalSearch =
+                    constraints.maxWidth >= _kTwoColumnBreakpoint;
+                return Row(
+                  children: [
+                    NubiaAvatar(
+                      initials: _patientInitials(session.patientName),
+                      radius: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Flexible(
-                            child: Text(
-                              session.patientName?.trim().isNotEmpty == true
-                                  ? session.patientName!.trim()
-                                  : 'Patient',
-                              style: textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  session.patientName?.trim().isNotEmpty == true
+                                      ? session.patientName!.trim()
+                                      : 'Patient',
+                                  style: textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              StatusPill(
+                                label: session.isCancelled
+                                    ? 'Annulée'
+                                    : session.isCompleted
+                                        ? 'Terminée'
+                                        : 'Séance en cours',
+                                variant: session.isCancelled
+                                    ? StatusPillVariant.warning
+                                    : session.isCompleted
+                                        ? StatusPillVariant.success
+                                        : StatusPillVariant.info,
+                                icon: session.isCancelled || session.isCompleted
+                                    ? null
+                                    : Icons.info_outline,
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          StatusPill(
-                            label: session.isCancelled
-                                ? 'Annulée'
-                                : session.isCompleted
-                                    ? 'Terminée'
-                                    : 'Séance en cours',
-                            variant: session.isCancelled
-                                ? StatusPillVariant.warning
-                                : session.isCompleted
-                                    ? StatusPillVariant.success
-                                    : StatusPillVariant.info,
-                            icon: session.isCancelled || session.isCompleted
-                                ? null
-                                : Icons.info_outline,
+                          const SizedBox(height: 4),
+                          _PatientIdentitySubtitle(
+                            birthDate: session.patientBirthDate,
+                            practitionerName: session.practitionerName,
+                            textTheme: textTheme,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      _PatientIdentitySubtitle(
-                        birthDate: session.patientBirthDate,
-                        practitionerName: session.practitionerName,
-                        textTheme: textTheme,
+                    ),
+                    if (showGlobalSearch) ...[
+                      const SizedBox(width: 12),
+                      // #4948 — recherche globale centrée entre l'identité
+                      // patient et le total : partage le focus ⌘K avec la
+                      // recherche d'acte CCAM du volet droit (pas de recherche
+                      // transverse pour l'instant, voir `_GlobalSearchField`).
+                      Expanded(
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 360),
+                            child: _GlobalSearchField(
+                              key: const Key('global_search_field'),
+                              focusNode: _actSearchFocusNode,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                _SessionTotal(
-                  // #3402 — même calcul que le total transmis au POST
-                  // .../acts : somme des `amountCents` des actes enregistrés.
-                  totalCents: session.acts.fold<int>(
-                      0, (sum, act) => sum + (act.amountCents ?? 0)),
-                  textTheme: textTheme,
-                ),
-                const SizedBox(width: 12),
-                NubiaButton(
-                  key: const Key('complete_consultation_button'),
-                  size: NubiaButtonSize.sm,
-                  icon: Icons.check,
-                  label: 'Terminer',
-                  onPressed: state.actionInProgress || session.isFinished
-                      ? null
-                      : () => context.read<ConsultationCliniqueBloc>().add(
-                            const ConsultationCliniqueCompleteRequested(),
-                          ),
-                ),
-              ],
+                    const SizedBox(width: 12),
+                    _SessionTotal(
+                      // #3402 — même calcul que le total transmis au POST
+                      // .../acts : somme des `amountCents` des actes enregistrés.
+                      totalCents: session.acts.fold<int>(
+                          0, (sum, act) => sum + (act.amountCents ?? 0)),
+                      textTheme: textTheme,
+                    ),
+                    const SizedBox(width: 12),
+                    NubiaButton(
+                      key: const Key('complete_consultation_button'),
+                      size: NubiaButtonSize.sm,
+                      icon: Icons.check,
+                      label: 'Terminer',
+                      onPressed: state.actionInProgress || session.isFinished
+                          ? null
+                          : () => context.read<ConsultationCliniqueBloc>().add(
+                                const ConsultationCliniqueCompleteRequested(),
+                              ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -411,6 +445,7 @@ class _LoadedViewState extends State<_LoadedView> {
                 onNoteChanged: _onNoteChanged,
                 lastNoteSavedAt: state.lastNoteSavedAt,
                 selectedTooth: _selectedTooth,
+                actSearchFocusNode: _actSearchFocusNode,
                 // #3402 — l'éditeur d'acte fournit la dent + le montant,
                 // transmis au POST .../acts (le total reflète alors la
                 // somme des montants).
@@ -628,6 +663,7 @@ class _SideColumn extends StatelessWidget {
     required this.selectedTooth,
     required this.onActSubmitted,
     required this.scrollable,
+    required this.actSearchFocusNode,
   });
 
   final TextTheme textTheme;
@@ -636,6 +672,8 @@ class _SideColumn extends StatelessWidget {
   final ValueChanged<String> onNoteChanged;
   final DateTime? lastNoteSavedAt;
   final String? selectedTooth;
+  // #4948 — focus partagé avec la recherche globale de la barre du haut.
+  final FocusNode actSearchFocusNode;
   final void Function({
     required String code,
     required String label,
@@ -700,6 +738,9 @@ class _SideColumn extends StatelessWidget {
             // l'éditeur d'acte au lieu de la saisie texte libre.
             selectedTooth: selectedTooth,
             onActSubmitted: onActSubmitted,
+            // #4948 — focus partagé avec la recherche globale de la barre
+            // du haut (et le raccourci ⌘K, #4941).
+            searchFocusNode: actSearchFocusNode,
           ),
         ),
       ],
@@ -823,12 +864,93 @@ class _SessionTotal extends StatelessWidget {
   }
 }
 
+/// Recherche globale de la barre du haut (#4948, maquette `.kb`) : encart
+/// bordé, icône loupe, texte grisé « Acte, patient, ordonnance… » et badge
+/// clavier ⌘K, centré entre l'identité patient et le total.
+///
+/// Distinct de la recherche d'acte du volet droit (`ccam_search_field`) —
+/// en l'absence de recherche transverse (patient/ordonnance), un tap ici
+/// place le focus sur cette même recherche d'acte, comme le raccourci ⌘K
+/// (#4941) : le tooltip marque explicitement ce périmètre restreint.
+class _GlobalSearchField extends StatelessWidget {
+  const _GlobalSearchField({super.key, required this.focusNode});
+
+  final FocusNode focusNode;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Tooltip(
+      message: 'Recherche d\'actes pour l\'instant — '
+          'patient et ordonnance à venir',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: focusNode.requestFocus,
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: tokens.borderDefault),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.search, size: 18, color: tokens.textTertiary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Acte, patient, ordonnance…',
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium
+                        ?.copyWith(color: tokens.textTertiary),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const _GlobalSearchShortcutBadge(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Badge « ⌘K » (#4948) — même style que `_CcamShortcutBadge`
+/// (ccam_picker.dart, #4941) et `_SearchShortcutHint` (orders_page.dart).
+class _GlobalSearchShortcutBadge extends StatelessWidget {
+  const _GlobalSearchShortcutBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Text(
+        '⌘K',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
 /// Initiales (max 2 lettres) du patient pour l'avatar de la barre d'identité
 /// (#4945) — même convention que `waiting_room_page.dart::_initials`.
 String _patientInitials(String? patientName) {
   final name = patientName?.trim() ?? '';
-  final parts =
-      name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts = name.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
