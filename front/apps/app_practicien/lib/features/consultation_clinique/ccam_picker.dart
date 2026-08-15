@@ -207,32 +207,6 @@ class _CcamPickerState extends State<CcamPicker> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (favorites != null && favorites.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Favoris',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
-            ),
-            ListView.builder(
-              key: const Key('ccam_favorites'),
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: favorites.length,
-              itemBuilder: (context, i) => ListRow(
-                key: Key('ccam_favorite_${favorites[i].code}'),
-                leading: const Icon(Icons.star, size: 22),
-                title: favorites[i].label,
-                subtitle: favorites[i].code,
-                trailing: _favoriteToggleButton(favorites[i]),
-                onTap: () => _select(favorites[i]),
-              ),
-            ),
-          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
             child: NubiaSearchBar(
@@ -247,6 +221,34 @@ class _CcamPickerState extends State<CcamPicker> {
                   _controller.text.isEmpty ? const _CcamShortcutBadge() : null,
             ),
           ),
+          if (favorites != null && favorites.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Favoris',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Wrap(
+                key: const Key('ccam_favorites'),
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final act in favorites)
+                    _FavoriteActChip(
+                      key: Key('ccam_favorite_${act.code}'),
+                      act: act,
+                      onTap: () => _select(act),
+                    ),
+                ],
+              ),
+            ),
+          ],
           if (suggestions != null)
             suggestions.isEmpty
                 ? Padding(
@@ -277,6 +279,59 @@ class _CcamPickerState extends State<CcamPicker> {
                     ),
                   ),
         ],
+      ),
+    );
+  }
+}
+
+/// Chip favori tactile (#4969, point #9 de la maquette) — l'immense
+/// majorité des séances se compose de cinq actes récurrents ; ces chips
+/// les ajoutent en un tap, sans passer par le clavier. Hauteur ≥ 44 px
+/// (plancher tactile).
+class _FavoriteActChip extends StatelessWidget {
+  const _FavoriteActChip({super.key, required this.act, required this.onTap});
+
+  final CcamAct act;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: tokens.borderDefault),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                act.label,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                act.code,
+                style: textTheme.bodySmall?.copyWith(
+                  fontFamily: 'monospace',
+                  color: NubiaColors.n500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
