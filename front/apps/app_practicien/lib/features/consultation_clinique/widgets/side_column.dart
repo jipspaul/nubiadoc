@@ -133,37 +133,38 @@ class SideColumn extends StatelessWidget {
       // volet note (même esprit que ⌘K sur `CcamPicker`, #4941).
       return CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
-          const SingleActivator(LogicalKeyboardKey.keyS, meta: true): onSaveNote,
+          const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+              onSaveNote,
         },
         child: NubiaCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: expandField ? MainAxisSize.max : MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    'Note de séance',
-                    style: textTheme.titleSmall,
-                    overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: expandField ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Note de séance',
+                      style: textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                TextButton.icon(
-                  key: const Key('cr_template_picker_button'),
-                  onPressed: onPickCrTemplate,
-                  icon: const Icon(Icons.description_outlined, size: 18),
-                  label: const Text('Modèle'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            expandField ? Expanded(child: noteField) : noteField,
-            const SizedBox(height: 8),
-            _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
-          ],
-        ),
+                  TextButton.icon(
+                    key: const Key('cr_template_picker_button'),
+                    onPressed: onPickCrTemplate,
+                    icon: const Icon(Icons.description_outlined, size: 18),
+                    label: const Text('Modèle'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              expandField ? Expanded(child: noteField) : noteField,
+              const SizedBox(height: 8),
+              _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
+            ],
+          ),
         ),
       );
     }

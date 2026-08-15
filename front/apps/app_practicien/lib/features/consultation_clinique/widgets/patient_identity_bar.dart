@@ -90,6 +90,11 @@ class PatientIdentityBar extends StatelessWidget {
                               label: _clinicalAlertLabel(alert),
                               variant: StatusPillVariant.error,
                               icon: Icons.warning,
+                              // #4957 — la pastille se rétrécit (ellipsis) au
+                              // lieu de déborder quand la colonne d'identité se
+                              // resserre (bouton « Terminer la séance » + total
+                              // #4965 réduisent la largeur disponible).
+                              flexibleLabel: true,
                             ),
                           StatusPill(
                             label: session.isCancelled
@@ -105,6 +110,7 @@ class PatientIdentityBar extends StatelessWidget {
                             icon: session.isCancelled || session.isCompleted
                                 ? null
                                 : Icons.info_outline,
+                            flexibleLabel: true,
                           ),
                         ],
                       ),

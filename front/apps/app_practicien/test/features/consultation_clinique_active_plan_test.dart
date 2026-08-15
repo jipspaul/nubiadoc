@@ -60,22 +60,29 @@ void main() {
     addTearDown(GetIt.instance.reset);
   });
 
-  Widget buildPage() => MaterialApp(
+  // La largeur *disponible* du corps (pas la fenêtre) pilote le LayoutBuilder :
+  // on la fixe via un SizedBox ancêtre plutôt que via `physicalSize`, seule
+  // méthode fiable (cf. consultation_clinique_layout_test.dart).
+  Widget buildPageAtWidth(double width) => MaterialApp(
         theme: NubiaTheme.light,
         home: Scaffold(
           body: BlocProvider<ConsultationCliniqueBloc>.value(
             value: bloc,
-            child: const ConsultationCliniqueBody(consultationId: 's1'),
+            child: SizedBox(
+              width: width,
+              height: 900,
+              child: const ConsultationCliniqueBody(consultationId: 's1'),
+            ),
           ),
         ),
       );
 
   Future<void> pumpAt(WidgetTester tester, Size size) async {
-    tester.view.physicalSize = size;
+    tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(buildPage());
+    await tester.pumpWidget(buildPageAtWidth(size.width));
     await tester.pump();
   }
 
@@ -85,7 +92,11 @@ void main() {
     when(() => bloc.state).thenReturn(
         const ConsultationCliniqueLoaded(session: _sessionWithActivePlan));
 
-    await pumpAt(tester, const Size(1400, 2400));
+    // 1600 px : le patient de la séance ayant un `patientId`, la colonne
+    // « Dernières séances » (#4937) occupe 280 px à gauche ; il faut donc
+    // ≥ 1280 px *après* elle pour que la colonne contexte (encart « Plan en
+    // cours ») s'affiche à son tour — d'où 1600 px de largeur disponible.
+    await pumpAt(tester, const Size(1600, 2400));
 
     expect(find.byKey(const Key('consultation_context_column_layout')),
         findsOneWidget);

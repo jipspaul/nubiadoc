@@ -36,6 +36,12 @@ const _session = ClinicalSession(
 void main() {
   late MockConsultationCliniqueBloc bloc;
 
+  setUpAll(() {
+    // `verifyNever(() => bloc.add(any()))` a besoin d'une valeur de repli pour
+    // le type `ConsultationCliniqueEvent` (mocktail, null-safety).
+    registerFallbackValue(const ConsultationCliniqueNoteSaveRequested(''));
+  });
+
   setUp(() {
     bloc = MockConsultationCliniqueBloc();
     when(() => bloc.state)
@@ -118,6 +124,11 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.keyS);
     await tester.pump();
 
-    verifyNever(() => bloc.add(any()));
+    // Aucune sauvegarde de note déclenchée par « S » seul (le
+    // `ConsultationCliniqueLoadRequested` de l'`initState` n'est pas une
+    // sauvegarde et ne doit pas faire échouer l'assertion).
+    verifyNever(
+      () => bloc.add(any(that: isA<ConsultationCliniqueNoteSaveRequested>())),
+    );
   });
 }
