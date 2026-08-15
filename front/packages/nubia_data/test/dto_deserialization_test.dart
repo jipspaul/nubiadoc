@@ -599,5 +599,30 @@ void main() {
       }).toDomain();
       expect(session.patientBirthDate, isNull);
     });
+
+    test('fromJson remonte last_visit_at du détail (#4956)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'id': 'cs-8',
+        'appointment_id': 'aa-8',
+        'status': 'in_progress',
+        'acts': [],
+        'patient_name': 'Camille Moreau',
+        'last_visit_at': '2026-07-22',
+      }).toDomain();
+      final lastVisitDate = session.lastVisitDate;
+      expect(lastVisitDate, isNotNull);
+      expect(lastVisitDate!.year, 2026);
+      expect(lastVisitDate.month, 7);
+      expect(lastVisitDate.day, 22);
+    });
+
+    test('fromJson sans last_visit_at → null (segment masqué)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'appointment_id': 'aa-9',
+        'consultation_id': 'cs-9',
+        'status': 'in_progress',
+      }).toDomain();
+      expect(session.lastVisitDate, isNull);
+    });
   });
 }

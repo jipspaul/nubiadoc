@@ -94,6 +94,7 @@ class PatientIdentityBar extends StatelessWidget {
                       const SizedBox(height: 4),
                       _PatientIdentitySubtitle(
                         birthDate: session.patientBirthDate,
+                        lastVisitDate: session.lastVisitDate,
                         practitionerName: session.practitionerName,
                         textTheme: textTheme,
                       ),
@@ -142,17 +143,20 @@ class PatientIdentityBar extends StatelessWidget {
   }
 }
 
-/// Sous-titre de la barre d'identité patient (#4945) — « âge ans · né(e) le
-/// JJ/MM/AAAA · praticien ». N'affiche que les segments dont la donnée est
-/// disponible (ex. date de naissance absente du dossier patient).
+/// Sous-titre de la barre d'identité patient (#4945, #4956) — « âge ans ·
+/// né(e) le JJ/MM/AAAA · Dernière visite JJ/MM · Dr praticien ». N'affiche
+/// que les segments dont la donnée est disponible (ex. date de naissance ou
+/// dernière visite absentes du dossier patient).
 class _PatientIdentitySubtitle extends StatelessWidget {
   const _PatientIdentitySubtitle({
     required this.birthDate,
+    required this.lastVisitDate,
     required this.practitionerName,
     required this.textTheme,
   });
 
   final DateTime? birthDate;
+  final DateTime? lastVisitDate;
   final String? practitionerName;
   final TextTheme textTheme;
 
@@ -162,7 +166,9 @@ class _PatientIdentitySubtitle extends StatelessWidget {
     final parts = <String>[
       if (birthDate != null) '${_age(birthDate!)} ans',
       if (birthDate != null) 'né(e) le ${_formatBirthDate(birthDate!)}',
-      if (practitioner != null && practitioner.isNotEmpty) practitioner,
+      if (lastVisitDate != null)
+        'Dernière visite ${_formatLastVisit(lastVisitDate!)}',
+      if (practitioner != null && practitioner.isNotEmpty) 'Dr $practitioner',
     ];
     if (parts.isEmpty) return const SizedBox.shrink();
     return Text(
@@ -320,4 +326,13 @@ String _formatBirthDate(DateTime dt) {
   final dd = d.day.toString().padLeft(2, '0');
   final mm = d.month.toString().padLeft(2, '0');
   return '$dd/$mm/${d.year}';
+}
+
+/// Dernière visite JJ/MM (heure locale) — format imposé par la maquette
+/// design-v2 pour la barre d'identité patient (#4956).
+String _formatLastVisit(DateTime dt) {
+  final d = dt.toLocal();
+  final dd = d.day.toString().padLeft(2, '0');
+  final mm = d.month.toString().padLeft(2, '0');
+  return '$dd/$mm';
 }

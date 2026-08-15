@@ -91,6 +91,12 @@ class ClinicalSession extends Equatable {
   /// route liste, #4936). Liste vide si le dossier n'a aucune alerte.
   final List<MedicalAlert> medicalAlerts;
 
+  /// Date de la dernière visite du patient avant cette séance (#4956 —
+  /// ligne d'identité secondaire « Dernière visite JJ/MM »). `null` si le
+  /// back ne fournit pas encore cette donnée : le segment est alors masqué,
+  /// jamais affiché vide.
+  final DateTime? lastVisitDate;
+
   const ClinicalSession({
     required this.id,
     required this.appointmentId,
@@ -103,6 +109,7 @@ class ClinicalSession extends Equatable {
     this.practitionerName,
     this.patientBirthDate,
     this.medicalAlerts = const [],
+    this.lastVisitDate,
   });
 
   bool get isCompleted => status == 'completed';
@@ -128,6 +135,7 @@ class ClinicalSession extends Equatable {
         practitionerName,
         patientBirthDate,
         medicalAlerts,
+        lastVisitDate,
       ];
 }
 
