@@ -68,8 +68,8 @@ class ToothGrid extends StatelessWidget {
   final void Function(String toothCode) onTap;
   final String keyPrefix;
 
-  /// Taille d'une case dent (largeur × hauteur). Par défaut 32×32 ; la
-  /// consultation PC (#4940) passe 44×50 pour des cibles tactiles.
+  /// Taille d'une case dent (largeur × hauteur). Par défaut 38×44 (#4961,
+  /// plancher tactile 44 px) ; la consultation PC (#4940) passe 44×50.
   final Size toothSize;
 
   /// Couleur de bordure par dent (ex. ambre « à surveiller », consultation
@@ -235,8 +235,10 @@ class ToothButton extends StatelessWidget {
     this.selected = false,
   });
 
-  /// Taille historique (schéma dentaire patient, `DentalChartPage`).
-  static const defaultSize = Size(32, 32);
+  /// Cible tactile ≥ 44 px pour une main gantée (#4961, maquette
+  /// `.tth{width:38px;height:44px}`). Schéma dentaire patient,
+  /// `DentalChartPage`.
+  static const defaultSize = Size(38, 44);
 
   final String code;
   final Color color;
