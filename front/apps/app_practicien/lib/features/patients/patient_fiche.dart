@@ -1,3 +1,4 @@
+import 'package:dartz/dartz.dart' hide State;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -6,6 +7,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'async_section_state.dart';
 import 'patient_fiche_bloc.dart';
 import 'patient_journal_section.dart';
 
@@ -214,29 +216,13 @@ class PatientTagsSection extends StatefulWidget {
   State<PatientTagsSection> createState() => _PatientTagsSectionState();
 }
 
-class _PatientTagsSectionState extends State<PatientTagsSection> {
-  List<PatientTag>? _tags;
-  String? _error;
+class _PatientTagsSectionState extends State<PatientTagsSection>
+    with AsyncSectionState<List<PatientTag>, PatientTagsSection> {
   bool _submitting = false;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final result =
-        await GetIt.instance<ListPatientTagsUseCase>()(widget.patientId);
-    if (!mounted) return;
-    result.fold(
-      (failure) => setState(() => _error = failure.message),
-      (tags) => setState(() {
-        _tags = tags;
-        _error = null;
-      }),
-    );
-  }
+  Future<Either<Failure, List<PatientTag>>> fetchSection() =>
+      GetIt.instance<ListPatientTagsUseCase>()(widget.patientId);
 
   Future<void> _addTag(String label) async {
     setState(() => _submitting = true);
@@ -249,7 +235,7 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
     result.fold(
       (failure) => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(failure.message))),
-      (_) => _load(),
+      (_) => loadSection(),
     );
   }
 
@@ -262,7 +248,7 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
     result.fold(
       (failure) => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(failure.message))),
-      (_) => _load(),
+      (_) => loadSection(),
     );
   }
 
@@ -299,7 +285,7 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
-    final tags = _tags;
+    final tags = data;
 
     return NubiaCard(
       key: const Key('patient_tags_section'),
@@ -327,9 +313,9 @@ class _PatientTagsSectionState extends State<PatientTagsSection> {
             ],
           ),
           const SizedBox(height: 8),
-          if (_error != null)
-            Text(_error!, style: TextStyle(color: cs.error))
-          else if (tags == null)
+          if (error != null)
+            NubiaErrorWidget(message: error!, onRetry: loadSection)
+          else if (loading || tags == null)
             const NubiaSkeletonLoader(height: 32, borderRadius: 16)
           else if (tags.isEmpty)
             Text(
@@ -382,35 +368,20 @@ class PatientOrthodonticsSection extends StatefulWidget {
 }
 
 class _PatientOrthodonticsSectionState
-    extends State<PatientOrthodonticsSection> {
-  List<OrthodonticTreatment>? _treatments;
-  String? _error;
+    extends State<PatientOrthodonticsSection>
+    with
+        AsyncSectionState<List<OrthodonticTreatment>,
+            PatientOrthodonticsSection> {
   bool _adding = false;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final result = await GetIt.instance<ListOrthodonticTreatmentsUseCase>()(
-      widget.patientId,
-    );
-    if (!mounted) return;
-    result.fold(
-      (failure) => setState(() => _error = failure.message),
-      (treatments) => setState(() {
-        _treatments = treatments;
-        _error = null;
-      }),
-    );
-  }
+  Future<Either<Failure, List<OrthodonticTreatment>>> fetchSection() =>
+      GetIt.instance<ListOrthodonticTreatmentsUseCase>()(widget.patientId);
 
   /// Le traitement affiché : le premier `in_progress`, sinon le premier de
   /// la liste (créé le plus tôt — l'API trie par `created_at ASC`).
   OrthodonticTreatment? get _activeTreatment {
-    final treatments = _treatments;
+    final treatments = data;
     if (treatments == null || treatments.isEmpty) return null;
     return treatments.firstWhere(
       (t) => t.status == 'in_progress',
@@ -462,7 +433,7 @@ class _PatientOrthodonticsSectionState
     result.fold(
       (failure) => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(failure.message))),
-      (_) => _load(),
+      (_) => loadSection(),
     );
   }
 
@@ -473,7 +444,7 @@ class _PatientOrthodonticsSectionState
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final treatments = _treatments;
+    final treatments = data;
     final treatment = _activeTreatment;
 
     return NubiaCard(
@@ -505,9 +476,9 @@ class _PatientOrthodonticsSectionState
             ],
           ),
           const SizedBox(height: 8),
-          if (_error != null)
-            Text(_error!, style: TextStyle(color: cs.error))
-          else if (treatments == null)
+          if (error != null)
+            NubiaErrorWidget(message: error!, onRetry: loadSection)
+          else if (loading || treatments == null)
             const NubiaSkeletonLoader(height: 48, borderRadius: 8)
           else if (treatment == null)
             Text(
@@ -578,39 +549,21 @@ class PatientDocumentsSection extends StatefulWidget {
       _PatientDocumentsSectionState();
 }
 
-class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
-  List<PatientDocument>? _documents;
-  String? _error;
+class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
+    with AsyncSectionState<List<PatientDocument>, PatientDocumentsSection> {
   String? _categoryFilter;
   bool _uploading = false;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final result = await GetIt.instance<ListPatientDocumentsUseCase>()(
-      widget.patientId,
-      category: _categoryFilter,
-    );
-    if (!mounted) return;
-    result.fold(
-      (failure) => setState(() => _error = failure.message),
-      (documents) => setState(() {
-        _documents = documents;
-        _error = null;
-      }),
-    );
-  }
+  Future<Either<Failure, List<PatientDocument>>> fetchSection() =>
+      GetIt.instance<ListPatientDocumentsUseCase>()(
+        widget.patientId,
+        category: _categoryFilter,
+      );
 
   void _setFilter(String? category) {
-    setState(() {
-      _categoryFilter = category;
-      _documents = null;
-    });
-    _load();
+    setState(() => _categoryFilter = category);
+    loadSection();
   }
 
   Future<void> _pickAndUpload() async {
@@ -656,7 +609,7 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
     result.fold(
       (failure) => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(failure.message))),
-      (_) => _load(),
+      (_) => loadSection(),
     );
   }
 
@@ -676,7 +629,7 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final documents = _documents;
+    final documents = data;
 
     return NubiaCard(
       key: const Key('patient_documents_section'),
@@ -733,9 +686,9 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection> {
             ),
           ),
           const SizedBox(height: 8),
-          if (_error != null)
-            Text(_error!, style: TextStyle(color: cs.error))
-          else if (documents == null)
+          if (error != null)
+            NubiaErrorWidget(message: error!, onRetry: loadSection)
+          else if (loading || documents == null)
             const NubiaSkeletonLoader(height: 48, borderRadius: 8)
           else if (documents.isEmpty)
             Text(
