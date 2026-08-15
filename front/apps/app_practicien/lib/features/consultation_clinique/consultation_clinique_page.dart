@@ -381,8 +381,7 @@ class _LoadedViewState extends State<_LoadedView> {
                     _SessionTotal(
                       // #3402 — même calcul que le total transmis au POST
                       // .../acts : somme des `amountCents` des actes enregistrés.
-                      totalCents: session.acts.fold<int>(
-                          0, (sum, act) => sum + (act.amountCents ?? 0)),
+                      totalCents: _sessionTotalCents(session),
                       textTheme: textTheme,
                     ),
                     const SizedBox(width: 12),
@@ -591,25 +590,151 @@ class _CenterColumn extends StatelessWidget {
         const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: session.acts.isEmpty
-              ? const NubiaEmptyState(
-                  key: Key('consultation_empty'),
-                  icon: Icons.medical_services_outlined,
-                  title: 'Aucun acte enregistré',
-                  subtitle: 'Recherchez un acte CCAM pour l\'ajouter.',
-                )
-              : ListView.builder(
-                  key: const Key('consultation_acts_list'),
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: session.acts.length,
-                  itemBuilder: (context, i) => _ActTile(act: session.acts[i]),
-                ),
+          child: _ActsOfSessionCard(session: session),
         ),
       ],
     );
     return scrollable ? SingleChildScrollView(child: content) : content;
+  }
+}
+
+/// Somme des montants des actes de la séance (#3402) — source unique
+/// réutilisée par `_SessionTotal` (barre d'identité) et le pied de liste des
+/// actes (`_ActsSessionFooterTotal`, #4952) pour garantir un total identique
+/// aux deux endroits.
+int _sessionTotalCents(ClinicalSession session) =>
+    session.acts.fold<int>(0, (sum, act) => sum + (act.amountCents ?? 0));
+
+/// Encart « Actes de la séance » (#4952, maquette design-v2) : en-tête icône
+/// + titre + badge compteur (`session.acts.length`), liste d'actes ou état
+/// vide (`consultation_empty` conservé), et pied « Total des actes
+/// enregistrés » repris de [_sessionTotalCents] — même valeur que le
+/// « Total séance » de la barre d'identité.
+class _ActsOfSessionCard extends StatelessWidget {
+  const _ActsOfSessionCard({required this.session});
+
+  final ClinicalSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final acts = session.acts;
+    return NubiaCard(
+      key: const Key('consultation_acts_card'),
+      padding: EdgeInsets.zero,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Icon(Icons.list_alt, size: 20, color: cs.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Actes de la séance', style: textTheme.titleSmall),
+                ),
+                _ActsCountBadge(count: acts.length),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, acts.isEmpty ? 16 : 0),
+            child: acts.isEmpty
+                ? const NubiaEmptyState(
+                    key: Key('consultation_empty'),
+                    icon: Icons.medical_services_outlined,
+                    title: 'Aucun acte enregistré',
+                    subtitle: 'Recherchez un acte CCAM pour l\'ajouter.',
+                  )
+                : ListView.builder(
+                    key: const Key('consultation_acts_list'),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: acts.length,
+                    itemBuilder: (context, i) => _ActTile(act: acts[i]),
+                  ),
+          ),
+          if (acts.isNotEmpty)
+            _ActsSessionFooterTotal(totalCents: _sessionTotalCents(session)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Badge compteur d'actes de l'en-tête (pastille grise, ex. « 3 ») — même
+/// style que les chips gris déjà utilisés sur cet écran (`_CcamCodeChip`,
+/// `_ToothBadge` sans dent) : fond `borderSubtle`, texte `textTertiary`.
+class _ActsCountBadge extends StatelessWidget {
+  const _ActsCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      key: const Key('consultation_acts_count_badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$count',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+              fontFeatures: tabularFigures,
+            ),
+      ),
+    );
+  }
+}
+
+/// Pied de liste « Total des actes enregistrés » (#4952, maquette design-v2)
+/// : bandeau gris clair pleine largeur, montant en gras et chiffres
+/// tabulaires (euros français via [formatQuoteCents]).
+class _ActsSessionFooterTotal extends StatelessWidget {
+  const _ActsSessionFooterTotal({required this.totalCents});
+
+  final int totalCents;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: const Key('consultation_acts_total'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Total des actes enregistrés',
+              style:
+                  textTheme.bodyMedium?.copyWith(color: tokens.textTertiary),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            formatQuoteCents(totalCents),
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontFeatures: tabularFigures,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
