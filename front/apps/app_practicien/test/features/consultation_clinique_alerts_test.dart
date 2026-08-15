@@ -83,10 +83,18 @@ void main() {
 
     expect(find.byKey(const Key('consultation_context_column_layout')),
         findsOneWidget);
-    expect(find.byKey(const Key('patient_alerts_box')), findsOneWidget);
+    final alertsBox = find.byKey(const Key('patient_alerts_box'));
+    expect(alertsBox, findsOneWidget);
     expect(find.text('Alertes du dossier'), findsOneWidget);
-    expect(find.text('Allergie Pénicilline'), findsOneWidget);
-    expect(find.text('Anticoagulant (AVK)'), findsOneWidget);
+    // #4957 — « Allergie Pénicilline » est désormais aussi affiché en
+    // pastille d'en-tête (`PatientIdentityBar`) : on scope à l'encart pour
+    // ne pas compter les deux occurrences.
+    expect(find.descendant(of: alertsBox, matching: find.text('Allergie Pénicilline')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: alertsBox, matching: find.text('Anticoagulant (AVK)')),
+        findsOneWidget);
   });
 
   testWidgets('< 1280 px → pas d\'encart (repli 2 colonnes hors périmètre)',

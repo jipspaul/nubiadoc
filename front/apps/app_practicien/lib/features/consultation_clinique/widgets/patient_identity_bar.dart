@@ -61,9 +61,19 @@ class PatientIdentityBar extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      // #4957 — `Wrap` (et non `Row`) : les pastilles
+                      // d'alerte clinique s'ajoutent en nombre variable
+                      // (une par alerte) et doivent refluer sur une nouvelle
+                      // ligne plutôt que déborder quand le nom, les alertes
+                      // et le statut ne tiennent plus sur la largeur
+                      // disponible.
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
-                          Flexible(
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 280),
                             child: Text(
                               session.patientName?.trim().isNotEmpty == true
                                   ? session.patientName!.trim()
@@ -73,7 +83,14 @@ class PatientIdentityBar extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          for (final alert in session.medicalAlerts)
+                            StatusPill(
+                              key: Key(
+                                  'clinical_alert_pill_${alert.kind}_${alert.label}'),
+                              label: _clinicalAlertLabel(alert),
+                              variant: StatusPillVariant.error,
+                              icon: Icons.warning,
+                            ),
                           StatusPill(
                             label: session.isCancelled
                                 ? 'Annulée'
@@ -296,6 +313,12 @@ class _GlobalSearchShortcutBadge extends StatelessWidget {
     );
   }
 }
+
+/// Libellé de pastille d'alerte clinique (#4957) — même convention que
+/// `PatientAlertsBox._labelFor` (préfixe « Allergie » pour `kind ==
+/// 'allergie'`, libellé brut sinon).
+String _clinicalAlertLabel(MedicalAlert alert) =>
+    alert.kind == 'allergie' ? 'Allergie ${alert.label}' : alert.label;
 
 /// Initiales (max 2 lettres) du patient pour l'avatar de la barre d'identité
 /// (#4945) — même convention que `waiting_room_page.dart::_initials`.
