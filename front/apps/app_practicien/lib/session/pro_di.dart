@@ -123,6 +123,16 @@ void registerPro(GetIt gi) {
     ),
   );
 
+  gi.registerFactory<ListPatientJournalUseCase>(
+    () => ListPatientJournalUseCase(
+      listClinicalSessions: gi<ListClinicalSessionsUseCase>(),
+      listPrescriptions: gi<ListPrescriptionsUseCase>(),
+      listCabinetQuotes: gi<ListCabinetQuotesUseCase>(),
+      listPatientDocuments: gi<ListPatientDocumentsUseCase>(),
+      listCabinetAppointments: gi<ListCabinetAppointmentsUseCase>(),
+    ),
+  );
+
   gi.registerFactory<PatientsBloc>(
     () => PatientsBloc(
       listPatients: gi<ListCabinetPatientsUseCase>(),
