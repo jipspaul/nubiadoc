@@ -1,3 +1,4 @@
+import 'package:nubia_domain/src/entities/clinical_session.dart' show MedicalAlert;
 import 'package:nubia_domain/src/entities/medical_record_summary.dart';
 
 /// `allergies`/`treatments` sont des `jsonb` libres côté back
@@ -17,10 +18,12 @@ String _entryToDisplayString(dynamic entry) {
 class MedicalRecordSummaryDto {
   final List<String> allergies;
   final List<String> treatments;
+  final List<MedicalAlert> medicalAlerts;
 
   const MedicalRecordSummaryDto({
     required this.allergies,
     required this.treatments,
+    this.medicalAlerts = const [],
   });
 
   factory MedicalRecordSummaryDto.fromJson(Map<String, dynamic> json) {
@@ -35,11 +38,21 @@ class MedicalRecordSummaryDto {
           .map(_entryToDisplayString)
           .where((s) => s.trim().isNotEmpty)
           .toList(),
+      medicalAlerts: (json['medical_alerts'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (a) => MedicalAlert(
+              kind: a['kind'] as String,
+              label: a['label'] as String,
+            ),
+          )
+          .toList(),
     );
   }
 
   MedicalRecordSummary toDomain() => MedicalRecordSummary(
         allergies: allergies,
         treatments: treatments,
+        medicalAlerts: medicalAlerts,
       );
 }

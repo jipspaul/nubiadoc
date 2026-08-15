@@ -38,10 +38,29 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  /// Alertes cliniques du dossier (allergies + traitements à risque, #4974)
+  /// — même source et même entité que `ClinicalSession.medicalAlerts` côté
+  /// consultation au fauteuil (#4936). Chargées à part de `PatientFicheBloc`
+  /// (affichage passif d'en-tête, indépendant de l'onglet actif) ; une
+  /// erreur de chargement laisse simplement l'en-tête sans pastille plutôt
+  /// que de bloquer l'affichage de la fiche.
+  List<MedicalAlert> _medicalAlerts = const [];
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadMedicalAlerts();
+  }
+
+  Future<void> _loadMedicalAlerts() async {
+    final result =
+        await GetIt.instance<GetMedicalRecordUseCase>()(widget.patient.id);
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (record) => setState(() => _medicalAlerts = record.medicalAlerts),
+    );
   }
 
   @override
@@ -84,7 +103,29 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
       builder: (context, state) {
         return Scaffold(
           appBar: AppBar(
-            title: Text(patient.fullName),
+            // #4974 — pastilles d'alerte clinique à côté du nom, visibles
+            // quel que soit l'onglet actif (en-tête, pas dans un onglet) ;
+            // `Wrap` plutôt que `Row` pour refluer si le nombre d'alertes
+            // dépasse la largeur disponible, même convention que
+            // `PatientIdentityBar` (#4957).
+            title: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Text(patient.fullName),
+                for (final alert in _medicalAlerts)
+                  StatusPill(
+                    key: Key(
+                        'patient_fiche_alert_pill_${alert.kind}_${alert.label}'),
+                    label: _clinicalAlertLabel(alert),
+                    variant: alert.kind == 'allergie'
+                        ? StatusPillVariant.error
+                        : StatusPillVariant.warning,
+                    icon: alert.kind == 'allergie' ? Icons.warning : null,
+                  ),
+              ],
+            ),
             actions: [
               if (state.isExportingPdf)
                 const Padding(
@@ -144,6 +185,12 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
     );
   }
 }
+
+/// Libellé de pastille d'alerte clinique (#4974) — même convention que
+/// `PatientIdentityBar._clinicalAlertLabel` / `PatientAlertsBox._labelFor`
+/// (préfixe « Allergie » pour `kind == 'allergie'`, libellé brut sinon).
+String _clinicalAlertLabel(MedicalAlert alert) =>
+    alert.kind == 'allergie' ? 'Allergie ${alert.label}' : alert.label;
 
 class ClinicalSection extends StatelessWidget {
   final CabinetPatient patient;
