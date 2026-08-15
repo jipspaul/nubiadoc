@@ -84,4 +84,98 @@ void main() {
       expect(scaffold.drawer, isNotNull);
     });
   });
+
+  // --- Badges compteurs sur le rail (#5387) -----------------------------------
+  group('ProShell — badges compteurs', () {
+    const badgeDestinations = [
+      ProNavDestination(
+        label: 'Salle d\'attente',
+        icon: Icons.meeting_room,
+        route: '/salle-attente',
+        badgeCount: 5,
+      ),
+      ProNavDestination(
+        label: 'Agenda',
+        icon: Icons.calendar_today,
+        route: '/agenda',
+      ),
+      ProNavDestination(
+        label: 'Devis',
+        icon: Icons.description,
+        route: '/devis',
+        badgeCount: 0,
+      ),
+    ];
+
+    const badgeConfig = ProConfig(
+      appTitle: 'Nubia Pro',
+      spaceLabel: 'Cabinet Test',
+      destinations: badgeDestinations,
+    );
+
+    const session = AuthSession(
+      kind: UserKind.pro,
+      userId: 'user-4',
+      role: ProRole.secretary,
+    );
+
+    testWidgets(
+      'badgeCount > 0 : badge rouge visible avec le compteur (rail desktop)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: badgeConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final badges = tester.widgetList<Badge>(find.byType(Badge)).toList();
+        final visible = badges.where((b) => b.isLabelVisible == true);
+        expect(visible, hasLength(1));
+        expect((visible.first.label as Text).data, '5');
+      },
+    );
+
+    testWidgets(
+      'badgeCount null ou 0 : aucun badge visible (pas de pastille vide)',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: badgeConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final badges = tester.widgetList<Badge>(find.byType(Badge)).toList();
+        // 3 destinations → 3 Badge wrappers, 2 masqués (null et 0).
+        expect(badges.length, 3);
+        expect(badges.where((b) => b.isLabelVisible == false), hasLength(2));
+      },
+    );
+
+    testWidgets(
+      'badgeCount > 0 : badge visible dans le drawer mobile',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(400, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(config: badgeConfig, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.menu));
+        await tester.pumpAndSettle();
+
+        final badges = tester.widgetList<Badge>(find.byType(Badge)).toList();
+        final visible = badges.where((b) => b.isLabelVisible == true);
+        expect(visible, hasLength(1));
+        expect((visible.first.label as Text).data, '5');
+      },
+    );
+  });
 }

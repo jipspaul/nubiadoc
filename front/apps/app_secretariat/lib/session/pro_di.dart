@@ -15,6 +15,7 @@ import '../features/bookable_slots/bookable_slots_bloc.dart';
 import '../features/cabinet_messaging/cabinet_messaging_bloc.dart';
 import '../features/cabinet_payouts/cabinet_payouts_bloc.dart';
 import '../features/cabinet_stats/cabinet_stats_bloc.dart';
+import '../features/dashboard/rail_badges_cubit.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/stock/stock_bloc.dart';
@@ -66,6 +67,14 @@ void registerPro(GetIt gi) {
         listQuotes: gi<ListCabinetQuotesUseCase>(),
         getQuote: gi<GetCabinetQuoteUseCase>(),
         sendQuote: gi<SendCabinetQuoteUseCase>(),
+      ),
+    )
+    ..registerFactory<RailBadgesCubit>(
+      () => RailBadgesCubit(
+        listWaitingRoom: gi<ListWaitingRoomUseCase>(),
+        listWaitingList: gi<ListWaitingListUseCase>(),
+        listQuotes: gi<ListCabinetQuotesUseCase>(),
+        listConversations: gi<ListCabinetConversationsUseCase>(),
       ),
     )
     ..registerFactory<BookableSlotsBloc>(

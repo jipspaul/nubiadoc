@@ -141,6 +141,21 @@ class _ProShellState extends State<ProShell> {
     );
   }
 
+  /// Icône de destination surmontée d'un badge compteur rouge (#5387) quand
+  /// [ProNavDestination.badgeCount] est renseigné et non nul — même icône
+  /// nue sinon (pas de pastille vide).
+  Widget _iconWithBadge(BuildContext context, ProNavDestination destination) {
+    final count = destination.badgeCount;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Badge(
+      label: Text('$count'),
+      isLabelVisible: count != null && count > 0,
+      backgroundColor: tokens.dangerFg,
+      textColor: Colors.white,
+      child: Icon(destination.icon),
+    );
+  }
+
   Widget _trailing(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -211,7 +226,7 @@ class _ProShellState extends State<ProShell> {
             destinations: [
               for (final d in destinations)
                 NavigationRailDestination(
-                  icon: Icon(d.icon),
+                  icon: _iconWithBadge(context, d),
                   label: Text(d.label),
                 ),
             ],
@@ -260,7 +275,7 @@ class _ProShellState extends State<ProShell> {
               const Divider(),
               for (int i = 0; i < destinations.length; i++)
                 ListTile(
-                  leading: Icon(destinations[i].icon),
+                  leading: _iconWithBadge(context, destinations[i]),
                   title: Text(destinations[i].label),
                   selected: i == index,
                   onTap: () {

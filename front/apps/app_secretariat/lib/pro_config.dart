@@ -110,7 +110,9 @@ class ProConfig {
   );
 
   /// Config de navigation filtrée selon l'accès admin aux membres et au
-  /// journal d'accès.
+  /// journal d'accès, badges compteurs injectés sur les destinations
+  /// correspondantes (#5388 : salle d'attente, demandes de créneau, devis
+  /// expirants, messages non lus).
   ///
   /// Les entrées « Membres »/« Journal d'accès » ne sont conservées que
   /// lorsque l'accès correspondant est confirmé (secrétaire-admin ou
@@ -122,8 +124,17 @@ class ProConfig {
   static shell.ProConfig shellConfigFor({
     required bool canManageMembers,
     required bool canViewAuditLog,
+    int waitingRoomCount = 0,
+    int waitingListCount = 0,
+    int expiringQuotesCount = 0,
+    int unreadMessagesCount = 0,
   }) {
-    if (canManageMembers && canViewAuditLog) return shellConfig;
+    final badgeCounts = <String, int>{
+      '/salle-attente': waitingRoomCount,
+      '/liste-attente': waitingListCount,
+      '/devis': expiringQuotesCount,
+      '/messages': unreadMessagesCount,
+    };
     return shell.ProConfig(
       appTitle: appTitle,
       spaceLabel: spaceLabel,
@@ -131,7 +142,17 @@ class ProConfig {
           .where((d) =>
               (canManageMembers || d.route != membersRoute) &&
               (canViewAuditLog || d.route != auditLogRoute))
-          .toList(),
+          .map((d) {
+        final badgeCount = badgeCounts[d.route];
+        if (badgeCount == null) return d;
+        return shell.ProNavDestination(
+          label: d.label,
+          icon: d.icon,
+          route: d.route,
+          requiresClinical: d.requiresClinical,
+          badgeCount: badgeCount,
+        );
+      }).toList(),
     );
   }
 }
