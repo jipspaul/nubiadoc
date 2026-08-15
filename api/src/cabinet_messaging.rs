@@ -172,6 +172,11 @@ pub async fn list_cabinet_conversations(
         String::new()
     };
 
+    // `scope_filter`/`cursor_clause`/`sec_filter` multiplient les variantes de texte
+    // SQL générées ici (jusqu'à ~36 combinaisons). Exécuté en `persistent(false)`
+    // plus bas : évite de saturer/faire tourner le cache de plans préparés par
+    // connexion avec autant de textes proches, cause suspectée du 500 intermittent
+    // observé sur la branche `(_, None)` (#5551, régression #5446).
     let sql = format!(
         "WITH conv AS ( \
              SELECT \
@@ -229,7 +234,7 @@ pub async fn list_cabinet_conversations(
     let sid = claims.secretariat_id;
     let rows = match &cursor {
         None => {
-            let q = sqlx::query(&sql).bind(fetch_limit);
+            let q = sqlx::query(&sql).persistent(false).bind(fetch_limit);
             if let Some(s) = sid { q.bind(s) } else { q }
                 .fetch_all(&mut *tx)
                 .await
@@ -237,6 +242,7 @@ pub async fn list_cabinet_conversations(
         }
         Some((urgency_c, Some(ts_c), id_c)) => {
             let q = sqlx::query(&sql)
+                .persistent(false)
                 .bind(fetch_limit)
                 .bind(urgency_c)
                 .bind(ts_c)
@@ -248,6 +254,7 @@ pub async fn list_cabinet_conversations(
         }
         Some((urgency_c, None, id_c)) => {
             let q = sqlx::query(&sql)
+                .persistent(false)
                 .bind(fetch_limit)
                 .bind(urgency_c)
                 .bind(id_c);
