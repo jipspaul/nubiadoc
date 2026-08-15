@@ -238,10 +238,23 @@ pub async fn get_cabinet_billing_stats(
     // réels. Un impayé n'est jamais négatif PAR DEVIS ; le clamp doit donc
     // s'appliquer par devis (trop-perçu neutralisé à 0 sans absorber
     // l'impayé d'un autre devis) avant de sommer.
+    // #5487 : q.total_amount est le montant BRUT du devis (tiers-payant inclus).
+    // Un paiement patient est plafonné à patient_share (total - amo_part -
+    // amc_part, cf. billing_payments.rs) et ne peut donc jamais éteindre la
+    // part AMO/AMC : comparer les paiements au brut laissait un impayé
+    // fantôme permanent égal à amo_part + amc_part dès qu'il y avait du
+    // tiers-payant. Même correctif que #4748 (patient_detail.rs) : comparer
+    // les paiements à la part patient nette, pas au total brut.
     let outstanding_row = sqlx::query(
-        "SELECT (COALESCE(SUM(GREATEST(0, q.total_amount - COALESCE(pay.paid_sum, 0))), 0) \
-           * 100)::bigint AS outstanding_cents \
+        "SELECT (COALESCE(SUM(GREATEST(0, COALESCE(patient_share.share, q.total_amount) \
+           - COALESCE(pay.paid_sum, 0))), 0) * 100)::bigint AS outstanding_cents \
          FROM quote q \
+         LEFT JOIN ( \
+           SELECT quote_id, SUM(qty * unit_amount - COALESCE(amo_part, 0) - COALESCE(amc_part, 0)) \
+             AS share \
+           FROM quote_item \
+           GROUP BY quote_id \
+         ) patient_share ON patient_share.quote_id = q.id \
          LEFT JOIN ( \
            SELECT quote_id, SUM(amount) AS paid_sum FROM payment \
            WHERE cabinet_id = $1 AND status IN ('pending', 'paid') \
