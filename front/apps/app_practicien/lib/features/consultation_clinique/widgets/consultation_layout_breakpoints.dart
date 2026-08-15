@@ -11,4 +11,6 @@
 const kThreeColumnBreakpoint = 1280.0;
 const kTwoColumnBreakpoint = 900.0;
 const kContextColumnWidth = 288.0;
-const kSideColumnWidth = 376.0;
+// #4964 — 452 px, colonne « Ajouter un acte / Note de séance », maquette
+// design-v2 (bloc `.rgt`).
+const kSideColumnWidth = 452.0;

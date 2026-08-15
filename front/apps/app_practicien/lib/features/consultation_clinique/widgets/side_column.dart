@@ -1,14 +1,19 @@
-// Quoi : colonne « Saisie + note » (recherche/ajout d'acte CCAM et note de
-// séance avec auto-save).
+// Quoi : colonne « Saisie + note » (recherche/ajout d'acte CCAM en haut, note
+// de séance extensible en bas) — bloc `.rgt` de la maquette design-v2.
 // Quand : rendue par `_LoadedView` (`consultation_clinique_page.dart`) dans
 // les trois layouts (1/2/3 colonnes) de l'écran consultation au fauteuil.
 // Pourquoi : extrait de `consultation_clinique_page.dart` (#4954) pour
 // redescendre ce fichier sous le plafond de taille CLAUDE.md — aucun
 // changement de rendu, mêmes Keys (`cr_template_picker_button`,
 // `consultation_note_field`, `ccam_picker`, `note_save_status`,
-// `save_note_button`).
-// Modes d'échec : aucun — `scrollable` suit la même logique que
-// `CenterColumn` (pas de double scroll imbriqué en layout 1 colonne).
+// `save_note_button`). Réordonnée par #4964 (point #5 de la maquette :
+// « Ajouter un acte » en haut, « Note de séance » extensible en bas).
+// Modes d'échec : aucun — en layout 2/3 colonnes (`scrollable`), le panneau
+// « Ajouter un acte » défile indépendamment (`Flexible`+`SingleChildScrollView`)
+// pour ne jamais déborder même si favoris + suggestions CCAM sont au maximum ;
+// la note occupe le reste via `Expanded`. En layout 1 colonne, tout le bloc
+// est déjà intégré au `SingleChildScrollView` du parent (pas de double
+// scroll imbriqué), donc la note garde une hauteur bornée classique.
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -16,8 +21,9 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import '../ccam_picker.dart';
 import 'consultation_format_utils.dart';
 
-/// Colonne « Saisie + note » (376 px) — recherche/ajout d'acte CCAM et note
-/// de séance. `scrollable` suit la même logique que `CenterColumn`.
+/// Colonne « Saisie + note » (452 px, bordure gauche `--n200`, fond blanc) —
+/// recherche/ajout d'acte CCAM en haut, note de séance extensible en bas.
+/// `scrollable` suit la même logique que `CenterColumn`.
 class SideColumn extends StatelessWidget {
   const SideColumn({
     super.key,
@@ -54,50 +60,12 @@ class SideColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = Column(
+    // Panneau « Ajouter un acte » (haut du bloc `.rgt`) — pastille de dent
+    // sélectionnée (#4959) puis recherche/ajout CCAM.
+    final addActPanel = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: NubiaCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Note de séance',
-                        style: textTheme.titleSmall,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    TextButton.icon(
-                      key: const Key('cr_template_picker_button'),
-                      onPressed: onPickCrTemplate,
-                      icon: const Icon(Icons.description_outlined, size: 18),
-                      label: const Text('Modèle'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  key: const Key('consultation_note_field'),
-                  controller: noteController,
-                  maxLines: 4,
-                  onChanged: onNoteChanged,
-                  decoration: const InputDecoration(
-                    hintText: 'Observations cliniques...',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
-              ],
-            ),
-          ),
-        ),
         // #4959 — pastille « Dent NN sélectionnée » en tête du panneau
         // « Ajouter un acte », visible uniquement si une dent est
         // sélectionnée (#4048, schéma dentaire).
@@ -107,7 +75,7 @@ class SideColumn extends StatelessWidget {
             onClear: onClearSelectedTooth,
           ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: CcamPicker(
             key: const Key('ccam_picker'),
             useCase: GetIt.instance<GetActsUseCase>(),
@@ -123,7 +91,99 @@ class SideColumn extends StatelessWidget {
         ),
       ],
     );
-    return scrollable ? SingleChildScrollView(child: content) : content;
+
+    // Panneau « Note de séance » (bas du bloc `.rgt`) — extensible en layout
+    // 2/3 colonnes (`expandField`) pour occuper l'espace restant sous le
+    // panneau « Ajouter un acte ».
+    Widget noteCard({required bool expandField}) {
+      final noteField = TextField(
+        key: const Key('consultation_note_field'),
+        controller: noteController,
+        onChanged: onNoteChanged,
+        expands: expandField,
+        maxLines: expandField ? null : 4,
+        minLines: expandField ? null : null,
+        decoration: const InputDecoration(
+          hintText: 'Observations cliniques...',
+          border: OutlineInputBorder(),
+        ),
+      );
+      return NubiaCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: expandField ? MainAxisSize.max : MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Text(
+                    'Note de séance',
+                    style: textTheme.titleSmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                TextButton.icon(
+                  key: const Key('cr_template_picker_button'),
+                  onPressed: onPickCrTemplate,
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                  label: const Text('Modèle'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            expandField ? Expanded(child: noteField) : noteField,
+            const SizedBox(height: 8),
+            _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
+          ],
+        ),
+      );
+    }
+
+    final Widget body;
+    if (scrollable) {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: addActPanel,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: noteCard(expandField: true),
+            ),
+          ),
+        ],
+      );
+    } else {
+      body = SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            addActPanel,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: noteCard(expandField: false),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Bloc `.rgt` de la maquette design-v2 : fond blanc + bordure gauche
+    // `--n200` séparant la colonne de saisie de la colonne de consultation.
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: NubiaColors.n0,
+        border: Border(left: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: body,
+    );
   }
 }
 
