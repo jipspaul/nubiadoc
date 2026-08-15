@@ -172,14 +172,14 @@ pub async fn send_prescription(
     let consent_record_id: Uuid = consent_row.try_get("id").map_err(|_| AppError::Internal)?;
 
     // Création de la commande — doublon actif → 409 (index unique partiel).
-    let order_row = sqlx::query(
+    let order_row = sqlx::query(&format!(
         "INSERT INTO pharmacy_order \
          (pharmacy_id, cabinet_id, patient_account_id, prescription_id, document_id, \
           created_by_kind, created_by, consent_record_id, pharmacy_name, patient_display_name) \
          VALUES ($1, $2, $3, $4, $5, 'practitioner', $6, $7, $8, $9) \
-         RETURNING id, pharmacy_id, pharmacy_name, patient_display_name, prescription_id, \
-                   status, rejection_reason, received_at, updated_at, ready_at, picked_up_at",
-    )
+         RETURNING {}",
+        crate::pharmacy::orders::ORDER_COLUMNS,
+    ))
     .bind(body.pharmacy_id)
     .bind(claims.cabinet_id)
     .bind(patient_account_id)

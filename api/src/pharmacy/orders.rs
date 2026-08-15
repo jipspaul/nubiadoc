@@ -65,7 +65,7 @@ pub struct OrderDto {
     pub billing_patient_share_cents: Option<i64>,
 }
 
-const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, \
+pub(crate) const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, \
      prescription_id, status, rejection_reason, received_at, updated_at, ready_at, picked_up_at, \
      (SELECT pq.total_cents FROM pharmacy_quote pq WHERE pq.order_id = pharmacy_order.id \
         AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1) AS billing_total_cents";
