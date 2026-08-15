@@ -151,10 +151,14 @@ class _SterilizationStatusBadge extends StatelessWidget {
 }
 
 /// Badge dent (ex. « 26 ») affiché à gauche de la ligne d'acte, ou « — » en
-/// gris si l'acte n'a pas de dent associée (#4950).
+/// gris si l'acte n'a pas de dent associée (#4950, #4967 — maquette
+/// design-v2 `.tb` : carré 38px, fond `brand50`, bordure `brand100`, texte
+/// émeraude ; variante `.tb.no` grise si pas de dent).
 class _ToothBadge extends StatelessWidget {
   const _ToothBadge({required this.tooth});
   final String? tooth;
+
+  static const _size = 38.0;
 
   @override
   Widget build(BuildContext context) {
@@ -164,12 +168,15 @@ class _ToothBadge extends StatelessWidget {
     final hasTooth = tooth != null && tooth!.isNotEmpty;
 
     return Container(
-      width: 32,
-      height: 32,
+      width: _size,
+      height: _size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: hasTooth ? cs.primaryContainer : tokens.borderSubtle,
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: hasTooth ? NubiaColors.brand100 : tokens.borderDefault,
+        ),
       ),
       child: Text(
         hasTooth ? tooth! : '—',
