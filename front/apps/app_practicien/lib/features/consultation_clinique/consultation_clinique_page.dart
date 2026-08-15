@@ -172,14 +172,14 @@ class _LoadedViewState extends State<_LoadedView> {
   /// la palette d'acte existante — même cible que le raccourci ⌘K (#4941).
   final FocusNode _actSearchFocusNode = FocusNode();
 
-  /// Débounce de l'auto-save de la note de séance (#4943) — la note n'a plus
-  /// de bouton d'enregistrement manuel explicite : elle se sauvegarde après
-  /// une pause de frappe.
+  /// Débounce de l'auto-save de la note de séance (#4943, #4963) — la note
+  /// n'a plus de bouton d'enregistrement manuel explicite : elle se
+  /// sauvegarde 1,5 s après la dernière frappe.
   Timer? _noteSaveDebounce;
 
   void _onNoteChanged(String value) {
     _noteSaveDebounce?.cancel();
-    _noteSaveDebounce = Timer(const Duration(milliseconds: 800), () {
+    _noteSaveDebounce = Timer(const Duration(milliseconds: 1500), () {
       context
           .read<ConsultationCliniqueBloc>()
           .add(ConsultationCliniqueNoteSaveRequested(value));
