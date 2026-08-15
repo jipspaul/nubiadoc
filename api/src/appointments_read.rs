@@ -127,9 +127,12 @@ pub async fn list_appointments(
         // (scheduling.rs:526) - sans elle, un RDV in_progress jamais cloture
         // reste "a venir" indefiniment, alors que queue/waiting-room l'ont
         // deja exclu (incoherence cross-vue).
+        // Fenêtre GLISSANTE (now ± 1 jour), PAS `date_trunc('day', now())` :
+        // meme correctif qu'ailleurs (#4869, scheduling.rs:339) - un RDV
+        // checked_in juste avant minuit doit rester upcoming apres minuit (#3777).
         Some("upcoming") => " AND ((a.status IN ('checked_in','in_progress') \
-              AND a.starts_at >= date_trunc('day', now()) \
-              AND a.starts_at < date_trunc('day', now()) + interval '1 day') \
+              AND a.starts_at >= now() - interval '1 day' \
+              AND a.starts_at < now() + interval '1 day') \
               OR (a.starts_at > now() AND a.status IN ('requested','confirmed')))"
             .to_string(),
         Some("past") => " AND (a.status IN ('done','cancelled','no_show') \
