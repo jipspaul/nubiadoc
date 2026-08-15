@@ -43,7 +43,7 @@ pub(crate) async fn aggregate_patient_satisfaction(
     cabinet_id: Uuid,
 ) -> Result<Option<PatientSatisfactionSummary>, AppError> {
     let agg_row = sqlx::query(
-        "SELECT AVG(r.rating)::float8 AS avg_rating, COUNT(*) AS review_count \
+        "SELECT round(AVG(r.rating)::numeric, 1)::float8 AS avg_rating, COUNT(*) AS review_count \
          FROM review r \
          JOIN provider p ON p.id = r.provider_id \
          WHERE r.patient_account_id = $1 AND p.cabinet_id = $2 AND r.status = 'published'",
