@@ -210,6 +210,7 @@ class _SessionTotal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     return Column(
       key: const Key('consultation_session_total'),
       mainAxisSize: MainAxisSize.min,
@@ -218,12 +219,16 @@ class _SessionTotal extends StatelessWidget {
         Text(
           'TOTAL SÉANCE',
           style: textTheme.labelSmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: tokens.textTertiary,
           ),
         ),
         Text(
           formatQuoteCents(totalCents, alwaysShowDecimals: true),
           style: textTheme.headlineSmall?.copyWith(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
             fontFeatures: tabularFigures,
           ),
         ),
