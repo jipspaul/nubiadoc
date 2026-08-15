@@ -17,7 +17,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{Acquire, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -425,12 +425,25 @@ pub async fn cancel_appointment(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Libération du créneau d'origine : best-effort. Un AUTRE créneau `open`
+    // du même praticien peut déjà chevaucher cette plage (#5392) et faire
+    // violer `slot_practitioner_no_overlap` (23P01) ici. L'annulation du RDV
+    // est l'opération primaire demandée par le patient (#5393) : ce conflit
+    // ne doit jamais la faire échouer. On isole donc cette UPDATE dans un
+    // savepoint pour pouvoir l'abandonner sans annuler le reste de la tx.
     if let Some(sid) = slot_id {
-        sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+        let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+        let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
             .bind(sid)
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+            .execute(&mut *savepoint)
+            .await;
+        match release {
+            Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+            Err(e) if is_exclusion_violation(&e) => {
+                savepoint.rollback().await.map_err(|_| AppError::Internal)?
+            }
+            Err(_) => return Err(AppError::Internal),
+        }
     }
 
     sqlx::query(
