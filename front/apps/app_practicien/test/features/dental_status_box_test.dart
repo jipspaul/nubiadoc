@@ -52,8 +52,12 @@ void main() {
 
     expect(find.byKey(const Key('dental_status_box')), findsOneWidget);
     expect(find.text('Schéma dentaire'), findsOneWidget);
+    expect(
+      find.text("Touchez une dent pour l'associer à l'acte suivant"),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('consultation_tooth_11')), findsOneWidget);
-    expect(find.text('Acte de la séance'), findsOneWidget);
+    expect(find.text('Acte de cette séance'), findsOneWidget);
     expect(find.text('Soin antérieur'), findsOneWidget);
     expect(find.text('À surveiller'), findsOneWidget);
     expect(find.text('Saine'), findsOneWidget);
