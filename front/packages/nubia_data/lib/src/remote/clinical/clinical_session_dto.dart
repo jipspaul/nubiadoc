@@ -93,6 +93,12 @@ class ClinicalSessionDto {
   /// — #4936). Vide par défaut.
   final List<MedicalAlert> medicalAlerts;
 
+  /// Date de la dernière visite du patient avant cette séance (`YYYY-MM-DD`,
+  /// #4956). Même clé que `cabinet_patients_dto.dart::lastVisitAt`
+  /// (`last_visit_at`) pour rester cohérent avec le reste du domaine.
+  /// `null` tant que le back ne l'expose pas sur cette route.
+  final String? lastVisitDate;
+
   const ClinicalSessionDto({
     required this.id,
     required this.appointmentId,
@@ -105,6 +111,7 @@ class ClinicalSessionDto {
     this.practitionerName,
     this.patientBirthDate,
     this.medicalAlerts = const [],
+    this.lastVisitDate,
   });
 
   factory ClinicalSessionDto.fromJson(Map<String, dynamic> json) =>
@@ -124,6 +131,7 @@ class ClinicalSessionDto {
         practitionerName: (json['practitioner']
             as Map<String, dynamic>?)?['display_name'] as String?,
         patientBirthDate: json['patient_birth_date'] as String?,
+        lastVisitDate: json['last_visit_at'] as String?,
         medicalAlerts: (json['medical_alerts'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
             .map(
@@ -148,6 +156,8 @@ class ClinicalSessionDto {
         patientBirthDate: patientBirthDate == null
             ? null
             : DateTime.tryParse(patientBirthDate!),
+        lastVisitDate:
+            lastVisitDate == null ? null : DateTime.tryParse(lastVisitDate!),
         medicalAlerts: medicalAlerts,
       );
 }
