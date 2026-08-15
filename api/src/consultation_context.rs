@@ -29,6 +29,10 @@ pub struct ConsultationActItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tooth: Option<String>,
     pub amount_cents: i32,
+    /// Horodatage d'ajout de l'acte (#4950 — heure `HH:MM` affichée sur la
+    /// ligne d'acte). Toujours renseigné (`consultation_act.created_at` est
+    /// `NOT NULL DEFAULT now()`).
+    pub created_at: String,
 }
 
 /// Sous-objet praticien dans la réponse.
@@ -184,7 +188,7 @@ pub async fn get_consultation_context(
 
     // Actes CCAM de la séance.
     let act_rows = sqlx::query(
-        "SELECT id, ccam_code, label, tooth, amount_cents \
+        "SELECT id, ccam_code, label, tooth, amount_cents, created_at \
          FROM consultation_act \
          WHERE appointment_id = $1 AND cabinet_id = $2 \
          ORDER BY created_at ASC",
@@ -243,12 +247,16 @@ pub async fn get_consultation_context(
         let amount_cents: i32 = row
             .try_get("amount_cents")
             .map_err(|_| AppError::Internal)?;
+        let act_created_at: chrono::DateTime<chrono::Utc> = row
+            .try_get("created_at")
+            .map_err(|_| AppError::Internal)?;
         acts.push(ConsultationActItem {
             id: act_id,
             ccam_code,
             label,
             tooth,
             amount_cents,
+            created_at: act_created_at.to_rfc3339(),
         });
     }
 

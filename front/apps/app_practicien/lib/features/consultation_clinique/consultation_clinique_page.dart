@@ -940,9 +940,6 @@ String _formatBirthDate(DateTime dt) {
   return '$dd/$mm/${d.year}';
 }
 
-/// Formatte un montant en centimes vers un libellé euros.
-String _euros(int cents) => '${(cents / 100).toStringAsFixed(2)} €';
-
 /// Date courte JJ/MM (heure locale) — réutilisée par [_HistoriqueTile] et par
 /// `RecentSessionsBox` (#4937, encart « Dernières séances ») pour éviter de
 /// dupliquer le format de date.
@@ -963,29 +960,132 @@ class _ActTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
-    final subtitle = act.tooth != null && act.tooth!.isNotEmpty
-        ? '${act.ccamCode} · Dent ${act.tooth}'
-        : act.ccamCode;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final tooth = act.tooth;
 
-    return ListRow(
+    return Column(
       key: Key('act_${act.id}'),
-      leading: CircleAvatar(
-        radius: 20,
-        backgroundColor: cs.primaryContainer,
-        child: Icon(Icons.medical_services_outlined,
-            size: 20, color: cs.onPrimaryContainer),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _ToothBadge(tooth: tooth),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              act.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.titleMedium?.copyWith(
+                                color: cs.onSurface,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _CcamCodeChip(code: act.ccamCode),
+                        ],
+                      ),
+                      if (act.createdAt != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatTime(act.createdAt!),
+                          style: textTheme.bodySmall
+                              ?.copyWith(color: tokens.textTertiary),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (act.amountCents != null) ...[
+                  const SizedBox(width: 12),
+                  Text(
+                    formatQuoteCents(act.amountCents!),
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: tabularFigures,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+      ],
+    );
+  }
+}
+
+/// Badge dent (ex. « 26 ») affiché à gauche de la ligne d'acte, ou « — » en
+/// gris si l'acte n'a pas de dent associée (#4950).
+class _ToothBadge extends StatelessWidget {
+  const _ToothBadge({required this.tooth});
+  final String? tooth;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final hasTooth = tooth != null && tooth!.isNotEmpty;
+
+    return Container(
+      width: 32,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: hasTooth ? cs.primaryContainer : tokens.borderSubtle,
+        shape: BoxShape.circle,
       ),
-      title: act.label,
-      subtitle: subtitle,
-      trailing: act.amountCents != null
-          ? Text(
-              _euros(act.amountCents!),
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            )
-          : null,
+      child: Text(
+        hasTooth ? tooth! : '—',
+        style: textTheme.labelMedium?.copyWith(
+          color: hasTooth ? cs.onPrimaryContainer : tokens.textTertiary,
+          fontWeight: FontWeight.w600,
+          fontFeatures: tabularFigures,
+        ),
+      ),
+    );
+  }
+}
+
+/// Chip code CCAM en monospace, affiché juste après le libellé d'acte
+/// (#4950 — maquette design-v2, encart « Actes de la séance »).
+class _CcamCodeChip extends StatelessWidget {
+  const _CcamCodeChip({required this.code});
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Text(
+        code,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: tokens.textTertiary,
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w600,
+            ),
+      ),
     );
   }
 }
