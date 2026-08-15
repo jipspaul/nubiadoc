@@ -37,6 +37,15 @@ use crate::{
 // ── DTO commun ────────────────────────────────────────────────────────────────
 
 /// Une commande dans les réponses API (mêmes clés côté pharmacie et patient).
+///
+/// `billing_*` (#5488) : ventilation facturation du devis d'officine accepté
+/// rattaché à cette commande (`pharmacy_quote`, #3312) — seule source de
+/// montants existante pour une commande pharmacie (`prescription_item` ne
+/// porte aucun prix). `pharmacy_quote` ne modélise pas de remboursement
+/// AMO/AMC (« liste de produits, prix TTC », contrairement au devis dentaire
+/// `quote`/#4063) : la part AMO/AMC est donc toujours nulle et la part
+/// patient égale au total. Les 4 champs restent `None` ensemble tant
+/// qu'aucun devis n'est accepté (front : gating `hasBillingSummary`).
 #[derive(Serialize)]
 pub struct OrderDto {
     pub id: Uuid,
@@ -50,13 +59,22 @@ pub struct OrderDto {
     pub updated_at: String,
     pub ready_at: Option<String>,
     pub picked_up_at: Option<String>,
+    pub billing_total_cents: Option<i64>,
+    pub billing_amo_share_cents: Option<i64>,
+    pub billing_amc_share_cents: Option<i64>,
+    pub billing_patient_share_cents: Option<i64>,
 }
 
-const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, \
-     prescription_id, status, rejection_reason, received_at, updated_at, ready_at, picked_up_at";
+pub(crate) const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, \
+     prescription_id, status, rejection_reason, received_at, updated_at, ready_at, picked_up_at, \
+     (SELECT pq.total_cents FROM pharmacy_quote pq WHERE pq.order_id = pharmacy_order.id \
+        AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1) AS billing_total_cents";
 
 pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
     let to_rfc3339 = |value: chrono::DateTime<chrono::Utc>| value.to_rfc3339();
+    let billing_total_cents: Option<i64> = row
+        .try_get("billing_total_cents")
+        .map_err(|_| AppError::Internal)?;
     Ok(OrderDto {
         id: row.try_get("id").map_err(|_| AppError::Internal)?,
         pharmacy_id: row.try_get("pharmacy_id").map_err(|_| AppError::Internal)?,
@@ -83,6 +101,10 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
             .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("picked_up_at")
             .map_err(|_| AppError::Internal)?
             .map(to_rfc3339),
+        billing_total_cents,
+        billing_amo_share_cents: billing_total_cents.map(|_| 0),
+        billing_amc_share_cents: billing_total_cents.map(|_| 0),
+        billing_patient_share_cents: billing_total_cents,
     })
 }
 
