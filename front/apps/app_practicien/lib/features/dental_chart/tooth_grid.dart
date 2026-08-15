@@ -48,6 +48,28 @@ class FdiQuadrants {
   );
 }
 
+/// Descripteur d'état visuel d'une dent (#4962) : fond, bordure et pastille
+/// d'état ne tiennent pas dans un seul `Color` (maquette design-v2, encart
+/// « Schéma dentaire ») — le contour de sélection reste orthogonal, porté par
+/// `ToothGrid.isSelected`.
+class ToothVisual {
+  const ToothVisual({
+    required this.background,
+    this.borderColor,
+    this.statusDot,
+  });
+
+  /// Fond de la case (`.tth` — blanc/saine, émeraude `--brand600`/séance,
+  /// `--n100`/antérieur, `--warnBg`/à surveiller).
+  final Color background;
+
+  /// `null` conserve la bordure grise historique.
+  final Color? borderColor;
+
+  /// Pastille d'état (`.d`, 5px) — `null` si l'état n'en affiche pas.
+  final Color? statusDot;
+}
+
 /// Grille complète : 2 rangées d'arcade (haute puis basse), chacune formée
 /// des deux quadrants côte à côte (droit puis gauche), séparées par une
 /// ligne médiane.
@@ -55,26 +77,21 @@ class ToothGrid extends StatelessWidget {
   const ToothGrid({
     super.key,
     required this.quadrants,
-    required this.colorFor,
+    required this.stateFor,
     required this.onTap,
     this.keyPrefix = 'tooth',
     this.toothSize = ToothButton.defaultSize,
-    this.borderColorFor,
     this.isSelected,
   });
 
   final FdiQuadrants quadrants;
-  final Color Function(String toothCode) colorFor;
+  final ToothVisual Function(String toothCode) stateFor;
   final void Function(String toothCode) onTap;
   final String keyPrefix;
 
   /// Taille d'une case dent (largeur × hauteur). Par défaut 38×44 (#4961,
   /// plancher tactile 44 px) ; la consultation PC (#4940) passe 44×50.
   final Size toothSize;
-
-  /// Couleur de bordure par dent (ex. ambre « à surveiller », consultation
-  /// PC #4949) — `null` conserve la bordure grise historique.
-  final Color Function(String toothCode)? borderColorFor;
 
   /// Dent sélectionnée : contour foncé épais (consultation PC #4949).
   final bool Function(String toothCode)? isSelected;
@@ -87,11 +104,10 @@ class ToothGrid extends StatelessWidget {
         _ArcadeRow(
           rightCodes: quadrants.upperRight,
           leftCodes: quadrants.upperLeft,
-          colorFor: colorFor,
+          stateFor: stateFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
           toothSize: toothSize,
-          borderColorFor: borderColorFor,
           isSelected: isSelected,
         ),
         const Padding(
@@ -101,11 +117,10 @@ class ToothGrid extends StatelessWidget {
         _ArcadeRow(
           rightCodes: quadrants.lowerRight,
           leftCodes: quadrants.lowerLeft,
-          colorFor: colorFor,
+          stateFor: stateFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
           toothSize: toothSize,
-          borderColorFor: borderColorFor,
           isSelected: isSelected,
         ),
       ],
@@ -119,21 +134,19 @@ class _ArcadeRow extends StatelessWidget {
   const _ArcadeRow({
     required this.rightCodes,
     required this.leftCodes,
-    required this.colorFor,
+    required this.stateFor,
     required this.onTap,
     required this.keyPrefix,
     required this.toothSize,
-    required this.borderColorFor,
     required this.isSelected,
   });
 
   final List<String> rightCodes;
   final List<String> leftCodes;
-  final Color Function(String toothCode) colorFor;
+  final ToothVisual Function(String toothCode) stateFor;
   final void Function(String toothCode) onTap;
   final String keyPrefix;
   final Size toothSize;
-  final Color Function(String toothCode)? borderColorFor;
   final bool Function(String toothCode)? isSelected;
 
   @override
@@ -144,21 +157,19 @@ class _ArcadeRow extends StatelessWidget {
       children: [
         ToothRow(
           codes: rightCodes,
-          colorFor: colorFor,
+          stateFor: stateFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
           toothSize: toothSize,
-          borderColorFor: borderColorFor,
           isSelected: isSelected,
         ),
         const SizedBox(width: 16),
         ToothRow(
           codes: leftCodes,
-          colorFor: colorFor,
+          stateFor: stateFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
           toothSize: toothSize,
-          borderColorFor: borderColorFor,
           isSelected: isSelected,
         ),
       ],
@@ -184,20 +195,18 @@ class ToothRow extends StatelessWidget {
   const ToothRow({
     super.key,
     required this.codes,
-    required this.colorFor,
+    required this.stateFor,
     required this.onTap,
     this.keyPrefix = 'tooth',
     this.toothSize = ToothButton.defaultSize,
-    this.borderColorFor,
     this.isSelected,
   });
 
   final List<String> codes;
-  final Color Function(String toothCode) colorFor;
+  final ToothVisual Function(String toothCode) stateFor;
   final void Function(String toothCode) onTap;
   final String keyPrefix;
   final Size toothSize;
-  final Color Function(String toothCode)? borderColorFor;
   final bool Function(String toothCode)? isSelected;
 
   @override
@@ -212,10 +221,9 @@ class ToothRow extends StatelessWidget {
             child: ToothButton(
               key: Key('${keyPrefix}_$code'),
               code: code,
-              color: colorFor(code),
+              visual: stateFor(code),
               onTap: () => onTap(code),
               size: toothSize,
-              borderColor: borderColorFor?.call(code),
               selected: isSelected?.call(code) ?? false,
             ),
           ),
@@ -228,10 +236,9 @@ class ToothButton extends StatelessWidget {
   const ToothButton({
     super.key,
     required this.code,
-    required this.color,
+    required this.visual,
     required this.onTap,
     this.size = defaultSize,
-    this.borderColor,
     this.selected = false,
   });
 
@@ -241,12 +248,9 @@ class ToothButton extends StatelessWidget {
   static const defaultSize = Size(38, 44);
 
   final String code;
-  final Color color;
+  final ToothVisual visual;
   final VoidCallback onTap;
   final Size size;
-
-  /// `null` conserve la bordure grise historique.
-  final Color? borderColor;
 
   /// Contour foncé épais (`n900`) de la dent sélectionnée (#4949).
   final bool selected;
@@ -260,17 +264,34 @@ class ToothButton extends StatelessWidget {
         width: size.width,
         height: size.height,
         decoration: BoxDecoration(
-          color: color,
+          color: visual.background,
           border: Border.all(
             color: selected
                 ? NubiaColors.n900
-                : (borderColor ?? Colors.grey.shade400),
+                : (visual.borderColor ?? Colors.grey.shade400),
             width: selected ? 2.5 : 1,
           ),
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
-        child: Text(code, style: const TextStyle(fontSize: 11)),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Text(code, style: const TextStyle(fontSize: 11)),
+            if (visual.statusDot != null)
+              Positioned(
+                bottom: 2,
+                child: Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: visual.statusDot,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

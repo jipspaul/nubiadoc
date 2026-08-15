@@ -99,9 +99,10 @@ void main() {
 
     final cs = NubiaTheme.light.colorScheme;
 
-    Color colorOf(String code) =>
-        tester.widget<ToothButton>(find.byKey(Key('consultation_tooth_$code')))
-            .color;
+    Color colorOf(String code) => tester
+        .widget<ToothButton>(find.byKey(Key('consultation_tooth_$code')))
+        .visual
+        .background;
 
     expect(colorOf('26'), cs.primary); // acte de la séance
     expect(colorOf('17'), NubiaColors.n100); // soin antérieur
