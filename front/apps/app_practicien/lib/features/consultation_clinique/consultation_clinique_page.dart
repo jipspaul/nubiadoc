@@ -350,6 +350,11 @@ class _LoadedViewState extends State<_LoadedView> {
                           ),
                         ),
                 scrollable: isAtLeastTwoColumns,
+                // #4939 — dès 1280 px la note de séance devient permanente
+                // (co-visible avec « Ajouter un acte », jamais sous la ligne
+                // de flottaison). Sous ce seuil : comportement tablette
+                // d'origine (colonne défilante) inchangé.
+                pinnedNote: width >= kThreeColumnBreakpoint,
               );
 
               if (width >= kThreeColumnBreakpoint) {

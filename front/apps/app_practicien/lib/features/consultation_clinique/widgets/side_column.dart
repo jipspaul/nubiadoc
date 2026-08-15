@@ -37,6 +37,7 @@ class SideColumn extends StatelessWidget {
     required this.onActSubmitted,
     required this.scrollable,
     required this.actSearchFocusNode,
+    this.pinnedNote = false,
   });
 
   final TextTheme textTheme;
@@ -58,8 +59,18 @@ class SideColumn extends StatelessWidget {
   }) onActSubmitted;
   final bool scrollable;
 
+  /// #4939 — dès 1280 px (3 colonnes) la note de séance est « épinglée » :
+  /// co-visible en permanence avec « Ajouter un acte », en `Expanded` sous le
+  /// panneau d'ajout, jamais repoussée sous la ligne de flottaison. La
+  /// co-visibilité est déjà acquise dès le layout 2 colonnes (`scrollable`,
+  /// #4954/#4964) ; `pinnedNote` la garantit explicitement au seuil 3 colonnes.
+  final bool pinnedNote;
+
   @override
   Widget build(BuildContext context) {
+    // Note co-visible/épinglée : dès que la colonne défile (≥ 2 colonnes) OU
+    // que la note est explicitement épinglée (≥ 1280 px, #4939).
+    final noteCoVisible = scrollable || pinnedNote;
     // Panneau « Ajouter un acte » (haut du bloc `.rgt`) — pastille de dent
     // sélectionnée (#4959) puis recherche/ajout CCAM.
     final addActPanel = Column(
@@ -141,7 +152,7 @@ class SideColumn extends StatelessWidget {
     }
 
     final Widget body;
-    if (scrollable) {
+    if (noteCoVisible) {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
