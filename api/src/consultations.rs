@@ -571,6 +571,9 @@ pub struct ListConsultationsQuery {
 /// Filtres : `patient_id`, `status` (in_progress|completed|cancelled).
 /// Tri `started_at` DESC, `limit` 1..=100 (défaut 50).
 /// `status` inconnu → 422.
+/// RLS strict E.2.16.c : ne renvoie que les séances de patients avec qui
+/// l'appelant a eu au moins un appointment (§14 — miroir de
+/// `get_consultation_context` / `list_consultation_acts`, #5536).
 pub async fn list_consultations(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -621,12 +624,20 @@ pub async fn list_consultations(
          WHERE cs.cabinet_id = $1 \
            AND ($2::uuid IS NULL OR a.patient_id = $2) \
            AND ($3::text IS NULL OR cs.status = $3) \
+           AND EXISTS ( \
+             SELECT 1 FROM appointment rel \
+             JOIN practitioner p ON p.id = rel.practitioner_id \
+             WHERE rel.patient_id = a.patient_id \
+               AND rel.cabinet_id = cs.cabinet_id AND p.user_id = $4 \
+               AND rel.deleted_at IS NULL \
+           ) \
          ORDER BY cs.started_at DESC \
-         LIMIT $4",
+         LIMIT $5",
     )
     .bind(claims.cabinet_id)
     .bind(query.patient_id)
     .bind(query.status.as_deref())
+    .bind(claims.sub)
     .bind(limit)
     .fetch_all(&mut *tx)
     .await
