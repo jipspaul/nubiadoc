@@ -2033,8 +2033,14 @@ pub async fn patch_cabinet_appointment(
         if new_ts <= chrono::Utc::now() {
             return Err(AppError::SlotUnavailable);
         }
-        new_slot_id = sqlx::query_scalar(
-            "SELECT s.id FROM availability_slot s \
+        let candidate_slot: Option<(Uuid, bool)> = sqlx::query(
+            "SELECT s.id, EXISTS ( \
+                 SELECT 1 FROM provider_unavailability pu \
+                 WHERE pu.provider_id = s.provider_id \
+                   AND pu.starts_at < s.ends_at \
+                   AND pu.ends_at > s.starts_at \
+             ) AS unavailable \
+               FROM availability_slot s \
                JOIN provider p ON p.id = s.provider_id \
                WHERE p.practitioner_id = $1 \
                  AND s.starts_at = $2 \
@@ -2045,10 +2051,25 @@ pub async fn patch_cabinet_appointment(
         .bind(new_ts)
         .fetch_optional(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal)?;
-        if new_slot_id.is_none() {
-            return Err(AppError::SlotUnavailable);
+        .map_err(|_| AppError::Internal)?
+        .map(|row| {
+            Ok::<_, AppError>((
+                row.try_get("id").map_err(|_| AppError::Internal)?,
+                row.try_get("unavailable").map_err(|_| AppError::Internal)?,
+            ))
+        })
+        .transpose()?;
+        let (slot_id, unavailable) = candidate_slot.ok_or(AppError::SlotUnavailable)?;
+        // #5482 : même garde provider_unavailability que create_cabinet_appointment
+        // (scheduling.rs:1013-1019) — un slot 'open' pendant une indisponibilité
+        // déclarée ne doit pas être une destination de reprogrammation valide.
+        // slot_taken (pas slot_unavailable) : le créneau existe bel et bien, il
+        // est juste indisponible, symétrique du 409 renvoyé par l'INSERT en cas
+        // de conflit (23P01 → is_exclusion_violation ci-dessous).
+        if unavailable {
+            return Err(AppError::SlotTaken);
         }
+        new_slot_id = Some(slot_id);
     }
 
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
