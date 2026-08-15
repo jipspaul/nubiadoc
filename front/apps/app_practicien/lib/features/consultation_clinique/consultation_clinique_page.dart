@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:get_it/get_it.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nubia_app_shell/nubia_app_shell.dart' hide ProConfig;
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -14,6 +17,9 @@ import 'widgets/context_column.dart';
 import 'widgets/patient_identity_bar.dart';
 import 'widgets/recent_sessions_box.dart';
 import 'widgets/side_column.dart';
+import '../../pro_config.dart';
+import '../../router/app_router.dart';
+import '../../session/pro_auth_cubit.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
 import 'consultation_clinique_state.dart';
@@ -137,7 +143,11 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
 
 // ---------------------------------------------------------------------------
 
-/// Full-page scaffold for direct-URL navigation.
+/// Entry point for direct-URL / deep-link navigation to `/consultation`.
+/// Renders inside the shared [ProShell] (rail de navigation permanent en
+/// desktop, cf. #4944) plutôt qu'un Scaffold isolé — la destination
+/// « Consultation » est active et les autres destinations restent
+/// accessibles depuis le rail.
 /// Requires [ConsultationCliniqueBloc] to be provided via [BlocProvider] by the caller.
 class ConsultationCliniquePage extends StatelessWidget {
   final String? consultationId;
@@ -146,9 +156,32 @@ class ConsultationCliniquePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Consultation')),
-      body: ConsultationCliniqueBody(consultationId: consultationId),
+    final session = switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session,
+      _ => const AuthSession(
+          kind: UserKind.pro,
+          userId: 'me',
+          role: ProConfig.role,
+        ),
+    };
+
+    return ProShell(
+      config: ProConfig.shellConfig,
+      session: session,
+      currentRoute: AppRouter.consultation,
+      onNavigate: (destination) => context.go(destination.route),
+      bodyBuilder: (ctx, destination) {
+        if (destination.route == AppRouter.consultation) {
+          return ConsultationCliniqueBody(consultationId: consultationId);
+        }
+        return Center(
+          child: NubiaEmptyState(
+            icon: Icons.construction_outlined,
+            title: destination.label,
+          ),
+        );
+      },
+      onSignOut: () => context.read<ProAuthCubit>().signOut(),
     );
   }
 }
