@@ -1,5 +1,6 @@
-//! Tests widget : `ToothGrid`/`ToothButton` (#4940) — taille des cibles
-//! tactiles, paramétrable sans régresser la taille par défaut (32×32).
+//! Tests widget : `ToothGrid`/`ToothButton` (#4940, #4961) — taille des
+//! cibles tactiles, paramétrable sans régresser la taille par défaut
+//! (38×44, plancher tactile 44 px).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,12 +20,13 @@ void main() {
         ),
       );
 
-  testWidgets('taille par défaut des dents = 32×32 (schéma dentaire patient)',
+  testWidgets(
+      'taille par défaut des dents = 38×44, cible tactile ≥ 44 px (#4961)',
       (tester) async {
     await tester.pumpWidget(buildGrid());
 
     final size = tester.getSize(find.byKey(const Key('tooth_11')));
-    expect(size, const Size(32, 32));
+    expect(size, const Size(38, 44));
   });
 
   testWidgets('taille des dents = 44×50 sur la consultation PC (#4940)',
