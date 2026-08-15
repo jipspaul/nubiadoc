@@ -10,6 +10,7 @@ class ProNavDestination {
     required this.icon,
     required this.route,
     this.requiresClinical = false,
+    this.badgeCount,
   });
 
   final String label;
@@ -19,6 +20,11 @@ class ProNavDestination {
   /// is wired up. Stored now; navigation via [context.go] is a future step.
   final String route;
   final bool requiresClinical;
+
+  /// Compteur affiché en badge rouge sur l'icône de la destination (rail
+  /// desktop ET drawer mobile). `null` ou `0` : aucun badge — rétro-compatible
+  /// avec les apps qui ne le fournissent pas encore (#5387).
+  final int? badgeCount;
 }
 
 /// Configuration passed from each professional app to [ProShell].

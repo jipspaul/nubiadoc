@@ -47,6 +47,7 @@ import '../waiting_room/waiting_room_page.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
+import 'rail_badges_cubit.dart';
 
 /// Entry point for the authenticated secrétariat home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile). Clinical
@@ -76,8 +77,11 @@ class DashboardPage extends StatelessWidget {
       create: (_) => GetIt.instance<MembersAccessCubit>()..probe(),
       child: BlocProvider<AuditLogAccessCubit>(
         create: (_) => GetIt.instance<AuditLogAccessCubit>()..probe(),
-        child: Builder(
-          builder: (context) => _buildShell(context, session),
+        child: BlocProvider<RailBadgesCubit>(
+          create: (_) => GetIt.instance<RailBadgesCubit>()..load(),
+          child: Builder(
+            builder: (context) => _buildShell(context, session),
+          ),
         ),
       ),
     );
@@ -88,10 +92,15 @@ class DashboardPage extends StatelessWidget {
         context.watch<MembersAccessCubit>().canManageMembers;
     final canViewAuditLog =
         context.watch<AuditLogAccessCubit>().canViewAuditLog;
+    final badges = context.watch<RailBadgesCubit>().state;
     return ProShell(
       config: ProConfig.shellConfigFor(
         canManageMembers: canManageMembers,
         canViewAuditLog: canViewAuditLog,
+        waitingRoomCount: badges.waitingRoomCount,
+        waitingListCount: badges.waitingListCount,
+        expiringQuotesCount: badges.expiringQuotesCount,
+        unreadMessagesCount: badges.unreadMessagesCount,
       ),
       session: session,
       bodyBuilder: (ctx, destination) {
