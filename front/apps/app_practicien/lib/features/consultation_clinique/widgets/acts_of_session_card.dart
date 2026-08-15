@@ -140,6 +140,7 @@ class _ActsSessionFooterTotal extends StatelessWidget {
           Text(
             formatQuoteCents(totalCents, alwaysShowDecimals: true),
             style: textTheme.titleMedium?.copyWith(
+              fontSize: 17,
               fontWeight: FontWeight.w700,
               fontFeatures: tabularFigures,
             ),
