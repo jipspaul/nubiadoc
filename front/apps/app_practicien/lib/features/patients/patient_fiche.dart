@@ -6,9 +6,8 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'medical_questionnaire_review_section.dart';
 import 'patient_fiche_bloc.dart';
-import 'patient_implants_section.dart';
+import 'patient_journal_section.dart';
 
 class PatientFiche extends StatelessWidget {
   final CabinetPatient patient;
@@ -130,20 +129,7 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
             children: [
               SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (state.showClinical) ClinicalSection(patient: patient),
-                    const SizedBox(height: 16),
-                    MedicalQuestionnaireReviewSection(patientId: patient.id),
-                    const SizedBox(height: 16),
-                    PatientTagsSection(patientId: patient.id),
-                    const SizedBox(height: 16),
-                    PatientOrthodonticsSection(patientId: patient.id),
-                    const SizedBox(height: 16),
-                    PatientImplantsSection(patientId: patient.id),
-                  ],
-                ),
+                child: PatientJournalSection(patientId: patient.id),
               ),
               Padding(
                 padding: const EdgeInsets.all(16),
