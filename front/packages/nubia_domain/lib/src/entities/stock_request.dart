@@ -48,6 +48,7 @@ class StockRequest extends Equatable {
   final StockRequestStatus status;
   final String? responseNote;
   final DateTime createdAt;
+  final DateTime? fulfilledAt;
 
   const StockRequest({
     required this.id,
@@ -57,6 +58,7 @@ class StockRequest extends Equatable {
     required this.status,
     this.responseNote,
     required this.createdAt,
+    this.fulfilledAt,
   });
 
   @override

@@ -11,7 +11,8 @@ class StockKpis {
     required this.partnerCabinetsCount,
   });
 
-  factory StockKpis.fromRequests(List<StockRequest> requests) {
+  factory StockKpis.fromRequests(List<StockRequest> requests, {DateTime? now}) {
+    final reference = now ?? DateTime.now();
     var toRespondCount = 0;
     var toDeliverCount = 0;
     var fulfilledCount = 0;
@@ -23,7 +24,10 @@ class StockKpis {
         case StockRequestStatus.accepted:
           toDeliverCount++;
         case StockRequestStatus.fulfilled:
-          fulfilledCount++;
+          final fulfilledAt = request.fulfilledAt;
+          if (fulfilledAt != null && _isSameMonth(fulfilledAt, reference)) {
+            fulfilledCount++;
+          }
         case StockRequestStatus.rejected:
         case StockRequestStatus.cancelled:
           break;
@@ -46,6 +50,9 @@ class StockKpis {
   final int fulfilledCount;
   final int partnerCabinetsCount;
 }
+
+bool _isSameMonth(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month;
 
 /// Bandeau de compteurs en tête de l'écran Stock : demandes à répondre
 /// (rouge), acceptées à livrer (ambre), honorées ce mois et cabinets

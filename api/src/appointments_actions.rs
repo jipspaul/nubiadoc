@@ -17,7 +17,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{Acquire, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -105,6 +105,18 @@ pub async fn patch_appointment(
         return Err(AppError::InvalidStatus);
     }
 
+    // Scope cabinet — requis dès ici (avant la résolution du créneau
+    // destination) car la policy RLS provider_unavailability_cabinet_isolation
+    // (FORCE ROW LEVEL SECURITY, migration 0116) filtre sur app.current_cabinet_id :
+    // sans ce set_config avant la requête NOT EXISTS provider_unavailability
+    // ci-dessous, la sous-requête ne verrait aucune ligne et le garde-fou
+    // #5481 serait un no-op silencieux.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     // Reprogrammation : le nouveau créneau doit être validé côté serveur, comme
     // la réservation initiale (POST /v1/bookings exige un availability_slot réel).
     // Sinon un patient pouvait déplacer son RDV vers une date passée ou une heure
@@ -132,8 +144,14 @@ pub async fn patch_appointment(
         if chrono::Utc::now() >= new_ts - chrono::Duration::hours(24) {
             return Err(AppError::TooLate);
         }
-        new_slot_id = sqlx::query_scalar(
-            "SELECT s.id FROM availability_slot s \
+        let dest_slot = sqlx::query(
+            "SELECT s.id, EXISTS ( \
+                 SELECT 1 FROM provider_unavailability pu \
+                 WHERE pu.provider_id = s.provider_id \
+                   AND pu.starts_at < s.ends_at \
+                   AND pu.ends_at > s.starts_at \
+             ) AS unavailable \
+               FROM availability_slot s \
                JOIN provider p ON p.id = s.provider_id \
                WHERE p.practitioner_id = $1 \
                  AND s.starts_at = $2 \
@@ -145,18 +163,27 @@ pub async fn patch_appointment(
         .bind(new_ts)
         .fetch_optional(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal)?;
-        if new_slot_id.is_none() {
-            return Err(AppError::SlotUnavailable);
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::SlotUnavailable)?;
+        // provider_unavailability (#5481) : même garde que create_appointment
+        // (appointments_create.rs:265-271/303-309) — sans elle, une
+        // reprogrammation pouvait déplacer un RDV vers un créneau couvert par
+        // une absence déclarée du praticien, alors que toutes les voies de
+        // création l'excluent déjà. `slot_taken` (pas `slot_unavailable`) pour
+        // rester cohérent avec le contrôle A du repro #5481 (création directe
+        // dans l'absence → 409 slot_taken).
+        if dest_slot
+            .try_get::<bool, _>("unavailable")
+            .map_err(|_| AppError::Internal)?
+        {
+            return Err(AppError::SlotTaken);
         }
+        new_slot_id = Some(dest_slot.try_get("id").map_err(|_| AppError::Internal)?);
     }
 
-    // Scope cabinet pour UPDATE (tenant_isolation) + audit.
-    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(cabinet_id.to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    // Scope cabinet déjà positionné ci-dessus (avant la résolution du
+    // créneau destination, requis par la RLS provider_unavailability) —
+    // réutilisé ici pour l'UPDATE (tenant_isolation) et l'audit.
 
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
     // Un starts_at différent délie le RDV de son créneau d'origine et le
@@ -398,12 +425,25 @@ pub async fn cancel_appointment(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Libération du créneau d'origine : best-effort. Un AUTRE créneau `open`
+    // du même praticien peut déjà chevaucher cette plage (#5392) et faire
+    // violer `slot_practitioner_no_overlap` (23P01) ici. L'annulation du RDV
+    // est l'opération primaire demandée par le patient (#5393) : ce conflit
+    // ne doit jamais la faire échouer. On isole donc cette UPDATE dans un
+    // savepoint pour pouvoir l'abandonner sans annuler le reste de la tx.
     if let Some(sid) = slot_id {
-        sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
+        let mut savepoint = tx.begin().await.map_err(|_| AppError::Internal)?;
+        let release = sqlx::query("UPDATE availability_slot SET status = 'open' WHERE id = $1")
             .bind(sid)
-            .execute(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+            .execute(&mut *savepoint)
+            .await;
+        match release {
+            Ok(_) => savepoint.commit().await.map_err(|_| AppError::Internal)?,
+            Err(e) if is_exclusion_violation(&e) => {
+                savepoint.rollback().await.map_err(|_| AppError::Internal)?
+            }
+            Err(_) => return Err(AppError::Internal),
+        }
     }
 
     sqlx::query(

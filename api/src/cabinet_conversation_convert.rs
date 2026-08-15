@@ -76,10 +76,13 @@ pub async fn convert_conversation_to_appointment(
         .map_err(|_| AppError::Internal)?;
 
     // Conversation du cabinet, hors fils cliniques pour un secrétaire
-    // (§07 §4.1) — déduit patient_id du fil.
+    // (§07 §4.1) et hors fil support admin↔plateforme pour un non-admin
+    // (#4843, parité avec cabinet_messaging::{get,send,read}) — déduit
+    // patient_id du fil.
     let conv_row = sqlx::query(
         "SELECT patient_id FROM conversation WHERE id = $1 AND cabinet_id = $2 \
-         AND (scope != 'clinical' OR $3 != 'secretary')",
+         AND (scope != 'clinical' OR $3 != 'secretary') \
+         AND (scope != 'platform_support' OR $3 = 'admin')",
     )
     .bind(conversation_id)
     .bind(claims.cabinet_id)

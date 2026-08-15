@@ -37,10 +37,11 @@ pub struct StockRequestDto {
     pub status: String,
     pub response_note: Option<String>,
     pub created_at: String,
+    pub fulfilled_at: Option<String>,
 }
 
 const STOCK_COLUMNS: &str =
-    "id, pharmacy_id, cabinet_name, items, status, response_note, created_at";
+    "id, pharmacy_id, cabinet_name, items, status, response_note, created_at, fulfilled_at";
 
 fn stock_from_row(row: &PgRow) -> Result<StockRequestDto, AppError> {
     Ok(StockRequestDto {
@@ -58,6 +59,10 @@ fn stock_from_row(row: &PgRow) -> Result<StockRequestDto, AppError> {
             .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
             .map_err(|_| AppError::Internal)?
             .to_rfc3339(),
+        fulfilled_at: row
+            .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("fulfilled_at")
+            .map_err(|_| AppError::Internal)?
+            .map(|dt| dt.to_rfc3339()),
     })
 }
 
@@ -313,7 +318,9 @@ async fn stock_response(
         .join(", ");
     let row = sqlx::query(&format!(
         "UPDATE stock_request \
-         SET status = $2, response_note = COALESCE($3, response_note), updated_at = now() \
+         SET status = $2, response_note = COALESCE($3, response_note), \
+             fulfilled_at = CASE WHEN $2 = 'fulfilled' THEN now() ELSE fulfilled_at END, \
+             updated_at = now() \
          WHERE id = $1 AND status IN ({expected_list}) \
          RETURNING {STOCK_COLUMNS}",
     ))

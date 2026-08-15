@@ -2259,6 +2259,29 @@ pub async fn create_cabinet_slot(
         return Err(AppError::SlotTaken);
     }
 
+    // #5511 : même garde `provider_unavailability` déjà posée sur
+    // create_appointment/create_cabinet_appointment/offer_waiting_list_slot
+    // (appointments_create.rs:265-271, #4660) — sans elle, un créneau `open`
+    // pouvait être créé (puis publié en ligne) en pleine période de vacances
+    // déclarée du praticien : listé `is_available:true` alors que la
+    // réservation effective se heurte à un 409 slot_taken.
+    let overlapping_unavailability = sqlx::query(
+        "SELECT 1 FROM provider_unavailability pu \
+         JOIN provider prov ON prov.id = pu.provider_id \
+         WHERE prov.practitioner_id = $1 \
+           AND pu.starts_at < $2 \
+           AND pu.ends_at > $3",
+    )
+    .bind(practitioner_id)
+    .bind(ends_at)
+    .bind(starts_at)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if overlapping_unavailability.is_some() {
+        return Err(AppError::SlotTaken);
+    }
+
     let slot_id = Uuid::new_v4();
 
     let result = sqlx::query(
