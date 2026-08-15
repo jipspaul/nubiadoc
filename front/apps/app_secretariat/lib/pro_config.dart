@@ -42,7 +42,7 @@ class ProConfig {
         route: '/salle-attente',
       ),
       shell.ProNavDestination(
-        label: 'Liste d\'attente',
+        label: 'Demandes de créneau',
         icon: Icons.format_list_bulleted_outlined,
         route: '/liste-attente',
       ),
