@@ -726,7 +726,7 @@ class _ActsSessionFooterTotal extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Text(
-            formatQuoteCents(totalCents),
+            formatQuoteCents(totalCents, alwaysShowDecimals: true),
             style: textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
               fontFeatures: tabularFigures,
@@ -942,7 +942,7 @@ class _SessionTotal extends StatelessWidget {
           ),
         ),
         Text(
-          formatQuoteCents(totalCents),
+          formatQuoteCents(totalCents, alwaysShowDecimals: true),
           style: textTheme.headlineSmall?.copyWith(
             fontFeatures: tabularFigures,
           ),
@@ -1137,7 +1137,8 @@ class _ActTile extends StatelessWidget {
                 if (act.amountCents != null) ...[
                   const SizedBox(width: 12),
                   Text(
-                    formatQuoteCents(act.amountCents!),
+                    formatQuoteCents(act.amountCents!,
+                        alwaysShowDecimals: true),
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       fontFeatures: tabularFigures,

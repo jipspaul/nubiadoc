@@ -9,15 +9,21 @@ const List<FontFeature> tabularFigures = [FontFeature.tabularFigures()];
 /// Formate des centimes en euros avec séparateur de milliers (espace fine
 /// insécable) et virgule décimale ; ex. `206000` → « 2 060 € », `8050` →
 /// « 80,50 € ». Un montant négatif est préfixé par un « − » typographique.
-String formatQuoteCents(int cents) {
+///
+/// [alwaysShowDecimals] force l'affichage des deux décimales même quand elles
+/// sont nulles (ex. `146000` → « 1 460,00 € » plutôt que « 1 460 € ») — requis
+/// par certaines maquettes (#4953).
+String formatQuoteCents(int cents, {bool alwaysShowDecimals = false}) {
   final negative = cents < 0;
   final abs = cents.abs();
   final whole = abs ~/ 100;
   final frac = abs % 100;
 
   final wholeStr = _groupThousands(whole);
-  final body =
-      frac == 0 ? wholeStr : '$wholeStr,${frac.toString().padLeft(2, '0')}';
+  final showDecimals = alwaysShowDecimals || frac != 0;
+  final body = showDecimals
+      ? '$wholeStr,${frac.toString().padLeft(2, '0')}'
+      : wholeStr;
   return '${negative ? '−' : ''}$body €';
 }
 

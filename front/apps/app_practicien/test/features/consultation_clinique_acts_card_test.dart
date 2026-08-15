@@ -111,8 +111,9 @@ void main() {
     await tester.pumpWidget(buildBody(_sessionWithActs));
     await tester.pump();
 
-    // 100000 + 46000 + 0 = 146000 centimes = 1 460 €.
-    final expectedTotal = formatQuoteCents(146000);
+    // 100000 + 46000 + 0 = 146000 centimes = 1 460,00 €.
+    final expectedTotal =
+        formatQuoteCents(146000, alwaysShowDecimals: true);
 
     final footerFinder = find.byKey(const Key('consultation_acts_total'));
     expect(footerFinder, findsOneWidget);

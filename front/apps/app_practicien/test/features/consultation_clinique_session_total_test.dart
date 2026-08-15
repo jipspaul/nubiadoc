@@ -86,10 +86,12 @@ void main() {
       find.descendant(of: totalFinder, matching: find.text('TOTAL SÉANCE')),
       findsOneWidget,
     );
-    // 100000 + 46000 = 146000 centimes = 1 460 €.
+    // 100000 + 46000 = 146000 centimes = 1 460,00 €.
     expect(
       find.descendant(
-          of: totalFinder, matching: find.text(formatQuoteCents(146000))),
+          of: totalFinder,
+          matching:
+              find.text(formatQuoteCents(146000, alwaysShowDecimals: true))),
       findsOneWidget,
     );
   });
