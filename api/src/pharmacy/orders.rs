@@ -101,6 +101,39 @@ pub struct OrdersResponse {
     pub data: Vec<OrderDto>,
 }
 
+/// Paramètres de `GET /v1/account/orders` (pagination cursor-based, comme
+/// `list_notifications` : `?cursor=`, `?limit=` défaut 20, max 100).
+#[derive(Deserialize)]
+pub struct ListAccountOrdersQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+/// Métadonnées de pagination.
+#[derive(Serialize)]
+pub struct OrdersPage {
+    pub next_cursor: Option<String>,
+}
+
+/// Réponse de `GET /v1/account/orders` : `{ data: [...], page: { next_cursor } }`.
+#[derive(Serialize)]
+pub struct AccountOrdersResponse {
+    pub data: Vec<OrderDto>,
+    pub page: OrdersPage,
+}
+
+fn encode_order_cursor(received_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+    format!("{}|{}", received_at.timestamp_micros(), id)
+}
+
+fn decode_order_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+    let (micros_str, id_str) = s.split_once('|')?;
+    let micros: i64 = micros_str.parse().ok()?;
+    let dt = chrono::DateTime::from_timestamp_micros(micros)?;
+    let id = Uuid::parse_str(id_str).ok()?;
+    Some((dt, id))
+}
+
 // ── Vue pharmacie ─────────────────────────────────────────────────────────────
 
 /// Paramètres de `GET /v1/pharmacy/orders`.
@@ -526,11 +559,37 @@ pub async fn create_account_order(
     Ok((StatusCode::CREATED, Json(order)))
 }
 
-/// `GET /v1/account/orders` — commandes du patient courant.
+/// `GET /v1/account/orders[?cursor=][?limit=]` — commandes du patient courant.
+///
+/// Pagination cursor-based sur `(received_at, id)` (`?cursor=`, `?limit=`
+/// défaut 20, max 100) : les comptes à historique long (suivi long terme)
+/// ne peuvent plus perdre silencieusement leurs commandes au-delà d'une
+/// page — auparavant `LIMIT 100` codé en dur sans paramètre accepté (#5507).
 pub async fn list_account_orders(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
-) -> Result<Json<OrdersResponse>, AppError> {
+    Query(params): Query<ListAccountOrdersQuery>,
+) -> Result<Json<AccountOrdersResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_order_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+
+    let cursor_clause = if cursor.is_some() {
+        " AND (received_at < $2 OR (received_at = $2 AND id < $3))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "SELECT {ORDER_COLUMNS} FROM pharmacy_order \
+         WHERE true\
+         {cursor_clause} \
+         ORDER BY received_at DESC, id DESC \
+         LIMIT $1"
+    );
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
@@ -538,19 +597,55 @@ pub async fn list_account_orders(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
-        "SELECT {ORDER_COLUMNS} FROM pharmacy_order ORDER BY received_at DESC LIMIT 100",
-    ))
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let fetch_limit = limit + 1;
+
+    let rows = match cursor {
+        Some((cursor_ts, cursor_id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
-    let data = rows
+
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let data = visible
         .iter()
         .map(order_from_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(OrdersResponse { data }))
+
+    let next_cursor = if has_more {
+        visible
+            .last()
+            .map(|row| -> Result<String, AppError> {
+                let received_at: chrono::DateTime<chrono::Utc> =
+                    row.try_get("received_at").map_err(|_| AppError::Internal)?;
+                let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+                Ok(encode_order_cursor(received_at, id))
+            })
+            .transpose()?
+    } else {
+        None
+    };
+
+    Ok(Json(AccountOrdersResponse {
+        data,
+        page: OrdersPage { next_cursor },
+    }))
 }
 
 /// `GET /v1/account/orders/{id}` — détail d'une commande du patient.

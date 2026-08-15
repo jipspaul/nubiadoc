@@ -351,10 +351,19 @@ async fn decide_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    // #4415/#5476 : la commande ancre doit rester active (received/preparing/
+    // ready) au moment de la décision — sinon un devis envoyé avant un rejet
+    // de commande resterait acceptable (puis payable) sur une commande jamais
+    // délivrée (charge fantôme).
     let row = sqlx::query(&format!(
         "UPDATE pharmacy_quote \
          SET status = $2, decided_at = now(), updated_at = now() \
          WHERE id = $1 AND status = 'sent' \
+         AND EXISTS ( \
+             SELECT 1 FROM pharmacy_order po \
+             WHERE po.id = pharmacy_quote.order_id \
+             AND po.status IN ('received', 'preparing', 'ready') \
+         ) \
          RETURNING {QUOTE_COLUMNS}",
     ))
     .bind(id)
