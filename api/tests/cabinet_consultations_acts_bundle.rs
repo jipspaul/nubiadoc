@@ -319,16 +319,6 @@ async fn add_act_with_bundle_code_creates_one_act_per_item() {
         .await
         .unwrap();
 
-    if resp.status() != StatusCode::CREATED {
-        let status = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        panic!(
-            "DEBUG status={status} body={}",
-            String::from_utf8_lossy(&bytes)
-        );
-    }
     assert_eq!(resp.status(), StatusCode::CREATED);
     let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
         .await
