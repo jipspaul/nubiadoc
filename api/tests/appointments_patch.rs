@@ -1209,3 +1209,172 @@ async fn patch_appointment_internal_slot_returns_409_slot_unavailable() {
         .await
         .ok();
 }
+
+// ── Test 6 : créneau destination couvert par provider_unavailability
+// → 409 slot_taken (#5481) ────────────────────────────────────────────────
+// Régression : la reprogrammation patient ne consultait pas
+// provider_unavailability lors de la résolution du créneau destination,
+// contrairement à create_appointment — un patient pouvait donc se
+// reprogrammer sur un créneau ouvert/online_booking=true mais couvert par
+// une absence déclarée du praticien.
+
+#[tokio::test]
+async fn patch_appointment_unavailability_returns_409_slot_taken() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let patient_user_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let patient_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("patch-unavail+{}@nubia.test", patient_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Patch', 'Unavail')",
+    )
+    .bind(patient_account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("patch-unavail-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Source : starts_at à 48 h (passe largement le préavis source).
+    let (cabinet_id, prac_id, patient_id, appt_id) = insert_fixture(
+        &db,
+        prac_user_id,
+        patient_account_id,
+        "confirmed",
+        "now() + interval '48 hours'",
+    )
+    .await;
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    let provider_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO provider \
+         (id, cabinet_id, practitioner_id, user_id, display_name, is_listed, rpps_verified) \
+         VALUES ($1, $2, $3, $4, 'Dr. Unavail', true, true)",
+    )
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // Créneau destination : ouvert, réservable en ligne, à 72 h.
+    let dest_starts_at: chrono::DateTime<chrono::Utc> = sqlx::query_scalar(
+        "INSERT INTO availability_slot \
+         (id, provider_id, cabinet_id, starts_at, ends_at, status, online_booking) \
+         VALUES ($1, $2, $3, now() + interval '72 hours', \
+                 now() + interval '72 hours' + INTERVAL '30 min', 'open', true) \
+         RETURNING starts_at",
+    )
+    .bind(Uuid::new_v4())
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+
+    // Absence du praticien couvrant le créneau destination (71h30 → 73h),
+    // comme POST /v1/cabinet/unavailability (#4647/#4649).
+    sqlx::query(
+        "INSERT INTO provider_unavailability (id, provider_id, starts_at, ends_at, reason) \
+         VALUES ($1, $2, now() + interval '71 hours 30 minutes', \
+                 now() + interval '73 hours', 'congés')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(provider_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/v1/appointments/{}", appt_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_patient_jwt(patient_user_id, patient_account_id)
+                    ),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&json!({"starts_at": dest_starts_at.to_rfc3339()}))
+                        .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "slot_taken");
+
+    // Le RDV source ne doit pas avoir bougé (refusé, pas déplacé dans l'absence).
+    let unchanged: chrono::DateTime<chrono::Utc> =
+        sqlx::query_scalar("SELECT starts_at FROM appointment WHERE id = $1")
+            .bind(appt_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert!(
+        unchanged > chrono::Utc::now() + chrono::Duration::hours(40),
+        "le RDV doit rester sur son starts_at source (~48h), pas déplacé vers l'absence"
+    );
+
+    cleanup(&db, cabinet_id, patient_id, prac_id).await;
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(patient_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(patient_user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
