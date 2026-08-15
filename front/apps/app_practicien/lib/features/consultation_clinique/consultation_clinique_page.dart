@@ -10,8 +10,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'ccam_picker.dart';
 import 'cr_template_picker.dart';
 import 'sterilization_scan_page.dart';
+import 'widgets/dental_status_box.dart';
 import 'widgets/recent_sessions_box.dart';
-import '../dental_chart/tooth_grid.dart';
 import '../../router/app_router.dart';
 import 'consultation_clinique_bloc.dart';
 import 'consultation_clinique_event.dart';
@@ -190,30 +190,13 @@ class _LoadedViewState extends State<_LoadedView> {
 
   /// Dent sélectionnée pour le prochain acte CCAM (#4048) — pré-remplit
   /// `CcamPicker`/`CcamActEditorDialog` au lieu de la saisie texte libre.
+  /// L'arcade permanente de la colonne centrale (#4949, `DentalStatusBox`)
+  /// remplace la bottom sheet historique ; un tap sur la dent déjà
+  /// sélectionnée la désélectionne.
   String? _selectedTooth;
 
-  Future<void> _pickTooth() async {
-    final tooth = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: ToothGrid(
-          quadrants: FdiQuadrants.permanent,
-          keyPrefix: 'act_tooth_picker',
-          // Poste cabinet (PC) : tactile mural ou souris dans la même
-          // séance, cibles 44×50 px (#4940) au lieu des 32×32 par défaut.
-          toothSize: const Size(44, 50),
-          colorFor: (code) => code == _selectedTooth
-              ? Theme.of(ctx).colorScheme.primary
-              : Colors.grey.shade100,
-          onTap: (code) => Navigator.of(ctx).pop(code),
-        ),
-      ),
-    );
-    if (tooth != null) {
-      setState(() => _selectedTooth = tooth);
-    }
+  void _onToothTap(String code) {
+    setState(() => _selectedTooth = _selectedTooth == code ? null : code);
   }
 
   /// Ouvre le sélecteur de modèle de CR (#4125) et pré-remplit la note de
@@ -399,8 +382,7 @@ class _LoadedViewState extends State<_LoadedView> {
                 key: const Key('consultation_center_panel'),
                 session: session,
                 selectedTooth: _selectedTooth,
-                onPickTooth: _pickTooth,
-                onClearTooth: () => setState(() => _selectedTooth = null),
+                onToothTap: _onToothTap,
                 scrollable: isAtLeastTwoColumns,
               );
               final sideColumn = _SideColumn(
@@ -526,15 +508,13 @@ class _CenterColumn extends StatelessWidget {
     super.key,
     required this.session,
     required this.selectedTooth,
-    required this.onPickTooth,
-    required this.onClearTooth,
+    required this.onToothTap,
     required this.scrollable,
   });
 
   final ClinicalSession session;
   final String? selectedTooth;
-  final VoidCallback onPickTooth;
-  final VoidCallback onClearTooth;
+  final ValueChanged<String> onToothTap;
   final bool scrollable;
 
   @override
@@ -544,28 +524,11 @@ class _CenterColumn extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('act_tooth_picker_button'),
-                  onPressed: onPickTooth,
-                  icon: const Icon(Icons.grid_view_outlined, size: 18),
-                  label: Text(
-                    selectedTooth == null
-                        ? 'Choisir une dent'
-                        : 'Dent $selectedTooth',
-                  ),
-                ),
-              ),
-              if (selectedTooth != null)
-                IconButton(
-                  key: const Key('act_tooth_picker_clear'),
-                  icon: const Icon(Icons.close),
-                  tooltip: 'Retirer la dent sélectionnée',
-                  onPressed: onClearTooth,
-                ),
-            ],
+          child: DentalStatusBox(
+            patientId: session.patientId,
+            sessionActs: session.acts,
+            selectedTooth: selectedTooth,
+            onToothTap: onToothTap,
           ),
         ),
         if (session.acts.isNotEmpty)
