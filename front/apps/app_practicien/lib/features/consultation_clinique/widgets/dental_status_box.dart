@@ -108,6 +108,13 @@ class _DentalStatusBoxState extends State<DentalStatusBox> {
                       style: Theme.of(context).textTheme.titleSmall),
                 ],
               ),
+              const SizedBox(height: 4),
+              Text(
+                "Touchez une dent pour l'associer à l'acte suivant",
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: NubiaColors.n500,
+                    ),
+              ),
               const SizedBox(height: 12),
               ToothGrid(
                 quadrants: FdiQuadrants.permanent,
@@ -139,7 +146,7 @@ class _DentalStatusLegend extends StatelessWidget {
       spacing: 12,
       runSpacing: 8,
       children: [
-        _LegendEntry(color: cs.primary, label: 'Acte de la séance'),
+        _LegendEntry(color: cs.primary, label: 'Acte de cette séance'),
         const _LegendEntry(
           color: NubiaColors.n100,
           borderColor: NubiaColors.n300,
