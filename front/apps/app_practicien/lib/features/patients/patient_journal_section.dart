@@ -4,9 +4,10 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 /// Timeline chronologique unique du dossier patient (#4971 — maquette
-/// design-v2 « un journal, pas cinq sections »). Rendu uniquement : agrège
-/// via [ListPatientJournalUseCase] (#4970), pas de barre de filtres (ticket
-/// dédié).
+/// design-v2 « un journal, pas cinq sections »). Agrège via
+/// [ListPatientJournalUseCase] (#4970) et filtre par [PatientJournalKind] en
+/// place, côté client (#4972) — à ne pas confondre avec le filtre Documents
+/// de l'onglet Documents (#4042), qui recharge depuis le serveur.
 class PatientJournalSection extends StatefulWidget {
   const PatientJournalSection({super.key, required this.patientId});
 
@@ -16,9 +17,38 @@ class PatientJournalSection extends StatefulWidget {
   State<PatientJournalSection> createState() => _PatientJournalSectionState();
 }
 
+/// Filtre de la barre `.jf` : « Tout » ou un [PatientJournalKind] donné.
+enum _JournalFilter {
+  all,
+  acte,
+  ordonnance,
+  document,
+  devis,
+  rendezVous;
+
+  String get label => switch (this) {
+        _JournalFilter.all => 'Tout',
+        _JournalFilter.acte => 'Actes',
+        _JournalFilter.ordonnance => 'Ordonnances',
+        _JournalFilter.document => 'Documents',
+        _JournalFilter.devis => 'Devis',
+        _JournalFilter.rendezVous => 'Rendez-vous',
+      };
+
+  bool matches(PatientJournalKind kind) => switch (this) {
+        _JournalFilter.all => true,
+        _JournalFilter.acte => kind == PatientJournalKind.acte,
+        _JournalFilter.ordonnance => kind == PatientJournalKind.ordonnance,
+        _JournalFilter.document => kind == PatientJournalKind.document,
+        _JournalFilter.devis => kind == PatientJournalKind.devis,
+        _JournalFilter.rendezVous => kind == PatientJournalKind.rendezVous,
+      };
+}
+
 class _PatientJournalSectionState extends State<PatientJournalSection> {
   List<PatientJournalEntry>? _entries;
   String? _error;
+  _JournalFilter _filter = _JournalFilter.all;
 
   @override
   void initState() {
@@ -46,7 +76,10 @@ class _PatientJournalSectionState extends State<PatientJournalSection> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final entries = _entries;
+    final allEntries = _entries;
+    final entries = allEntries
+        ?.where((entry) => _filter.matches(entry.kind))
+        .toList(growable: false);
 
     return NubiaCard(
       key: const Key('patient_journal_section'),
@@ -62,6 +95,13 @@ class _PatientJournalSectionState extends State<PatientJournalSection> {
               const NubiaBadge.label(label: "tout l'historique"),
             ],
           ),
+          const SizedBox(height: 12),
+          if (_error == null)
+            _JournalFilterBar(
+              key: const Key('patient_journal_filter_bar'),
+              selected: _filter,
+              onSelected: (filter) => setState(() => _filter = filter),
+            ),
           const SizedBox(height: 12),
           if (_error != null)
             Text(_error!, style: TextStyle(color: cs.error))
@@ -95,6 +135,44 @@ class _PatientJournalSectionState extends State<PatientJournalSection> {
                   ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Barre `.jf` de filtres par type d'événement (#4972) : puces `.fc`, « Tout »
+/// sélectionné par défaut. Filtre la timeline en place, côté client — ne
+/// touche pas au chargement serveur.
+class _JournalFilterBar extends StatelessWidget {
+  const _JournalFilterBar({
+    super.key,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final _JournalFilter selected;
+  final ValueChanged<_JournalFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final filter in _JournalFilter.values) ...[
+            if (filter != _JournalFilter.values.first)
+              const SizedBox(width: 8),
+            NubiaChip(
+              key: ValueKey('patient_journal_filter_${filter.name}'),
+              label: filter.label,
+              icon: filter == _JournalFilter.all ? Icons.filter_list : null,
+              selected: filter == selected,
+              selectedBackground: NubiaColors.n900,
+              selectedForeground: NubiaColors.n0,
+              onTap: () => onSelected(filter),
+            ),
+          ],
         ],
       ),
     );

@@ -112,4 +112,57 @@ void main() {
     expect(find.text('Erreur réseau. Vérifiez votre connexion.'),
         findsOneWidget);
   });
+
+  testWidgets(
+      'affiche les six filtres, « Tout » sélectionné par défaut, et filtre '
+      'la timeline en place', (tester) async {
+    when(() => listJournal(any())).thenAnswer(
+      (_) async => Right([
+        PatientJournalEntry(
+          date: DateTime(2026, 8, 10),
+          kind: PatientJournalKind.acte,
+          title: 'Traitement endodontique',
+          subtitle: 'HBFD001',
+          tags: const [],
+        ),
+        PatientJournalEntry(
+          date: DateTime(2026, 8, 5),
+          kind: PatientJournalKind.ordonnance,
+          title: 'Ordonnance',
+          subtitle: 'Amoxicilline 1 g',
+          tags: const [],
+        ),
+      ]),
+    );
+
+    await pumpSection(tester);
+    await tester.pumpAndSettle();
+
+    for (final label in [
+      'Tout',
+      'Actes',
+      'Ordonnances',
+      'Documents',
+      'Devis',
+      'Rendez-vous',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+
+    expect(find.byKey(const Key('patient_journal_entry_0')), findsOneWidget);
+    expect(find.byKey(const Key('patient_journal_entry_1')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('patient_journal_filter_acte')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Traitement endodontique'), findsOneWidget);
+    expect(find.text('Ordonnance'), findsNothing);
+    expect(find.byKey(const Key('patient_journal_entry_1')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('patient_journal_filter_all')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Traitement endodontique'), findsOneWidget);
+    expect(find.text('Ordonnance'), findsOneWidget);
+  });
 }
