@@ -125,9 +125,8 @@ pub async fn list_consultation_acts(
         let amount_cents: i32 = row
             .try_get("amount_cents")
             .map_err(|_| AppError::Internal)?;
-        let act_created_at: chrono::DateTime<chrono::Utc> = row
-            .try_get("created_at")
-            .map_err(|_| AppError::Internal)?;
+        let act_created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
         data.push(ConsultationActItem {
             id: act_id,
             ccam_code,
