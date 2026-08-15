@@ -5,7 +5,8 @@
 // Pourquoi : extrait de `consultation_clinique_page.dart` (#4954) pour
 // redescendre ce fichier sous le plafond de taille CLAUDE.md — aucun
 // changement de rendu, mêmes Keys (`cr_template_picker_button`,
-// `consultation_note_field`, `ccam_picker`, `note_save_status`).
+// `consultation_note_field`, `ccam_picker`, `note_save_status`,
+// `save_note_button`).
 // Modes d'échec : aucun — `scrollable` suit la même logique que
 // `CenterColumn` (pas de double scroll imbriqué en layout 1 colonne).
 import 'package:flutter/material.dart';
@@ -182,11 +183,13 @@ class _SelectedToothPill extends StatelessWidget {
   }
 }
 
-/// Indicateur d'état de l'auto-save de la note de séance (#4943) —
+/// Indicateur d'état de l'auto-save de la note de séance (#4943, #4963) —
 /// remplace le bouton « Enregistrer la note » : icône `cloud_done` + horaire
 /// du dernier enregistrement réussi, rien tant qu'aucun enregistrement n'a
-/// encore eu lieu. Le badge ⌘S rappelle le raccourci manuel — son
-/// déclenchement effectif est traité par un ticket dédié.
+/// encore eu lieu. La Key `save_note_button` (conservée depuis le bouton
+/// manuel disparu) marque cet élément comme le déclencheur/état de l'auto-save
+/// pour ne pas casser les tests existants. Le badge ⌘S rappelle le raccourci
+/// manuel — son déclenchement effectif est traité par un ticket dédié.
 class _NoteSaveStatus extends StatelessWidget {
   const _NoteSaveStatus({required this.lastSavedAt});
 
@@ -198,6 +201,7 @@ class _NoteSaveStatus extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final savedAt = lastSavedAt;
     return Row(
+      key: const Key('save_note_button'),
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         if (savedAt != null)
@@ -208,7 +212,7 @@ class _NoteSaveStatus extends StatelessWidget {
               Icon(Icons.cloud_done, size: 16, color: tokens.successFg),
               const SizedBox(width: 4),
               Text(
-                'Enregistré à ${formatTime(savedAt)}',
+                'Enregistré automatiquement à ${formatTime(savedAt)}',
                 style: textTheme.bodySmall?.copyWith(color: tokens.successFg),
               ),
             ],

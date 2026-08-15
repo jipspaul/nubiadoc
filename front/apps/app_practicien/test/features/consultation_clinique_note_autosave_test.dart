@@ -1,5 +1,6 @@
-//! Tests bloc : note auto-enregistrée + horodatage « Enregistré à HH:MM »
-//! (#4943) — remplace le bouton d'enregistrement manuel explicite.
+//! Tests bloc : note auto-enregistrée + horodatage « Enregistré
+//! automatiquement à HH:MM » (#4943, #4963) — remplace le bouton
+//! d'enregistrement manuel explicite.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';

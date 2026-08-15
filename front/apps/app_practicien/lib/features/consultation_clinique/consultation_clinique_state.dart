@@ -30,8 +30,8 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
   final String? clinicalRiskWarning;
 
   /// Horodatage du dernier enregistrement réussi de la note de séance
-  /// (#4943) — alimente l'indicateur « Enregistré à HH:MM », qui remplace le
-  /// bouton d'enregistrement manuel explicite.
+  /// (#4943, #4963) — alimente l'indicateur « Enregistré automatiquement à
+  /// HH:MM », qui remplace le bouton d'enregistrement manuel explicite.
   final DateTime? lastNoteSavedAt;
 
   const ConsultationCliniqueLoaded({
