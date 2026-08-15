@@ -329,7 +329,7 @@ class _DashboardLoadedView extends StatelessWidget {
         key: const Key('stat_waiting_list'),
         icon: Icons.format_list_bulleted_outlined,
         value: '$waitingCount',
-        label: "Liste d'attente",
+        label: 'Demandes de créneau',
       ),
     ];
 
@@ -382,8 +382,8 @@ class _DashboardLoadedView extends StatelessWidget {
                           ? 'Aucune demande en attente de confirmation.'
                           : '$pendingCount demande(s) à confirmer.',
                       hint: waitingCount == 0
-                          ? 'Liste d’attente vide.'
-                          : '$waitingCount patient(s) en liste d’attente.',
+                          ? 'Aucune demande de créneau.'
+                          : '$waitingCount patient(s) en attente de créneau.',
                     ),
                   ];
                   if (!twoColumns) {
