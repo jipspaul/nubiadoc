@@ -189,6 +189,15 @@ async fn signed_over_30_days_unpaid_appears_in_overdue() {
     .execute(&db)
     .await
     .unwrap();
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount, amo_part, amc_part) \
+         VALUES ($1, $2, 'Soin', 1, 200.00, 0, 0)",
+    )
+    .bind(f.cabinet_id)
+    .bind(quote_id)
+    .execute(&db)
+    .await
+    .unwrap();
 
     let token = make_pro_jwt(f.user_id, f.cabinet_id, "practitioner");
     let ids = overdue_ids(state_with(app_pool().await), &token).await;
@@ -218,6 +227,15 @@ async fn signed_over_30_days_but_fully_paid_does_not_appear() {
     .bind(quote_id)
     .bind(f.cabinet_id)
     .bind(f.patient_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount, amo_part, amc_part) \
+         VALUES ($1, $2, 'Soin', 1, 200.00, 0, 0)",
+    )
+    .bind(f.cabinet_id)
+    .bind(quote_id)
     .execute(&db)
     .await
     .unwrap();
@@ -263,12 +281,65 @@ async fn signed_recently_unpaid_does_not_appear_yet() {
     .execute(&db)
     .await
     .unwrap();
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount, amo_part, amc_part) \
+         VALUES ($1, $2, 'Soin', 1, 200.00, 0, 0)",
+    )
+    .bind(f.cabinet_id)
+    .bind(quote_id)
+    .execute(&db)
+    .await
+    .unwrap();
 
     let token = make_pro_jwt(f.user_id, f.cabinet_id, "practitioner");
     let ids = overdue_ids(state_with(app_pool().await), &token).await;
     assert!(
         !ids.contains(&quote_id.to_string()),
         "devis signé il y a 2 jours seulement ne doit pas encore apparaître en impayé"
+    );
+
+    cleanup(&db, &f).await;
+}
+
+// ── Test 4 : devis 100% tiers-payant (part patient nulle) → n'apparaît pas ──
+// #5535 : le filtre comparait les paiements au total BRUT (AMO+AMC inclus)
+// au lieu du reste-à-charge patient net, classant à tort en impayé un devis
+// intégralement couvert par le tiers-payant.
+
+#[tokio::test]
+async fn signed_over_30_days_full_third_party_payer_does_not_appear() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed_cabinet(&db).await;
+    let quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency, signed_at) \
+         VALUES ($1, $2, $3, 'signed', 800.00, 'EUR', now() - interval '55 days')",
+    )
+    .bind(quote_id)
+    .bind(f.cabinet_id)
+    .bind(f.patient_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount, amo_part, amc_part) \
+         VALUES ($1, $2, 'Soin', 1, 800.00, 600.00, 200.00)",
+    )
+    .bind(f.cabinet_id)
+    .bind(quote_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let token = make_pro_jwt(f.user_id, f.cabinet_id, "admin");
+    let ids = overdue_ids(state_with(app_pool().await), &token).await;
+    assert!(
+        !ids.contains(&quote_id.to_string()),
+        "devis 100% tiers-payant (part patient nulle) ne doit PAS apparaître en impayé"
     );
 
     cleanup(&db, &f).await;
