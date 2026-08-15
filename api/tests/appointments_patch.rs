@@ -1337,8 +1337,7 @@ async fn patch_appointment_unavailability_returns_409_slot_taken() {
                 )
                 .header("Content-Type", "application/json")
                 .body(Body::from(
-                    serde_json::to_vec(&json!({"starts_at": dest_starts_at.to_rfc3339()}))
-                        .unwrap(),
+                    serde_json::to_vec(&json!({"starts_at": dest_starts_at.to_rfc3339()})).unwrap(),
                 ))
                 .unwrap(),
         )
