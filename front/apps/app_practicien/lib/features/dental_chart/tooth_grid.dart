@@ -48,7 +48,9 @@ class FdiQuadrants {
   );
 }
 
-/// Grille complète (4 rangées : haut-droit/haut-gauche puis bas-droit/bas-gauche).
+/// Grille complète : 2 rangées d'arcade (haute puis basse), chacune formée
+/// des deux quadrants côte à côte (droit puis gauche), séparées par une
+/// ligne médiane.
 class ToothGrid extends StatelessWidget {
   const ToothGrid({
     super.key,
@@ -80,9 +82,11 @@ class ToothGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        ToothRow(
-          codes: quadrants.upperRight,
+        _ArcadeRow(
+          rightCodes: quadrants.upperRight,
+          leftCodes: quadrants.upperLeft,
           colorFor: colorFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
@@ -90,27 +94,13 @@ class ToothGrid extends StatelessWidget {
           borderColorFor: borderColorFor,
           isSelected: isSelected,
         ),
-        ToothRow(
-          codes: quadrants.upperLeft,
-          colorFor: colorFor,
-          onTap: onTap,
-          keyPrefix: keyPrefix,
-          toothSize: toothSize,
-          borderColorFor: borderColorFor,
-          isSelected: isSelected,
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Divider(height: 1, thickness: 1, color: NubiaColors.n200),
         ),
-        const SizedBox(height: 16),
-        ToothRow(
-          codes: quadrants.lowerRight,
-          colorFor: colorFor,
-          onTap: onTap,
-          keyPrefix: keyPrefix,
-          toothSize: toothSize,
-          borderColorFor: borderColorFor,
-          isSelected: isSelected,
-        ),
-        ToothRow(
-          codes: quadrants.lowerLeft,
+        _ArcadeRow(
+          rightCodes: quadrants.lowerRight,
+          leftCodes: quadrants.lowerLeft,
           colorFor: colorFor,
           onTap: onTap,
           keyPrefix: keyPrefix,
@@ -119,6 +109,73 @@ class ToothGrid extends StatelessWidget {
           isSelected: isSelected,
         ),
       ],
+    );
+  }
+}
+
+/// Une arcade (haute ou basse) : les deux quadrants côte à côte sur une
+/// seule rangée, séparés par un écart (`.qrow{gap:16px}` de la maquette).
+class _ArcadeRow extends StatelessWidget {
+  const _ArcadeRow({
+    required this.rightCodes,
+    required this.leftCodes,
+    required this.colorFor,
+    required this.onTap,
+    required this.keyPrefix,
+    required this.toothSize,
+    required this.borderColorFor,
+    required this.isSelected,
+  });
+
+  final List<String> rightCodes;
+  final List<String> leftCodes;
+  final Color Function(String toothCode) colorFor;
+  final void Function(String toothCode) onTap;
+  final String keyPrefix;
+  final Size toothSize;
+  final Color Function(String toothCode)? borderColorFor;
+  final bool Function(String toothCode)? isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ToothRow(
+          codes: rightCodes,
+          colorFor: colorFor,
+          onTap: onTap,
+          keyPrefix: keyPrefix,
+          toothSize: toothSize,
+          borderColorFor: borderColorFor,
+          isSelected: isSelected,
+        ),
+        const SizedBox(width: 16),
+        ToothRow(
+          codes: leftCodes,
+          colorFor: colorFor,
+          onTap: onTap,
+          keyPrefix: keyPrefix,
+          toothSize: toothSize,
+          borderColorFor: borderColorFor,
+          isSelected: isSelected,
+        ),
+      ],
+    );
+
+    // Une arcade complète (16 dents adulte) peut dépasser la largeur d'une
+    // colonne étroite (ex. colonne centrale de la consultation PC, #4949,
+    // toothSize 44×50) : défilement horizontal plutôt que débordement,
+    // centré quand tout tient déjà dans la largeur disponible.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: Center(child: row),
+        ),
+      ),
     );
   }
 }
@@ -147,6 +204,7 @@ class ToothRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         for (final code in codes)
           Padding(
