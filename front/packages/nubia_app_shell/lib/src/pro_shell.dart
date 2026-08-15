@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
@@ -22,6 +23,8 @@ class ProShell extends StatefulWidget {
     this.onSignOut,
     this.currentRoute,
     this.onNavigate,
+    this.searchHint,
+    this.onSearchTap,
   });
 
   final ProConfig config;
@@ -52,6 +55,16 @@ class ProShell extends StatefulWidget {
   /// `context.go(destination.route)`) instead of only updating its local
   /// state — this is what keeps the URL in sync with the selected tab.
   final void Function(ProNavDestination destination)? onNavigate;
+
+  /// Placeholder du point d'entrée de recherche globale affiché dans la
+  /// barre de titre desktop (#5389, ex. « Patient, devis, commande… »).
+  /// `null` (défaut) : aucune entrée de recherche n'est affichée —
+  /// comportement inchangé pour les apps qui ne la fournissent pas encore.
+  final String? searchHint;
+
+  /// Appelé au clic sur l'entrée de recherche ou au raccourci ⌘K (#5389).
+  /// Ignoré si [searchHint] est `null`.
+  final VoidCallback? onSearchTap;
 
   @override
   State<ProShell> createState() => _ProShellState();
@@ -94,12 +107,25 @@ class _ProShellState extends State<ProShell> {
     final index = _resolveIndex(destinations);
     final current = destinations[index];
 
-    return LayoutBuilder(
+    final shell = LayoutBuilder(
       builder: (context, constraints) {
         return constraints.maxWidth >= 720
             ? _buildDesktop(context, destinations, index, current)
             : _buildMobile(context, destinations, index, current);
       },
+    );
+
+    final onSearchTap = widget.onSearchTap;
+    if (onSearchTap == null) return shell;
+
+    // #5389 — ⌘K ouvre la recherche globale depuis n'importe où dans le
+    // shell (même pattern `CallbackShortcuts` que side_column.dart, #4941).
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+            onSearchTap,
+      },
+      child: shell,
     );
   }
 
@@ -193,7 +219,18 @@ class _ProShellState extends State<ProShell> {
           const VerticalDivider(width: 1),
           Expanded(
             child: Scaffold(
-              appBar: NubiaAppBar(title: current.label, centerTitle: false),
+              appBar: NubiaAppBar(
+                title: current.label,
+                centerTitle: false,
+                actions: widget.searchHint != null && widget.onSearchTap != null
+                    ? [
+                        _SearchTrigger(
+                          hint: widget.searchHint!,
+                          onTap: widget.onSearchTap!,
+                        ),
+                      ]
+                    : null,
+              ),
               body: _content(context, current),
             ),
           ),
@@ -239,6 +276,86 @@ class _ProShellState extends State<ProShell> {
         ),
       ),
       body: _content(context, current),
+    );
+  }
+}
+
+/// Point d'entrée de la recherche globale dans la barre de titre desktop
+/// (#5389, maquette design-v2 secrétariat) — encart bordé, loupe, placeholder
+/// grisé et badge clavier ⌘K, même styles que `_GlobalSearchField`
+/// (app_practicien, patient_identity_bar.dart, #4948).
+class _SearchTrigger extends StatelessWidget {
+  const _SearchTrigger({required this.hint, required this.onTap});
+
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const Key('global_search_trigger'),
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            height: 40,
+            constraints: const BoxConstraints(maxWidth: 320),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: tokens.borderDefault),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.search, size: 18, color: tokens.textTertiary),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    hint,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium
+                        ?.copyWith(color: tokens.textTertiary),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const _SearchShortcutBadge(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Badge « ⌘K » (#5389) — même style que `_GlobalSearchShortcutBadge`
+/// (app_practicien, patient_identity_bar.dart, #4948).
+class _SearchShortcutBadge extends StatelessWidget {
+  const _SearchShortcutBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: tokens.borderSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: tokens.borderDefault),
+      ),
+      child: Text(
+        '⌘K',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: tokens.textTertiary,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
     );
   }
 }
