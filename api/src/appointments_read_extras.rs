@@ -183,14 +183,14 @@ pub struct QueueResponse {
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
 /// `position` = nombre de rendez-vous antérieurs (checkin_at < le nôtre) pour le même praticien
-/// avec status `checked_in` ou `in_progress`, bornés à la file DU JOUR (`starts_at` du jour courant),
-/// comme la waiting-room (`scheduling::get_waiting_room`).
+/// avec status `checked_in` ou `in_progress`, bornés à la fenêtre GLISSANTE (`now() ± interval
+/// '1 day'`), comme la waiting-room (`scheduling::get_waiting_room`) et `call_next_patient` (#4869).
 /// `est_wait_min` reste `null` (pas d'estimation de temps d'attente en MVP).
 /// Si le patient n'est pas encore checké (`status` ni `checked_in` ni `in_progress`), `position`
 /// vaut `null` et `status` vaut `"not_checked_in"` : le patient n'est pas dans la file d'attente.
-/// Même si `status` est `checked_in`/`in_progress`, un RDV dont `starts_at` n'est pas le jour
-/// courant renvoie aussi `"not_checked_in"` (#3869) : la file du jour est la seule référence
-/// pertinente, cohérente avec la waiting-room cabinet vue par le personnel.
+/// Même si `status` est `checked_in`/`in_progress`, un RDV dont `starts_at` sort de la fenêtre
+/// glissante renvoie aussi `"not_checked_in"` (#3869) : cette fenêtre est la seule référence
+/// pertinente, cohérente avec la waiting-room cabinet vue par le personnel (#5505).
 pub async fn get_appointment_queue(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -215,8 +215,8 @@ pub async fn get_appointment_queue(
 
     let row = sqlx::query(
         "SELECT id, status, checkin_at, practitioner_id, cabinet_id, \
-                (starts_at >= date_trunc('day', now()) \
-                 AND starts_at < date_trunc('day', now()) + interval '1 day') AS is_today \
+                (starts_at >= now() - interval '1 day' \
+                 AND starts_at < now() + interval '1 day') AS in_queue_window \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -234,7 +234,9 @@ pub async fn get_appointment_queue(
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
     let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
-    let is_today: bool = row.try_get("is_today").map_err(|_| AppError::Internal)?;
+    let in_queue_window: bool = row
+        .try_get("in_queue_window")
+        .map_err(|_| AppError::Internal)?;
 
     // Scope cabinet pour les requêtes soumises à la RLS tenant_isolation.
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -251,8 +253,8 @@ pub async fn get_appointment_queue(
              WHERE practitioner_id = $1 \
                AND status IN ('checked_in', 'in_progress') \
                AND deleted_at IS NULL \
-               AND starts_at >= date_trunc('day', now()) \
-               AND starts_at < date_trunc('day', now()) + interval '1 day' \
+               AND starts_at >= now() - interval '1 day' \
+               AND starts_at < now() + interval '1 day' \
                AND checkin_at < $2 \
                AND id != $3",
         )
@@ -272,8 +274,8 @@ pub async fn get_appointment_queue(
              WHERE practitioner_id = $1 \
                AND status IN ('checked_in', 'in_progress') \
                AND deleted_at IS NULL \
-               AND starts_at >= date_trunc('day', now()) \
-               AND starts_at < date_trunc('day', now()) + interval '1 day'",
+               AND starts_at >= now() - interval '1 day' \
+               AND starts_at < now() + interval '1 day'",
         )
         .bind(practitioner_id)
         .fetch_one(&mut *tx)
@@ -300,15 +302,15 @@ pub async fn get_appointment_queue(
     //   checked_in  → "waiting"       (en salle d'attente)
     //   sinon       → "not_checked_in" (pas encore en salle d'attente : confirmed/requested/
     //                                   cancelled/no_show/completed, etc.)
-    // Garde jour (#3869) : un RDV checked_in/in_progress resté bloqué un jour
-    // passé (cul-de-sac résiduel, cf #3858) n'est plus dans la file du jour —
-    // même borne que le COUNT de position ci-dessus et que la waiting-room
-    // cabinet (scheduling::get_waiting_room). Sans cette garde, le patient
-    // recevait indéfiniment « c'est votre tour » pour un RDV invisible du
-    // personnel (waiting-room cabinet déjà vide).
+    // Garde fenêtre glissante (#3869, alignée #4869/#5505) : un RDV checked_in/
+    // in_progress dont `starts_at` sort de `now() ± 1 jour` n'est plus dans la
+    // file — même borne que le COUNT de position ci-dessus et que la waiting-room
+    // cabinet (scheduling::get_waiting_room / call_next_patient). Sans cette garde,
+    // le patient recevait indéfiniment « c'est votre tour » pour un RDV invisible
+    // du personnel (waiting-room cabinet déjà vide).
     let queue_status = match status.as_str() {
-        "in_progress" if is_today => "in_progress",
-        "checked_in" if is_today => "waiting",
+        "in_progress" if in_queue_window => "in_progress",
+        "checked_in" if in_queue_window => "waiting",
         _ => "not_checked_in",
     };
 
