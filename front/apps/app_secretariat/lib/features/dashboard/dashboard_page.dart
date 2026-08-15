@@ -48,6 +48,7 @@ import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 import 'rail_badges_cubit.dart';
+import 'widgets/practitioners_today_card.dart';
 
 /// Entry point for the authenticated secrétariat home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile). Clinical
@@ -277,11 +278,13 @@ class _DashboardContent extends StatelessWidget {
             :final todayCount,
             :final pendingCount,
             :final waitingCount,
+            :final practitionersToday,
           ) =>
             _DashboardLoadedView(
               todayCount: todayCount,
               pendingCount: pendingCount,
               waitingCount: waitingCount,
+              practitionersToday: practitionersToday,
             ),
         };
       },
@@ -300,11 +303,13 @@ class _DashboardLoadedView extends StatelessWidget {
     required this.todayCount,
     required this.pendingCount,
     required this.waitingCount,
+    required this.practitionersToday,
   });
 
   final int todayCount;
   final int pendingCount;
   final int waitingCount;
+  final List<PractitionerToday> practitionersToday;
 
   @override
   Widget build(BuildContext context) {
@@ -366,15 +371,15 @@ class _DashboardLoadedView extends StatelessWidget {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final twoColumns = constraints.maxWidth >= 720;
-                  final cards = [
-                    _DashboardPanel(
-                      icon: Icons.event_available_outlined,
-                      title: 'Prochains rendez-vous',
-                      body: todayCount == 0
-                          ? 'Aucun rendez-vous planifié aujourd’hui.'
-                          : '$todayCount rendez-vous au programme du jour.',
-                      hint: 'Consultez l’agenda du cabinet pour le détail.',
-                    ),
+                  final leftColumn = _DashboardPanel(
+                    icon: Icons.event_available_outlined,
+                    title: 'Prochains rendez-vous',
+                    body: todayCount == 0
+                        ? 'Aucun rendez-vous planifié aujourd’hui.'
+                        : '$todayCount rendez-vous au programme du jour.',
+                    hint: 'Consultez l’agenda du cabinet pour le détail.',
+                  );
+                  final rightColumn = [
                     _DashboardPanel(
                       icon: Icons.pending_actions_outlined,
                       title: 'À traiter',
@@ -385,13 +390,17 @@ class _DashboardLoadedView extends StatelessWidget {
                           ? 'Aucune demande de créneau.'
                           : '$waitingCount patient(s) en attente de créneau.',
                     ),
+                    PractitionersTodayCard(
+                      practitioners: practitionersToday,
+                    ),
                   ];
                   if (!twoColumns) {
                     return Column(
                       children: [
-                        for (final c in cards) ...[
+                        leftColumn,
+                        for (final c in rightColumn) ...[
+                          const SizedBox(height: 16),
                           c,
-                          if (c != cards.last) const SizedBox(height: 16),
                         ],
                       ],
                     );
@@ -399,9 +408,19 @@ class _DashboardLoadedView extends StatelessWidget {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: cards[0]),
+                      Expanded(child: leftColumn),
                       const SizedBox(width: 16),
-                      Expanded(child: cards[1]),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            for (final c in rightColumn) ...[
+                              c,
+                              if (c != rightColumn.last)
+                                const SizedBox(height: 16),
+                            ],
+                          ],
+                        ),
+                      ),
                     ],
                   );
                 },

@@ -73,11 +73,41 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
             (list) => list.length,
           );
 
+          final todayBooked = booked.where(
+            (e) =>
+                e.startsAt.year == now.year &&
+                e.startsAt.month == now.month &&
+                e.startsAt.day == now.day,
+          );
+          final byPractitioner = <String, List<AgendaEntry>>{};
+          for (final e in todayBooked) {
+            byPractitioner.putIfAbsent(e.practitionerId, () => []).add(e);
+          }
+          final practitionersToday = byPractitioner.values.map((entries) {
+            final isInConsultation = entries.any(
+              (e) => !now.isBefore(e.startsAt) && now.isBefore(e.endsAt),
+            );
+            final lastEndsAt = entries
+                .map((e) => e.endsAt)
+                .reduce((a, b) => a.isAfter(b) ? a : b);
+            return PractitionerToday(
+              practitionerId: entries.first.practitionerId,
+              practitionerName: entries.first.practitionerName,
+              appointmentCount: entries.length,
+              isInConsultation: isInConsultation,
+              lastAppointmentEndsAt: lastEndsAt,
+            );
+          }).toList()
+            ..sort(
+              (a, b) => a.practitionerName.compareTo(b.practitionerName),
+            );
+
           safeEmit(
             DashboardLoaded(
               todayCount: todayCount,
               pendingCount: pendingCount,
               waitingCount: waitingCount,
+              practitionersToday: practitionersToday,
             ),
           );
         },
