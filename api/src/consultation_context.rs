@@ -33,6 +33,9 @@ pub struct ConsultationActItem {
     /// ligne d'acte). Toujours renseigné (`consultation_act.created_at` est
     /// `NOT NULL DEFAULT now()`).
     pub created_at: String,
+    /// Traçabilité stérilisation (#4951) : `true` si une pochette
+    /// stérilisée a été scannée pour cet acte (`sterilized_pouch`, #4137).
+    pub sterilized: bool,
 }
 
 /// Sous-objet praticien dans la réponse.
@@ -186,12 +189,18 @@ pub async fn get_consultation_context(
     // voir `clinical.rs::add_patient_note` pour le même stub sur `clinical_note`.
     let note: Option<String> = note_ciphertext.as_deref().and_then(stub_decrypt_note);
 
-    // Actes CCAM de la séance.
+    // Actes CCAM de la séance + statut de traçabilité stérilisation (#4951) :
+    // un acte est « vérifié » dès qu'une pochette stérilisée lui a été
+    // rattachée par un scan (`sterilized_pouch.consultation_act_id`, #4137).
     let act_rows = sqlx::query(
-        "SELECT id, ccam_code, label, tooth, amount_cents, created_at \
-         FROM consultation_act \
-         WHERE appointment_id = $1 AND cabinet_id = $2 \
-         ORDER BY created_at ASC",
+        "SELECT ca.id, ca.ccam_code, ca.label, ca.tooth, ca.amount_cents, ca.created_at, \
+                EXISTS ( \
+                    SELECT 1 FROM sterilized_pouch sp \
+                    WHERE sp.consultation_act_id = ca.id AND sp.cabinet_id = ca.cabinet_id \
+                ) AS sterilized \
+         FROM consultation_act ca \
+         WHERE ca.appointment_id = $1 AND ca.cabinet_id = $2 \
+         ORDER BY ca.created_at ASC",
     )
     .bind(appointment_id)
     .bind(claims.cabinet_id)
@@ -249,6 +258,7 @@ pub async fn get_consultation_context(
             .map_err(|_| AppError::Internal)?;
         let act_created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let sterilized: bool = row.try_get("sterilized").map_err(|_| AppError::Internal)?;
         acts.push(ConsultationActItem {
             id: act_id,
             ccam_code,
@@ -256,6 +266,7 @@ pub async fn get_consultation_context(
             tooth,
             amount_cents,
             created_at: act_created_at.to_rfc3339(),
+            sterilized,
         });
     }
 

@@ -35,6 +35,7 @@ class NubiaColors {
   // Sémantiques (fg/bg clair puis sombre)
   static const successFg = Color(0xFF15803D);
   static const successBg = Color(0xFFDCFCE7);
+  static const successBorder = Color(0xFFBBF7D0);
   static const warningFg = Color(0xFFB45309);
   static const warningBg = Color(0xFFFEF3C7);
   static const warningBorder = Color(0xFFFDE68A);

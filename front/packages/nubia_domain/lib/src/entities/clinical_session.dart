@@ -14,6 +14,11 @@ class ClinicalAct extends Equatable {
   /// depuis une réponse de création qui ne renvoie pas cette donnée.
   final DateTime? createdAt;
 
+  /// Traçabilité stérilisation (#4951) : `true` si une pochette stérilisée
+  /// a été scannée pour cet acte (`sterilized_pouch.consultation_act_id`,
+  /// #4137). `false` pour un acte tout juste créé (jamais scanné).
+  final bool sterilized;
+
   const ClinicalAct({
     required this.id,
     required this.ccamCode,
@@ -22,11 +27,20 @@ class ClinicalAct extends Equatable {
     this.amountCents,
     this.included = false,
     this.createdAt,
+    this.sterilized = false,
   });
 
   @override
-  List<Object?> get props =>
-      [id, ccamCode, label, tooth, amountCents, included, createdAt];
+  List<Object?> get props => [
+        id,
+        ccamCode,
+        label,
+        tooth,
+        amountCents,
+        included,
+        createdAt,
+        sterilized,
+      ];
 }
 
 /// Alerte médicale passive du dossier patient (allergie ou flag

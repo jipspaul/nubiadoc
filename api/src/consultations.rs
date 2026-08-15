@@ -670,6 +670,9 @@ pub async fn list_consultations(
                     created_at: first_act_created_at
                         .map(|dt| dt.to_rfc3339())
                         .unwrap_or_default(),
+                    // Aperçu liste (#4937) — statut stérilisation non affiché
+                    // ici (encart détail uniquement, #4951).
+                    sterilized: false,
                 }],
                 _ => vec![],
             };

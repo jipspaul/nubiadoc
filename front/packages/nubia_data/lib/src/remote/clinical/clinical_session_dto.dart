@@ -9,6 +9,10 @@ class ClinicalActDto {
   final bool included;
   final String? createdAt;
 
+  /// #4951 — pochette stérilisée scannée pour cet acte
+  /// (`sterilized_pouch.consultation_act_id`, #4137).
+  final bool sterilized;
+
   const ClinicalActDto({
     required this.id,
     required this.ccamCode,
@@ -17,17 +21,19 @@ class ClinicalActDto {
     this.amountCents,
     this.included = false,
     this.createdAt,
+    this.sterilized = false,
   });
 
   factory ClinicalActDto.fromJson(Map<String, dynamic> json) => ClinicalActDto(
-    id: json['id'] as String,
-    ccamCode: json['ccam_code'] as String,
-    label: json['label'] as String,
-    tooth: json['tooth'] as String?,
-    amountCents: (json['amount_cents'] as num?)?.toInt(),
-    included: (json['included'] as bool?) ?? false,
-    createdAt: json['created_at'] as String?,
-  );
+        id: json['id'] as String,
+        ccamCode: json['ccam_code'] as String,
+        label: json['label'] as String,
+        tooth: json['tooth'] as String?,
+        amountCents: (json['amount_cents'] as num?)?.toInt(),
+        included: (json['included'] as bool?) ?? false,
+        createdAt: json['created_at'] as String?,
+        sterilized: (json['sterilized'] as bool?) ?? false,
+      );
 
   /// POST .../acts renvoie seulement `{ act_id }` (vérifié en live), pas
   /// l'acte complet (#3697, même schéma que le confirm RDV JEL-19) : on
@@ -42,25 +48,27 @@ class ClinicalActDto {
     int? amountCents,
     required bool included,
     DateTime? createdAt,
-  }) => ClinicalActDto(
-    id: json['act_id'] as String,
-    ccamCode: ccamCode,
-    label: label,
-    tooth: tooth,
-    amountCents: amountCents,
-    included: included,
-    createdAt: createdAt?.toIso8601String(),
-  );
+  }) =>
+      ClinicalActDto(
+        id: json['act_id'] as String,
+        ccamCode: ccamCode,
+        label: label,
+        tooth: tooth,
+        amountCents: amountCents,
+        included: included,
+        createdAt: createdAt?.toIso8601String(),
+      );
 
   ClinicalAct toDomain() => ClinicalAct(
-    id: id,
-    ccamCode: ccamCode,
-    label: label,
-    tooth: tooth,
-    amountCents: amountCents,
-    included: included,
-    createdAt: createdAt == null ? null : DateTime.tryParse(createdAt!),
-  );
+        id: id,
+        ccamCode: ccamCode,
+        label: label,
+        tooth: tooth,
+        amountCents: amountCents,
+        included: included,
+        createdAt: createdAt == null ? null : DateTime.tryParse(createdAt!),
+        sterilized: sterilized,
+      );
 }
 
 class ClinicalSessionDto {
@@ -113,9 +121,8 @@ class ClinicalSessionDto {
         patientName: json['patient_name'] as String?,
         patientId: json['patient_id'] as String?,
         startedAt: json['started_at'] as String?,
-        practitionerName:
-            (json['practitioner'] as Map<String, dynamic>?)?['display_name']
-                as String?,
+        practitionerName: (json['practitioner']
+            as Map<String, dynamic>?)?['display_name'] as String?,
         patientBirthDate: json['patient_birth_date'] as String?,
         medicalAlerts: (json['medical_alerts'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
@@ -129,18 +136,18 @@ class ClinicalSessionDto {
       );
 
   ClinicalSession toDomain() => ClinicalSession(
-    id: id,
-    appointmentId: appointmentId,
-    status: status,
-    acts: acts.map((a) => a.toDomain()).toList(),
-    note: note,
-    patientName: patientName,
-    patientId: patientId,
-    startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
-    practitionerName: practitionerName,
-    patientBirthDate: patientBirthDate == null
-        ? null
-        : DateTime.tryParse(patientBirthDate!),
-    medicalAlerts: medicalAlerts,
-  );
+        id: id,
+        appointmentId: appointmentId,
+        status: status,
+        acts: acts.map((a) => a.toDomain()).toList(),
+        note: note,
+        patientName: patientName,
+        patientId: patientId,
+        startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
+        practitionerName: practitionerName,
+        patientBirthDate: patientBirthDate == null
+            ? null
+            : DateTime.tryParse(patientBirthDate!),
+        medicalAlerts: medicalAlerts,
+      );
 }

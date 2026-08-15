@@ -310,6 +310,146 @@ async fn consultation_get_practitioner_returns_200() {
     cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
 }
 
+// ── Test : statut de traçabilité stérilisation par acte (#4951) ───────────────
+
+#[tokio::test]
+async fn consultation_get_returns_sterilized_status_per_act() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_consultation_fixture(&db).await;
+
+    let scanned_act_id = Uuid::new_v4();
+    let unscanned_act_id = Uuid::new_v4();
+    let cycle_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO consultation_act \
+         (id, cabinet_id, appointment_id, patient_id, practitioner_id, ccam_code, label, amount_cents) \
+         VALUES ($1, $2, $3, $4, $5, 'HBLD038', 'Couronne', 50000)",
+    )
+    .bind(scanned_act_id)
+    .bind(cabinet_id)
+    .bind(appt_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO consultation_act \
+         (id, cabinet_id, appointment_id, patient_id, practitioner_id, ccam_code, label, amount_cents) \
+         VALUES ($1, $2, $3, $4, $5, 'HBLD745', 'Inlay-core', 30000)",
+    )
+    .bind(unscanned_act_id)
+    .bind(cabinet_id)
+    .bind(appt_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO sterilization_cycle \
+         (id, cabinet_id, autoclave_ref, cycle_number, test_kind, test_result, status) \
+         VALUES ($1, $2, 'AUTOCLAVE-1', 1, 'helix', 'conforme', 'conforme')",
+    )
+    .bind(cycle_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO sterilized_pouch (cabinet_id, cycle_id, code, consultation_act_id) \
+         VALUES ($1, $2, 'POUCH-4951', $3)",
+    )
+    .bind(cabinet_id)
+    .bind(cycle_id)
+    .bind(scanned_act_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let acts = v["acts"].as_array().unwrap();
+    let scanned = acts
+        .iter()
+        .find(|a| a["id"] == scanned_act_id.to_string())
+        .unwrap();
+    let unscanned = acts
+        .iter()
+        .find(|a| a["id"] == unscanned_act_id.to_string())
+        .unwrap();
+    assert_eq!(scanned["sterilized"], true);
+    assert_eq!(unscanned["sterilized"], false);
+
+    // Nettoyage explicite (FK sterilized_pouch → consultation_act) avant
+    // `cleanup_fixture`, qui supprime les actes de la séance.
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM sterilized_pouch WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM sterilization_cycle WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
+}
+
 // ── Test 7 : alertes du dossier — allergie + flag médico-légal (#4936) ────────
 
 #[tokio::test]
