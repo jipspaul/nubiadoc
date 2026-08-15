@@ -1,5 +1,38 @@
 import 'package:equatable/equatable.dart';
 
+/// Résumé d'un praticien pour la carte « Praticiens aujourd'hui » (#5385) :
+/// nombre de RDV du jour et présence dérivée de l'agenda (pas de champ de
+/// présence dédié en base pour l'instant).
+class PractitionerToday extends Equatable {
+  const PractitionerToday({
+    required this.practitionerId,
+    required this.practitionerName,
+    required this.appointmentCount,
+    required this.isInConsultation,
+    required this.lastAppointmentEndsAt,
+  });
+
+  final String practitionerId;
+  final String practitionerName;
+  final int appointmentCount;
+
+  /// `true` si un RDV du praticien est en cours à l'instant du calcul.
+  final bool isInConsultation;
+
+  /// Fin du dernier RDV du jour — sert à afficher « Départ HHh » quand le
+  /// praticien n'est pas en consultation (#5385, note #4 maquette).
+  final DateTime lastAppointmentEndsAt;
+
+  @override
+  List<Object?> get props => [
+        practitionerId,
+        practitionerName,
+        appointmentCount,
+        isInConsultation,
+        lastAppointmentEndsAt,
+      ];
+}
+
 sealed class DashboardState extends Equatable {
   const DashboardState();
 
@@ -20,14 +53,20 @@ final class DashboardLoaded extends DashboardState {
     required this.todayCount,
     required this.pendingCount,
     required this.waitingCount,
+    this.practitionersToday = const [],
   });
 
   final int todayCount;
   final int pendingCount;
   final int waitingCount;
 
+  /// Praticiens ayant au moins un RDV aujourd'hui, dérivés de l'agenda déjà
+  /// chargé (#5385) — aucun appel réseau supplémentaire.
+  final List<PractitionerToday> practitionersToday;
+
   @override
-  List<Object?> get props => [todayCount, pendingCount, waitingCount];
+  List<Object?> get props =>
+      [todayCount, pendingCount, waitingCount, practitionersToday];
 }
 
 final class DashboardError extends DashboardState {
