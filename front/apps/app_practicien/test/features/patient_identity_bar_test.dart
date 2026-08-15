@@ -70,4 +70,53 @@ void main() {
     expect(find.textContaining('Dr '), findsNothing);
     expect(find.textContaining('né(e) le'), findsNothing);
   });
+
+  testWidgets(
+      '#4957 — une pastille d\'alerte clinique par alerte, avant la pastille de statut',
+      (tester) async {
+    const session = ClinicalSession(
+      id: 's3',
+      appointmentId: 'a3',
+      status: 'in_progress',
+      acts: [],
+      medicalAlerts: [
+        MedicalAlert(kind: 'allergie', label: 'pénicilline'),
+        MedicalAlert(kind: 'medico_legal', label: 'Anticoagulant (AVK)'),
+      ],
+    );
+    await pump(tester, session);
+
+    expect(find.text('Allergie pénicilline'), findsOneWidget);
+    expect(find.text('Anticoagulant (AVK)'), findsOneWidget);
+    expect(
+        find.byKey(const Key('clinical_alert_pill_allergie_pénicilline')),
+        findsOneWidget);
+    expect(
+        find.byKey(const Key(
+            'clinical_alert_pill_medico_legal_Anticoagulant (AVK)')),
+        findsOneWidget);
+
+    // Les pastilles d'alerte précèdent la pastille de statut de séance sur
+    // la même ligne (`.n1` de la maquette) : position horizontale inférieure.
+    final alertPillX = tester
+        .getTopLeft(find.byKey(
+            const Key('clinical_alert_pill_allergie_pénicilline')))
+        .dx;
+    final statusPillX =
+        tester.getTopLeft(find.text('Séance en cours')).dx;
+    expect(alertPillX, lessThan(statusPillX));
+  });
+
+  testWidgets('aucune pastille d\'alerte si la liste est vide', (tester) async {
+    const session = ClinicalSession(
+      id: 's4',
+      appointmentId: 'a4',
+      status: 'in_progress',
+      acts: [],
+    );
+    await pump(tester, session);
+
+    expect(find.byWidgetPredicate((w) => w is StatusPill && w.variant == StatusPillVariant.error),
+        findsNothing);
+  });
 }
