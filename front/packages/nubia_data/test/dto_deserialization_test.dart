@@ -624,5 +624,39 @@ void main() {
       }).toDomain();
       expect(session.lastVisitDate, isNull);
     });
+
+    test('fromJson remonte patient_id et active_plan du détail (#4938)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'id': 'cs-6',
+        'appointment_id': 'aa-6',
+        'patient_id': 'pat-6',
+        'status': 'in_progress',
+        'acts': [],
+        'active_plan': {
+          'id': 'plan-1',
+          'title': 'Réhabilitation secteur 2',
+          'current_phase': 2,
+          'total_phases': 3,
+          'total_cost_cents': 163592,
+        },
+      }).toDomain();
+      expect(session.patientId, 'pat-6');
+      expect(session.activePlan?.id, 'plan-1');
+      expect(session.activePlan?.title, 'Réhabilitation secteur 2');
+      expect(session.activePlan?.currentPhase, 2);
+      expect(session.activePlan?.totalPhases, 3);
+      expect(session.activePlan?.totalCostCents, 163592);
+    });
+
+    test('fromJson sans active_plan → null (aucun plan inventé)', () {
+      final session = ClinicalSessionDto.fromJson({
+        'id': 'cs-7',
+        'appointment_id': 'aa-7',
+        'status': 'in_progress',
+        'acts': [],
+      }).toDomain();
+      expect(session.activePlan, isNull);
+      expect(session.patientId, isNull);
+    });
   });
 }

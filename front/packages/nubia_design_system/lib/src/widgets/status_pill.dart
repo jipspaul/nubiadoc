@@ -20,6 +20,7 @@ class StatusPill extends StatelessWidget {
     required this.label,
     required this.variant,
     this.icon,
+    this.flexibleLabel = false,
   });
 
   final String label;
@@ -29,6 +30,15 @@ class StatusPill extends StatelessWidget {
   /// partagent le même [variant] (ex. `error`) et doivent rester
   /// distinguables visuellement.
   final IconData? icon;
+
+  /// Quand `true`, le libellé peut se rétrécir (`Flexible` + ellipsis) au lieu
+  /// de forcer sa largeur intrinsèque. À n'activer que dans un contexte
+  /// horizontalement **borné** (ex. pastille dans un `Wrap`/`Expanded`) : la
+  /// barre d'identité patient de la consultation (#4946/#4957) l'utilise pour
+  /// que les pastilles d'alerte ne débordent jamais quand la colonne se
+  /// resserre. Défaut `false` : comportement historique (largeur naturelle),
+  /// sûr y compris en contexte non borné.
+  final bool flexibleLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -65,15 +75,23 @@ class StatusPill extends StatelessWidget {
             Icon(icon, size: 12, color: fg),
             const SizedBox(width: 4),
           ],
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: fg,
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
+          if (flexibleLabel)
+            Flexible(child: _label(context, fg))
+          else
+            _label(context, fg),
         ],
       ),
     );
   }
+
+  Widget _label(BuildContext context, Color fg) => Text(
+        label,
+        maxLines: 1,
+        overflow: flexibleLabel ? TextOverflow.ellipsis : TextOverflow.clip,
+        softWrap: false,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: fg,
+              fontWeight: FontWeight.w500,
+            ),
+      );
 }

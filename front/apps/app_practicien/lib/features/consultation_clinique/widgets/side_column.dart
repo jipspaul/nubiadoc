@@ -15,6 +15,7 @@
 // est déjà intégré au `SingleChildScrollView` du parent (pas de double
 // scroll imbriqué), donc la note garde une hauteur bornée classique.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
@@ -31,18 +32,26 @@ class SideColumn extends StatelessWidget {
     required this.noteController,
     required this.onPickCrTemplate,
     required this.onNoteChanged,
+    required this.onSaveNote,
     required this.lastNoteSavedAt,
     required this.selectedTooth,
     required this.onClearSelectedTooth,
     required this.onActSubmitted,
     required this.scrollable,
     required this.actSearchFocusNode,
+    this.pinnedNote = false,
   });
 
   final TextTheme textTheme;
   final TextEditingController noteController;
   final VoidCallback onPickCrTemplate;
   final ValueChanged<String> onNoteChanged;
+
+  /// #4942 — enregistrement immédiat de la note déclenché par ⌘S (point 4 de
+  /// la maquette). L'auto-save (débounce, #4943/#4963) reste en place ; ce
+  /// raccourci force la sauvegarde sans attendre. Voir aussi le badge ⌘S de
+  /// `_NoteSaveStatus`.
+  final VoidCallback onSaveNote;
   final DateTime? lastNoteSavedAt;
   final String? selectedTooth;
   // #4959 — efface la dent sélectionnée depuis la croix de la pastille en
@@ -58,8 +67,18 @@ class SideColumn extends StatelessWidget {
   }) onActSubmitted;
   final bool scrollable;
 
+  /// #4939 — dès 1280 px (3 colonnes) la note de séance est « épinglée » :
+  /// co-visible en permanence avec « Ajouter un acte », en `Expanded` sous le
+  /// panneau d'ajout, jamais repoussée sous la ligne de flottaison. La
+  /// co-visibilité est déjà acquise dès le layout 2 colonnes (`scrollable`,
+  /// #4954/#4964) ; `pinnedNote` la garantit explicitement au seuil 3 colonnes.
+  final bool pinnedNote;
+
   @override
   Widget build(BuildContext context) {
+    // Note co-visible/épinglée : dès que la colonne défile (≥ 2 colonnes) OU
+    // que la note est explicitement épinglée (≥ 1280 px, #4939).
+    final noteCoVisible = scrollable || pinnedNote;
     // Panneau « Ajouter un acte » (haut du bloc `.rgt`) — pastille de dent
     // sélectionnée (#4959) puis recherche/ajout CCAM.
     final addActPanel = Column(
@@ -108,40 +127,50 @@ class SideColumn extends StatelessWidget {
           border: OutlineInputBorder(),
         ),
       );
-      return NubiaCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: expandField ? MainAxisSize.max : MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    'Note de séance',
-                    style: textTheme.titleSmall,
-                    overflow: TextOverflow.ellipsis,
+      // ⌘S force l'enregistrement de la note (#4942, point 4 de la maquette).
+      // L'auto-save (débounce) n'est pas remplacé : le raccourci ne fait que
+      // déclencher le même enregistrement que `save_note_button`, scopé au
+      // volet note (même esprit que ⌘K sur `CcamPicker`, #4941).
+      return CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
+              onSaveNote,
+        },
+        child: NubiaCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: expandField ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Note de séance',
+                      style: textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                TextButton.icon(
-                  key: const Key('cr_template_picker_button'),
-                  onPressed: onPickCrTemplate,
-                  icon: const Icon(Icons.description_outlined, size: 18),
-                  label: const Text('Modèle'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            expandField ? Expanded(child: noteField) : noteField,
-            const SizedBox(height: 8),
-            _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
-          ],
+                  TextButton.icon(
+                    key: const Key('cr_template_picker_button'),
+                    onPressed: onPickCrTemplate,
+                    icon: const Icon(Icons.description_outlined, size: 18),
+                    label: const Text('Modèle'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              expandField ? Expanded(child: noteField) : noteField,
+              const SizedBox(height: 8),
+              _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
+            ],
+          ),
         ),
       );
     }
 
     final Widget body;
-    if (scrollable) {
+    if (noteCoVisible) {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -279,7 +308,10 @@ class _NoteSaveStatus extends StatelessWidget {
           )
         else
           const SizedBox.shrink(),
-        const NubiaBadge.label(label: '⌘S'),
+        const NubiaBadge.label(
+          key: Key('note_save_shortcut_badge'),
+          label: '⌘S',
+        ),
       ],
     );
   }

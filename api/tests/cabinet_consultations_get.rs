@@ -258,7 +258,7 @@ async fn consultation_get_practitioner_returns_200() {
         return;
     }
     let db = owner_pool().await;
-    let (cabinet_id, prac_id, prac_user_id, _patient_id, appt_id, session_id) =
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
         insert_consultation_fixture(&db).await;
 
     let state = AppState {
@@ -294,6 +294,7 @@ async fn consultation_get_practitioner_returns_200() {
 
     assert_eq!(v["id"], session_id.to_string());
     assert_eq!(v["appointment_id"], appt_id.to_string());
+    assert_eq!(v["patient_id"], patient_id.to_string());
     assert_eq!(v["status"], "in_progress");
     assert!(
         v["started_at"].is_string(),
@@ -306,6 +307,8 @@ async fn consultation_get_practitioner_returns_200() {
     assert!(v["acts"].is_array(), "acts doit être un tableau");
     // #4936 — pas de dossier médical pour ce patient → aucune alerte inventée.
     assert_eq!(v["medical_alerts"], serde_json::json!([]));
+    // #4938 — pas de plan de traitement pour ce patient → aucun plan inventé.
+    assert!(v.get("active_plan").is_none());
 
     cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
 }
@@ -607,6 +610,180 @@ async fn consultation_get_returns_patient_birth_date() {
 
     assert_eq!(v["patient_birth_date"], "1992-03-12");
 
+    cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
+}
+
+// ── Test 8 : plan de traitement actif — encart « Plan en cours » (#4938) ──────
+
+#[tokio::test]
+async fn consultation_get_returns_active_plan_progress() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_consultation_fixture(&db).await;
+
+    let plan_id = Uuid::new_v4();
+    let phase1_id = Uuid::new_v4();
+    let phase2_id = Uuid::new_v4();
+    let phase3_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO treatment_plan (id, cabinet_id, patient_id, title, status) \
+             VALUES ($1, $2, $3, 'Réhabilitation secteur 2', 'in_progress')",
+        )
+        .bind(plan_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Phase 1 terminée, phase 2 en cours, phase 3 restante → « Phase 2 sur 3 ».
+        sqlx::query(
+            "INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status) \
+             VALUES ($1, $2, $3, 1, 'Phase 1 · Chirurgie', 'done')",
+        )
+        .bind(phase1_id)
+        .bind(cabinet_id)
+        .bind(plan_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status) \
+             VALUES ($1, $2, $3, 2, 'Phase 2 · Prothèse', 'in_progress')",
+        )
+        .bind(phase2_id)
+        .bind(cabinet_id)
+        .bind(plan_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status) \
+             VALUES ($1, $2, $3, 3, 'Phase 3 · Contrôle', 'requested')",
+        )
+        .bind(phase3_id)
+        .bind(cabinet_id)
+        .bind(plan_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, $3, 'signed', 1635.92, 'EUR')",
+        )
+        .bind(quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // 1 000,00 € + 635,92 € = 1 635,92 € (montant verbatim de la maquette).
+        sqlx::query(
+            "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount, phase_id) \
+             VALUES ($1, $2, 'Implant', 1, 1000.00, $3)",
+        )
+        .bind(cabinet_id)
+        .bind(quote_id)
+        .bind(phase1_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO quote_item (cabinet_id, quote_id, label, qty, unit_amount, phase_id) \
+             VALUES ($1, $2, 'Couronne', 1, 635.92, $3)",
+        )
+        .bind(cabinet_id)
+        .bind(quote_id)
+        .bind(phase2_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/consultations/{}", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let active_plan = &v["active_plan"];
+    assert_eq!(active_plan["id"], plan_id.to_string());
+    assert_eq!(active_plan["title"], "Réhabilitation secteur 2");
+    assert_eq!(active_plan["current_phase"], 2);
+    assert_eq!(active_plan["total_phases"], 3);
+    assert_eq!(active_plan["total_cost_cents"], 163592);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote_item WHERE quote_id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote WHERE id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM treatment_phase WHERE plan_id = $1")
+            .bind(plan_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM treatment_plan WHERE id = $1")
+            .bind(plan_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
     cleanup_fixture(&db, cabinet_id, prac_id, prac_user_id, appt_id, session_id).await;
 }
 

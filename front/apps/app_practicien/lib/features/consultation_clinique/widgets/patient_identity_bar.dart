@@ -90,6 +90,11 @@ class PatientIdentityBar extends StatelessWidget {
                               label: _clinicalAlertLabel(alert),
                               variant: StatusPillVariant.error,
                               icon: Icons.warning,
+                              // #4957 — la pastille se rétrécit (ellipsis) au
+                              // lieu de déborder quand la colonne d'identité se
+                              // resserre (bouton « Terminer la séance » + total
+                              // #4965 réduisent la largeur disponible).
+                              flexibleLabel: true,
                             ),
                           StatusPill(
                             label: session.isCancelled
@@ -105,6 +110,7 @@ class PatientIdentityBar extends StatelessWidget {
                             icon: session.isCancelled || session.isCompleted
                                 ? null
                                 : Icons.info_outline,
+                            flexibleLabel: true,
                           ),
                         ],
                       ),
@@ -148,7 +154,7 @@ class PatientIdentityBar extends StatelessWidget {
                   key: const Key('complete_consultation_button'),
                   size: NubiaButtonSize.sm,
                   icon: Icons.check,
-                  label: 'Terminer',
+                  label: 'Terminer la séance',
                   onPressed: onCompletePressed,
                 ),
               ],
@@ -210,6 +216,7 @@ class _SessionTotal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     return Column(
       key: const Key('consultation_session_total'),
       mainAxisSize: MainAxisSize.min,
@@ -218,12 +225,16 @@ class _SessionTotal extends StatelessWidget {
         Text(
           'TOTAL SÉANCE',
           style: textTheme.labelSmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: tokens.textTertiary,
           ),
         ),
         Text(
           formatQuoteCents(totalCents, alwaysShowDecimals: true),
           style: textTheme.headlineSmall?.copyWith(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
             fontFeatures: tabularFigures,
           ),
         ),
