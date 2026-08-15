@@ -15,6 +15,7 @@
 // est déjà intégré au `SingleChildScrollView` du parent (pas de double
 // scroll imbriqué), donc la note garde une hauteur bornée classique.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
@@ -31,6 +32,7 @@ class SideColumn extends StatelessWidget {
     required this.noteController,
     required this.onPickCrTemplate,
     required this.onNoteChanged,
+    required this.onSaveNote,
     required this.lastNoteSavedAt,
     required this.selectedTooth,
     required this.onClearSelectedTooth,
@@ -44,6 +46,12 @@ class SideColumn extends StatelessWidget {
   final TextEditingController noteController;
   final VoidCallback onPickCrTemplate;
   final ValueChanged<String> onNoteChanged;
+
+  /// #4942 — enregistrement immédiat de la note déclenché par ⌘S (point 4 de
+  /// la maquette). L'auto-save (débounce, #4943/#4963) reste en place ; ce
+  /// raccourci force la sauvegarde sans attendre. Voir aussi le badge ⌘S de
+  /// `_NoteSaveStatus`.
+  final VoidCallback onSaveNote;
   final DateTime? lastNoteSavedAt;
   final String? selectedTooth;
   // #4959 — efface la dent sélectionnée depuis la croix de la pastille en
@@ -119,7 +127,15 @@ class SideColumn extends StatelessWidget {
           border: OutlineInputBorder(),
         ),
       );
-      return NubiaCard(
+      // ⌘S force l'enregistrement de la note (#4942, point 4 de la maquette).
+      // L'auto-save (débounce) n'est pas remplacé : le raccourci ne fait que
+      // déclencher le même enregistrement que `save_note_button`, scopé au
+      // volet note (même esprit que ⌘K sur `CcamPicker`, #4941).
+      return CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.keyS, meta: true): onSaveNote,
+        },
+        child: NubiaCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: expandField ? MainAxisSize.max : MainAxisSize.min,
@@ -147,6 +163,7 @@ class SideColumn extends StatelessWidget {
             const SizedBox(height: 8),
             _NoteSaveStatus(lastSavedAt: lastNoteSavedAt),
           ],
+        ),
         ),
       );
     }
@@ -290,7 +307,10 @@ class _NoteSaveStatus extends StatelessWidget {
           )
         else
           const SizedBox.shrink(),
-        const NubiaBadge.label(label: '⌘S'),
+        const NubiaBadge.label(
+          key: Key('note_save_shortcut_badge'),
+          label: '⌘S',
+        ),
       ],
     );
   }

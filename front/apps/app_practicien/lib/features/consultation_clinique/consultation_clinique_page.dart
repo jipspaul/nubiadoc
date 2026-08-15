@@ -186,6 +186,16 @@ class _LoadedViewState extends State<_LoadedView> {
     });
   }
 
+  /// Enregistrement immédiat de la note (#4942, ⌘S) — force la sauvegarde
+  /// sans attendre le débounce de l'auto-save : annule le timer en attente
+  /// puis dispatche l'événement avec le texte courant de la note.
+  void _saveNoteNow() {
+    _noteSaveDebounce?.cancel();
+    context
+        .read<ConsultationCliniqueBloc>()
+        .add(ConsultationCliniqueNoteSaveRequested(_noteController.text));
+  }
+
   /// Dent sélectionnée pour le prochain acte CCAM (#4048) — pré-remplit
   /// `CcamPicker`/`CcamActEditorDialog` au lieu de la saisie texte libre.
   /// L'arcade permanente de la colonne centrale (#4949, `DentalStatusBox`)
@@ -328,6 +338,7 @@ class _LoadedViewState extends State<_LoadedView> {
                 noteController: _noteController,
                 onPickCrTemplate: _pickCrTemplate,
                 onNoteChanged: _onNoteChanged,
+                onSaveNote: _saveNoteNow,
                 lastNoteSavedAt: state.lastNoteSavedAt,
                 selectedTooth: _selectedTooth,
                 onClearSelectedTooth: _clearSelectedTooth,
