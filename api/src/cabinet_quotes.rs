@@ -287,7 +287,10 @@ pub(crate) const VALID_QUOTE_STATUSES: [&str; 5] =
 /// même si son rôle autorise normalement l'accès (route billing pilote pour
 /// la consommation du champ `permissions`, cf. `permissions.rs`).
 ///
-/// `?overdue=true` (#4130) : solde restant dû = `total_amount` moins les
+/// `?overdue=true` (#4130) : solde restant dû = `patient_share_cents` (part
+/// patient nette, AMO/AMC exclus — PAS `total_amount` brut, #5535 : un devis
+/// 100% tiers-payant satisfaisait en permanence `brut > paiements` par
+/// exactement `amo_part+amc_part` même reste-à-charge soldé) moins les
 /// paiements `pending`/`paid` (même formule que `patient_detail::balance_due_cents`
 /// et `cabinet_stats::outstanding_cents`) ; "sans activité de paiement
 /// récente" = ni signature ni dernier paiement dans les
@@ -333,7 +336,9 @@ pub async fn list_cabinet_quotes(
     let overdue_sql = if params.overdue == Some(true) {
         format!(
             " AND q.status = 'signed' \
-              AND (q.total_amount * 100)::bigint > COALESCE(( \
+              AND (SELECT coalesce(sum((qi.qty * qi.unit_amount \
+                  - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
+                  FROM quote_item qi WHERE qi.quote_id = q.id) > COALESCE(( \
                   SELECT sum(amount * 100)::bigint FROM payment \
                   WHERE quote_id = q.id AND status IN ('pending', 'paid') \
               ), 0) \
