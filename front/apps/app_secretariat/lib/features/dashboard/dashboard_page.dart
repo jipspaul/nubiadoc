@@ -206,7 +206,42 @@ class DashboardPage extends StatelessWidget {
             onPressed: () => context.push('/a2ui-demo'),
           ),
       ],
+      // #5389 — point d'entrée de recherche globale (patient/devis/commande)
+      // dans la barre de titre, déclenché au clic ou par ⌘K.
+      searchHint: 'Patient, devis, commande…',
+      onSearchTap: () => _openGlobalSearch(context),
       onSignOut: () => context.read<ProAuthCubit>().signOut(),
+    );
+  }
+
+  /// Ouvre la recherche globale (#5389) — point d'entrée unique pour
+  /// patient/devis/commande ; le routage vers chaque domaine
+  /// (`features/patients`, `features/devis`, `features/stock`) est laissé à
+  /// une itération ultérieure, hors périmètre de cet écran atomique.
+  void _openGlobalSearch(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        key: const Key('global_search_dialog'),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Recherche globale',
+                  style: Theme.of(dialogContext).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                const NubiaSearchBar(hint: 'Patient, devis, commande…'),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
