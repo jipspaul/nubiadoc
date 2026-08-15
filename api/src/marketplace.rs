@@ -621,7 +621,7 @@ pub async fn search_slots(
                   THEN ST_Distance(p.geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) \
                   ELSE NULL END AS distance_m, \
              MIN(sl.starts_at) AS next_slot_at, \
-             (SELECT avg(rating)::double precision FROM review \
+             (SELECT round(avg(rating)::numeric, 1)::double precision FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_avg \
          {from_where_clause} \
          GROUP BY p.id \
@@ -897,7 +897,7 @@ pub async fn search_providers(
               AND sl.deleted_at IS NULL AND sl.online_booking = true \
               AND sl.starts_at > now() \
               {UNAVAILABILITY_EXCLUSION_CLAUSE}) AS next_slot_at, \
-             (SELECT avg(rating)::double precision FROM review \
+             (SELECT round(avg(rating)::numeric, 1)::double precision FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
              ST_Y(p.geo::geometry) AS geo_lat, \
              ST_X(p.geo::geometry) AS geo_lng, \
@@ -1091,7 +1091,7 @@ pub async fn get_provider(
              p.teleconsult, \
              p.pmr, \
              p.establishment_id, \
-             (SELECT avg(rating)::double precision FROM review \
+             (SELECT round(avg(rating)::numeric, 1)::double precision FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
              (SELECT count(*) FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_count \

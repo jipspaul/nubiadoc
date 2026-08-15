@@ -1084,15 +1084,25 @@ pub async fn list_patient_documents(
     // liste (#3823, frère de #3821).
     if claims.role == "secretary" {
         let in_scope = match claims.secretariat_id {
+            // #5509 : même garde que list_cabinet_patients/get_cabinet_patient (#5428) —
+            // un patient walk-in (quick_create_patient) n'a aucun appointment à la
+            // création, d'où le OR sur created_by_secretariat_id (posé à la création).
             Some(secretariat_id) => sqlx::query(
-                "SELECT 1 FROM appointment a \
-                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
-                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
-                 WHERE a.patient_id = $1 \
-                   AND a.deleted_at IS NULL \
-                   AND a.status <> 'cancelled' \
-                   AND ps.secretariat_id = $2 \
-                   AND ps.active = true",
+                "SELECT 1 FROM patient p \
+                 WHERE p.id = $1 \
+                   AND (\
+                     EXISTS (\
+                       SELECT 1 FROM appointment a \
+                       JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                       JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                       WHERE a.patient_id = p.id \
+                         AND a.deleted_at IS NULL \
+                         AND a.status <> 'cancelled' \
+                         AND ps.secretariat_id = $2 \
+                         AND ps.active = true\
+                     ) \
+                     OR p.created_by_secretariat_id = $2\
+                   )",
             )
             .bind(patient_id)
             .bind(secretariat_id)
@@ -1382,15 +1392,25 @@ pub async fn upload_patient_document(
     // lister ni relire (404) une fois l'upload fait (#4870).
     if claims.role == "secretary" {
         let in_scope = match claims.secretariat_id {
+            // #5509 : même garde que list_cabinet_patients/get_cabinet_patient (#5428) —
+            // un patient walk-in (quick_create_patient) n'a aucun appointment à la
+            // création, d'où le OR sur created_by_secretariat_id (posé à la création).
             Some(secretariat_id) => sqlx::query(
-                "SELECT 1 FROM appointment a \
-                 JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
-                 JOIN provider_secretariat ps ON ps.provider_id = pr.id \
-                 WHERE a.patient_id = $1 \
-                   AND a.deleted_at IS NULL \
-                   AND a.status <> 'cancelled' \
-                   AND ps.secretariat_id = $2 \
-                   AND ps.active = true",
+                "SELECT 1 FROM patient p \
+                 WHERE p.id = $1 \
+                   AND (\
+                     EXISTS (\
+                       SELECT 1 FROM appointment a \
+                       JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
+                       JOIN provider_secretariat ps ON ps.provider_id = pr.id \
+                       WHERE a.patient_id = p.id \
+                         AND a.deleted_at IS NULL \
+                         AND a.status <> 'cancelled' \
+                         AND ps.secretariat_id = $2 \
+                         AND ps.active = true\
+                     ) \
+                     OR p.created_by_secretariat_id = $2\
+                   )",
             )
             .bind(patient_id)
             .bind(secretariat_id)

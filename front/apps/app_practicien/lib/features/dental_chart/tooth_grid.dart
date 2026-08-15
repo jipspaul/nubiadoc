@@ -5,6 +5,7 @@
 //! (#4048) colore selon la sélection courante — même grille, deux usages.
 
 import 'package:flutter/material.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 
 // Quadrants FDI : Q1 haut-droit, Q2 haut-gauche, Q3 bas-gauche, Q4 bas-droit
 // (permanent, 1-4) ; Q5-Q8 mêmes positions en denture lait.
@@ -56,6 +57,8 @@ class ToothGrid extends StatelessWidget {
     required this.onTap,
     this.keyPrefix = 'tooth',
     this.toothSize = ToothButton.defaultSize,
+    this.borderColorFor,
+    this.isSelected,
   });
 
   final FdiQuadrants quadrants;
@@ -67,6 +70,13 @@ class ToothGrid extends StatelessWidget {
   /// consultation PC (#4940) passe 44×50 pour des cibles tactiles.
   final Size toothSize;
 
+  /// Couleur de bordure par dent (ex. ambre « à surveiller », consultation
+  /// PC #4949) — `null` conserve la bordure grise historique.
+  final Color Function(String toothCode)? borderColorFor;
+
+  /// Dent sélectionnée : contour foncé épais (consultation PC #4949).
+  final bool Function(String toothCode)? isSelected;
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -77,6 +87,8 @@ class ToothGrid extends StatelessWidget {
           onTap: onTap,
           keyPrefix: keyPrefix,
           toothSize: toothSize,
+          borderColorFor: borderColorFor,
+          isSelected: isSelected,
         ),
         ToothRow(
           codes: quadrants.upperLeft,
@@ -84,6 +96,8 @@ class ToothGrid extends StatelessWidget {
           onTap: onTap,
           keyPrefix: keyPrefix,
           toothSize: toothSize,
+          borderColorFor: borderColorFor,
+          isSelected: isSelected,
         ),
         const SizedBox(height: 16),
         ToothRow(
@@ -92,6 +106,8 @@ class ToothGrid extends StatelessWidget {
           onTap: onTap,
           keyPrefix: keyPrefix,
           toothSize: toothSize,
+          borderColorFor: borderColorFor,
+          isSelected: isSelected,
         ),
         ToothRow(
           codes: quadrants.lowerLeft,
@@ -99,6 +115,8 @@ class ToothGrid extends StatelessWidget {
           onTap: onTap,
           keyPrefix: keyPrefix,
           toothSize: toothSize,
+          borderColorFor: borderColorFor,
+          isSelected: isSelected,
         ),
       ],
     );
@@ -113,6 +131,8 @@ class ToothRow extends StatelessWidget {
     required this.onTap,
     this.keyPrefix = 'tooth',
     this.toothSize = ToothButton.defaultSize,
+    this.borderColorFor,
+    this.isSelected,
   });
 
   final List<String> codes;
@@ -120,6 +140,8 @@ class ToothRow extends StatelessWidget {
   final void Function(String toothCode) onTap;
   final String keyPrefix;
   final Size toothSize;
+  final Color Function(String toothCode)? borderColorFor;
+  final bool Function(String toothCode)? isSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +157,8 @@ class ToothRow extends StatelessWidget {
               color: colorFor(code),
               onTap: () => onTap(code),
               size: toothSize,
+              borderColor: borderColorFor?.call(code),
+              selected: isSelected?.call(code) ?? false,
             ),
           ),
       ],
@@ -149,6 +173,8 @@ class ToothButton extends StatelessWidget {
     required this.color,
     required this.onTap,
     this.size = defaultSize,
+    this.borderColor,
+    this.selected = false,
   });
 
   /// Taille historique (schéma dentaire patient, `DentalChartPage`).
@@ -158,6 +184,12 @@ class ToothButton extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   final Size size;
+
+  /// `null` conserve la bordure grise historique.
+  final Color? borderColor;
+
+  /// Contour foncé épais (`n900`) de la dent sélectionnée (#4949).
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +201,12 @@ class ToothButton extends StatelessWidget {
         height: size.height,
         decoration: BoxDecoration(
           color: color,
-          border: Border.all(color: Colors.grey.shade400),
+          border: Border.all(
+            color: selected
+                ? NubiaColors.n900
+                : (borderColor ?? Colors.grey.shade400),
+            width: selected ? 2.5 : 1,
+          ),
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
