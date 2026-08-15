@@ -290,6 +290,26 @@ void main() {
       );
     });
 
+    testWidgets(
+        'chip favori (#4969) : libellé + code CCAM, cible tactile ≥ 44px',
+        (tester) async {
+      when(() => favoritesUseCase.list())
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester.pumpWidget(
+        _wrap(useCase, submitted.add, favoritesUseCase: favoritesUseCase),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Détartrage'), findsOneWidget);
+      expect(find.text('HBLD001'), findsOneWidget);
+
+      final chipHeight = tester
+          .getSize(find.byKey(const Key('ccam_favorite_HBLD001')))
+          .height;
+      expect(chipHeight, greaterThanOrEqualTo(44));
+    });
+
     testWidgets('aucun favori → section favoris absente', (tester) async {
       when(() => favoritesUseCase.list()).thenAnswer((_) async => []);
 
@@ -317,15 +337,25 @@ void main() {
       expect(find.byKey(const Key('act_editor')), findsOneWidget);
     });
 
-    testWidgets('désépingler un favori appelle remove() et recharge la liste',
-        (tester) async {
+    testWidgets(
+        'désépingler depuis les résultats de recherche appelle remove() et '
+        'recharge la liste', (tester) async {
+      // Les chips favoris (#4969) sont des cibles tactiles d'ajout pur (sans
+      // bouton épingle) ; le désépinglage reste possible depuis les
+      // résultats de recherche, comme pour tout acte non favori.
       when(() => favoritesUseCase.list())
+          .thenAnswer((_) async => [_actDetartrage]);
+      when(() => useCase.search(any()))
           .thenAnswer((_) async => [_actDetartrage]);
       when(() => favoritesUseCase.remove('HBLD001')).thenAnswer((_) async {});
 
       await tester.pumpWidget(
         _wrap(useCase, submitted.add, favoritesUseCase: favoritesUseCase),
       );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'déta');
       await tester.pumpAndSettle();
 
       when(() => favoritesUseCase.list()).thenAnswer((_) async => []);
