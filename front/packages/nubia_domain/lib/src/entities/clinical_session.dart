@@ -57,6 +57,30 @@ class MedicalAlert extends Equatable {
   List<Object?> get props => [kind, label];
 }
 
+/// Résumé du plan de traitement actif du patient (détail uniquement, absent
+/// de la route liste — #4938), pour l'encart « Plan en cours » de la colonne
+/// contexte gauche. `currentPhase` compte les phases terminées + 1 (bornée à
+/// `totalPhases`) : phase en cours = première phase non terminée.
+class ActivePlanSummary extends Equatable {
+  final String id;
+  final String title;
+  final int currentPhase;
+  final int totalPhases;
+  final int totalCostCents;
+
+  const ActivePlanSummary({
+    required this.id,
+    required this.title,
+    required this.currentPhase,
+    required this.totalPhases,
+    required this.totalCostCents,
+  });
+
+  @override
+  List<Object?> get props =>
+      [id, title, currentPhase, totalPhases, totalCostCents];
+}
+
 /// The clinical session context returned by GET /v1/cabinet/consultations/{id}.
 class ClinicalSession extends Equatable {
   final String id;
@@ -97,6 +121,12 @@ class ClinicalSession extends Equatable {
   /// jamais affiché vide.
   final DateTime? lastVisitDate;
 
+  /// Plan de traitement actif du patient (détail uniquement — absent de la
+  /// route liste, #4938). `null` si le patient n'a aucun plan `in_progress`
+  /// — jamais de plan inventé. Navigation vers
+  /// `.../patients/:id/treatment-plans` via [patientId] ci-dessus.
+  final ActivePlanSummary? activePlan;
+
   const ClinicalSession({
     required this.id,
     required this.appointmentId,
@@ -110,6 +140,7 @@ class ClinicalSession extends Equatable {
     this.patientBirthDate,
     this.medicalAlerts = const [],
     this.lastVisitDate,
+    this.activePlan,
   });
 
   bool get isCompleted => status == 'completed';
@@ -136,6 +167,7 @@ class ClinicalSession extends Equatable {
         patientBirthDate,
         medicalAlerts,
         lastVisitDate,
+        activePlan,
       ];
 }
 

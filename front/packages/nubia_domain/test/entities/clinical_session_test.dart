@@ -60,6 +60,19 @@ void main() {
       );
       expect(session.medicalAlerts, isEmpty);
     });
+
+    // #4938 — encart « Plan en cours » : nul par défaut, jamais de plan
+    // inventé pour un patient sans plan actif.
+    test('activePlan et patientId sont nuls par défaut', () {
+      const session = ClinicalSession(
+        id: 'h1',
+        appointmentId: 'a1',
+        status: 'in_progress',
+        acts: [],
+      );
+      expect(session.activePlan, isNull);
+      expect(session.patientId, isNull);
+    });
   });
 
   group('MedicalAlert', () {
@@ -67,6 +80,34 @@ void main() {
       const a = MedicalAlert(kind: 'allergie', label: 'Pénicilline');
       const b = MedicalAlert(kind: 'allergie', label: 'Pénicilline');
       const c = MedicalAlert(kind: 'medico_legal', label: 'Pénicilline');
+      expect(a, equals(b));
+      expect(a, isNot(equals(c)));
+    });
+  });
+
+  group('ActivePlanSummary', () {
+    test('égalité structurelle', () {
+      const a = ActivePlanSummary(
+        id: 'plan-1',
+        title: 'Réhabilitation secteur 2',
+        currentPhase: 2,
+        totalPhases: 3,
+        totalCostCents: 163592,
+      );
+      const b = ActivePlanSummary(
+        id: 'plan-1',
+        title: 'Réhabilitation secteur 2',
+        currentPhase: 2,
+        totalPhases: 3,
+        totalCostCents: 163592,
+      );
+      const c = ActivePlanSummary(
+        id: 'plan-2',
+        title: 'Réhabilitation secteur 2',
+        currentPhase: 2,
+        totalPhases: 3,
+        totalCostCents: 163592,
+      );
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
     });

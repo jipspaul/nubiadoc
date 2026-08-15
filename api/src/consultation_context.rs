@@ -56,6 +56,20 @@ pub struct MedicalAlertItem {
     pub label: String,
 }
 
+/// Résumé du plan de traitement actif du patient, pour l'encart « Plan en
+/// cours » de la colonne contexte gauche (#4938). `current_phase` compte les
+/// phases `done` + 1 (bornée à `total_phases`) : phase en cours = première
+/// phase non terminée. `total_cost_cents` = somme des `quote_item` liés aux
+/// phases du plan.
+#[derive(Serialize)]
+pub struct ActivePlanItem {
+    pub id: Uuid,
+    pub title: String,
+    pub current_phase: i64,
+    pub total_phases: i64,
+    pub total_cost_cents: i64,
+}
+
 /// Réponse de `GET /v1/cabinet/consultations/:id`.
 #[derive(Serialize)]
 pub struct ConsultationContextResponse {
@@ -83,6 +97,11 @@ pub struct ConsultationContextResponse {
     /// structurés, #4103). Tableau vide si le dossier n'a aucune alerte —
     /// jamais d'entrée inventée côté front (#4936).
     pub medical_alerts: Vec<MedicalAlertItem>,
+    /// Plan de traitement actif du patient (statut `in_progress`, le plus
+    /// récent, au moins une phase) — encart « Plan en cours » (#4938).
+    /// `None` si aucun plan actif — jamais de plan inventé.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_plan: Option<ActivePlanItem>,
 }
 
 /// `GET /v1/cabinet/consultations/:id` — contexte clinique d'une séance au fauteuil.
@@ -223,6 +242,64 @@ pub async fn get_consultation_context(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Plan de traitement actif (#4938) — plan `in_progress` le plus récent du
+    // patient, avec ses phases et le coût total (quote_item liés).
+    let active_plan_row = sqlx::query(
+        "SELECT id, title FROM treatment_plan \
+         WHERE patient_id = $1 AND cabinet_id = $2 AND status = 'in_progress' \
+           AND deleted_at IS NULL \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(patient_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let mut active_plan: Option<ActivePlanItem> = None;
+    if let Some(plan_row) = active_plan_row {
+        let plan_id: Uuid = plan_row.try_get("id").map_err(|_| AppError::Internal)?;
+        let title: String = plan_row.try_get("title").map_err(|_| AppError::Internal)?;
+
+        let phase_status_rows = sqlx::query(
+            "SELECT status FROM treatment_phase WHERE plan_id = $1 ORDER BY position ASC",
+        )
+        .bind(plan_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        let total_phases = phase_status_rows.len() as i64;
+        if total_phases > 0 {
+            let done_count = phase_status_rows
+                .iter()
+                .take_while(|row| {
+                    row.try_get::<String, _>("status").ok().as_deref() == Some("done")
+                })
+                .count() as i64;
+            let current_phase = (done_count + 1).min(total_phases);
+
+            let total_cost_cents: i64 = sqlx::query_scalar(
+                "SELECT COALESCE(SUM(qi.unit_amount * 100), 0)::bigint \
+                 FROM quote_item qi \
+                 JOIN treatment_phase tph ON tph.id = qi.phase_id \
+                 WHERE tph.plan_id = $1",
+            )
+            .bind(plan_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+            active_plan = Some(ActivePlanItem {
+                id: plan_id,
+                title,
+                current_phase,
+                total_phases,
+                total_cost_cents,
+            });
+        }
+    }
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let mut medical_alerts: Vec<MedicalAlertItem> = Vec::new();
@@ -293,6 +370,7 @@ pub async fn get_consultation_context(
         patient_name,
         patient_birth_date: patient_birth_date.map(|d| d.to_string()),
         medical_alerts,
+        active_plan,
     }))
 }
 

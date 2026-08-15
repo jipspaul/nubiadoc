@@ -361,6 +361,8 @@ class _LoadedViewState extends State<_LoadedView> {
                       child: ContextColumn(
                         key: const Key('consultation_context_panel'),
                         alerts: session.medicalAlerts,
+                        patientId: session.patientId,
+                        activePlan: session.activePlan,
                       ),
                     ),
                     Expanded(child: centerColumn),
