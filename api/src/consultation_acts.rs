@@ -103,7 +103,7 @@ pub async fn list_consultation_acts(
     }
 
     let act_rows = sqlx::query(
-        "SELECT id, ccam_code, label, tooth, amount_cents \
+        "SELECT id, ccam_code, label, tooth, amount_cents, created_at \
          FROM consultation_act \
          WHERE appointment_id = $1 AND cabinet_id = $2 \
          ORDER BY created_at ASC",
@@ -125,12 +125,15 @@ pub async fn list_consultation_acts(
         let amount_cents: i32 = row
             .try_get("amount_cents")
             .map_err(|_| AppError::Internal)?;
+        let act_created_at: chrono::DateTime<chrono::Utc> =
+            row.try_get("created_at").map_err(|_| AppError::Internal)?;
         data.push(ConsultationActItem {
             id: act_id,
             ccam_code,
             label,
             tooth,
             amount_cents,
+            created_at: act_created_at.to_rfc3339(),
         });
     }
 

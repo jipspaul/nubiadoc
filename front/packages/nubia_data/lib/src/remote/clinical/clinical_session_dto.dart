@@ -7,6 +7,7 @@ class ClinicalActDto {
   final String? tooth;
   final int? amountCents;
   final bool included;
+  final String? createdAt;
 
   const ClinicalActDto({
     required this.id,
@@ -15,6 +16,7 @@ class ClinicalActDto {
     this.tooth,
     this.amountCents,
     this.included = false,
+    this.createdAt,
   });
 
   factory ClinicalActDto.fromJson(Map<String, dynamic> json) => ClinicalActDto(
@@ -24,11 +26,14 @@ class ClinicalActDto {
     tooth: json['tooth'] as String?,
     amountCents: (json['amount_cents'] as num?)?.toInt(),
     included: (json['included'] as bool?) ?? false,
+    createdAt: json['created_at'] as String?,
   );
 
   /// POST .../acts renvoie seulement `{ act_id }` (vérifié en live), pas
   /// l'acte complet (#3697, même schéma que le confirm RDV JEL-19) : on
   /// reconstruit le DTO à partir de la réponse et des champs envoyés.
+  /// `createdAt` n'est pas renvoyé par cette route ; l'appelant peut fournir
+  /// l'horodatage local d'ajout (#4950).
   factory ClinicalActDto.fromCreateResponse(
     Map<String, dynamic> json, {
     required String ccamCode,
@@ -36,6 +41,7 @@ class ClinicalActDto {
     String? tooth,
     int? amountCents,
     required bool included,
+    DateTime? createdAt,
   }) => ClinicalActDto(
     id: json['act_id'] as String,
     ccamCode: ccamCode,
@@ -43,6 +49,7 @@ class ClinicalActDto {
     tooth: tooth,
     amountCents: amountCents,
     included: included,
+    createdAt: createdAt?.toIso8601String(),
   );
 
   ClinicalAct toDomain() => ClinicalAct(
@@ -52,6 +59,7 @@ class ClinicalActDto {
     tooth: tooth,
     amountCents: amountCents,
     included: included,
+    createdAt: createdAt == null ? null : DateTime.tryParse(createdAt!),
   );
 }
 

@@ -9,6 +9,11 @@ class ClinicalAct extends Equatable {
   final int? amountCents;
   final bool included;
 
+  /// Horodatage d'ajout de l'acte (#4950 — heure `HH:MM` affichée sur la
+  /// ligne d'acte). `null` uniquement pour un acte reconstruit localement
+  /// depuis une réponse de création qui ne renvoie pas cette donnée.
+  final DateTime? createdAt;
+
   const ClinicalAct({
     required this.id,
     required this.ccamCode,
@@ -16,11 +21,12 @@ class ClinicalAct extends Equatable {
     this.tooth,
     this.amountCents,
     this.included = false,
+    this.createdAt,
   });
 
   @override
   List<Object?> get props =>
-      [id, ccamCode, label, tooth, amountCents, included];
+      [id, ccamCode, label, tooth, amountCents, included, createdAt];
 }
 
 /// Alerte médicale passive du dossier patient (allergie ou flag

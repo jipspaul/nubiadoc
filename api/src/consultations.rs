@@ -602,7 +602,8 @@ pub async fn list_consultations(
                     AND ca.cabinet_id = cs.cabinet_id) AS acts_count, \
                 fa.id AS first_act_id, fa.ccam_code AS first_act_ccam_code, \
                 fa.label AS first_act_label, fa.tooth AS first_act_tooth, \
-                fa.amount_cents AS first_act_amount_cents \
+                fa.amount_cents AS first_act_amount_cents, \
+                fa.created_at AS first_act_created_at \
          FROM consultation_session cs \
          JOIN appointment a ON a.id = cs.appointment_id \
          LEFT JOIN patient pat ON pat.id = a.patient_id \
@@ -610,7 +611,7 @@ pub async fn list_consultations(
          LEFT JOIN provider prov ON prov.practitioner_id = cs.practitioner_id \
                                  AND prov.cabinet_id = cs.cabinet_id \
          LEFT JOIN LATERAL ( \
-             SELECT ca.id, ca.ccam_code, ca.label, ca.tooth, ca.amount_cents \
+             SELECT ca.id, ca.ccam_code, ca.label, ca.tooth, ca.amount_cents, ca.created_at \
              FROM consultation_act ca \
              WHERE ca.appointment_id = cs.appointment_id \
                AND ca.cabinet_id = cs.cabinet_id \
@@ -656,6 +657,9 @@ pub async fn list_consultations(
             let first_act_amount_cents: Option<i32> = r
                 .try_get("first_act_amount_cents")
                 .map_err(|_| AppError::Internal)?;
+            let first_act_created_at: Option<chrono::DateTime<chrono::Utc>> = r
+                .try_get("first_act_created_at")
+                .map_err(|_| AppError::Internal)?;
             let acts = match (first_act_id, first_act_ccam_code, first_act_label) {
                 (Some(id), Some(ccam_code), Some(label)) => vec![ConsultationActItem {
                     id,
@@ -663,6 +667,9 @@ pub async fn list_consultations(
                     label,
                     tooth: first_act_tooth,
                     amount_cents: first_act_amount_cents.unwrap_or(0),
+                    created_at: first_act_created_at
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_default(),
                 }],
                 _ => vec![],
             };
