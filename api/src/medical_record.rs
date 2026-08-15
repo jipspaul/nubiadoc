@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims},
+    consultation_context::{allergy_label, medico_legal_alerts, MedicalAlertItem},
     AppState,
 };
 
@@ -53,6 +54,11 @@ pub struct MedicalRecordResponse {
     pub treatments: Vec<serde_json::Value>,
     pub history: Option<String>,
     pub medico_legal: MedicoLegalFlags,
+    /// Alertes affichables dérivées de `allergies` + `medico_legal` (#4974) —
+    /// même calcul que `consultation_context.rs::get_consultation_context`
+    /// (allergie + flags médico-légaux à `true`), pour que la fiche patient
+    /// affiche les mêmes pastilles d'alerte que la consultation au fauteuil.
+    pub medical_alerts: Vec<MedicalAlertItem>,
 }
 
 /// Corps de `PATCH /v1/cabinet/patients/:id/medical-record`.
@@ -164,6 +170,7 @@ pub async fn get_medical_record(
             treatments: vec![],
             history: None,
             medico_legal: MedicoLegalFlags::default(),
+            medical_alerts: vec![],
         },
         Some(row) => {
             let ciphertext: Vec<u8> = row
@@ -179,16 +186,27 @@ pub async fn get_medical_record(
             let treatments = data["treatments"].as_array().cloned().unwrap_or_default();
             let history = data["history"].as_str().map(|s| s.to_string());
             // Absent sur les dossiers créés avant #4103 : tout à false (Default).
-            let medico_legal = data
+            let medico_legal: MedicoLegalFlags = data
                 .get("medico_legal")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default();
+
+            let mut medical_alerts: Vec<MedicalAlertItem> = allergies
+                .iter()
+                .filter_map(allergy_label)
+                .map(|label| MedicalAlertItem {
+                    kind: "allergie".to_string(),
+                    label,
+                })
+                .collect();
+            medical_alerts.extend(medico_legal_alerts(&medico_legal));
 
             MedicalRecordResponse {
                 allergies,
                 treatments,
                 history,
                 medico_legal,
+                medical_alerts,
             }
         }
     };
@@ -356,10 +374,20 @@ pub async fn patch_medical_record(
     let allergies = merged["allergies"].as_array().cloned().unwrap_or_default();
     let treatments = merged["treatments"].as_array().cloned().unwrap_or_default();
     let history = merged["history"].as_str().map(|s| s.to_string());
-    let medico_legal = merged
+    let medico_legal: MedicoLegalFlags = merged
         .get("medico_legal")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default();
+
+    let mut medical_alerts: Vec<MedicalAlertItem> = allergies
+        .iter()
+        .filter_map(allergy_label)
+        .map(|label| MedicalAlertItem {
+            kind: "allergie".to_string(),
+            label,
+        })
+        .collect();
+    medical_alerts.extend(medico_legal_alerts(&medico_legal));
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
@@ -373,5 +401,6 @@ pub async fn patch_medical_record(
         treatments,
         history,
         medico_legal,
+        medical_alerts,
     }))
 }

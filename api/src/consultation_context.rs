@@ -301,7 +301,10 @@ pub async fn get_consultation_context(
 /// `medical_record_dto.dart::_entryToDisplayString` : chaîne brute ou objet
 /// `{"name"|"label": "..."}`). `None` si l'entrée est vide/illisible — jamais
 /// d'alerte inventée.
-fn allergy_label(entry: &serde_json::Value) -> Option<String> {
+///
+/// `pub(crate)` — réutilisé par `medical_record.rs` (#4974) pour exposer les
+/// mêmes pastilles d'alerte dans l'en-tête de la fiche patient qu'au fauteuil.
+pub(crate) fn allergy_label(entry: &serde_json::Value) -> Option<String> {
     let label = if let Some(s) = entry.as_str() {
         s
     } else {
@@ -320,7 +323,9 @@ fn allergy_label(entry: &serde_json::Value) -> Option<String> {
 
 /// Traduit les flags médico-légaux structurés (#4103) en alertes affichables.
 /// Seuls les flags à `true` produisent une entrée.
-fn medico_legal_alerts(flags: &MedicoLegalFlags) -> Vec<MedicalAlertItem> {
+///
+/// `pub(crate)` — réutilisé par `medical_record.rs` (#4974), cf. [allergy_label].
+pub(crate) fn medico_legal_alerts(flags: &MedicoLegalFlags) -> Vec<MedicalAlertItem> {
     let mut alerts = Vec::new();
     if flags.anticoagulants {
         alerts.push(MedicalAlertItem {
