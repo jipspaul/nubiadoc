@@ -8,6 +8,7 @@ class StockRequestDto {
   final String status;
   final String? responseNote;
   final String createdAt;
+  final String? fulfilledAt;
 
   const StockRequestDto({
     required this.id,
@@ -17,6 +18,7 @@ class StockRequestDto {
     required this.status,
     this.responseNote,
     required this.createdAt,
+    this.fulfilledAt,
   });
 
   factory StockRequestDto.fromJson(Map<String, dynamic> json) =>
@@ -31,6 +33,7 @@ class StockRequestDto {
         responseNote: json['response_note'] as String?,
         createdAt: json['created_at'] as String? ??
             DateTime.fromMillisecondsSinceEpoch(0).toIso8601String(),
+        fulfilledAt: json['fulfilled_at'] as String?,
       );
 
   StockRequest toDomain() => StockRequest(
@@ -50,6 +53,7 @@ class StockRequestDto {
         status: _parseStatus(status),
         responseNote: responseNote,
         createdAt: DateTime.parse(createdAt),
+        fulfilledAt: fulfilledAt != null ? DateTime.parse(fulfilledAt!) : null,
       );
 
   static StockItemAvailability? _parseAvailability(
