@@ -23,6 +23,16 @@ void main() {
     addTearDown(GetIt.instance.reset);
   });
 
+  // app_practicien est desktop/tablet uniquement : la surface de test par
+  // défaut (800px) est plus étroite que tout écran réel et ne laisse pas
+  // assez de place à l'arcade sur une seule rangée (design-v2, #4960).
+  Future<void> setSurface(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
   Widget buildBox({
     String? selectedTooth,
     ValueChanged<String>? onToothTap,
@@ -42,6 +52,7 @@ void main() {
 
   testWidgets('arcade visible en permanence avec titre et légende',
       (tester) async {
+    await setSurface(tester);
     when(() => getChart('pat-1')).thenAnswer(
       (_) async =>
           Right(DentalChart(teeth: const {}, updatedAt: DateTime(2026, 1, 1))),
@@ -66,6 +77,7 @@ void main() {
   testWidgets(
       'colore par statut : acte de la séance, antérieur, à surveiller, saine',
       (tester) async {
+    await setSurface(tester);
     when(() => getChart('pat-1')).thenAnswer(
       (_) async => Right(
         DentalChart(
@@ -99,6 +111,7 @@ void main() {
 
   testWidgets('un tap sur une dent la sélectionne (comportement toggle)',
       (tester) async {
+    await setSurface(tester);
     when(() => getChart('pat-1')).thenAnswer(
       (_) async =>
           Right(DentalChart(teeth: const {}, updatedAt: DateTime(2026, 1, 1))),
@@ -110,13 +123,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('consultation_tooth_26')));
+    final tooth26 = find.byKey(const Key('consultation_tooth_26'));
+    await tester.ensureVisible(tooth26);
+    await tester.pumpAndSettle();
+    await tester.tap(tooth26);
     await tester.pumpAndSettle();
 
     expect(tapped, '26');
   });
 
   testWidgets('la dent sélectionnée a un contour épais', (tester) async {
+    await setSurface(tester);
     when(() => getChart('pat-1')).thenAnswer(
       (_) async =>
           Right(DentalChart(teeth: const {}, updatedAt: DateTime(2026, 1, 1))),
