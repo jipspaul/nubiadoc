@@ -8,10 +8,13 @@
 //! constitue la revue humaine obligatoire exigée par l'issue — jamais
 //! d'import automatique silencieux au chargement de la fiche.
 
+import 'package:dartz/dartz.dart' hide State;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
+
+import 'async_section_state.dart';
 
 class MedicalQuestionnaireReviewSection extends StatefulWidget {
   const MedicalQuestionnaireReviewSection({super.key, required this.patientId});
@@ -24,37 +27,17 @@ class MedicalQuestionnaireReviewSection extends StatefulWidget {
 }
 
 class _MedicalQuestionnaireReviewSectionState
-    extends State<MedicalQuestionnaireReviewSection> {
-  MedicalQuestionnaire? _submission;
-  bool _loading = true;
+    extends State<MedicalQuestionnaireReviewSection>
+    with
+        AsyncSectionState<MedicalQuestionnaire?,
+            MedicalQuestionnaireReviewSection> {
   bool _reviewing = false;
-  String? _error;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final result =
-        await GetIt.instance<GetCabinetMedicalQuestionnaireUseCase>()(
-      widget.patientId,
-    );
-    if (!mounted) return;
-    result.fold(
-      (failure) => setState(() {
-        _error = failure.message;
-        _loading = false;
-      }),
-      (submission) => setState(() {
-        _submission = submission;
-        _error = null;
-        _loading = false;
-      }),
-    );
-  }
+  Future<Either<Failure, MedicalQuestionnaire?>> fetchSection() =>
+      GetIt.instance<GetCabinetMedicalQuestionnaireUseCase>()(
+        widget.patientId,
+      );
 
   Future<void> _confirmAndReview() async {
     final confirmed = await showDialog<bool>(
@@ -96,7 +79,7 @@ class _MedicalQuestionnaireReviewSectionState
           const SnackBar(
               content: Text('Questionnaire importé au dossier médical.')),
         );
-        _load();
+        loadSection();
       },
     );
   }
@@ -104,7 +87,7 @@ class _MedicalQuestionnaireReviewSectionState
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final submission = _submission;
+    final submission = data;
     final pending = submission != null && submission.status == 'submitted';
 
     return NubiaCard(
@@ -123,9 +106,9 @@ class _MedicalQuestionnaireReviewSectionState
             ],
           ),
           const SizedBox(height: 8),
-          if (_error != null)
-            Text(_error!, style: TextStyle(color: cs.error))
-          else if (_loading)
+          if (error != null)
+            NubiaErrorWidget(message: error!, onRetry: loadSection)
+          else if (loading)
             const NubiaSkeletonLoader(height: 48, borderRadius: 8)
           else if (!pending)
             Text(
