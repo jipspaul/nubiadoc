@@ -52,6 +52,7 @@ class PatientOrderDetailBody extends StatelessWidget {
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
+                  key: const Key('order_detail_column'),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
