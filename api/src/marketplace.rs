@@ -1271,6 +1271,20 @@ pub struct SlotHoldResponse {
     pub expires_at: String,
 }
 
+/// Détecte une violation de contrainte FOREIGN KEY Postgres (SQLSTATE `23503`).
+/// Utilisé par `hold_slot` : un JWT leurre anti-énumération (#4436,
+/// `decoy_register_response`) porte un `sub` qui ne correspond à aucune ligne
+/// `app_user`, donc l'INSERT dans `slot_holds` (FK `user_id → app_user(id)`,
+/// migration 0095) échoue — ce n'est pas une panne serveur mais un jeton
+/// invalide, à distinguer d'une vraie erreur DB (→ 500) pour répondre `401`
+/// plutôt que `500 internal_error` (#5629).
+fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
+    matches!(
+        e,
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23503")
+    )
+}
+
 /// `POST /v1/slots/:id/hold` — bloque un créneau 10 min (marketplace, issue
 /// #1659 ; durée alignée sur la maquette design-v2 par #5363).
 ///
@@ -1278,6 +1292,8 @@ pub struct SlotHoldResponse {
 /// `slot_holds`, passe le slot en `status='held'`. Contrainte UNIQUE sur
 /// `slot_id` → `409 slot_taken` si déjà held par un autre patient.
 /// Slot inexistant → `404`. Slot `held` ou `booked` → `409 slot_taken`.
+/// JWT dont le `sub` ne correspond à aucun `app_user` (leurre anti-énum
+/// #4436) → `401 unauthorized` plutôt qu'un `500` (#5629).
 pub async fn hold_slot(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -1299,7 +1315,13 @@ pub async fn hold_slot(
             .bind(&hold_token)
             .fetch_one(&mut *tx)
             .await
-            .map_err(|_| AppError::Internal)?;
+            .map_err(|e| {
+                if is_foreign_key_violation(&e) {
+                    AppError::Unauthorized
+                } else {
+                    AppError::Internal
+                }
+            })?;
 
     let claim_result: Option<String> = row
         .try_get("claim_result")
