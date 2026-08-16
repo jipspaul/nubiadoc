@@ -26,6 +26,8 @@ class NubiaTokens extends ThemeExtension<NubiaTokens> {
   final Color dangerBg;
   final Color infoFg;
   final Color infoBg;
+  final Color neutralFg;
+  final Color neutralBg;
   final Color accent; // sable
 
   const NubiaTokens({
@@ -42,6 +44,8 @@ class NubiaTokens extends ThemeExtension<NubiaTokens> {
     required this.dangerBg,
     required this.infoFg,
     required this.infoBg,
+    required this.neutralFg,
+    required this.neutralBg,
     required this.accent,
   });
 
@@ -60,6 +64,8 @@ class NubiaTokens extends ThemeExtension<NubiaTokens> {
     dangerBg: NubiaColors.dangerBg,
     infoFg: NubiaColors.infoFg,
     infoBg: NubiaColors.infoBg,
+    neutralFg: NubiaColors.n600,
+    neutralBg: NubiaColors.n100,
     accent: NubiaColors.sand500,
   );
 
@@ -78,6 +84,8 @@ class NubiaTokens extends ThemeExtension<NubiaTokens> {
     dangerBg: Color(0xFF2A1212),
     infoFg: Color(0xFF38BDF8),
     infoBg: Color(0xFF082530),
+    neutralFg: NubiaColors.n300,
+    neutralBg: NubiaColors.n800,
     accent: NubiaColors.sand500,
   );
 
@@ -96,6 +104,8 @@ class NubiaTokens extends ThemeExtension<NubiaTokens> {
     Color? dangerBg,
     Color? infoFg,
     Color? infoBg,
+    Color? neutralFg,
+    Color? neutralBg,
     Color? accent,
   }) {
     return NubiaTokens(
@@ -112,6 +122,8 @@ class NubiaTokens extends ThemeExtension<NubiaTokens> {
       dangerBg: dangerBg ?? this.dangerBg,
       infoFg: infoFg ?? this.infoFg,
       infoBg: infoBg ?? this.infoBg,
+      neutralFg: neutralFg ?? this.neutralFg,
+      neutralBg: neutralBg ?? this.neutralBg,
       accent: accent ?? this.accent,
     );
   }
@@ -135,6 +147,8 @@ class NubiaTokens extends ThemeExtension<NubiaTokens> {
       dangerBg: Color.lerp(dangerBg, other.dangerBg, t)!,
       infoFg: Color.lerp(infoFg, other.infoFg, t)!,
       infoBg: Color.lerp(infoBg, other.infoBg, t)!,
+      neutralFg: Color.lerp(neutralFg, other.neutralFg, t)!,
+      neutralBg: Color.lerp(neutralBg, other.neutralBg, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
     );
   }
