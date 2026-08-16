@@ -253,12 +253,14 @@ pub struct ListCabinetQuotesQuery {
 /// ici plutôt qu'inventer un canal de configuration non demandé par l'issue.
 const OVERDUE_THRESHOLD_DAYS: i64 = 30;
 
-/// Durée de validité d'un devis (jours) à compter de son envoi (#5597) :
-/// `quote.expires_at` est posé à `sent_at + QUOTE_VALIDITY_DAYS` au moment de
-/// l'envoi (`send_cabinet_quote`) — aucune valeur configurable par cabinet
-/// dans le schéma actuel, valeur fixe documentée ici comme `OVERDUE_THRESHOLD_DAYS`
-/// ci-dessus.
-pub(crate) const QUOTE_VALIDITY_DAYS: i64 = 30;
+/// Durée de validité d'un devis envoyé, en jours (#5597) : `quote` n'a pas de
+/// colonne d'échéance, seulement `sent_at` (migration 0206, #4126). Comme
+/// pour `OVERDUE_THRESHOLD_DAYS` ci-dessus, pas de mécanisme de configuration
+/// par cabinet dans le schéma actuel — valeur fixe (convention usuelle d'un
+/// devis dentaire) plutôt qu'inventer un canal de configuration non demandé
+/// par l'issue. `expires_at = sent_at + QUOTE_VALIDITY_DAYS`, uniquement pour
+/// les devis `sent` (les autres statuts n'ont pas d'échéance qui fasse sens).
+const QUOTE_VALIDITY_DAYS: i64 = 30;
 
 /// Un devis vu du cabinet. `total_amount` en **centimes** (conventions doc12 §1.7).
 #[derive(Serialize)]
@@ -270,9 +272,8 @@ pub struct CabinetQuoteItem {
     pub total_amount: i64,
     pub patient_share_cents: i64,
     pub created_at: String,
-    /// Échéance du devis (`sent_at + QUOTE_VALIDITY_DAYS`), `null` si jamais
-    /// envoyé (#5597 : jamais exposé auparavant, carte/badge « devis qui
-    /// expirent » du dashboard secrétariat structurellement vides).
+    /// `sent_at + QUOTE_VALIDITY_DAYS`, `null` si le devis n'est pas `sent`
+    /// ou n'a jamais été envoyé (#5597).
     pub expires_at: Option<String>,
 }
 
@@ -331,16 +332,24 @@ pub async fn list_cabinet_quotes(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let base_sql = "SELECT q.id, q.patient_id, \
+    // `expires_at` (#5597) : QUOTE_VALIDITY_DAYS est une constante Rust fixe,
+    // pas une valeur utilisateur — l'interpoler dans le SQL est sûr (même
+    // pattern que OVERDUE_THRESHOLD_DAYS dans overdue_sql plus bas).
+    let base_sql = format!(
+        "SELECT q.id, q.patient_id, \
                     trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
                     q.status, (q.total_amount * 100)::bigint AS amount_cents, \
                     (SELECT coalesce(sum((qi.qty * qi.unit_amount \
                         - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
                      FROM quote_item qi WHERE qi.quote_id = q.id) AS patient_share_cents, \
-                    q.created_at, q.expires_at \
+                    q.created_at, \
+                    CASE WHEN q.status = 'sent' AND q.sent_at IS NOT NULL \
+                         THEN q.sent_at + interval '{QUOTE_VALIDITY_DAYS} days' \
+                         ELSE NULL END AS expires_at \
              FROM quote q \
              LEFT JOIN patient p ON p.id = q.patient_id \
-             WHERE q.cabinet_id = $1";
+             WHERE q.cabinet_id = $1"
+    );
 
     // Aucune valeur utilisateur interpolée : uniquement une clause fixe,
     // ajoutée ou non selon `overdue` (les $N restent liés via .bind()).
@@ -499,8 +508,8 @@ pub struct CabinetQuoteDetail {
     pub patient_share_cents: i64,
     pub created_at: String,
     pub signed_at: Option<String>,
-    /// Échéance du devis (`sent_at + QUOTE_VALIDITY_DAYS`), `null` si jamais
-    /// envoyé (#5597).
+    /// `sent_at + QUOTE_VALIDITY_DAYS`, `null` si le devis n'est pas `sent`
+    /// ou n'a jamais été envoyé (#5597).
     pub expires_at: Option<String>,
     pub items: Vec<CabinetQuoteLineItem>,
     /// Pourcentage d'acompte demandé à la création (0..100), `null` si aucun
@@ -532,16 +541,21 @@ pub async fn get_cabinet_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let quote_row = sqlx::query(
+    // `expires_at` (#5597) : QUOTE_VALIDITY_DAYS est une constante Rust fixe,
+    // pas une valeur utilisateur — l'interpoler dans le SQL est sûr (même
+    // pattern que dans list_cabinet_quotes ci-dessus).
+    let quote_row = sqlx::query(&format!(
         "SELECT q.id, q.patient_id, \
                 trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
                 q.status, (q.total_amount * 100)::bigint AS amount_cents, \
-                q.signed_at, q.created_at, q.expires_at, \
-                q.deposit_pct::double precision AS deposit_pct \
+                q.signed_at, q.created_at, q.deposit_pct::double precision AS deposit_pct, \
+                CASE WHEN q.status = 'sent' AND q.sent_at IS NOT NULL \
+                     THEN q.sent_at + interval '{QUOTE_VALIDITY_DAYS} days' \
+                     ELSE NULL END AS expires_at \
          FROM quote q \
          LEFT JOIN patient p ON p.id = q.patient_id \
-         WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL",
-    )
+         WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL"
+    ))
     .bind(id)
     .bind(claims.cabinet_id)
     .fetch_optional(&mut *tx)
@@ -585,11 +599,11 @@ pub async fn get_cabinet_quote(
     let signed_at: Option<chrono::DateTime<chrono::Utc>> = quote_row
         .try_get("signed_at")
         .map_err(|_| AppError::Internal)?;
-    let expires_at: Option<chrono::DateTime<chrono::Utc>> = quote_row
-        .try_get("expires_at")
-        .map_err(|_| AppError::Internal)?;
     let created_at: chrono::DateTime<chrono::Utc> = quote_row
         .try_get("created_at")
+        .map_err(|_| AppError::Internal)?;
+    let expires_at: Option<chrono::DateTime<chrono::Utc>> = quote_row
+        .try_get("expires_at")
         .map_err(|_| AppError::Internal)?;
     let deposit_pct: Option<f64> = quote_row
         .try_get("deposit_pct")
@@ -718,17 +732,12 @@ pub async fn send_cabinet_quote(
         // #4126 : sent_at pose la date de départ du calendrier de relance
         // J+3/J+7 (quote_relance_dispatch.rs) — jamais réécrit après (guard
         // idempotence status=='sent' ci-dessus empêche un second UPDATE).
-        // #5597 : expires_at posé dans la même écriture (sent_at + QUOTE_VALIDITY_DAYS)
-        // — sans quoi la carte/badge « devis qui expirent » du dashboard
-        // secrétariat restent structurellement vides.
-        "UPDATE quote SET status = 'sent', sent_at = now(), \
-         expires_at = now() + make_interval(days => $3), updated_at = now() \
+        "UPDATE quote SET status = 'sent', sent_at = now(), updated_at = now() \
          WHERE id = $1 AND cabinet_id = $2 \
          RETURNING status",
     )
     .bind(id)
     .bind(claims.cabinet_id)
-    .bind(QUOTE_VALIDITY_DAYS as i32)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
