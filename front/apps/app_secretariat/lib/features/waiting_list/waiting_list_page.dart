@@ -30,7 +30,7 @@ class _WaitingListPageState extends State<WaitingListPage> {
     return Scaffold(
       key: const Key('waiting_list_scaffold'),
       appBar: AppBar(
-        title: const Text('Liste d\'attente'),
+        title: const Text('Demandes de créneau'),
         actions: [
           IconButton(
             tooltip: 'Actualiser',
@@ -71,8 +71,8 @@ class _WaitingListPageState extends State<WaitingListPage> {
               return const NubiaEmptyState(
                 key: Key('waiting_list_empty'),
                 icon: Icons.event_busy,
-                title: 'Pas d\'attente',
-                subtitle: 'Aucun patient en liste d\'attente',
+                title: 'Aucune demande',
+                subtitle: 'Aucun patient en demande de créneau',
               );
             }
             return RefreshIndicator(

@@ -258,8 +258,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(NubiaEmptyState), findsOneWidget);
-      expect(find.text('Pas d\'attente'), findsOneWidget);
-      expect(find.text('Aucun patient en liste d\'attente'), findsOneWidget);
+      expect(find.text('Aucune demande'), findsOneWidget);
+      expect(find.text('Aucun patient en demande de créneau'), findsOneWidget);
     });
 
     testWidgets('affiche le message d\'erreur', (tester) async {
