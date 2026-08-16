@@ -19,6 +19,23 @@ class _MockExpiringQuotesSummaryCubit
     extends MockCubit<ExpiringQuotesSummaryState>
     implements ExpiringQuotesSummaryCubit {}
 
+AgendaEntry _pendingEntry(
+  String id, {
+  required String patientName,
+  required DateTime startsAt,
+}) =>
+    AgendaEntry(
+      id: id,
+      cabinetId: 'cab',
+      practitionerId: 'prac',
+      practitionerName: 'Dr T',
+      startsAt: startsAt,
+      endsAt: startsAt.add(const Duration(minutes: 30)),
+      patientName: patientName,
+      isFree: false,
+      status: 'requested',
+    );
+
 CabinetQuote _quote(
   String id, {
   required String patientName,
@@ -41,6 +58,7 @@ Widget _wrap(
   ExpiringQuotesSummaryCubit quotesCubit, {
   int waitingCount = 0,
   int? oldestWaitingRequestAgeDays,
+  List<AgendaEntry> pendingAppointmentsToday = const [],
 }) {
   final router = GoRouter(
     initialLocation: '/',
@@ -60,6 +78,7 @@ Widget _wrap(
             child: WorkQueueCard(
               waitingCount: waitingCount,
               oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
+              pendingAppointmentsToday: pendingAppointmentsToday,
             ),
           ),
         ),
@@ -76,6 +95,10 @@ Widget _wrap(
       GoRoute(
         path: '/devis',
         builder: (context, state) => const Scaffold(body: Text('Devis')),
+      ),
+      GoRoute(
+        path: '/agenda',
+        builder: (context, state) => const Scaffold(body: Text('Agenda')),
       ),
     ],
   );
@@ -257,6 +280,73 @@ void main() {
       await tester.tap(relanceButton);
       await tester.pumpAndSettle();
       expect(find.text('Devis'), findsOneWidget);
+    });
+
+    testWidgets(
+        '#5376 : titre = RDV non confirmé, bouton primaire Appeler → /agenda',
+        (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 0,
+          urgentUnreadCount: 0,
+        ),
+      );
+      await tester.pumpWidget(
+        _wrap(
+          cubit,
+          quotesCubit,
+          pendingAppointmentsToday: [
+            _pendingEntry(
+              'rdv1',
+              patientName: 'Sophie Roux',
+              startsAt: DateTime(2026, 8, 16, 15, 30),
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('work_queue_pending_appointment_row_rdv1')),
+        findsOneWidget,
+      );
+      expect(
+        find.text("Sophie Roux n'a pas confirmé son RDV de 15:30"),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.event_busy), findsOneWidget);
+
+      final callButton = find.descendant(
+        of: find.byKey(const Key('work_queue_pending_appointment_row_rdv1')),
+        matching: find.text('Appeler'),
+      );
+      expect(callButton, findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('work_queue_pending_appointment_row_rdv1')),
+          matching: find.byIcon(Icons.call),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(callButton);
+      await tester.tap(callButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Agenda'), findsOneWidget);
+    });
+
+    testWidgets('#5376 : aucun RDV non confirmé → pas de ligne', (
+      tester,
+    ) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 0,
+          urgentUnreadCount: 0,
+        ),
+      );
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
+
+      expect(find.byIcon(Icons.event_busy), findsNothing);
+      expect(find.textContaining("n'a pas confirmé"), findsNothing);
     });
 
     testWidgets('#5377 : aucun devis expirant → ligne masquée', (tester) async {

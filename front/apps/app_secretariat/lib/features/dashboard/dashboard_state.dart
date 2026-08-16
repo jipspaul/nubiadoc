@@ -60,6 +60,7 @@ final class DashboardLoaded extends DashboardState {
     this.freeSlotsThisWeekCount = 0,
     this.freeSlotsTomorrowMorningCount = 0,
     this.todayFlow = const [],
+    this.pendingAppointmentsToday = const [],
   });
 
   final int todayCount;
@@ -92,6 +93,12 @@ final class DashboardLoaded extends DashboardState {
   /// Sous-ensemble de [freeSlotsThisWeekCount] démarrant demain avant midi.
   final int freeSlotsTomorrowMorningCount;
 
+  /// RDV du jour au statut `requested` (non confirmés), triés par heure
+  /// croissante — ligne « RDV non confirmé » du panneau « À traiter
+  /// maintenant » (#5376). Dérivé de l'agenda déjà chargé, aucun appel
+  /// réseau supplémentaire.
+  final List<AgendaEntry> pendingAppointmentsToday;
+
   @override
   List<Object?> get props => [
         todayCount,
@@ -103,6 +110,7 @@ final class DashboardLoaded extends DashboardState {
         freeSlotsThisWeekCount,
         freeSlotsTomorrowMorningCount,
         todayFlow,
+        pendingAppointmentsToday,
       ];
 }
 

@@ -229,6 +229,7 @@ void main() {
           ],
           dailyOccupancyRates: _dailyOccupancyRates(_entries1),
           todayFlow: _todayFlow(_now1, _entries1),
+          pendingAppointmentsToday: [_a1],
         ),
       ],
     );
@@ -336,6 +337,7 @@ void main() {
           ],
           dailyOccupancyRates: _dailyOccupancyRates(_entries2),
           todayFlow: _todayFlow(_now2, _entries2),
+          pendingAppointmentsToday: [_reqToday],
         ),
       ],
     );
