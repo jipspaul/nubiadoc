@@ -154,7 +154,7 @@ class _DentalStatusLegend extends StatelessWidget {
       spacing: 12,
       runSpacing: 8,
       children: [
-        _LegendEntry(color: cs.primary, label: 'Acte de cette séance'),
+        _LegendEntry(color: cs.primary, label: 'Acte de la séance'),
         const _LegendEntry(
           color: NubiaColors.n100,
           borderColor: NubiaColors.n300,
