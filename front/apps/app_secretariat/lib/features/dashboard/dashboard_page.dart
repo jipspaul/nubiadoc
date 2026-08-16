@@ -46,6 +46,7 @@ import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
 import 'cash_collection_cubit.dart';
 import 'dashboard_bloc.dart';
+import 'expiring_quotes_summary_cubit.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 import 'patient_messages_summary_cubit.dart';
@@ -130,7 +131,11 @@ class DashboardPage extends StatelessWidget {
                 child: BlocProvider<PatientMessagesSummaryCubit>(
                   create: (_) =>
                       GetIt.instance<PatientMessagesSummaryCubit>()..load(),
-                  child: const _DashboardContent(),
+                  child: BlocProvider<ExpiringQuotesSummaryCubit>(
+                    create: (_) =>
+                        GetIt.instance<ExpiringQuotesSummaryCubit>()..load(),
+                    child: const _DashboardContent(),
+                  ),
                 ),
               ),
             ),

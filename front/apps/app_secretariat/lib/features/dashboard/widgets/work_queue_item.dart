@@ -8,6 +8,9 @@ enum WorkQueueItemVariant {
 
   /// Accent info (bleu) — ex. demandes de créneau sans réponse (#5378).
   info,
+
+  /// Accent warning (ambre) — ex. devis qui expirent cette semaine (#5377).
+  warning,
 }
 
 /// Ligne « ticket » du panneau « À traiter maintenant » (maquette design-v2 :
@@ -50,6 +53,9 @@ class WorkQueueItem extends StatelessWidget {
       case WorkQueueItemVariant.info:
         accentFg = tokens.infoFg;
         accentBg = tokens.infoBg;
+      case WorkQueueItemVariant.warning:
+        accentFg = tokens.warningFg;
+        accentBg = tokens.warningBg;
     }
 
     return ListRow(

@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
+import 'package:app_secretariat/features/dashboard/expiring_quotes_summary_cubit.dart';
 import 'package:app_secretariat/features/dashboard/patient_messages_summary_cubit.dart';
 import 'package:app_secretariat/features/dashboard/widgets/work_queue_card.dart';
 
@@ -13,8 +15,30 @@ class _MockPatientMessagesSummaryCubit
     extends MockCubit<PatientMessagesSummaryState>
     implements PatientMessagesSummaryCubit {}
 
+class _MockExpiringQuotesSummaryCubit
+    extends MockCubit<ExpiringQuotesSummaryState>
+    implements ExpiringQuotesSummaryCubit {}
+
+CabinetQuote _quote(
+  String id, {
+  required String patientName,
+  required DateTime expiresAt,
+}) =>
+    CabinetQuote(
+      id: id,
+      cabinetId: 'cab',
+      patientId: 'p-$id',
+      patientName: patientName,
+      totalCents: 10000,
+      patientShareCents: 5000,
+      status: CabinetQuoteStatus.sent,
+      createdAt: DateTime(2026, 1, 1),
+      expiresAt: expiresAt,
+    );
+
 Widget _wrap(
-  PatientMessagesSummaryCubit cubit, {
+  PatientMessagesSummaryCubit messagesCubit,
+  ExpiringQuotesSummaryCubit quotesCubit, {
   int waitingCount = 0,
   int? oldestWaitingRequestAgeDays,
 }) {
@@ -24,8 +48,15 @@ Widget _wrap(
       GoRoute(
         path: '/',
         builder: (context, state) => Scaffold(
-          body: BlocProvider<PatientMessagesSummaryCubit>.value(
-            value: cubit,
+          body: MultiBlocProvider(
+            providers: [
+              BlocProvider<PatientMessagesSummaryCubit>.value(
+                value: messagesCubit,
+              ),
+              BlocProvider<ExpiringQuotesSummaryCubit>.value(
+                value: quotesCubit,
+              ),
+            ],
             child: WorkQueueCard(
               waitingCount: waitingCount,
               oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
@@ -42,6 +73,10 @@ Widget _wrap(
         builder: (context, state) =>
             const Scaffold(body: Text('Liste d\'attente')),
       ),
+      GoRoute(
+        path: '/devis',
+        builder: (context, state) => const Scaffold(body: Text('Devis')),
+      ),
     ],
   );
   return MaterialApp.router(
@@ -53,21 +88,25 @@ Widget _wrap(
 void main() {
   group('WorkQueueCard', () {
     late _MockPatientMessagesSummaryCubit cubit;
+    late _MockExpiringQuotesSummaryCubit quotesCubit;
 
     setUp(() {
       cubit = _MockPatientMessagesSummaryCubit();
+      quotesCubit = _MockExpiringQuotesSummaryCubit();
+      when(() => quotesCubit.state)
+          .thenReturn(const ExpiringQuotesSummaryLoaded(quotes: []));
     });
 
     testWidgets('affiche le squelette de chargement', (tester) async {
       when(() => cubit.state).thenReturn(const PatientMessagesSummaryLoading());
-      await tester.pumpWidget(_wrap(cubit));
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
       expect(find.byKey(const Key('work_queue_card_loading')), findsOneWidget);
     });
 
     testWidgets('affiche une erreur', (tester) async {
-      when(() => cubit.state)
-          .thenReturn(const PatientMessagesSummaryError(message: 'Erreur test'));
-      await tester.pumpWidget(_wrap(cubit));
+      when(() => cubit.state).thenReturn(
+          const PatientMessagesSummaryError(message: 'Erreur test'));
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
       expect(find.byKey(const Key('work_queue_card_error')), findsOneWidget);
       expect(find.text('Erreur test'), findsOneWidget);
     });
@@ -82,7 +121,7 @@ void main() {
           urgentPatientName: 'Ahmed Belkacem',
         ),
       );
-      await tester.pumpWidget(_wrap(cubit));
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
 
       expect(find.byKey(const Key('work_queue_card')), findsOneWidget);
       expect(find.text('À traiter maintenant'), findsOneWidget);
@@ -114,7 +153,8 @@ void main() {
         ),
       );
       await tester.pumpWidget(
-        _wrap(cubit, waitingCount: 3, oldestWaitingRequestAgeDays: 5),
+        _wrap(cubit, quotesCubit,
+            waitingCount: 3, oldestWaitingRequestAgeDays: 5),
       );
 
       expect(
@@ -153,7 +193,7 @@ void main() {
           urgentUnreadCount: 0,
         ),
       );
-      await tester.pumpWidget(_wrap(cubit));
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
 
       expect(find.text('0 demandes de créneau sans réponse'), findsOneWidget);
       expect(find.textContaining('La plus ancienne'), findsNothing);
@@ -166,10 +206,75 @@ void main() {
           urgentUnreadCount: 0,
         ),
       );
-      await tester.pumpWidget(_wrap(cubit));
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
 
       expect(find.text('0 messages patients non lus'), findsOneWidget);
       expect(find.textContaining('marqué urgent'), findsNothing);
+    });
+
+    testWidgets(
+        '#5377 : titre = devis qui expirent, sous-titre = patients (JJ/MM), '
+        'Relancer → /devis', (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 0,
+          urgentUnreadCount: 0,
+        ),
+      );
+      when(() => quotesCubit.state).thenReturn(
+        ExpiringQuotesSummaryLoaded(
+          quotes: [
+            _quote('q1',
+                patientName: 'Julie Martin', expiresAt: DateTime(2026, 8, 13)),
+            _quote('q2',
+                patientName: 'Théo Girard', expiresAt: DateTime(2026, 8, 16)),
+            _quote('q3',
+                patientName: 'Nina Lopez', expiresAt: DateTime(2026, 8, 17)),
+          ],
+        ),
+      );
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
+
+      expect(
+        find.byKey(const Key('work_queue_expiring_quotes_row')),
+        findsOneWidget,
+      );
+      expect(find.text('3 devis expirent cette semaine'), findsOneWidget);
+      expect(
+        find.text(
+            'Julie Martin (13/08), Théo Girard (16/08), Nina Lopez (17/08)'),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.description), findsOneWidget);
+
+      final relanceButton = find.descendant(
+        of: find.byKey(const Key('work_queue_expiring_quotes_row')),
+        matching: find.text('Relancer'),
+      );
+      expect(relanceButton, findsOneWidget);
+
+      await tester.ensureVisible(relanceButton);
+      await tester.tap(relanceButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Devis'), findsOneWidget);
+    });
+
+    testWidgets('#5377 : aucun devis expirant → ligne masquée', (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 0,
+          urgentUnreadCount: 0,
+        ),
+      );
+      when(() => quotesCubit.state)
+          .thenReturn(const ExpiringQuotesSummaryLoaded(quotes: []));
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
+
+      expect(
+        find.byKey(const Key('work_queue_expiring_quotes_row')),
+        findsNothing,
+      );
+      expect(find.textContaining('devis expirent'), findsNothing);
     });
   });
 }
