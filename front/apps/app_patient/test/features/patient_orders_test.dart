@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
@@ -225,6 +226,49 @@ void main() {
       expect(find.text('−6,44 €'), findsOneWidget);
       expect(find.text('À régler au comptoir'), findsOneWidget);
       expect(find.text('2,00 €'), findsOneWidget);
+    });
+
+    testWidgets(
+        '« Annuler la commande » : dernier élément, style secondaire '
+        'discret, jamais l\'action principale (#5352)', (tester) async {
+      final cubit = MockPatientOrderDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientOrderDetailLoaded(billedOrder(PharmacyOrderStatus.preparing)));
+
+      await tester.pumpApp(
+        BlocProvider<PatientOrderDetailCubit>.value(
+          value: cubit,
+          child: const PatientOrderDetailBody(),
+        ),
+      );
+
+      final column =
+          tester.widget<Column>(find.byKey(const Key('order_detail_column')));
+      final lastChild = column.children.last;
+      expect(lastChild, isA<NubiaButton>());
+      expect((lastChild as NubiaButton).key, const Key('cancel_order_button'));
+      expect(lastChild.variant, NubiaButtonVariant.secondary,
+          reason: 'sortie discrète, pas une action principale');
+    });
+
+    testWidgets('annulation en cours : bouton désactivé avec état de '
+        'chargement (#5352)', (tester) async {
+      final cubit = MockPatientOrderDetailCubit();
+      when(() => cubit.state).thenReturn(PatientOrderDetailLoaded(
+          billedOrder(PharmacyOrderStatus.preparing),
+          cancelling: true));
+
+      await tester.pumpApp(
+        BlocProvider<PatientOrderDetailCubit>.value(
+          value: cubit,
+          child: const PatientOrderDetailBody(),
+        ),
+      );
+
+      final button = tester
+          .widget<NubiaButton>(find.byKey(const Key('cancel_order_button')));
+      expect(button.isLoading, isTrue);
+      expect(button.onPressed, isNull);
     });
   });
 
