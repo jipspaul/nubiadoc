@@ -439,20 +439,19 @@ pub async fn sign_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Vérifie que le devis appartient au patient (JOIN patient → patient_account_id)
-    // OU au compte facturé (billed_to_account_id, #4098) — symétrique à la policy
-    // RLS quote_patient_read (migration 0175) : le tuteur payeur doit pouvoir
-    // signer le devis qu'il voit.
+    // Ownership résolue par la policy RLS quote_patient_read (migration 0175,
+    // scope app.patient_account_id posé ci-dessus) : patient OU compte facturé
+    // (billed_to_account_id, #4098) — pas de JOIN patient ici (la table
+    // `patient` a sa propre RLS `patient_account_read`, migration 0029, sans
+    // branche tutelle, qui éliminerait la ligne de la dépendante AVANT que la
+    // clause billed_to_account_id ne puisse la sauver — cf. #5623).
     // RLS fail-closed : si le devis n'existe pas ou hors tenant → 404.
     let row = sqlx::query(
         "SELECT q.cabinet_id, q.status, q.signed_at \
          FROM quote q \
-         JOIN patient p ON p.id = q.patient_id \
-         WHERE q.id = $1 AND q.deleted_at IS NULL \
-           AND (p.patient_account_id = $2 OR q.billed_to_account_id = $2)",
+         WHERE q.id = $1 AND q.deleted_at IS NULL",
     )
     .bind(id)
-    .bind(claims.account_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
