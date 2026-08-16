@@ -130,8 +130,17 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
   final GetPickupTokenUseCase _pickupToken;
   final CancelPharmacyOrderUseCase _cancel;
   StreamSubscription<PharmacyOrder>? _subscription;
+  String? _orderId;
+
+  /// Relance le chargement de la dernière commande consultée (bouton Réessayer).
+  Future<void> reload() async {
+    final orderId = _orderId;
+    if (orderId == null) return;
+    await load(orderId);
+  }
 
   Future<void> load(String orderId) async {
+    _orderId = orderId;
     emit(const PatientOrderDetailLoading());
     final result = await _get(orderId);
     await result.fold(
