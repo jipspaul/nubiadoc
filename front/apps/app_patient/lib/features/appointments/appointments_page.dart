@@ -945,6 +945,35 @@ class _SlotsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>();
     final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
+    // Fiche praticien web (#5360, maquette design-v2
+    // patient-web-tunnel-reservation) : au-delà de 960 px, l'agenda devient
+    // le contenu principal d'une fiche complète (hero + onglets + panneau
+    // latéral) au lieu de la simple liste mobile groupée par jour ci-dessous.
+    // La sélection d'un créneau bascule sur le même formulaire de
+    // confirmation quelle que soit la largeur : pas de fiche dédiée pour lui.
+    if (state.selectedSlot == null) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= _kFicheWebBreakpoint) {
+            return _ProviderProfileWebView(state: state);
+          }
+          return _SlotsMobileView(state: state, borderColor: borderColor);
+        },
+      );
+    }
+    return _SlotsMobileView(state: state, borderColor: borderColor);
+  }
+}
+
+/// Liste mobile historique : en-tête praticien + créneaux groupés par jour
+/// (ou formulaire de confirmation une fois un créneau sélectionné).
+class _SlotsMobileView extends StatelessWidget {
+  const _SlotsMobileView({required this.state, required this.borderColor});
+  final AppointmentsSlotsLoaded state;
+  final Color borderColor;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1015,6 +1044,519 @@ class _SlotsView extends StatelessWidget {
                   : _SlotsByDay(state: state),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fiche praticien web (#5360, maquette design-v2
+// patient-web-tunnel-reservation, écran « Fiche praticien — l'agenda est le
+// contenu principal ») : hero praticien, onglets, agenda semaine (6 jours)
+// en contenu principal + panneau latéral cabinet/tarifs/horaires.
+// ---------------------------------------------------------------------------
+
+/// Largeur à partir de laquelle la fiche complète remplace la liste mobile.
+const double _kFicheWebBreakpoint = 960;
+
+/// Largeur du panneau latéral (maquette : `.side2`, 326 px).
+const double _kFicheSidePanelWidth = 326;
+
+const _kFicheTabs = <String>[
+  'Prendre rendez-vous',
+  'Présentation',
+  'Tarifs',
+  'Horaires & accès',
+];
+
+/// « Aujourd'hui, 14:30 » (maquette, bloc « Prochaine disponibilité »).
+String _nextAvailabilityLabel(Slot slot) =>
+    '${_relativeDay(slot.startsAt)}, ${_hhmm(slot.startsAt)}';
+
+/// « 11 – 16 août » (maquette, navigation semaine de l'agenda).
+String _weekRangeLabel(List<DateTime> days) {
+  final first = days.first;
+  final last = days.last;
+  if (first.month == last.month) {
+    return '${first.day} – ${last.day} ${_months[first.month - 1]}';
+  }
+  return '${first.day} ${_months[first.month - 1]} – '
+      '${last.day} ${_months[last.month - 1]}';
+}
+
+class _ProviderProfileWebView extends StatefulWidget {
+  const _ProviderProfileWebView({required this.state});
+  final AppointmentsSlotsLoaded state;
+
+  @override
+  State<_ProviderProfileWebView> createState() =>
+      _ProviderProfileWebViewState();
+}
+
+class _ProviderProfileWebViewState extends State<_ProviderProfileWebView> {
+  int _tabIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>();
+    final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
+    return Column(
+      key: const Key('fiche_praticien_web'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        IconButton(
+          key: const Key('fiche_back'),
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Retour',
+          onPressed: () => context
+              .read<AppointmentsBloc>()
+              .add(const AppointmentsBackToSearch()),
+        ),
+        _ProfileHero(provider: widget.state.provider, slots: widget.state.slots),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _ProfileTabBar(
+            activeIndex: _tabIndex,
+            onChanged: (i) => setState(() => _tabIndex = i),
+          ),
+        ),
+        Divider(height: 1, color: borderColor),
+        Expanded(
+          child: _tabIndex == 0
+              ? _BookingTabBody(state: widget.state)
+              : _FicheTabPlaceholder(label: _kFicheTabs[_tabIndex]),
+        ),
+      ],
+    );
+  }
+}
+
+/// Hero praticien : avatar, `h1` (Fraunces, `displayLarge`), sous-titre,
+/// tags et « Prochaine disponibilité » (maquette, bloc `.hero2`).
+class _ProfileHero extends StatelessWidget {
+  const _ProfileHero({required this.provider, required this.slots});
+  final ProviderResult provider;
+  final List<Slot> slots;
+
+  // Tags professionnels génériques (maquette verbatim) : comme les tarifs
+  // indicatifs (#5361), l'API ne référence pas encore ces attributs par
+  // praticien — aucune donnée de santé, uniquement des infos de cabinet.
+  static const _tags = <String>[
+    'Secteur 1 — tarifs conventionnés',
+    'Tiers payant',
+    'Nouveaux patients acceptés',
+    'Accès PMR',
+    'Carte bancaire',
+  ];
+
+  Slot? get _nextAvailableSlot {
+    final available = slots.where((s) => s.isAvailable).toList()
+      ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    return available.isEmpty ? null : available.first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final nextSlot = _nextAvailableSlot;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          NubiaAvatar(initials: _initialsOf(provider.displayName), radius: 32),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  provider.displayName,
+                  key: const Key('fiche_hero_name'),
+                  style: theme.textTheme.displayLarge,
+                ),
+                if (provider.specialty.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    provider.specialty,
+                    style: theme.textTheme.bodyLarge
+                        ?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final tag in _tags)
+                      NubiaBadge.label(
+                        label: tag,
+                        variant: NubiaBadgeVariant.info,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Prochaine disponibilité',
+                style:
+                    theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                nextSlot != null
+                    ? _nextAvailabilityLabel(nextSlot)
+                    : 'Aucun créneau',
+                key: const Key('fiche_hero_next_availability'),
+                textAlign: TextAlign.end,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w600, color: cs.primary),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Barre d'onglets simple (maquette, bloc `.tabs2`) : 4 onglets, « Prendre
+/// rendez-vous » actif par défaut ([_tabIndex] initialisé à 0).
+class _ProfileTabBar extends StatelessWidget {
+  const _ProfileTabBar({required this.activeIndex, required this.onChanged});
+  final int activeIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      key: const Key('fiche_tab_bar'),
+      children: [
+        for (int i = 0; i < _kFicheTabs.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(right: 24),
+            child: InkWell(
+              key: Key('fiche_tab_$i'),
+              onTap: () => onChanged(i),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color:
+                          i == activeIndex ? cs.primary : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  _kFicheTabs[i],
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight:
+                        i == activeIndex ? FontWeight.w600 : FontWeight.w400,
+                    color: i == activeIndex ? cs.primary : cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Contenu des onglets « Présentation »/« Tarifs »/« Horaires & accès » :
+/// détaillés dans des tickets dédiés, non couverts par #5360.
+class _FicheTabPlaceholder extends StatelessWidget {
+  const _FicheTabPlaceholder({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaEmptyState(
+      key: Key('fiche_tab_placeholder_$label'),
+      icon: Icons.info_outline,
+      title: label,
+      subtitle: 'Disponible prochainement.',
+    );
+  }
+}
+
+/// Onglet « Prendre rendez-vous » : agenda semaine en contenu principal +
+/// panneau latéral cabinet/tarifs/horaires (maquette, blocs `.agen`/`.side2`).
+class _BookingTabBody extends StatelessWidget {
+  const _BookingTabBody({required this.state});
+  final AppointmentsSlotsLoaded state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(child: _WeekAgenda(state: state)),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: _kFicheSidePanelWidth,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _CabinetCard(provider: state.provider),
+                  const SizedBox(height: 16),
+                  const _IndicativeTariffsCard(),
+                  const SizedBox(height: 16),
+                  const _HoursCard(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Agenda semaine (maquette, bloc `.agen`) : titre, navigation semaine
+/// précédente/suivante et 6 colonnes-jour de créneaux réels (`Slot`, déjà
+/// chargés par le bloc — filtrage client par fenêtre de 6 jours, sans appel
+/// réseau supplémentaire).
+class _WeekAgenda extends StatefulWidget {
+  const _WeekAgenda({required this.state});
+  final AppointmentsSlotsLoaded state;
+
+  @override
+  State<_WeekAgenda> createState() => _WeekAgendaState();
+}
+
+class _WeekAgendaState extends State<_WeekAgenda> {
+  static const _daysPerWeek = 6;
+
+  int _weekOffset = 0;
+
+  DateTime get _weekStart {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return today.add(Duration(days: _daysPerWeek * _weekOffset));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final weekStart = _weekStart;
+    final days =
+        List.generate(_daysPerWeek, (i) => weekStart.add(Duration(days: i)));
+    final byDay = <DateTime, List<Slot>>{for (final d in days) d: <Slot>[]};
+    for (final slot in widget.state.slots) {
+      // #5366 : startsAt est UTC — grouper sur les composants bruts classait
+      // un créneau proche de minuit UTC sur le mauvais jour local.
+      final local = slot.startsAt.toLocal();
+      final key = DateTime(local.year, local.month, local.day);
+      byDay[key]?.add(slot);
+    }
+
+    return NubiaCard(
+      key: const Key('week_agenda'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Choisissez un créneau', style: theme.textTheme.titleLarge),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              IconButton(
+                key: const Key('week_prev'),
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Semaine précédente',
+                onPressed: _weekOffset == 0
+                    ? null
+                    : () => setState(() => _weekOffset--),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    _weekRangeLabel(days),
+                    key: const Key('week_range_label'),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const Key('week_next'),
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Semaine suivante',
+                onPressed: () => setState(() => _weekOffset++),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final day in days)
+                Expanded(
+                  child: _DayColumn(
+                    day: day,
+                    slots: byDay[day] ?? const [],
+                    selectedSlot: widget.state.selectedSlot,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Colonne d'un jour de l'agenda semaine : jour + créneaux disponibles
+/// (maquette, colonne de `.wk`), ou « — » si aucun créneau ce jour-là.
+class _DayColumn extends StatelessWidget {
+  const _DayColumn({
+    required this.day,
+    required this.slots,
+    required this.selectedSlot,
+  });
+  final DateTime day;
+  final List<Slot> slots;
+  final Slot? selectedSlot;
+
+  bool get _isToday {
+    final now = DateTime.now();
+    return day.year == now.year && day.month == now.month && day.day == now.day;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final available = slots.where((s) => s.isAvailable).toList();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${_weekdays[day.weekday - 1]} ${day.day}',
+            textAlign: TextAlign.center,
+            style:
+                theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          if (_isToday) ...[
+            const SizedBox(height: 2),
+            Text(
+              "aujourd'hui",
+              style: theme.textTheme.labelSmall?.copyWith(color: cs.primary),
+            ),
+          ],
+          const SizedBox(height: 8),
+          if (available.isEmpty)
+            Text(
+              '—',
+              style:
+                  theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            )
+          else
+            for (final slot in available)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: SlotChip(
+                  label: _hhmm(slot.startsAt),
+                  state: selectedSlot?.id == slot.id
+                      ? SlotChipState.selected
+                      : SlotChipState.available,
+                  onTap: () => context
+                      .read<AppointmentsBloc>()
+                      .add(AppointmentsSlotSelected(slot)),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte « Cabinet » du panneau latéral (maquette, bloc `.side2`) : adresse
+/// réelle du praticien si connue. Détail complet (métro, photo…) hors
+/// scope #5360, cf. tickets dédiés.
+class _CabinetCard extends StatelessWidget {
+  const _CabinetCard({required this.provider});
+  final ProviderResult provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return NubiaCard(
+      key: const Key('fiche_cabinet_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Cabinet',
+            style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.place_outlined, size: 16, color: cs.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  provider.address ?? 'Adresse non renseignée.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Carte « Horaires » du panneau latéral (maquette, bloc `.side2`). Détail
+/// complet hors scope #5360, cf. tickets dédiés.
+class _HoursCard extends StatelessWidget {
+  const _HoursCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return NubiaCard(
+      key: const Key('fiche_hours_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Horaires',
+            style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Détail à venir.',
+            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+        ],
+      ),
     );
   }
 }
