@@ -16,6 +16,10 @@ class PharmacyOrderDto {
   final String? updatedAt;
   final String? readyAt;
   final String? pickedUpAt;
+
+  /// Fenêtre de conservation du retrait — champ backend pas encore exposé,
+  /// parsé défensivement pour être prêt dès qu'il existera (#5348).
+  final String? pickupDeadline;
   final int? lineCount;
 
   /// Même contrat que `GET /pharmacy/orders/:id/items` côté pharmacien
@@ -42,6 +46,7 @@ class PharmacyOrderDto {
     this.updatedAt,
     this.readyAt,
     this.pickedUpAt,
+    this.pickupDeadline,
     this.lineCount,
     this.lines = const [],
     this.billingTotalCents,
@@ -67,6 +72,7 @@ class PharmacyOrderDto {
         updatedAt: json['updated_at'] as String?,
         readyAt: json['ready_at'] as String?,
         pickedUpAt: json['picked_up_at'] as String?,
+        pickupDeadline: json['pickup_deadline'] as String?,
         lineCount:
             json['line_count'] as int? ?? (json['lines'] as List?)?.length,
         lines: (json['lines'] as List?)
@@ -100,6 +106,8 @@ class PharmacyOrderDto {
       updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : created,
       readyAt: readyAt != null ? DateTime.parse(readyAt!) : null,
       pickedUpAt: pickedUpAt != null ? DateTime.parse(pickedUpAt!) : null,
+      pickupDeadline:
+          pickupDeadline != null ? DateTime.parse(pickupDeadline!) : null,
       lineCount: lineCount,
       lines: lines.map((e) => e.toDomain()).toList(),
       billingTotalCents: billingTotalCents,

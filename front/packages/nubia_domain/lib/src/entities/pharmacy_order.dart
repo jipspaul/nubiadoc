@@ -63,6 +63,12 @@ class PharmacyOrder extends Equatable {
   final DateTime updatedAt;
   final DateTime? readyAt;
   final DateTime? pickedUpAt;
+
+  /// Fin de la fenêtre de conservation du retrait (remise en rayon passé ce
+  /// délai) — `null` tant que le back ne l'expose pas ; l'UI calcule alors un
+  /// fallback d'affichage `readyAt + 7 jours` (#5348, règle non confirmée
+  /// côté back à ce jour).
+  final DateTime? pickupDeadline;
   final int? lineCount;
 
   /// Détail des lignes de l'ordonnance (molécule, forme, posologie,
@@ -95,6 +101,7 @@ class PharmacyOrder extends Equatable {
     required this.updatedAt,
     this.readyAt,
     this.pickedUpAt,
+    this.pickupDeadline,
     this.lineCount,
     this.lines = const [],
     this.billingTotalCents,

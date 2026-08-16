@@ -10,6 +10,7 @@ import 'widgets/order_billing_summary_card.dart';
 import 'widgets/order_prescription_lines_card.dart';
 import 'widgets/order_rejected_card.dart';
 import 'widgets/order_timeline.dart';
+import 'widgets/pickup_deadline_banner.dart';
 import 'widgets/pickup_qr_card.dart';
 
 /// Détail d'une commande : timeline temps réel + QR de retrait quand prête.
@@ -87,6 +88,10 @@ class PatientOrderDetailBody extends StatelessWidget {
                     if (order.canShowPickupCode && pickupToken != null) ...[
                       const SizedBox(height: 16),
                       PickupQrCard(token: pickupToken),
+                      if (order.readyAt != null) ...[
+                        const SizedBox(height: 12),
+                        PickupDeadlineBanner(order: order),
+                      ],
                     ],
                     if (order.hasBillingSummary) ...[
                       const SizedBox(height: 16),
