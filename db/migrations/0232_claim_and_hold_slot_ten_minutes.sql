@@ -1,4 +1,4 @@
--- 0231_claim_and_hold_slot_ten_minutes.sql
+-- 0232_claim_and_hold_slot_ten_minutes.sql
 -- #5363 : le tunnel de réservation web (design-v2) affiche un décompte
 -- visible « verrou de dix minutes » dans le récapitulatif — le hold posé par
 -- claim_and_hold_slot (0120/0140/0141/0142/0145) n'était que de 5 min.
