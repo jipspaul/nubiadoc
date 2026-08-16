@@ -90,6 +90,7 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
     this.pickupToken,
     this.cancelling = false,
     this.pharmacyPhone,
+    this.pharmacy,
   });
 
   final PharmacyOrder order;
@@ -102,8 +103,13 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
   /// commande est refusée, pour le bouton « Appeler la pharmacie », #5351).
   final String? pharmacyPhone;
 
+  /// Pharmacie déclarée du patient — adresse/distance/téléphone pour la
+  /// carte pharmacie de l'écran de suivi (design-v2, #5350).
+  final Pharmacy? pharmacy;
+
   @override
-  List<Object?> get props => [order, pickupToken, cancelling, pharmacyPhone];
+  List<Object?> get props =>
+      [order, pickupToken, cancelling, pharmacyPhone, pharmacy];
 }
 
 class PatientOrderDetailError extends PatientOrderDetailState {
@@ -140,6 +146,10 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
   StreamSubscription<PharmacyOrder>? _subscription;
   String? _orderId;
 
+  /// Pharmacie déclarée du patient — chargée une fois par [load] et réutilisée
+  /// pour chaque émission suivante (carte pharmacie #5350, téléphone #5351).
+  Pharmacy? _pharmacy;
+
   /// Relance le chargement de la dernière commande consultée (bouton Réessayer).
   Future<void> reload() async {
     final orderId = _orderId;
@@ -150,6 +160,8 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
   Future<void> load(String orderId) async {
     _orderId = orderId;
     emit(const PatientOrderDetailLoading());
+    final pharmacyResult = await _getMyPharmacy();
+    _pharmacy = pharmacyResult.fold((_) => null, (pharmacy) => pharmacy);
     final result = await _get(orderId);
     await result.fold(
       (failure) async => emit(PatientOrderDetailError(failure.message)),
@@ -168,34 +180,38 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
 
   /// Le QR n'existe que pour une commande prête : chaque affichage régénère
   /// le token (l'ancien est invalidé côté serveur). Le téléphone de la
-  /// pharmacie n'est chargé que pour une commande refusée (bouton
+  /// pharmacie n'est réutilisé que pour une commande refusée (bouton
   /// « Appeler la pharmacie » de la carte de refus, #5351).
   Future<void> _emitWithToken(PharmacyOrder order) async {
     if (order.status == PharmacyOrderStatus.rejected) {
-      final pharmacyResult = await _getMyPharmacy();
-      final phone = pharmacyResult.fold<String?>((_) => null, (p) => p?.phone);
-      emit(PatientOrderDetailLoaded(order, pharmacyPhone: phone));
+      emit(PatientOrderDetailLoaded(
+        order,
+        pharmacy: _pharmacy,
+        pharmacyPhone: _pharmacy?.phone,
+      ));
       return;
     }
     if (!order.canShowPickupCode) {
-      emit(PatientOrderDetailLoaded(order));
+      emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacy));
       return;
     }
     final tokenResult = await _pickupToken(order.id);
     tokenResult.fold(
-      (_) => emit(PatientOrderDetailLoaded(order)),
-      (token) => emit(PatientOrderDetailLoaded(order, pickupToken: token)),
+      (_) => emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacy)),
+      (token) => emit(PatientOrderDetailLoaded(order,
+          pickupToken: token, pharmacy: _pharmacy)),
     );
   }
 
   Future<void> cancelOrder() async {
     final current = state;
     if (current is! PatientOrderDetailLoaded || current.cancelling) return;
-    emit(PatientOrderDetailLoaded(current.order, cancelling: true));
+    emit(PatientOrderDetailLoaded(current.order,
+        cancelling: true, pharmacy: _pharmacy));
     final result = await _cancel(current.order.id);
     result.fold(
       (failure) => emit(PatientOrderDetailError(failure.message)),
-      (order) => emit(PatientOrderDetailLoaded(order)),
+      (order) => emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacy)),
     );
   }
 
