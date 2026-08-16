@@ -17,6 +17,7 @@ void main() {
       await tester.pumpWidget(
         _wrap(
           const WeekOccupancyCard(
+            dailyOccupancyRates: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
             freeSlotsThisWeekCount: 11,
             freeSlotsTomorrowMorningCount: 4,
           ),
@@ -34,6 +35,7 @@ void main() {
       await tester.pumpWidget(
         _wrap(
           const WeekOccupancyCard(
+            dailyOccupancyRates: [0, 0, 0, 0, 0, 0],
             freeSlotsThisWeekCount: 0,
             freeSlotsTomorrowMorningCount: 0,
           ),
@@ -42,6 +44,33 @@ void main() {
 
       expect(find.text('dont 0 demain matin'), findsOneWidget);
       expect(find.text('0'), findsOneWidget);
+    });
+
+    testWidgets(
+        '#5383 : histogramme — 6 barres Lun→Sam, jour courant mis en avant',
+        (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const WeekOccupancyCard(
+            dailyOccupancyRates: [0.2, 0.4, 0.6, 0.8, 1.0, 0.0],
+            freeSlotsThisWeekCount: 11,
+            freeSlotsTomorrowMorningCount: 4,
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('week_occupancy_bars')), findsOneWidget);
+      for (final label in ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']) {
+        expect(find.text(label), findsOneWidget);
+      }
+
+      final todayIndex = DateTime.now().weekday - 1;
+      if (todayIndex >= 0 && todayIndex < 6) {
+        final todayLabel =
+            ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][todayIndex];
+        final todayText = tester.widget<Text>(find.text(todayLabel));
+        expect(todayText.style?.fontWeight, FontWeight.w600);
+      }
     });
   });
 }

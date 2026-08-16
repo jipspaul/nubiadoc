@@ -251,6 +251,7 @@ class _DashboardContent extends StatelessWidget {
             :final pendingCount,
             :final waitingCount,
             :final practitionersToday,
+            :final dailyOccupancyRates,
             :final freeSlotsThisWeekCount,
             :final freeSlotsTomorrowMorningCount,
           ) =>
@@ -259,6 +260,7 @@ class _DashboardContent extends StatelessWidget {
               pendingCount: pendingCount,
               waitingCount: waitingCount,
               practitionersToday: practitionersToday,
+              dailyOccupancyRates: dailyOccupancyRates,
               freeSlotsThisWeekCount: freeSlotsThisWeekCount,
               freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
             ),
@@ -280,6 +282,7 @@ class _DashboardLoadedView extends StatelessWidget {
     required this.pendingCount,
     required this.waitingCount,
     required this.practitionersToday,
+    required this.dailyOccupancyRates,
     required this.freeSlotsThisWeekCount,
     required this.freeSlotsTomorrowMorningCount,
   });
@@ -288,6 +291,7 @@ class _DashboardLoadedView extends StatelessWidget {
   final int pendingCount;
   final int waitingCount;
   final List<PractitionerToday> practitionersToday;
+  final List<double> dailyOccupancyRates;
   final int freeSlotsThisWeekCount;
   final int freeSlotsTomorrowMorningCount;
 
@@ -371,6 +375,7 @@ class _DashboardLoadedView extends StatelessWidget {
                           : '$waitingCount patient(s) en attente de créneau.',
                     ),
                     WeekOccupancyCard(
+                      dailyOccupancyRates: dailyOccupancyRates,
                       freeSlotsThisWeekCount: freeSlotsThisWeekCount,
                       freeSlotsTomorrowMorningCount:
                           freeSlotsTomorrowMorningCount,
