@@ -14,13 +14,16 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
     with SafeEmitMixin<DashboardState> {
   final GetCabinetAgendaUseCase _getAgenda;
   final ListWaitingListUseCase _listWaitingList;
+  final ListBookableSlotsUseCase _listBookableSlots;
 
   DashboardBloc({
     required GetCabinetAgendaUseCase getAgenda,
     required ListWaitingListUseCase listWaitingList,
-  }) : _getAgenda = getAgenda,
-       _listWaitingList = listWaitingList,
-       super(const DashboardInitial()) {
+    required ListBookableSlotsUseCase listBookableSlots,
+  })  : _getAgenda = getAgenda,
+        _listWaitingList = listWaitingList,
+        _listBookableSlots = listBookableSlots,
+        super(const DashboardInitial()) {
     on<DashboardLoadRequested>(_onLoad);
   }
 
@@ -32,11 +35,18 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
     try {
       final now = DateTime.now();
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
-
-      final agendaResult = await _getAgenda(
-        DateTime(weekStart.year, weekStart.month, weekStart.day),
+      final weekStartDate = DateTime(
+        weekStart.year,
+        weekStart.month,
+        weekStart.day,
       );
+
+      final agendaResult = await _getAgenda(weekStartDate);
       final waitingResult = await _listWaitingList();
+      final slotsResult = await _listBookableSlots(
+        from: weekStartDate,
+        to: weekStartDate.add(const Duration(days: 7)),
+      );
 
       // L'agenda est la source des deux premiers compteurs ; la liste
       // d'attente est best-effort (0 si l'appel échoue, pas d'écran d'erreur
@@ -73,6 +83,38 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
             (list) => list.length,
           );
 
+          // #5384 : la donnée `/bookable-slots` seule ne suffit pas — un
+          // créneau peut y apparaître « ouvert » alors qu'un RDV du même
+          // praticien le recouvre déjà dans l'agenda réel. Même exclusion
+          // que le picker « Nouveau RDV » (agenda_page.dart : `bookableSlots`,
+          // #3466) : on rapproche les créneaux bookables de la semaine du
+          // planning déjà chargé plutôt que d'afficher le brut.
+          final bookedForOverlap = booked.toList(growable: false);
+          bool overlapsBooked(Slot s) {
+            for (final e in bookedForOverlap) {
+              if (e.practitionerId == s.practitionerId &&
+                  s.startsAt.isBefore(e.endsAt) &&
+                  e.startsAt.isBefore(s.endsAt)) {
+                return true;
+              }
+            }
+            return false;
+          }
+
+          final bookableSlots = slotsResult.getOrElse(() => const []);
+          final freeSlotsThisWeek = bookableSlots
+              .where((s) => s.isAvailable && !overlapsBooked(s))
+              .toList(growable: false);
+          final tomorrowStart = DateTime(now.year, now.month, now.day + 1);
+          final tomorrowNoon = tomorrowStart.add(const Duration(hours: 12));
+          final freeSlotsTomorrowMorningCount = freeSlotsThisWeek
+              .where(
+                (s) =>
+                    !s.startsAt.isBefore(tomorrowStart) &&
+                    s.startsAt.isBefore(tomorrowNoon),
+              )
+              .length;
+
           final todayBooked = booked.where(
             (e) =>
                 e.startsAt.year == now.year &&
@@ -108,6 +150,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
               pendingCount: pendingCount,
               waitingCount: waitingCount,
               practitionersToday: practitionersToday,
+              freeSlotsThisWeekCount: freeSlotsThisWeek.length,
+              freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
             ),
           );
         },
