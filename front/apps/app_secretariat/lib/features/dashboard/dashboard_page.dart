@@ -134,7 +134,7 @@ class DashboardPage extends StatelessWidget {
                   child: BlocProvider<ExpiringQuotesSummaryCubit>(
                     create: (_) =>
                         GetIt.instance<ExpiringQuotesSummaryCubit>()..load(),
-                    child: const _DashboardContent(),
+                    child: _DashboardContent(session: session),
                   ),
                 ),
               ),
@@ -252,7 +252,9 @@ class DashboardPage extends StatelessWidget {
 }
 
 class _DashboardContent extends StatelessWidget {
-  const _DashboardContent();
+  const _DashboardContent({required this.session});
+
+  final AuthSession session;
 
   @override
   Widget build(BuildContext context) {
@@ -282,6 +284,7 @@ class _DashboardContent extends StatelessWidget {
             :final pendingAppointmentsToday,
           ) =>
             _DashboardLoadedView(
+              session: session,
               todayCount: todayCount,
               pendingCount: pendingCount,
               waitingCount: waitingCount,
@@ -302,11 +305,42 @@ class _DashboardContent extends StatelessWidget {
 /// Largeur maximale du contenu centré (poste de travail desktop).
 const double _kContentMaxWidth = 1120;
 
+/// Formate une date en clair, ex. « Mardi 11 août » — même formule que
+/// `_dayLabel` dans `app_practicien/agenda_page.dart` (pas de dépendance
+/// `intl` dans ce package).
+String _formatDayLabel(DateTime date) {
+  const days = [
+    'Lundi',
+    'Mardi',
+    'Mercredi',
+    'Jeudi',
+    'Vendredi',
+    'Samedi',
+    'Dimanche',
+  ];
+  const months = [
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
+  ];
+  return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]}';
+}
+
 /// Vue chargée du tableau de bord opérationnel : en-tête + tuiles de flux du
 /// jour ([MetricTile]) + cartes récapitulatives. Purement administratif —
 /// aucune donnée clinique n'est affichée (cloisonnement secrétariat).
 class _DashboardLoadedView extends StatelessWidget {
   const _DashboardLoadedView({
+    required this.session,
     required this.todayCount,
     required this.pendingCount,
     required this.waitingCount,
@@ -319,6 +353,7 @@ class _DashboardLoadedView extends StatelessWidget {
     required this.pendingAppointmentsToday,
   });
 
+  final AuthSession session;
   final int todayCount;
   final int pendingCount;
   final int waitingCount;
@@ -357,6 +392,14 @@ class _DashboardLoadedView extends StatelessWidget {
       ),
     ];
 
+    // #5374 : sous-titre récapitulatif « <jour date> · <secrétaire> · <N>
+    // rendez-vous, <M> restants » — restants = RDV du jour non terminés,
+    // dérivés du flux du jour déjà chargé (aucun appel réseau ajouté).
+    final remainingCount = todayFlow.where((e) => !e.isDone).length;
+    final secretaryName = session.displayName ?? 'Secrétariat';
+    final subtitle = '${_formatDayLabel(DateTime.now())} · $secretaryName · '
+        '$todayCount rendez-vous, $remainingCount restants';
+
     return SingleChildScrollView(
       key: const Key('dashboard_loaded'),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -367,12 +410,13 @@ class _DashboardLoadedView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Tableau de bord',
+                'Ma journée',
                 style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
               ),
               const SizedBox(height: 4),
               Text(
-                'Flux du jour — activité administrative du cabinet',
+                subtitle,
+                key: const Key('dashboard_subtitle'),
                 style: textTheme.bodyMedium?.copyWith(
                   color: cs.onSurfaceVariant,
                 ),
