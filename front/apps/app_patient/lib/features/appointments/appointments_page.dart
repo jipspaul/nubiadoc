@@ -9,6 +9,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../session/auth_cubit.dart';
 import 'appointments_bloc.dart';
 import 'appointments_event.dart';
 import 'appointments_state.dart';
@@ -994,19 +995,22 @@ class _SlotsView extends StatelessWidget {
           ),
         ),
         Divider(height: 1, color: borderColor),
-        if (state.slots.isEmpty)
-          const Expanded(
-            child: NubiaEmptyState(
-              icon: Icons.event_busy_outlined,
-              title: 'Aucun créneau disponible.',
-              subtitle: 'Revenez plus tard ou choisissez un autre praticien.',
-            ),
-          )
-        else
-          Expanded(
-            child: _SlotsByDay(state: state),
-          ),
-        if (state.selectedSlot != null) _BookingPanel(state: state),
+        // #5362 : une fois un créneau choisi, le formulaire de confirmation
+        // (« Vos informations ») remplace la grille — pas un panneau
+        // superposé — pour lui laisser toute la hauteur disponible (et
+        // rester scrollable sans déborder sur petit écran).
+        Expanded(
+          child: state.selectedSlot != null
+              ? _BookingPanel(state: state)
+              : state.slots.isEmpty
+                  ? const NubiaEmptyState(
+                      icon: Icons.event_busy_outlined,
+                      title: 'Aucun créneau disponible.',
+                      subtitle:
+                          'Revenez plus tard ou choisissez un autre praticien.',
+                    )
+                  : _SlotsByDay(state: state),
+        ),
       ],
     );
   }
@@ -1122,75 +1126,369 @@ class _SlotsByDay extends StatelessWidget {
   }
 }
 
-/// Panneau bas : motif de consultation + CTA de confirmation.
-class _BookingPanel extends StatelessWidget {
+/// Formulaire de confirmation (étape 3 « Vos informations » du tunnel,
+/// maquette design-v2 patient-web-tunnel-reservation) : remplace la grille
+/// de créneaux une fois une puce sélectionnée. Pour un visiteur anonyme, ce
+/// même formulaire crée le compte à la confirmation — jamais avant — dans
+/// le même geste que la réservation (#5362).
+class _BookingPanel extends StatefulWidget {
   const _BookingPanel({required this.state});
   final AppointmentsSlotsLoaded state;
 
   @override
+  State<_BookingPanel> createState() => _BookingPanelState();
+}
+
+class _BookingPanelState extends State<_BookingPanel> {
+  final _firstName = TextEditingController();
+  final _lastName = TextEditingController();
+  final _phone = TextEditingController();
+  final _email = TextEditingController();
+  final _precisions = TextEditingController();
+  DateTime? _dateOfBirth;
+  bool _createAccount = true;
+  bool _remindersEnabled = true;
+  bool _cguAccepted = false;
+
+  static final _phoneRe = RegExp(r'^(\+33|0033|0)[1-9]\d{8}$');
+  static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  // Le hint affiché ("06 12 34 56 78") contient des espaces : on les retire
+  // avant validation, même défaut que account_setup_page (#4813-adjacent).
+  String get _normalizedPhone => _phone.text.replaceAll(RegExp(r'\s+'), '');
+  bool get _phoneValid => _phoneRe.hasMatch(_normalizedPhone);
+  bool get _emailValid => _emailRe.hasMatch(_email.text.trim());
+
+  bool get _guestInfoValid =>
+      _createAccount &&
+      _firstName.text.trim().isNotEmpty &&
+      _lastName.text.trim().isNotEmpty &&
+      _dateOfBirth != null &&
+      _phoneValid &&
+      _emailValid &&
+      _cguAccepted;
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateOfBirth ?? DateTime(DateTime.now().year - 30),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      locale: const Locale('fr'),
+    );
+    if (picked != null) setState(() => _dateOfBirth = picked);
+  }
+
+  String _formatDate(DateTime date) => '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/${date.year}';
+
+  @override
+  void dispose() {
+    _firstName.dispose();
+    _lastName.dispose();
+    _phone.dispose();
+    _email.dispose();
+    _precisions.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
+    // #5362 : un visiteur anonyme (pas de session patient) voit le groupe
+    // « Pour qui est ce rendez-vous ? » + les options de compte ; un patient
+    // déjà connecté (2e RDV) ne revoit jamais ce formulaire d'inscription.
+    final needsAccount = context.watch<AuthCubit>().state is! AuthAuthenticated;
     final tokens = Theme.of(context).extension<NubiaTokens>();
     final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
+    final subdued = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        );
+    final sectionTitle = Theme.of(context)
+        .textTheme
+        .titleSmall
+        ?.copyWith(fontWeight: FontWeight.w600);
     final holdExpiresAt = state.holdExpiresAt;
+    final motifValid = state.motif.trim().isNotEmpty;
+    final formValid = motifValid && (!needsAccount || _guestInfoValid);
+
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(top: BorderSide(color: borderColor)),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // #5363 : sous-titre du formulaire — annonce le verrou de 10 min
-          // dès la sélection du créneau (le décompte vivant est plus bas).
-          Text(
-            'Votre rendez-vous est retenu pendant 10 minutes.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Motif de consultation',
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          NubiaTextField(
-            variant: NubiaTextFieldVariant.multiline,
-            maxLines: 2,
-            hint: 'Ex. : Contrôle annuel, douleur…',
-            onChanged: (v) => context
-                .read<AppointmentsBloc>()
-                .add(AppointmentsMotifChanged(v)),
-          ),
-          if (holdExpiresAt != null) ...[
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _BookingStepper(),
+            const SizedBox(height: 16),
+            Text(
+              'Il ne reste qu\'une étape',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            // #5363 : sous-titre du formulaire — annonce le verrou de 10 min
+            // dès la sélection du créneau (le décompte vivant est plus bas).
+            Text('Votre rendez-vous est retenu pendant 10 minutes.',
+                style: subdued),
+            if (needsAccount) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Créez votre compte pour le confirmer — il vous servira '
+                'ensuite à gérer vos rendez-vous, vos documents et vos '
+                'devis.',
+                style: subdued,
+              ),
+            ],
+            const SizedBox(height: 20),
+            if (needsAccount) ...[
+              Text('Pour qui est ce rendez-vous ?', style: sectionTitle),
+              const SizedBox(height: 8),
+              NubiaTextField(
+                key: const Key('booking_first_name'),
+                controller: _firstName,
+                label: 'Prénom',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              NubiaTextField(
+                key: const Key('booking_last_name'),
+                controller: _lastName,
+                label: 'Nom',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              _BookingDobField(
+                value: _dateOfBirth != null ? _formatDate(_dateOfBirth!) : null,
+                onTap: _pickDate,
+              ),
+              const SizedBox(height: 12),
+              NubiaTextField(
+                key: const Key('booking_phone'),
+                controller: _phone,
+                variant: NubiaTextFieldVariant.phone,
+                label: 'Téléphone mobile',
+                hint: '06 12 34 56 78',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              NubiaTextField(
+                key: const Key('booking_email'),
+                controller: _email,
+                label: 'Email',
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 20),
+            ],
+            Text('Motif de la consultation', style: sectionTitle),
+            const SizedBox(height: 8),
+            NubiaTextField(
+              key: const Key('booking_motif'),
+              label: 'Motif',
+              hint: 'Ex. : Contrôle annuel, douleur…',
+              onChanged: (v) => context
+                  .read<AppointmentsBloc>()
+                  .add(AppointmentsMotifChanged(v)),
+            ),
             const SizedBox(height: 12),
-            _HoldCountdown(
-              key: ValueKey('hold_countdown_${state.holdToken}'),
-              expiresAt: holdExpiresAt,
+            NubiaTextField(
+              key: const Key('booking_precisions'),
+              controller: _precisions,
+              variant: NubiaTextFieldVariant.multiline,
+              maxLines: 2,
+              label: 'Précisions pour le praticien (facultatif)',
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 20),
+            if (needsAccount) ...[
+              NubiaCheckbox(
+                key: const Key('booking_create_account'),
+                value: _createAccount,
+                label: 'Je crée mon compte Nubia',
+                onChanged: (v) => setState(() => _createAccount = v),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 30, bottom: 8),
+                child: Text(
+                  'Un mot de passe vous sera demandé après confirmation. '
+                  'Vous pourrez ensuite annuler ou déplacer ce rendez-vous '
+                  'vous-même.',
+                  style: subdued,
+                ),
+              ),
+            ],
+            NubiaCheckbox(
+              key: const Key('booking_reminders'),
+              value: _remindersEnabled,
+              label: 'Rappels de rendez-vous',
+              onChanged: (v) => setState(() => _remindersEnabled = v),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 30, bottom: 8),
+              child: Text(
+                'Par e-mail et SMS, 48 h puis 2 h avant. Modifiable à tout '
+                'moment.',
+                style: subdued,
+              ),
+            ),
+            if (needsAccount) ...[
+              NubiaCheckbox(
+                key: const Key('booking_cgu'),
+                value: _cguAccepted,
+                label: "J'accepte les Conditions Générales d'Utilisation "
+                    'et la politique de confidentialité',
+                onChanged: (v) => setState(() => _cguAccepted = v),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 30),
+                child: Text(
+                  'Vos données de santé sont hébergées en France chez un '
+                  'hébergeur agréé HDS.',
+                  style: subdued,
+                ),
+              ),
+            ],
+            if (holdExpiresAt != null) ...[
+              const SizedBox(height: 12),
+              _HoldCountdown(
+                key: ValueKey('hold_countdown_${state.holdToken}'),
+                expiresAt: holdExpiresAt,
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: NubiaButton(
+                key: const Key('confirm_booking_button'),
+                label: 'Confirmer le rendez-vous',
+                size: NubiaButtonSize.lg,
+                icon: Icons.check_rounded,
+                onPressed: !formValid
+                    ? null
+                    : () => context.read<AppointmentsBloc>().add(
+                          AppointmentsBookingConfirmed(
+                            firstName: _firstName.text.trim(),
+                            lastName: _lastName.text.trim(),
+                            dateOfBirth: _dateOfBirth,
+                            phone: _normalizedPhone,
+                            email: _email.text.trim(),
+                            precisions: _precisions.text.trim(),
+                            createAccount: needsAccount && _createAccount,
+                            remindersEnabled: _remindersEnabled,
+                            cguAccepted: _cguAccepted,
+                          ),
+                        ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Réassurance verbatim maquette.
+            Text(
+              'Aucune carte bancaire n\'est demandée. Le rendez-vous est '
+              'gratuit et annulable en ligne jusqu\'à 24 h avant.',
+              textAlign: TextAlign.center,
+              style: subdued,
             ),
           ],
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: NubiaButton(
-              key: const Key('confirm_booking_button'),
-              label: 'Confirmer le rendez-vous',
-              size: NubiaButtonSize.lg,
-              icon: Icons.check_rounded,
-              onPressed: state.motif.trim().isEmpty
-                  ? null
-                  : () => context
-                      .read<AppointmentsBloc>()
-                      .add(const AppointmentsBookingConfirmed()),
-            ),
-          ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+/// Champ date de naissance (JJ / MM / AAAA) : ouvre un [showDatePicker],
+/// même pattern que `account_setup_page._DatePickerField`.
+class _BookingDobField extends StatelessWidget {
+  const _BookingDobField({required this.value, required this.onTap});
+  final String? value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      key: const Key('booking_dob'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: InputDecorator(
+        isEmpty: value == null,
+        decoration: const InputDecoration(
+          labelText: 'Date de naissance',
+          hintText: 'JJ / MM / AAAA',
+          border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.calendar_today_outlined),
+        ),
+        child: value != null
+            ? Text(value!, style: Theme.of(context).textTheme.bodyMedium)
+            : const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+enum _BookingStepStatus { done, active, upcoming }
+
+/// Fil d'Ariane « Praticien ✓ · Créneau ✓ · Vos informations (actif) ·
+/// Confirmé » de la maquette design-v2 (stepper 4 étapes du tunnel web).
+class _BookingStepper extends StatelessWidget {
+  const _BookingStepper();
+
+  static const _steps = <(String, _BookingStepStatus)>[
+    ('Praticien', _BookingStepStatus.done),
+    ('Créneau', _BookingStepStatus.done),
+    ('Vos informations', _BookingStepStatus.active),
+    ('Confirmé', _BookingStepStatus.upcoming),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Wrap(
+      key: const Key('booking_stepper'),
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        for (var i = 0; i < _steps.length; i++) ...[
+          if (i > 0) Text('·', style: TextStyle(color: cs.onSurfaceVariant)),
+          _BookingStepLabel(label: _steps[i].$1, status: _steps[i].$2),
+        ],
+      ],
+    );
+  }
+}
+
+class _BookingStepLabel extends StatelessWidget {
+  const _BookingStepLabel({required this.label, required this.status});
+  final String label;
+  final _BookingStepStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final active = status == _BookingStepStatus.active;
+    final done = status == _BookingStepStatus.done;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          done ? Icons.check_circle : Icons.circle_outlined,
+          size: 14,
+          color: (done || active) ? cs.primary : cs.onSurfaceVariant,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: active ? cs.primary : cs.onSurfaceVariant,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+              ),
+        ),
+      ],
     );
   }
 }

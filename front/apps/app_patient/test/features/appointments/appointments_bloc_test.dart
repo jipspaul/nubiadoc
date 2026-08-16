@@ -1,13 +1,16 @@
 import 'dart:async';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_patient/features/appointments/appointments_bloc.dart';
 import 'package:app_patient/features/appointments/appointments_event.dart';
 import 'package:app_patient/features/appointments/appointments_state.dart';
+import 'package:app_patient/session/auth_cubit.dart';
 
 class _MockSearchProviders extends Mock implements SearchProvidersUseCase {}
 
@@ -17,18 +20,39 @@ class _MockHoldSlot extends Mock implements HoldSlotUseCase {}
 
 class _MockConfirmBooking extends Mock implements ConfirmBookingUseCase {}
 
+class _MockRegister extends Mock implements RegisterUseCase {}
+
+class _MockUpdateAccount extends Mock implements UpdateAccountUseCase {}
+
+class _MockUpdateNotificationPreferences extends Mock
+    implements UpdateNotificationPreferencesUseCase {}
+
+class _MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
+
 void main() {
   group('AppointmentsBloc — restartable (lost-update)', () {
     late _MockSearchProviders searchProviders;
     late _MockSearchSlots searchSlots;
     late _MockHoldSlot holdSlot;
     late _MockConfirmBooking confirmBooking;
+    late _MockRegister register;
+    late _MockUpdateAccount updateAccount;
+    late _MockUpdateNotificationPreferences updateNotificationPreferences;
+    late _MockAuthCubit authCubit;
 
     setUp(() {
       searchProviders = _MockSearchProviders();
       searchSlots = _MockSearchSlots();
       holdSlot = _MockHoldSlot();
       confirmBooking = _MockConfirmBooking();
+      register = _MockRegister();
+      updateAccount = _MockUpdateAccount();
+      updateNotificationPreferences = _MockUpdateNotificationPreferences();
+      authCubit = _MockAuthCubit();
+      when(() => authCubit.state).thenReturn(
+        const AuthAuthenticated(
+            AuthSession(kind: UserKind.patient, userId: 'u1')),
+      );
     });
 
     AppointmentsBloc makeBloc() => AppointmentsBloc(
@@ -36,6 +60,10 @@ void main() {
           searchSlots: searchSlots,
           holdSlot: holdSlot,
           confirmBooking: confirmBooking,
+          register: register,
+          updateAccount: updateAccount,
+          updateNotificationPreferences: updateNotificationPreferences,
+          authCubit: authCubit,
         );
 
     test(

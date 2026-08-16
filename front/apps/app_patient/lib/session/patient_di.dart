@@ -135,6 +135,10 @@ void registerPatient(GetIt gi) {
       searchSlots: gi<SearchSlotsUseCase>(),
       holdSlot: gi<HoldSlotUseCase>(),
       confirmBooking: gi<ConfirmBookingUseCase>(),
+      register: gi<RegisterUseCase>(),
+      updateAccount: gi<UpdateAccountUseCase>(),
+      updateNotificationPreferences: gi<UpdateNotificationPreferencesUseCase>(),
+      authCubit: gi<AuthCubit>(),
     ),
   );
 
