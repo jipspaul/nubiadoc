@@ -17,6 +17,7 @@ import '../features/cabinet_payouts/cabinet_payouts_bloc.dart';
 import '../features/cabinet_stats/cabinet_stats_bloc.dart';
 import '../features/dashboard/cash_collection_cubit.dart';
 import '../features/dashboard/rail_badges_cubit.dart';
+import '../features/dashboard/waiting_room_summary_cubit.dart';
 import '../features/devis/devis_bloc.dart';
 import '../features/patients/patients_bloc.dart';
 import '../features/stock/stock_bloc.dart';
@@ -81,6 +82,11 @@ void registerPro(GetIt gi) {
     ..registerFactory<CashCollectionCubit>(
       () => CashCollectionCubit(
         getSummary: gi<GetCashCollectionSummaryUseCase>(),
+      ),
+    )
+    ..registerFactory<WaitingRoomSummaryCubit>(
+      () => WaitingRoomSummaryCubit(
+        listWaitingRoom: gi<ListWaitingRoomUseCase>(),
       ),
     )
     ..registerFactory<BookableSlotsBloc>(
