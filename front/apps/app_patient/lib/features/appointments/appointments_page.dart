@@ -1102,7 +1102,9 @@ class _SlotsByDay extends StatelessWidget {
         for (final slot in slots)
           IntrinsicWidth(
             child: SlotChip(
-              label: _hhmm(slot.startsAt),
+              // Maquette web (#5365) : puce indisponible = contenu « — »,
+              // pas l'heure barrée.
+              label: slot.isAvailable ? _hhmm(slot.startsAt) : '—',
               state: !slot.isAvailable
                   ? SlotChipState.unavailable
                   : state.selectedSlot?.id == slot.id
