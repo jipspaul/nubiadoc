@@ -203,16 +203,32 @@ void main() {
   });
 
   group('OrderTimeline (widget)', () {
-    testWidgets('coche les étapes passées', (tester) async {
+    testWidgets(
+        'distingue fait / en cours / à venir (#5346) : les étapes passées '
+        'sont cochées, l\'étape courante a sa propre icône, et non un '
+        'check_circle, la suivante est neutre', (tester) async {
       await tester.pumpApp(Scaffold(
           body: OrderTimeline(order: order(PharmacyOrderStatus.ready))));
       final icons = tester
           .widgetList<Icon>(find.byType(Icon))
           .map((icon) => icon.icon)
           .toList();
-      expect(icons.where((i) => i == Icons.check_circle).length, 3,
-          reason: 'reçue + préparation + prête cochées');
-      expect(icons.where((i) => i == Icons.radio_button_unchecked).length, 1);
+      expect(icons, isNot(contains(Icons.check_circle)));
+      expect(icons.where((i) => i == Icons.check).length, 2,
+          reason: 'reçue + préparation, franchies');
+      expect(
+        tester
+            .widgetList<Icon>(find.descendant(
+              of: find.byKey(const Key('timeline_step_ready')),
+              matching: find.byType(Icon),
+            ))
+            .first
+            .icon,
+        Icons.inventory_2,
+        reason: '« prête à être retirée » est l\'étape courante',
+      );
+      expect(icons.where((i) => i == Icons.circle).length, 1,
+          reason: '« retirée » reste à venir');
     });
 
     testWidgets(

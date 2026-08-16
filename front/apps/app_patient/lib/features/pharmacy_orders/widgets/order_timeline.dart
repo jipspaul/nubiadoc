@@ -11,11 +11,11 @@ class OrderTimeline extends StatelessWidget {
 
   final PharmacyOrder order;
 
-  static const _steps = <(PharmacyOrderStatus, String)>[
-    (PharmacyOrderStatus.received, 'Commande reçue'),
-    (PharmacyOrderStatus.preparing, 'En cours de préparation'),
-    (PharmacyOrderStatus.ready, 'Prête à être retirée'),
-    (PharmacyOrderStatus.pickedUp, 'Retirée'),
+  static const _steps = <(PharmacyOrderStatus, String, IconData)>[
+    (PharmacyOrderStatus.received, 'Commande reçue', Icons.receipt_long),
+    (PharmacyOrderStatus.preparing, 'En cours de préparation', Icons.sync),
+    (PharmacyOrderStatus.ready, 'Prête à être retirée', Icons.inventory_2),
+    (PharmacyOrderStatus.pickedUp, 'Retirée', Icons.check),
   ];
 
   int get _currentIndex => switch (order.status) {
@@ -70,6 +70,7 @@ class OrderTimeline extends StatelessWidget {
             done: index <= current,
             isLast: index == _steps.length - 1,
             current: index == current,
+            currentIcon: step.$3,
             subtitle: index <= current
                 ? _subtitleFor(step.$1)
                 : (index == _steps.length - 1
@@ -106,6 +107,7 @@ class _TimelineStep extends StatelessWidget {
     required this.done,
     required this.isLast,
     required this.current,
+    required this.currentIcon,
     this.subtitle,
   });
 
@@ -113,9 +115,15 @@ class _TimelineStep extends StatelessWidget {
   final bool done;
   final bool isLast;
 
-  /// Étape en cours (ni terminée ni à venir) — met le sous-texte en avant
-  /// (`--brand700` w600, maquette design-v2 #5347).
+  /// Étape en cours (ni terminée ni à venir) — pastille distincte (anneau
+  /// `--brand700` + icône spécifique à l'étape) et met le sous-texte en
+  /// avant (`--brand700` w600, maquette design-v2 #5347/#5346).
   final bool current;
+
+  /// Icône affichée dans la pastille quand l'étape est courante (jamais un
+  /// `check` : cf. maquette design-v2, la pastille « now » distingue le
+  /// contenu métier de l'étape d'un simple accompli).
+  final IconData currentIcon;
 
   /// Sous-texte `l2` : horodatage (étape franchie) ou texte d'attente
   /// (étape à venir) — `null` si rien à afficher pour cette étape.
@@ -124,8 +132,11 @@ class _TimelineStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    final color = done ? tokens.successFg : theme.disabledColor;
+    // Ligne verticale : émeraude seulement entre deux étapes déjà franchies
+    // (« ln done »), grise sinon — la pastille courante n'a pas encore
+    // « accompli » son segment suivant.
+    final lineColor =
+        done && !current ? NubiaColors.brand600 : NubiaColors.n300;
 
     return IntrinsicHeight(
       child: Row(
@@ -133,12 +144,9 @@ class _TimelineStep extends StatelessWidget {
         children: [
           Column(
             children: [
-              Icon(
-                done ? Icons.check_circle : Icons.radio_button_unchecked,
-                size: 20,
-                color: color,
-              ),
-              if (!isLast) Expanded(child: Container(width: 2, color: color)),
+              _TimelineDot(done: done, current: current, icon: currentIcon),
+              if (!isLast)
+                Expanded(child: Container(width: 2, color: lineColor)),
             ],
           ),
           const SizedBox(width: 12),
@@ -151,6 +159,7 @@ class _TimelineStep extends StatelessWidget {
                   label,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: done ? FontWeight.w600 : FontWeight.w400,
+                    color: done ? null : NubiaColors.n400,
                   ),
                 ),
                 if (subtitle != null)
@@ -168,6 +177,65 @@ class _TimelineStep extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Pastille de l'étape — trois traitements distincts (maquette design-v2,
+/// #5346) : « fait » plein émeraude + `check`, « en cours » anneau
+/// `--brand700` + icône métier de l'étape, « à venir » bordure `--n300` +
+/// `circle` gris.
+class _TimelineDot extends StatelessWidget {
+  const _TimelineDot({
+    required this.done,
+    required this.current,
+    required this.icon,
+  });
+
+  final bool done;
+  final bool current;
+  final IconData icon;
+
+  static const _size = 24.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (current) {
+      return Container(
+        width: _size,
+        height: _size,
+        decoration: const BoxDecoration(
+          color: NubiaColors.brand50,
+          shape: BoxShape.circle,
+          border: Border.fromBorderSide(
+            BorderSide(color: NubiaColors.brand700, width: 3),
+          ),
+        ),
+        child: Icon(icon, size: 14, color: NubiaColors.brand700),
+      );
+    }
+    if (done) {
+      return Container(
+        width: _size,
+        height: _size,
+        decoration: const BoxDecoration(
+          color: NubiaColors.brand600,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.check, size: 14, color: Colors.white),
+      );
+    }
+    return Container(
+      width: _size,
+      height: _size,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.fromBorderSide(
+          BorderSide(color: NubiaColors.n300, width: 1),
+        ),
+      ),
+      child: const Icon(Icons.circle, size: 8, color: NubiaColors.n400),
     );
   }
 }
