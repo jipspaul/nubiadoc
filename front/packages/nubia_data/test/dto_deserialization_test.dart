@@ -35,6 +35,72 @@ void main() {
       expect(dto.practitionerName, 'Dr Martin');
       expect(dto.practitionerSpecialty, 'Dentiste');
     });
+
+    // #5563/#5593 : le champ imbriqué `beneficiary` (contrat réel de
+    // GET/POST /v1/appointments) n'était jamais lu — un tuteur ne pouvait
+    // donc jamais distinguer un RDV pris pour lui-même d'un RDV pris pour
+    // un dépendant nommé.
+    test('fromJson lit beneficiary.is_self=false + nom (RDV d\'un dépendant)',
+        () {
+      final dto = AppointmentDto.fromJson({
+        'id': 'appt-2',
+        'cabinet_id': 'cab-1',
+        'provider': {'display_name': 'Dr Martin', 'specialty': 'Dentiste'},
+        'starts_at': '2026-07-01T09:00:00Z',
+        'duration_minutes': 30,
+        'motif': 'QA dependent booking',
+        'status': 'confirmed',
+        'type': 'in_person',
+        'beneficiary': {
+          'account_id': '3e6db67e-e45c-4515-9988-8ef95f9ed138',
+          'is_self': false,
+          'first_name': 'QAFlow',
+          'last_name': 'Dep',
+        },
+      });
+      expect(dto.beneficiaryIsSelf, isFalse);
+      expect(dto.beneficiaryName, 'QAFlow Dep');
+      expect(dto.toDomain().beneficiaryIsSelf, isFalse);
+      expect(dto.toDomain().beneficiaryName, 'QAFlow Dep');
+    });
+
+    test('fromJson lit beneficiary.is_self=true (RDV du tuteur lui-même)',
+        () {
+      final dto = AppointmentDto.fromJson({
+        'id': 'appt-3',
+        'cabinet_id': 'cab-1',
+        'provider': {'display_name': 'Dr Martin', 'specialty': 'Dentiste'},
+        'starts_at': '2026-07-01T09:00:00Z',
+        'duration_minutes': 30,
+        'motif': 'Consultation',
+        'status': 'confirmed',
+        'type': 'in_person',
+        'beneficiary': {
+          'account_id': 'a1111111-1111-1111-1111-111111111111',
+          'is_self': true,
+          'first_name': null,
+          'last_name': null,
+        },
+      });
+      expect(dto.beneficiaryIsSelf, isTrue);
+      expect(dto.beneficiaryName, isNull);
+    });
+
+    test('fromJson : beneficiary absent -> repli sur is_self=true (rétrocompat)',
+        () {
+      final dto = AppointmentDto.fromJson({
+        'id': 'appt-4',
+        'cabinet_id': 'cab-1',
+        'provider': {'display_name': 'Dr Martin', 'specialty': 'Dentiste'},
+        'starts_at': '2026-07-01T09:00:00Z',
+        'duration_minutes': 30,
+        'motif': 'Consultation',
+        'status': 'confirmed',
+        'type': 'in_person',
+      });
+      expect(dto.beneficiaryIsSelf, isTrue);
+      expect(dto.beneficiaryName, isNull);
+    });
   });
 
   group('PatientAccountDto', () {
