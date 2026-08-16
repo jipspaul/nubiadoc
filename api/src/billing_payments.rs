@@ -164,18 +164,19 @@ pub async fn create_payment_intent(
     // stade voit toujours 0 ligne → patient_share_cents = 0 → tout paiement
     // rejeté en 422 (régression #4433, qui avait introduit ce calcul sans
     // anticiper la dépendance RLS de quote_item au GUC cabinet).
-    // Ownership : compte du patient OU compte facturé (billed_to_account_id, #4098) —
-    // symétrique à la policy RLS quote_patient_read (migration 0175), sinon le tuteur
-    // payeur voit le devis (GET) mais ne peut jamais le régler (404 ici).
+    // Ownership résolue par la policy RLS quote_patient_read (migration 0175,
+    // scope app.patient_account_id posé ci-dessus) : patient OU compte facturé
+    // (billed_to_account_id, #4098) — pas de JOIN patient ici (la table
+    // `patient` a sa propre RLS `patient_account_read`, migration 0029, sans
+    // branche tutelle, qui éliminerait la ligne de la dépendante AVANT que la
+    // clause billed_to_account_id ne puisse la sauver — cf. #5623), sinon le
+    // tuteur payeur voit le devis (GET) mais ne peut jamais le régler (404 ici).
     let quote_row = sqlx::query(
         "SELECT q.cabinet_id, q.patient_id, q.status, q.deposit_pct::double precision AS deposit_pct \
          FROM quote q \
-         JOIN patient p ON p.id = q.patient_id \
-         WHERE q.id = $1 AND q.deleted_at IS NULL \
-           AND (p.patient_account_id = $2 OR q.billed_to_account_id = $2)",
+         WHERE q.id = $1 AND q.deleted_at IS NULL",
     )
     .bind(body.quote_id)
-    .bind(claims.account_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
