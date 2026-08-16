@@ -49,9 +49,11 @@ import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 import 'rail_badges_cubit.dart';
+import 'waiting_room_summary_cubit.dart';
 import 'widgets/cash_collection_card.dart';
 import 'widgets/global_search_dialog.dart';
 import 'widgets/practitioners_today_card.dart';
+import 'widgets/waiting_room_card.dart';
 import 'widgets/week_occupancy_card.dart';
 
 /// Entry point for the authenticated secrétariat home. Delegates layout to
@@ -119,7 +121,11 @@ class DashboardPage extends StatelessWidget {
             )..add(const DashboardLoadRequested()),
             child: BlocProvider<CashCollectionCubit>(
               create: (_) => GetIt.instance<CashCollectionCubit>()..load(),
-              child: const _DashboardContent(),
+              child: BlocProvider<WaitingRoomSummaryCubit>(
+                create: (_) =>
+                    GetIt.instance<WaitingRoomSummaryCubit>()..load(),
+                child: const _DashboardContent(),
+              ),
             ),
           );
         } else if (destination.route == '/salle-attente') {
@@ -369,6 +375,7 @@ class _DashboardLoadedView extends StatelessWidget {
                     hint: 'Consultez l’agenda du cabinet pour le détail.',
                   );
                   final rightColumn = [
+                    const WaitingRoomCard(),
                     _DashboardPanel(
                       icon: Icons.pending_actions_outlined,
                       title: 'À traiter',
