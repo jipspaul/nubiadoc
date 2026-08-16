@@ -65,6 +65,8 @@ class _MockGetAgenda extends Mock implements GetCabinetAgendaUseCase {}
 
 class _MockListWaitingList extends Mock implements ListWaitingListUseCase {}
 
+class _MockListBookableSlots extends Mock implements ListBookableSlotsUseCase {}
+
 /// Ancre un DateTime à midi le jour de `base` + `daysOffset` — évite toute
 /// dépendance à l'heure d'exécution du test. `now.add(Duration(hours: N))`
 /// traverse minuit si le test tourne dans les N heures précédant minuit,
@@ -93,6 +95,22 @@ AgendaEntry _entry(
       status: isFree ? '' : status,
     );
 
+Slot _slot(
+  String id,
+  DateTime startsAt, {
+  String practitionerId = 'prac',
+  bool isAvailable = true,
+  Duration duration = const Duration(minutes: 30),
+}) =>
+    Slot(
+      id: id,
+      cabinetId: 'cab',
+      practitionerId: practitionerId,
+      startsAt: startsAt,
+      endsAt: startsAt.add(duration),
+      isAvailable: isAvailable,
+    );
+
 /// Reproduit la formule de `DashboardBloc` pour dériver la présence d'un
 /// praticien depuis l'agenda — évite de figer un booléen en dur dans les
 /// attentes de test, ce qui serait sensible à l'instant d'exécution du test
@@ -104,6 +122,7 @@ void main() {
   group('DashboardBloc', () {
     late _MockGetAgenda getAgenda;
     late _MockListWaitingList listWaitingList;
+    late _MockListBookableSlots listBookableSlots;
 
     setUpAll(() {
       registerFallbackValue(DateTime(2026, 1, 1));
@@ -112,6 +131,15 @@ void main() {
     setUp(() {
       getAgenda = _MockGetAgenda();
       listWaitingList = _MockListWaitingList();
+      listBookableSlots = _MockListBookableSlots();
+      // Best-effort comme `listWaitingList` : aucun test de ce groupe ne
+      // couvre les créneaux libres (#5384), sauf le groupe dédié plus bas.
+      when(
+        () => listBookableSlots(
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+        ),
+      ).thenAnswer((_) async => const Right([]));
     });
 
     blocTest<DashboardBloc, DashboardState>(
@@ -142,6 +170,7 @@ void main() {
         return DashboardBloc(
           getAgenda: getAgenda,
           listWaitingList: listWaitingList,
+          listBookableSlots: listBookableSlots,
         );
       },
       act: (bloc) => bloc.add(const DashboardLoadRequested()),
@@ -195,6 +224,7 @@ void main() {
         return DashboardBloc(
           getAgenda: getAgenda,
           listWaitingList: listWaitingList,
+          listBookableSlots: listBookableSlots,
         );
       },
       act: (bloc) => bloc.add(const DashboardLoadRequested()),
@@ -273,6 +303,7 @@ void main() {
         return DashboardBloc(
           getAgenda: getAgenda,
           listWaitingList: listWaitingList,
+          listBookableSlots: listBookableSlots,
         );
       },
       act: (bloc) => bloc.add(const DashboardLoadRequested()),
@@ -298,8 +329,7 @@ void main() {
         );
         expect(
           byId['pB']!.lastAppointmentEndsAt,
-          _atNoon(DateTime.now())
-              .add(const Duration(hours: 1, minutes: 30)),
+          _atNoon(DateTime.now()).add(const Duration(hours: 1, minutes: 30)),
         );
       },
     );
@@ -313,10 +343,77 @@ void main() {
         return DashboardBloc(
           getAgenda: getAgenda,
           listWaitingList: listWaitingList,
+          listBookableSlots: listBookableSlots,
         );
       },
       act: (bloc) => bloc.add(const DashboardLoadRequested()),
       expect: () => [const DashboardLoading(), isA<DashboardError>()],
+    );
+
+    blocTest<DashboardBloc, DashboardState>(
+      '#5384 : créneaux libres cette semaine — rapprochés du planning réel, '
+      'sous-ensemble demain matin',
+      build: () {
+        final now = DateTime.now();
+        when(() => getAgenda(any(), includePast: any(named: 'includePast')))
+            .thenAnswer(
+          (_) async =>
+              Right([_entry('booked', _atNoon(now), practitionerId: 'pA')]),
+        );
+        when(() => listWaitingList()).thenAnswer((_) async => const Right([]));
+        when(
+          () => listBookableSlots(
+            from: any(named: 'from'),
+            to: any(named: 'to'),
+          ),
+        ).thenAnswer(
+          (_) async => Right([
+            // Chevauche le RDV réservé du même praticien → exclu malgré
+            // `isAvailable: true` (note #5 maquette : rapprochement
+            // obligatoire avec le planning réel, pas d'affichage du brut).
+            _slot('overlapping', _atNoon(now), practitionerId: 'pA'),
+            // Libre aujourd'hui : compte dans le total, pas dans « demain
+            // matin ».
+            _slot(
+              'free-today',
+              _atNoon(now).add(const Duration(hours: 2)),
+              practitionerId: 'pB',
+            ),
+            // Libre demain avant midi : compte dans les deux compteurs.
+            _slot(
+              'free-tomorrow-morning',
+              _atNoon(now, daysOffset: 1).subtract(const Duration(hours: 3)),
+              practitionerId: 'pC',
+            ),
+            // Libre demain après-midi : compte dans le total, pas dans «
+            // demain matin ».
+            _slot(
+              'free-tomorrow-afternoon',
+              _atNoon(now, daysOffset: 1).add(const Duration(hours: 2)),
+              practitionerId: 'pD',
+            ),
+            // Fermé (`isAvailable: false`) : toujours exclu.
+            _slot(
+              'closed',
+              _atNoon(now),
+              practitionerId: 'pE',
+              isAvailable: false,
+            ),
+          ]),
+        );
+        return DashboardBloc(
+          getAgenda: getAgenda,
+          listWaitingList: listWaitingList,
+          listBookableSlots: listBookableSlots,
+        );
+      },
+      act: (bloc) => bloc.add(const DashboardLoadRequested()),
+      expect: () => [const DashboardLoading(), isA<DashboardLoaded>()],
+      verify: (bloc) {
+        final state = bloc.state as DashboardLoaded;
+        expect(state.freeSlotsThisWeekCount, 3);
+        expect(state.freeSlotsTomorrowMorningCount, 1);
+      },
     );
   });
 

@@ -54,6 +54,8 @@ final class DashboardLoaded extends DashboardState {
     required this.pendingCount,
     required this.waitingCount,
     this.practitionersToday = const [],
+    this.freeSlotsThisWeekCount = 0,
+    this.freeSlotsTomorrowMorningCount = 0,
   });
 
   final int todayCount;
@@ -64,9 +66,23 @@ final class DashboardLoaded extends DashboardState {
   /// chargé (#5385) — aucun appel réseau supplémentaire.
   final List<PractitionerToday> practitionersToday;
 
+  /// Créneaux bookables de la semaine réellement libres, rapprochés du
+  /// planning réel (#5384 — la donnée `/bookable-slots` seule n'est jamais
+  /// rapprochée du planning).
+  final int freeSlotsThisWeekCount;
+
+  /// Sous-ensemble de [freeSlotsThisWeekCount] démarrant demain avant midi.
+  final int freeSlotsTomorrowMorningCount;
+
   @override
-  List<Object?> get props =>
-      [todayCount, pendingCount, waitingCount, practitionersToday];
+  List<Object?> get props => [
+        todayCount,
+        pendingCount,
+        waitingCount,
+        practitionersToday,
+        freeSlotsThisWeekCount,
+        freeSlotsTomorrowMorningCount,
+      ];
 }
 
 final class DashboardError extends DashboardState {
