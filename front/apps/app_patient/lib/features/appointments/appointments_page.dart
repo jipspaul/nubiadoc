@@ -14,6 +14,7 @@ import 'appointments_bloc.dart';
 import 'appointments_event.dart';
 import 'appointments_state.dart';
 import 'booking_confirmation_page.dart';
+import 'widgets/provider_filters_aside.dart';
 
 /// Page de recherche praticien + booking.
 /// Tab 1 du DashboardPage : recherche → carte + liste → créneaux → confirmation.
@@ -249,6 +250,12 @@ class _SearchViewState extends State<_SearchView> {
   String? _interpretation;
   bool _parsing = false;
 
+  // #5359 : panneau de filtres patient `.aside` (recherche web, ≥ écran
+  // large) — purement client, ne rejoue pas la recherche réseau (même
+  // principe que les facettes backend, calculées indépendamment des
+  // filtres actifs).
+  Set<String> _asideFilters = <String>{};
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -372,8 +379,9 @@ class _SearchViewState extends State<_SearchView> {
 
   @override
   Widget build(BuildContext context) {
-    final geoProviders = widget.providers.where((p) => p.hasLocation).toList();
-    return Stack(
+    final filtered = filterProviders(widget.providers, _asideFilters);
+    final geoProviders = filtered.where((p) => p.hasLocation).toList();
+    final mapAndSheet = Stack(
       children: [
         // 1. Carte plein écran (façon Waze) avec pins/clusters.
         Positioned.fill(
@@ -385,7 +393,7 @@ class _SearchViewState extends State<_SearchView> {
         ),
         // 2. Feuille de résultats glissable superposée à la carte.
         _ResultsSheet(
-          providers: widget.providers,
+          providers: filtered,
           loading: widget.loading,
           onCardTap: _onProviderFocused,
         ),
@@ -402,6 +410,28 @@ class _SearchViewState extends State<_SearchView> {
           onDismissInterpretation: () => setState(() => _interpretation = null),
         ),
       ],
+    );
+    // Écran large (web) : panneau de filtres patient `.aside` (238 px) à
+    // gauche, chaque option avec son compteur de résultats (#5359) — le
+    // reste de l'expérience (carte + feuille + recherche) est inchangé.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _kFicheWebBreakpoint) return mapAndSheet;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 238,
+              child: ProviderFiltersAside(
+                providers: widget.providers,
+                selected: _asideFilters,
+                onChanged: (next) => setState(() => _asideFilters = next),
+              ),
+            ),
+            Expanded(child: mapAndSheet),
+          ],
+        );
+      },
     );
   }
 }

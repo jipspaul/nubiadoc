@@ -12,6 +12,10 @@ class ProviderResultDto {
   final double? lng;
   final double? ratingAvg;
   final String? nextSlotAt;
+  final String? sector;
+  final bool? tiersPayant;
+  final bool? pmr;
+  final bool? acceptsNewPatients;
 
   const ProviderResultDto({
     required this.id,
@@ -22,6 +26,10 @@ class ProviderResultDto {
     this.lng,
     this.ratingAvg,
     this.nextSlotAt,
+    this.sector,
+    this.tiersPayant,
+    this.pmr,
+    this.acceptsNewPatients,
   });
 
   /// Contrat réel : ProviderItem (api/src/marketplace.rs) — clé `provider_id`,
@@ -45,6 +53,10 @@ class ProviderResultDto {
       lng: lng,
       ratingAvg: (json['rating_avg'] as num?)?.toDouble(),
       nextSlotAt: json['next_slot_at'] as String?,
+      sector: json['sector'] as String?,
+      tiersPayant: json['tiers_payant'] as bool?,
+      pmr: json['pmr'] as bool?,
+      acceptsNewPatients: json['accepts_new_patients'] as bool?,
     );
   }
 
@@ -57,6 +69,10 @@ class ProviderResultDto {
         lng: lng,
         ratingAvg: ratingAvg,
         nextSlotAt: nextSlotAt == null ? null : DateTime.tryParse(nextSlotAt!),
+        sector: sector,
+        tiersPayant: tiersPayant,
+        pmr: pmr,
+        acceptsNewPatients: acceptsNewPatients,
       );
 }
 
