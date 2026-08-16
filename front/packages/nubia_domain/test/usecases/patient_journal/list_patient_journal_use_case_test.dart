@@ -47,8 +47,11 @@ void main() {
         .thenAnswer((_) async => const Right([]));
     when(() => listPrescriptions(patientId))
         .thenAnswer((_) async => const Right([]));
-    when(() => listCabinetQuotes())
-        .thenAnswer((_) async => const Right([]));
+    when(() => listCabinetQuotes(
+          patientId: patientId,
+          limit: 500,
+          offset: 0,
+        )).thenAnswer((_) async => const Right([]));
     when(() => listPatientDocuments(patientId))
         .thenAnswer((_) async => const Right([]));
     when(() => listCabinetAppointments())
@@ -101,8 +104,48 @@ void main() {
     expect(entries[1].amountCents, 9350);
   });
 
+  test(
+      'paginate au-delà de la première page de devis quand elle est pleine '
+      '(#5572 — sinon les devis les plus anciens du patient sont tronqués)',
+      () async {
+    CabinetQuote fakeQuote(int i) => CabinetQuote(
+          id: 'quote-$i',
+          cabinetId: 'cab-1',
+          patientId: patientId,
+          patientName: 'Marc Dubois',
+          totalCents: 100,
+          patientShareCents: 100,
+          status: CabinetQuoteStatus.draft,
+          createdAt: DateTime.utc(2026, 1, 1).add(Duration(days: i)),
+        );
+    final firstPage = List.generate(500, fakeQuote);
+    final secondPage = List.generate(3, (i) => fakeQuote(500 + i));
+
+    when(() => listCabinetQuotes(
+          patientId: patientId,
+          limit: 500,
+          offset: 0,
+        )).thenAnswer((_) async => Right(firstPage));
+    when(() => listCabinetQuotes(
+          patientId: patientId,
+          limit: 500,
+          offset: 500,
+        )).thenAnswer((_) async => Right(secondPage));
+
+    final result = await useCase(patientId);
+
+    final entries = result
+        .getOrElse(() => [])
+        .where((e) => e.kind == PatientJournalKind.devis);
+    expect(entries, hasLength(503));
+  });
+
   test('propage le Failure de la première source en échec', () async {
-    when(() => listCabinetQuotes()).thenAnswer(
+    when(() => listCabinetQuotes(
+          patientId: patientId,
+          limit: 500,
+          offset: 0,
+        )).thenAnswer(
       (_) async => const Left(ServerFailure(message: 'boom')),
     );
 

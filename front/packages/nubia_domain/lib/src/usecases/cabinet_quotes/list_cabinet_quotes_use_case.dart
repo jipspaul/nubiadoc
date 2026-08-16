@@ -8,6 +8,16 @@ class ListCabinetQuotesUseCase {
 
   const ListCabinetQuotesUseCase(this._repository);
 
-  Future<Either<Failure, List<CabinetQuote>>> call({int page = 1}) =>
-      _repository.list(page: page);
+  Future<Either<Failure, List<CabinetQuote>>> call({
+    int page = 1,
+    String? patientId,
+    int? limit,
+    int? offset,
+  }) =>
+      _repository.list(
+        page: page,
+        patientId: patientId,
+        limit: limit,
+        offset: offset,
+      );
 }

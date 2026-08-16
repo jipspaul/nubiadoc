@@ -8,12 +8,27 @@ class CabinetQuotesApi {
 
   CabinetQuotesApi(ApiClient client) : _dio = client.dio;
 
-  Future<List<CabinetQuoteDto>> list({int page = 1}) async {
+  Future<List<CabinetQuoteDto>> list({
+    int page = 1,
+    String? patientId,
+    int? limit,
+    int? offset,
+  }) async {
     // Le back renvoie un tableau nu `[CabinetQuoteItem]` (pas de wrapper
     // `{data}`). On tolère les deux formes par robustesse.
     // Note : l'endpoint ne supporte pas la pagination `page` (rejet 400
     // `unsupported_pagination_param`) ; `page` n'est donc pas transmis.
-    final response = await _dio.get<dynamic>('/cabinet/quotes');
+    // `patient_id`/`limit`/`offset` sont eux supportés (#4419/#4519/#3521)
+    // et nécessaires pour paginer par patient sans tronquer son historique
+    // à la limite par défaut du cabinet entier (#5572).
+    final response = await _dio.get<dynamic>(
+      '/cabinet/quotes',
+      queryParameters: {
+        if (patientId != null) 'patient_id': patientId,
+        if (limit != null) 'limit': limit,
+        if (offset != null) 'offset': offset,
+      },
+    );
     final raw = response.data;
     final data = raw is List
         ? raw
