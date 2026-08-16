@@ -7,6 +7,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import '../pharmacy/widgets/pharmacy_card.dart';
 import 'orders_bloc.dart';
 import 'widgets/order_billing_summary_card.dart';
+import 'widgets/order_prescription_lines_card.dart';
 import 'widgets/order_rejected_card.dart';
 import 'widgets/order_timeline.dart';
 import 'widgets/pickup_qr_card.dart';
@@ -79,6 +80,10 @@ class PatientOrderDetailBody extends StatelessWidget {
                       )
                     else
                       OrderTimeline(order: order),
+                    if (order.lines.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      OrderPrescriptionLinesCard(order: order),
+                    ],
                     if (order.canShowPickupCode && pickupToken != null) ...[
                       const SizedBox(height: 16),
                       PickupQrCard(token: pickupToken),

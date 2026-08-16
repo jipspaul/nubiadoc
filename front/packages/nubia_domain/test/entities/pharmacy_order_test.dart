@@ -117,10 +117,11 @@ void main() {
       );
     });
 
-    test('hasBillingSummary uniquement si les 4 montants sont renseignés '
+    test(
+        'hasBillingSummary uniquement si les 4 montants sont renseignés '
         '(#4888)', () {
-      expect(makeOrder(PharmacyOrderStatus.received).hasBillingSummary,
-          isFalse);
+      expect(
+          makeOrder(PharmacyOrderStatus.received).hasBillingSummary, isFalse);
 
       final billed = PharmacyOrder(
         id: 'o1',
@@ -171,6 +172,40 @@ void main() {
         lineCount: 3,
       );
       expect(withLineCount.lineCount, 3);
+    });
+
+    test(
+        'lines vide par défaut, peut porter le détail des lignes '
+        '(même entité PrescriptionItem que côté pharmacien, #5349)', () {
+      expect(makeOrder(PharmacyOrderStatus.received).lines, isEmpty);
+
+      final withLines = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.received,
+        createdAt: DateTime.utc(2026, 7, 1),
+        updatedAt: DateTime.utc(2026, 7, 2),
+        lines: const [
+          PrescriptionItem(
+            label: 'Amoxicilline 1 g',
+            form: 'comprimé',
+            posology: '1 matin et soir',
+            duration: '7 jours',
+            quantity: '14 comprimés',
+          ),
+          PrescriptionItem(
+            label: 'Chlorhexidine 0,12 %',
+            form: 'flacon',
+            posology: '2 bains de bouche par jour',
+            duration: '',
+            quantity: '1 flacon',
+          ),
+        ],
+      );
+      expect(withLines.lines, hasLength(2));
+      expect(withLines.lines.first.label, 'Amoxicilline 1 g');
+      expect(withLines.lines.last.label, 'Chlorhexidine 0,12 %');
     });
   });
 

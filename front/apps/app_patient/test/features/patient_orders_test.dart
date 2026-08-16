@@ -43,6 +43,32 @@ PharmacyOrder order(PharmacyOrderStatus status) => PharmacyOrder(
       updatedAt: DateTime(2026, 7, 2),
     );
 
+PharmacyOrder orderWithLines(PharmacyOrderStatus status) => PharmacyOrder(
+      id: 'o1',
+      pharmacyId: 'p1',
+      pharmacyName: 'Pharmacie du Port',
+      prescriptionId: 'rx1',
+      status: status,
+      createdAt: DateTime(2026, 7, 1),
+      updatedAt: DateTime(2026, 7, 2),
+      lines: const [
+        PrescriptionItem(
+          label: 'Amoxicilline 1 g',
+          form: 'comprimé',
+          posology: '1 matin et soir',
+          duration: '7 jours',
+          quantity: '14 comprimés',
+        ),
+        PrescriptionItem(
+          label: 'Chlorhexidine 0,12 %',
+          form: 'flacon',
+          posology: '2 bains de bouche par jour',
+          duration: '',
+          quantity: '1 flacon',
+        ),
+      ],
+    );
+
 PharmacyOrder billedOrder(PharmacyOrderStatus status) => PharmacyOrder(
       id: 'o1',
       pharmacyId: 'p1',
@@ -125,8 +151,8 @@ void main() {
             (_) async => Right(order(PharmacyOrderStatus.rejected)));
         when(() => events.watchOrder('o1'))
             .thenAnswer((_) => const Stream.empty());
-        when(() => repo.getMyPharmacy()).thenAnswer((_) async => const Right(
-            declaredPharmacy));
+        when(() => repo.getMyPharmacy())
+            .thenAnswer((_) async => const Right(declaredPharmacy));
         return buildDetail();
       },
       act: (cubit) => cubit.load('o1'),
@@ -146,8 +172,8 @@ void main() {
             (_) async => Right(order(PharmacyOrderStatus.preparing)));
         when(() => events.watchOrder('o1'))
             .thenAnswer((_) => const Stream.empty());
-        when(() => repo.getMyPharmacy()).thenAnswer((_) async => const Right(
-            declaredPharmacy));
+        when(() => repo.getMyPharmacy())
+            .thenAnswer((_) async => const Right(declaredPharmacy));
         return buildDetail();
       },
       act: (cubit) => cubit.load('o1'),
@@ -309,8 +335,8 @@ void main() {
         find.text('8 rue Auber, 75009 Paris · 650 m'),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('pharmacy_directions_button')),
-          findsOneWidget);
+      expect(
+          find.byKey(const Key('pharmacy_directions_button')), findsOneWidget);
       expect(find.byKey(const Key('pharmacy_call_button')), findsOneWidget);
     });
 
@@ -324,8 +350,7 @@ void main() {
       );
 
       expect(find.text('Pharmacie'), findsOneWidget);
-      expect(find.byKey(const Key('pharmacy_directions_button')),
-          findsNothing);
+      expect(find.byKey(const Key('pharmacy_directions_button')), findsNothing);
       expect(find.byKey(const Key('pharmacy_call_button')), findsNothing);
     });
   });
@@ -347,8 +372,8 @@ void main() {
       );
 
       expect(find.byType(PharmacyCard), findsOneWidget);
-      expect(find.byKey(const Key('pharmacy_directions_button')),
-          findsOneWidget);
+      expect(
+          find.byKey(const Key('pharmacy_directions_button')), findsOneWidget);
       expect(find.byKey(const Key('pharmacy_call_button')), findsOneWidget);
     });
 
@@ -402,6 +427,51 @@ void main() {
       );
 
       expect(find.byKey(const Key('order_billing_summary')), findsNothing);
+    });
+
+    testWidgets(
+        'pas de carte ordonnance tant que le back n\'envoie pas '
+        'de lignes (#5349)', (tester) async {
+      final cubit = MockPatientOrderDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientOrderDetailLoaded(order(PharmacyOrderStatus.preparing)));
+
+      await tester.pumpApp(
+        BlocProvider<PatientOrderDetailCubit>.value(
+          value: cubit,
+          child: const PatientOrderDetailBody(),
+        ),
+      );
+
+      expect(
+          find.byKey(const Key('order_prescription_lines_card')), findsNothing);
+    });
+
+    testWidgets(
+        'la carte « Votre ordonnance » liste chaque ligne avec nom, '
+        'quantité/posologie et le compteur reflète le nombre réel (#5349)',
+        (tester) async {
+      final cubit = MockPatientOrderDetailCubit();
+      when(() => cubit.state).thenReturn(PatientOrderDetailLoaded(
+          orderWithLines(PharmacyOrderStatus.preparing)));
+
+      await tester.pumpApp(
+        BlocProvider<PatientOrderDetailCubit>.value(
+          value: cubit,
+          child: const PatientOrderDetailBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('order_prescription_lines_card')),
+          findsOneWidget);
+      expect(find.text('Votre ordonnance'), findsOneWidget);
+      expect(find.text('2 lignes'), findsOneWidget);
+      expect(find.text('Amoxicilline 1 g'), findsOneWidget);
+      expect(
+          find.text('14 comprimés · 1 matin et soir, 7 jours'), findsOneWidget);
+      expect(find.text('Chlorhexidine 0,12 %'), findsOneWidget);
+      expect(
+          find.text('1 flacon · 2 bains de bouche par jour'), findsOneWidget);
     });
 
     testWidgets(
