@@ -10,8 +10,7 @@ import 'widgets/order_billing_summary_card.dart';
 import 'widgets/order_prescription_lines_card.dart';
 import 'widgets/order_rejected_card.dart';
 import 'widgets/order_timeline.dart';
-import 'widgets/pickup_deadline_banner.dart';
-import 'widgets/pickup_qr_card.dart';
+import 'widgets/pickup_ready_hero.dart';
 
 /// Détail d'une commande : timeline temps réel + QR de retrait quand prête.
 class PatientOrderDetailPage extends StatelessWidget {
@@ -61,6 +60,10 @@ class PatientOrderDetailBody extends StatelessWidget {
                   key: const Key('order_detail_column'),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (order.canShowPickupCode && pickupToken != null) ...[
+                      PickupReadyHero(order: order, token: pickupToken),
+                      const SizedBox(height: 16),
+                    ],
                     if (pharmacy != null)
                       PharmacyCard(pharmacy: pharmacy)
                     else
@@ -84,14 +87,6 @@ class PatientOrderDetailBody extends StatelessWidget {
                     if (order.lines.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       OrderPrescriptionLinesCard(order: order),
-                    ],
-                    if (order.canShowPickupCode && pickupToken != null) ...[
-                      const SizedBox(height: 16),
-                      PickupQrCard(token: pickupToken),
-                      if (order.readyAt != null) ...[
-                        const SizedBox(height: 12),
-                        PickupDeadlineBanner(order: order),
-                      ],
                     ],
                     if (order.hasBillingSummary) ...[
                       const SizedBox(height: 16),
