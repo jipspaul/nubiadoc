@@ -159,6 +159,26 @@ void main() {
       expect(withPrescriber, equals(withoutPrescriber));
     });
 
+    test(
+        'pickupDeadline nullable (#5348, fallback readyAt+7j calculé côté '
+        'UI tant que le back ne l\'expose pas), hors égalité', () {
+      expect(makeOrder(PharmacyOrderStatus.ready).pickupDeadline, isNull);
+
+      final withDeadline = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.ready,
+        createdAt: DateTime.utc(2026, 7, 1),
+        updatedAt: DateTime.utc(2026, 7, 2),
+        readyAt: DateTime.utc(2026, 7, 2),
+        pickupDeadline: DateTime.utc(2026, 7, 9),
+      );
+      expect(withDeadline.pickupDeadline, DateTime.utc(2026, 7, 9));
+      // Ne participe pas à l'identité de refresh (props = [id, status, updatedAt]).
+      expect(withDeadline, equals(makeOrder(PharmacyOrderStatus.ready)));
+    });
+
     test('lineCount nullable, rétro-compatible', () {
       expect(makeOrder(PharmacyOrderStatus.received).lineCount, isNull);
 
