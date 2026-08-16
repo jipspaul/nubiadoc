@@ -3,14 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import '../expiring_quotes_summary_cubit.dart';
 import '../patient_messages_summary_cubit.dart';
 import 'work_queue_item.dart';
 
 /// Panneau « À traiter maintenant » (maquette design-v2, colonne droite du
 /// tableau de bord) : file de tickets d'action rapide. Lignes couvertes :
-/// demandes de créneau sans réponse (#5378) et messages patients non lus
-/// (#5379) — les autres lignes de la maquette (RDV non confirmé, devis
-/// expirants) sont hors périmètre de ces tickets.
+/// demandes de créneau sans réponse (#5378), devis qui expirent cette
+/// semaine (#5377) et messages patients non lus (#5379) — RDV non confirmé
+/// reste hors périmètre de ces tickets.
 class WorkQueueCard extends StatelessWidget {
   const WorkQueueCard({
     super.key,
@@ -67,6 +68,43 @@ class WorkQueueCard extends StatelessWidget {
             onAction: () => context.push('/liste-attente'),
             variant: WorkQueueItemVariant.info,
           ),
+          BlocBuilder<ExpiringQuotesSummaryCubit, ExpiringQuotesSummaryState>(
+            builder: (context, state) => switch (state) {
+              ExpiringQuotesSummaryLoading() => const Padding(
+                  key: Key('work_queue_card_quotes_loading'),
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: NubiaSkeletonLoader(height: 56, borderRadius: 8),
+                ),
+              ExpiringQuotesSummaryError(:final message) => Padding(
+                  key: const Key('work_queue_card_quotes_error'),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Text(
+                    message,
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ExpiringQuotesSummaryLoaded(:final quotes) => quotes.isEmpty
+                  ? const SizedBox.shrink(
+                      key: Key('work_queue_expiring_quotes_row_empty'),
+                    )
+                  : WorkQueueItem(
+                      key: const Key('work_queue_expiring_quotes_row'),
+                      icon: Icons.description,
+                      title: '${quotes.length} devis expirent cette semaine',
+                      subtitle: quotes
+                          .map(
+                            (q) =>
+                                '${q.patientName} (${_formatDayMonth(q.expiresAt!)})',
+                          )
+                          .join(', '),
+                      actionLabel: 'Relancer',
+                      actionIcon: Icons.send,
+                      onAction: () => context.push('/devis'),
+                      variant: WorkQueueItemVariant.warning,
+                    ),
+            },
+          ),
           BlocBuilder<PatientMessagesSummaryCubit, PatientMessagesSummaryState>(
             builder: (context, state) => switch (state) {
               PatientMessagesSummaryLoading() => const Padding(
@@ -79,8 +117,8 @@ class WorkQueueCard extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Text(
                     message,
-                    style:
-                        textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: cs.onSurfaceVariant),
                   ),
                 ),
               PatientMessagesSummaryLoaded(
@@ -107,3 +145,8 @@ class WorkQueueCard extends StatelessWidget {
     );
   }
 }
+
+/// Formate une date en `JJ/MM` (ex. « 16/08 »), verbatim maquette.
+String _formatDayMonth(DateTime date) =>
+    '${date.day.toString().padLeft(2, '0')}/'
+    '${date.month.toString().padLeft(2, '0')}';
