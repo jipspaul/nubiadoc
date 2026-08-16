@@ -13,6 +13,8 @@ class AppointmentDto {
   final String? cabinetAddress;
   final String? cabinetPhone;
   final String practitionerId;
+  final bool beneficiaryIsSelf;
+  final String? beneficiaryName;
 
   const AppointmentDto({
     required this.id,
@@ -27,6 +29,8 @@ class AppointmentDto {
     this.cabinetAddress,
     this.cabinetPhone,
     this.practitionerId = '',
+    this.beneficiaryIsSelf = true,
+    this.beneficiaryName,
   });
 
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
@@ -69,6 +73,21 @@ class AppointmentDto {
         (json['cabinet_address'] as String?);
     final cabinetPhone =
         (cabinet?['phone'] as String?) ?? (json['cabinet_phone'] as String?);
+    // #5563/#5593 : la clé imbriquée `beneficiary` (jamais lue avant) permet
+    // de distinguer un RDV du tuteur (is_self:true, pas de nom) d'un RDV pris
+    // pour un dépendant (is_self:false, first_name/last_name renseignés) —
+    // absente, on retombe sur "self" par défaut (comportement historique).
+    final beneficiary = json['beneficiary'] as Map<String, dynamic>?;
+    final beneficiaryIsSelf = beneficiary?['is_self'] as bool? ?? true;
+    final beneficiaryFirstName = beneficiary?['first_name'] as String?;
+    final beneficiaryLastName = beneficiary?['last_name'] as String?;
+    final beneficiaryFullName = [
+      beneficiaryFirstName,
+      beneficiaryLastName,
+    ].whereType<String>().where((s) => s.isNotEmpty).join(' ');
+    final beneficiaryName = beneficiaryIsSelf || beneficiaryFullName.isEmpty
+        ? null
+        : beneficiaryFullName;
     return AppointmentDto(
       id: json['id'] as String,
       cabinetId: json['cabinet_id'] as String? ?? '',
@@ -82,6 +101,8 @@ class AppointmentDto {
       cabinetAddress: cabinetAddress,
       cabinetPhone: cabinetPhone,
       practitionerId: practitionerId,
+      beneficiaryIsSelf: beneficiaryIsSelf,
+      beneficiaryName: beneficiaryName,
     );
   }
 
@@ -100,6 +121,8 @@ class AppointmentDto {
     cabinetAddress: cabinetAddress,
     cabinetPhone: cabinetPhone,
     practitionerId: practitionerId,
+    beneficiaryIsSelf: beneficiaryIsSelf,
+    beneficiaryName: beneficiaryName,
   );
 
   // #3804 : le back envoie 'done' (jamais 'completed') et distingue

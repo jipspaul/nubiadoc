@@ -244,6 +244,22 @@ class _AppointmentCard extends StatelessWidget {
                         appointment.practitionerName,
                         style: textTheme.titleSmall,
                       ),
+                      // #5563/#5593 : sans ça, un tuteur avec plusieurs
+                      // dépendants ne peut pas distinguer en un coup d'oeil un
+                      // RDV pris pour lui-même d'un RDV pris pour un
+                      // dépendant nommé (must ouvrir le détail ou deviner via
+                      // le motif texte libre sinon).
+                      if (!appointment.beneficiaryIsSelf &&
+                          appointment.beneficiaryName != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Pour ${appointment.beneficiaryName}',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 2),
                       Text(
                         // #3825 : pas de « · » pendant quand la spécialité est vide.

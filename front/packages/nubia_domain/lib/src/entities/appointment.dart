@@ -27,6 +27,13 @@ class Appointment extends Equatable {
   // Requis pour proposer une nouvelle date/heure avec le même praticien
   // (GET /providers/:id/availability) — vide si l'API ne l'expose pas.
   final String practitionerId;
+  // #5563/#5593 : `beneficiary.is_self` distingue un RDV pris par le tuteur
+  // pour lui-même d'un RDV pris pour un dépendant (on_behalf_of) — sans ça,
+  // « Mes RDV » ne peut pas afficher pour qui est chaque rendez-vous.
+  // `beneficiaryName` est null quand `beneficiaryIsSelf` est true (l'API ne
+  // renvoie pas de nom dans ce cas, redondant avec le compte du tuteur).
+  final bool beneficiaryIsSelf;
+  final String? beneficiaryName;
 
   const Appointment({
     required this.id,
@@ -41,6 +48,8 @@ class Appointment extends Equatable {
     this.cabinetAddress,
     this.cabinetPhone,
     this.practitionerId = '',
+    this.beneficiaryIsSelf = true,
+    this.beneficiaryName,
   });
 
   bool get isUpcoming =>
