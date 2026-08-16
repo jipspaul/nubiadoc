@@ -337,6 +337,13 @@ class _SearchViewState extends State<_SearchView> {
     _openProviderSheet(provider);
   }
 
+  /// #5358 : action « Voir sa fiche et ses coordonnées » du bloc « aucun
+  /// créneau en ligne » — mène directement à la fiche praticien, sans passer
+  /// par le sheet de détail (qui n'a rien à proposer en plus ici).
+  void _openProviderProfile(ProviderResult provider) {
+    _bloc.add(AppointmentsProviderSelected(provider));
+  }
+
   /// Détail praticien en NubiaBottomSheet : ProviderCard + tarifs indicatifs
   /// + « Voir les créneaux ».
   void _openProviderSheet(ProviderResult provider) {
@@ -396,6 +403,7 @@ class _SearchViewState extends State<_SearchView> {
           providers: filtered,
           loading: widget.loading,
           onCardTap: _onProviderFocused,
+          onViewProfile: _openProviderProfile,
         ),
         // 3. Barre de recherche flottante + bandeau + chips (au-dessus de tout).
         _FloatingSearchHeader(
@@ -619,11 +627,13 @@ class _ResultsSheet extends StatelessWidget {
     required this.providers,
     required this.loading,
     required this.onCardTap,
+    required this.onViewProfile,
   });
 
   final List<ProviderResult> providers;
   final bool loading;
   final void Function(ProviderResult) onCardTap;
+  final void Function(ProviderResult) onViewProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -684,6 +694,7 @@ class _ResultsSheet extends StatelessWidget {
                   loading: loading,
                   scrollController: scrollController,
                   onCardTap: onCardTap,
+                  onViewProfile: onViewProfile,
                 ),
               ),
             ],
@@ -700,12 +711,14 @@ class _ResultsContent extends StatelessWidget {
     required this.loading,
     required this.scrollController,
     required this.onCardTap,
+    required this.onViewProfile,
   });
 
   final List<ProviderResult> providers;
   final bool loading;
   final ScrollController scrollController;
   final void Function(ProviderResult) onCardTap;
+  final void Function(ProviderResult) onViewProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -757,6 +770,7 @@ class _ResultsContent extends StatelessWidget {
               ? '${provider.distanceKm!.toStringAsFixed(1)} km'
               : null,
           onTap: () => onCardTap(provider),
+          onViewProfile: () => onViewProfile(provider),
         );
       },
     );

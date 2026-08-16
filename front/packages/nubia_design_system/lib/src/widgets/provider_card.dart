@@ -20,6 +20,11 @@ import 'package:nubia_design_system/src/widgets/nubia_badge.dart';
 /// - [distance] : distance formatée (ex. « 1,2 km »).
 /// - [rppsVerified] : affiche le marqueur RPPS vérifié à côté du nom.
 /// - [onTap] : callback au tap sur la carte.
+/// - [onViewProfile] : quand fourni et qu'il n'y a pas de créneau en ligne
+///   ([availabilityLabel] null), remplace la ligne dispo/distance par le
+///   bloc « Aucun créneau en ligne pour ce praticien » (maquette design-v2,
+///   bloc `.nosl`) proposant l'accès à sa fiche/coordonnées — la carte n'est
+///   jamais masquée ni laissée vide (#5358).
 class ProviderCard extends StatelessWidget {
   const ProviderCard({
     super.key,
@@ -31,6 +36,7 @@ class ProviderCard extends StatelessWidget {
     this.distance,
     this.rppsVerified = false,
     this.onTap,
+    this.onViewProfile,
   });
 
   final String name;
@@ -41,12 +47,14 @@ class ProviderCard extends StatelessWidget {
   final String? distance;
   final bool rppsVerified;
   final VoidCallback? onTap;
+  final VoidCallback? onViewProfile;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
+    final bool noOnlineSlots = availabilityLabel == null && onViewProfile != null;
 
     final Widget content = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 84),
@@ -98,7 +106,10 @@ class ProviderCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (availabilityLabel != null || distance != null) ...[
+                  if (noOnlineSlots) ...[
+                    const SizedBox(height: 8),
+                    _NoOnlineSlotsNotice(onViewProfile: onViewProfile!),
+                  ] else if (availabilityLabel != null || distance != null) ...[
                     const SizedBox(height: 6),
                     Row(
                       children: [
@@ -165,4 +176,102 @@ class ProviderCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Bloc « aucun créneau en ligne » (maquette design-v2, bloc `.nosl`) : fond
+/// `n50`, bordure pointillée, titre + action « Voir sa fiche et ses
+/// coordonnées ». Remplace la ligne dispo/distance sans jamais masquer ni
+/// laisser vide la carte praticien (#5358).
+class _NoOnlineSlotsNotice extends StatelessWidget {
+  const _NoOnlineSlotsNotice({required this.onViewProfile});
+
+  final VoidCallback onViewProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      width: double.infinity,
+      child: CustomPaint(
+        foregroundPainter: const _DashedRRectPainter(
+          color: NubiaColors.n300,
+          radius: 8,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: NubiaColors.n50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Aucun créneau en ligne pour ce praticien',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                InkWell(
+                  key: const Key('no_online_slots_view_profile'),
+                  onTap: onViewProfile,
+                  child: Text(
+                    'Voir sa fiche et ses coordonnées',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: cs.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bordure pointillée d'un rectangle arrondi — Flutter n'a pas de
+/// `BorderStyle.dashed` natif (maquette, bloc `.nosl`).
+class _DashedRRectPainter extends CustomPainter {
+  const _DashedRRectPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  static const _dashWidth = 4.0;
+  static const _dashGap = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final next = distance + _dashWidth;
+        canvas.drawPath(
+          metric.extractPath(distance, next.clamp(0, metric.length)),
+          paint,
+        );
+        distance = next + _dashGap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRRectPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
