@@ -526,3 +526,159 @@ async fn cabinet_quotes_get_invalid_status_filter_returns_400() {
         .await
         .ok();
 }
+
+/// #5597 : `expires_at = sent_at + 30 jours` pour un devis `sent` avec
+/// `sent_at` renseigné ; `null` pour un devis `draft` (jamais envoyé, pas de
+/// `sent_at`) — alimente la carte/badge « Devis qui expirent » côté front
+/// (`ExpiringQuotesSummaryCubit`/`RailBadgesCubit`), auparavant toujours
+/// vides faute de ce champ.
+#[tokio::test]
+async fn cabinet_quotes_get_exposes_expires_at_for_sent_quotes() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let sent_quote_id = Uuid::new_v4();
+    let draft_quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(user_id)
+    .bind(format!("cq-get-expires+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet CQ Expires Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Marc', 'Dubois')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency, sent_at) \
+             VALUES ($1, $2, $3, 'sent', 200.00, 'EUR', now())",
+        )
+        .bind(sent_quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, $3, 'draft', 200.00, 'EUR')",
+        )
+        .bind(draft_quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/quotes")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(user_id, cabinet_id, "practitioner")
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v.as_array().unwrap();
+
+    let sent = data
+        .iter()
+        .find(|q| q["id"] == sent_quote_id.to_string())
+        .expect("le devis sent doit être présent");
+    let expires_at_str = sent["expires_at"]
+        .as_str()
+        .expect("expires_at doit être une date pour un devis sent avec sent_at");
+    let expires_at: chrono::DateTime<chrono::Utc> = expires_at_str.parse().unwrap();
+    let now = chrono::Utc::now();
+    let delta_days = (expires_at - now).num_days();
+    assert!(
+        (28..=31).contains(&delta_days),
+        "expires_at doit être ~30 jours après sent_at (delta observé: {delta_days})"
+    );
+
+    let draft = data
+        .iter()
+        .find(|q| q["id"] == draft_quote_id.to_string())
+        .expect("le devis draft doit être présent");
+    assert!(
+        draft["expires_at"].is_null(),
+        "un devis draft (jamais envoyé) n'a pas d'échéance"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
