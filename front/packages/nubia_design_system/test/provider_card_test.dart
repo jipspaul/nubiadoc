@@ -49,6 +49,23 @@ void main() {
       expect(tapped, 1);
     });
 
+    testWidgets(
+        'affiche uniquement le nom, sans ligne résiduelle, quand la '
+        'spécialité est vide (#3825)', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const ProviderCard(
+            name: 'Dr Sarah Nguyen',
+            specialty: '',
+            initials: 'SN',
+          ),
+        ),
+      );
+
+      expect(find.text('Dr Sarah Nguyen'), findsOneWidget);
+      expect(find.text(''), findsNothing);
+    });
+
     testWidgets('respecte la hauteur minimale de 84', (tester) async {
       await tester.pumpWidget(
         _wrap(

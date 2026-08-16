@@ -338,6 +338,37 @@ void main() {
     });
   });
 
+  // #3825 — pas de séparateur « · » ni de ligne résiduelle dans l'en-tête
+  // praticien (fiche/hero) quand la spécialité est vide.
+  group('en-tête praticien sans spécialité (#3825)', () {
+    testWidgets('affiche uniquement le nom du praticien', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        const AppointmentsSlotsLoaded(
+          provider: ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Amélie Rousseau',
+            specialty: '',
+          ),
+          slots: [],
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<AppointmentsBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dr Amélie Rousseau'), findsOneWidget);
+      expect(find.text(''), findsNothing);
+    });
+  });
+
   // #3420 — après réservation, le RDV est en attente (le cabinet confirme) :
   // le toast doit annoncer une DEMANDE, pas une confirmation.
   group('toast de réservation (#3420)', () {
