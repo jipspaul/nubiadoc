@@ -78,6 +78,30 @@ async fn main() {
         QUOTE_RELANCE_INTERVAL,
     ));
 
+    // Pages SSR publiques du tunnel de réservation (#5356) : routeur/port
+    // distincts de l'API `/v1/...` (ce ne sont pas des routes d'API), mais
+    // même process/pool DB — même pattern tokio::spawn que le listener MLLP
+    // et les workers ci-dessus (ADR-002/012 : monolithe modulaire, pas de
+    // second conteneur).
+    let web_tunnel_port: u16 = std::env::var("WEB_TUNNEL_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3001);
+    let web_tunnel_bind = format!("0.0.0.0:{web_tunnel_port}");
+    let web_tunnel_listener = tokio::net::TcpListener::bind(&web_tunnel_bind)
+        .await
+        .unwrap();
+    println!("nubia-api web-tunnel listening on {web_tunnel_bind}");
+    let web_tunnel_task = axum::serve(
+        web_tunnel_listener,
+        nubia_api::web_tunnel::router(state.clone()),
+    );
+    tokio::spawn(async move {
+        if let Err(e) = web_tunnel_task.await {
+            eprintln!("serveur web-tunnel arrêté avec une erreur : {e}");
+        }
+    });
+
     let http_task = axum::serve(
         listener,
         app_with_hl7v2_status(state, mllp_status)

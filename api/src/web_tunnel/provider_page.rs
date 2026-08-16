@@ -1,0 +1,175 @@
+//! `GET /:slug` (ex. `/dr-amelie-rousseau-dentiste-paris`) — fiche
+//! praticien SSR (#5356). Résout le slug en `provider_id` par préfixe de nom
+//! (le nom du praticien est toujours le préfixe du slug produit par
+//! [`slug_for`], utilisé aussi bien ici que par les cartes de la page de
+//! recherche) puis appelle `marketplace::get_provider`, la MÊME fonction que
+//! l'API publique `GET /v1/providers/:id` — aucune logique dupliquée
+//! (#5355).
+
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+
+use crate::marketplace::{get_provider, search_providers, SearchProvidersQuery};
+use crate::AppState;
+
+use super::html::{escape, page};
+use super::slug::slugify;
+
+/// Ex. `("Dr Amélie Rousseau", Some("Chirurgien-dentiste"), Some("Paris"))`
+/// → `"dr-amelie-rousseau-chirurgien-dentiste-paris"`.
+pub fn slug_for(display_name: &str, specialty: Option<&str>, city: Option<&str>) -> String {
+    let mut parts = vec![display_name.to_string()];
+    if let Some(s) = specialty {
+        parts.push(s.to_string());
+    }
+    if let Some(c) = city {
+        parts.push(c.to_string());
+    }
+    slugify(&parts.join(" "))
+}
+
+/// 1er mot significatif du slug (après un éventuel `dr`) — un seul mot pour
+/// matcher la recherche par sous-chaîne de `search_providers` (pas de
+/// tokenisation côté SQL, cf. sa doc).
+fn search_term_from_slug(slug: &str) -> Option<&str> {
+    slug.split('-').find(|w| *w != "dr" && !w.is_empty())
+}
+
+pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<String>) -> Response {
+    let Some(term) = search_term_from_slug(&slug) else {
+        return not_found();
+    };
+
+    let params = SearchProvidersQuery {
+        q: Some(term.to_string()),
+        specialty: None,
+        near: None,
+        place: None,
+        radius_km: None,
+        bbox: None,
+        sector: None,
+        teleconsult: None,
+        pmr: None,
+        languages: None,
+        accepts_new: None,
+        available: None,
+        tiers_payant: None,
+        sort: None,
+        page: Some(1),
+        per_page: Some(50),
+        provider_id: None,
+        date: None,
+    };
+
+    let candidates = match search_providers(State(state.clone()), Query(params)).await {
+        Ok(Json(resp)) => resp.data,
+        Err(_) => Vec::new(),
+    };
+
+    let Some(matched) = candidates
+        .into_iter()
+        .find(|p| slug.starts_with(&slugify(&p.display_name)))
+    else {
+        return not_found();
+    };
+
+    let profile = match get_provider(State(state), Path(matched.provider_id)).await {
+        Ok(Json(profile)) => profile,
+        Err(_) => return not_found(),
+    };
+
+    let city = profile
+        .address
+        .as_ref()
+        .and_then(|a| a.get("ville"))
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+
+    let h1 = profile.display_name.clone();
+    let subtitle = [profile.profession.clone(), profile.specialty.clone()]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" · ");
+
+    let context = if !city.is_empty() {
+        format!(
+            "{name} exerce{sector} à {city}{tp}.",
+            name = escape(&h1),
+            sector = profile
+                .sector
+                .as_deref()
+                .map(|s| format!(" en secteur {}", escape(s)))
+                .unwrap_or_default(),
+            city = escape(city),
+            tp = if profile.tiers_payant.unwrap_or(false) {
+                " et pratique le tiers payant"
+            } else {
+                ""
+            },
+        )
+    } else {
+        format!("Profil du praticien {}.", escape(&h1))
+    };
+
+    let title = format!("{h1} — Nubia");
+    let body = format!(
+        r#"<h1>{h1}</h1>
+<p class="muted">{subtitle}</p>
+<div class="context">
+  <p>{context}</p>
+</div>
+<p><a href="/appointments?providerId={provider_id}">Prendre rendez-vous</a></p>"#,
+        h1 = escape(&h1),
+        subtitle = escape(&subtitle),
+        provider_id = profile.provider_id,
+    );
+
+    page(&title, &body).into_response()
+}
+
+fn not_found() -> Response {
+    let body = r#"<h1>Praticien introuvable</h1>
+<div class="context">
+  <p>Ce profil n'existe pas ou n'est plus référencé dans l'annuaire Nubia.</p>
+</div>"#;
+    (
+        StatusCode::NOT_FOUND,
+        page("Praticien introuvable — Nubia", body),
+    )
+        .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slug_for_matches_the_mockup_pattern() {
+        assert_eq!(
+            slug_for(
+                "Dr Amélie Rousseau",
+                Some("Chirurgien-dentiste"),
+                Some("Paris")
+            ),
+            "dr-amelie-rousseau-chirurgien-dentiste-paris"
+        );
+    }
+
+    #[test]
+    fn generated_slug_starts_with_name_only_slug() {
+        let full = slug_for("Dr Hugo Marin", Some("Implantologie"), Some("Lyon"));
+        let name_only = slugify("Dr Hugo Marin");
+        assert!(full.starts_with(&name_only));
+    }
+
+    #[test]
+    fn search_term_skips_leading_dr_token() {
+        assert_eq!(
+            search_term_from_slug("dr-amelie-rousseau-dentiste-paris"),
+            Some("amelie")
+        );
+    }
+}
