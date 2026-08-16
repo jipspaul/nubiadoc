@@ -85,15 +85,19 @@ class ProviderCard extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    specialty,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
+                  // #3825 : pas de ligne (ni espace résiduel) quand la
+                  // spécialité est vide.
+                  if (specialty.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      specialty,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
-                  ),
+                  ],
                   if (availabilityLabel != null || distance != null) ...[
                     const SizedBox(height: 6),
                     Row(

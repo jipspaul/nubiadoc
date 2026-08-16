@@ -974,14 +974,19 @@ class _SlotsView extends StatelessWidget {
                           .titleLarge
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      state.provider.specialty,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
+                    // #3825 : pas de ligne (ni espace résiduel) quand la
+                    // spécialité est vide.
+                    if (state.provider.specialty.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        state.provider.specialty,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                    ],
                   ],
                 ),
               ),
