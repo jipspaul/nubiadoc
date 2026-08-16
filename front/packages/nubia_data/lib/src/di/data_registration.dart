@@ -31,6 +31,7 @@ import '../remote/cabinet_team_messages/cabinet_team_messages_api.dart';
 import '../remote/cabinet_quotes/cabinet_quotes_api.dart';
 import '../remote/cabinet_payouts/cabinet_payouts_api.dart';
 import '../remote/cabinet_stats/cabinet_stats_api.dart';
+import '../remote/cash_collection/cash_collection_api.dart';
 import '../remote/audit_log/audit_log_api.dart';
 import '../remote/clinical/clinical_session_api.dart';
 import '../remote/consultation/consultation_api.dart';
@@ -85,6 +86,7 @@ import '../repositories/cabinet_team_messages_repository_impl.dart';
 import '../repositories/cabinet_quotes_repository_impl.dart';
 import '../repositories/cabinet_payouts_repository_impl.dart';
 import '../repositories/cabinet_stats_repository_impl.dart';
+import '../repositories/cash_collection_repository_impl.dart';
 import '../repositories/audit_log_repository_impl.dart';
 import '../repositories/cached_appointments_repository_impl.dart';
 import '../repositories/clinical_session_repository_impl.dart';
@@ -576,6 +578,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetPayoutsApi>(
       () => CabinetPayoutsApi(gi()),
     )
+    ..registerLazySingleton<CashCollectionApi>(
+      () => CashCollectionApi(gi()),
+    )
     ..registerLazySingleton<AuditLogApi>(
       () => AuditLogApi(gi()),
     )
@@ -661,6 +666,9 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerLazySingleton<CabinetPayoutsRepository>(
       () => CabinetPayoutsRepositoryImpl(gi()),
     )
+    ..registerLazySingleton<CashCollectionRepository>(
+      () => CashCollectionRepositoryImpl(gi()),
+    )
     ..registerLazySingleton<AuditLogRepository>(
       () => AuditLogRepositoryImpl(gi()),
     )
@@ -721,6 +729,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => GetCabinetActivityStatsUseCase(gi()))
     ..registerFactory(() => GetCabinetPayoutsUseCase(gi()))
     ..registerFactory(() => GetCabinetBillingStatsUseCase(gi()))
+    ..registerFactory(() => GetCashCollectionSummaryUseCase(gi()))
     ..registerFactory(() => GetAuditLogUseCase(gi()))
     ..registerFactory(() => GetCabinetQuoteUseCase(gi()))
     ..registerFactory(() => SendCabinetQuoteUseCase(gi()))
