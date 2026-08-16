@@ -28,6 +28,11 @@ class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
 class _MockListPatientDocuments extends Mock
     implements ListPatientDocumentsUseCase {}
 
+class _MockListPatientJournal extends Mock
+    implements ListPatientJournalUseCase {}
+
+class _MockGetMedicalRecord extends Mock implements GetMedicalRecordUseCase {}
+
 CabinetPatient _patient({int? balanceDueCents, int? noShowCount}) =>
     CabinetPatient(
       id: 'pat-1',
@@ -55,6 +60,22 @@ void main() {
         .thenAnswer((_) async => const Right([]));
     GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
       () => listDocuments,
+    );
+
+    final listJournal = _MockListPatientJournal();
+    when(() => listJournal(any())).thenAnswer((_) async => const Right([]));
+    GetIt.instance.registerFactory<ListPatientJournalUseCase>(
+      () => listJournal,
+    );
+
+    final getMedicalRecord = _MockGetMedicalRecord();
+    when(() => getMedicalRecord(any())).thenAnswer(
+      (_) async => const Right(
+        MedicalRecordSummary(allergies: [], treatments: []),
+      ),
+    );
+    GetIt.instance.registerFactory<GetMedicalRecordUseCase>(
+      () => getMedicalRecord,
     );
 
     addTearDown(GetIt.instance.reset);
@@ -114,7 +135,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Étiquettes'), findsOneWidget);
-    expect(find.text('Documents'), findsOneWidget);
+    expect(find.byKey(const Key('patient_documents_section')), findsOneWidget);
   });
 
   testWidgets('0 lapin : affiché sans mise en avant (#4090)', (tester) async {
