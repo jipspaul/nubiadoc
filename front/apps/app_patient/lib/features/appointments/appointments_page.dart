@@ -1262,6 +1262,12 @@ class _BookingPanelState extends State<_BookingPanel> {
   final _lastName = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
+  // #5611 : contrairement aux autres champs du formulaire, ce champ n'avait
+  // pas de controller propre — le TextField gérait alors son buffer interne
+  // en mode non contrôlé, seul champ du panneau dans ce cas (tous les
+  // autres, y compris le champ e-mail du login, utilisent un controller
+  // local stable) ; c'est ce champ précis qui perdait son 1er caractère.
+  final _motif = TextEditingController();
   final _precisions = TextEditingController();
   DateTime? _dateOfBirth;
   bool _createAccount = true;
@@ -1301,11 +1307,18 @@ class _BookingPanelState extends State<_BookingPanel> {
       '${date.month.toString().padLeft(2, '0')}/${date.year}';
 
   @override
+  void initState() {
+    super.initState();
+    _motif.text = widget.state.motif;
+  }
+
+  @override
   void dispose() {
     _firstName.dispose();
     _lastName.dispose();
     _phone.dispose();
     _email.dispose();
+    _motif.dispose();
     _precisions.dispose();
     super.dispose();
   }
@@ -1410,6 +1423,7 @@ class _BookingPanelState extends State<_BookingPanel> {
             const SizedBox(height: 8),
             NubiaTextField(
               key: const Key('booking_motif'),
+              controller: _motif,
               label: 'Motif',
               hint: 'Ex. : Contrôle annuel, douleur…',
               onChanged: (v) => context
