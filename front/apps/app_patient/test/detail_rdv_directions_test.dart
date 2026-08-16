@@ -91,4 +91,38 @@ void main() {
 
     expect(find.text('Erreur réseau.'), findsOneWidget);
   });
+
+  testWidgets(
+      '#5368 : bouton Annuler masqué quand appointment.canCancel est faux '
+      '(mêmes règles que la liste Mes RDV)', (tester) async {
+    final tooLateAppt = Appointment(
+      id: 'rdv-2',
+      cabinetId: 'cab-1',
+      practitionerName: 'Dr Lemaire',
+      practitionerSpecialty: 'Dentiste',
+      startsAt: DateTime.now().add(const Duration(hours: 1)),
+      duration: const Duration(minutes: 30),
+      motif: 'Détartrage',
+      status: AppointmentStatus.requested,
+    );
+    expect(tooLateAppt.canCancel, isFalse);
+
+    await tester.pumpWidget(
+      MaterialApp(home: DetailRdvPage(appointment: tooLateAppt)),
+    );
+
+    expect(find.byKey(const Key('cancel_rdv_button')), findsNothing);
+  });
+
+  testWidgets(
+      '#5368 : bouton Annuler affiché quand appointment.canCancel est vrai',
+      (tester) async {
+    expect(_appt.canCancel, isTrue);
+
+    await tester.pumpWidget(
+      MaterialApp(home: DetailRdvPage(appointment: _appt)),
+    );
+
+    expect(find.byKey(const Key('cancel_rdv_button')), findsOneWidget);
+  });
 }
