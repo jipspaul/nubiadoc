@@ -1271,6 +1271,15 @@ pub struct SlotHoldResponse {
     pub expires_at: String,
 }
 
+/// SQLSTATE `23503` (foreign_key_violation) — cf. `claims.sub` d'un token
+/// leurre anti-énumération (#5629) qui ne référence aucun `app_user` réel.
+fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
+    matches!(
+        e,
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23503")
+    )
+}
+
 /// `POST /v1/slots/:id/hold` — bloque un créneau 10 min (marketplace, issue
 /// #1659 ; durée alignée sur la maquette design-v2 par #5363).
 ///
@@ -1299,7 +1308,20 @@ pub async fn hold_slot(
             .bind(&hold_token)
             .fetch_one(&mut *tx)
             .await
-            .map_err(|_| AppError::Internal)?;
+            .map_err(|e| {
+                // #5629 : `claims.sub` peut être le leurre anti-énumération
+                // de `decoy_register_response` (auth/register.rs) — aucune
+                // ligne `app_user` réelle derrière ce JWT pourtant valide.
+                // `slot_holds.user_id` porte `NOT NULL REFERENCES
+                // app_user(id)` (migration 0095) donc l'INSERT viole la FK
+                // (23503) : distingué ici pour renvoyer 401 plutôt qu'un 500
+                // générique qui n'oriente pas le visiteur vers un login.
+                if is_foreign_key_violation(&e) {
+                    AppError::AccountNotFound
+                } else {
+                    AppError::Internal
+                }
+            })?;
 
     let claim_result: Option<String> = row
         .try_get("claim_result")

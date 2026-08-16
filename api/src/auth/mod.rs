@@ -241,6 +241,14 @@ pub(crate) enum AppError {
     /// migrations 0190/0192) — pré-vérifié pour éviter de laisser remonter
     /// la violation FK Postgres (23503) en 500.
     ActLinkedToStock,
+    /// `POST /v1/slots/:id/hold` (#5629) : le token JWT présenté est un
+    /// leurre anti-énumération (`decoy_register_response`,
+    /// `auth/register.rs`) — `sub` ne correspond à aucune ligne `app_user`
+    /// réelle, donc l'INSERT dans `slot_holds` viole la FK
+    /// `slot_holds.user_id -> app_user(id)` (23503). `401`, pas `500` :
+    /// le visiteur doit se ré-authentifier (son email a en réalité déjà
+    /// un compte), plutôt que de recevoir une erreur serveur opaque.
+    AccountNotFound,
 }
 
 impl IntoResponse for AppError {
@@ -507,6 +515,11 @@ impl IntoResponse for AppError {
             AppError::ActLinkedToStock => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "act_linked_to_stock"})),
+            )
+                .into_response(),
+            AppError::AccountNotFound => (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"code": "account_not_found"})),
             )
                 .into_response(),
         }
