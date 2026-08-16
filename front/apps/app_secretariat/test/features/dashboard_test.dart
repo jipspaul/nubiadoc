@@ -216,6 +216,8 @@ void main() {
           todayCount: 1,
           pendingCount: 1,
           waitingCount: 1,
+          oldestWaitingRequestAgeDays:
+              _now1.difference(DateTime(2026, 6, 21)).inDays,
           practitionersToday: [
             PractitionerToday(
               practitionerId: 'prac',
@@ -229,6 +231,52 @@ void main() {
           todayFlow: _todayFlow(_now1, _entries1),
         ),
       ],
+    );
+
+    blocTest<DashboardBloc, DashboardState>(
+      '#5378 : ancienneté de la plus ancienne demande de créneau sans '
+      'réponse, dérivée de la liste déjà chargée',
+      build: () {
+        final now = DateTime.now();
+        when(() => getAgenda(any(), includePast: any(named: 'includePast')))
+            .thenAnswer((_) async => const Right([]));
+        when(() => listWaitingList()).thenAnswer(
+          (_) async => Right([
+            WaitingListEntry(
+              id: 'w1',
+              cabinetId: 'cab',
+              patientId: 'p1',
+              patientName: 'Marc Dubois',
+              motif: '',
+              requestedAt: now.subtract(const Duration(days: 2)),
+              position: 1,
+            ),
+            // La plus ancienne — l'ordre dans la liste ne doit pas
+            // influencer le résultat.
+            WaitingListEntry(
+              id: 'w2',
+              cabinetId: 'cab',
+              patientId: 'p2',
+              patientName: 'Nina Lopez',
+              motif: '',
+              requestedAt: now.subtract(const Duration(days: 5)),
+              position: 2,
+            ),
+          ]),
+        );
+        return DashboardBloc(
+          getAgenda: getAgenda,
+          listWaitingList: listWaitingList,
+          listBookableSlots: listBookableSlots,
+        );
+      },
+      act: (bloc) => bloc.add(const DashboardLoadRequested()),
+      expect: () => [const DashboardLoading(), isA<DashboardLoaded>()],
+      verify: (bloc) {
+        final state = bloc.state as DashboardLoaded;
+        expect(state.waitingCount, 2);
+        expect(state.oldestWaitingRequestAgeDays, 5);
+      },
     );
 
     blocTest<DashboardBloc, DashboardState>(
