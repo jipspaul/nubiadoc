@@ -208,7 +208,24 @@ void main() {
     });
 
     testWidgets(
-        '#5378 : liste d\'attente vide → pas de sous-titre d\'ancienneté',
+        '#5375/#5378 : liste d\'attente vide → ligne masquée (pas de "0 '
+        'demandes")', (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 2,
+          urgentUnreadCount: 0,
+        ),
+      );
+      await tester.pumpWidget(_wrap(cubit, quotesCubit, waitingCount: 0));
+
+      expect(
+        find.byKey(const Key('work_queue_waiting_list_row')),
+        findsNothing,
+      );
+      expect(find.textContaining('demandes de créneau'), findsNothing);
+    });
+
+    testWidgets('#5375/#5379 : aucun message non lu → ligne masquée',
         (tester) async {
       when(() => cubit.state).thenReturn(
         const PatientMessagesSummaryLoaded(
@@ -216,23 +233,76 @@ void main() {
           urgentUnreadCount: 0,
         ),
       );
-      await tester.pumpWidget(_wrap(cubit, quotesCubit));
+      await tester.pumpWidget(_wrap(cubit, quotesCubit, waitingCount: 3));
 
-      expect(find.text('0 demandes de créneau sans réponse'), findsOneWidget);
-      expect(find.textContaining('La plus ancienne'), findsNothing);
+      expect(
+        find.byKey(const Key('work_queue_unread_messages_row')),
+        findsNothing,
+      );
+      expect(find.textContaining('messages patients non lus'), findsNothing);
+      expect(find.textContaining('marqué urgent'), findsNothing);
     });
 
-    testWidgets('aucun message urgent → pas de sous-titre', (tester) async {
+    testWidgets(
+        '#5375 : aucun sujet dans aucune section → état vide rassurant, '
+        'badge « 0 sujets »', (tester) async {
       when(() => cubit.state).thenReturn(
         const PatientMessagesSummaryLoaded(
           unreadCount: 0,
           urgentUnreadCount: 0,
         ),
       );
-      await tester.pumpWidget(_wrap(cubit, quotesCubit));
+      await tester.pumpWidget(_wrap(cubit, quotesCubit, waitingCount: 0));
 
-      expect(find.text('0 messages patients non lus'), findsOneWidget);
-      expect(find.textContaining('marqué urgent'), findsNothing);
+      expect(find.byKey(const Key('work_queue_card_empty')), findsOneWidget);
+      expect(find.text('Rien à traiter pour le moment'), findsOneWidget);
+      expect(find.text('0 sujets'), findsOneWidget);
+      expect(find.byKey(const Key('work_queue_waiting_list_row')), findsNothing);
+      expect(
+        find.byKey(const Key('work_queue_unread_messages_row')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('work_queue_expiring_quotes_row')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('#5375 : badge « N sujets » compte les lignes présentes',
+        (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 4,
+          urgentUnreadCount: 1,
+          urgentPatientName: 'Ahmed Belkacem',
+        ),
+      );
+      when(() => quotesCubit.state).thenReturn(
+        ExpiringQuotesSummaryLoaded(
+          quotes: [
+            _quote('q1',
+                patientName: 'Julie Martin', expiresAt: DateTime(2026, 8, 13)),
+          ],
+        ),
+      );
+      await tester.pumpWidget(
+        _wrap(
+          cubit,
+          quotesCubit,
+          waitingCount: 3,
+          oldestWaitingRequestAgeDays: 5,
+          pendingAppointmentsToday: [
+            _pendingEntry(
+              'rdv1',
+              patientName: 'Sophie Roux',
+              startsAt: DateTime(2026, 8, 16, 15, 30),
+            ),
+          ],
+        ),
+      );
+
+      // 1 RDV non confirmé + demandes de créneau + devis + messages = 4.
+      expect(find.text('4 sujets'), findsOneWidget);
     });
 
     testWidgets(
