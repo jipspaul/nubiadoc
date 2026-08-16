@@ -398,16 +398,6 @@ class _DashboardLoadedView extends StatelessWidget {
                       pendingAppointmentsToday: pendingAppointmentsToday,
                     ),
                     const WaitingRoomCard(),
-                    _DashboardPanel(
-                      icon: Icons.pending_actions_outlined,
-                      title: 'À traiter',
-                      body: pendingCount == 0
-                          ? 'Aucune demande en attente de confirmation.'
-                          : '$pendingCount demande(s) à confirmer.',
-                      hint: waitingCount == 0
-                          ? 'Aucune demande de créneau.'
-                          : '$waitingCount patient(s) en attente de créneau.',
-                    ),
                     const CashCollectionCard(),
                     WeekOccupancyCard(
                       dailyOccupancyRates: dailyOccupancyRates,
@@ -453,59 +443,6 @@ class _DashboardLoadedView extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Carte récapitulative du tableau de bord (titre + texte + indice).
-class _DashboardPanel extends StatelessWidget {
-  const _DashboardPanel({
-    required this.icon,
-    required this.title,
-    required this.body,
-    required this.hint,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-  final String hint;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
-
-    return NubiaCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: cs.primary),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: textTheme.titleMedium?.copyWith(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            body,
-            style: textTheme.bodyMedium?.copyWith(color: cs.onSurface),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            hint,
-            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
-        ],
       ),
     );
   }
