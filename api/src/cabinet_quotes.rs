@@ -253,6 +253,13 @@ pub struct ListCabinetQuotesQuery {
 /// ici plutôt qu'inventer un canal de configuration non demandé par l'issue.
 const OVERDUE_THRESHOLD_DAYS: i64 = 30;
 
+/// Durée de validité d'un devis (jours) à compter de son envoi (#5597) :
+/// `quote.expires_at` est posé à `sent_at + QUOTE_VALIDITY_DAYS` au moment de
+/// l'envoi (`send_cabinet_quote`) — aucune valeur configurable par cabinet
+/// dans le schéma actuel, valeur fixe documentée ici comme `OVERDUE_THRESHOLD_DAYS`
+/// ci-dessus.
+pub(crate) const QUOTE_VALIDITY_DAYS: i64 = 30;
+
 /// Un devis vu du cabinet. `total_amount` en **centimes** (conventions doc12 §1.7).
 #[derive(Serialize)]
 pub struct CabinetQuoteItem {
@@ -263,6 +270,10 @@ pub struct CabinetQuoteItem {
     pub total_amount: i64,
     pub patient_share_cents: i64,
     pub created_at: String,
+    /// Échéance du devis (`sent_at + QUOTE_VALIDITY_DAYS`), `null` si jamais
+    /// envoyé (#5597 : jamais exposé auparavant, carte/badge « devis qui
+    /// expirent » du dashboard secrétariat structurellement vides).
+    pub expires_at: Option<String>,
 }
 
 /// Valeurs valides de `quote.status` (CHECK, migration 0006). `cancelled`
@@ -326,7 +337,7 @@ pub async fn list_cabinet_quotes(
                     (SELECT coalesce(sum((qi.qty * qi.unit_amount \
                         - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
                      FROM quote_item qi WHERE qi.quote_id = q.id) AS patient_share_cents, \
-                    q.created_at \
+                    q.created_at, q.expires_at \
              FROM quote q \
              LEFT JOIN patient p ON p.id = q.patient_id \
              WHERE q.cabinet_id = $1";
@@ -423,6 +434,8 @@ pub async fn list_cabinet_quotes(
                 .map_err(|_| AppError::Internal)?;
             let created_at: chrono::DateTime<chrono::Utc> =
                 row.try_get("created_at").map_err(|_| AppError::Internal)?;
+            let expires_at: Option<chrono::DateTime<chrono::Utc>> =
+                row.try_get("expires_at").map_err(|_| AppError::Internal)?;
             Ok(CabinetQuoteItem {
                 id,
                 patient_id,
@@ -431,6 +444,7 @@ pub async fn list_cabinet_quotes(
                 total_amount: amount_cents,
                 patient_share_cents,
                 created_at: created_at.to_rfc3339(),
+                expires_at: expires_at.map(|d| d.to_rfc3339()),
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -485,6 +499,9 @@ pub struct CabinetQuoteDetail {
     pub patient_share_cents: i64,
     pub created_at: String,
     pub signed_at: Option<String>,
+    /// Échéance du devis (`sent_at + QUOTE_VALIDITY_DAYS`), `null` si jamais
+    /// envoyé (#5597).
+    pub expires_at: Option<String>,
     pub items: Vec<CabinetQuoteLineItem>,
     /// Pourcentage d'acompte demandé à la création (0..100), `null` si aucun
     /// acompte imposé (#3761 : jamais exposé auparavant).
@@ -519,7 +536,8 @@ pub async fn get_cabinet_quote(
         "SELECT q.id, q.patient_id, \
                 trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
                 q.status, (q.total_amount * 100)::bigint AS amount_cents, \
-                q.signed_at, q.created_at, q.deposit_pct::double precision AS deposit_pct \
+                q.signed_at, q.created_at, q.expires_at, \
+                q.deposit_pct::double precision AS deposit_pct \
          FROM quote q \
          LEFT JOIN patient p ON p.id = q.patient_id \
          WHERE q.id = $1 AND q.cabinet_id = $2 AND q.deleted_at IS NULL",
@@ -566,6 +584,9 @@ pub async fn get_cabinet_quote(
         .map_err(|_| AppError::Internal)?;
     let signed_at: Option<chrono::DateTime<chrono::Utc>> = quote_row
         .try_get("signed_at")
+        .map_err(|_| AppError::Internal)?;
+    let expires_at: Option<chrono::DateTime<chrono::Utc>> = quote_row
+        .try_get("expires_at")
         .map_err(|_| AppError::Internal)?;
     let created_at: chrono::DateTime<chrono::Utc> = quote_row
         .try_get("created_at")
@@ -626,6 +647,7 @@ pub async fn get_cabinet_quote(
         patient_share_cents: patient_share_total,
         created_at: created_at.to_rfc3339(),
         signed_at: signed_at.map(|d| d.to_rfc3339()),
+        expires_at: expires_at.map(|d| d.to_rfc3339()),
         items,
         deposit_pct,
         deposit_amount_cents,
@@ -696,12 +718,17 @@ pub async fn send_cabinet_quote(
         // #4126 : sent_at pose la date de départ du calendrier de relance
         // J+3/J+7 (quote_relance_dispatch.rs) — jamais réécrit après (guard
         // idempotence status=='sent' ci-dessus empêche un second UPDATE).
-        "UPDATE quote SET status = 'sent', sent_at = now(), updated_at = now() \
+        // #5597 : expires_at posé dans la même écriture (sent_at + QUOTE_VALIDITY_DAYS)
+        // — sans quoi la carte/badge « devis qui expirent » du dashboard
+        // secrétariat restent structurellement vides.
+        "UPDATE quote SET status = 'sent', sent_at = now(), \
+         expires_at = now() + make_interval(days => $3), updated_at = now() \
          WHERE id = $1 AND cabinet_id = $2 \
          RETURNING status",
     )
     .bind(id)
     .bind(claims.cabinet_id)
+    .bind(QUOTE_VALIDITY_DAYS as i32)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

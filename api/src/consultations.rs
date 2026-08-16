@@ -230,16 +230,22 @@ pub async fn complete_consultation(
         // pas de génération PDF/notification ici).
         let quote_row = sqlx::query(
             // #4126 : sent_at posé dès la création (déjà 'sent'), départ du
-            // calendrier de relance J+3/J+7.
+            // calendrier de relance J+3/J+7. #5597 : expires_at posé dans la
+            // même écriture (sent_at + QUOTE_VALIDITY_DAYS) — sinon ce devis
+            // reste invisible de la carte/badge « devis qui expirent » du
+            // dashboard secrétariat comme ceux créés via
+            // cabinet_quotes.rs::send_cabinet_quote.
             "INSERT INTO quote \
              (cabinet_id, patient_id, status, total_amount, currency, sent_at, \
-              billed_to_account_id) \
-             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now(), $4) \
+              expires_at, billed_to_account_id) \
+             VALUES ($1, $2, 'sent', $3::numeric / 100, 'EUR', now(), \
+                     now() + make_interval(days => $4), $5) \
              RETURNING id",
         )
         .bind(claims.cabinet_id)
         .bind(patient_id)
         .bind(total_cents)
+        .bind(crate::cabinet_quotes::QUOTE_VALIDITY_DAYS as i32)
         .bind(billed_to_account_id)
         .fetch_one(&mut *tx)
         .await
