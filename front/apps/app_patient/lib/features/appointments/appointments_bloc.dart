@@ -35,6 +35,7 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     on<AppointmentsMotifChanged>(_onMotifChanged);
     on<AppointmentsBookingConfirmed>(_onBookingConfirmed,
         transformer: droppable());
+    on<AppointmentsHoldExpired>(_onHoldExpired, transformer: droppable());
     on<AppointmentsBackToSearch>(_onBackToSearch, transformer: droppable());
   }
 
@@ -103,15 +104,28 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
       final holdResult = await _holdSlot(event.slot.id);
       holdResult.fold(
         (failure) => safeEmit(AppointmentsError(failure.message)),
-        (holdToken) => safeEmit(current.copyWith(
+        (hold) => safeEmit(current.copyWith(
           selectedSlot: event.slot,
-          holdToken: holdToken,
+          holdToken: hold.token,
+          holdExpiresAt: hold.expiresAt,
         )),
       );
     } catch (_) {
       safeEmit(
           const AppointmentsError('Erreur lors de la sélection du créneau.'));
     }
+  }
+
+  // #5363 : le décompte du récapitulatif (UI) arrive à zéro — le hold n'est
+  // plus valide, on relâche la sélection pour que le créneau redevienne
+  // choisissable (l'utilisateur en est informé via un SnackBar côté UI).
+  void _onHoldExpired(
+    AppointmentsHoldExpired event,
+    Emitter<AppointmentsState> emit,
+  ) {
+    final current = state;
+    if (current is! AppointmentsSlotsLoaded) return;
+    emit(current.copyWith(clearSelectedSlot: true));
   }
 
   void _onMotifChanged(

@@ -278,6 +278,70 @@ void main() {
         isA<AppointmentsError>(),
       ],
     );
+
+    // #5363 — la sélection d'un créneau pose un hold de 10 min ; le
+    // décompte visible du récapitulatif a besoin de holdExpiresAt.
+    final provider = const ProviderResult(
+      id: 'p1',
+      displayName: 'Dr Martin',
+      specialty: 'Dentiste',
+    );
+    final slot = Slot(
+      id: 's1',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      startsAt: DateTime(2026, 7, 10, 9, 0),
+      endsAt: DateTime(2026, 7, 10, 9, 30),
+      isAvailable: true,
+    );
+
+    blocTest<AppointmentsBloc, AppointmentsState>(
+      'AppointmentsSlotSelected renseigne holdToken et holdExpiresAt (#5363)',
+      build: () {
+        final expiresAt = DateTime(2026, 7, 10, 8, 50);
+        when(() => mockHoldSlot(any())).thenAnswer(
+          (_) async => Right(SlotHold(token: 'hold-1', expiresAt: expiresAt)),
+        );
+        return _makeBloc(
+          searchProviders: mockSearchProviders,
+          searchSlots: mockSearchSlots,
+          holdSlot: mockHoldSlot,
+          confirmBooking: mockConfirmBooking,
+        );
+      },
+      seed: () => AppointmentsSlotsLoaded(provider: provider, slots: [slot]),
+      act: (bloc) => bloc.add(AppointmentsSlotSelected(slot)),
+      expect: () => [
+        isA<AppointmentsSlotsLoaded>()
+            .having((s) => s.holdToken, 'holdToken', 'hold-1')
+            .having((s) => s.holdExpiresAt, 'holdExpiresAt',
+                DateTime(2026, 7, 10, 8, 50)),
+      ],
+    );
+
+    blocTest<AppointmentsBloc, AppointmentsState>(
+      'AppointmentsHoldExpired relâche le créneau sélectionné (#5363)',
+      build: () => _makeBloc(
+        searchProviders: mockSearchProviders,
+        searchSlots: mockSearchSlots,
+        holdSlot: mockHoldSlot,
+        confirmBooking: mockConfirmBooking,
+      ),
+      seed: () => AppointmentsSlotsLoaded(
+        provider: provider,
+        slots: [slot],
+        selectedSlot: slot,
+        holdToken: 'hold-1',
+        holdExpiresAt: DateTime(2026, 7, 10, 8, 50),
+      ),
+      act: (bloc) => bloc.add(const AppointmentsHoldExpired()),
+      expect: () => [
+        isA<AppointmentsSlotsLoaded>()
+            .having((s) => s.selectedSlot, 'selectedSlot', isNull)
+            .having((s) => s.holdToken, 'holdToken', isNull)
+            .having((s) => s.holdExpiresAt, 'holdExpiresAt', isNull),
+      ],
+    );
   });
 
   // #3418 — les créneaux d'une même période (Matin / Après-midi) doivent
@@ -514,6 +578,89 @@ void main() {
 
       expect(find.text('Demande de rendez-vous envoyée'), findsOneWidget);
       expect(find.textContaining('confirmé'), findsNothing);
+    });
+  });
+
+  // #5363 — verrou de 10 min sur le créneau sélectionné, avec décompte
+  // visible dans le récapitulatif.
+  group('verrou 10 min avec décompte visible (#5363)', () {
+    final provider = const ProviderResult(
+      id: 'p1',
+      displayName: 'Dr Martin',
+      specialty: 'Dentiste',
+    );
+    final slot = Slot(
+      id: 's1',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      startsAt: DateTime(2026, 7, 10, 9, 0),
+      endsAt: DateTime(2026, 7, 10, 9, 30),
+      isAvailable: true,
+    );
+
+    testWidgets(
+        'affiche le sous-titre "retenu pendant 10 minutes" et le décompte '
+        'vivant une fois un créneau sélectionné', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+          holdToken: 'hold-1',
+          holdExpiresAt:
+              DateTime.now().add(const Duration(minutes: 9, seconds: 30)),
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(
+        find.text('Votre rendez-vous est retenu pendant 10 minutes.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('booking_hold_countdown')), findsOneWidget);
+      final text = tester
+          .widget<Text>(find.descendant(
+            of: find.byKey(const Key('booking_hold_countdown')),
+            matching: find.byType(Text),
+          ))
+          .data!;
+      expect(
+        text,
+        matches(RegExp(
+          r'^Ce créneau vous est réservé pendant \d+ min \d+ s\. '
+          r'Passé ce délai, il redevient disponible\.$',
+        )),
+      );
+
+      // Le Timer périodique doit être annulé proprement (sinon la
+      // suite échoue avec un "pending timer" une fois le widget démonté).
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets("à expiration, informe l'utilisateur et relâche la sélection",
+        (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+          holdToken: 'hold-1',
+          holdExpiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      verify(() => bloc.add(const AppointmentsHoldExpired())).called(1);
+      expect(find.textContaining("vient d'être libéré"), findsOneWidget);
     });
   });
 }

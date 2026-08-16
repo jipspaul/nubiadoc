@@ -44,6 +44,13 @@ class AppointmentsBookingConfirmed extends AppointmentsEvent {
   const AppointmentsBookingConfirmed();
 }
 
+/// Le verrou de 10 min (#5363) est arrivé à expiration côté client (décompte
+/// du récapitulatif à zéro) : le créneau redevient sélectionnable, l'ancien
+/// hold_token n'est plus valide côté API.
+class AppointmentsHoldExpired extends AppointmentsEvent {
+  const AppointmentsHoldExpired();
+}
+
 /// Retour à la liste des praticiens depuis les créneaux (bouton retour
 /// système/AppBar, geste swipe-back).
 class AppointmentsBackToSearch extends AppointmentsEvent {

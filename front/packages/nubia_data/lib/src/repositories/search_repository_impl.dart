@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/entities/parsed_search.dart';
 import 'package:nubia_domain/src/entities/provider_result.dart';
 import 'package:nubia_domain/src/entities/slot.dart';
+import 'package:nubia_domain/src/entities/slot_hold.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/repositories/search_repository.dart';
 import 'package:nubia_data/src/remote/search/search_api.dart';
@@ -91,10 +92,10 @@ class SearchRepositoryImpl implements SearchRepository {
   }
 
   @override
-  Future<Either<Failure, String>> holdSlot(String slotId) async {
+  Future<Either<Failure, SlotHold>> holdSlot(String slotId) async {
     try {
-      final token = await _api.holdSlot(slotId);
-      return Right(token);
+      final dto = await _api.holdSlot(slotId);
+      return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {
         return const Left(ValidationFailure(

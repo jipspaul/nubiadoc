@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/entities/parsed_search.dart';
 import 'package:nubia_domain/src/entities/provider_result.dart';
 import 'package:nubia_domain/src/entities/slot.dart';
+import 'package:nubia_domain/src/entities/slot_hold.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 
 abstract class SearchRepository {
@@ -21,8 +22,9 @@ abstract class SearchRepository {
     DateTime? to,
   });
 
-  /// Bloque un créneau 5 min ; retourne le hold_token.
-  Future<Either<Failure, String>> holdSlot(String slotId);
+  /// Bloque un créneau 10 min ; retourne le hold (token + expiration, pour
+  /// le décompte visible du récapitulatif — #5363).
+  Future<Either<Failure, SlotHold>> holdSlot(String slotId);
 
   /// Confirme la réservation d'un créneau tenu via [holdSlot] (POST
   /// /v1/bookings, `docs/12-api-reference.md` §12.3). Retourne l'identifiant
