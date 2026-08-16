@@ -5,6 +5,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'orders_bloc.dart';
+import 'widgets/order_billing_summary_card.dart';
 import 'widgets/order_timeline.dart';
 import 'widgets/pickup_qr_card.dart';
 
@@ -58,6 +59,10 @@ class PatientOrderDetailBody extends StatelessWidget {
                     if (order.canShowPickupCode && pickupToken != null) ...[
                       const SizedBox(height: 16),
                       PickupQrCard(token: pickupToken),
+                    ],
+                    if (order.hasBillingSummary) ...[
+                      const SizedBox(height: 16),
+                      OrderBillingSummaryCard(order: order),
                     ],
                     if (order.status == PharmacyOrderStatus.received ||
                         order.status == PharmacyOrderStatus.preparing) ...[
