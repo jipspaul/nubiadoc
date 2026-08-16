@@ -36,10 +36,12 @@ class CabinetAgendaApi {
     };
 
     return (data['slots'] as List<dynamic>? ?? const [])
-        .map((e) => AgendaEntryDto.fromSlotJson(
-              e as Map<String, dynamic>,
-              practitionerNames: names,
-            ))
+        .map(
+          (e) => AgendaEntryDto.fromSlotJson(
+            e as Map<String, dynamic>,
+            practitionerNames: names,
+          ),
+        )
         .toList();
   }
 
@@ -49,32 +51,35 @@ class CabinetAgendaApi {
   Future<List<CabinetPractitioner>> listPractitioners() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/cabinet/agenda',
-      queryParameters: {
-        'date': _dateOnly(DateTime.now()),
-        'view': 'week',
-      },
+      queryParameters: {'date': _dateOnly(DateTime.now()), 'view': 'week'},
     );
     final data = response.data ?? const <String, dynamic>{};
     return (data['practitioners'] as List<dynamic>? ?? const [])
         .map((p) => p as Map<String, dynamic>)
-        .map((p) => CabinetPractitioner(
-              id: p['id'] as String,
-              displayName: (p['display_name'] as String?) ?? '',
-              specialite: p['specialite'] as String?,
-            ))
+        .map(
+          (p) => CabinetPractitioner(
+            id: p['id'] as String,
+            displayName: (p['display_name'] as String?) ?? '',
+            specialite: p['specialite'] as String?,
+          ),
+        )
         .toList();
   }
 
+  // `dt` représente déjà le jour calendaire voulu (souvent minuit local) :
+  // on prend directement ses composantes year/month/day, sans passer par
+  // `.toUtc()` qui ferait glisser la date d'un jour dès que l'heure locale
+  // est en avance sur UTC (Europe/Paris été = UTC+2).
   static String _dateOnly(DateTime dt) {
-    final d = dt.toUtc();
-    return '${d.year.toString().padLeft(4, '0')}-'
-        '${d.month.toString().padLeft(2, '0')}-'
-        '${d.day.toString().padLeft(2, '0')}';
+    return '${dt.year.toString().padLeft(4, '0')}-'
+        '${dt.month.toString().padLeft(2, '0')}-'
+        '${dt.day.toString().padLeft(2, '0')}';
   }
 
   Future<AgendaEntryDto> getById(String id) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/cabinet/agenda/$id');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/agenda/$id',
+    );
     return AgendaEntryDto.fromJson(response.data!);
   }
 
