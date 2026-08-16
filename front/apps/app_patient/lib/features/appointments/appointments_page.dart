@@ -1022,10 +1022,14 @@ class _SlotsByDay extends StatelessWidget {
     // Regroupement par jour en préservant l'ordre chronologique d'origine.
     final groups = <DateTime, List<Slot>>{};
     for (final slot in state.slots) {
+      // #5366 : startsAt est UTC (isUtc == true) — grouper sur les
+      // composants bruts classait un créneau proche de minuit UTC sur le
+      // mauvais jour local (ex : 23h30 UTC = 01h30 Paris le lendemain).
+      final localStartsAt = slot.startsAt.toLocal();
       final key = DateTime(
-        slot.startsAt.year,
-        slot.startsAt.month,
-        slot.startsAt.day,
+        localStartsAt.year,
+        localStartsAt.month,
+        localStartsAt.day,
       );
       groups.putIfAbsent(key, () => []).add(slot);
     }

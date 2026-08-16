@@ -338,6 +338,74 @@ void main() {
     });
   });
 
+  // #5366 — la conversion .toLocal() doit être appliquée avant tout
+  // regroupement/affichage d'heure dans le tunnel de réservation, sans
+  // exception. Un créneau proche de minuit UTC doit apparaître sous le jour
+  // calendaire LOCAL, jamais sous le jour UTC brut.
+  group('regroupement par jour en heure locale (#5366)', () {
+    const weekdays = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
+    const months = [
+      'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
+      'jul', 'aoû', 'sep', 'oct', 'nov', 'déc',
+    ];
+    String dayHeaderOf(DateTime dt) =>
+        '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]}';
+    String hhmmOf(DateTime dt) =>
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+    testWidgets(
+        'un créneau proche de minuit UTC est affiché sous le jour local, '
+        'pas le jour UTC brut', (tester) async {
+      final startsAt = DateTime.utc(2026, 8, 16, 23, 50);
+      final localStartsAt = startsAt.toLocal();
+      final expectedDayHeader = dayHeaderOf(localStartsAt);
+      final expectedHHmm = hhmmOf(localStartsAt);
+      final rawUtcDayHeader = dayHeaderOf(startsAt);
+
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: const ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Martin',
+            specialty: 'Dentiste',
+          ),
+          slots: [
+            Slot(
+              id: 's1',
+              cabinetId: 'cab-1',
+              practitionerId: 'prac-1',
+              startsAt: startsAt,
+              endsAt: startsAt.add(const Duration(minutes: 30)),
+              isAvailable: true,
+            ),
+          ],
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<AppointmentsBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(expectedDayHeader),
+        findsOneWidget,
+        reason: 'l\'en-tête de jour doit refléter le jour local '
+            '($expectedDayHeader), pas le jour UTC brut ($rawUtcDayHeader)',
+      );
+      expect(find.textContaining(expectedHHmm), findsOneWidget);
+      if (expectedDayHeader != rawUtcDayHeader) {
+        expect(find.text(rawUtcDayHeader), findsNothing);
+      }
+    });
+  });
+
   // #3825 — pas de séparateur « · » ni de ligne résiduelle dans l'en-tête
   // praticien (fiche/hero) quand la spécialité est vide.
   group('en-tête praticien sans spécialité (#3825)', () {
