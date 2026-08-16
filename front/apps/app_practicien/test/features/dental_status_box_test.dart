@@ -68,7 +68,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('consultation_tooth_11')), findsOneWidget);
-    expect(find.text('Acte de cette séance'), findsOneWidget);
+    expect(find.text('Acte de la séance'), findsOneWidget);
     expect(find.text('Soin antérieur'), findsOneWidget);
     expect(find.text('À surveiller'), findsOneWidget);
     expect(find.text('Saine'), findsOneWidget);
