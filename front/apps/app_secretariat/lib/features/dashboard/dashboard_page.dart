@@ -44,10 +44,12 @@ import '../waiting_list/waiting_list_bloc.dart';
 import '../waiting_list/waiting_list_page.dart';
 import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
+import 'cash_collection_cubit.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 import 'rail_badges_cubit.dart';
+import 'widgets/cash_collection_card.dart';
 import 'widgets/global_search_dialog.dart';
 import 'widgets/practitioners_today_card.dart';
 import 'widgets/week_occupancy_card.dart';
@@ -115,7 +117,10 @@ class DashboardPage extends StatelessWidget {
               listWaitingList: GetIt.instance<ListWaitingListUseCase>(),
               listBookableSlots: GetIt.instance<ListBookableSlotsUseCase>(),
             )..add(const DashboardLoadRequested()),
-            child: const _DashboardContent(),
+            child: BlocProvider<CashCollectionCubit>(
+              create: (_) => GetIt.instance<CashCollectionCubit>()..load(),
+              child: const _DashboardContent(),
+            ),
           );
         } else if (destination.route == '/salle-attente') {
           body = BlocProvider(
@@ -374,6 +379,7 @@ class _DashboardLoadedView extends StatelessWidget {
                           ? 'Aucune demande de créneau.'
                           : '$waitingCount patient(s) en attente de créneau.',
                     ),
+                    const CashCollectionCard(),
                     WeekOccupancyCard(
                       dailyOccupancyRates: dailyOccupancyRates,
                       freeSlotsThisWeekCount: freeSlotsThisWeekCount,
