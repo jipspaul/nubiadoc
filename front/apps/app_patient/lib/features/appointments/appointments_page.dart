@@ -2205,6 +2205,31 @@ class _BookingPanelState extends State<_BookingPanel> {
                         ),
               ),
             ),
+            const SizedBox(height: 8),
+            // #5344 : réassurance verbatim maquette (`.reass`), annonce
+            // AVANT le tap que la demande devra être confirmée par le
+            // cabinet (statut réel après POST /v1/bookings).
+            SizedBox(
+              width: double.infinity,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.verified_user,
+                    size: 14,
+                    color: tokens?.successFg ?? NubiaColors.successFg,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Sans engagement — le cabinet confirme sous 24 h',
+                    style: subdued?.copyWith(
+                      fontSize: 12,
+                      color: NubiaColors.n500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
             // Réassurance verbatim maquette.
             Text(

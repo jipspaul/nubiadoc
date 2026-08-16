@@ -1056,6 +1056,11 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Aucune carte bancaire'), findsOneWidget);
+      // #5344 : réassurance affichée avant le tap, sous le CTA.
+      expect(
+        find.textContaining('Sans engagement — le cabinet confirme sous 24 h'),
+        findsOneWidget,
+      );
 
       // CTA désactivé tant que les infos + CGU ne sont pas complètes.
       final button = tester
