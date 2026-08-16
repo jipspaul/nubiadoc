@@ -19,14 +19,19 @@ class AppointmentsSearchLoading extends AppointmentsState {
 class AppointmentsProvidersLoaded extends AppointmentsState {
   final List<ProviderResult> providers;
   final String query;
+  // #5357 : aperçu de 3 jours de créneaux réels par praticien (carte
+  // résultat, bloc `.slots`) — indexé par `ProviderResult.id`, rempli une
+  // fois les praticiens chargés (repli liste vide tant que non résolu).
+  final Map<String, List<Slot>> slotsByProvider;
 
   const AppointmentsProvidersLoaded({
     required this.providers,
     required this.query,
+    this.slotsByProvider = const {},
   });
 
   @override
-  List<Object?> get props => [providers, query];
+  List<Object?> get props => [providers, query, slotsByProvider];
 }
 
 class AppointmentsSlotsLoading extends AppointmentsState {

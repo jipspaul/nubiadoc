@@ -82,12 +82,17 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     emit(const AppointmentsSearchLoading());
     try {
       final result = await _searchProviders(query: query);
-      result.fold(
-        (failure) => emit(AppointmentsError(failure.message)),
-        (providers) {
+      await result.fold(
+        (failure) async => emit(AppointmentsError(failure.message)),
+        (providers) async {
+          // #5357 : la carte résultat affiche 3 jours de créneaux réels (pas
+          // seulement le nom) — on les résout avant d'émettre pour que la
+          // liste n'apparaisse jamais sans ses créneaux.
+          final slotsByProvider = await _fetchSlotsByProvider(providers);
           _lastProvidersLoaded = AppointmentsProvidersLoaded(
             providers: providers,
             query: query,
+            slotsByProvider: slotsByProvider,
           );
           emit(_lastProvidersLoaded);
         },
@@ -95,6 +100,27 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     } catch (_) {
       emit(const AppointmentsError('Erreur de recherche.'));
     }
+  }
+
+  /// Résout les créneaux de chaque praticien pour l'aperçu de la carte
+  /// résultat (#5357). Un échec isolé (praticien sans agenda, erreur réseau
+  /// ponctuelle) n'affiche simplement aucun créneau pour lui — il ne doit
+  /// jamais faire échouer la recherche entière.
+  Future<Map<String, List<Slot>>> _fetchSlotsByProvider(
+    List<ProviderResult> providers,
+  ) async {
+    final entries = await Future.wait(providers.map((provider) async {
+      try {
+        final result = await _searchSlots(providerId: provider.id);
+        return MapEntry(
+          provider.id,
+          result.fold((_) => const <Slot>[], (slots) => slots),
+        );
+      } catch (_) {
+        return MapEntry(provider.id, const <Slot>[]);
+      }
+    }));
+    return Map.fromEntries(entries);
   }
 
   void _onBackToSearch(
@@ -113,12 +139,22 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     emit(AppointmentsSlotsLoading(event.provider));
     try {
       final result = await _searchSlots(providerId: event.provider.id);
-      result.fold(
-        (failure) => safeEmit(AppointmentsError(failure.message)),
-        (slots) => safeEmit(AppointmentsSlotsLoaded(
-          provider: event.provider,
-          slots: slots,
-        )),
+      await result.fold(
+        (failure) async => safeEmit(AppointmentsError(failure.message)),
+        (slots) async {
+          final loaded =
+              AppointmentsSlotsLoaded(provider: event.provider, slots: slots);
+          safeEmit(loaded);
+          // #5357 : venu d'un clic sur une puce créneau de la carte
+          // résultat — on enchaîne directement sur la sélection de ce
+          // créneau (démarre la réservation) une fois l'agenda chargé.
+          final preselectId = event.preselectSlotId;
+          if (preselectId == null) return;
+          final preselect =
+              slots.where((s) => s.id == preselectId && s.isAvailable);
+          if (preselect.isEmpty) return;
+          await _selectSlot(loaded, preselect.first, emit);
+        },
       );
     } catch (_) {
       safeEmit(const AppointmentsError('Erreur de chargement des créneaux.'));
@@ -132,22 +168,29 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     final current = state;
     if (current is! AppointmentsSlotsLoaded) return;
     if (!event.slot.isAvailable) return;
+    await _selectSlot(current, event.slot, emit);
+  }
 
+  Future<void> _selectSlot(
+    AppointmentsSlotsLoaded current,
+    Slot slot,
+    Emitter<AppointmentsState> emit,
+  ) async {
     // #5362 : un visiteur anonyme n'a pas encore de session patient (le
     // hold requiert un JWT) — sélectionner un créneau reste une pure
     // interaction UI pour lui ; le hold n'est posé qu'à la confirmation,
     // juste après la création du compte, dans le même geste.
     if (_authCubit.state is! AuthAuthenticated) {
-      safeEmit(current.copyWith(selectedSlot: event.slot));
+      safeEmit(current.copyWith(selectedSlot: slot));
       return;
     }
 
     try {
-      final holdResult = await _holdSlot(event.slot.id);
+      final holdResult = await _holdSlot(slot.id);
       holdResult.fold(
         (failure) => safeEmit(AppointmentsError(failure.message)),
         (hold) => safeEmit(current.copyWith(
-          selectedSlot: event.slot,
+          selectedSlot: slot,
           holdToken: hold.token,
           holdExpiresAt: hold.expiresAt,
         )),
