@@ -49,6 +49,7 @@ import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 import 'rail_badges_cubit.dart';
 import 'widgets/practitioners_today_card.dart';
+import 'widgets/week_occupancy_card.dart';
 
 /// Entry point for the authenticated secrétariat home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile). Clinical
@@ -111,6 +112,7 @@ class DashboardPage extends StatelessWidget {
             create: (_) => DashboardBloc(
               getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
               listWaitingList: GetIt.instance<ListWaitingListUseCase>(),
+              listBookableSlots: GetIt.instance<ListBookableSlotsUseCase>(),
             )..add(const DashboardLoadRequested()),
             child: const _DashboardContent(),
           );
@@ -279,12 +281,16 @@ class _DashboardContent extends StatelessWidget {
             :final pendingCount,
             :final waitingCount,
             :final practitionersToday,
+            :final freeSlotsThisWeekCount,
+            :final freeSlotsTomorrowMorningCount,
           ) =>
             _DashboardLoadedView(
               todayCount: todayCount,
               pendingCount: pendingCount,
               waitingCount: waitingCount,
               practitionersToday: practitionersToday,
+              freeSlotsThisWeekCount: freeSlotsThisWeekCount,
+              freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
             ),
         };
       },
@@ -304,12 +310,16 @@ class _DashboardLoadedView extends StatelessWidget {
     required this.pendingCount,
     required this.waitingCount,
     required this.practitionersToday,
+    required this.freeSlotsThisWeekCount,
+    required this.freeSlotsTomorrowMorningCount,
   });
 
   final int todayCount;
   final int pendingCount;
   final int waitingCount;
   final List<PractitionerToday> practitionersToday;
+  final int freeSlotsThisWeekCount;
+  final int freeSlotsTomorrowMorningCount;
 
   @override
   Widget build(BuildContext context) {
@@ -389,6 +399,11 @@ class _DashboardLoadedView extends StatelessWidget {
                       hint: waitingCount == 0
                           ? 'Aucune demande de créneau.'
                           : '$waitingCount patient(s) en attente de créneau.',
+                    ),
+                    WeekOccupancyCard(
+                      freeSlotsThisWeekCount: freeSlotsThisWeekCount,
+                      freeSlotsTomorrowMorningCount:
+                          freeSlotsTomorrowMorningCount,
                     ),
                     PractitionersTodayCard(
                       practitioners: practitionersToday,

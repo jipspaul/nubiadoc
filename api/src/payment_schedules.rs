@@ -66,8 +66,9 @@ fn parse_schedule_row(row: &sqlx::postgres::PgRow) -> Result<PaymentScheduleItem
     let installments_json: serde_json::Value = row
         .try_get("installments")
         .map_err(|_| AppError::Internal)?;
-    let installments: Vec<Installment> =
+    let mut installments: Vec<Installment> =
         serde_json::from_value(installments_json).unwrap_or_default();
+    installments.sort_by(|a, b| a.date.cmp(&b.date));
     let provider: Option<String> = row.try_get("provider").map_err(|_| AppError::Internal)?;
     let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
     let created_at: chrono::DateTime<chrono::Utc> =
