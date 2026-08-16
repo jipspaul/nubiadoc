@@ -37,7 +37,11 @@ class PatientOrderDetailBody extends StatelessWidget {
             case PatientOrderDetailLoading():
               return const Center(child: CircularProgressIndicator());
             case PatientOrderDetailError(:final message):
-              return NubiaErrorWidget(message: message);
+              return NubiaErrorWidget(
+                message: message,
+                onRetry: () =>
+                    context.read<PatientOrderDetailCubit>().reload(),
+              );
             case PatientOrderDetailLoaded(
                 :final order,
                 :final pickupToken,
