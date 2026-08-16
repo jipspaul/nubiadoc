@@ -32,8 +32,12 @@ class _MockListPatientTags extends Mock implements ListPatientTagsUseCase {}
 class _MockListPatientDocuments extends Mock
     implements ListPatientDocumentsUseCase {}
 
-class _MockOrdonnancesBloc
-    extends MockBloc<OrdonnancesEvent, OrdonnancesState>
+class _MockListPatientJournal extends Mock
+    implements ListPatientJournalUseCase {}
+
+class _MockGetMedicalRecord extends Mock implements GetMedicalRecordUseCase {}
+
+class _MockOrdonnancesBloc extends MockBloc<OrdonnancesEvent, OrdonnancesState>
     implements OrdonnancesBloc {}
 
 final _patient = CabinetPatient(
@@ -60,6 +64,22 @@ void main() {
         .thenAnswer((_) async => const Right([]));
     GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
       () => listDocuments,
+    );
+
+    final listJournal = _MockListPatientJournal();
+    when(() => listJournal(any())).thenAnswer((_) async => const Right([]));
+    GetIt.instance.registerFactory<ListPatientJournalUseCase>(
+      () => listJournal,
+    );
+
+    final getMedicalRecord = _MockGetMedicalRecord();
+    when(() => getMedicalRecord(any())).thenAnswer(
+      (_) async => const Right(
+        MedicalRecordSummary(allergies: [], treatments: []),
+      ),
+    );
+    GetIt.instance.registerFactory<GetMedicalRecordUseCase>(
+      () => getMedicalRecord,
     );
     addTearDown(GetIt.instance.reset);
 
