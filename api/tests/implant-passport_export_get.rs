@@ -165,9 +165,9 @@ async fn implant_passport_export_response_has_no_store_cache_control() {
     assert_eq!(cache_control, "no-store");
 }
 
-// ── Test 5 : signer défaillant → 410 Gone ─────────────────────────────────────
+// ── Test 5 : signer défaillant → 502 Bad Gateway ───────────────────────────────
 
-/// Signer stub qui retourne toujours `None` (simule une clé expirée / bucket inaccessible).
+/// Signer stub qui retourne toujours `None` (simule un signer non configuré / bucket inaccessible).
 struct FailingSigner;
 
 impl StorageSigner for FailingSigner {
@@ -177,7 +177,7 @@ impl StorageSigner for FailingSigner {
 }
 
 #[tokio::test]
-async fn implant_passport_export_failing_signer_returns_410() {
+async fn implant_passport_export_failing_signer_returns_502() {
     let user_id = Uuid::new_v4();
     let account_id = Uuid::new_v4();
     let token = make_patient_jwt(user_id, account_id);
@@ -198,5 +198,9 @@ async fn implant_passport_export_failing_signer_returns_410() {
     .await
     .unwrap();
 
-    assert_eq!(response.status(), StatusCode::GONE);
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_GATEWAY,
+        "signer indisponible (lien jamais généré) doit retourner 502 upstream_unavailable, pas 410 link_expired"
+    );
 }
