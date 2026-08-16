@@ -83,7 +83,9 @@ class SendPrescriptionCubit extends Cubit<SendPrescriptionState> {
   final GetMyPharmacyUseCase _getMyPharmacy;
   final CreatePharmacyOrderUseCase _createOrder;
 
-  Future<void> load() async {
+  /// [prescriptionId] présélectionne l'ordonnance d'une commande refusée
+  /// que le patient renvoie à une autre pharmacie (#5351).
+  Future<void> load({String? prescriptionId}) async {
     emit(const SendPrescriptionLoading());
     final prescriptionsResult = await _listPrescriptions();
     final pharmacyResult = await _getMyPharmacy();
@@ -96,9 +98,19 @@ class SendPrescriptionCubit extends Cubit<SendPrescriptionState> {
             .toList();
         final pharmacy =
             pharmacyResult.fold<Pharmacy?>((_) => null, (value) => value);
+        PatientPrescription? preselected;
+        if (prescriptionId != null) {
+          for (final prescription in eligible) {
+            if (prescription.id == prescriptionId) {
+              preselected = prescription;
+              break;
+            }
+          }
+        }
         emit(SendPrescriptionReady(
           prescriptions: eligible,
-          selectedPrescription: eligible.length == 1 ? eligible.first : null,
+          selectedPrescription:
+              preselected ?? (eligible.length == 1 ? eligible.first : null),
           pharmacy: pharmacy,
         ));
       },

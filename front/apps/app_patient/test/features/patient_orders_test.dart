@@ -3,6 +3,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -11,6 +12,7 @@ import 'package:nubia_test_harness/nubia_test_harness.dart';
 import 'package:app_patient/features/notifications/notification_deep_link_handler.dart';
 import 'package:app_patient/features/pharmacy_orders/order_detail_page.dart';
 import 'package:app_patient/features/pharmacy_orders/orders_bloc.dart';
+import 'package:app_patient/features/pharmacy_orders/widgets/order_rejected_card.dart';
 import 'package:app_patient/features/pharmacy_orders/widgets/order_timeline.dart';
 
 class MockPatientPharmacyRepository extends Mock
@@ -60,6 +62,7 @@ void main() {
         watch: WatchPatientPharmacyOrderUseCase(events),
         pickupToken: GetPickupTokenUseCase(repo),
         cancel: CancelPharmacyOrderUseCase(repo),
+        getMyPharmacy: GetMyPharmacyUseCase(repo),
       );
 
   group('PatientOrderDetailCubit', () {
@@ -102,6 +105,28 @@ void main() {
         PatientOrderDetailLoaded(order(PharmacyOrderStatus.cancelled)),
       ],
     );
+
+    blocTest<PatientOrderDetailCubit, PatientOrderDetailState>(
+      'commande refusée : le téléphone de la pharmacie déclarée est chargé '
+      '(bouton « Appeler »), pas le token du QR (#5351)',
+      build: () {
+        when(() => repo.getOrder('o1')).thenAnswer(
+            (_) async => Right(order(PharmacyOrderStatus.rejected)));
+        when(() => events.watchOrder('o1'))
+            .thenAnswer((_) => const Stream.empty());
+        when(() => repo.getMyPharmacy()).thenAnswer((_) async => const Right(
+            Pharmacy(
+                id: 'p1', name: 'Pharmacie du Port', phone: '0102030405')));
+        return buildDetail();
+      },
+      act: (cubit) => cubit.load('o1'),
+      expect: () => [
+        const PatientOrderDetailLoading(),
+        PatientOrderDetailLoaded(order(PharmacyOrderStatus.rejected),
+            pharmacyPhone: '0102030405'),
+      ],
+      verify: (_) => verifyNever(() => repo.getPickupToken(any())),
+    );
   });
 
   group('PatientOrdersBloc', () {
@@ -133,19 +158,110 @@ void main() {
       expect(icons.where((i) => i == Icons.radio_button_unchecked).length, 1);
     });
 
-    testWidgets('refus → bandeau terminal avec motif', (tester) async {
+    testWidgets(
+        'état terminal (refusée) : les 4 étapes nominales ne sont plus '
+        'déroulées (#5351)', (tester) async {
       final rejected = PharmacyOrder(
         id: 'o1',
         pharmacyId: 'p1',
         prescriptionId: 'rx1',
         status: PharmacyOrderStatus.rejected,
-        rejectionReason: 'Produit indisponible',
         createdAt: DateTime(2026, 7, 1),
         updatedAt: DateTime(2026, 7, 1),
       );
       await tester.pumpApp(Scaffold(body: OrderTimeline(order: rejected)));
+      expect(find.byType(Icon), findsNothing);
+    });
+  });
+
+  group('OrderRejectedCard (widget) #5351', () {
+    PharmacyOrder rejectedOrder({String? rejectionReason}) => PharmacyOrder(
+          id: 'o1',
+          pharmacyId: 'p1',
+          pharmacyName: 'Pharmacie Bastille',
+          prescriptionId: 'rx1',
+          status: PharmacyOrderStatus.rejected,
+          rejectionReason: rejectionReason,
+          createdAt: DateTime(2026, 7, 1),
+          updatedAt: DateTime(2026, 7, 1),
+        );
+
+    testWidgets('affiche la carte avec le motif quand il existe',
+        (tester) async {
+      await tester.pumpApp(Scaffold(
+        body: SingleChildScrollView(
+          child: OrderRejectedCard(
+            order: rejectedOrder(rejectionReason: 'Produit indisponible'),
+          ),
+        ),
+      ));
+
       expect(find.byKey(const Key('timeline_terminal_banner')), findsOneWidget);
+      expect(find.text('Commande refusée'), findsOneWidget);
+      expect(find.byKey(const Key('rejection_reason_box')), findsOneWidget);
       expect(find.textContaining('Produit indisponible'), findsOneWidget);
+    });
+
+    testWidgets('pas d\'encart motif quand il est absent', (tester) async {
+      await tester.pumpApp(
+        Scaffold(
+          body: SingleChildScrollView(
+              child: OrderRejectedCard(order: rejectedOrder())),
+        ),
+      );
+
+      expect(find.byKey(const Key('rejection_reason_box')), findsNothing);
+    });
+
+    testWidgets(
+        '« Choisir une autre pharmacie » navigue vers SendPrescriptionPage '
+        'avec l\'ordonnance courante', (tester) async {
+      String? pushedLocation;
+      final router = GoRouter(
+        initialLocation: '/order',
+        routes: [
+          GoRoute(
+            path: '/order',
+            builder: (_, __) => Scaffold(
+              body: SingleChildScrollView(
+                  child: OrderRejectedCard(order: rejectedOrder())),
+            ),
+          ),
+          GoRoute(
+            path: '/pharmacy/send',
+            builder: (_, state) {
+              pushedLocation = state.uri.toString();
+              return const Scaffold(body: Text('send'));
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+      await tester
+          .ensureVisible(find.byKey(const Key('choose_other_pharmacy_button')));
+      await tester.tap(find.byKey(const Key('choose_other_pharmacy_button')));
+      await tester.pumpAndSettle();
+
+      expect(pushedLocation, '/pharmacy/send?prescriptionId=rx1');
+    });
+
+    testWidgets(
+        'bouton « Appeler » désactivé tant que le téléphone n\'est pas '
+        'chargé', (tester) async {
+      await tester.pumpApp(
+        Scaffold(
+          body: SingleChildScrollView(
+              child: OrderRejectedCard(order: rejectedOrder())),
+        ),
+      );
+
+      final button = tester
+          .widget<NubiaButton>(find.byKey(const Key('call_pharmacy_button')));
+      expect(button.onPressed, isNull);
     });
   });
 
@@ -206,9 +322,9 @@ void main() {
         'le récap montants affiche total, AMO, AMC et reste à régler avec '
         'le formatage euros partagé (#4888)', (tester) async {
       final cubit = MockPatientOrderDetailCubit();
-      when(() => cubit.state).thenReturn(
-          PatientOrderDetailLoaded(billedOrder(PharmacyOrderStatus.ready),
-              pickupToken: 'tok-qr'));
+      when(() => cubit.state).thenReturn(PatientOrderDetailLoaded(
+          billedOrder(PharmacyOrderStatus.ready),
+          pickupToken: 'tok-qr'));
 
       await tester.pumpApp(
         BlocProvider<PatientOrderDetailCubit>.value(
@@ -251,7 +367,8 @@ void main() {
           reason: 'sortie discrète, pas une action principale');
     });
 
-    testWidgets('annulation en cours : bouton désactivé avec état de '
+    testWidgets(
+        'annulation en cours : bouton désactivé avec état de '
         'chargement (#5352)', (tester) async {
       final cubit = MockPatientOrderDetailCubit();
       when(() => cubit.state).thenReturn(PatientOrderDetailLoaded(

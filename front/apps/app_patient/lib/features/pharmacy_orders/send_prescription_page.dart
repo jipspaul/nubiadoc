@@ -10,12 +10,17 @@ import 'send_prescription_cubit.dart';
 
 /// Transmission d'une ordonnance à la pharmacie (commande click-and-collect).
 class SendPrescriptionPage extends StatelessWidget {
-  const SendPrescriptionPage({super.key});
+  const SendPrescriptionPage({super.key, this.prescriptionId});
+
+  /// Présélectionne l'ordonnance d'une commande refusée que le patient
+  /// renvoie à une autre pharmacie (#5351).
+  final String? prescriptionId;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<SendPrescriptionCubit>(
-      create: (_) => GetIt.instance<SendPrescriptionCubit>()..load(),
+      create: (_) => GetIt.instance<SendPrescriptionCubit>()
+        ..load(prescriptionId: prescriptionId),
       child: const SendPrescriptionBody(),
     );
   }

@@ -89,6 +89,7 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
     this.order, {
     this.pickupToken,
     this.cancelling = false,
+    this.pharmacyPhone,
   });
 
   final PharmacyOrder order;
@@ -97,8 +98,12 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
   final String? pickupToken;
   final bool cancelling;
 
+  /// Téléphone de la pharmacie déclarée (récupéré uniquement quand la
+  /// commande est refusée, pour le bouton « Appeler la pharmacie », #5351).
+  final String? pharmacyPhone;
+
   @override
-  List<Object?> get props => [order, pickupToken, cancelling];
+  List<Object?> get props => [order, pickupToken, cancelling, pharmacyPhone];
 }
 
 class PatientOrderDetailError extends PatientOrderDetailState {
@@ -119,16 +124,19 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
     required WatchPatientPharmacyOrderUseCase watch,
     required GetPickupTokenUseCase pickupToken,
     required CancelPharmacyOrderUseCase cancel,
+    required GetMyPharmacyUseCase getMyPharmacy,
   })  : _get = get,
         _watch = watch,
         _pickupToken = pickupToken,
         _cancel = cancel,
+        _getMyPharmacy = getMyPharmacy,
         super(const PatientOrderDetailLoading());
 
   final GetPatientPharmacyOrderUseCase _get;
   final WatchPatientPharmacyOrderUseCase _watch;
   final GetPickupTokenUseCase _pickupToken;
   final CancelPharmacyOrderUseCase _cancel;
+  final GetMyPharmacyUseCase _getMyPharmacy;
   StreamSubscription<PharmacyOrder>? _subscription;
   String? _orderId;
 
@@ -159,8 +167,16 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
   }
 
   /// Le QR n'existe que pour une commande prête : chaque affichage régénère
-  /// le token (l'ancien est invalidé côté serveur).
+  /// le token (l'ancien est invalidé côté serveur). Le téléphone de la
+  /// pharmacie n'est chargé que pour une commande refusée (bouton
+  /// « Appeler la pharmacie » de la carte de refus, #5351).
   Future<void> _emitWithToken(PharmacyOrder order) async {
+    if (order.status == PharmacyOrderStatus.rejected) {
+      final pharmacyResult = await _getMyPharmacy();
+      final phone = pharmacyResult.fold<String?>((_) => null, (p) => p?.phone);
+      emit(PatientOrderDetailLoaded(order, pharmacyPhone: phone));
+      return;
+    }
     if (!order.canShowPickupCode) {
       emit(PatientOrderDetailLoaded(order));
       return;

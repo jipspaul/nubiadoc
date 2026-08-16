@@ -197,7 +197,9 @@ class AppRouter {
         ),
         GoRoute(
           path: '/pharmacy/send',
-          builder: (_, __) => const SendPrescriptionPage(),
+          builder: (_, state) => SendPrescriptionPage(
+            prescriptionId: state.uri.queryParameters['prescriptionId'],
+          ),
         ),
         GoRoute(
           path: '/pharmacy/orders',

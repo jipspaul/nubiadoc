@@ -6,6 +6,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'orders_bloc.dart';
 import 'widgets/order_billing_summary_card.dart';
+import 'widgets/order_rejected_card.dart';
 import 'widgets/order_timeline.dart';
 import 'widgets/pickup_qr_card.dart';
 
@@ -40,15 +41,16 @@ class PatientOrderDetailBody extends StatelessWidget {
             case PatientOrderDetailError(:final message):
               return NubiaErrorWidget(
                 message: message,
-                onRetry: () =>
-                    context.read<PatientOrderDetailCubit>().reload(),
+                onRetry: () => context.read<PatientOrderDetailCubit>().reload(),
               );
             case PatientOrderDetailLoaded(
                 :final order,
                 :final pickupToken,
-                :final cancelling
+                :final cancelling,
+                :final pharmacyPhone
               ):
               final theme = Theme.of(context);
+              final tokens = theme.extension<NubiaTokens>()!;
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -60,7 +62,18 @@ class PatientOrderDetailBody extends StatelessWidget {
                       style: theme.textTheme.titleMedium,
                     ),
                     const SizedBox(height: 16),
-                    OrderTimeline(order: order),
+                    if (order.status == PharmacyOrderStatus.rejected)
+                      OrderRejectedCard(
+                          order: order, pharmacyPhone: pharmacyPhone)
+                    else if (order.status == PharmacyOrderStatus.cancelled)
+                      Text(
+                        'Commande annulée',
+                        key: const Key('timeline_terminal_banner'),
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(color: tokens.dangerFg),
+                      )
+                    else
+                      OrderTimeline(order: order),
                     if (order.canShowPickupCode && pickupToken != null) ...[
                       const SizedBox(height: 16),
                       PickupQrCard(token: pickupToken),
