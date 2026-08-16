@@ -189,7 +189,62 @@ async fn hold_slot_happy_path_returns_200_and_token() {
         .ok();
 }
 
-// ── Test 2 : slot déjà held par un autre → 409 slot_taken ───────────────────
+// ── Test 2 : JWT leurre anti-énum (#4436) → 401, jamais 500 (#5629) ─────────
+//
+// `decoy_register_response` (auth/register.rs) émet un JWT valide et
+// correctement signé dont le `sub` ne correspond à aucune ligne `app_user`
+// (email déjà pris, pas d'INSERT). Avant #5629, l'INSERT `slot_holds`
+// (FK `user_id → app_user(id)`) violait la contrainte et remontait en 500
+// générique au lieu d'un 401 actionnable.
+#[tokio::test]
+async fn hold_slot_with_decoy_jwt_returns_401_not_500() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let (_, slot_id) = insert_provider_and_slot(&db, &suffix).await;
+
+    // sub/account_id ne correspondent à aucun app_user, comme le leurre.
+    let token = make_patient_jwt(Uuid::new_v4(), Uuid::new_v4());
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/slots/{}/hold", slot_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    // Le slot ne doit pas être passé en 'held' (l'INSERT a échoué avant l'UPDATE).
+    let row = sqlx::query("SELECT status FROM availability_slot WHERE id = $1")
+        .bind(slot_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let status: String = sqlx::Row::try_get(&row, "status").unwrap();
+    assert_eq!(status, "open");
+
+    // Nettoyage
+    sqlx::query("DELETE FROM availability_slot WHERE id = $1")
+        .bind(slot_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 3 : slot déjà held par un autre → 409 slot_taken ───────────────────
 
 #[tokio::test]
 async fn hold_slot_already_held_returns_409() {

@@ -1271,8 +1271,13 @@ pub struct SlotHoldResponse {
     pub expires_at: String,
 }
 
-/// SQLSTATE `23503` (foreign_key_violation) — cf. `claims.sub` d'un token
-/// leurre anti-énumération (#5629) qui ne référence aucun `app_user` réel.
+/// Détecte une violation de contrainte FOREIGN KEY Postgres (SQLSTATE `23503`).
+/// Utilisé par `hold_slot` : un JWT leurre anti-énumération (#4436,
+/// `decoy_register_response`) porte un `sub` qui ne correspond à aucune ligne
+/// `app_user`, donc l'INSERT dans `slot_holds` (FK `user_id → app_user(id)`,
+/// migration 0095) échoue — ce n'est pas une panne serveur mais un jeton
+/// invalide, à distinguer d'une vraie erreur DB (→ 500) pour répondre `401`
+/// plutôt que `500 internal_error` (#5629).
 fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
     matches!(
         e,
@@ -1287,6 +1292,8 @@ fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
 /// `slot_holds`, passe le slot en `status='held'`. Contrainte UNIQUE sur
 /// `slot_id` → `409 slot_taken` si déjà held par un autre patient.
 /// Slot inexistant → `404`. Slot `held` ou `booked` → `409 slot_taken`.
+/// JWT dont le `sub` ne correspond à aucun `app_user` (leurre anti-énum
+/// #4436) → `401 unauthorized` plutôt qu'un `500` (#5629).
 pub async fn hold_slot(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
@@ -1309,15 +1316,8 @@ pub async fn hold_slot(
             .fetch_one(&mut *tx)
             .await
             .map_err(|e| {
-                // #5629 : `claims.sub` peut être le leurre anti-énumération
-                // de `decoy_register_response` (auth/register.rs) — aucune
-                // ligne `app_user` réelle derrière ce JWT pourtant valide.
-                // `slot_holds.user_id` porte `NOT NULL REFERENCES
-                // app_user(id)` (migration 0095) donc l'INSERT viole la FK
-                // (23503) : distingué ici pour renvoyer 401 plutôt qu'un 500
-                // générique qui n'oriente pas le visiteur vers un login.
                 if is_foreign_key_violation(&e) {
-                    AppError::AccountNotFound
+                    AppError::Unauthorized
                 } else {
                     AppError::Internal
                 }
