@@ -19,9 +19,11 @@ class _MockDashboardBloc extends MockBloc<DashboardEvent, DashboardState>
 // bloc plutôt que de figer un booléen sensible à l'heure d'exécution.
 late DateTime _now1;
 late AgendaEntry _a1;
+late List<AgendaEntry> _entries1;
 late DateTime _now2;
 late AgendaEntry _reqToday;
 late AgendaEntry _confToday;
+late List<AgendaEntry> _entries2;
 late AgendaEntry _past1;
 late AgendaEntry _past2;
 
@@ -118,6 +120,21 @@ Slot _slot(
 bool _isInConsultation(DateTime now, Iterable<AgendaEntry> entries) =>
     entries.any((e) => !now.isBefore(e.startsAt) && now.isBefore(e.endsAt));
 
+/// Reproduit la formule de `DashboardBloc` (#5383) pour dériver le taux
+/// d'occupation par jour (Lun→Sam) depuis l'agenda de la semaine, plutôt que
+/// de figer une liste en dur — sensible au jour d'exécution du test comme
+/// `_isInConsultation` ci-dessus.
+List<double> _dailyOccupancyRates(Iterable<AgendaEntry> entries) =>
+    List<double>.generate(6, (i) {
+      final weekday = i + 1;
+      final dayEntries = entries.where((e) => e.startsAt.weekday == weekday);
+      final total = dayEntries.length;
+      if (total == 0) return 0.0;
+      final occupied =
+          dayEntries.where((e) => !e.isFree && !e.isCancelled).length;
+      return occupied / total;
+    });
+
 void main() {
   group('DashboardBloc', () {
     late _MockGetAgenda getAgenda;
@@ -148,12 +165,13 @@ void main() {
         final now = DateTime.now();
         _now1 = now;
         _a1 = _entry('a1', _atNoon(now));
+        _entries1 = [
+          _a1,
+          _entry('a2', _atNoon(now, daysOffset: 1)),
+          _entry('libre', _atNoon(now), isFree: true),
+        ];
         when(() => getAgenda(any(), includePast: any(named: 'includePast')))
-            .thenAnswer((_) async => Right([
-                  _a1,
-                  _entry('a2', _atNoon(now, daysOffset: 1)),
-                  _entry('libre', _atNoon(now), isFree: true),
-                ]));
+            .thenAnswer((_) async => Right(_entries1));
         when(() => listWaitingList()).thenAnswer(
           (_) async => Right([
             WaitingListEntry(
@@ -191,6 +209,7 @@ void main() {
               lastAppointmentEndsAt: _a1.endsAt,
             ),
           ],
+          dailyOccupancyRates: _dailyOccupancyRates(_entries1),
         ),
       ],
     );
@@ -202,24 +221,23 @@ void main() {
         _now2 = now;
         _reqToday = _entry('req-today', _atNoon(now), status: 'requested');
         _confToday = _entry('conf-today', _atNoon(now), status: 'confirmed');
+        _entries2 = [
+          // Aujourd'hui : 1 requested (compte), 1 confirmed (ne
+          // compte pas comme pending, mais compte dans todayCount),
+          // 1 cancelled (ne compte NULLE PART).
+          _reqToday,
+          _confToday,
+          _entry('cancel-today', _atNoon(now), status: 'cancelled'),
+          // Un autre jour : done/no_show/requested, ne comptent pas
+          // dans todayCount ; seul le requested compte en pending.
+          _entry('done-later', _atNoon(now, daysOffset: 2), status: 'done'),
+          _entry('noshow-later', _atNoon(now, daysOffset: 2),
+              status: 'no_show'),
+          _entry('req-later', _atNoon(now, daysOffset: 2), status: 'requested'),
+          _entry('libre', _atNoon(now), isFree: true),
+        ];
         when(() => getAgenda(any(), includePast: any(named: 'includePast')))
-            .thenAnswer((_) async => Right([
-                  // Aujourd'hui : 1 requested (compte), 1 confirmed (ne
-                  // compte pas comme pending, mais compte dans todayCount),
-                  // 1 cancelled (ne compte NULLE PART).
-                  _reqToday,
-                  _confToday,
-                  _entry('cancel-today', _atNoon(now), status: 'cancelled'),
-                  // Un autre jour : done/no_show/requested, ne comptent pas
-                  // dans todayCount ; seul le requested compte en pending.
-                  _entry('done-later', _atNoon(now, daysOffset: 2),
-                      status: 'done'),
-                  _entry('noshow-later', _atNoon(now, daysOffset: 2),
-                      status: 'no_show'),
-                  _entry('req-later', _atNoon(now, daysOffset: 2),
-                      status: 'requested'),
-                  _entry('libre', _atNoon(now), isFree: true),
-                ]));
+            .thenAnswer((_) async => Right(_entries2));
         when(() => listWaitingList()).thenAnswer((_) async => const Right([]));
         return DashboardBloc(
           getAgenda: getAgenda,
@@ -251,6 +269,7 @@ void main() {
               lastAppointmentEndsAt: _confToday.endsAt,
             ),
           ],
+          dailyOccupancyRates: _dailyOccupancyRates(_entries2),
         ),
       ],
     );
@@ -413,6 +432,46 @@ void main() {
         final state = bloc.state as DashboardLoaded;
         expect(state.freeSlotsThisWeekCount, 3);
         expect(state.freeSlotsTomorrowMorningCount, 1);
+      },
+    );
+
+    blocTest<DashboardBloc, DashboardState>(
+      '#5383 : taux d\'occupation par jour (Lun→Sam) — ratio occupés/total, '
+      'annulés exclus du numérateur',
+      build: () {
+        final now = DateTime.now();
+        // Lundi de la semaine courante — ancre stable pour dériver les 6
+        // jours (Lun→Sam) sans dépendre du jour d'exécution du test.
+        final monday = now.subtract(Duration(days: now.weekday - 1));
+        DateTime day(int offset) => _atNoon(monday, daysOffset: offset);
+        when(() => getAgenda(any(), includePast: any(named: 'includePast')))
+            .thenAnswer(
+          (_) async => Right([
+            // Lundi : 1 occupé, 1 libre → 0.5.
+            _entry('mon-booked', day(0)),
+            _entry('mon-free', day(0), isFree: true),
+            // Mardi : 1 occupé, 1 annulé (exclu du numérateur, compte au
+            // dénominateur) → 1/2 = 0.5.
+            _entry('tue-booked', day(1)),
+            _entry('tue-cancelled', day(1), status: 'cancelled'),
+            // Mercredi : aucune entrée → 0.0 (pas de division par zéro).
+            // Samedi : tout occupé → 1.0.
+            _entry('sat-booked-1', day(5)),
+            _entry('sat-booked-2', day(5)),
+          ]),
+        );
+        when(() => listWaitingList()).thenAnswer((_) async => const Right([]));
+        return DashboardBloc(
+          getAgenda: getAgenda,
+          listWaitingList: listWaitingList,
+          listBookableSlots: listBookableSlots,
+        );
+      },
+      act: (bloc) => bloc.add(const DashboardLoadRequested()),
+      expect: () => [const DashboardLoading(), isA<DashboardLoaded>()],
+      verify: (bloc) {
+        final state = bloc.state as DashboardLoaded;
+        expect(state.dailyOccupancyRates, [0.5, 0.5, 0.0, 0.0, 0.0, 1.0]);
       },
     );
   });

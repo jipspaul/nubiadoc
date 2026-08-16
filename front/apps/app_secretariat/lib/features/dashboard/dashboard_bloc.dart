@@ -61,6 +61,21 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
           // 'requested'). Même exclusion des annulés que l'écran Agenda
           // (agenda_page.dart : `!isFree && status != 'cancelled'`).
           final booked = entries.where((e) => !e.isFree && !e.isCancelled);
+
+          // #5383 : taux d'occupation par jour (Lun→Sam, cabinet fermé le
+          // dimanche) — ratio créneaux occupés / total du jour, dérivé de
+          // l'agenda semaine déjà chargé ci-dessus (aucun appel réseau
+          // supplémentaire).
+          final dailyOccupancyRates = List<double>.generate(6, (i) {
+            final weekday = i + 1;
+            final dayEntries =
+                entries.where((e) => e.startsAt.weekday == weekday);
+            final total = dayEntries.length;
+            if (total == 0) return 0.0;
+            final occupied =
+                dayEntries.where((e) => !e.isFree && !e.isCancelled).length;
+            return occupied / total;
+          });
           final todayCount = booked
               .where(
                 (e) =>
@@ -150,6 +165,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
               pendingCount: pendingCount,
               waitingCount: waitingCount,
               practitionersToday: practitionersToday,
+              dailyOccupancyRates: dailyOccupancyRates,
               freeSlotsThisWeekCount: freeSlotsThisWeek.length,
               freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
             ),

@@ -54,6 +54,7 @@ final class DashboardLoaded extends DashboardState {
     required this.pendingCount,
     required this.waitingCount,
     this.practitionersToday = const [],
+    this.dailyOccupancyRates = const [0, 0, 0, 0, 0, 0],
     this.freeSlotsThisWeekCount = 0,
     this.freeSlotsTomorrowMorningCount = 0,
   });
@@ -65,6 +66,10 @@ final class DashboardLoaded extends DashboardState {
   /// Praticiens ayant au moins un RDV aujourd'hui, dérivés de l'agenda déjà
   /// chargé (#5385) — aucun appel réseau supplémentaire.
   final List<PractitionerToday> practitionersToday;
+
+  /// Taux d'occupation (0.0 à 1.0) du lundi au samedi, dérivés de l'agenda
+  /// de la semaine déjà chargé (#5383) — aucun appel réseau supplémentaire.
+  final List<double> dailyOccupancyRates;
 
   /// Créneaux bookables de la semaine réellement libres, rapprochés du
   /// planning réel (#5384 — la donnée `/bookable-slots` seule n'est jamais
@@ -80,6 +85,7 @@ final class DashboardLoaded extends DashboardState {
         pendingCount,
         waitingCount,
         practitionersToday,
+        dailyOccupancyRates,
         freeSlotsThisWeekCount,
         freeSlotsTomorrowMorningCount,
       ];
