@@ -46,19 +46,13 @@ import '../waiting_room/waiting_room_bloc.dart';
 import '../waiting_room/waiting_room_page.dart';
 import 'cash_collection_cubit.dart';
 import 'dashboard_bloc.dart';
-import 'expiring_quotes_summary_cubit.dart';
+import 'dashboard_content.dart';
 import 'dashboard_event.dart';
-import 'dashboard_state.dart';
+import 'expiring_quotes_summary_cubit.dart';
 import 'patient_messages_summary_cubit.dart';
 import 'rail_badges_cubit.dart';
 import 'waiting_room_summary_cubit.dart';
-import 'widgets/cash_collection_card.dart';
 import 'widgets/global_search_dialog.dart';
-import 'widgets/practitioners_today_card.dart';
-import 'widgets/today_flow_card.dart';
-import 'widgets/waiting_room_card.dart';
-import 'widgets/week_occupancy_card.dart';
-import 'widgets/work_queue_card.dart';
 
 /// Entry point for the authenticated secrétariat home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile). Clinical
@@ -115,110 +109,15 @@ class DashboardPage extends StatelessWidget {
       ),
       session: session,
       bodyBuilder: (ctx, destination) {
-        final Widget body;
-        if (destination.route == ProConfig.dashboardRoute) {
-          body = BlocProvider(
-            create: (_) => DashboardBloc(
-              getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
-              listWaitingList: GetIt.instance<ListWaitingListUseCase>(),
-              listBookableSlots: GetIt.instance<ListBookableSlotsUseCase>(),
-            )..add(const DashboardLoadRequested()),
-            child: BlocProvider<CashCollectionCubit>(
-              create: (_) => GetIt.instance<CashCollectionCubit>()..load(),
-              child: BlocProvider<WaitingRoomSummaryCubit>(
-                create: (_) =>
-                    GetIt.instance<WaitingRoomSummaryCubit>()..load(),
-                child: BlocProvider<PatientMessagesSummaryCubit>(
-                  create: (_) =>
-                      GetIt.instance<PatientMessagesSummaryCubit>()..load(),
-                  child: BlocProvider<ExpiringQuotesSummaryCubit>(
-                    create: (_) =>
-                        GetIt.instance<ExpiringQuotesSummaryCubit>()..load(),
-                    child: _DashboardContent(session: session),
-                  ),
+        final builder = _dashboardBodyBuilders(session)[destination.route];
+        final body = builder != null
+            ? builder(ctx)
+            : Center(
+                child: NubiaEmptyState(
+                  icon: Icons.construction_outlined,
+                  title: destination.label,
                 ),
-              ),
-            ),
-          );
-        } else if (destination.route == '/salle-attente') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<WaitingRoomBloc>(),
-            child: const WaitingRoomBody(),
-          );
-        } else if (destination.route == '/agenda') {
-          body = const AgendaPage();
-        } else if (destination.route == '/admin-secretariats') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
-            child: const AdminSecretiariatsBody(),
-          );
-        } else if (destination.route == '/bookable-slots') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<BookableSlotsBloc>(),
-            child: const BookableSlotsBody(),
-          );
-        } else if (destination.route == '/liste-attente') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<WaitingListBloc>(),
-            child: const WaitingListPage(),
-          );
-        } else if (destination.route == '/patients') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<PatientsBloc>(),
-            child: const PatientsPage(),
-          );
-        } else if (destination.route == '/devis') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<DevisBloc>(),
-            child: const DevisPage(),
-          );
-        } else if (destination.route == '/stock') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<StockBloc>(),
-            child: const StockPage(),
-          );
-        } else if (destination.route == '/messages') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<CabinetMessagingBloc>()
-              ..add(const CabinetMessagingConversationsLoadRequested()),
-            child: const CabinetMessagingPage(),
-          );
-        } else if (destination.route == '/admin-membres') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<AdminMembresBloc>(),
-            child: const AdminMembresPage(),
-          );
-        } else if (destination.route == '/appointment-motifs') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
-            child: const AppointmentMotifsPage(),
-          );
-        } else if (destination.route == '/cabinet-stats') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<CabinetStatsBloc>()
-              ..add(const CabinetStatsLoadRequested()),
-            child: const CabinetStatsBody(),
-          );
-        } else if (destination.route == '/cabinet-payouts') {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<CabinetPayoutsBloc>()
-              ..add(const CabinetPayoutsLoadRequested()),
-            child: const CabinetPayoutsBody(),
-          );
-        } else if (destination.route == ProConfig.auditLogRoute) {
-          body = BlocProvider(
-            create: (_) => GetIt.instance<AuditLogBloc>()
-              ..add(const AuditLogLoadRequested()),
-            child: const AuditLogBody(),
-          );
-        } else {
-          body = Center(
-            child: NubiaEmptyState(
-              icon: Icons.construction_outlined,
-              title: destination.label,
-            ),
-          );
-        }
+              );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -251,290 +150,93 @@ class DashboardPage extends StatelessWidget {
   }
 }
 
-class _DashboardContent extends StatelessWidget {
-  const _DashboardContent({required this.session});
-
-  final AuthSession session;
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<DashboardBloc, DashboardState>(
-      builder: (context, state) {
-        return switch (state) {
-          DashboardInitial() ||
-          DashboardLoading() =>
-            const _DashboardSkeleton(),
-          DashboardError(:final message) => NubiaErrorWidget(
-              key: const Key('dashboard_error'),
-              message: message,
-              onRetry: () => context
-                  .read<DashboardBloc>()
-                  .add(const DashboardLoadRequested()),
-            ),
-          DashboardLoaded(
-            :final todayCount,
-            :final pendingCount,
-            :final waitingCount,
-            :final oldestWaitingRequestAgeDays,
-            :final practitionersToday,
-            :final dailyOccupancyRates,
-            :final freeSlotsThisWeekCount,
-            :final freeSlotsTomorrowMorningCount,
-            :final todayFlow,
-            :final pendingAppointmentsToday,
-          ) =>
-            _DashboardLoadedView(
-              session: session,
-              todayCount: todayCount,
-              pendingCount: pendingCount,
-              waitingCount: waitingCount,
-              oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
-              practitionersToday: practitionersToday,
-              dailyOccupancyRates: dailyOccupancyRates,
-              freeSlotsThisWeekCount: freeSlotsThisWeekCount,
-              freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
-              todayFlow: todayFlow,
-              pendingAppointmentsToday: pendingAppointmentsToday,
-            ),
-        };
-      },
-    );
-  }
-}
-
-/// Largeur maximale du contenu centré (poste de travail desktop).
-const double _kContentMaxWidth = 1120;
-
-/// Formate une date en clair, ex. « Mardi 11 août » — même formule que
-/// `_dayLabel` dans `app_practicien/agenda_page.dart` (pas de dépendance
-/// `intl` dans ce package).
-String _formatDayLabel(DateTime date) {
-  const days = [
-    'Lundi',
-    'Mardi',
-    'Mercredi',
-    'Jeudi',
-    'Vendredi',
-    'Samedi',
-    'Dimanche',
-  ];
-  const months = [
-    'janvier',
-    'février',
-    'mars',
-    'avril',
-    'mai',
-    'juin',
-    'juillet',
-    'août',
-    'septembre',
-    'octobre',
-    'novembre',
-    'décembre',
-  ];
-  return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]}';
-}
-
-/// Vue chargée du tableau de bord opérationnel : en-tête + tuiles de flux du
-/// jour ([MetricTile]) + cartes récapitulatives. Purement administratif —
-/// aucune donnée clinique n'est affichée (cloisonnement secrétariat).
-class _DashboardLoadedView extends StatelessWidget {
-  const _DashboardLoadedView({
-    required this.session,
-    required this.todayCount,
-    required this.pendingCount,
-    required this.waitingCount,
-    this.oldestWaitingRequestAgeDays,
-    required this.practitionersToday,
-    required this.dailyOccupancyRates,
-    required this.freeSlotsThisWeekCount,
-    required this.freeSlotsTomorrowMorningCount,
-    required this.todayFlow,
-    required this.pendingAppointmentsToday,
-  });
-
-  final AuthSession session;
-  final int todayCount;
-  final int pendingCount;
-  final int waitingCount;
-  final int? oldestWaitingRequestAgeDays;
-  final List<PractitionerToday> practitionersToday;
-  final List<double> dailyOccupancyRates;
-  final int freeSlotsThisWeekCount;
-  final int freeSlotsTomorrowMorningCount;
-  final List<AgendaEntry> todayFlow;
-  final List<AgendaEntry> pendingAppointmentsToday;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
-
-    final metrics = <Widget>[
-      MetricTile(
-        key: const Key('stat_rdv_today'),
-        icon: Icons.calendar_today_outlined,
-        value: '$todayCount',
-        label: "RDV aujourd'hui",
-      ),
-      MetricTile(
-        key: const Key('stat_pending'),
-        icon: Icons.pending_actions_outlined,
-        value: '$pendingCount',
-        label: 'RDV à confirmer',
-        variant: MetricTileVariant.warning,
-      ),
-      MetricTile(
-        key: const Key('stat_waiting_list'),
-        icon: Icons.format_list_bulleted_outlined,
-        value: '$waitingCount',
-        label: 'Demandes de créneau',
-      ),
-    ];
-
-    // #5374 : sous-titre récapitulatif « <jour date> · <secrétaire> · <N>
-    // rendez-vous, <M> restants » — restants = RDV du jour non terminés,
-    // dérivés du flux du jour déjà chargé (aucun appel réseau ajouté).
-    final remainingCount = todayFlow.where((e) => !e.isDone).length;
-    final secretaryName = session.displayName ?? 'Secrétariat';
-    final subtitle = '${_formatDayLabel(DateTime.now())} · $secretaryName · '
-        '$todayCount rendez-vous, $remainingCount restants';
-
-    return SingleChildScrollView(
-      key: const Key('dashboard_loaded'),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _kContentMaxWidth),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Ma journée',
-                style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                key: const Key('dashboard_subtitle'),
-                style: textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurfaceVariant,
+/// Table des corps d'écran par route, indexée sur [NavDestination.route] —
+/// remplace la chaîne `if/else if` historique du `bodyBuilder` (#5372).
+/// Fallback (route absente de la table) : [NubiaEmptyState] dans le
+/// `bodyBuilder` ci-dessus.
+Map<String, WidgetBuilder> _dashboardBodyBuilders(AuthSession session) {
+  return {
+    ProConfig.dashboardRoute: (_) => BlocProvider(
+          create: (_) => DashboardBloc(
+            getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
+            listWaitingList: GetIt.instance<ListWaitingListUseCase>(),
+            listBookableSlots: GetIt.instance<ListBookableSlotsUseCase>(),
+          )..add(const DashboardLoadRequested()),
+          child: BlocProvider<CashCollectionCubit>(
+            create: (_) => GetIt.instance<CashCollectionCubit>()..load(),
+            child: BlocProvider<WaitingRoomSummaryCubit>(
+              create: (_) =>
+                  GetIt.instance<WaitingRoomSummaryCubit>()..load(),
+              child: BlocProvider<PatientMessagesSummaryCubit>(
+                create: (_) =>
+                    GetIt.instance<PatientMessagesSummaryCubit>()..load(),
+                child: BlocProvider<ExpiringQuotesSummaryCubit>(
+                  create: (_) =>
+                      GetIt.instance<ExpiringQuotesSummaryCubit>()..load(),
+                  child: DashboardContent(session: session),
                 ),
               ),
-              const SizedBox(height: 24),
-              Wrap(
-                key: const Key('dashboard_stats_row'),
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  for (final tile in metrics) SizedBox(width: 220, child: tile),
-                ],
-              ),
-              const SizedBox(height: 28),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final twoColumns = constraints.maxWidth >= 720;
-                  final leftColumn = TodayFlowCard(entries: todayFlow);
-                  final rightColumn = [
-                    WorkQueueCard(
-                      waitingCount: waitingCount,
-                      oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
-                      pendingAppointmentsToday: pendingAppointmentsToday,
-                    ),
-                    const WaitingRoomCard(),
-                    const CashCollectionCard(),
-                    WeekOccupancyCard(
-                      dailyOccupancyRates: dailyOccupancyRates,
-                      freeSlotsThisWeekCount: freeSlotsThisWeekCount,
-                      freeSlotsTomorrowMorningCount:
-                          freeSlotsTomorrowMorningCount,
-                    ),
-                    PractitionersTodayCard(
-                      practitioners: practitionersToday,
-                    ),
-                  ];
-                  if (!twoColumns) {
-                    return Column(
-                      children: [
-                        leftColumn,
-                        for (final c in rightColumn) ...[
-                          const SizedBox(height: 16),
-                          c,
-                        ],
-                      ],
-                    );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: leftColumn),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            for (final c in rightColumn) ...[
-                              c,
-                              if (c != rightColumn.last)
-                                const SizedBox(height: 16),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Skeleton de chargement du tableau de bord (tuiles + cartes).
-class _DashboardSkeleton extends StatelessWidget {
-  const _DashboardSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      key: const Key('dashboard_loading'),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _kContentMaxWidth),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              NubiaSkeletonLoader(width: 220, height: 28),
-              SizedBox(height: 24),
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  SizedBox(
-                    width: 220,
-                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
-                  ),
-                ],
-              ),
-              SizedBox(height: 28),
-              NubiaSkeletonLoader(height: 120, borderRadius: 12),
-            ],
-          ),
+    '/salle-attente': (_) => BlocProvider(
+          create: (_) => GetIt.instance<WaitingRoomBloc>(),
+          child: const WaitingRoomBody(),
         ),
-      ),
-    );
-  }
+    '/agenda': (_) => const AgendaPage(),
+    '/admin-secretariats': (_) => BlocProvider(
+          create: (_) => GetIt.instance<AdminSecretiariatsBloc>(),
+          child: const AdminSecretiariatsBody(),
+        ),
+    '/bookable-slots': (_) => BlocProvider(
+          create: (_) => GetIt.instance<BookableSlotsBloc>(),
+          child: const BookableSlotsBody(),
+        ),
+    '/liste-attente': (_) => BlocProvider(
+          create: (_) => GetIt.instance<WaitingListBloc>(),
+          child: const WaitingListPage(),
+        ),
+    '/patients': (_) => BlocProvider(
+          create: (_) => GetIt.instance<PatientsBloc>(),
+          child: const PatientsPage(),
+        ),
+    '/devis': (_) => BlocProvider(
+          create: (_) => GetIt.instance<DevisBloc>(),
+          child: const DevisPage(),
+        ),
+    '/stock': (_) => BlocProvider(
+          create: (_) => GetIt.instance<StockBloc>(),
+          child: const StockPage(),
+        ),
+    '/messages': (_) => BlocProvider(
+          create: (_) => GetIt.instance<CabinetMessagingBloc>()
+            ..add(const CabinetMessagingConversationsLoadRequested()),
+          child: const CabinetMessagingPage(),
+        ),
+    '/admin-membres': (_) => BlocProvider(
+          create: (_) => GetIt.instance<AdminMembresBloc>(),
+          child: const AdminMembresPage(),
+        ),
+    '/appointment-motifs': (_) => BlocProvider(
+          create: (_) => GetIt.instance<AppointmentMotifsBloc>(),
+          child: const AppointmentMotifsPage(),
+        ),
+    '/cabinet-stats': (_) => BlocProvider(
+          create: (_) => GetIt.instance<CabinetStatsBloc>()
+            ..add(const CabinetStatsLoadRequested()),
+          child: const CabinetStatsBody(),
+        ),
+    '/cabinet-payouts': (_) => BlocProvider(
+          create: (_) => GetIt.instance<CabinetPayoutsBloc>()
+            ..add(const CabinetPayoutsLoadRequested()),
+          child: const CabinetPayoutsBody(),
+        ),
+    ProConfig.auditLogRoute: (_) => BlocProvider(
+          create: (_) => GetIt.instance<AuditLogBloc>()
+            ..add(const AuditLogLoadRequested()),
+          child: const AuditLogBody(),
+        ),
+  };
 }
 
 /// Coloured banner displaying the current secrétariat/establishment context.
