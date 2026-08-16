@@ -114,7 +114,7 @@ pub async fn list_implant_passport(
 /// `GET /v1/implant-passport/export` — export PDF du passeport implantaire (version 🎭 mockée).
 ///
 /// Token `kind:"patient"` requis. Retourne `302 Found` avec `Location` vers l'URL signée.
-/// Échec du signer → `410 link_expired`. Aucun implant présent → ne bloque pas l'export.
+/// Échec du signer → `502 upstream_unavailable`. Aucun implant présent → ne bloque pas l'export.
 pub async fn export_implant_passport(
     State(_state): State<AppState>,
     claims: PatientAccountClaims,
@@ -123,7 +123,12 @@ pub async fn export_implant_passport(
     // Version mockée : clé de stockage dérivée du compte patient.
     let storage_key = format!("implant-passport/{}.pdf", claims.account_id);
 
-    let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
+    // `signer.sign() == None` : le lien n'a jamais été généré (signer non
+    // configuré), pas "expiré" — 502 upstream_unavailable, pas 410 link_expired
+    // (aligne sur le contrat #4835, cf. documents.rs).
+    let signed_url = signer
+        .sign(&storage_key)
+        .ok_or(AppError::UpstreamUnavailable)?;
 
     tracing::info!(
         account_id = %claims.account_id,
