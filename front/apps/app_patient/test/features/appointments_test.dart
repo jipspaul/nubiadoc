@@ -1018,4 +1018,89 @@ void main() {
       expect(find.text('Pour qui est ce rendez-vous ?'), findsNothing);
     });
   });
+
+  group('tarif et remboursement, avant de réserver (#5361)', () {
+    testWidgets(
+        'la fiche praticien affiche la carte « Tarifs indicatifs » avec les '
+        'montants de la maquette', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      const providers = [
+        ProviderResult(id: 'p1', displayName: 'Dr Martin', specialty: 'Dentiste'),
+      ];
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(providers: providers, query: ''),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('provider_p1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('indicative_tariffs_card')), findsOneWidget);
+      expect(find.text('Tarifs indicatifs'), findsOneWidget);
+      expect(find.text('Consultation'), findsOneWidget);
+      expect(find.text('23 €'), findsOneWidget);
+      expect(find.text('Détartrage'), findsOneWidget);
+      expect(find.text('28,92 €'), findsOneWidget);
+      expect(find.text('Carie 1 face'), findsOneWidget);
+      expect(find.text('26,97 €'), findsOneWidget);
+      expect(find.text('Couronne'), findsOneWidget);
+      expect(find.text('à partir de 500 €'), findsOneWidget);
+    });
+
+    testWidgets(
+        'le récapitulatif de confirmation affiche « Tarif indicatif » et '
+        '« Remboursement 70 % Assurance Maladie »', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      final provider = const ProviderResult(
+        id: 'p1',
+        displayName: 'Dr Martin',
+        specialty: 'Dentiste',
+      );
+      final slot = Slot(
+        id: 's1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        startsAt: DateTime(2026, 7, 10, 9, 0),
+        endsAt: DateTime(2026, 7, 10, 9, 30),
+        isAvailable: true,
+      );
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      final recap =
+          find.byKey(const Key('booking_tariff_recap_card'));
+      expect(recap, findsOneWidget);
+      expect(
+        find.descendant(of: recap, matching: find.text('Tarif indicatif')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: recap, matching: find.text('23 €')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: recap, matching: find.text('Remboursement')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: recap,
+          matching: find.text('70 % Assurance Maladie'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
 }

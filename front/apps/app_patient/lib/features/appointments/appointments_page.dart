@@ -330,7 +330,8 @@ class _SearchViewState extends State<_SearchView> {
     _openProviderSheet(provider);
   }
 
-  /// Détail praticien en NubiaBottomSheet : ProviderCard + « Voir les créneaux ».
+  /// Détail praticien en NubiaBottomSheet : ProviderCard + tarifs indicatifs
+  /// + « Voir les créneaux ».
   void _openProviderSheet(ProviderResult provider) {
     final bloc = _bloc; // capturé : le sheet est hors de l'arbre BlocProvider.
     NubiaBottomSheet.show(
@@ -351,6 +352,8 @@ class _SearchViewState extends State<_SearchView> {
                 ? '${provider.distanceKm!.toStringAsFixed(1)} km'
                 : null,
           ),
+          const SizedBox(height: 16),
+          const _IndicativeTariffsCard(),
           const SizedBox(height: 16),
           NubiaButton(
             key: const Key('sheet_see_slots'),
@@ -1126,6 +1129,121 @@ class _SlotsByDay extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Tarif et remboursement — maquette design-v2 patient-web-tunnel-reservation,
+// point 7 : « le tarif et le remboursement, avant de réserver ». Montants
+// génériques (l'API ne référence pas encore de grille tarifaire par
+// praticien) affichés sur la fiche (carte « Tarifs indicatifs ») et dans le
+// récapitulatif de confirmation, avant la prise de rendez-vous (#5361).
+// ---------------------------------------------------------------------------
+
+/// Ligne clé/valeur alignée (maquette : `.kv2`) — libellé à gauche, valeur en
+/// chiffres tabulaires alignée à droite.
+class _KeyValueRow extends StatelessWidget {
+  const _KeyValueRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: cs.onSurface,
+            fontWeight: FontWeight.w500,
+            fontFeatures: tabularFigures,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Carte « Tarifs indicatifs » de la fiche praticien (maquette, écran
+/// « Fiche praticien ») : montants verbatim de la maquette.
+class _IndicativeTariffsCard extends StatelessWidget {
+  const _IndicativeTariffsCard();
+
+  static const _tariffs = <(String, String)>[
+    ('Consultation', '23 €'),
+    ('Détartrage', '28,92 €'),
+    ('Carie 1 face', '26,97 €'),
+    ('Couronne', 'à partir de 500 €'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return NubiaCard(
+      key: const Key('indicative_tariffs_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Tarifs indicatifs',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (int i = 0; i < _tariffs.length; i++) ...[
+            if (i > 0)
+              Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child:
+                  _KeyValueRow(label: _tariffs[i].$1, value: _tariffs[i].$2),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Lignes « Tarif indicatif » / « Remboursement » du récapitulatif de
+/// confirmation (maquette, écran « Confirmation »), avant de réserver.
+/// Vocabulaire de remboursement aligné sur l'app Patient (Assurance Maladie).
+class _TariffRecapCard extends StatelessWidget {
+  const _TariffRecapCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NubiaCard(
+      key: Key('booking_tariff_recap_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _KeyValueRow(label: 'Tarif indicatif', value: '23 €'),
+          SizedBox(height: 8),
+          _KeyValueRow(
+            label: 'Remboursement',
+            value: '70 % Assurance Maladie',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Formulaire de confirmation (étape 3 « Vos informations » du tunnel,
 /// maquette design-v2 patient-web-tunnel-reservation) : remplace la grille
 /// de créneaux une fois une puce sélectionnée. Pour un visiteur anonyme, ce
@@ -1246,6 +1364,8 @@ class _BookingPanelState extends State<_BookingPanel> {
                 style: subdued,
               ),
             ],
+            const SizedBox(height: 20),
+            const _TariffRecapCard(),
             const SizedBox(height: 20),
             if (needsAccount) ...[
               Text('Pour qui est ce rendez-vous ?', style: sectionTitle),
