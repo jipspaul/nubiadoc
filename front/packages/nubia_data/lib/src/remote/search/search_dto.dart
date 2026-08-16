@@ -1,6 +1,7 @@
 import 'package:nubia_domain/src/entities/parsed_search.dart';
 import 'package:nubia_domain/src/entities/provider_result.dart';
 import 'package:nubia_domain/src/entities/slot.dart';
+import 'package:nubia_domain/src/entities/slot_hold.dart';
 
 class ProviderResultDto {
   final String id;
@@ -161,4 +162,14 @@ class SlotDto {
         endsAt: DateTime.parse(endsAt),
         isAvailable: isAvailable,
       );
+}
+
+/// Réponse de POST /v1/slots/:id/hold : `{ hold_token, expires_at }`.
+class SlotHoldDto {
+  final String token;
+  final DateTime expiresAt;
+
+  const SlotHoldDto({required this.token, required this.expiresAt});
+
+  SlotHold toDomain() => SlotHold(token: token, expiresAt: expiresAt);
 }

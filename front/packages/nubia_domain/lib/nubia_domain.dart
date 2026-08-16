@@ -49,6 +49,7 @@ export 'src/entities/implant_item.dart';
 export 'src/entities/lab_work_order.dart';
 export 'src/entities/secretariat.dart';
 export 'src/entities/slot.dart';
+export 'src/entities/slot_hold.dart';
 export 'src/entities/stock_item.dart';
 export 'src/entities/sterilization_cycle.dart';
 export 'src/entities/cabinet_team_message.dart';

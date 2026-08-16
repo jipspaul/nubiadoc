@@ -1258,7 +1258,8 @@ pub struct SlotHoldResponse {
     pub expires_at: String,
 }
 
-/// `POST /v1/slots/:id/hold` — bloque un créneau 5 min (marketplace, issue #1659).
+/// `POST /v1/slots/:id/hold` — bloque un créneau 10 min (marketplace, issue
+/// #1659 ; durée alignée sur la maquette design-v2 par #5363).
 ///
 /// JWT patient requis. Génère un `hold_token` UUID aléatoire, INSERT dans
 /// `slot_holds`, passe le slot en `status='held'`. Contrainte UNIQUE sur

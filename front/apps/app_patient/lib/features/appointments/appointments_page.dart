@@ -1131,6 +1131,7 @@ class _BookingPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>();
     final borderColor = tokens?.borderSubtle ?? Theme.of(context).dividerColor;
+    final holdExpiresAt = state.holdExpiresAt;
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -1141,6 +1142,15 @@ class _BookingPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // #5363 : sous-titre du formulaire — annonce le verrou de 10 min
+          // dès la sélection du créneau (le décompte vivant est plus bas).
+          Text(
+            'Votre rendez-vous est retenu pendant 10 minutes.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 12),
           Text(
             'Motif de consultation',
             style: Theme.of(context)
@@ -1157,6 +1167,13 @@ class _BookingPanel extends StatelessWidget {
                 .read<AppointmentsBloc>()
                 .add(AppointmentsMotifChanged(v)),
           ),
+          if (holdExpiresAt != null) ...[
+            const SizedBox(height: 12),
+            _HoldCountdown(
+              key: ValueKey('hold_countdown_${state.holdToken}'),
+              expiresAt: holdExpiresAt,
+            ),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -1170,6 +1187,88 @@ class _BookingPanel extends StatelessWidget {
                   : () => context
                       .read<AppointmentsBloc>()
                       .add(const AppointmentsBookingConfirmed()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Décompte vivant du verrou de 10 min posé sur le créneau sélectionné
+/// (#5363) : « Ce créneau vous est réservé pendant X min Y s. Passé ce
+/// délai, il redevient disponible. » À zéro, informe l'utilisateur (SnackBar)
+/// et relâche la sélection (AppointmentsHoldExpired) pour que le créneau
+/// redevienne choisissable.
+class _HoldCountdown extends StatefulWidget {
+  const _HoldCountdown({required this.expiresAt, super.key});
+  final DateTime expiresAt;
+
+  @override
+  State<_HoldCountdown> createState() => _HoldCountdownState();
+}
+
+class _HoldCountdownState extends State<_HoldCountdown> {
+  Timer? _timer;
+  late Duration _remaining;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = _computeRemaining();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  Duration _computeRemaining() {
+    final diff = widget.expiresAt.difference(DateTime.now());
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  void _tick() {
+    if (!mounted) return;
+    final remaining = _computeRemaining();
+    setState(() => _remaining = remaining);
+    if (remaining == Duration.zero) {
+      _timer?.cancel();
+      context.read<AppointmentsBloc>().add(const AppointmentsHoldExpired());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ce créneau vient d\'être libéré, veuillez le sélectionner à '
+            'nouveau.',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final minutes = _remaining.inMinutes;
+    final seconds = _remaining.inSeconds % 60;
+    return Container(
+      key: const Key('booking_hold_countdown'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.timer_outlined, size: 16, color: cs.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Ce créneau vous est réservé pendant $minutes min $seconds s. '
+              'Passé ce délai, il redevient disponible.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
         ],

@@ -44,6 +44,9 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
   // hold_token du créneau sélectionné (POST /v1/slots/:id/hold), requis pour
   // confirmer la réservation via POST /v1/bookings.
   final String? holdToken;
+  // Expiration du hold (#5363) : pilote le décompte visible du récapitulatif
+  // et le déclenchement d'AppointmentsHoldExpired côté UI.
+  final DateTime? holdExpiresAt;
   final String motif;
 
   const AppointmentsSlotsLoaded({
@@ -51,6 +54,7 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
     required this.slots,
     this.selectedSlot,
     this.holdToken,
+    this.holdExpiresAt,
     this.motif = '',
   });
 
@@ -58,6 +62,7 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
     Slot? selectedSlot,
     bool clearSelectedSlot = false,
     String? holdToken,
+    DateTime? holdExpiresAt,
     String? motif,
   }) {
     return AppointmentsSlotsLoaded(
@@ -66,12 +71,16 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
       selectedSlot:
           clearSelectedSlot ? null : (selectedSlot ?? this.selectedSlot),
       holdToken: clearSelectedSlot ? null : (holdToken ?? this.holdToken),
+      holdExpiresAt: clearSelectedSlot
+          ? null
+          : (holdExpiresAt ?? this.holdExpiresAt),
       motif: motif ?? this.motif,
     );
   }
 
   @override
-  List<Object?> get props => [provider, slots, selectedSlot, holdToken, motif];
+  List<Object?> get props =>
+      [provider, slots, selectedSlot, holdToken, holdExpiresAt, motif];
 }
 
 class AppointmentsBookingLoading extends AppointmentsState {

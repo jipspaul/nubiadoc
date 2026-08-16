@@ -50,11 +50,15 @@ class SearchApi {
   }
 
   /// POST /v1/slots/:id/hold → { hold_token, expires_at }.
-  Future<String> holdSlot(String slotId) async {
+  Future<SlotHoldDto> holdSlot(String slotId) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/slots/$slotId/hold',
     );
-    return response.data!['hold_token'] as String;
+    final data = response.data!;
+    return SlotHoldDto(
+      token: data['hold_token'] as String,
+      expiresAt: DateTime.parse(data['expires_at'] as String),
+    );
   }
 
   /// POST /v1/bookings → { appointment_id }. Confirme la réservation d'un
