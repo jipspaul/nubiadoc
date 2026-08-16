@@ -121,6 +121,7 @@ mod treatment_phases;
 mod treatment_plans;
 mod twilio_sms;
 mod waiting_list;
+pub mod web_tunnel;
 mod webhooks;
 mod yousign_client;
 
