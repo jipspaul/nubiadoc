@@ -183,7 +183,12 @@ pub async fn download_cabinet_patient_document(
         return Err(AppError::NotFound);
     }
 
-    let signed_url = signer.sign(&storage_key).ok_or(AppError::LinkExpired)?;
+    // `signer.sign() == None` : le lien n'a jamais été généré (signer non
+    // configuré), pas "expiré" — 502 upstream_unavailable, pas 410 link_expired
+    // (aligne sur le contrat #4835, cf. documents.rs).
+    let signed_url = signer
+        .sign(&storage_key)
+        .ok_or(AppError::UpstreamUnavailable)?;
 
     // Audit — action read_document, zéro PII (même action que le téléchargement patient).
     sqlx::query(
