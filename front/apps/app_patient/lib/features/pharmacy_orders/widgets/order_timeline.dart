@@ -26,6 +26,35 @@ class OrderTimeline extends StatelessWidget {
         PharmacyOrderStatus.rejected || PharmacyOrderStatus.cancelled => -1,
       };
 
+  /// Horodatage `l2` sous le libellé d'une étape franchie (maquette
+  /// design-v2, #5347). `preparing` n'a pas de timestamp dédié côté back
+  /// (pas de `preparingAt`) : dérivé de `updatedAt` en attendant, comme
+  /// suggéré par l'issue — approximatif si la commande a déjà avancé plus
+  /// loin, mais préférable à une heure inventée.
+  String? _subtitleFor(PharmacyOrderStatus status) {
+    switch (status) {
+      case PharmacyOrderStatus.received:
+        return _relativeInstant(order.createdAt);
+      case PharmacyOrderStatus.preparing:
+        final count = order.lineCount;
+        final time = _hhmm(order.updatedAt);
+        return count == null
+            ? time
+            : '$time · $count médicament${count > 1 ? 's' : ''}';
+      case PharmacyOrderStatus.ready:
+        final readyAt = order.readyAt;
+        return readyAt == null
+            ? null
+            : '${_hhmm(readyAt)} · vous avez été notifiée';
+      case PharmacyOrderStatus.pickedUp:
+        final pickedUpAt = order.pickedUpAt;
+        return pickedUpAt == null ? null : _hhmm(pickedUpAt);
+      case PharmacyOrderStatus.rejected:
+      case PharmacyOrderStatus.cancelled:
+        return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = _currentIndex;
@@ -40,10 +69,34 @@ class OrderTimeline extends StatelessWidget {
             label: step.$2,
             done: index <= current,
             isLast: index == _steps.length - 1,
+            current: index == current,
+            subtitle: index <= current
+                ? _subtitleFor(step.$1)
+                : (index == _steps.length - 1
+                    ? 'En attente de votre passage'
+                    : null),
           ),
       ],
     );
   }
+}
+
+/// « Aujourd'hui à HH:mm », sinon « JJ/MM à HH:mm » (jour non relatif faute
+/// de vocabulaire imposé par la maquette au-delà d'« aujourd'hui »).
+String _relativeInstant(DateTime utc) {
+  final dt = utc.toLocal();
+  final now = DateTime.now();
+  final today =
+      dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  final day = today
+      ? "Aujourd'hui"
+      : '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
+  return '$day à ${_hhmm(utc)}';
+}
+
+String _hhmm(DateTime utc) {
+  final dt = utc.toLocal();
+  return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
 class _TimelineStep extends StatelessWidget {
@@ -52,11 +105,21 @@ class _TimelineStep extends StatelessWidget {
     required this.label,
     required this.done,
     required this.isLast,
+    required this.current,
+    this.subtitle,
   });
 
   final String label;
   final bool done;
   final bool isLast;
+
+  /// Étape en cours (ni terminée ni à venir) — met le sous-texte en avant
+  /// (`--brand700` w600, maquette design-v2 #5347).
+  final bool current;
+
+  /// Sous-texte `l2` : horodatage (étape franchie) ou texte d'attente
+  /// (étape à venir) — `null` si rien à afficher pour cette étape.
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -81,11 +144,26 @@ class _TimelineStep extends StatelessWidget {
           const SizedBox(width: 12),
           Padding(
             padding: const EdgeInsets.only(bottom: 20),
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: done ? FontWeight.w600 : FontWeight.w400,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: done ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 12,
+                      color: current ? NubiaColors.brand700 : NubiaColors.n500,
+                      fontWeight: current ? FontWeight.w600 : FontWeight.w400,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

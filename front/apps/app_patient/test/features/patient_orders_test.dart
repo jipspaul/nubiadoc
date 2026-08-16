@@ -216,6 +216,28 @@ void main() {
     });
 
     testWidgets(
+        'horodatage sous chaque étape franchie, texte d\'attente pour '
+        '« Retirée » (#5347)', (tester) async {
+      final readyOrder = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        pharmacyName: 'Pharmacie du Port',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.ready,
+        createdAt: DateTime(2026, 7, 1, 9, 12),
+        updatedAt: DateTime(2026, 7, 1, 9, 31),
+        readyAt: DateTime(2026, 7, 1, 10, 4),
+        lineCount: 3,
+      );
+      await tester.pumpApp(Scaffold(body: OrderTimeline(order: readyOrder)));
+
+      expect(find.textContaining('09:12'), findsOneWidget);
+      expect(find.text('09:31 · 3 médicaments'), findsOneWidget);
+      expect(find.text('10:04 · vous avez été notifiée'), findsOneWidget);
+      expect(find.text('En attente de votre passage'), findsOneWidget);
+    });
+
+    testWidgets(
         'état terminal (refusée) : les 4 étapes nominales ne sont plus '
         'déroulées (#5351)', (tester) async {
       final rejected = PharmacyOrder(
