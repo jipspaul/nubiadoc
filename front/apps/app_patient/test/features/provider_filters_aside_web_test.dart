@@ -157,7 +157,13 @@ void main() {
         (tester) async {
       await _pumpSearch(tester);
 
-      expect(find.byType(ProviderCard), findsNWidgets(_providers.length));
+      // #5358 : sans créneau en ligne, chaque carte affiche le bloc « aucun
+      // créneau » (jamais vide) — plus haute, tous les items n'entrent pas
+      // dans le viewport visible ; ils existent bien (skipOffstage: false).
+      expect(
+        find.byType(ProviderCard, skipOffstage: false),
+        findsNWidgets(_providers.length),
+      );
 
       await tester.tap(find.descendant(
         of: find.byKey(const Key('filter_sector1')),
@@ -176,7 +182,13 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.byType(ProviderCard), findsNWidgets(_providers.length));
+      // #5358 : sans créneau en ligne, chaque carte affiche le bloc « aucun
+      // créneau » (jamais vide) — plus haute, tous les items n'entrent pas
+      // dans le viewport visible ; ils existent bien (skipOffstage: false).
+      expect(
+        find.byType(ProviderCard, skipOffstage: false),
+        findsNWidgets(_providers.length),
+      );
     });
 
     testWidgets('en dessous du seuil web, le panneau ne s\'affiche pas',

@@ -66,6 +66,54 @@ void main() {
       expect(find.text(''), findsNothing);
     });
 
+    testWidgets(
+        'affiche le bloc « aucun créneau en ligne » avec accès à la fiche '
+        'quand onViewProfile est fourni sans dispo (#5358)', (tester) async {
+      var viewedProfile = 0;
+      var cardTapped = 0;
+      await tester.pumpWidget(
+        _wrap(
+          ProviderCard(
+            name: 'Dr Sarah Nguyen',
+            specialty: 'Chirurgien-dentiste',
+            initials: 'SN',
+            onTap: () => cardTapped++,
+            onViewProfile: () => viewedProfile++,
+          ),
+        ),
+      );
+
+      expect(
+        find.text('Aucun créneau en ligne pour ce praticien'),
+        findsOneWidget,
+      );
+      expect(find.text('Voir sa fiche et ses coordonnées'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('no_online_slots_view_profile')));
+      await tester.pumpAndSettle();
+      expect(viewedProfile, 1);
+      expect(cardTapped, 0);
+    });
+
+    testWidgets(
+        'ne montre pas le bloc « aucun créneau en ligne » sans '
+        'onViewProfile (repli neutre)', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const ProviderCard(
+            name: 'Dr Sarah Nguyen',
+            specialty: 'Chirurgien-dentiste',
+            initials: 'SN',
+          ),
+        ),
+      );
+
+      expect(
+        find.text('Aucun créneau en ligne pour ce praticien'),
+        findsNothing,
+      );
+    });
+
     testWidgets('respecte la hauteur minimale de 84', (tester) async {
       await tester.pumpWidget(
         _wrap(

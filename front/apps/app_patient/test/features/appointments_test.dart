@@ -213,8 +213,15 @@ void main() {
       await tester.pumpAndSettle();
 
       // Barre de recherche persistante + les 3 praticiens (ProviderCard).
+      // #5358 : sans créneau en ligne, chaque carte affiche désormais le
+      // bloc « aucun créneau » (jamais vide) — plus haute, seules 2 tiennent
+      // dans le viewport visible de la feuille de résultats en test ; les 3
+      // items existent bien dans la liste (skipOffstage: false).
       expect(find.byKey(const Key('search_field')), findsOneWidget);
-      expect(find.byType(ProviderCard), findsNWidgets(3));
+      expect(
+        find.byType(ProviderCard, skipOffstage: false),
+        findsNWidgets(3),
+      );
       expect(find.text('Dr Martin'), findsOneWidget);
     });
 
