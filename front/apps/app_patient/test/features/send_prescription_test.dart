@@ -78,6 +78,24 @@ void main() {
     );
 
     blocTest<SendPrescriptionCubit, SendPrescriptionState>(
+      'load(prescriptionId:) présélectionne l\'ordonnance d\'une commande '
+      'refusée renvoyée à une autre pharmacie (#5351)',
+      build: () {
+        when(() => repo.listPrescriptions()).thenAnswer(
+          (_) async => Right([prescription('rx1'), prescription('rx2')]),
+        );
+        when(() => repo.getMyPharmacy())
+            .thenAnswer((_) async => const Right(pharmacy));
+        return buildCubit();
+      },
+      act: (cubit) => cubit.load(prescriptionId: 'rx2'),
+      verify: (cubit) {
+        final state = cubit.state as SendPrescriptionReady;
+        expect(state.selectedPrescription?.id, 'rx2');
+      },
+    );
+
+    blocTest<SendPrescriptionCubit, SendPrescriptionState>(
       'submit crée la commande avec l\'ordonnance et la pharmacie choisies',
       build: () {
         when(() => repo.createOrder(prescriptionId: 'rx1', pharmacyId: 'p1'))

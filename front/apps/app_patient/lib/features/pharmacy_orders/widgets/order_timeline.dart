@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
-/// Timeline verticale des 4 étapes du click-and-collect.
-/// Refus/annulation : bandeau dédié au-dessus (états terminaux hors parcours).
+/// Timeline verticale des 4 étapes du parcours nominal du click-and-collect.
+/// Réservée aux commandes en cours ou retirées — un état terminal
+/// (`rejected`/`cancelled`) sort du parcours et ne déroule pas ces étapes
+/// (cf. `OrderRejectedCard` et `order_detail_page.dart`, #5351).
 class OrderTimeline extends StatelessWidget {
   const OrderTimeline({super.key, required this.order});
 
@@ -26,31 +28,17 @@ class OrderTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final current = _currentIndex;
+    if (current == -1) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (current == -1)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              order.status == PharmacyOrderStatus.rejected
-                  ? 'Commande refusée par la pharmacie'
-                      '${order.rejectionReason != null ? ' — ${order.rejectionReason}' : ''}'
-                  : 'Commande annulée',
-              key: const Key('timeline_terminal_banner'),
-              style:
-                  theme.textTheme.bodyMedium?.copyWith(color: tokens.dangerFg),
-            ),
-          ),
         for (final (index, step) in _steps.indexed)
           _TimelineStep(
             key: Key('timeline_step_${step.$1.name}'),
             label: step.$2,
-            done: current >= 0 && index <= current,
+            done: index <= current,
             isLast: index == _steps.length - 1,
           ),
       ],

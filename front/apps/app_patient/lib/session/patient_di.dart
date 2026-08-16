@@ -66,6 +66,7 @@ void registerPatient(GetIt gi) {
       watch: gi<WatchPatientPharmacyOrderUseCase>(),
       pickupToken: gi<GetPickupTokenUseCase>(),
       cancel: gi<CancelPharmacyOrderUseCase>(),
+      getMyPharmacy: gi<GetMyPharmacyUseCase>(),
     ),
   );
 
