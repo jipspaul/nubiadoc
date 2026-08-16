@@ -35,9 +35,9 @@ class _WaitingListPageState extends State<WaitingListPage> {
           IconButton(
             tooltip: 'Actualiser',
             icon: const Icon(Icons.refresh),
-            onPressed: () => context
-                .read<WaitingListBloc>()
-                .add(const WaitingListLoadRequested()),
+            onPressed: () => context.read<WaitingListBloc>().add(
+              const WaitingListLoadRequested(),
+            ),
           ),
         ],
       ),
@@ -53,9 +53,9 @@ class _WaitingListPageState extends State<WaitingListPage> {
             );
           }
           if (state is WaitingListOfferError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(state.message)));
           }
         },
         builder: (context, state) {
@@ -79,9 +79,9 @@ class _WaitingListPageState extends State<WaitingListPage> {
               key: const Key('waiting_list_refresh'),
               onRefresh: () {
                 _refreshCompleter = Completer<void>();
-                context
-                    .read<WaitingListBloc>()
-                    .add(const WaitingListLoadRequested());
+                context.read<WaitingListBloc>().add(
+                  const WaitingListLoadRequested(),
+                );
                 return _refreshCompleter!.future;
               },
               child: ListView.builder(
@@ -96,9 +96,9 @@ class _WaitingListPageState extends State<WaitingListPage> {
           if (state is WaitingListError) {
             return NubiaErrorWidget(
               message: state.message,
-              onRetry: () => context
-                  .read<WaitingListBloc>()
-                  .add(const WaitingListLoadRequested()),
+              onRetry: () => context.read<WaitingListBloc>().add(
+                const WaitingListLoadRequested(),
+              ),
             );
           }
           return const _WaitingListSkeleton();
@@ -130,8 +130,9 @@ class _WaitingListTile extends StatelessWidget {
   static String _displayName(WaitingListEntry entry) {
     final name = entry.patientName.trim();
     if (name.isNotEmpty) return name;
-    final ref =
-        _shortRef(entry.patientId.isNotEmpty ? entry.patientId : entry.id);
+    final ref = _shortRef(
+      entry.patientId.isNotEmpty ? entry.patientId : entry.id,
+    );
     return ref.isEmpty ? 'Patient' : 'Patient $ref';
   }
 
@@ -156,9 +157,9 @@ class _WaitingListTile extends StatelessWidget {
         variant: NubiaButtonVariant.secondary,
         size: NubiaButtonSize.sm,
         icon: Icons.calendar_today_outlined,
-        onPressed: () => context
-            .read<WaitingListBloc>()
-            .add(WaitingListOfferSlotRequested(entry.id)),
+        onPressed: () => context.read<WaitingListBloc>().add(
+          WaitingListOfferSlotRequested(entry.id),
+        ),
       ),
     );
   }
