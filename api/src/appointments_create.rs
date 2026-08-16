@@ -20,8 +20,8 @@ use uuid::Uuid;
 
 use crate::{
     appointments_response::{
-        fetch_cabinet_for_response, fetch_provider_for_response, is_exclusion_violation,
-        AppointmentDetail, CabinetInfo, ProviderDetail,
+        fetch_beneficiary_for_response, fetch_cabinet_for_response, fetch_provider_for_response,
+        is_exclusion_violation, AppointmentDetail, CabinetInfo, ProviderDetail,
     },
     auth::{AppError, PatientAccountClaims},
     AppState,
@@ -168,7 +168,8 @@ pub async fn create_appointment(
         );
 
         let existing = sqlx::query(
-            "SELECT id, status, starts_at, ends_at, motif, idempotency_fingerprint FROM appointment \
+            "SELECT id, status, starts_at, ends_at, motif, patient_id, idempotency_fingerprint \
+             FROM appointment \
              WHERE cabinet_id = $1 AND idempotency_key = $2",
         )
         .bind(cabinet_id)
@@ -198,11 +199,15 @@ pub async fn create_appointment(
                 row.try_get("ends_at").map_err(|_| AppError::Internal)?;
             let idem_motif: Option<String> =
                 row.try_get("motif").map_err(|_| AppError::Internal)?;
+            let idem_patient_id: Uuid =
+                row.try_get("patient_id").map_err(|_| AppError::Internal)?;
 
             let (prov_id, prov_name, prov_spec) =
                 fetch_provider_for_response(&mut tx, practitioner_id).await?;
             let (cab_name, cab_addr) =
                 fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
+            let beneficiary =
+                fetch_beneficiary_for_response(&mut tx, idem_patient_id, claims.account_id).await?;
 
             tx.commit().await.map_err(|_| AppError::Internal)?;
             tracing::info!(
@@ -227,6 +232,7 @@ pub async fn create_appointment(
                         name: cab_name,
                         address: cab_addr,
                     },
+                    beneficiary,
                     // Création (idempotent hit inclus) : jamais de rappel demandé.
                     callback_requested_at: None,
                 }),
@@ -406,6 +412,8 @@ pub async fn create_appointment(
         fetch_provider_for_response(&mut tx, practitioner_id).await?;
     let (cabinet_name, cabinet_address) =
         fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
+    let beneficiary =
+        fetch_beneficiary_for_response(&mut tx, patient_id, claims.account_id).await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -442,6 +450,7 @@ pub async fn create_appointment(
                 name: cabinet_name,
                 address: cabinet_address,
             },
+            beneficiary,
             // Nouvel appointment : jamais de rappel demandé.
             callback_requested_at: None,
         }),
