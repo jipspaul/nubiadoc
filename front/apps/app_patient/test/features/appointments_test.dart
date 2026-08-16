@@ -338,6 +338,47 @@ void main() {
     });
   });
 
+  // #5365 — tunnel web : les puces de créneau restent pilotées par
+  // Slot.isAvailable et les 3 états de SlotChip (available/selected/
+  // unavailable), la puce indisponible affichant « — » (pas l'heure barrée).
+  group('états SlotChip pilotés par Slot.isAvailable (#5365)', () {
+    testWidgets(
+        'créneau indisponible : puce SlotChip.unavailable avec contenu « — »',
+        (tester) async {
+      final day = DateTime(2026, 7, 10);
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: const ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Martin',
+            specialty: 'Dentiste',
+          ),
+          slots: [
+            Slot(
+              id: 's1',
+              cabinetId: 'cab-1',
+              practitionerId: 'prac-1',
+              startsAt: DateTime(day.year, day.month, day.day, 9, 0),
+              endsAt: DateTime(day.year, day.month, day.day, 9, 30),
+              isAvailable: false,
+            ),
+          ],
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.text('09:00'), findsNothing);
+      expect(find.text('—'), findsOneWidget);
+
+      final chip = tester.widget<SlotChip>(find.byType(SlotChip));
+      expect(chip.state, SlotChipState.unavailable);
+    });
+  });
+
   // #5366 — la conversion .toLocal() doit être appliquée avant tout
   // regroupement/affichage d'heure dans le tunnel de réservation, sans
   // exception. Un créneau proche de minuit UTC doit apparaître sous le jour
