@@ -164,14 +164,13 @@ pub async fn create_payment_intent(
     // stade voit toujours 0 ligne → patient_share_cents = 0 → tout paiement
     // rejeté en 422 (régression #4433, qui avait introduit ce calcul sans
     // anticiper la dépendance RLS de quote_item au GUC cabinet).
-    // Ownership (patient OU compte facturé billed_to_account_id, #4098) déjà posée
-    // par la policy RLS quote_patient_read (migration 0175) via le GUC
-    // app.patient_account_id ci-dessus — pas de JOIN patient ici : la table
-    // `patient` a sa propre policy RLS `patient_account_read` (migration 0029,
-    // scope strict patient_account_id = app.patient_account_id, aucune branche
-    // tutelle), donc un JOIN patient éliminerait la ligne du dépendant AVANT que
-    // la branche billed_to_account_id ne puisse la sauver → 404 pour le tuteur
-    // payeur (#5623). Même approche que get_quote (billing.rs).
+    // Ownership résolue par la policy RLS quote_patient_read (migration 0175,
+    // scope app.patient_account_id posé ci-dessus) : patient OU compte facturé
+    // (billed_to_account_id, #4098) — pas de JOIN patient ici (la table
+    // `patient` a sa propre RLS `patient_account_read`, migration 0029, sans
+    // branche tutelle, qui éliminerait la ligne de la dépendante AVANT que la
+    // clause billed_to_account_id ne puisse la sauver — cf. #5623), sinon le
+    // tuteur payeur voit le devis (GET) mais ne peut jamais le régler (404 ici).
     let quote_row = sqlx::query(
         "SELECT q.cabinet_id, q.patient_id, q.status, q.deposit_pct::double precision AS deposit_pct \
          FROM quote q \
