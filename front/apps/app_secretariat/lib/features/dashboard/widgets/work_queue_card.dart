@@ -7,12 +7,23 @@ import '../patient_messages_summary_cubit.dart';
 import 'work_queue_item.dart';
 
 /// Panneau « À traiter maintenant » (maquette design-v2, colonne droite du
-/// tableau de bord) : file de tickets d'action rapide. Pour l'instant une
-/// seule ligne — messages patients non lus (#5379) — les autres lignes de la
-/// maquette (RDV non confirmé, devis expirants, demandes de créneau) sont
-/// hors périmètre de ce ticket.
+/// tableau de bord) : file de tickets d'action rapide. Lignes couvertes :
+/// demandes de créneau sans réponse (#5378) et messages patients non lus
+/// (#5379) — les autres lignes de la maquette (RDV non confirmé, devis
+/// expirants) sont hors périmètre de ces tickets.
 class WorkQueueCard extends StatelessWidget {
-  const WorkQueueCard({super.key});
+  const WorkQueueCard({
+    super.key,
+    required this.waitingCount,
+    this.oldestWaitingRequestAgeDays,
+  });
+
+  /// Nombre de demandes de créneau sans réponse (#5378).
+  final int waitingCount;
+
+  /// Ancienneté (en jours) de la plus ancienne demande de créneau sans
+  /// réponse — `null` si la liste d'attente est vide.
+  final int? oldestWaitingRequestAgeDays;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +53,19 @@ class WorkQueueCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          WorkQueueItem(
+            key: const Key('work_queue_waiting_list_row'),
+            icon: Icons.hourglass_top,
+            title: '$waitingCount demandes de créneau sans réponse',
+            subtitle: oldestWaitingRequestAgeDays == null
+                ? null
+                : 'La plus ancienne attend depuis '
+                    '$oldestWaitingRequestAgeDays jours',
+            actionLabel: 'Ouvrir',
+            actionIcon: Icons.arrow_forward,
+            onAction: () => context.push('/liste-attente'),
+            variant: WorkQueueItemVariant.info,
           ),
           BlocBuilder<PatientMessagesSummaryCubit, PatientMessagesSummaryState>(
             builder: (context, state) => switch (state) {

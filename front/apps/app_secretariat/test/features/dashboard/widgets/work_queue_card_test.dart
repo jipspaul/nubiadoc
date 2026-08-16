@@ -13,7 +13,11 @@ class _MockPatientMessagesSummaryCubit
     extends MockCubit<PatientMessagesSummaryState>
     implements PatientMessagesSummaryCubit {}
 
-Widget _wrap(PatientMessagesSummaryCubit cubit) {
+Widget _wrap(
+  PatientMessagesSummaryCubit cubit, {
+  int waitingCount = 0,
+  int? oldestWaitingRequestAgeDays,
+}) {
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -22,13 +26,21 @@ Widget _wrap(PatientMessagesSummaryCubit cubit) {
         builder: (context, state) => Scaffold(
           body: BlocProvider<PatientMessagesSummaryCubit>.value(
             value: cubit,
-            child: const WorkQueueCard(),
+            child: WorkQueueCard(
+              waitingCount: waitingCount,
+              oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
+            ),
           ),
         ),
       ),
       GoRoute(
         path: '/messages',
         builder: (context, state) => const Scaffold(body: Text('Messagerie')),
+      ),
+      GoRoute(
+        path: '/liste-attente',
+        builder: (context, state) =>
+            const Scaffold(body: Text('Liste d\'attente')),
       ),
     ],
   );
@@ -81,12 +93,70 @@ void main() {
       );
       expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
 
-      expect(find.text('Ouvrir'), findsOneWidget);
-      expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+      final openMessagesButton = find.descendant(
+        of: find.byKey(const Key('work_queue_unread_messages_row')),
+        matching: find.text('Ouvrir'),
+      );
+      expect(openMessagesButton, findsOneWidget);
 
-      await tester.tap(find.text('Ouvrir'));
+      await tester.tap(openMessagesButton);
       await tester.pumpAndSettle();
       expect(find.text('Messagerie'), findsOneWidget);
+    });
+
+    testWidgets(
+        '#5378 : titre = demandes de créneau sans réponse, sous-titre = '
+        'ancienneté, Ouvrir → /liste-attente', (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 4,
+          urgentUnreadCount: 0,
+        ),
+      );
+      await tester.pumpWidget(
+        _wrap(cubit, waitingCount: 3, oldestWaitingRequestAgeDays: 5),
+      );
+
+      expect(
+        find.byKey(const Key('work_queue_waiting_list_row')),
+        findsOneWidget,
+      );
+      expect(find.text('3 demandes de créneau sans réponse'), findsOneWidget);
+      expect(
+        find.text('La plus ancienne attend depuis 5 jours'),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.hourglass_top), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.descendant(
+          of: find.byKey(const Key('work_queue_waiting_list_row')),
+          matching: find.text('Ouvrir'),
+        ),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('work_queue_waiting_list_row')),
+          matching: find.text('Ouvrir'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Liste d\'attente'), findsOneWidget);
+    });
+
+    testWidgets(
+        '#5378 : liste d\'attente vide → pas de sous-titre d\'ancienneté',
+        (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 0,
+          urgentUnreadCount: 0,
+        ),
+      );
+      await tester.pumpWidget(_wrap(cubit));
+
+      expect(find.text('0 demandes de créneau sans réponse'), findsOneWidget);
+      expect(find.textContaining('La plus ancienne'), findsNothing);
     });
 
     testWidgets('aucun message urgent → pas de sous-titre', (tester) async {

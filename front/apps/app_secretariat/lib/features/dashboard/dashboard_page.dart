@@ -268,6 +268,7 @@ class _DashboardContent extends StatelessWidget {
             :final todayCount,
             :final pendingCount,
             :final waitingCount,
+            :final oldestWaitingRequestAgeDays,
             :final practitionersToday,
             :final dailyOccupancyRates,
             :final freeSlotsThisWeekCount,
@@ -278,6 +279,7 @@ class _DashboardContent extends StatelessWidget {
               todayCount: todayCount,
               pendingCount: pendingCount,
               waitingCount: waitingCount,
+              oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
               practitionersToday: practitionersToday,
               dailyOccupancyRates: dailyOccupancyRates,
               freeSlotsThisWeekCount: freeSlotsThisWeekCount,
@@ -301,6 +303,7 @@ class _DashboardLoadedView extends StatelessWidget {
     required this.todayCount,
     required this.pendingCount,
     required this.waitingCount,
+    this.oldestWaitingRequestAgeDays,
     required this.practitionersToday,
     required this.dailyOccupancyRates,
     required this.freeSlotsThisWeekCount,
@@ -311,6 +314,7 @@ class _DashboardLoadedView extends StatelessWidget {
   final int todayCount;
   final int pendingCount;
   final int waitingCount;
+  final int? oldestWaitingRequestAgeDays;
   final List<PractitionerToday> practitionersToday;
   final List<double> dailyOccupancyRates;
   final int freeSlotsThisWeekCount;
@@ -379,7 +383,10 @@ class _DashboardLoadedView extends StatelessWidget {
                   final twoColumns = constraints.maxWidth >= 720;
                   final leftColumn = TodayFlowCard(entries: todayFlow);
                   final rightColumn = [
-                    const WorkQueueCard(),
+                    WorkQueueCard(
+                      waitingCount: waitingCount,
+                      oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
+                    ),
                     const WaitingRoomCard(),
                     _DashboardPanel(
                       icon: Icons.pending_actions_outlined,
