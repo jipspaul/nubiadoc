@@ -9,6 +9,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'patient_fiche.dart' show PatientDocumentsSection, PatientTagsSection;
+import 'patient_journal_section.dart';
 import 'patients_bloc.dart';
 import 'patients_event.dart';
 import 'patients_state.dart';
@@ -137,8 +138,9 @@ class PatientDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => GetIt.instance<PatientsBloc>()
-        ..add(PatientsDetailLoadRequested(patientId)),
+      create: (_) =>
+          GetIt.instance<PatientsBloc>()
+            ..add(PatientsDetailLoadRequested(patientId)),
       child: const _PatientDetailBody(),
     );
   }
@@ -156,24 +158,21 @@ class _PatientDetailBody extends StatelessWidget {
           s is PatientExportError,
       listener: (context, state) async {
         if (state is PatientDetailLoaded && state.notesError != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.notesError!)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.notesError!)));
         }
         if (state is PatientPdfReady) {
           try {
             // XFile.fromData : aucun accès filesystem — getTemporaryDirectory
             // et dart:io lèvent sur Flutter web (#3369).
-            await Share.shareXFiles(
-              [
-                XFile.fromData(
-                  state.bytes,
-                  name: state.filename,
-                  mimeType: 'application/pdf',
-                ),
-              ],
-              subject: 'Fiche patient',
-            );
+            await Share.shareXFiles([
+              XFile.fromData(
+                state.bytes,
+                name: state.filename,
+                mimeType: 'application/pdf',
+              ),
+            ], subject: 'Fiche patient');
           } catch (_) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
@@ -183,9 +182,9 @@ class _PatientDetailBody extends StatelessWidget {
         }
         if (state is PatientExportError) {
           if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
         }
       },
       builder: (context, state) {
@@ -218,10 +217,28 @@ class _DetailView extends StatefulWidget {
 class _DetailViewState extends State<_DetailView> {
   late TextEditingController _notesController;
 
+  /// Alertes cliniques du dossier (allergies + traitements à risque, #4974)
+  /// — même source que `PatientFiche` (`GetMedicalRecordUseCase`) ; chargée
+  /// à part de `PatientsBloc` (affichage passif d'en-tête), une erreur de
+  /// chargement laisse simplement l'en-tête sans pastille.
+  List<MedicalAlert> _medicalAlerts = const [];
+
   @override
   void initState() {
     super.initState();
     _notesController = TextEditingController();
+    _loadMedicalAlerts();
+  }
+
+  Future<void> _loadMedicalAlerts() async {
+    final result = await GetIt.instance<GetMedicalRecordUseCase>()(
+      widget.state.patient.id,
+    );
+    if (!mounted) return;
+    result.fold(
+      (_) {},
+      (record) => setState(() => _medicalAlerts = record.medicalAlerts),
+    );
   }
 
   @override
@@ -229,6 +246,9 @@ class _DetailViewState extends State<_DetailView> {
     _notesController.dispose();
     super.dispose();
   }
+
+  String _clinicalAlertLabel(MedicalAlert alert) =>
+      alert.kind == 'allergie' ? 'Allergie ${alert.label}' : alert.label;
 
   @override
   Widget build(BuildContext context) {
@@ -248,10 +268,30 @@ class _DetailViewState extends State<_DetailView> {
                     NubiaAvatar(initials: _initials(p.fullName), radius: 28),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: Text(
-                        p.fullName,
-                        key: const Key('patient_name'),
-                        style: textTheme.titleLarge,
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          Text(
+                            p.fullName,
+                            key: const Key('patient_name'),
+                            style: textTheme.titleLarge,
+                          ),
+                          for (final alert in _medicalAlerts)
+                            StatusPill(
+                              key: Key(
+                                'patient_detail_alert_pill_${alert.kind}_${alert.label}',
+                              ),
+                              label: _clinicalAlertLabel(alert),
+                              variant: alert.kind == 'allergie'
+                                  ? StatusPillVariant.error
+                                  : StatusPillVariant.warning,
+                              icon: alert.kind == 'allergie'
+                                  ? Icons.warning
+                                  : null,
+                            ),
+                        ],
                       ),
                     ),
                   ],
@@ -336,6 +376,8 @@ class _DetailViewState extends State<_DetailView> {
             ),
           ),
           const SizedBox(height: 24),
+          PatientJournalSection(patientId: p.id),
+          const SizedBox(height: 24),
           _AppointmentsHistory(appointments: widget.state.appointments),
           const SizedBox(height: 24),
           PatientTagsSection(patientId: p.id),
@@ -363,11 +405,8 @@ class _DetailViewState extends State<_DetailView> {
               label: 'Enregistrer les notes',
               icon: Icons.save_outlined,
               onPressed: () => context.read<PatientsBloc>().add(
-                    PatientsNotesUpdateRequested(
-                      p.id,
-                      _notesController.text,
-                    ),
-                  ),
+                PatientsNotesUpdateRequested(p.id, _notesController.text),
+              ),
             ),
           const SizedBox(height: 12),
           NubiaButton(
@@ -404,8 +443,7 @@ class _DetailViewState extends State<_DetailView> {
             variant: NubiaButtonVariant.secondary,
             icon: Icons.medication_outlined,
             label: 'Créer une ordonnance',
-            onPressed: () =>
-                context.push('/ordonnances/new?patientId=${p.id}'),
+            onPressed: () => context.push('/ordonnances/new?patientId=${p.id}'),
           ),
           const SizedBox(height: 12),
           NubiaButton(
@@ -473,8 +511,11 @@ class _PatientsSkeleton extends StatelessWidget {
 
 /// Initiales (max 2 lettres) à partir d'un nom complet.
 String _initials(String fullName) {
-  final parts =
-      fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts = fullName
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
