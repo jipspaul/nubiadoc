@@ -1138,6 +1138,14 @@ pub struct CabinetAppointmentsQuery {
     pub status: Option<String>,
     /// Date ISO 8601 "YYYY-MM-DD" — restreint aux RDV de ce jour.
     pub date: Option<String>,
+    /// `?patient_id=` : restreint aux RDV de ce patient (#5572, même pattern
+    /// que `cabinet_quotes::ListCabinetQuotesQuery::patient_id` #4419/#4519).
+    /// Sans ce filtre, un consommateur qui a besoin de TOUT l'historique d'un
+    /// patient (ex. journal patient unifié) doit lire la liste du cabinet
+    /// entière et filtrer côté client — sur un cabinet volumineux, une
+    /// pagination future côté cabinet tronquerait silencieusement les RDV
+    /// les plus anciens du patient avant qu'il ait pu les filtrer.
+    pub patient_id: Option<Uuid>,
 }
 
 /// Valeurs valides de `appointment.status` (CHECK, migration 0005). Même
@@ -1181,7 +1189,12 @@ pub struct CabinetAppointmentsResponse {
 /// Token pro requis (secretary, practitioner, admin). `cabinet_id` extrait du JWT.
 /// RLS scopé via `app.current_cabinet_id`. RBAC R.4127-72 : secrétariat voit `motif` uniquement
 /// (pas de champ clinique distinct à ce stade — le motif unique est l'admin).
-/// Query : `status=<statut>`, `date=YYYY-MM-DD` (filtre sur `starts_at` du jour).
+/// Query : `status=<statut>`, `date=YYYY-MM-DD` (filtre sur `starts_at` du jour),
+/// `patient_id=<uuid>` (#5572 : restreint aux RDV de ce patient — sans pagination
+/// serveur sur cet endpoint, un consommateur qui a besoin de l'historique complet
+/// d'un seul patient sur un gros cabinet devait auparavant lire toute la liste du
+/// cabinet et filtrer côté client, risque de troncature si une limite serveur est
+/// ajoutée plus tard, cf. `cabinet_quotes::ListCabinetQuotesQuery::patient_id`).
 pub async fn get_cabinet_appointments(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -1234,6 +1247,17 @@ pub async fn get_cabinet_appointments(
             String::new()
         }
     };
+    // Clause `patient_id` (#5572) : même pattern que `mk_sec_filter` — le
+    // placeholder dépend du nombre de binds déjà posés par la branche
+    // appelante, `n` est donc calculé par la branche (base binds + 1, avant
+    // celui du filtre secrétariat qui est décalé d'autant s'il est présent).
+    let mk_patient_filter = |n: usize| -> String {
+        if params.patient_id.is_some() {
+            format!(" AND a.patient_id = ${n}")
+        } else {
+            String::new()
+        }
+    };
     // Secrétaire sans secrétariat actif : aucun résultat.
     if claims.role == "secretary" && claims.secretariat_id.is_none() {
         tx.commit().await.map_err(|_| AppError::Internal)?;
@@ -1253,6 +1277,8 @@ pub async fn get_cabinet_appointments(
     // Construit la requête dynamiquement selon les filtres optionnels.
     let rows = match (&params.status, &date_filter) {
         (Some(status), Some((ds, de))) => {
+            let patient_idx = 5;
+            let sec_idx = if params.patient_id.is_some() { 6 } else { 5 };
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
@@ -1263,15 +1289,21 @@ pub async fn get_cabinet_appointments(
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1 \
                    AND a.status = $2 \
-                   AND a.starts_at >= $3 AND a.starts_at < $4{} \
+                   AND a.starts_at >= $3 AND a.starts_at < $4{}{} \
                  ORDER BY a.starts_at",
-                mk_sec_filter(5),
+                mk_patient_filter(patient_idx),
+                mk_sec_filter(sec_idx),
             );
             let q = sqlx::query(&sql)
                 .bind(claims.cabinet_id)
                 .bind(status)
                 .bind(ds)
                 .bind(de);
+            let q = if let Some(pid) = params.patient_id {
+                q.bind(pid)
+            } else {
+                q
+            };
             if let Some(s) = sid { q.bind(s) } else { q }
                 .fetch_all(&mut *tx)
                 .await
@@ -1279,6 +1311,8 @@ pub async fn get_cabinet_appointments(
         }
 
         (Some(status), None) => {
+            let patient_idx = 3;
+            let sec_idx = if params.patient_id.is_some() { 4 } else { 3 };
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
@@ -1288,11 +1322,17 @@ pub async fn get_cabinet_appointments(
                  LEFT JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1 \
-                   AND a.status = $2{} \
+                   AND a.status = $2{}{} \
                  ORDER BY a.starts_at",
-                mk_sec_filter(3),
+                mk_patient_filter(patient_idx),
+                mk_sec_filter(sec_idx),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(status);
+            let q = if let Some(pid) = params.patient_id {
+                q.bind(pid)
+            } else {
+                q
+            };
             if let Some(s) = sid { q.bind(s) } else { q }
                 .fetch_all(&mut *tx)
                 .await
@@ -1300,6 +1340,8 @@ pub async fn get_cabinet_appointments(
         }
 
         (None, Some((ds, de))) => {
+            let patient_idx = 4;
+            let sec_idx = if params.patient_id.is_some() { 5 } else { 4 };
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
@@ -1309,11 +1351,17 @@ pub async fn get_cabinet_appointments(
                  LEFT JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
                    AND a.cabinet_id = $1 \
-                   AND a.starts_at >= $2 AND a.starts_at < $3{} \
+                   AND a.starts_at >= $2 AND a.starts_at < $3{}{} \
                  ORDER BY a.starts_at",
-                mk_sec_filter(4),
+                mk_patient_filter(patient_idx),
+                mk_sec_filter(sec_idx),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id).bind(ds).bind(de);
+            let q = if let Some(pid) = params.patient_id {
+                q.bind(pid)
+            } else {
+                q
+            };
             if let Some(s) = sid { q.bind(s) } else { q }
                 .fetch_all(&mut *tx)
                 .await
@@ -1321,6 +1369,8 @@ pub async fn get_cabinet_appointments(
         }
 
         (None, None) => {
+            let patient_idx = 2;
+            let sec_idx = if params.patient_id.is_some() { 3 } else { 2 };
             let sql = format!(
                 "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
@@ -1329,11 +1379,17 @@ pub async fn get_cabinet_appointments(
                  LEFT JOIN patient p ON p.id = a.patient_id AND p.deleted_at IS NULL \
                  LEFT JOIN provider pr ON pr.practitioner_id = a.practitioner_id \
                  WHERE a.deleted_at IS NULL \
-                   AND a.cabinet_id = $1{} \
+                   AND a.cabinet_id = $1{}{} \
                  ORDER BY a.starts_at",
-                mk_sec_filter(2),
+                mk_patient_filter(patient_idx),
+                mk_sec_filter(sec_idx),
             );
             let q = sqlx::query(&sql).bind(claims.cabinet_id);
+            let q = if let Some(pid) = params.patient_id {
+                q.bind(pid)
+            } else {
+                q
+            };
             if let Some(s) = sid { q.bind(s) } else { q }
                 .fetch_all(&mut *tx)
                 .await
