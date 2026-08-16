@@ -48,6 +48,7 @@ import 'cash_collection_cubit.dart';
 import 'dashboard_bloc.dart';
 import 'dashboard_event.dart';
 import 'dashboard_state.dart';
+import 'patient_messages_summary_cubit.dart';
 import 'rail_badges_cubit.dart';
 import 'waiting_room_summary_cubit.dart';
 import 'widgets/cash_collection_card.dart';
@@ -56,6 +57,7 @@ import 'widgets/practitioners_today_card.dart';
 import 'widgets/today_flow_card.dart';
 import 'widgets/waiting_room_card.dart';
 import 'widgets/week_occupancy_card.dart';
+import 'widgets/work_queue_card.dart';
 
 /// Entry point for the authenticated secrétariat home. Delegates layout to
 /// [ProShell] (NavigationRail on desktop, Drawer on mobile). Clinical
@@ -125,7 +127,11 @@ class DashboardPage extends StatelessWidget {
               child: BlocProvider<WaitingRoomSummaryCubit>(
                 create: (_) =>
                     GetIt.instance<WaitingRoomSummaryCubit>()..load(),
-                child: const _DashboardContent(),
+                child: BlocProvider<PatientMessagesSummaryCubit>(
+                  create: (_) =>
+                      GetIt.instance<PatientMessagesSummaryCubit>()..load(),
+                  child: const _DashboardContent(),
+                ),
               ),
             ),
           );
@@ -373,6 +379,7 @@ class _DashboardLoadedView extends StatelessWidget {
                   final twoColumns = constraints.maxWidth >= 720;
                   final leftColumn = TodayFlowCard(entries: todayFlow);
                   final rightColumn = [
+                    const WorkQueueCard(),
                     const WaitingRoomCard(),
                     _DashboardPanel(
                       icon: Icons.pending_actions_outlined,
