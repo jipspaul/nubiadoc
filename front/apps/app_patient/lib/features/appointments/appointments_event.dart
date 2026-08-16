@@ -18,10 +18,15 @@ class AppointmentsSearchChanged extends AppointmentsEvent {
 
 class AppointmentsProviderSelected extends AppointmentsEvent {
   final ProviderResult provider;
-  const AppointmentsProviderSelected(this.provider);
+  // #5357 : posé quand la sélection vient d'un clic sur une puce créneau de
+  // la carte résultat (bloc `.slots`) — une fois l'agenda complet chargé, ce
+  // créneau est automatiquement sélectionné (et son hold posé si
+  // authentifié) pour enchaîner directement sur la réservation.
+  final String? preselectSlotId;
+  const AppointmentsProviderSelected(this.provider, {this.preselectSlotId});
 
   @override
-  List<Object?> get props => [provider];
+  List<Object?> get props => [provider, preselectSlotId];
 }
 
 class AppointmentsSlotSelected extends AppointmentsEvent {

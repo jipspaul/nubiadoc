@@ -321,6 +321,90 @@ void main() {
       verify: (_) => verify(() => mockSearchProviders(query: '')).called(1),
     );
 
+    // #5357 — la carte résultat affiche 3 jours de créneaux réels par
+    // praticien : le bloc doit résoudre les créneaux de chacun avant
+    // d'émettre l'état chargé.
+    blocTest<AppointmentsBloc, AppointmentsState>(
+      'résout les créneaux de chaque praticien dans slotsByProvider',
+      build: () {
+        const provider = ProviderResult(
+          id: 'p1',
+          displayName: 'Dr Martin',
+          specialty: 'Dentiste',
+        );
+        final slot = Slot(
+          id: 's1',
+          cabinetId: 'cab-1',
+          practitionerId: 'p1',
+          startsAt: DateTime(2026, 7, 10, 9, 0),
+          endsAt: DateTime(2026, 7, 10, 9, 30),
+          isAvailable: true,
+        );
+        when(() => mockSearchProviders(query: any(named: 'query')))
+            .thenAnswer((_) async => const Right([provider]));
+        when(() => mockSearchSlots(providerId: 'p1'))
+            .thenAnswer((_) async => Right([slot]));
+        return _makeBloc(
+          searchProviders: mockSearchProviders,
+          searchSlots: mockSearchSlots,
+          holdSlot: mockHoldSlot,
+          confirmBooking: mockConfirmBooking,
+        );
+      },
+      act: (bloc) => bloc.add(const AppointmentsSearchChanged('dentiste')),
+      expect: () => [
+        const AppointmentsSearchLoading(),
+        isA<AppointmentsProvidersLoaded>().having(
+          (s) => s.slotsByProvider['p1']?.map((s) => s.id),
+          'slotsByProvider[p1]',
+          ['s1'],
+        ),
+      ],
+    );
+
+    // #5357 — un clic sur une puce créneau de la carte résultat démarre
+    // directement la réservation : l'agenda se charge avec ce créneau déjà
+    // sélectionné (et son hold posé, pour un patient authentifié).
+    blocTest<AppointmentsBloc, AppointmentsState>(
+      'AppointmentsProviderSelected avec preselectSlotId sélectionne '
+      'directement le créneau une fois l\'agenda chargé',
+      build: () {
+        final slot = Slot(
+          id: 's1',
+          cabinetId: 'cab-1',
+          practitionerId: 'p1',
+          startsAt: DateTime(2026, 7, 10, 9, 0),
+          endsAt: DateTime(2026, 7, 10, 9, 30),
+          isAvailable: true,
+        );
+        when(() => mockSearchSlots(providerId: 'p1'))
+            .thenAnswer((_) async => Right([slot]));
+        when(() => mockHoldSlot('s1')).thenAnswer(
+          (_) async => Right(
+            SlotHold(token: 'hold-1', expiresAt: DateTime(2026, 7, 10, 8, 50)),
+          ),
+        );
+        return _makeBloc(
+          searchProviders: mockSearchProviders,
+          searchSlots: mockSearchSlots,
+          holdSlot: mockHoldSlot,
+          confirmBooking: mockConfirmBooking,
+        );
+      },
+      act: (bloc) => bloc.add(const AppointmentsProviderSelected(
+        ProviderResult(id: 'p1', displayName: 'Dr Martin', specialty: 'Dentiste'),
+        preselectSlotId: 's1',
+      )),
+      expect: () => [
+        isA<AppointmentsSlotsLoading>(),
+        isA<AppointmentsSlotsLoaded>()
+            .having((s) => s.selectedSlot, 'selectedSlot', isNull),
+        isA<AppointmentsSlotsLoaded>()
+            .having((s) => s.selectedSlot?.id, 'selectedSlot.id', 's1')
+            .having((s) => s.holdToken, 'holdToken', 'hold-1'),
+      ],
+    );
+
     blocTest<AppointmentsBloc, AppointmentsState>(
       'émet [Error] quand la recherche échoue',
       build: () {

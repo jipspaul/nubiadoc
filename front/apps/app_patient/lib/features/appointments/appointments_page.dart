@@ -100,8 +100,12 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
       final providers = state is AppointmentsProvidersLoaded
           ? state.providers
           : const <ProviderResult>[];
+      final slotsByProvider = state is AppointmentsProvidersLoaded
+          ? state.slotsByProvider
+          : const <String, List<Slot>>{};
       return _SearchView(
         providers: providers,
+        slotsByProvider: slotsByProvider,
         loading: state is AppointmentsSearchLoading,
       );
     }
@@ -201,6 +205,66 @@ String _hhmm(DateTime utc) {
   return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
+const _monthsFull = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+/// Nombre de jours / de puces par jour affichés dans le bloc `.slots` de la
+/// carte résultat (maquette design-v2, #5357).
+const _kSlotsPreviewDays = 3;
+const _kSlotsPreviewPerDay = 3;
+
+/// Construit l'aperçu « 3 jours de créneaux réels » d'une carte résultat
+/// (#5357) à partir des créneaux réels du praticien. `null` quand le
+/// praticien n'a aucun créneau disponible en ligne — la carte retombe alors
+/// sur le bloc « aucun créneau en ligne » existant (#5358), jamais régressé.
+List<ProviderResultDaySlots>? _buildDaySlots(
+  List<Slot> slots,
+  void Function(Slot) onSlotTap,
+) {
+  final available = slots.where((s) => s.isAvailable).toList();
+  if (available.isEmpty) return null;
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final byDay = <DateTime, List<Slot>>{};
+  for (final slot in available) {
+    // startsAt est UTC — grouper sur les composants bruts classerait un
+    // créneau proche de minuit UTC sur le mauvais jour local.
+    final local = slot.startsAt.toLocal();
+    final key = DateTime(local.year, local.month, local.day);
+    byDay.putIfAbsent(key, () => []).add(slot);
+  }
+
+  return List.generate(_kSlotsPreviewDays, (i) {
+    final day = today.add(Duration(days: i));
+    final daySlots = (byDay[day] ?? const <Slot>[]).toList()
+      ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    return ProviderResultDaySlots(
+      dayLabel: _weekdays[day.weekday - 1],
+      dateLabel: '${day.day} ${_monthsFull[day.month - 1]}',
+      chips: [
+        for (final slot in daySlots.take(_kSlotsPreviewPerDay))
+          ProviderResultSlotChip(
+            label: _hhmm(slot.startsAt),
+            onTap: () => onSlotTap(slot),
+          ),
+      ],
+    );
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Search view : expérience MAP-CENTRIC (façon Waze/Google Maps)
 //   • carte MapTiler plein écran + pins praticiens (clustering simple)
@@ -233,8 +297,13 @@ const _quickFilters = <_QuickFilter>[
 const _defaultCenter = LatLng(48.8566, 2.3522);
 
 class _SearchView extends StatefulWidget {
-  const _SearchView({required this.providers, required this.loading});
+  const _SearchView({
+    required this.providers,
+    required this.slotsByProvider,
+    required this.loading,
+  });
   final List<ProviderResult> providers;
+  final Map<String, List<Slot>> slotsByProvider;
   final bool loading;
 
   @override
@@ -344,6 +413,16 @@ class _SearchViewState extends State<_SearchView> {
     _bloc.add(AppointmentsProviderSelected(provider));
   }
 
+  /// #5357 : un clic sur une puce créneau du bloc `.slots` de la carte
+  /// résultat démarre directement la réservation — pas de détour par le
+  /// sheet de détail, l'agenda du praticien se charge avec ce créneau
+  /// automatiquement sélectionné.
+  void _onSlotTap(ProviderResult provider, Slot slot) {
+    _bloc.add(
+      AppointmentsProviderSelected(provider, preselectSlotId: slot.id),
+    );
+  }
+
   /// Détail praticien en NubiaBottomSheet : ProviderCard + tarifs indicatifs
   /// + « Voir les créneaux ».
   void _openProviderSheet(ProviderResult provider) {
@@ -401,9 +480,11 @@ class _SearchViewState extends State<_SearchView> {
         // 2. Feuille de résultats glissable superposée à la carte.
         _ResultsSheet(
           providers: filtered,
+          slotsByProvider: widget.slotsByProvider,
           loading: widget.loading,
           onCardTap: _onProviderFocused,
           onViewProfile: _openProviderProfile,
+          onSlotTap: _onSlotTap,
         ),
         // 3. Barre de recherche flottante + bandeau + chips (au-dessus de tout).
         _FloatingSearchHeader(
@@ -625,15 +706,19 @@ class _InterpretationBanner extends StatelessWidget {
 class _ResultsSheet extends StatelessWidget {
   const _ResultsSheet({
     required this.providers,
+    required this.slotsByProvider,
     required this.loading,
     required this.onCardTap,
     required this.onViewProfile,
+    required this.onSlotTap,
   });
 
   final List<ProviderResult> providers;
+  final Map<String, List<Slot>> slotsByProvider;
   final bool loading;
   final void Function(ProviderResult) onCardTap;
   final void Function(ProviderResult) onViewProfile;
+  final void Function(ProviderResult, Slot) onSlotTap;
 
   @override
   Widget build(BuildContext context) {
@@ -691,10 +776,12 @@ class _ResultsSheet extends StatelessWidget {
               Expanded(
                 child: _ResultsContent(
                   providers: providers,
+                  slotsByProvider: slotsByProvider,
                   loading: loading,
                   scrollController: scrollController,
                   onCardTap: onCardTap,
                   onViewProfile: onViewProfile,
+                  onSlotTap: onSlotTap,
                 ),
               ),
             ],
@@ -708,17 +795,21 @@ class _ResultsSheet extends StatelessWidget {
 class _ResultsContent extends StatelessWidget {
   const _ResultsContent({
     required this.providers,
+    required this.slotsByProvider,
     required this.loading,
     required this.scrollController,
     required this.onCardTap,
     required this.onViewProfile,
+    required this.onSlotTap,
   });
 
   final List<ProviderResult> providers;
+  final Map<String, List<Slot>> slotsByProvider;
   final bool loading;
   final ScrollController scrollController;
   final void Function(ProviderResult) onCardTap;
   final void Function(ProviderResult) onViewProfile;
+  final void Function(ProviderResult, Slot) onSlotTap;
 
   @override
   Widget build(BuildContext context) {
@@ -758,6 +849,12 @@ class _ResultsContent extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, i) {
         final provider = providers[i];
+        // #5357 : 3 jours de créneaux réels par carte résultat — le
+        // patient compare des disponibilités, pas des noms.
+        final daySlots = _buildDaySlots(
+          slotsByProvider[provider.id] ?? const <Slot>[],
+          (slot) => onSlotTap(provider, slot),
+        );
         return ProviderCard(
           key: Key('provider_${provider.id}'),
           name: provider.displayName,
@@ -771,6 +868,8 @@ class _ResultsContent extends StatelessWidget {
               : null,
           onTap: () => onCardTap(provider),
           onViewProfile: () => onViewProfile(provider),
+          daySlots: daySlots,
+          onViewMoreSlots: daySlots == null ? null : () => onCardTap(provider),
         );
       },
     );
