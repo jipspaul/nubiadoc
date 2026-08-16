@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../expiring_quotes_summary_cubit.dart';
 import '../patient_messages_summary_cubit.dart';
@@ -9,14 +10,15 @@ import 'work_queue_item.dart';
 
 /// Panneau « À traiter maintenant » (maquette design-v2, colonne droite du
 /// tableau de bord) : file de tickets d'action rapide. Lignes couvertes :
-/// demandes de créneau sans réponse (#5378), devis qui expirent cette
-/// semaine (#5377) et messages patients non lus (#5379) — RDV non confirmé
-/// reste hors périmètre de ces tickets.
+/// RDV du jour non confirmés (#5376), demandes de créneau sans réponse
+/// (#5378), devis qui expirent cette semaine (#5377) et messages patients
+/// non lus (#5379).
 class WorkQueueCard extends StatelessWidget {
   const WorkQueueCard({
     super.key,
     required this.waitingCount,
     this.oldestWaitingRequestAgeDays,
+    this.pendingAppointmentsToday = const [],
   });
 
   /// Nombre de demandes de créneau sans réponse (#5378).
@@ -25,6 +27,10 @@ class WorkQueueCard extends StatelessWidget {
   /// Ancienneté (en jours) de la plus ancienne demande de créneau sans
   /// réponse — `null` si la liste d'attente est vide.
   final int? oldestWaitingRequestAgeDays;
+
+  /// RDV du jour au statut `requested` (non confirmés) — ligne « RDV non
+  /// confirmé » (#5376).
+  final List<AgendaEntry> pendingAppointmentsToday;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +61,18 @@ class WorkQueueCard extends StatelessWidget {
               ],
             ),
           ),
+          for (final entry in pendingAppointmentsToday)
+            WorkQueueItem(
+              key: Key('work_queue_pending_appointment_row_${entry.id}'),
+              icon: Icons.event_busy,
+              title: "${entry.patientName ?? 'Patient'} n'a pas confirmé "
+                  'son RDV de ${_formatTime(entry.startsAt)}',
+              actionLabel: 'Appeler',
+              actionIcon: Icons.call,
+              actionVariant: NubiaButtonVariant.primary,
+              variant: WorkQueueItemVariant.danger,
+              onAction: () => context.push('/agenda'),
+            ),
           WorkQueueItem(
             key: const Key('work_queue_waiting_list_row'),
             icon: Icons.hourglass_top,
@@ -150,3 +168,8 @@ class WorkQueueCard extends StatelessWidget {
 String _formatDayMonth(DateTime date) =>
     '${date.day.toString().padLeft(2, '0')}/'
     '${date.month.toString().padLeft(2, '0')}';
+
+/// Formate une heure en `HH:MM` (ex. « 15:30 »), verbatim maquette.
+String _formatTime(DateTime date) =>
+    '${date.hour.toString().padLeft(2, '0')}:'
+    '${date.minute.toString().padLeft(2, '0')}';

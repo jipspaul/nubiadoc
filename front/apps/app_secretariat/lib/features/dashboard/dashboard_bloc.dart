@@ -84,7 +84,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
                     e.startsAt.day == now.day,
               )
               .length;
-          final pendingCount = entries
+          // #5376 : ligne « RDV non confirmé » du panneau « À traiter
+          // maintenant » — mêmes RDV du jour au statut `requested` que
+          // `pendingCount` ci-dessous, mais on garde les entrées (pas
+          // seulement leur nombre) pour les afficher.
+          final pendingAppointmentsToday = entries
               .where(
                 (e) =>
                     e.isPending &&
@@ -92,7 +96,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
                     e.startsAt.month == now.month &&
                     e.startsAt.day == now.day,
               )
-              .length;
+              .toList()
+            ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+          final pendingCount = pendingAppointmentsToday.length;
           final waitingEntries = waitingResult.getOrElse(() => const []);
           final waitingCount = waitingEntries.length;
 
@@ -189,6 +195,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
               freeSlotsThisWeekCount: freeSlotsThisWeek.length,
               freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
               todayFlow: todayFlow,
+              pendingAppointmentsToday: pendingAppointmentsToday,
             ),
           );
         },

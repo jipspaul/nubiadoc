@@ -11,6 +11,9 @@ enum WorkQueueItemVariant {
 
   /// Accent warning (ambre) — ex. devis qui expirent cette semaine (#5377).
   warning,
+
+  /// Accent danger (rouge) — ex. RDV du jour non confirmé (#5376).
+  danger,
 }
 
 /// Ligne « ticket » du panneau « À traiter maintenant » (maquette design-v2 :
@@ -28,6 +31,7 @@ class WorkQueueItem extends StatelessWidget {
     required this.onAction,
     this.showDivider = true,
     this.variant = WorkQueueItemVariant.primary,
+    this.actionVariant = NubiaButtonVariant.secondary,
   });
 
   final IconData icon;
@@ -38,6 +42,10 @@ class WorkQueueItem extends StatelessWidget {
   final VoidCallback onAction;
   final bool showDivider;
   final WorkQueueItemVariant variant;
+
+  /// Style du bouton d'action — `secondary` par défaut. `primary` réservé
+  /// au ticket le plus urgent de la file (#5376 : « Appeler »).
+  final NubiaButtonVariant actionVariant;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +64,9 @@ class WorkQueueItem extends StatelessWidget {
       case WorkQueueItemVariant.warning:
         accentFg = tokens.warningFg;
         accentBg = tokens.warningBg;
+      case WorkQueueItemVariant.danger:
+        accentFg = tokens.dangerFg;
+        accentBg = tokens.dangerBg;
     }
 
     return ListRow(
@@ -73,7 +84,7 @@ class WorkQueueItem extends StatelessWidget {
       trailing: NubiaButton(
         label: actionLabel,
         icon: actionIcon,
-        variant: NubiaButtonVariant.secondary,
+        variant: actionVariant,
         size: NubiaButtonSize.sm,
         onPressed: onAction,
       ),

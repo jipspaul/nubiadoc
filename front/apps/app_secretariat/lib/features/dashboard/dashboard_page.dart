@@ -279,6 +279,7 @@ class _DashboardContent extends StatelessWidget {
             :final freeSlotsThisWeekCount,
             :final freeSlotsTomorrowMorningCount,
             :final todayFlow,
+            :final pendingAppointmentsToday,
           ) =>
             _DashboardLoadedView(
               todayCount: todayCount,
@@ -290,6 +291,7 @@ class _DashboardContent extends StatelessWidget {
               freeSlotsThisWeekCount: freeSlotsThisWeekCount,
               freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
               todayFlow: todayFlow,
+              pendingAppointmentsToday: pendingAppointmentsToday,
             ),
         };
       },
@@ -314,6 +316,7 @@ class _DashboardLoadedView extends StatelessWidget {
     required this.freeSlotsThisWeekCount,
     required this.freeSlotsTomorrowMorningCount,
     required this.todayFlow,
+    required this.pendingAppointmentsToday,
   });
 
   final int todayCount;
@@ -325,6 +328,7 @@ class _DashboardLoadedView extends StatelessWidget {
   final int freeSlotsThisWeekCount;
   final int freeSlotsTomorrowMorningCount;
   final List<AgendaEntry> todayFlow;
+  final List<AgendaEntry> pendingAppointmentsToday;
 
   @override
   Widget build(BuildContext context) {
@@ -391,6 +395,7 @@ class _DashboardLoadedView extends StatelessWidget {
                     WorkQueueCard(
                       waitingCount: waitingCount,
                       oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
+                      pendingAppointmentsToday: pendingAppointmentsToday,
                     ),
                     const WaitingRoomCard(),
                     _DashboardPanel(
