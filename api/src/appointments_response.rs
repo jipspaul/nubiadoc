@@ -33,6 +33,20 @@ pub struct CabinetInfo {
     pub address: Option<String>,
 }
 
+/// Identité du bénéficiaire d'un RDV — soi-même (`is_self: true`, pas de nom
+/// exposé, redondant avec le compte en session) ou un dépendant (#5563 :
+/// jusqu'ici, un RDV pris `on_behalf_of` un dépendant (`appointments_create.rs`)
+/// était rendu indiscernable d'un RDV du tuteur en lecture, alors que la RLS
+/// de tutelle (migration 0196) fait bien remonter les deux dans les mêmes
+/// endpoints).
+#[derive(Serialize)]
+pub struct BeneficiarySummary {
+    pub account_id: Option<Uuid>,
+    pub is_self: bool,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+}
+
 #[derive(Serialize)]
 pub struct AppointmentDetail {
     pub id: Uuid,
@@ -42,6 +56,7 @@ pub struct AppointmentDetail {
     pub motif: Option<String>,
     pub provider: ProviderDetail,
     pub cabinet: CabinetInfo,
+    pub beneficiary: BeneficiarySummary,
     /// #3845 : restitue la demande de rappel (voir AppointmentItem).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callback_requested_at: Option<String>,
@@ -102,6 +117,47 @@ pub(crate) async fn fetch_provider_for_response(
             (Some(pid), Some(dn), sp)
         }
         None => (None, None, None),
+    })
+}
+
+/// Résout le bénéficiaire (soi-même vs quel dépendant) depuis
+/// `patient.patient_account_id` (#5563) — comparé au compte en session
+/// (`session_account_id`, toujours le tuteur/patient connecté, jamais le
+/// dépendant). `patient.first_name`/`last_name` sont resynchronisés depuis
+/// `patient_account` par `ensure_patient_for_cabinet` (migration 0155), donc
+/// fiables comme nom d'affichage sans requête supplémentaire sur
+/// `patient_account`. Aucun nom exposé quand `is_self` (redondant).
+pub(crate) async fn fetch_beneficiary_for_response(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    patient_id: Uuid,
+    session_account_id: Uuid,
+) -> Result<BeneficiarySummary, AppError> {
+    let row =
+        sqlx::query("SELECT patient_account_id, first_name, last_name FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+
+    let (account_id, first_name, last_name) = match row {
+        Some(r) => {
+            let account_id: Option<Uuid> = r
+                .try_get("patient_account_id")
+                .map_err(|_| AppError::Internal)?;
+            let first_name: String = r.try_get("first_name").map_err(|_| AppError::Internal)?;
+            let last_name: String = r.try_get("last_name").map_err(|_| AppError::Internal)?;
+            (account_id, Some(first_name), Some(last_name))
+        }
+        None => (None, None, None),
+    };
+
+    let is_self = account_id == Some(session_account_id);
+
+    Ok(BeneficiarySummary {
+        account_id,
+        is_self,
+        first_name: if is_self { None } else { first_name },
+        last_name: if is_self { None } else { last_name },
     })
 }
 

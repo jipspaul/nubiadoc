@@ -72,7 +72,7 @@ class _WaitingListPageState extends State<WaitingListPage> {
                 key: Key('waiting_list_empty'),
                 icon: Icons.event_busy,
                 title: 'Aucune demande',
-                subtitle: 'Aucune demande de créneau pour le moment',
+                subtitle: 'Aucun patient en demande de créneau',
               );
             }
             return RefreshIndicator(

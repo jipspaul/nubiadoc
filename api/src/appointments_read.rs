@@ -23,7 +23,8 @@ use uuid::Uuid;
 
 use crate::{
     appointments_response::{
-        fetch_cabinet_for_response, AppointmentDetail, CabinetInfo, ProviderDetail,
+        fetch_beneficiary_for_response, fetch_cabinet_for_response, AppointmentDetail,
+        BeneficiarySummary, CabinetInfo, ProviderDetail,
     },
     auth::{AppError, PatientAccountClaims},
     AppState,
@@ -56,6 +57,9 @@ pub struct AppointmentItem {
     pub status: String,
     pub motif: Option<String>,
     pub provider: ProviderSummary,
+    /// #5563 : bénéficiaire du RDV (soi-même vs quel dépendant) — jusqu'ici
+    /// absent, rendant un RDV de dépendant indiscernable des RDV du tuteur.
+    pub beneficiary: BeneficiarySummary,
     /// #3845 : restitue la demande de rappel (colonne persistée, jusqu'ici
     /// write-only côté patient — le POST confirmait l'enregistrement mais
     /// aucune lecture ne le montrait, rendant la demande invisible au
@@ -167,6 +171,9 @@ pub async fn list_appointments(
     let sql = format!(
         "SELECT \
              a.id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+             pt.patient_account_id AS beneficiary_account_id, \
+             pt.first_name AS beneficiary_first_name, \
+             pt.last_name AS beneficiary_last_name, \
              (SELECT p.display_name FROM provider p \
               WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
               AS provider_display_name, \
@@ -174,6 +181,7 @@ pub async fn list_appointments(
               WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
               AS provider_specialty \
          FROM appointment a \
+         LEFT JOIN patient pt ON pt.id = a.patient_id \
          WHERE a.deleted_at IS NULL \
          {status_clause}{cursor_clause} \
          ORDER BY a.starts_at {order}, a.id {order} \
@@ -243,6 +251,16 @@ pub async fn list_appointments(
         let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
             .try_get("callback_requested_at")
             .map_err(|_| AppError::Internal)?;
+        let beneficiary_account_id: Option<Uuid> = row
+            .try_get("beneficiary_account_id")
+            .map_err(|_| AppError::Internal)?;
+        let beneficiary_first_name: Option<String> = row
+            .try_get("beneficiary_first_name")
+            .map_err(|_| AppError::Internal)?;
+        let beneficiary_last_name: Option<String> = row
+            .try_get("beneficiary_last_name")
+            .map_err(|_| AppError::Internal)?;
+        let is_self = beneficiary_account_id == Some(claims.account_id);
 
         last_starts_at = Some(starts_at);
         last_id = Some(id);
@@ -256,6 +274,16 @@ pub async fn list_appointments(
             provider: ProviderSummary {
                 display_name,
                 specialty,
+            },
+            beneficiary: BeneficiarySummary {
+                account_id: beneficiary_account_id,
+                is_self,
+                first_name: if is_self {
+                    None
+                } else {
+                    beneficiary_first_name
+                },
+                last_name: if is_self { None } else { beneficiary_last_name },
             },
             callback_requested_at: callback_requested_at.map(|dt| dt.to_rfc3339()),
         });
@@ -313,7 +341,7 @@ pub async fn get_appointment(
     // Fetch appointment — RLS garantit l'ownership (404 si autre patient ou inexistant).
     let row = sqlx::query(
         "SELECT id, starts_at, ends_at, status, motif, cabinet_id, practitioner_id, \
-                callback_requested_at \
+                patient_id, callback_requested_at \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -334,6 +362,7 @@ pub async fn get_appointment(
     let practitioner_id: Uuid = row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
     let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
         .try_get("callback_requested_at")
         .map_err(|_| AppError::Internal)?;
@@ -371,6 +400,10 @@ pub async fn get_appointment(
     let (cabinet_name, cabinet_address) =
         fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
 
+    // Bénéficiaire (#5563) : soi-même vs quel dépendant.
+    let beneficiary =
+        fetch_beneficiary_for_response(&mut tx, patient_id, claims.account_id).await?;
+
     // Audit (§07 §2.9) — cabinet_id correspond au GUC positionné ci-dessus.
     sqlx::query(
         "INSERT INTO audit_log \
@@ -407,6 +440,7 @@ pub async fn get_appointment(
             name: cabinet_name,
             address: cabinet_address,
         },
+        beneficiary,
         callback_requested_at: callback_requested_at.map(|dt| dt.to_rfc3339()),
     }))
 }

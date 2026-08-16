@@ -259,10 +259,7 @@ void main() {
 
       expect(find.byType(NubiaEmptyState), findsOneWidget);
       expect(find.text('Aucune demande'), findsOneWidget);
-      expect(
-        find.text('Aucune demande de créneau pour le moment'),
-        findsOneWidget,
-      );
+      expect(find.text('Aucun patient en demande de créneau'), findsOneWidget);
     });
 
     testWidgets('affiche le message d\'erreur', (tester) async {
