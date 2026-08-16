@@ -53,6 +53,7 @@ import 'waiting_room_summary_cubit.dart';
 import 'widgets/cash_collection_card.dart';
 import 'widgets/global_search_dialog.dart';
 import 'widgets/practitioners_today_card.dart';
+import 'widgets/today_flow_card.dart';
 import 'widgets/waiting_room_card.dart';
 import 'widgets/week_occupancy_card.dart';
 
@@ -265,6 +266,7 @@ class _DashboardContent extends StatelessWidget {
             :final dailyOccupancyRates,
             :final freeSlotsThisWeekCount,
             :final freeSlotsTomorrowMorningCount,
+            :final todayFlow,
           ) =>
             _DashboardLoadedView(
               todayCount: todayCount,
@@ -274,6 +276,7 @@ class _DashboardContent extends StatelessWidget {
               dailyOccupancyRates: dailyOccupancyRates,
               freeSlotsThisWeekCount: freeSlotsThisWeekCount,
               freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
+              todayFlow: todayFlow,
             ),
         };
       },
@@ -296,6 +299,7 @@ class _DashboardLoadedView extends StatelessWidget {
     required this.dailyOccupancyRates,
     required this.freeSlotsThisWeekCount,
     required this.freeSlotsTomorrowMorningCount,
+    required this.todayFlow,
   });
 
   final int todayCount;
@@ -305,6 +309,7 @@ class _DashboardLoadedView extends StatelessWidget {
   final List<double> dailyOccupancyRates;
   final int freeSlotsThisWeekCount;
   final int freeSlotsTomorrowMorningCount;
+  final List<AgendaEntry> todayFlow;
 
   @override
   Widget build(BuildContext context) {
@@ -366,14 +371,7 @@ class _DashboardLoadedView extends StatelessWidget {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final twoColumns = constraints.maxWidth >= 720;
-                  final leftColumn = _DashboardPanel(
-                    icon: Icons.event_available_outlined,
-                    title: 'Prochains rendez-vous',
-                    body: todayCount == 0
-                        ? 'Aucun rendez-vous planifié aujourd’hui.'
-                        : '$todayCount rendez-vous au programme du jour.',
-                    hint: 'Consultez l’agenda du cabinet pour le détail.',
-                  );
+                  final leftColumn = TodayFlowCard(entries: todayFlow);
                   final rightColumn = [
                     const WaitingRoomCard(),
                     _DashboardPanel(

@@ -136,6 +136,13 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
                 e.startsAt.month == now.month &&
                 e.startsAt.day == now.day,
           );
+
+          // #5380 : « Flux du jour » — RDV du jour triés par heure croissante,
+          // dérivés de l'agenda déjà chargé ci-dessus (aucun appel réseau
+          // supplémentaire).
+          final todayFlow = todayBooked.toList()
+            ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+
           final byPractitioner = <String, List<AgendaEntry>>{};
           for (final e in todayBooked) {
             byPractitioner.putIfAbsent(e.practitionerId, () => []).add(e);
@@ -168,6 +175,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
               dailyOccupancyRates: dailyOccupancyRates,
               freeSlotsThisWeekCount: freeSlotsThisWeek.length,
               freeSlotsTomorrowMorningCount: freeSlotsTomorrowMorningCount,
+              todayFlow: todayFlow,
             ),
           );
         },

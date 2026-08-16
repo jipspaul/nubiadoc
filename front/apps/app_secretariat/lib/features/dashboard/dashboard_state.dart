@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 /// Résumé d'un praticien pour la carte « Praticiens aujourd'hui » (#5385) :
 /// nombre de RDV du jour et présence dérivée de l'agenda (pas de champ de
@@ -57,6 +58,7 @@ final class DashboardLoaded extends DashboardState {
     this.dailyOccupancyRates = const [0, 0, 0, 0, 0, 0],
     this.freeSlotsThisWeekCount = 0,
     this.freeSlotsTomorrowMorningCount = 0,
+    this.todayFlow = const [],
   });
 
   final int todayCount;
@@ -66,6 +68,11 @@ final class DashboardLoaded extends DashboardState {
   /// Praticiens ayant au moins un RDV aujourd'hui, dérivés de l'agenda déjà
   /// chargé (#5385) — aucun appel réseau supplémentaire.
   final List<PractitionerToday> practitionersToday;
+
+  /// RDV du jour (hors annulés), triés par heure croissante — panneau
+  /// « Flux du jour » (#5380). Dérivé de l'agenda déjà chargé, aucun appel
+  /// réseau supplémentaire.
+  final List<AgendaEntry> todayFlow;
 
   /// Taux d'occupation (0.0 à 1.0) du lundi au samedi, dérivés de l'agenda
   /// de la semaine déjà chargé (#5383) — aucun appel réseau supplémentaire.
@@ -88,6 +95,7 @@ final class DashboardLoaded extends DashboardState {
         dailyOccupancyRates,
         freeSlotsThisWeekCount,
         freeSlotsTomorrowMorningCount,
+        todayFlow,
       ];
 }
 

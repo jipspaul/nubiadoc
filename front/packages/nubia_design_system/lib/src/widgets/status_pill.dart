@@ -8,6 +8,7 @@ enum StatusPillVariant {
   success,
   warning,
   error,
+  neutral,
 }
 
 /// Pill d'état : étiquette colorée avec fond sémantique.
@@ -60,6 +61,9 @@ class StatusPill extends StatelessWidget {
       case StatusPillVariant.error:
         bg = tokens.dangerBg;
         fg = tokens.dangerFg;
+      case StatusPillVariant.neutral:
+        bg = tokens.neutralBg;
+        fg = tokens.neutralFg;
     }
 
     return Container(

@@ -135,6 +135,22 @@ List<double> _dailyOccupancyRates(Iterable<AgendaEntry> entries) =>
       return occupied / total;
     });
 
+/// Reproduit la formule de `DashboardBloc` (#5380) pour dériver le « Flux
+/// du jour » depuis l'agenda déjà chargé, plutôt que de figer une liste en
+/// dur — sensible au jour d'exécution du test comme `_dailyOccupancyRates`
+/// ci-dessus.
+List<AgendaEntry> _todayFlow(DateTime now, Iterable<AgendaEntry> entries) {
+  final today = entries.where(
+    (e) =>
+        !e.isFree &&
+        !e.isCancelled &&
+        e.startsAt.year == now.year &&
+        e.startsAt.month == now.month &&
+        e.startsAt.day == now.day,
+  );
+  return today.toList()..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+}
+
 void main() {
   group('DashboardBloc', () {
     late _MockGetAgenda getAgenda;
@@ -210,6 +226,7 @@ void main() {
             ),
           ],
           dailyOccupancyRates: _dailyOccupancyRates(_entries1),
+          todayFlow: _todayFlow(_now1, _entries1),
         ),
       ],
     );
@@ -270,6 +287,7 @@ void main() {
             ),
           ],
           dailyOccupancyRates: _dailyOccupancyRates(_entries2),
+          todayFlow: _todayFlow(_now2, _entries2),
         ),
       ],
     );
