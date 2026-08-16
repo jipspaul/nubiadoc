@@ -31,6 +31,20 @@ PharmacyOrder order(PharmacyOrderStatus status) => PharmacyOrder(
       updatedAt: DateTime(2026, 7, 2),
     );
 
+PharmacyOrder billedOrder(PharmacyOrderStatus status) => PharmacyOrder(
+      id: 'o1',
+      pharmacyId: 'p1',
+      pharmacyName: 'Pharmacie du Port',
+      prescriptionId: 'rx1',
+      status: status,
+      createdAt: DateTime(2026, 7, 1),
+      updatedAt: DateTime(2026, 7, 2),
+      billingTotalCents: 2480,
+      billingAmoShareCents: 1636,
+      billingAmcShareCents: 644,
+      billingPatientShareCents: 200,
+    );
+
 void main() {
   late MockPatientPharmacyRepository repo;
   late MockPharmacyOrderEventsPort events;
@@ -169,6 +183,48 @@ void main() {
 
       expect(find.byKey(const Key('pickup_qr_image')), findsNothing);
       expect(find.byKey(const Key('cancel_order_button')), findsOneWidget);
+    });
+
+    testWidgets('pas de récap montants tant que le back n\'a rien facturé',
+        (tester) async {
+      final cubit = MockPatientOrderDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientOrderDetailLoaded(order(PharmacyOrderStatus.preparing)));
+
+      await tester.pumpApp(
+        BlocProvider<PatientOrderDetailCubit>.value(
+          value: cubit,
+          child: const PatientOrderDetailBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('order_billing_summary')), findsNothing);
+    });
+
+    testWidgets(
+        'le récap montants affiche total, AMO, AMC et reste à régler avec '
+        'le formatage euros partagé (#4888)', (tester) async {
+      final cubit = MockPatientOrderDetailCubit();
+      when(() => cubit.state).thenReturn(
+          PatientOrderDetailLoaded(billedOrder(PharmacyOrderStatus.ready),
+              pickupToken: 'tok-qr'));
+
+      await tester.pumpApp(
+        BlocProvider<PatientOrderDetailCubit>.value(
+          value: cubit,
+          child: const PatientOrderDetailBody(),
+        ),
+      );
+
+      expect(find.byKey(const Key('order_billing_summary')), findsOneWidget);
+      expect(find.text('Montant total'), findsOneWidget);
+      expect(find.text('24,80 €'), findsOneWidget);
+      expect(find.text('Part Assurance Maladie (AMO)'), findsOneWidget);
+      expect(find.text('−16,36 €'), findsOneWidget);
+      expect(find.text('Part mutuelle (AMC)'), findsOneWidget);
+      expect(find.text('−6,44 €'), findsOneWidget);
+      expect(find.text('À régler au comptoir'), findsOneWidget);
+      expect(find.text('2,00 €'), findsOneWidget);
     });
   });
 
