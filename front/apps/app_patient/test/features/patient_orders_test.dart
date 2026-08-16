@@ -10,6 +10,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
 import 'package:app_patient/features/notifications/notification_deep_link_handler.dart';
+import 'package:app_patient/features/pharmacy/widgets/pharmacy_card.dart';
 import 'package:app_patient/features/pharmacy_orders/order_detail_page.dart';
 import 'package:app_patient/features/pharmacy_orders/orders_bloc.dart';
 import 'package:app_patient/features/pharmacy_orders/widgets/order_rejected_card.dart';
@@ -23,6 +24,14 @@ class MockPharmacyOrderEventsPort extends Mock
 
 class MockPatientOrderDetailCubit extends MockCubit<PatientOrderDetailState>
     implements PatientOrderDetailCubit {}
+
+const declaredPharmacy = Pharmacy(
+  id: 'p1',
+  name: 'Pharmacie du Port',
+  address: '8 rue Auber, 75009 Paris',
+  phone: '0102030405',
+  distanceM: 650,
+);
 
 PharmacyOrder order(PharmacyOrderStatus status) => PharmacyOrder(
       id: 'o1',
@@ -77,6 +86,8 @@ void main() {
         );
         when(() => repo.getPickupToken('o1'))
             .thenAnswer((_) async => const Right('tok-qr'));
+        when(() => repo.getMyPharmacy())
+            .thenAnswer((_) async => const Right(null));
         return buildDetail();
       },
       act: (cubit) => cubit.load('o1'),
@@ -115,17 +126,37 @@ void main() {
         when(() => events.watchOrder('o1'))
             .thenAnswer((_) => const Stream.empty());
         when(() => repo.getMyPharmacy()).thenAnswer((_) async => const Right(
-            Pharmacy(
-                id: 'p1', name: 'Pharmacie du Port', phone: '0102030405')));
+            declaredPharmacy));
         return buildDetail();
       },
       act: (cubit) => cubit.load('o1'),
       expect: () => [
         const PatientOrderDetailLoading(),
         PatientOrderDetailLoaded(order(PharmacyOrderStatus.rejected),
-            pharmacyPhone: '0102030405'),
+            pharmacyPhone: '0102030405', pharmacy: declaredPharmacy),
       ],
       verify: (_) => verifyNever(() => repo.getPickupToken(any())),
+    );
+
+    blocTest<PatientOrderDetailCubit, PatientOrderDetailState>(
+      'la pharmacie déclarée est chargée une seule fois par load() et '
+      'réutilisée pour la carte pharmacie (#5350)',
+      build: () {
+        when(() => repo.getOrder('o1')).thenAnswer(
+            (_) async => Right(order(PharmacyOrderStatus.preparing)));
+        when(() => events.watchOrder('o1'))
+            .thenAnswer((_) => const Stream.empty());
+        when(() => repo.getMyPharmacy()).thenAnswer((_) async => const Right(
+            declaredPharmacy));
+        return buildDetail();
+      },
+      act: (cubit) => cubit.load('o1'),
+      expect: () => [
+        const PatientOrderDetailLoading(),
+        PatientOrderDetailLoaded(order(PharmacyOrderStatus.preparing),
+            pharmacy: declaredPharmacy),
+      ],
+      verify: (_) => verify(() => repo.getMyPharmacy()).called(1),
     );
   });
 
@@ -265,7 +296,62 @@ void main() {
     });
   });
 
+  group('PharmacyCard (widget) #5350', () {
+    testWidgets(
+        'nom, adresse et distance affichés + actions Itinéraire/Appeler '
+        'présentes quand disponibles', (tester) async {
+      await tester.pumpApp(
+        const Scaffold(body: PharmacyCard(pharmacy: declaredPharmacy)),
+      );
+
+      expect(find.text('Pharmacie du Port'), findsOneWidget);
+      expect(
+        find.text('8 rue Auber, 75009 Paris · 650 m'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('pharmacy_directions_button')),
+          findsOneWidget);
+      expect(find.byKey(const Key('pharmacy_call_button')), findsOneWidget);
+    });
+
+    testWidgets(
+        'pas de régression quand adresse/distance/téléphone sont nuls : '
+        'seul le nom est affiché, aucune action', (tester) async {
+      await tester.pumpApp(
+        const Scaffold(
+          body: PharmacyCard(pharmacy: Pharmacy(id: 'p1', name: 'Pharmacie')),
+        ),
+      );
+
+      expect(find.text('Pharmacie'), findsOneWidget);
+      expect(find.byKey(const Key('pharmacy_directions_button')),
+          findsNothing);
+      expect(find.byKey(const Key('pharmacy_call_button')), findsNothing);
+    });
+  });
+
   group('Détail (widget)', () {
+    testWidgets(
+        'carte pharmacie affichée à la place du simple nom quand la '
+        'pharmacie déclarée est disponible (#5350)', (tester) async {
+      final cubit = MockPatientOrderDetailCubit();
+      when(() => cubit.state).thenReturn(PatientOrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          pharmacy: declaredPharmacy));
+
+      await tester.pumpApp(
+        BlocProvider<PatientOrderDetailCubit>.value(
+          value: cubit,
+          child: const PatientOrderDetailBody(),
+        ),
+      );
+
+      expect(find.byType(PharmacyCard), findsOneWidget);
+      expect(find.byKey(const Key('pharmacy_directions_button')),
+          findsOneWidget);
+      expect(find.byKey(const Key('pharmacy_call_button')), findsOneWidget);
+    });
+
     testWidgets('QR présent seulement quand la commande est prête',
         (tester) async {
       final cubit = MockPatientOrderDetailCubit();

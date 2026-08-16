@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../pharmacy/widgets/pharmacy_card.dart';
 import 'orders_bloc.dart';
 import 'widgets/order_billing_summary_card.dart';
 import 'widgets/order_rejected_card.dart';
@@ -47,7 +48,8 @@ class PatientOrderDetailBody extends StatelessWidget {
                 :final order,
                 :final pickupToken,
                 :final cancelling,
-                :final pharmacyPhone
+                :final pharmacyPhone,
+                :final pharmacy
               ):
               final theme = Theme.of(context);
               final tokens = theme.extension<NubiaTokens>()!;
@@ -57,10 +59,13 @@ class PatientOrderDetailBody extends StatelessWidget {
                   key: const Key('order_detail_column'),
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      order.pharmacyName ?? 'Votre pharmacie',
-                      style: theme.textTheme.titleMedium,
-                    ),
+                    if (pharmacy != null)
+                      PharmacyCard(pharmacy: pharmacy)
+                    else
+                      Text(
+                        order.pharmacyName ?? 'Votre pharmacie',
+                        style: theme.textTheme.titleMedium,
+                      ),
                     const SizedBox(height: 16),
                     if (order.status == PharmacyOrderStatus.rejected)
                       OrderRejectedCard(
