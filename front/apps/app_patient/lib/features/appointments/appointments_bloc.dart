@@ -1,10 +1,31 @@
+import 'dart:math';
+
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../session/auth_cubit.dart';
 import 'appointments_event.dart';
 import 'appointments_state.dart';
+
+const _kGuestCguVersion = '1.0';
+
+/// Mot de passe temporaire généré côté client pour le compte créé à la
+/// confirmation (#5362) : la maquette demande explicitement de ne PAS
+/// solliciter de mot de passe à ce stade (« Un mot de passe vous sera
+/// demandé après confirmation »). Le patient définira le sien ensuite via
+/// le parcours mot de passe oublié (email), comme un compte existant qui
+/// aurait perdu son mot de passe — aucune valeur n'est donc affichée ni
+/// stockée côté UI.
+String _generateGuestPassword() {
+  final rng = Random.secure();
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  final body =
+      List.generate(20, (_) => chars[rng.nextInt(chars.length)]).join();
+  // Garantit au moins un chiffre (validation backend : 8+ caractères + 1 chiffre).
+  return '$body${rng.nextInt(10)}';
+}
 
 class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     with SafeEmitMixin<AppointmentsState> {
@@ -12,6 +33,10 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
   final SearchSlotsUseCase _searchSlots;
   final HoldSlotUseCase _holdSlot;
   final ConfirmBookingUseCase _confirmBooking;
+  final RegisterUseCase _register;
+  final UpdateAccountUseCase _updateAccount;
+  final UpdateNotificationPreferencesUseCase _updateNotificationPreferences;
+  final AuthCubit _authCubit;
 
   // Dernière liste de praticiens affichée, pour revenir en arrière depuis les
   // créneaux sans refaire d'appel réseau.
@@ -23,10 +48,18 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     required SearchSlotsUseCase searchSlots,
     required HoldSlotUseCase holdSlot,
     required ConfirmBookingUseCase confirmBooking,
+    required RegisterUseCase register,
+    required UpdateAccountUseCase updateAccount,
+    required UpdateNotificationPreferencesUseCase updateNotificationPreferences,
+    required AuthCubit authCubit,
   })  : _searchProviders = searchProviders,
         _searchSlots = searchSlots,
         _holdSlot = holdSlot,
         _confirmBooking = confirmBooking,
+        _register = register,
+        _updateAccount = updateAccount,
+        _updateNotificationPreferences = updateNotificationPreferences,
+        _authCubit = authCubit,
         super(const AppointmentsInitial()) {
     on<AppointmentsSearchChanged>(_onSearchChanged, transformer: restartable());
     on<AppointmentsProviderSelected>(_onProviderSelected,
@@ -100,6 +133,15 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     if (current is! AppointmentsSlotsLoaded) return;
     if (!event.slot.isAvailable) return;
 
+    // #5362 : un visiteur anonyme n'a pas encore de session patient (le
+    // hold requiert un JWT) — sélectionner un créneau reste une pure
+    // interaction UI pour lui ; le hold n'est posé qu'à la confirmation,
+    // juste après la création du compte, dans le même geste.
+    if (_authCubit.state is! AuthAuthenticated) {
+      safeEmit(current.copyWith(selectedSlot: event.slot));
+      return;
+    }
+
     try {
       final holdResult = await _holdSlot(event.slot.id);
       holdResult.fold(
@@ -144,17 +186,61 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
     final current = state;
     if (current is! AppointmentsSlotsLoaded) return;
     final slot = current.selectedSlot;
-    final holdToken = current.holdToken;
-    if (slot == null || holdToken == null || current.motif.trim().isEmpty) {
-      return;
-    }
-    final motif = current.motif.trim();
+    if (slot == null || current.motif.trim().isEmpty) return;
+    final precisions = event.precisions.trim();
+    final motif = precisions.isEmpty
+        ? current.motif.trim()
+        : '${current.motif.trim()}\n\nPrécisions : $precisions';
 
     emit(const AppointmentsBookingLoading());
     try {
+      // #5362 : « le compte se crée avec le rendez-vous, jamais avant » —
+      // un visiteur anonyme n'a encore ni session ni hold à ce stade ; les
+      // trois étapes (compte, hold, réservation) se jouent dans le même
+      // geste de confirmation, sans écran intermédiaire.
+      if (event.createAccount) {
+        final registerResult = await _register(
+          email: event.email.trim(),
+          password: _generateGuestPassword(),
+          acceptCgu: event.cguAccepted,
+          cguVersion: _kGuestCguVersion,
+        );
+        final registerFailure =
+            registerResult.fold((failure) => failure, (_) => null);
+        if (registerFailure != null) {
+          safeEmit(AppointmentsError(registerFailure.message));
+          return;
+        }
+        await _authCubit.restore();
+        await _updateAccount(
+          firstName: event.firstName.trim(),
+          lastName: event.lastName.trim(),
+          phone: event.phone.trim(),
+          dateOfBirth: event.dateOfBirth,
+        );
+        await _updateNotificationPreferences(
+          const NotificationPreferences.allEnabled()
+              .copyWith(appointments: event.remindersEnabled),
+        );
+      }
+
+      var holdToken = current.holdToken;
+      if (holdToken == null) {
+        final holdResult = await _holdSlot(slot.id);
+        final (holdFailure, newHoldToken) = holdResult.fold(
+          (failure) => (failure, null),
+          (hold) => (null, hold.token),
+        );
+        if (holdFailure != null) {
+          safeEmit(AppointmentsError(holdFailure.message));
+          return;
+        }
+        holdToken = newHoldToken;
+      }
+
       final result = await _confirmBooking(
         slotId: slot.id,
-        holdToken: holdToken,
+        holdToken: holdToken!,
         motif: motif,
         idempotencyKey: '${slot.id}-booking-$holdToken',
       );

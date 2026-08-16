@@ -109,11 +109,18 @@ class AppRouter {
           signup,
           forgotPassword,
           resetPassword,
+          // #5362 : le tunnel de réservation (recherche → créneau →
+          // confirmation) ne demande aucune inscription préalable — le
+          // compte se crée à la confirmation, dans le même formulaire.
+          appointments,
+          book,
         },
         // signup authentifie l'utilisateur en cours de flow (restore() après
         // le 201) puis navigue explicitement vers /account-setup : ne pas le
         // renvoyer vers home entre-temps (course avec le listener du
         // RouterNotifier — même fix que praticien/register-pro, #3195).
+        // appointments/book restent hors de guestOnlyRoutes : un patient déjà
+        // connecté doit pouvoir y revenir pour prendre un 2e rendez-vous.
         guestOnlyRoutes: const {login, splash},
       ),
       // Route inconnue (deep-link périmé, bookmark cassé) : sans errorBuilder,

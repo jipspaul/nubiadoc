@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -11,6 +12,7 @@ import 'package:app_patient/features/appointments/appointments_bloc.dart';
 import 'package:app_patient/features/appointments/appointments_event.dart';
 import 'package:app_patient/features/appointments/appointments_page.dart';
 import 'package:app_patient/features/appointments/appointments_state.dart';
+import 'package:app_patient/session/auth_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -25,18 +27,48 @@ class MockHoldSlotUseCase extends Mock implements HoldSlotUseCase {}
 
 class MockConfirmBookingUseCase extends Mock implements ConfirmBookingUseCase {}
 
+class MockRegisterUseCase extends Mock implements RegisterUseCase {}
+
+class MockUpdateAccountUseCase extends Mock implements UpdateAccountUseCase {}
+
+class MockUpdateNotificationPreferencesUseCase extends Mock
+    implements UpdateNotificationPreferencesUseCase {}
+
 class _MockAppointmentsBloc
     extends MockBloc<AppointmentsEvent, AppointmentsState>
     implements AppointmentsBloc {}
+
+class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-Widget _wrap(AppointmentsBloc bloc) => MaterialApp(
+const _authenticatedState = AuthAuthenticated(
+  AuthSession(kind: UserKind.patient, userId: 'u1', accountId: 'acc-1'),
+);
+
+/// #5362 : `_BookingPanel` lit `AuthCubit` (context.watch) pour savoir si le
+/// formulaire « Vos informations » + création de compte doit s'afficher —
+/// tout test qui monte [AppointmentsPage] doit donc fournir un AuthCubit.
+/// Authentifié par défaut (comportement historique, pré-#5362, inchangé) ;
+/// passer [authState] pour couvrir le parcours visiteur anonyme.
+MockAuthCubit _makeAuthCubit([AuthState authState = _authenticatedState]) {
+  final cubit = MockAuthCubit();
+  when(() => cubit.state).thenReturn(authState);
+  whenListen(cubit, const Stream<AuthState>.empty(), initialState: authState);
+  return cubit;
+}
+
+Widget _wrap(AppointmentsBloc bloc, {AuthState? authState}) => MaterialApp(
       theme: NubiaTheme.light,
-      home: BlocProvider.value(
-        value: bloc,
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider<AppointmentsBloc>.value(value: bloc),
+          BlocProvider<AuthCubit>.value(
+            value: _makeAuthCubit(authState ?? _authenticatedState),
+          ),
+        ],
         child: const Scaffold(body: AppointmentsPage()),
       ),
     );
@@ -46,12 +78,21 @@ AppointmentsBloc _makeBloc({
   required MockSearchSlotsUseCase searchSlots,
   required MockHoldSlotUseCase holdSlot,
   required MockConfirmBookingUseCase confirmBooking,
+  MockRegisterUseCase? register,
+  MockUpdateAccountUseCase? updateAccount,
+  MockUpdateNotificationPreferencesUseCase? updateNotificationPreferences,
+  MockAuthCubit? authCubit,
 }) =>
     AppointmentsBloc(
       searchProviders: searchProviders,
       searchSlots: searchSlots,
       holdSlot: holdSlot,
       confirmBooking: confirmBooking,
+      register: register ?? MockRegisterUseCase(),
+      updateAccount: updateAccount ?? MockUpdateAccountUseCase(),
+      updateNotificationPreferences: updateNotificationPreferences ??
+          MockUpdateNotificationPreferencesUseCase(),
+      authCubit: authCubit ?? _makeAuthCubit(),
     );
 
 // ---------------------------------------------------------------------------
@@ -59,6 +100,10 @@ AppointmentsBloc _makeBloc({
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(const NotificationPreferences.allEnabled());
+  });
+
   late MockSearchProvidersUseCase mockSearchProviders;
   late MockSearchSlotsUseCase mockSearchSlots;
   late MockHoldSlotUseCase mockHoldSlot;
@@ -157,8 +202,11 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         theme: NubiaTheme.light,
-        home: BlocProvider<AppointmentsBloc>.value(
-          value: bloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
           child: const Scaffold(body: AppointmentsPage()),
         ),
       ));
@@ -180,8 +228,11 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         theme: NubiaTheme.light,
-        home: BlocProvider<AppointmentsBloc>.value(
-          value: bloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
           child: const Scaffold(body: AppointmentsPage()),
         ),
       ));
@@ -204,8 +255,11 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         theme: NubiaTheme.light,
-        home: BlocProvider<AppointmentsBloc>.value(
-          value: bloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
           child: const Scaffold(body: AppointmentsPage()),
         ),
       ));
@@ -342,6 +396,187 @@ void main() {
             .having((s) => s.holdExpiresAt, 'holdExpiresAt', isNull),
       ],
     );
+
+    // #5362 — « le compte se crée avec le rendez-vous, jamais avant » : un
+    // visiteur anonyme peut sélectionner un créneau sans hold réseau (pas de
+    // session patient pour le poser), puis le compte + le hold se posent
+    // tous deux à la confirmation, dans le même geste.
+    group('visiteur anonyme (#5362)', () {
+      late MockAuthCubit anonAuthCubit;
+      late MockRegisterUseCase mockRegister;
+      late MockUpdateAccountUseCase mockUpdateAccount;
+      late MockUpdateNotificationPreferencesUseCase mockUpdateNotifPrefs;
+
+      setUp(() {
+        anonAuthCubit = _makeAuthCubit(const AuthUnauthenticated());
+        mockRegister = MockRegisterUseCase();
+        mockUpdateAccount = MockUpdateAccountUseCase();
+        mockUpdateNotifPrefs = MockUpdateNotificationPreferencesUseCase();
+        when(() => anonAuthCubit.restore()).thenAnswer((_) async {});
+      });
+
+      blocTest<AppointmentsBloc, AppointmentsState>(
+        'AppointmentsSlotSelected ne pose aucun hold réseau (pas de session)',
+        build: () => _makeBloc(
+          searchProviders: mockSearchProviders,
+          searchSlots: mockSearchSlots,
+          holdSlot: mockHoldSlot,
+          confirmBooking: mockConfirmBooking,
+          register: mockRegister,
+          updateAccount: mockUpdateAccount,
+          updateNotificationPreferences: mockUpdateNotifPrefs,
+          authCubit: anonAuthCubit,
+        ),
+        seed: () => AppointmentsSlotsLoaded(provider: provider, slots: [slot]),
+        act: (bloc) => bloc.add(AppointmentsSlotSelected(slot)),
+        expect: () => [
+          isA<AppointmentsSlotsLoaded>()
+              .having((s) => s.selectedSlot, 'selectedSlot', slot)
+              .having((s) => s.holdToken, 'holdToken', isNull),
+        ],
+        verify: (_) => verifyNever(() => mockHoldSlot(any())),
+      );
+
+      blocTest<AppointmentsBloc, AppointmentsState>(
+        'AppointmentsBookingConfirmed crée le compte puis pose le hold '
+        'avant de réserver',
+        build: () {
+          when(() => mockRegister(
+                email: any(named: 'email'),
+                password: any(named: 'password'),
+                acceptCgu: any(named: 'acceptCgu'),
+                cguVersion: any(named: 'cguVersion'),
+              )).thenAnswer((_) async => const Right(PatientAccount(
+                id: 'acc-1',
+                firstName: 'Alice',
+                lastName: 'Martin',
+                email: 'alice@example.com',
+              )));
+          when(() => mockUpdateAccount(
+                firstName: any(named: 'firstName'),
+                lastName: any(named: 'lastName'),
+                phone: any(named: 'phone'),
+                dateOfBirth: any(named: 'dateOfBirth'),
+              )).thenAnswer((_) async => const Right(PatientAccount(
+                id: 'acc-1',
+                firstName: 'Alice',
+                lastName: 'Martin',
+                email: 'alice@example.com',
+              )));
+          when(() => mockUpdateNotifPrefs(any()))
+              .thenAnswer((_) async => const Right(null));
+          when(() => mockHoldSlot(any())).thenAnswer((_) async => Right(
+                SlotHold(
+                    token: 'hold-guest',
+                    expiresAt: DateTime(2026, 7, 10, 8, 50)),
+              ));
+          when(() => mockConfirmBooking(
+                slotId: any(named: 'slotId'),
+                holdToken: any(named: 'holdToken'),
+                motif: any(named: 'motif'),
+                idempotencyKey: any(named: 'idempotencyKey'),
+              )).thenAnswer((_) async => const Right('appt-1'));
+          return _makeBloc(
+            searchProviders: mockSearchProviders,
+            searchSlots: mockSearchSlots,
+            holdSlot: mockHoldSlot,
+            confirmBooking: mockConfirmBooking,
+            register: mockRegister,
+            updateAccount: mockUpdateAccount,
+            updateNotificationPreferences: mockUpdateNotifPrefs,
+            authCubit: anonAuthCubit,
+          );
+        },
+        seed: () => AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+          motif: 'Contrôle',
+        ),
+        act: (bloc) => bloc.add(AppointmentsBookingConfirmed(
+          firstName: 'Alice',
+          lastName: 'Martin',
+          dateOfBirth: DateTime(1990, 1, 1),
+          phone: '0612345678',
+          email: 'alice@example.com',
+          createAccount: true,
+          cguAccepted: true,
+        )),
+        expect: () => [
+          const AppointmentsBookingLoading(),
+          isA<AppointmentsBookingSuccess>()
+              .having((s) => s.appointment.id, 'id', 'appt-1'),
+        ],
+        verify: (_) {
+          verify(() => mockRegister(
+                email: 'alice@example.com',
+                password: any(named: 'password'),
+                acceptCgu: true,
+                cguVersion: any(named: 'cguVersion'),
+              )).called(1);
+          verify(() => anonAuthCubit.restore()).called(1);
+          verify(() => mockHoldSlot(slot.id)).called(1);
+          verify(() => mockConfirmBooking(
+                slotId: slot.id,
+                holdToken: 'hold-guest',
+                motif: any(named: 'motif'),
+                idempotencyKey: any(named: 'idempotencyKey'),
+              )).called(1);
+        },
+      );
+
+      blocTest<AppointmentsBloc, AppointmentsState>(
+        'échec de création de compte -> Error, sans poser de hold ni réserver',
+        build: () {
+          when(() => mockRegister(
+                    email: any(named: 'email'),
+                    password: any(named: 'password'),
+                    acceptCgu: any(named: 'acceptCgu'),
+                    cguVersion: any(named: 'cguVersion'),
+                  ))
+              .thenAnswer((_) async =>
+                  const Left(NetworkFailure('email déjà utilisé')));
+          return _makeBloc(
+            searchProviders: mockSearchProviders,
+            searchSlots: mockSearchSlots,
+            holdSlot: mockHoldSlot,
+            confirmBooking: mockConfirmBooking,
+            register: mockRegister,
+            updateAccount: mockUpdateAccount,
+            updateNotificationPreferences: mockUpdateNotifPrefs,
+            authCubit: anonAuthCubit,
+          );
+        },
+        seed: () => AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+          motif: 'Contrôle',
+        ),
+        act: (bloc) => bloc.add(AppointmentsBookingConfirmed(
+          firstName: 'Alice',
+          lastName: 'Martin',
+          dateOfBirth: DateTime(1990, 1, 1),
+          phone: '0612345678',
+          email: 'alice@example.com',
+          createAccount: true,
+          cguAccepted: true,
+        )),
+        expect: () => [
+          const AppointmentsBookingLoading(),
+          isA<AppointmentsError>(),
+        ],
+        verify: (_) {
+          verifyNever(() => mockHoldSlot(any()));
+          verifyNever(() => mockConfirmBooking(
+                slotId: any(named: 'slotId'),
+                holdToken: any(named: 'holdToken'),
+                motif: any(named: 'motif'),
+                idempotencyKey: any(named: 'idempotencyKey'),
+              ));
+        },
+      );
+    });
   });
 
   // #3418 — les créneaux d'une même période (Matin / Après-midi) doivent
@@ -380,8 +615,11 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         theme: NubiaTheme.light,
-        home: BlocProvider<AppointmentsBloc>.value(
-          value: bloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
           child: const Scaffold(body: AppointmentsPage()),
         ),
       ));
@@ -450,8 +688,18 @@ void main() {
   group('regroupement par jour en heure locale (#5366)', () {
     const weekdays = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
     const months = [
-      'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
-      'jul', 'aoû', 'sep', 'oct', 'nov', 'déc',
+      'jan',
+      'fév',
+      'mar',
+      'avr',
+      'mai',
+      'jun',
+      'jul',
+      'aoû',
+      'sep',
+      'oct',
+      'nov',
+      'déc',
     ];
     String dayHeaderOf(DateTime dt) =>
         '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]}';
@@ -491,8 +739,11 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         theme: NubiaTheme.light,
-        home: BlocProvider<AppointmentsBloc>.value(
-          value: bloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
           child: const Scaffold(body: AppointmentsPage()),
         ),
       ));
@@ -530,8 +781,11 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         theme: NubiaTheme.light,
-        home: BlocProvider<AppointmentsBloc>.value(
-          value: bloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
           child: const Scaffold(body: AppointmentsPage()),
         ),
       ));
@@ -569,8 +823,11 @@ void main() {
 
       await tester.pumpWidget(MaterialApp(
         theme: NubiaTheme.light,
-        home: BlocProvider<AppointmentsBloc>.value(
-          value: bloc,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
           child: const Scaffold(body: AppointmentsPage()),
         ),
       ));
@@ -661,6 +918,104 @@ void main() {
 
       verify(() => bloc.add(const AppointmentsHoldExpired())).called(1);
       expect(find.textContaining("vient d'être libéré"), findsOneWidget);
+    });
+  });
+
+  // #5362 — le formulaire de confirmation crée le compte dans le même
+  // écran/CTA pour un visiteur anonyme, jamais pour un patient déjà connecté.
+  group('formulaire « Vos informations » (#5362)', () {
+    final provider = const ProviderResult(
+      id: 'p1',
+      displayName: 'Dr Martin',
+      specialty: 'Dentiste',
+    );
+    final slot = Slot(
+      id: 's1',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      startsAt: DateTime(2026, 7, 10, 9, 0),
+      endsAt: DateTime(2026, 7, 10, 9, 30),
+      isAvailable: true,
+    );
+
+    testWidgets(
+        'visiteur anonyme : affiche « Pour qui est ce rendez-vous ? » et '
+        'les options de compte', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester
+          .pumpWidget(_wrap(bloc, authState: const AuthUnauthenticated()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pour qui est ce rendez-vous ?'), findsOneWidget);
+      expect(find.byKey(const Key('booking_first_name')), findsOneWidget);
+      expect(find.byKey(const Key('booking_email')), findsOneWidget);
+      expect(find.text('Je crée mon compte Nubia'), findsOneWidget);
+      expect(find.text('Rappels de rendez-vous'), findsOneWidget);
+      expect(
+        find.textContaining("J'accepte les Conditions Générales d'Utilisation"),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Aucune carte bancaire'), findsOneWidget);
+
+      // CTA désactivé tant que les infos + CGU ne sont pas complètes.
+      final button = tester
+          .widget<NubiaButton>(find.byKey(const Key('confirm_booking_button')));
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets(
+        'patient déjà connecté : ne réaffiche jamais le formulaire '
+        "d'inscription", (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+          holdToken: 'hold-1',
+          motif: 'Contrôle',
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pour qui est ce rendez-vous ?'), findsNothing);
+      expect(find.byKey(const Key('booking_first_name')), findsNothing);
+      expect(find.text('Je crée mon compte Nubia'), findsNothing);
+
+      // Le motif est déjà rempli côté state -> CTA activable.
+      final button = tester
+          .widget<NubiaButton>(find.byKey(const Key('confirm_booking_button')));
+      expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets('le tunnel de recherche est accessible sans compte (#5362)',
+        (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(providers: [], query: ''),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester
+          .pumpWidget(_wrap(bloc, authState: const AuthUnauthenticated()));
+      await tester.pumpAndSettle();
+
+      // La recherche reste utilisable sans qu'aucun flux d'inscription ne
+      // s'interpose.
+      expect(find.byKey(const Key('search_field')), findsOneWidget);
+      expect(find.text('Pour qui est ce rendez-vous ?'), findsNothing);
     });
   });
 }
