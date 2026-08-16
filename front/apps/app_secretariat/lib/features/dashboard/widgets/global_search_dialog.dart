@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -58,8 +60,9 @@ enum _GlobalSearchStatus { idle, loading, loaded, error }
 /// [ListCabinetPatientsUseCase] (recherche serveur, `q`) et
 /// [ListCabinetQuotesUseCase] (filtré côté client sur le nom du patient — le
 /// endpoint ne supporte pas encore de paramètre `q`) sur la même saisie, puis
-/// fusionne les résultats. Ne se déclenche qu'à la validation (`onSubmitted`)
-/// pour rester au plus proche du repro QA (saisie + Entrée).
+/// fusionne les résultats. Se déclenche à la saisie (debounce 300ms, #5579)
+/// et à la validation (`onSubmitted`, immédiate — annule le debounce en
+/// attente pour éviter une recherche redondante).
 class _GlobalSearchBody extends StatefulWidget {
   const _GlobalSearchBody();
 
@@ -71,6 +74,23 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   _GlobalSearchStatus _status = _GlobalSearchStatus.idle;
   List<_GlobalSearchResult> _results = const [];
   String _query = '';
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onChanged(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () => _search(query));
+  }
+
+  void _onSubmitted(String query) {
+    _debounce?.cancel();
+    _search(query);
+  }
 
   Future<void> _search(String query) async {
     final trimmed = query.trim();
@@ -135,7 +155,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
     Navigator.of(context).pop();
     switch (result.type) {
       case _GlobalSearchResultType.patient:
-        context.push('/patients');
+        context.push('/patients', extra: result.id);
       case _GlobalSearchResultType.quote:
         context.push('/devis/${result.id}');
     }
@@ -151,7 +171,8 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
       children: [
         NubiaSearchBar(
           hint: 'Patient, devis, commande…',
-          onSubmitted: _search,
+          onChanged: _onChanged,
+          onSubmitted: _onSubmitted,
         ),
         const SizedBox(height: 4),
         Text(

@@ -164,9 +164,9 @@ class AppRouter {
         ),
         GoRoute(
           path: patients,
-          builder: (_, __) => BlocProvider(
+          builder: (_, state) => BlocProvider(
             create: (_) => GetIt.instance<PatientsBloc>(),
-            child: const PatientsPage(),
+            child: PatientsPage(openPatientId: state.extra as String?),
           ),
         ),
         GoRoute(

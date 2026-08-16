@@ -18,7 +18,12 @@ import 'patients_state.dart';
 /// Cloisonnement : ZÉRO donnée clinique. Seules les informations
 /// administratives (identité, contact, dernière visite) sont exposées.
 class PatientsPage extends StatefulWidget {
-  const PatientsPage({super.key});
+  const PatientsPage({super.key, this.openPatientId});
+
+  /// Id d'un patient à ouvrir automatiquement (fiche détail) au chargement —
+  /// utilisé par la recherche globale (#5579) pour naviguer directement sur
+  /// le résultat sélectionné plutôt que la liste seule.
+  final String? openPatientId;
 
   @override
   State<PatientsPage> createState() => _PatientsPageState();
@@ -27,6 +32,7 @@ class PatientsPage extends StatefulWidget {
 class _PatientsPageState extends State<PatientsPage> {
   String _query = '';
   Timer? _debounce;
+  bool _openPatientHandled = false;
 
   @override
   void initState() {
@@ -80,6 +86,22 @@ class _PatientsPageState extends State<PatientsPage> {
       body: BlocBuilder<PatientsBloc, PatientsState>(
         builder: (context, state) {
           if (state is PatientsLoaded) {
+            if (widget.openPatientId != null && !_openPatientHandled) {
+              _openPatientHandled = true;
+              CabinetPatient? match;
+              for (final p in state.patients) {
+                if (p.id == widget.openPatientId) {
+                  match = p;
+                  break;
+                }
+              }
+              if (match != null) {
+                final patient = match;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) _showPatientSheet(context, patient);
+                });
+              }
+            }
             if (state.patients.isEmpty && _query.isEmpty) {
               return const NubiaEmptyState(
                 icon: Icons.person_outline,

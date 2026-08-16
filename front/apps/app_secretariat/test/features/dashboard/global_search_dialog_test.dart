@@ -57,7 +57,8 @@ GoRouter _buildRouter() => GoRouter(
         ),
         GoRoute(
           path: '/patients',
-          builder: (_, __) => const Scaffold(body: Text('patients page')),
+          builder: (_, state) =>
+              Scaffold(body: Text('patients page ${state.extra ?? ''}')),
         ),
         GoRoute(
           path: '/devis/:id',
@@ -135,6 +136,45 @@ void main() {
 
       expect(find.byKey(const Key('global_search_dialog')), findsNothing);
       expect(find.text('devis page quote-marc'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '#5579 : taper sur un résultat patient ferme le dialogue et navigue '
+    'vers sa fiche détail',
+    (tester) async {
+      when(() => listPatients(q: 'Marc'))
+          .thenAnswer((_) async => Right([_patient]));
+      when(() => listQuotes()).thenAnswer((_) async => Right([]));
+
+      await openDialogAndSearch(tester, 'Marc');
+
+      await tester.tap(find.widgetWithText(ListTile, 'Marc Dubois'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsNothing);
+      expect(find.text('patients page pat-marc'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '#5579 : taper un terme sans valider déclenche une recherche après '
+    '~300ms (debounce), sans attendre Entrée',
+    (tester) async {
+      when(() => listPatients(q: 'Marc'))
+          .thenAnswer((_) async => Right([_patient]));
+      when(() => listQuotes()).thenAnswer((_) async => Right([]));
+
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(find.byKey(const Key('open_global_search')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Marc');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_results')), findsOneWidget);
+      verify(() => listPatients(q: 'Marc')).called(1);
     },
   );
 }
