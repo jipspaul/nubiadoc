@@ -3,10 +3,10 @@
 use axum::{routing::get, Router};
 
 use crate::{
-    bank_deposit_slip, billing, billing_payments, cabinet_cash_register, cabinet_payments_manual,
-    cabinet_payouts, cabinet_quote_item_parts, cabinet_quotes, cabinet_quotes_export,
-    cabinet_quotes_patch, cabinet_stats, dashboard, payment_schedules, quote_relances,
-    quote_signature, treatment_plans, AppState,
+    bank_deposit_slip, billing, billing_payments, cabinet_cash_collection, cabinet_cash_register,
+    cabinet_payments_manual, cabinet_payouts, cabinet_quote_item_parts, cabinet_quotes,
+    cabinet_quotes_export, cabinet_quotes_patch, cabinet_stats, dashboard, payment_schedules,
+    quote_relances, quote_signature, treatment_plans, AppState,
 };
 
 pub fn add(router: Router<AppState>) -> Router<AppState> {
@@ -109,6 +109,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/cabinet/cash-register/closing",
             get(cabinet_cash_register::list_cash_register_closings)
                 .post(cabinet_cash_register::close_cash_register),
+        )
+        .route(
+            "/v1/cabinet/cash-collection/today",
+            get(cabinet_cash_collection::get_cash_collection_today),
         )
         .route(
             "/v1/cabinet/payments/bank-deposit-slip",
