@@ -38,3 +38,14 @@ console.nubia.example.com {
 api.nubia.example.com {
     reverse_proxy 192.168.1.100:3000
 }
+
+# Tunnel web de réservation, HTML rendu côté serveur (ADR-013, #5356) — module
+# api/src/web_tunnel/, routeur/port dédiés (WEB_TUNNEL_PORT, défaut 3001),
+# distinct du routeur /v1 de l'API. Sous-domaine séparé de `patient` (et non
+# un path-routing sur ce dernier) : les 3 pages du tunnel (/reservation/confirmer,
+# /<query_slug>/<locality_slug>, /<slug>) utilisent des chemins à un ou deux
+# segments qui entreraient en collision avec les routes GoRouter de l'app
+# Flutter patient (ex. /pharmacy, /login) si elles partageaient le domaine.
+reservation.nubia.example.com {
+    reverse_proxy 192.168.1.100:3001
+}
