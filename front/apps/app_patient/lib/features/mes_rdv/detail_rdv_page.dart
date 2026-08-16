@@ -89,17 +89,23 @@ class _DetailRdvPageState extends State<DetailRdvPage> {
               label: const Text('Trouver mon chemin'),
             ),
             const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                key: const Key('cancel_rdv_button'),
-                onPressed: _onCancelTap,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
+            // #5368 : mêmes règles d'annulation que la liste « Mes RDV »
+            // (`if (appointment.canCancel)` dans mes_rdv_page.dart) — sans
+            // cette garde, ce bouton restait actif même hors fenêtre
+            // d'annulation ou sur un statut déjà terminal, contrairement au
+            // reste de la feature.
+            if (appt.canCancel)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const Key('cancel_rdv_button'),
+                  onPressed: _onCancelTap,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  child: const Text('Annuler ce RDV'),
                 ),
-                child: const Text('Annuler ce RDV'),
               ),
-            ),
           ],
         ),
       ),
