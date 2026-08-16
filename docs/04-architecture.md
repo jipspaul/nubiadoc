@@ -22,6 +22,7 @@
 |---|---|---|
 | Front patient | **Flutter** (iOS/Android) | Codebase unique, accès natif. ADR-001 |
 | Front cabinet | **Flutter Web/Desktop** | Un seul écosystème Dart. ADR-001 |
+| Tunnel web patient (réservation) | **HTML rendu côté serveur** (module `api/src/web_tunnel`, pas Flutter web) | Indexable par les moteurs de recherche dès la 1re réponse. ADR-013 |
 | API | **Rust / Axum** modular monolith (workspace de crates) | Sûreté mémoire + typage fort, faible empreinte, scale vers 1M users. ADR-002 |
 | Base | **PostgreSQL 16** (Scaleway Managed, HDS) | RLS multi-tenant, JSONB, partitioning. ADR-003 |
 | Accès données | **SQLx** (requêtes vérifiées à la compilation) + **sqlx migrate** | Pas d'ORM magique sur un domaine santé sensible. ADR-003 |
@@ -393,5 +394,34 @@ La bascule en **marketplace santé** ajoute une face publique de découverte. Im
 - **Ce que ça n'inclut pas (hors scope de cet ADR)** : la conformité Ségur (INS via Ins-i, Pro Santé Connect, France Connect, MSSanté, référencement) est un chantier très majoritairement réglementaire/contractuel (homologations ANS, hébergement HDS, contrats opérateur), pas architectural — cf. `07-conformite.md` §9, qui reste la checklist de suivi. Le rapprochement/dédoublonnage patient (`patient_merge_candidate`) reste volontairement déterministe (INS exact ou nom+naissance), pas un moteur de matching probabiliste (MPI).
 - **Conséquences** : nouvelle surface d'attaque externe (partenaires tiers avec accès en écriture aux RDV) → audit_log systématique sur chaque écriture/lecture partenaire, scopes minimaux par défaut, RLS explicite en plus du GUC tenant sur toutes les tables touchées par ce chantier. Le chemin d'écriture FHIR `Appointment` (lot A6) duplique délibérément la logique de double-réservation de `appointments.rs` plutôt que de refactorer ce dernier à chaud — dette technique assumée, à réconcilier dans un lot de suivi revu par un humain.
 - **Statut** : Accepté (premières tranches : auth partenaire, annuaire, créneaux, RDV en lecture/écriture, sync sortante, parseur/codec HL7v2 — cf. issues Forgejo #3912-#3930).
+
+### ADR-013 — Tunnel web de réservation : HTML rendu côté serveur, pas Flutter web
+
+- **Contexte** : le tunnel public (recherche praticiens → fiche praticien → confirmation, maquette
+  `design/v2-screens/patient-web-tunnel-reservation.png`) est la seule surface Nubia dont l'unique raison
+  d'être est **d'être trouvée** par un moteur de recherche — contrairement à l'app patient et au
+  back-office (ADR-001), authentifiés et sans enjeu SEO. Flutter web est un **canevas rendu côté client** :
+  le contenu HTML n'existe qu'après exécution du moteur JS, le premier affichage pèse plusieurs Mo, et le
+  texte n'étant pas du HTML, l'indexation par les moteurs de recherche est **au mieux partielle, souvent
+  inexistante**.
+- **Décision** : ces trois pages (`/​<query_slug>/​<locality_slug>` recherche, `/​<slug>` fiche praticien,
+  `/reservation/confirmer` confirmation) sont servies en **HTML rendu côté serveur**, dans le module
+  `api/src/web_tunnel/` (Axum, même binaire/process que l'API — cf. ADR-002/012 : monolithe modulaire, pas
+  de second conteneur), sur un port dédié (`WEB_TUNNEL_PORT`). Elles consomment les **mêmes fonctions**
+  Rust que l'API JSON publique (`marketplace::search_providers`, `marketplace::get_provider`) — aucune
+  requête ni logique métier dupliquée entre le HTML et le JSON. Ce ne sont **pas** des routes API : elles
+  ne portent pas le préfixe `/v1/...` (règle `api/AGENTS.md` §5, réservée à l'API versionnée). Le design
+  system se transpose : jetons de couleur, échelle typographique (Inter + Fraunces) et rayons de
+  `nubia_design_system` sont exprimés en CSS pur dans `api/src/web_tunnel/html.rs`, pas dans un framework
+  front séparé.
+- **Ce que ça ne change pas** : l'app patient et le back-office cabinet restent Flutter (ADR-001) — cet ADR
+  ne concerne que la surface publique non authentifiée du tunnel de réservation. Aucune donnée de santé
+  n'est exposée sur ces pages (annuaire public déjà couvert par ADR-011).
+- **Conséquences** : deux moteurs de rendu HTML à maintenir en parallèle (Flutter côté app, templates Rust
+  côté tunnel) pour une même charte graphique — surface volontairement restreinte à 3 pages vitrines pour
+  limiter cette dette. Le formulaire d'identité et le compte à rebours du hold (page confirmation)
+  nécessitent du JS une fois la page chargée ; le HTML initial (titre, contexte, contrat) reste indexable
+  sans JS.
+- **Statut** : Accepté. Implémentation : issue Forgejo #5356.
 
 > Détail des entités et politiques RLS : `05-modele-de-donnees.md` (dont section marketplace). Règles métier par écran : `06-specs-fonctionnelles.md`. Scope marketplace : `11-marketplace-recherche.md`. Checklist réglementaire : `07-conformite.md`. Détail des routes interop : `12-api-reference.md` §13.
