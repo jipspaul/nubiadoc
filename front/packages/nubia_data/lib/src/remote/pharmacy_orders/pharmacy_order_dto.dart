@@ -1,3 +1,4 @@
+import 'package:nubia_data/src/remote/prescriptions/prescription_dto.dart';
 import 'package:nubia_domain/src/entities/pharmacy_order.dart';
 
 class PharmacyOrderDto {
@@ -16,6 +17,11 @@ class PharmacyOrderDto {
   final String? readyAt;
   final String? pickedUpAt;
   final int? lineCount;
+
+  /// Même contrat que `GET /pharmacy/orders/:id/items` côté pharmacien
+  /// (#5349) — pas encore exposé par `GET /account/orders/:id` : `lines[]`
+  /// absent → liste vide, la carte « Votre ordonnance » ne s'affiche pas.
+  final List<PrescriptionItemDto> lines;
   final int? billingTotalCents;
   final int? billingAmoShareCents;
   final int? billingAmcShareCents;
@@ -37,6 +43,7 @@ class PharmacyOrderDto {
     this.readyAt,
     this.pickedUpAt,
     this.lineCount,
+    this.lines = const [],
     this.billingTotalCents,
     this.billingAmoShareCents,
     this.billingAmcShareCents,
@@ -60,8 +67,13 @@ class PharmacyOrderDto {
         updatedAt: json['updated_at'] as String?,
         readyAt: json['ready_at'] as String?,
         pickedUpAt: json['picked_up_at'] as String?,
-        lineCount: json['line_count'] as int? ??
-            (json['lines'] as List?)?.length,
+        lineCount:
+            json['line_count'] as int? ?? (json['lines'] as List?)?.length,
+        lines: (json['lines'] as List?)
+                ?.map((e) =>
+                    PrescriptionItemDto.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
         billingTotalCents: (json['billing_total_cents'] as num?)?.toInt(),
         billingAmoShareCents:
             (json['billing_amo_share_cents'] as num?)?.toInt(),
@@ -89,6 +101,7 @@ class PharmacyOrderDto {
       readyAt: readyAt != null ? DateTime.parse(readyAt!) : null,
       pickedUpAt: pickedUpAt != null ? DateTime.parse(pickedUpAt!) : null,
       lineCount: lineCount,
+      lines: lines.map((e) => e.toDomain()).toList(),
       billingTotalCents: billingTotalCents,
       billingAmoShareCents: billingAmoShareCents,
       billingAmcShareCents: billingAmcShareCents,

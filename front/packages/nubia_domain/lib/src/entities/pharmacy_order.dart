@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'prescription.dart';
+
 /// Statuts d'une commande click-and-collect.
 ///
 /// Cycle nominal : received → preparing → ready → pickedUp.
@@ -63,6 +65,13 @@ class PharmacyOrder extends Equatable {
   final DateTime? pickedUpAt;
   final int? lineCount;
 
+  /// Détail des lignes de l'ordonnance (molécule, forme, posologie,
+  /// quantité, #5349) — même entité [PrescriptionItem] que côté pharmacien
+  /// (`GetPharmacyOrderPrescriptionUseCase`). Vide tant que le back ne
+  /// l'expose pas sur cet endpoint ; la carte « Votre ordonnance » ne
+  /// s'affiche alors pas.
+  final List<PrescriptionItem> lines;
+
   /// Ventilation facturation (fournie par le back, cf. #4063 côté patient) —
   /// null tant qu'aucun devis n'est facturé sur la commande : le bloc
   /// facturation ne s'affiche alors pas (#4888).
@@ -87,6 +96,7 @@ class PharmacyOrder extends Equatable {
     this.readyAt,
     this.pickedUpAt,
     this.lineCount,
+    this.lines = const [],
     this.billingTotalCents,
     this.billingAmoShareCents,
     this.billingAmcShareCents,

@@ -67,12 +67,56 @@ void main() {
       final order = PharmacyOrderDto.fromJson({
         'id': 'o3',
         'lines': [
-          {'label': 'Amoxicilline'},
-          {'label': 'Doliprane'},
+          {
+            'label': 'Amoxicilline',
+            'posology': '1 cp matin et soir',
+            'duration': '7 jours',
+            'quantity': '14 cp',
+          },
+          {
+            'label': 'Doliprane',
+            'posology': 'si douleur',
+            'duration': '',
+            'quantity': '8 cp',
+          },
         ],
       }).toDomain();
 
       expect(order.lineCount, 2);
+    });
+
+    test(
+        'lines → PrescriptionItem (même contrat que '
+        'GET /pharmacy/orders/:id/items côté pharmacien, #5349)', () {
+      final order = PharmacyOrderDto.fromJson({
+        'id': 'o4',
+        'lines': [
+          {
+            'label': 'Amoxicilline 1 g',
+            'form': 'comprimé',
+            'posology': '1 matin et soir',
+            'duration': '7 jours',
+            'quantity': '14 comprimés',
+          },
+          {
+            'label': 'Chlorhexidine 0,12 %',
+            'form': 'flacon',
+            'posology': '2 bains de bouche par jour',
+            'duration': '',
+            'quantity': '1 flacon',
+          },
+        ],
+      }).toDomain();
+
+      expect(order.lines, hasLength(2));
+      expect(order.lines.first.label, 'Amoxicilline 1 g');
+      expect(order.lines.first.quantity, '14 comprimés');
+      expect(order.lines.last.label, 'Chlorhexidine 0,12 %');
+    });
+
+    test('lines absent → liste vide', () {
+      final order = PharmacyOrderDto.fromJson({'id': 'o5'}).toDomain();
+      expect(order.lines, isEmpty);
     });
 
     test('statut inconnu → received (défensif)', () {
