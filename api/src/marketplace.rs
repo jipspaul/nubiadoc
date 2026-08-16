@@ -279,6 +279,13 @@ pub struct ProviderItem {
     pub rating_avg: Option<f64>,
     pub geo: Option<serde_json::Value>,
     pub is_listed: bool,
+    /// #5359 : filtres patient avec compteur (panneau `.aside` web) — le
+    /// compteur a besoin de connaître, pour CE résultat, s'il matche chaque
+    /// filtre. Colonnes déjà existantes sur `provider`, jamais exposées au
+    /// grain liste jusqu'ici (seulement sur `GET /providers/:id`).
+    pub tiers_payant: Option<bool>,
+    pub pmr: Option<bool>,
+    pub accepts_new_patients: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -901,7 +908,10 @@ pub async fn search_providers(
               WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
              ST_Y(p.geo::geometry) AS geo_lat, \
              ST_X(p.geo::geometry) AS geo_lng, \
-             p.is_listed \
+             p.is_listed, \
+             p.tiers_payant, \
+             p.pmr, \
+             p.accepts_new_patients \
          {from_where_clause} \
          ORDER BY {sort_clause} \
          LIMIT $16 OFFSET $17"
@@ -977,6 +987,9 @@ pub async fn search_providers(
             rating_avg: row.try_get("rating_avg").unwrap_or(None),
             geo,
             is_listed: row.try_get("is_listed").map_err(|_| AppError::Internal)?,
+            tiers_payant: row.try_get("tiers_payant").unwrap_or(None),
+            pmr: row.try_get("pmr").unwrap_or(None),
+            accepts_new_patients: row.try_get("accepts_new_patients").unwrap_or(None),
         });
     }
 

@@ -12,6 +12,13 @@ class ProviderResult extends Equatable {
   final double? ratingAvg;
   final DateTime? nextSlotAt;
 
+  /// Conventionnement (`'1'`/`'2'`/`'3'`) — panneau de filtres patient
+  /// (#5359, groupe « Tarifs »).
+  final String? sector;
+  final bool? tiersPayant;
+  final bool? pmr;
+  final bool? acceptsNewPatients;
+
   const ProviderResult({
     required this.id,
     required this.displayName,
@@ -22,6 +29,10 @@ class ProviderResult extends Equatable {
     this.lng,
     this.ratingAvg,
     this.nextSlotAt,
+    this.sector,
+    this.tiersPayant,
+    this.pmr,
+    this.acceptsNewPatients,
   });
 
   bool get hasLocation => lat != null && lng != null;
