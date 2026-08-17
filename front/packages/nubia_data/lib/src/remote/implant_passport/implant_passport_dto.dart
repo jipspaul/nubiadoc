@@ -9,6 +9,9 @@ class ImplantItemDto {
   final String? notes;
   final String? lastControlDate;
   final String? nextControl;
+  final String? practitioner;
+  final String? office;
+  final String? prosthesis;
 
   const ImplantItemDto({
     required this.id,
@@ -19,6 +22,9 @@ class ImplantItemDto {
     this.notes,
     this.lastControlDate,
     this.nextControl,
+    this.practitioner,
+    this.office,
+    this.prosthesis,
   });
 
   factory ImplantItemDto.fromJson(Map<String, dynamic> json) => ImplantItemDto(
@@ -30,6 +36,9 @@ class ImplantItemDto {
         notes: json['notes'] as String?,
         lastControlDate: json['last_control_date'] as String?,
         nextControl: json['next_control'] as String?,
+        practitioner: json['practitioner'] as String?,
+        office: json['office'] as String?,
+        prosthesis: json['prosthesis'] as String?,
       );
 
   ImplantItem toDomain() => ImplantItem(
@@ -41,5 +50,8 @@ class ImplantItemDto {
         notes: notes,
         lastControlDate: lastControlDate,
         nextControl: nextControl,
+        practitioner: practitioner,
+        office: office,
+        prosthesis: prosthesis,
       );
 }
