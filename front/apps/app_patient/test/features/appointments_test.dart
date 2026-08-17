@@ -739,6 +739,84 @@ void main() {
     });
   });
 
+  // #5339 — rail de jours (abrégé + quantième + nb de créneaux dispo) sous
+  // l'en-tête praticien : « la carte du territoire d'un coup d'œil ».
+  group('rail de jours (#5339)', () {
+    testWidgets(
+        'un jour avec dispo affiche « N dispo », un jour plein affiche « — »',
+        (tester) async {
+      final day1 = DateTime(2026, 7, 10);
+      final day2 = DateTime(2026, 7, 11);
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: const ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Martin',
+            specialty: 'Dentiste',
+          ),
+          slots: [
+            Slot(
+              id: 's1',
+              cabinetId: 'cab-1',
+              practitionerId: 'prac-1',
+              startsAt: DateTime(day1.year, day1.month, day1.day, 9, 0),
+              endsAt: DateTime(day1.year, day1.month, day1.day, 9, 30),
+              isAvailable: true,
+            ),
+            Slot(
+              id: 's2',
+              cabinetId: 'cab-1',
+              practitionerId: 'prac-1',
+              startsAt: DateTime(day1.year, day1.month, day1.day, 9, 30),
+              endsAt: DateTime(day1.year, day1.month, day1.day, 10, 0),
+              isAvailable: true,
+            ),
+            Slot(
+              id: 's3',
+              cabinetId: 'cab-1',
+              practitionerId: 'prac-1',
+              startsAt: DateTime(day2.year, day2.month, day2.day, 9, 0),
+              endsAt: DateTime(day2.year, day2.month, day2.day, 9, 30),
+              isAvailable: false,
+            ),
+          ],
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      final rail = find.byKey(const Key('day_rail'));
+      expect(rail, findsOneWidget);
+      expect(
+        find.descendant(of: rail, matching: find.text('2 dispo')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: rail, matching: find.text('—')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: rail, matching: find.text('${day1.day}')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: rail, matching: find.text('${day2.day}')),
+        findsOneWidget,
+      );
+
+      // Le jour plein n'est pas sélectionnable : le taper ne doit rien
+      // lever (GestureDetector.onTap == null).
+      await tester.tap(
+        find.descendant(of: rail, matching: find.text('—')),
+        warnIfMissed: false,
+      );
+      await tester.pumpAndSettle();
+    });
+  });
+
   // #5365 — tunnel web : les puces de créneau restent pilotées par
   // Slot.isAvailable et les 3 états de SlotChip (available/selected/
   // unavailable), la puce indisponible affichant « — » (pas l'heure barrée).
@@ -773,7 +851,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('09:00'), findsNothing);
-      expect(find.text('—'), findsOneWidget);
+      // #5339 : le jour n'ayant aucun créneau dispo affiche aussi « — »
+      // (grisé) dans le rail de jours — on scope au SlotChip lui-même.
+      expect(
+        find.descendant(of: find.byType(SlotChip), matching: find.text('—')),
+        findsOneWidget,
+      );
 
       final chip = tester.widget<SlotChip>(find.byType(SlotChip));
       expect(chip.state, SlotChipState.unavailable);
