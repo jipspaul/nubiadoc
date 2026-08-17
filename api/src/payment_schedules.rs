@@ -280,9 +280,8 @@ pub async fn create_payment_schedule(
         .map_err(|_| AppError::Internal)?;
 
     // #5669 : un payment_schedule ne crée aucune ligne `payment` — sans ce
-    // second SUM, la garde ci-dessous ignore les échéanciers déjà posés sur
-    // le devis et laisse créer N échéanciers cumulant chacun jusqu'au
-    // reste-dû complet (sur-engagement patient).
+    // second SELECT, la garde ci-dessous ignorait les échéanciers déjà posés
+    // et laissait engager le patient N fois sur tout le reste-à-charge.
     let already_scheduled_row = sqlx::query(
         "SELECT COALESCE(SUM(total_amount * 100), 0)::bigint AS scheduled_cents \
          FROM payment_schedule \

@@ -88,6 +88,13 @@ class _ImplantDetailBody extends StatelessWidget {
                   if (implant.lotNumber != null) 'Lot ${implant.lotNumber}',
                 ].join(' · ')),
               ),
+              if (implant.placementDate != null ||
+                  implant.practitioner != null ||
+                  implant.office != null ||
+                  implant.prosthesis != null) ...[
+                const SizedBox(height: 16),
+                _PlacementCard(implant: implant),
+              ],
               if (implant.lastControlDate != null ||
                   implant.nextControl != null) ...[
                 const SizedBox(height: 16),
@@ -120,6 +127,62 @@ class _ImplantDetailBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Bloc « Pose » : date, praticien, cabinet et prothèse posée (#5332).
+/// Chaque ligne ne s'affiche que si la donnée correspondante est renseignée.
+class _PlacementCard extends StatelessWidget {
+  const _PlacementCard({required this.implant});
+
+  final ImplantItem implant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final placementDate = implant.placementDate;
+    final practitioner = implant.practitioner;
+    final office = implant.office;
+    final prosthesis = implant.prosthesis;
+
+    return NubiaCard(
+      key: const Key('implant_detail_placement_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.medical_services, color: NubiaColors.brand700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Pose',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          if (placementDate != null) ...[
+            const SizedBox(height: 12),
+            _FollowUpRow(
+              label: 'Date',
+              value: NubiaDate.dayLong(placementDate),
+            ),
+          ],
+          if (practitioner != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Praticien', value: practitioner),
+          ],
+          if (office != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Cabinet', value: office),
+          ],
+          if (prosthesis != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Prothèse', value: prosthesis),
+          ],
+        ],
+      ),
     );
   }
 }
