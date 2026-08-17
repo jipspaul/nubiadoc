@@ -28,6 +28,19 @@ const _implant = ImplantItem(
   toothPosition: '36',
 );
 
+const _implantWithFollowUp = ImplantItem(
+  id: 'implant-2',
+  brand: 'Straumann',
+  lastControlDate: '2026-07-04',
+  nextControl: 'Mars 2027 · annuel',
+);
+
+const _implantWithLastControlOnly = ImplantItem(
+  id: 'implant-3',
+  brand: 'Straumann',
+  lastControlDate: '2026-07-04',
+);
+
 void main() {
   late _MockExportImplantPassport exportUseCase;
 
@@ -39,9 +52,9 @@ void main() {
     addTearDown(GetIt.instance.reset);
   });
 
-  Widget buildPage() => MaterialApp(
+  Widget buildPage([ImplantItem implant = _implant]) => MaterialApp(
         theme: NubiaTheme.light,
-        home: const ImplantDetailPage(implant: _implant),
+        home: ImplantDetailPage(implant: implant),
       );
 
   group('widget', () {
@@ -63,6 +76,44 @@ void main() {
         find.byKey(const Key('implant_detail_readonly_notice')),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        "n'affiche pas le bloc « Suivi recommandé » si aucune donnée de suivi",
+        (tester) async {
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_follow_up_card')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'affiche le dernier contrôle formaté et le prochain en émeraude',
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithFollowUp));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_follow_up_card')),
+        findsOneWidget,
+      );
+      expect(find.text('Suivi recommandé'), findsOneWidget);
+      expect(find.text('4 juillet 2026'), findsOneWidget);
+
+      final nextControlValue = tester.widget<Text>(find.text('Mars 2027 · annuel'));
+      expect(nextControlValue.style?.color, NubiaColors.brand700);
+    });
+
+    testWidgets("n'affiche pas la ligne « Prochain » si nextControl est nul",
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithLastControlOnly));
+      await tester.pumpAndSettle();
+
+      expect(find.text('4 juillet 2026'), findsOneWidget);
+      expect(find.text('Prochain'), findsNothing);
     });
   });
 
