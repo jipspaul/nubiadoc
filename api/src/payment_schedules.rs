@@ -172,7 +172,8 @@ const VALID_PROVIDERS: &[&str] = &["stripe", "gocardless", "alma"];
 /// mais jamais le dépasser (#4644) : garde stricte identique à
 /// `create_manual_payment` (#4311/#4573), sur le reste-à-charge patient
 /// (part AMO/AMC exclue) moins les paiements `pending`/`paid` déjà
-/// enregistrés, sous verrou `FOR UPDATE` sur la ligne `quote` — dépassement
+/// enregistrés ET les échéanciers `active` déjà posés sur le devis (#5669),
+/// sous verrou `FOR UPDATE` sur la ligne `quote` — dépassement
 /// → `422 validation_error`. `provider = "alma"` (#4163) déclenche la souscription
 /// synchrone auprès d'`AlmaClient` — un refus/timeout provider fait échouer
 /// toute la création (`500`), pas d'échéancier fantôme non souscrit.
@@ -277,7 +278,26 @@ pub async fn create_payment_schedule(
     let already_committed_cents: i64 = already_committed_row
         .try_get("committed_cents")
         .map_err(|_| AppError::Internal)?;
-    let remaining_due_cents = patient_share_cents - already_committed_cents;
+
+    // #5669 : un payment_schedule ne crée aucune ligne `payment` — sans ce
+    // second SUM, la garde ci-dessous ignore les échéanciers déjà posés sur
+    // le devis et laisse créer N échéanciers cumulant chacun jusqu'au
+    // reste-dû complet (sur-engagement patient).
+    let already_scheduled_row = sqlx::query(
+        "SELECT COALESCE(SUM(total_amount * 100), 0)::bigint AS scheduled_cents \
+         FROM payment_schedule \
+         WHERE quote_id = $1 AND status = 'active'",
+    )
+    .bind(quote_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let already_scheduled_cents: i64 = already_scheduled_row
+        .try_get("scheduled_cents")
+        .map_err(|_| AppError::Internal)?;
+
+    let remaining_due_cents =
+        patient_share_cents - already_committed_cents - already_scheduled_cents;
 
     if total_cents > remaining_due_cents {
         return Err(AppError::ValidationError);
