@@ -213,12 +213,37 @@ BEGIN
 END;
 $$;
 
+-- Refuse une offre pour une infirmière (retire la demande de sa file). Écrit
+-- visit_offer (réservé au SECURITY DEFINER). Retour : 'declined' | 'not_found'.
+CREATE FUNCTION decline_visit_offer(
+    p_request_id uuid,
+    p_nurse_id   uuid
+) RETURNS text
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET row_security = off
+  SET search_path = public
+AS $$
+DECLARE
+  n integer;
+BEGIN
+  UPDATE visit_offer SET status = 'declined', responded_at = now()
+    WHERE visit_request_id = p_request_id AND nurse_id = p_nurse_id AND status = 'pending';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  IF n = 0 THEN RETURN 'not_found'; END IF;
+  RETURN 'declined';
+END;
+$$;
+
 ALTER FUNCTION offer_visit_to_nurses(uuid, uuid[], interval) OWNER TO nubia_owner;
 ALTER FUNCTION claim_visit(uuid, uuid) OWNER TO nubia_owner;
+ALTER FUNCTION decline_visit_offer(uuid, uuid) OWNER TO nubia_owner;
 REVOKE ALL ON FUNCTION offer_visit_to_nurses(uuid, uuid[], interval) FROM PUBLIC;
 REVOKE ALL ON FUNCTION claim_visit(uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION decline_visit_offer(uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION offer_visit_to_nurses(uuid, uuid[], interval) TO nubia_app;
 GRANT EXECUTE ON FUNCTION claim_visit(uuid, uuid) TO nubia_app;
+GRANT EXECUTE ON FUNCTION decline_visit_offer(uuid, uuid) TO nubia_app;
 
 COMMENT ON TABLE visit_request IS
     'Demande de visite infirmière à domicile + machine à états (requested→offered→accepted→en_route→arrived→done). RLS 2 ancres patient/infirmière. Clone de pharmacy_order (0124). Épic app infirmières.';

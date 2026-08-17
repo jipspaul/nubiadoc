@@ -14,3 +14,5 @@
 
 pub mod directory;
 pub mod profile;
+pub mod requests;
+pub mod visits;
