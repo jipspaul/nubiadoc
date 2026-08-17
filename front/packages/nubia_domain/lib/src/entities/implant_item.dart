@@ -11,6 +11,11 @@ class ImplantItem extends Equatable {
   final String? notes;
   final String? lastControlDate;
   final String? nextControl;
+  final String? manufacturer;
+  final String? model;
+  final String? reference;
+  final String? dimensions;
+  final String? material;
 
   const ImplantItem({
     required this.id,
@@ -21,6 +26,11 @@ class ImplantItem extends Equatable {
     this.notes,
     this.lastControlDate,
     this.nextControl,
+    this.manufacturer,
+    this.model,
+    this.reference,
+    this.dimensions,
+    this.material,
   });
 
   @override

@@ -88,6 +88,15 @@ class _ImplantDetailBody extends StatelessWidget {
                   if (implant.lotNumber != null) 'Lot ${implant.lotNumber}',
                 ].join(' · ')),
               ),
+              if (implant.manufacturer != null ||
+                  implant.model != null ||
+                  implant.reference != null ||
+                  implant.lotNumber != null ||
+                  implant.dimensions != null ||
+                  implant.material != null) ...[
+                const SizedBox(height: 16),
+                _DeviceIdentificationCard(implant: implant),
+              ],
               if (implant.lastControlDate != null ||
                   implant.nextControl != null) ...[
                 const SizedBox(height: 16),
@@ -120,6 +129,72 @@ class _ImplantDetailBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Bloc « Identification du dispositif » : données requises par un
+/// radiologue avant imagerie (#5331). Chaque ligne ne s'affiche que si la
+/// donnée correspondante est renseignée.
+class _DeviceIdentificationCard extends StatelessWidget {
+  const _DeviceIdentificationCard({required this.implant});
+
+  final ImplantItem implant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return NubiaCard(
+      key: const Key('implant_detail_device_identification_card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.inventory_2, color: NubiaColors.brand700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Identification du dispositif',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          if (implant.manufacturer != null) ...[
+            const SizedBox(height: 12),
+            _FollowUpRow(label: 'Fabricant', value: implant.manufacturer!),
+          ],
+          if (implant.model != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Modèle', value: implant.model!),
+          ],
+          if (implant.reference != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(
+              label: 'Référence',
+              value: implant.reference!,
+              monospace: true,
+            ),
+          ],
+          if (implant.lotNumber != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(
+              label: 'N° de lot',
+              value: implant.lotNumber!,
+              monospace: true,
+            ),
+          ],
+          if (implant.dimensions != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Dimensions', value: implant.dimensions!),
+          ],
+          if (implant.material != null) ...[
+            const SizedBox(height: 8),
+            _FollowUpRow(label: 'Matériau', value: implant.material!),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -180,11 +255,13 @@ class _FollowUpRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.monospace = false,
   });
 
   final String label;
   final String value;
   final Color? valueColor;
+  final bool monospace;
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +285,7 @@ class _FollowUpRow extends StatelessWidget {
           style: theme.textTheme.bodyMedium?.copyWith(
             color: valueColor ?? cs.onSurface,
             fontWeight: FontWeight.w500,
+            fontFamily: monospace ? 'monospace' : null,
           ),
         ),
       ],
