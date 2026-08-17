@@ -26,20 +26,20 @@ class PrescriptionItemDto {
       );
 
   Map<String, dynamic> toJson() => {
-    'label': label,
-    if (form != null) 'form': form,
-    'posology': posology,
-    'duration': duration,
-    'quantity': quantity,
-  };
+        'label': label,
+        if (form != null) 'form': form,
+        'posology': posology,
+        'duration': duration,
+        'quantity': quantity,
+      };
 
   PrescriptionItem toDomain() => PrescriptionItem(
-    label: label,
-    form: form,
-    posology: posology,
-    duration: duration,
-    quantity: quantity,
-  );
+        label: label,
+        form: form,
+        posology: posology,
+        duration: duration,
+        quantity: quantity,
+      );
 
   static PrescriptionItemDto fromDomain(PrescriptionItem item) =>
       PrescriptionItemDto(
@@ -78,16 +78,16 @@ class PrescriptionDto {
       );
 
   Prescription toDomain() => Prescription(
-    id: id,
-    patientId: patientId,
-    items: items.map((i) => i.toDomain()).toList(),
-    status: switch (status) {
-      'signed' => PrescriptionStatus.signed,
-      'sent' => PrescriptionStatus.sent,
-      _ => PrescriptionStatus.draft,
-    },
-    createdAt: DateTime.parse(createdAt),
-  );
+        id: id,
+        patientId: patientId,
+        items: items.map((i) => i.toDomain()).toList(),
+        status: switch (status) {
+          'signed' => PrescriptionStatus.signed,
+          'sent' => PrescriptionStatus.sent,
+          _ => PrescriptionStatus.draft,
+        },
+        createdAt: DateTime.parse(createdAt),
+      );
 }
 
 class PrescriptionTemplateDto {
@@ -127,9 +127,9 @@ class PrescriptionTemplateDto {
   }
 
   PrescriptionTemplate toDomain() => PrescriptionTemplate(
-    id: id,
-    label: label,
-    items: items,
-    isGlobal: isGlobal,
-  );
+        id: id,
+        label: label,
+        items: items,
+        isGlobal: isGlobal,
+      );
 }
