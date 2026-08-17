@@ -1158,11 +1158,70 @@ class _ProviderHeaderRow extends StatelessWidget {
                         ),
                   ),
                 ],
+                _ProviderMetaRow(provider: provider),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Rangée méta (distance · secteur · tiers payant) sous l'identité de l'en-tête
+/// praticien — reprend des données déjà portées par [ProviderResult] et
+/// jusqu'ici affichées uniquement dans la recherche (maquette design-v2,
+/// écran réservation, #5340). N'affiche que les items dont la donnée existe.
+class _ProviderMetaRow extends StatelessWidget {
+  const _ProviderMetaRow({required this.provider});
+  final ProviderResult provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <Widget>[];
+    if (provider.distanceKm != null) {
+      final distance = '${provider.distanceKm!.toStringAsFixed(1)} km';
+      items.add(_MetaItem(
+        icon: Icons.place,
+        label: provider.address != null
+            ? '$distance · ${provider.address}'
+            : distance,
+      ));
+    }
+    if (provider.sector != null) {
+      items.add(
+        _MetaItem(icon: Icons.euro, label: 'Secteur ${provider.sector}'),
+      );
+    }
+    if (provider.tiersPayant == true) {
+      items.add(const _MetaItem(icon: Icons.credit_card, label: 'Tiers payant'));
+    }
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(spacing: 14, runSpacing: 4, children: items),
+    );
+  }
+}
+
+/// Un item `.mtx` de la rangée méta : icône `n400` 15px + libellé 12.5/`n600`.
+class _MetaItem extends StatelessWidget {
+  const _MetaItem({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: NubiaColors.n400),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12.5, color: NubiaColors.n600),
+        ),
+      ],
     );
   }
 }
