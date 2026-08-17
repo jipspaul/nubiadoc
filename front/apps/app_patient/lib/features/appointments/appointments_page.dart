@@ -221,6 +221,25 @@ const _monthsFull = [
   'décembre',
 ];
 
+const _weekdaysFull = [
+  'Lundi',
+  'Mardi',
+  'Mercredi',
+  'Jeudi',
+  'Vendredi',
+  'Samedi',
+  'Dimanche',
+];
+
+/// Libellé `.t1` de la carte récap créneau (#5338) : « Jeudi 13 août · 14:30 »
+/// — jour complet + quantième + mois complet + heure, tous en heure locale
+/// (#3856).
+String _slotRecapDateLabel(DateTime utc) {
+  final dt = utc.toLocal();
+  return '${_weekdaysFull[dt.weekday - 1]} ${dt.day} '
+      '${_monthsFull[dt.month - 1]} · ${_hhmm(utc)}';
+}
+
 /// Nombre de jours / de puces par jour affichés dans le bloc `.slots` de la
 /// carte résultat (maquette design-v2, #5357).
 const _kSlotsPreviewDays = 3;
@@ -1229,25 +1248,49 @@ class _MetaItem extends StatelessWidget {
 
 /// Liste mobile historique : en-tête praticien + créneaux groupés par jour
 /// (ou formulaire de confirmation une fois un créneau sélectionné).
-class _SlotsMobileView extends StatelessWidget {
+class _SlotsMobileView extends StatefulWidget {
   const _SlotsMobileView({required this.state, required this.borderColor});
   final AppointmentsSlotsLoaded state;
   final Color borderColor;
 
   @override
+  State<_SlotsMobileView> createState() => _SlotsMobileViewState();
+}
+
+class _SlotsMobileViewState extends State<_SlotsMobileView> {
+  // #5338 : « Modifier » referme la feuille de confirmation et rouvre la
+  // grille sans désélectionner le créneau — bascule purement locale, aucun
+  // événement bloc, `selectedSlot`/`holdToken` restent intacts. Réinitialisé
+  // dès qu'un nouveau créneau est (re)sélectionné depuis la grille.
+  bool _showGridOverride = false;
+
+  @override
+  void didUpdateWidget(covariant _SlotsMobileView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state.selectedSlot?.id != oldWidget.state.selectedSlot?.id) {
+      _showGridOverride = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
+    final showPanel = state.selectedSlot != null && !_showGridOverride;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ProviderHeaderRow(provider: state.provider),
-        Divider(height: 1, color: borderColor),
+        Divider(height: 1, color: widget.borderColor),
         // #5362 : une fois un créneau choisi, le formulaire de confirmation
         // (« Vos informations ») remplace la grille — pas un panneau
         // superposé — pour lui laisser toute la hauteur disponible (et
         // rester scrollable sans déborder sur petit écran).
         Expanded(
-          child: state.selectedSlot != null
-              ? _BookingPanel(state: state)
+          child: showPanel
+              ? _BookingPanel(
+                  state: state,
+                  onModifier: () => setState(() => _showGridOverride = true),
+                )
               : state.slots.isEmpty
                   ? const NubiaEmptyState(
                       icon: Icons.event_busy_outlined,
@@ -2291,14 +2334,125 @@ class _BookingProgressView extends StatelessWidget {
   }
 }
 
+/// Carte récap du créneau choisi (maquette design-v2 patient-re-servation,
+/// bloc `.recap`) : jour/heure, praticien, durée + lien « Modifier » qui
+/// referme la feuille de confirmation pour rouvrir la grille de créneaux
+/// (#5338). N'émet aucun événement bloc : la sélection courante et le
+/// `holdToken` restent intacts, [onModifier] ne fait que basculer l'affichage
+/// local de `_SlotsMobileView`.
+class _SlotRecapCard extends StatelessWidget {
+  const _SlotRecapCard({required this.state, this.onModifier});
+  final AppointmentsSlotsLoaded state;
+  final VoidCallback? onModifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final slot = state.selectedSlot!;
+    final startsAt = slot.startsAt.toLocal();
+    final durationMin =
+        slot.duration.inMinutes > 0 ? slot.duration.inMinutes : 30;
+    return Container(
+      key: const Key('booking_slot_recap_card'),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: NubiaColors.brand50,
+        border: Border.all(color: NubiaColors.brand100),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: NubiaColors.brand700,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _weekdays[startsAt.weekday - 1]
+                        .replaceAll('.', '')
+                        .toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: NubiaColors.n0.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  Text(
+                    '${startsAt.day}',
+                    style: GoogleFonts.fraunces(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: NubiaColors.n0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _slotRecapDateLabel(slot.startsAt),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${state.provider.displayName} · $durationMin min',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: NubiaColors.brand800.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onModifier != null) ...[
+            const SizedBox(width: 8),
+            InkWell(
+              key: const Key('booking_slot_recap_modify'),
+              onTap: onModifier,
+              child: const Text(
+                'Modifier',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: NubiaColors.brand700,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Formulaire de confirmation (étape 3 « Vos informations » du tunnel,
 /// maquette design-v2 patient-web-tunnel-reservation) : remplace la grille
 /// de créneaux une fois une puce sélectionnée. Pour un visiteur anonyme, ce
 /// même formulaire crée le compte à la confirmation — jamais avant — dans
 /// le même geste que la réservation (#5362).
 class _BookingPanel extends StatefulWidget {
-  const _BookingPanel({required this.state});
+  const _BookingPanel({required this.state, this.onModifier});
   final AppointmentsSlotsLoaded state;
+  // #5338 : referme la feuille de confirmation et rouvre la grille de
+  // créneaux — la sélection (`state.selectedSlot`) et le `holdToken` ne sont
+  // pas touchés, `null` si l'appelant ne fournit pas de grille à rouvrir.
+  final VoidCallback? onModifier;
 
   @override
   State<_BookingPanel> createState() => _BookingPanelState();
@@ -2466,6 +2620,8 @@ class _BookingPanelState extends State<_BookingPanel> {
               ),
               const SizedBox(height: 20),
             ],
+            _SlotRecapCard(state: state, onModifier: widget.onModifier),
+            const SizedBox(height: 20),
             Text('Motif de la consultation', style: sectionTitle),
             const SizedBox(height: 8),
             NubiaTextField(
