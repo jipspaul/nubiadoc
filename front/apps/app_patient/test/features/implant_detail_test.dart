@@ -41,6 +41,26 @@ const _implantWithLastControlOnly = ImplantItem(
   lastControlDate: '2026-07-04',
 );
 
+const _implantNoPose = ImplantItem(
+  id: 'implant-4',
+  brand: 'Straumann',
+);
+
+const _implantWithPlacement = ImplantItem(
+  id: 'implant-5',
+  brand: 'Nobel Biocare',
+  placementDate: '2026-03-12',
+  practitioner: 'Dr Marc Lefèvre',
+  office: 'Nubia Opéra, Paris 2ᵉ',
+  prosthesis: 'Couronne céramo-métallique',
+);
+
+const _implantWithPlacementDateOnly = ImplantItem(
+  id: 'implant-6',
+  brand: 'Nobel Biocare',
+  placementDate: '2026-03-12',
+);
+
 void main() {
   late _MockExportImplantPassport exportUseCase;
 
@@ -114,6 +134,49 @@ void main() {
 
       expect(find.text('4 juillet 2026'), findsOneWidget);
       expect(find.text('Prochain'), findsNothing);
+    });
+
+    testWidgets("n'affiche pas le bloc « Pose » si aucune donnée de pose",
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantNoPose));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_placement_card')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('affiche le bloc « Pose » avec les quatre lignes au mot près',
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithPlacement));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_placement_card')),
+        findsOneWidget,
+      );
+      expect(find.text('Pose'), findsOneWidget);
+      expect(find.text('Date'), findsOneWidget);
+      expect(find.text('12 mars 2026'), findsOneWidget);
+      expect(find.text('Praticien'), findsOneWidget);
+      expect(find.text('Dr Marc Lefèvre'), findsOneWidget);
+      expect(find.text('Cabinet'), findsOneWidget);
+      expect(find.text('Nubia Opéra, Paris 2ᵉ'), findsOneWidget);
+      expect(find.text('Prothèse'), findsOneWidget);
+      expect(find.text('Couronne céramo-métallique'), findsOneWidget);
+    });
+
+    testWidgets(
+        "n'affiche que la ligne « Date » si les autres champs de pose sont nuls",
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithPlacementDateOnly));
+      await tester.pumpAndSettle();
+
+      expect(find.text('12 mars 2026'), findsOneWidget);
+      expect(find.text('Praticien'), findsNothing);
+      expect(find.text('Cabinet'), findsNothing);
+      expect(find.text('Prothèse'), findsNothing);
     });
   });
 
