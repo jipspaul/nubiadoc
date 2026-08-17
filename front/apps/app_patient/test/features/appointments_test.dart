@@ -690,7 +690,7 @@ void main() {
           isAvailable: true,
         );
 
-    testWidgets('les SlotChip d\'une période sont côte à côte (Wrap)',
+    testWidgets('les SlotChip d\'une période sont en grille 4 colonnes',
         (tester) async {
       final day = DateTime(2026, 7, 10);
       final bloc = _MockAppointmentsBloc();
@@ -728,7 +728,7 @@ void main() {
       expect(find.text('Matin'), findsOneWidget);
       expect(find.text('Après-midi'), findsOneWidget);
       expect(find.byType(SlotChip), findsNWidgets(5));
-      expect(find.byType(Wrap), findsWidgets);
+      expect(find.byType(GridView), findsWidgets);
 
       // Deux créneaux du matin sont sur la même ligne (même y, x différents) :
       // preuve d'une vraie grille et non d'une colonne pleine largeur.
