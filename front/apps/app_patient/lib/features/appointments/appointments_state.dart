@@ -89,7 +89,21 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
 }
 
 class AppointmentsBookingLoading extends AppointmentsState {
-  const AppointmentsBookingLoading();
+  // #5343 : repris de l'AppointmentsSlotsLoaded qui précède la confirmation,
+  // pour que l'UI garde le récap (créneau + motif) visible sous l'overlay de
+  // progression pendant l'appel POST /v1/bookings, plutôt qu'un écran blanc.
+  final ProviderResult provider;
+  final Slot selectedSlot;
+  final String motif;
+
+  const AppointmentsBookingLoading({
+    required this.provider,
+    required this.selectedSlot,
+    required this.motif,
+  });
+
+  @override
+  List<Object?> get props => [provider, selectedSlot, motif];
 }
 
 class AppointmentsBookingSuccess extends AppointmentsState {
