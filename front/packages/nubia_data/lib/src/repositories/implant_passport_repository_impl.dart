@@ -29,9 +29,9 @@ class ImplantPassportRepositoryImpl implements ImplantPassportRepository {
   }
 
   @override
-  Future<Either<Failure, String>> exportPassport() async {
+  Future<Either<Failure, String>> exportPassport({String? implantId}) async {
     try {
-      final url = await _api.exportPassport();
+      final url = await _api.exportPassport(implantId: implantId);
       return Right(url);
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {

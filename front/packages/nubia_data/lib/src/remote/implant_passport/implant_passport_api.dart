@@ -17,10 +17,13 @@ class ImplantPassportApi {
   }
 
   /// GET /implant-passport/export (#4142). Toujours une redirection 302 —
-  /// on ne la suit pas et on lit l'URL signée dans `Location`.
-  Future<String> exportPassport() async {
+  /// on ne la suit pas et on lit l'URL signée dans `Location`. `implantId`
+  /// limite l'export à cet implant seul (#5334).
+  Future<String> exportPassport({String? implantId}) async {
     final response = await _dio.get<void>(
       '/implant-passport/export',
+      queryParameters:
+          implantId == null ? null : {'implant_id': implantId},
       options: Options(followRedirects: false, validateStatus: (s) => s == 302),
     );
     return response.headers.value('location') ?? '';
