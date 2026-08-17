@@ -301,8 +301,7 @@ async fn implant_passport_export_with_own_implant_id_returns_302() {
         return;
     }
     let owner = owner_pool().await;
-    let (user_id, account_id, implant_id) =
-        seed_patient_with_implant(&owner, "own").await;
+    let (user_id, account_id, implant_id) = seed_patient_with_implant(&owner, "own").await;
 
     let state = AppState {
         db: app_pool().await,
@@ -314,7 +313,9 @@ async fn implant_passport_export_with_own_implant_id_returns_302() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/v1/implant-passport/export?implant_id={implant_id}"))
+                .uri(format!(
+                    "/v1/implant-passport/export?implant_id={implant_id}"
+                ))
                 .header(
                     "Authorization",
                     format!("Bearer {}", make_patient_jwt(user_id, account_id)),
