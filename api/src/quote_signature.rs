@@ -80,15 +80,18 @@ pub async fn initiate_quote_signature(
             .await
             .map_err(|_| AppError::Internal)?;
 
+        // Ownership résolue par la policy RLS quote_patient_read (migration 0175,
+        // scope app.patient_account_id posé ci-dessus) : patient OU compte facturé
+        // (billed_to_account_id, #4098) — pas de JOIN patient ici (la table
+        // `patient` a sa propre RLS `patient_account_read`, migration 0029, sans
+        // branche tutelle, qui éliminerait la ligne de la dépendante AVANT que la
+        // clause billed_to_account_id ne puisse la sauver — cf. #5623/#5672).
         let row = sqlx::query(
             "SELECT q.cabinet_id, q.status \
              FROM quote q \
-             JOIN patient p ON p.id = q.patient_id \
-             WHERE q.id = $1 AND q.deleted_at IS NULL \
-               AND p.patient_account_id = $2",
+             WHERE q.id = $1 AND q.deleted_at IS NULL",
         )
         .bind(id)
-        .bind(claims.account_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?
