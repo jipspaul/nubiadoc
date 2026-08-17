@@ -515,6 +515,54 @@ async fn pharmacy_and_patient_see_the_order_other_pharmacy_does_not() {
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
+/// #5644 : `GET /v1/account/orders/{id}` doit exposer `lines` (lignes de
+/// l'ordonnance) — sans quoi la carte « Votre ordonnance » front (#5349) ne
+/// s'affiche jamais.
+#[tokio::test]
+async fn account_order_detail_includes_prescription_lines() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    sqlx::query(
+        "INSERT INTO prescription_item \
+         (cabinet_id, prescription_id, label, form, posology, duration, quantity) \
+         VALUES ($1, $2, 'Paracétamol 1 g', 'comprimé', '1 cp x 3 / jour', '5 jours', \
+                 'QSP 15 cp')",
+    )
+    .bind(fx.cabinet_id)
+    .bind(fx.prescription_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let patient_token = patient_jwt(fx.user_id, fx.account_id);
+    let (status, order) = request(
+        "POST",
+        &format!("/v1/account/prescriptions/{}/order", fx.prescription_id),
+        &patient_token,
+        Some(json!({"pharmacy_id": fx.pharmacy_id})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let order_id = order["id"].as_str().unwrap().to_string();
+
+    let (status, detail) = request(
+        "GET",
+        &format!("/v1/account/orders/{order_id}"),
+        &patient_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let lines = detail["lines"].as_array().unwrap();
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0]["label"], "Paracétamol 1 g");
+    assert_eq!(lines[0]["posology"], "1 cp x 3 / jour");
+    assert_eq!(lines[0]["quantity"], "QSP 15 cp");
+}
+
 #[tokio::test]
 async fn pharmacy_gets_signed_document_url() {
     if !db_available() {

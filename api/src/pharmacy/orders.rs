@@ -670,12 +670,24 @@ pub async fn list_account_orders(
     }))
 }
 
-/// `GET /v1/account/orders/{id}` — détail d'une commande du patient.
+/// Réponse de `GET /v1/account/orders/{id}` : mêmes champs que [`OrderDto`]
+/// (`#[serde(flatten)]`) + `lines` — équivalent patient de
+/// `get_pharmacy_order_items` (#5349, sinon la carte « Votre ordonnance »
+/// front n'a jamais de données : `lines[]` toujours absent).
+#[derive(Serialize)]
+pub struct AccountOrderDetailDto {
+    #[serde(flatten)]
+    pub order: OrderDto,
+    pub lines: Vec<OrderItemDto>,
+}
+
+/// `GET /v1/account/orders/{id}` — détail d'une commande du patient, lignes
+/// de l'ordonnance incluses (#5349).
 pub async fn get_account_order(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
-) -> Result<Json<OrderDto>, AppError> {
+) -> Result<Json<AccountOrderDetailDto>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
@@ -692,8 +704,36 @@ pub async fn get_account_order(
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
+    let order = order_from_row(&row)?;
+
+    // RLS `prescription_line_patient_read` (0108) borne déjà aux lignes des
+    // ordonnances du patient courant via `app.patient_account_id` (posé
+    // ci-dessus) — même requête que `get_pharmacy_order_items`.
+    let item_rows = sqlx::query(
+        "SELECT label, form, posology, duration, quantity \
+         FROM prescription_item WHERE prescription_id = $1",
+    )
+    .bind(order.prescription_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
-    Ok(Json(order_from_row(&row)?))
+
+    let lines = item_rows
+        .iter()
+        .map(|row| {
+            Ok::<_, AppError>(OrderItemDto {
+                label: row.try_get("label").map_err(|_| AppError::Internal)?,
+                form: row.try_get("form").map_err(|_| AppError::Internal)?,
+                posology: row.try_get("posology").map_err(|_| AppError::Internal)?,
+                duration: row.try_get("duration").map_err(|_| AppError::Internal)?,
+                quantity: row.try_get("quantity").map_err(|_| AppError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Json(AccountOrderDetailDto { order, lines }))
 }
 
 // ── Vue patient : pharmacie déclarée ──────────────────────────────────────────
