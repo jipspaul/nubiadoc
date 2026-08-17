@@ -1846,36 +1846,38 @@ class _SlotsByDay extends StatelessWidget {
     ];
   }
 
-  /// Grille (Wrap) de [SlotChip] conservant l'état de sélection courant.
-  ///
-  /// [SlotChip] centre son contenu et s'étirerait à toute la largeur dispo
-  /// dans un [Wrap] (→ 1 chip/ligne). On l'enveloppe dans [IntrinsicWidth]
-  /// pour qu'il garde une largeur intrinsèque compacte et que plusieurs
-  /// créneaux tiennent par ligne (vraie grille, façon Doctolib).
+  /// Grille à 4 colonnes fixes de [SlotChip] conservant l'état de sélection
+  /// courant (design-v2, #5341) : cellules de 44 px de haut (cible tactile),
+  /// alignées, sans contournement de largeur intrinsèque.
   Widget _slotWrap(BuildContext context, List<Slot> slots) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final slot in slots)
-          IntrinsicWidth(
-            child: SlotChip(
-              // Maquette web (#5365) : puce indisponible = contenu « — »,
-              // pas l'heure barrée.
-              label: slot.isAvailable ? _hhmm(slot.startsAt) : '—',
-              state: !slot.isAvailable
-                  ? SlotChipState.unavailable
-                  : state.selectedSlot?.id == slot.id
-                      ? SlotChipState.selected
-                      : SlotChipState.available,
-              onTap: slot.isAvailable
-                  ? () => context
-                      .read<AppointmentsBloc>()
-                      .add(AppointmentsSlotSelected(slot))
-                  : null,
-            ),
-          ),
-      ],
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: slots.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        mainAxisExtent: 44,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemBuilder: (context, index) {
+        final slot = slots[index];
+        return SlotChip(
+          // Maquette web (#5365) : puce indisponible = contenu « — »,
+          // pas l'heure barrée.
+          label: slot.isAvailable ? _hhmm(slot.startsAt) : '—',
+          state: !slot.isAvailable
+              ? SlotChipState.unavailable
+              : state.selectedSlot?.id == slot.id
+                  ? SlotChipState.selected
+                  : SlotChipState.available,
+          onTap: slot.isAvailable
+              ? () => context
+                  .read<AppointmentsBloc>()
+                  .add(AppointmentsSlotSelected(slot))
+              : null,
+        );
+      },
     );
   }
 }
