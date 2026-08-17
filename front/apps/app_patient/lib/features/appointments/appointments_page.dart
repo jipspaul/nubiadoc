@@ -33,10 +33,13 @@ class AppointmentsPage extends StatefulWidget {
 class _AppointmentsPageState extends State<AppointmentsPage> {
   // #5337 : `_BookingPanel` est présenté en `NubiaBottomSheet` modal (au lieu
   // de remplacer la grille de créneaux inline) — la grille reste montée et
-  // stable derrière. Ces deux champs suivent la feuille ouverte pour ne pas
-  // la rouvrir en double et pour la refermer proactivement si l'écran
-  // créneaux disparaît pendant qu'elle est affichée (ex. changement d'onglet
-  // du shell, qui démonte AppointmentsPage sans repasser par un pop).
+  // stable derrière. #5336 : la feuille ne s'ouvre plus automatiquement dès
+  // qu'un créneau est sélectionné — la grille affiche d'abord une barre
+  // collante « Continuer » (`_ContinueBar`) qui l'ouvre explicitement
+  // (`_openBookingSheet`). Ces deux champs suivent la feuille ouverte pour la
+  // refermer proactivement si l'écran créneaux disparaît pendant qu'elle est
+  // affichée (ex. changement d'onglet du shell, qui démonte AppointmentsPage
+  // sans repasser par un pop).
   bool _sheetOpen = false;
   NavigatorState? _sheetNavigator;
 
@@ -91,18 +94,14 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
     );
   }
 
-  /// Ouvre/referme la feuille de confirmation en fonction de l'état courant
-  /// (créneau sélectionné ou non) — appelé après chaque build plutôt que
-  /// depuis un `BlocListener` seul, pour couvrir aussi bien le cas où l'état
-  /// arrive déjà avec un `selectedSlot` (premier build) que ses changements
-  /// ultérieurs.
+  /// Referme proactivement la feuille de confirmation si l'écran créneaux
+  /// disparaît pendant qu'elle est affichée (ex. changement d'onglet du
+  /// shell, qui démonte `AppointmentsPage` sans repasser par un pop) —
+  /// appelé après chaque build. #5336 : ne l'ouvre plus automatiquement dès
+  /// qu'un créneau est sélectionné, voir `_ContinueBar`/`_openBookingSheet`.
   void _syncBookingSheet(BuildContext context, AppointmentsState state) {
     if (!mounted) return;
-    final hasSlot =
-        state is AppointmentsSlotsLoaded && state.selectedSlot != null;
-    if (hasSlot && !_sheetOpen) {
-      _openBookingSheet(context);
-    } else if (!hasSlot && _sheetOpen) {
+    if (_sheetOpen && state is! AppointmentsSlotsLoaded) {
       _sheetNavigator?.maybePop();
     }
   }
@@ -112,7 +111,10 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
   /// derrière. `AppointmentsBloc`/`AuthCubit` sont recapturés puis
   /// re-fournis dans la feuille : elle est ouverte hors de l'arbre
   /// `BlocProvider` de l'onglet (même contrainte que `_openProviderSheet`).
+  /// #5336 : déclenchée par le bouton « Continuer » de `_ContinueBar`, plus
+  /// automatiquement à la sélection du créneau.
   Future<void> _openBookingSheet(BuildContext context) async {
+    if (_sheetOpen) return;
     final bloc = context.read<AppointmentsBloc>();
     final authCubit = context.read<AuthCubit>();
     _sheetOpen = true;
@@ -181,7 +183,10 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
       return _SlotsLoadingView(provider: state.provider);
     }
     if (state is AppointmentsSlotsLoaded) {
-      return _SlotsView(state: state);
+      return _SlotsView(
+        state: state,
+        onContinue: () => _openBookingSheet(context),
+      );
     }
     if (state is AppointmentsBookingLoading) {
       return _BookingProgressView(state: state);
@@ -305,6 +310,15 @@ String _slotRecapDateLabel(DateTime utc) {
   final dt = utc.toLocal();
   return '${_weekdaysFull[dt.weekday - 1]} ${dt.day} '
       '${_monthsFull[dt.month - 1]} · ${_hhmm(utc)}';
+}
+
+/// Libellé `.l1` de la barre collante « Continuer » (maquette design-v2
+/// patient-re-servation, #5336) : « Jeudi 13 août à 14:30 » — jour + mois
+/// complets, heure locale (#3856).
+String _continueBarDateLabel(DateTime utc) {
+  final dt = utc.toLocal();
+  return '${_weekdaysFull[dt.weekday - 1]} ${dt.day} '
+      '${_monthsFull[dt.month - 1]} à ${_hhmm(utc)}';
 }
 
 /// Nombre de jours / de puces par jour affichés dans le bloc `.slots` de la
@@ -1168,8 +1182,11 @@ class _ClusterBubble extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SlotsView extends StatelessWidget {
-  const _SlotsView({required this.state});
+  const _SlotsView({required this.state, required this.onContinue});
   final AppointmentsSlotsLoaded state;
+  // #5336 : ouvre la feuille de confirmation — déclenché par `_ContinueBar`,
+  // affichée sous la grille une fois un créneau sélectionné.
+  final VoidCallback onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -1187,11 +1204,19 @@ class _SlotsView extends StatelessWidget {
           if (constraints.maxWidth >= _kFicheWebBreakpoint) {
             return _ProviderProfileWebView(state: state);
           }
-          return _SlotsMobileView(state: state, borderColor: borderColor);
+          return _SlotsMobileView(
+            state: state,
+            borderColor: borderColor,
+            onContinue: onContinue,
+          );
         },
       );
     }
-    return _SlotsMobileView(state: state, borderColor: borderColor);
+    return _SlotsMobileView(
+      state: state,
+      borderColor: borderColor,
+      onContinue: onContinue,
+    );
   }
 }
 
@@ -1318,14 +1343,22 @@ class _MetaItem extends StatelessWidget {
 /// #5337 : la sélection d'un créneau n'y remplace plus rien — le formulaire
 /// de confirmation est présenté à part, en `NubiaBottomSheet` modal (voir
 /// `_AppointmentsPageState._openBookingSheet`), pour que cette grille reste
-/// montée et de hauteur stable derrière la feuille.
+/// montée et de hauteur stable derrière la feuille. #5336 : la feuille ne
+/// s'ouvre plus automatiquement — la sélection affiche d'abord la barre
+/// collante `_ContinueBar`, qui l'ouvre au tap de « Continuer ».
 class _SlotsMobileView extends StatelessWidget {
-  const _SlotsMobileView({required this.state, required this.borderColor});
+  const _SlotsMobileView({
+    required this.state,
+    required this.borderColor,
+    required this.onContinue,
+  });
   final AppointmentsSlotsLoaded state;
   final Color borderColor;
+  final VoidCallback onContinue;
 
   @override
   Widget build(BuildContext context) {
+    final selectedSlot = state.selectedSlot;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1341,7 +1374,69 @@ class _SlotsMobileView extends StatelessWidget {
                 )
               : _SlotsByDay(state: state),
         ),
+        if (selectedSlot != null)
+          _ContinueBar(slot: selectedSlot, onContinue: onContinue),
       ],
+    );
+  }
+}
+
+/// Barre collante « Continuer » (maquette design-v2 patient-re-servation,
+/// bloc `.bar`, #5336) : affichée sous la grille de créneaux dès qu'un
+/// créneau est sélectionné, au lieu d'ouvrir directement le panneau motif —
+/// « Continuer » ouvre la feuille de confirmation (`_BookingPanel`, #5337).
+/// N'émet aucun événement bloc : la sélection courante et le `holdToken`
+/// restent intacts.
+class _ContinueBar extends StatelessWidget {
+  const _ContinueBar({required this.slot, required this.onContinue});
+  final Slot slot;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final durationMin =
+        slot.duration.inMinutes > 0 ? slot.duration.inMinutes : 30;
+    return Container(
+      key: const Key('slots_continue_bar'),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 26),
+      decoration: const BoxDecoration(
+        color: NubiaColors.n0,
+        border: Border(top: BorderSide(color: NubiaColors.n200)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _continueBarDateLabel(slot.startsAt),
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Durée estimée $durationMin min',
+                  style: const TextStyle(fontSize: 12, color: NubiaColors.n500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          NubiaButton(
+            key: const Key('slots_continue_button'),
+            label: 'Continuer',
+            icon: Icons.arrow_forward,
+            size: NubiaButtonSize.lg,
+            onPressed: onContinue,
+          ),
+        ],
+      ),
     );
   }
 }
