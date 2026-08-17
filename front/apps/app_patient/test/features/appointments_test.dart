@@ -102,6 +102,7 @@ AppointmentsBloc _makeBloc({
 void main() {
   setUpAll(() {
     registerFallbackValue(const NotificationPreferences.allEnabled());
+    registerFallbackValue(const AppointmentsBackToSearch());
   });
 
   late MockSearchProvidersUseCase mockSearchProviders;
@@ -1353,6 +1354,100 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+  });
+
+  group('carte récap créneau + « Modifier » (#5338)', () {
+    final provider = const ProviderResult(
+      id: 'p1',
+      displayName: 'Dr Amélie Rousseau',
+      specialty: 'Dentiste',
+    );
+    // Jeudi 13 août 2026.
+    final slot = Slot(
+      id: 's1',
+      cabinetId: 'cab-1',
+      practitionerId: 'prac-1',
+      startsAt: DateTime(2026, 8, 13, 14, 30),
+      endsAt: DateTime(2026, 8, 13, 15, 0),
+      isAvailable: true,
+    );
+
+    testWidgets(
+        'affiche la vignette jour, « Jeudi 13 août · 14:30 » et '
+        '« Dr Amélie Rousseau · 30 min » (heure locale, #3856)',
+        (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      final recap = find.byKey(const Key('booking_slot_recap_card'));
+      expect(recap, findsOneWidget);
+      expect(
+        find.descendant(of: recap, matching: find.text('JEU')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: recap, matching: find.text('13')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: recap,
+          matching: find.text('Jeudi 13 août · 14:30'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: recap,
+          matching: find.text('Dr Amélie Rousseau · 30 min'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        '« Modifier » referme la feuille, rouvre la grille de créneaux et '
+        'ne désélectionne pas le créneau (holdToken intact)', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      final loaded = AppointmentsSlotsLoaded(
+        provider: provider,
+        slots: [slot],
+        selectedSlot: slot,
+        holdToken: 'hold-1',
+      );
+      when(() => bloc.state).thenReturn(loaded);
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('booking_slot_recap_card')),
+        findsOneWidget,
+      );
+
+      clearInteractions(bloc);
+      await tester.tap(find.byKey(const Key('booking_slot_recap_modify')));
+      await tester.pumpAndSettle();
+
+      // La grille de créneaux redevient visible...
+      expect(find.byKey(const Key('booking_slot_recap_card')), findsNothing);
+      expect(find.byType(SlotChip), findsWidgets);
+      // ...sans qu'aucun événement bloc n'ait été émis : `selectedSlot` et
+      // `holdToken` restent ceux du state d'origine.
+      verifyNever(() => bloc.add(any()));
+      expect(loaded.selectedSlot, slot);
+      expect(loaded.holdToken, 'hold-1');
     });
   });
 }
