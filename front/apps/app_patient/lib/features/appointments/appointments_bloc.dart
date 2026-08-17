@@ -235,7 +235,11 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         ? current.motif.trim()
         : '${current.motif.trim()}\n\nPrécisions : $precisions';
 
-    emit(const AppointmentsBookingLoading());
+    emit(AppointmentsBookingLoading(
+      provider: current.provider,
+      selectedSlot: slot,
+      motif: current.motif,
+    ));
     try {
       // #5362 : « le compte se crée avec le rendez-vous, jamais avant » —
       // un visiteur anonyme n'a encore ni session ni hold à ce stade ; les

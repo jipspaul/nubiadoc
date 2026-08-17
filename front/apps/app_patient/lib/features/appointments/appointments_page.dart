@@ -116,7 +116,7 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
       return _SlotsView(state: state);
     }
     if (state is AppointmentsBookingLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return _BookingProgressView(state: state);
     }
     if (state is AppointmentsBookingSuccess) {
       return const NubiaEmptyState(
@@ -1925,6 +1925,76 @@ class _TariffRecapCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// #5343 : pendant l'appel `POST /v1/bookings` (état `AppointmentsBookingLoading`),
+/// le récap (créneau + motif) reste visible sous un overlay de progression —
+/// remplace l'ancien `Center(CircularProgressIndicator())` qui affichait un
+/// écran blanc. Le formulaire (et son bouton de confirmation) n'est pas
+/// remonté ici : pas de risque de double soumission pendant la progression.
+class _BookingProgressView extends StatelessWidget {
+  const _BookingProgressView({required this.state});
+  final AppointmentsBookingLoading state;
+
+  @override
+  Widget build(BuildContext context) {
+    final slot = state.selectedSlot;
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: NubiaCard(
+            key: const Key('booking_progress_recap_card'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    NubiaAvatar(
+                      initials: _initialsOf(state.provider.displayName),
+                      radius: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        state.provider.displayName,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '${_dayHeader(slot.startsAt)} à ${_hhmm(slot.startsAt)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                if (state.motif.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    state.motif,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        // Overlay de progression (maquette design-v2, point 6 : « la
+        // confirmation garde le récap sous un overlay de progression »).
+        // Même opacité de scrim que NubiaBottomSheet (45 %).
+        Positioned.fill(
+          child: ColoredBox(
+            color: Colors.black.withValues(alpha: 0.45),
+            child: const Center(
+              child: CircularProgressIndicator(
+                key: Key('booking_progress_indicator'),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

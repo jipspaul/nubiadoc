@@ -594,7 +594,11 @@ void main() {
           cguAccepted: true,
         )),
         expect: () => [
-          const AppointmentsBookingLoading(),
+          AppointmentsBookingLoading(
+            provider: provider,
+            selectedSlot: slot,
+            motif: 'Contrôle',
+          ),
           isA<AppointmentsBookingSuccess>()
               .having((s) => s.appointment.id, 'id', 'appt-1'),
         ],
@@ -654,7 +658,11 @@ void main() {
           cguAccepted: true,
         )),
         expect: () => [
-          const AppointmentsBookingLoading(),
+          AppointmentsBookingLoading(
+            provider: provider,
+            selectedSlot: slot,
+            motif: 'Contrôle',
+          ),
           isA<AppointmentsError>(),
         ],
         verify: (_) {
@@ -887,6 +895,56 @@ void main() {
     });
   });
 
+  // #5343 — pendant l'appel POST /v1/bookings, le récap (créneau + motif)
+  // reste visible sous un overlay de progression, plus d'écran blanc centré.
+  group('overlay de progression au booking (#5343)', () {
+    testWidgets('garde le récap visible et masque le bouton de confirmation',
+        (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsBookingLoading(
+          provider: const ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Martin',
+            specialty: 'Dentiste',
+          ),
+          selectedSlot: Slot(
+            id: 's1',
+            cabinetId: 'cab-1',
+            practitionerId: 'prac-1',
+            startsAt: DateTime(2026, 7, 10, 9, 0),
+            endsAt: DateTime(2026, 7, 10, 9, 30),
+            isAvailable: true,
+          ),
+          motif: 'Contrôle',
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      // #5343 : pumpAndSettle timeout garanti ici — le
+      // CircularProgressIndicator de l'overlay anime indéfiniment.
+      await tester.pump();
+
+      expect(find.byKey(const Key('booking_progress_recap_card')),
+          findsOneWidget);
+      expect(find.text('Dr Martin'), findsOneWidget);
+      expect(find.text('Contrôle'), findsOneWidget);
+      expect(find.byKey(const Key('booking_progress_indicator')),
+          findsOneWidget);
+      expect(find.byKey(const Key('confirm_booking_button')), findsNothing);
+    });
+  });
+
   // #3420 — après réservation, le RDV est en attente (le cabinet confirme) :
   // le toast doit annoncer une DEMANDE, pas une confirmation.
   group('toast de réservation (#3420)', () {
@@ -909,7 +967,22 @@ void main() {
         Stream<AppointmentsState>.fromIterable([
           AppointmentsBookingSuccess(appt),
         ]),
-        initialState: const AppointmentsBookingLoading(),
+        initialState: AppointmentsBookingLoading(
+          provider: const ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Martin',
+            specialty: 'Dentiste',
+          ),
+          selectedSlot: Slot(
+            id: 's1',
+            cabinetId: 'cab-1',
+            practitionerId: 'prac-1',
+            startsAt: DateTime(2026, 7, 10, 9, 0),
+            endsAt: DateTime(2026, 7, 10, 9, 30),
+            isAvailable: true,
+          ),
+          motif: 'Contrôle',
+        ),
       );
 
       await tester.pumpWidget(MaterialApp(
