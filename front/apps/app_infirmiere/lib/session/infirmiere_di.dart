@@ -12,6 +12,7 @@ void registerInfirmiere(GetIt gi) {
       logout: gi<LogoutUseCase>(),
       tokenStorage: gi<TokenStorage>(),
       deviceRegistration: gi<DeviceRegistrationService>(),
+      api: gi<ApiClient>(),
     ),
   );
 

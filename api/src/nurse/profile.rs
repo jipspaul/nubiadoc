@@ -12,8 +12,38 @@ use axum::extract::{Json, State};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
-use crate::auth::{AppError, NurseMemberClaims};
+use crate::auth::{AppError, NurseMemberClaims, ProClaims};
 use crate::AppState;
+
+/// Un tenant infirmier dont l'utilisateur est membre (pour select-nurse-context).
+#[derive(serde::Serialize)]
+pub struct NurseMembershipItem {
+    pub nurse_id: uuid::Uuid,
+    pub role: String,
+}
+
+/// `GET /v1/nurse/memberships` — tenants infirmiers de l'utilisateur (token
+/// `kind:pro` de login). Résout le chicken-and-egg : l'app appelle ça juste
+/// après login pour connaître le `nurse_id` à passer à select-nurse-context.
+/// SECURITY DEFINER `user_nurse_memberships` → pas de GUC nurse requis.
+pub async fn list_nurse_memberships(
+    State(state): State<AppState>,
+    claims: ProClaims,
+) -> Result<Json<Vec<NurseMembershipItem>>, AppError> {
+    let rows = sqlx::query("SELECT nurse_id, role FROM user_nurse_memberships($1)")
+        .bind(claims.sub)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push(NurseMembershipItem {
+            nurse_id: row.try_get("nurse_id").map_err(|_| AppError::Internal)?,
+            role: row.try_get("role").map_err(|_| AppError::Internal)?,
+        });
+    }
+    Ok(Json(out))
+}
 
 /// Profil public de l'infirmière (annuaire + état de disponibilité).
 #[derive(Serialize)]

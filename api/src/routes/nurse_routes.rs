@@ -12,6 +12,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
     router
         // Annuaire + profil / disponibilité (slice 1).
         .route("/v1/search/nurses", get(nurse::directory::search_nurses))
+        .route(
+            "/v1/nurse/memberships",
+            get(nurse::profile::list_nurse_memberships),
+        )
         .route("/v1/nurse/profile", get(nurse::profile::get_nurse_profile))
         .route(
             "/v1/nurse/availability",

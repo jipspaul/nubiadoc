@@ -104,7 +104,7 @@ struct PatientClaims {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ProClaims {
     /// Identifiant de l'utilisateur (`app_user.id`).
-    sub: Uuid,
+    pub(crate) sub: Uuid,
     /// Type de compte : "pro".
     kind: String,
     exp: u64,

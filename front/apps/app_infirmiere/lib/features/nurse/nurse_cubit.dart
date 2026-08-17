@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:nubia_core/nubia_core.dart';
 
 /// Une offre de visite reçue par l'infirmière (`GET /v1/nurse/offers`).
@@ -93,7 +94,14 @@ class NurseCubit extends Cubit<NurseState> {
     }
   }
 
-  Future<void> setOnline(bool online, {double? lat, double? lng}) async {
+  Future<void> setOnline(bool online) async {
+    // En passant en ligne, on pousse la position réelle (matching de proximité).
+    double? lat, lng;
+    if (online) {
+      final pos = await _currentPosition();
+      lat = pos?.latitude;
+      lng = pos?.longitude;
+    }
     try {
       await _dio.patch<Map<String, dynamic>>(
         '/nurse/availability',
@@ -107,6 +115,25 @@ class NurseCubit extends Cubit<NurseState> {
       if (online) await loadOffers();
     } on DioException catch (e) {
       emit(state.copyWith(error: _msg(e)));
+    }
+  }
+
+  /// Position courante (permission à la volée). Null si refusée/indispo — la
+  /// dispo est alors envoyée sans coordonnées (le back garde l'ancienne position).
+  Future<Position?> _currentPosition() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return null;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return null;
+      }
+      return await Geolocator.getCurrentPosition();
+    } catch (_) {
+      return null;
     }
   }
 
