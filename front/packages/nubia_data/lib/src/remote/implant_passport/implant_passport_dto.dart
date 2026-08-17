@@ -12,6 +12,12 @@ class ImplantItemDto {
   final String? practitioner;
   final String? office;
   final String? prosthesis;
+  final String? manufacturer;
+  final String? model;
+  final String? reference;
+  final String? dimensions;
+  final String? material;
+  final String? mriCompatibility;
 
   const ImplantItemDto({
     required this.id,
@@ -25,6 +31,12 @@ class ImplantItemDto {
     this.practitioner,
     this.office,
     this.prosthesis,
+    this.manufacturer,
+    this.model,
+    this.reference,
+    this.dimensions,
+    this.material,
+    this.mriCompatibility,
   });
 
   factory ImplantItemDto.fromJson(Map<String, dynamic> json) => ImplantItemDto(
@@ -39,6 +51,12 @@ class ImplantItemDto {
         practitioner: json['practitioner'] as String?,
         office: json['office'] as String?,
         prosthesis: json['prosthesis'] as String?,
+        manufacturer: json['manufacturer'] as String?,
+        model: json['model'] as String?,
+        reference: json['reference'] as String?,
+        dimensions: json['dimensions'] as String?,
+        material: json['material'] as String?,
+        mriCompatibility: json['mri_compatibility'] as String?,
       );
 
   ImplantItem toDomain() => ImplantItem(
@@ -53,5 +71,11 @@ class ImplantItemDto {
         practitioner: practitioner,
         office: office,
         prosthesis: prosthesis,
+        manufacturer: manufacturer,
+        model: model,
+        reference: reference,
+        dimensions: dimensions,
+        material: material,
+        mriCompatibility: mriCompatibility,
       );
 }
