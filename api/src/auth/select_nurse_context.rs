@@ -54,14 +54,13 @@ pub async fn select_nurse_context(
 ) -> Result<(HeaderMap, Json<SelectNurseContextResponse>), AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(
-        "SELECT nurse_id, role FROM user_nurse_memberships($1) WHERE nurse_id = $2",
-    )
-    .bind(claims.sub)
-    .bind(body.nurse_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let row =
+        sqlx::query("SELECT nurse_id, role FROM user_nurse_memberships($1) WHERE nurse_id = $2")
+            .bind(claims.sub)
+            .bind(body.nurse_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
 
     let Some(row) = row else {
         // 404 si le tenant n'existe pas (borné à l'annuaire public, anti-énumération),

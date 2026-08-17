@@ -74,7 +74,9 @@ async fn set_nurse_guc(
 fn map_profile(row: &sqlx::postgres::PgRow) -> Result<NurseProfileResponse, AppError> {
     Ok(NurseProfileResponse {
         id: row.try_get("id").map_err(|_| AppError::Internal)?,
-        display_name: row.try_get("display_name").map_err(|_| AppError::Internal)?,
+        display_name: row
+            .try_get("display_name")
+            .map_err(|_| AppError::Internal)?,
         adeli: row.try_get("adeli").map_err(|_| AppError::Internal)?,
         address: row.try_get("address").map_err(|_| AppError::Internal)?,
         phone: row.try_get("phone").map_err(|_| AppError::Internal)?,

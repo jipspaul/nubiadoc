@@ -128,7 +128,17 @@ pub async fn en_route_visit(
     claims: NurseMemberClaims,
     id: Path<Uuid>,
 ) -> Result<Json<VisitDto>, AppError> {
-    nurse_transition(state, hub, dispatcher, claims, id, &["accepted"], "en_route", "en_route_at").await
+    nurse_transition(
+        state,
+        hub,
+        dispatcher,
+        claims,
+        id,
+        &["accepted"],
+        "en_route",
+        "en_route_at",
+    )
+    .await
 }
 
 /// `POST /v1/nurse/visits/:id/arrived` — en_route → arrived.
@@ -139,7 +149,17 @@ pub async fn arrived_visit(
     claims: NurseMemberClaims,
     id: Path<Uuid>,
 ) -> Result<Json<VisitDto>, AppError> {
-    nurse_transition(state, hub, dispatcher, claims, id, &["en_route"], "arrived", "arrived_at").await
+    nurse_transition(
+        state,
+        hub,
+        dispatcher,
+        claims,
+        id,
+        &["en_route"],
+        "arrived",
+        "arrived_at",
+    )
+    .await
 }
 
 /// `POST /v1/nurse/visits/:id/done` — arrived → done (visite terminée).
@@ -150,15 +170,22 @@ pub async fn done_visit(
     claims: NurseMemberClaims,
     id: Path<Uuid>,
 ) -> Result<Json<VisitDto>, AppError> {
-    nurse_transition(state, hub, dispatcher, claims, id, &["arrived"], "done", "done_at").await
+    nurse_transition(
+        state,
+        hub,
+        dispatcher,
+        claims,
+        id,
+        &["arrived"],
+        "done",
+        "done_at",
+    )
+    .await
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-async fn set_nurse_guc(
-    conn: &mut sqlx::PgConnection,
-    nurse_id: Uuid,
-) -> Result<(), AppError> {
+async fn set_nurse_guc(conn: &mut sqlx::PgConnection, nurse_id: Uuid) -> Result<(), AppError> {
     sqlx::query("SELECT set_config('app.current_nurse_id', $1, true)")
         .bind(nurse_id.to_string())
         .execute(&mut *conn)
@@ -173,13 +200,12 @@ async fn notify_patient_of(
     visit_id: Uuid,
     status: &str,
 ) -> Result<Option<(Uuid, Uuid)>, AppError> {
-    let account_id: Uuid = sqlx::query_scalar(
-        "SELECT patient_account_id FROM visit_request WHERE id = $1",
-    )
-    .bind(visit_id)
-    .fetch_one(&mut **tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let account_id: Uuid =
+        sqlx::query_scalar("SELECT patient_account_id FROM visit_request WHERE id = $1")
+            .bind(visit_id)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
     notify::notify_patient_account(
         tx,
         account_id,

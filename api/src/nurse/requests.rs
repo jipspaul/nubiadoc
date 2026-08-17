@@ -92,7 +92,10 @@ pub(crate) fn visit_from_row(row: &PgRow) -> Result<VisitDto, AppError> {
         en_route_at: opt_rfc3339(row.try_get("en_route_at").map_err(|_| AppError::Internal)?),
         arrived_at: opt_rfc3339(row.try_get("arrived_at").map_err(|_| AppError::Internal)?),
         done_at: opt_rfc3339(row.try_get("done_at").map_err(|_| AppError::Internal)?),
-        cancelled_at: opt_rfc3339(row.try_get("cancelled_at").map_err(|_| AppError::Internal)?),
+        cancelled_at: opt_rfc3339(
+            row.try_get("cancelled_at")
+                .map_err(|_| AppError::Internal)?,
+        ),
     })
 }
 
@@ -216,7 +219,11 @@ pub async fn create_visit_request(
     }
 
     // Re-lit le statut réel (offered si des offres ont été posées, sinon requested).
-    let status = if nurse_ids.is_empty() { "requested" } else { "offered" };
+    let status = if nurse_ids.is_empty() {
+        "requested"
+    } else {
+        "offered"
+    };
     tracing::info!(visit_request_id = %request_id, offers = nurse_ids.len(), "visit request created");
     let mut out = visit;
     out.status = status.to_string();

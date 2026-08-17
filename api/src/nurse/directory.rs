@@ -107,7 +107,9 @@ pub async fn search_nurses(
     for row in rows {
         data.push(NurseItem {
             id: row.try_get("id").map_err(|_| AppError::Internal)?,
-            display_name: row.try_get("display_name").map_err(|_| AppError::Internal)?,
+            display_name: row
+                .try_get("display_name")
+                .map_err(|_| AppError::Internal)?,
             address: row.try_get("address").map_err(|_| AppError::Internal)?,
             phone: row.try_get("phone").map_err(|_| AppError::Internal)?,
             is_online: row.try_get("is_online").map_err(|_| AppError::Internal)?,
