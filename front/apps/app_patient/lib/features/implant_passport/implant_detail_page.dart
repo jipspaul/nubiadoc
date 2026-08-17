@@ -88,6 +88,10 @@ class _ImplantDetailBody extends StatelessWidget {
                   if (implant.lotNumber != null) 'Lot ${implant.lotNumber}',
                 ].join(' · ')),
               ),
+              if (implant.mriCompatibility == true && implant.material != null) ...[
+                const SizedBox(height: 16),
+                _MriSafetyAlert(material: implant.material!),
+              ],
               if (implant.placementDate != null ||
                   implant.practitioner != null ||
                   implant.office != null ||
@@ -274,6 +278,59 @@ class _FollowUpRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Alerte sécurité imagerie (#5329) : compatibilité IRM sous conditions.
+/// N'affiche le bloc que si `mriCompatibility` et `material` sont tous les
+/// deux renseignés — pas de dégradation vers un texte trompeur.
+class _MriSafetyAlert extends StatelessWidget {
+  const _MriSafetyAlert({required this.material});
+
+  final String material;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+
+    return Container(
+      key: const Key('implant_detail_mri_safety_alert'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.infoBg,
+        border: Border.all(color: NubiaColors.infoBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.health_and_safety, color: tokens.infoFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Compatible IRM sous conditions',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: tokens.infoFg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$material. Signalez cet implant avant tout examen '
+                  "d'imagerie — présentez cette fiche au radiologue.",
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: tokens.infoFg),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

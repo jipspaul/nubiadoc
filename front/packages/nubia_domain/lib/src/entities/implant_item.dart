@@ -14,6 +14,8 @@ class ImplantItem extends Equatable {
   final String? practitioner;
   final String? office;
   final String? prosthesis;
+  final String? material;
+  final bool? mriCompatibility;
 
   const ImplantItem({
     required this.id,
@@ -27,6 +29,8 @@ class ImplantItem extends Equatable {
     this.practitioner,
     this.office,
     this.prosthesis,
+    this.material,
+    this.mriCompatibility,
   });
 
   @override

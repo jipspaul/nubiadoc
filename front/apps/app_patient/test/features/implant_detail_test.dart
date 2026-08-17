@@ -61,6 +61,24 @@ const _implantWithPlacementDateOnly = ImplantItem(
   placementDate: '2026-03-12',
 );
 
+const _implantWithMriData = ImplantItem(
+  id: 'implant-7',
+  brand: 'Nobel Biocare',
+  material: 'Titane grade 4',
+  mriCompatibility: true,
+);
+
+const _implantWithoutMriData = ImplantItem(
+  id: 'implant-8',
+  brand: 'Nobel Biocare',
+);
+
+const _implantWithMriFlagButNoMaterial = ImplantItem(
+  id: 'implant-9',
+  brand: 'Nobel Biocare',
+  mriCompatibility: true,
+);
+
 void main() {
   late _MockExportImplantPassport exportUseCase;
 
@@ -177,6 +195,47 @@ void main() {
       expect(find.text('Praticien'), findsNothing);
       expect(find.text('Cabinet'), findsNothing);
       expect(find.text('Prothèse'), findsNothing);
+    });
+
+    testWidgets(
+        "affiche l'alerte IRM au mot près quand matériau et compatibilité sont renseignés",
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithMriData));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_mri_safety_alert')),
+        findsOneWidget,
+      );
+      expect(find.text('Compatible IRM sous conditions'), findsOneWidget);
+      expect(
+        find.text(
+          "Titane grade 4. Signalez cet implant avant tout examen "
+          "d'imagerie — présentez cette fiche au radiologue.",
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets("masque l'alerte IRM si les données de compatibilité manquent",
+        (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithoutMriData));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_mri_safety_alert')),
+        findsNothing,
+      );
+    });
+
+    testWidgets("masque l'alerte IRM si le matériau manque", (tester) async {
+      await tester.pumpWidget(buildPage(_implantWithMriFlagButNoMaterial));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('implant_detail_mri_safety_alert')),
+        findsNothing,
+      );
     });
   });
 
