@@ -51,6 +51,12 @@ pub struct OrderDto {
     pub id: Uuid,
     pub pharmacy_id: Uuid,
     pub pharmacy_name: String,
+    /// Adresse (jsonb) de la pharmacie DE LA COMMANDE (`pharmacy_id`), pas de
+    /// la pharmacie déclarée du compte — #5645 : la carte pharmacie et le
+    /// bouton « Appeler la pharmacie » doivent rendre l'officine sur laquelle
+    /// la commande a réellement été passée.
+    pub pharmacy_address: serde_json::Value,
+    pub pharmacy_phone: Option<String>,
     pub patient_display_name: String,
     pub prescription_id: Uuid,
     pub status: String,
@@ -68,7 +74,9 @@ pub struct OrderDto {
 pub(crate) const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, \
      prescription_id, status, rejection_reason, received_at, updated_at, ready_at, picked_up_at, \
      (SELECT pq.total_cents FROM pharmacy_quote pq WHERE pq.order_id = pharmacy_order.id \
-        AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1) AS billing_total_cents";
+        AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1) AS billing_total_cents, \
+     (SELECT ph.address FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_address, \
+     (SELECT ph.phone FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_phone";
 
 pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
     let to_rfc3339 = |value: chrono::DateTime<chrono::Utc>| value.to_rfc3339();
@@ -80,6 +88,13 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
         pharmacy_id: row.try_get("pharmacy_id").map_err(|_| AppError::Internal)?,
         pharmacy_name: row
             .try_get("pharmacy_name")
+            .map_err(|_| AppError::Internal)?,
+        pharmacy_address: row
+            .try_get::<Option<serde_json::Value>, _>("pharmacy_address")
+            .map_err(|_| AppError::Internal)?
+            .unwrap_or(serde_json::Value::Null),
+        pharmacy_phone: row
+            .try_get("pharmacy_phone")
             .map_err(|_| AppError::Internal)?,
         patient_display_name: row
             .try_get("patient_display_name")

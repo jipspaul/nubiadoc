@@ -49,6 +49,13 @@ class PharmacyOrder extends Equatable {
   final String id;
   final String pharmacyId;
   final String? pharmacyName;
+
+  /// Adresse/téléphone de LA PHARMACIE DE LA COMMANDE (`pharmacyId`), pas de
+  /// la pharmacie déclarée du compte patient — #5645 : la carte pharmacie et
+  /// le bouton « Appeler la pharmacie » d'un refus doivent rendre l'officine
+  /// sur laquelle la commande a réellement été passée.
+  final String? pharmacyAddress;
+  final String? pharmacyPhone;
   final String? patientDisplayName;
 
   /// Référence courte affichable (ex. `CMD-4821`, colonne contexte #4926) —
@@ -90,6 +97,8 @@ class PharmacyOrder extends Equatable {
     required this.id,
     required this.pharmacyId,
     this.pharmacyName,
+    this.pharmacyAddress,
+    this.pharmacyPhone,
     this.patientDisplayName,
     this.orderRef,
     this.prescriberName,

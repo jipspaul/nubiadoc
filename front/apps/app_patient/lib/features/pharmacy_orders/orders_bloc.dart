@@ -99,12 +99,15 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
   final String? pickupToken;
   final bool cancelling;
 
-  /// Téléphone de la pharmacie déclarée (récupéré uniquement quand la
+  /// Téléphone de la pharmacie DE LA COMMANDE (récupéré uniquement quand la
   /// commande est refusée, pour le bouton « Appeler la pharmacie », #5351).
+  /// Dérivé de `order.pharmacyId`, jamais de la pharmacie déclarée du
+  /// compte — #5645.
   final String? pharmacyPhone;
 
-  /// Pharmacie déclarée du patient — adresse/distance/téléphone pour la
-  /// carte pharmacie de l'écran de suivi (design-v2, #5350).
+  /// Pharmacie DE LA COMMANDE — adresse/téléphone pour la carte pharmacie de
+  /// l'écran de suivi (design-v2, #5350), dérivés de `order.pharmacyId`
+  /// (jamais de la pharmacie déclarée du compte, #5645).
   final Pharmacy? pharmacy;
 
   @override
@@ -130,25 +133,18 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
     required WatchPatientPharmacyOrderUseCase watch,
     required GetPickupTokenUseCase pickupToken,
     required CancelPharmacyOrderUseCase cancel,
-    required GetMyPharmacyUseCase getMyPharmacy,
   })  : _get = get,
         _watch = watch,
         _pickupToken = pickupToken,
         _cancel = cancel,
-        _getMyPharmacy = getMyPharmacy,
         super(const PatientOrderDetailLoading());
 
   final GetPatientPharmacyOrderUseCase _get;
   final WatchPatientPharmacyOrderUseCase _watch;
   final GetPickupTokenUseCase _pickupToken;
   final CancelPharmacyOrderUseCase _cancel;
-  final GetMyPharmacyUseCase _getMyPharmacy;
   StreamSubscription<PharmacyOrder>? _subscription;
   String? _orderId;
-
-  /// Pharmacie déclarée du patient — chargée une fois par [load] et réutilisée
-  /// pour chaque émission suivante (carte pharmacie #5350, téléphone #5351).
-  Pharmacy? _pharmacy;
 
   /// Relance le chargement de la dernière commande consultée (bouton Réessayer).
   Future<void> reload() async {
@@ -160,8 +156,6 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
   Future<void> load(String orderId) async {
     _orderId = orderId;
     emit(const PatientOrderDetailLoading());
-    final pharmacyResult = await _getMyPharmacy();
-    _pharmacy = pharmacyResult.fold((_) => null, (pharmacy) => pharmacy);
     final result = await _get(orderId);
     await result.fold(
       (failure) async => emit(PatientOrderDetailError(failure.message)),
@@ -178,28 +172,38 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
     await _emitWithToken(order);
   }
 
+  /// Pharmacie DE LA COMMANDE : dérivée de `order.pharmacyId` (jamais de la
+  /// pharmacie déclarée du compte, #5645).
+  Pharmacy _pharmacyOf(PharmacyOrder order) => Pharmacy(
+        id: order.pharmacyId,
+        name: order.pharmacyName ?? 'Pharmacie',
+        address: order.pharmacyAddress,
+        phone: order.pharmacyPhone,
+      );
+
   /// Le QR n'existe que pour une commande prête : chaque affichage régénère
   /// le token (l'ancien est invalidé côté serveur). Le téléphone de la
   /// pharmacie n'est réutilisé que pour une commande refusée (bouton
   /// « Appeler la pharmacie » de la carte de refus, #5351).
   Future<void> _emitWithToken(PharmacyOrder order) async {
+    final pharmacy = _pharmacyOf(order);
     if (order.status == PharmacyOrderStatus.rejected) {
       emit(PatientOrderDetailLoaded(
         order,
-        pharmacy: _pharmacy,
-        pharmacyPhone: _pharmacy?.phone,
+        pharmacy: pharmacy,
+        pharmacyPhone: order.pharmacyPhone,
       ));
       return;
     }
     if (!order.canShowPickupCode) {
-      emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacy));
+      emit(PatientOrderDetailLoaded(order, pharmacy: pharmacy));
       return;
     }
     final tokenResult = await _pickupToken(order.id);
     tokenResult.fold(
-      (_) => emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacy)),
+      (_) => emit(PatientOrderDetailLoaded(order, pharmacy: pharmacy)),
       (token) => emit(PatientOrderDetailLoaded(order,
-          pickupToken: token, pharmacy: _pharmacy)),
+          pickupToken: token, pharmacy: pharmacy)),
     );
   }
 
@@ -207,11 +211,12 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
     final current = state;
     if (current is! PatientOrderDetailLoaded || current.cancelling) return;
     emit(PatientOrderDetailLoaded(current.order,
-        cancelling: true, pharmacy: _pharmacy));
+        cancelling: true, pharmacy: _pharmacyOf(current.order)));
     final result = await _cancel(current.order.id);
     result.fold(
       (failure) => emit(PatientOrderDetailError(failure.message)),
-      (order) => emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacy)),
+      (order) =>
+          emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacyOf(order))),
     );
   }
 
