@@ -50,10 +50,10 @@ class PharmacyOrder extends Equatable {
   final String pharmacyId;
   final String? pharmacyName;
 
-  /// Adresse/téléphone de LA PHARMACIE DE LA COMMANDE (`pharmacyId`), pas de
-  /// la pharmacie déclarée du compte patient — #5645 : la carte pharmacie et
-  /// le bouton « Appeler la pharmacie » d'un refus doivent rendre l'officine
-  /// sur laquelle la commande a réellement été passée.
+  /// Adresse/téléphone de la pharmacie SUR LAQUELLE la commande a été
+  /// passée — pas la pharmacie déclarée du compte, qui peut différer
+  /// (#5645). `null` tant que le back ne les résout pas (pharmacie retirée
+  /// de l'annuaire).
   final String? pharmacyAddress;
   final String? pharmacyPhone;
   final String? patientDisplayName;

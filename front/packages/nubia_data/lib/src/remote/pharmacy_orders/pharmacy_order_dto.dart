@@ -6,9 +6,6 @@ class PharmacyOrderDto {
   final String id;
   final String pharmacyId;
   final String? pharmacyName;
-
-  /// Adresse/téléphone de la pharmacie DE LA COMMANDE (`pharmacy_id`), pas
-  /// de la pharmacie déclarée du compte — #5645.
   final String? pharmacyAddress;
   final String? pharmacyPhone;
   final String? patientDisplayName;
@@ -68,7 +65,7 @@ class PharmacyOrderDto {
         id: json['id'] as String,
         pharmacyId: json['pharmacy_id'] as String? ?? '',
         pharmacyName: json['pharmacy_name'] as String?,
-        pharmacyAddress: PharmacyDto.parseAddress(json['pharmacy_address']),
+        pharmacyAddress: PharmacyDto.formatAddress(json['pharmacy_address']),
         pharmacyPhone: json['pharmacy_phone'] as String?,
         patientDisplayName: json['patient_display_name'] as String?,
         orderRef: json['order_ref'] as String?,

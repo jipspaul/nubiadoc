@@ -51,11 +51,12 @@ pub struct OrderDto {
     pub id: Uuid,
     pub pharmacy_id: Uuid,
     pub pharmacy_name: String,
-    /// Adresse (jsonb) de la pharmacie DE LA COMMANDE (`pharmacy_id`), pas de
-    /// la pharmacie déclarée du compte — #5645 : la carte pharmacie et le
-    /// bouton « Appeler la pharmacie » doivent rendre l'officine sur laquelle
-    /// la commande a réellement été passée.
-    pub pharmacy_address: serde_json::Value,
+    /// Adresse de la pharmacie SUR LAQUELLE la commande a été passée (pas la
+    /// pharmacie déclarée du compte, qui peut différer — #5645). `None` si la
+    /// pharmacie n'est plus listée (RLS `pharmacy_public_read`).
+    pub pharmacy_address: Option<serde_json::Value>,
+    /// Téléphone de la pharmacie de la commande (bouton « Appeler la
+    /// pharmacie » sur un refus, #5351) — mêmes réserves que `pharmacy_address`.
     pub pharmacy_phone: Option<String>,
     pub patient_display_name: String,
     pub prescription_id: Uuid,
@@ -90,9 +91,8 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
             .try_get("pharmacy_name")
             .map_err(|_| AppError::Internal)?,
         pharmacy_address: row
-            .try_get::<Option<serde_json::Value>, _>("pharmacy_address")
-            .map_err(|_| AppError::Internal)?
-            .unwrap_or(serde_json::Value::Null),
+            .try_get("pharmacy_address")
+            .map_err(|_| AppError::Internal)?,
         pharmacy_phone: row
             .try_get("pharmacy_phone")
             .map_err(|_| AppError::Internal)?,

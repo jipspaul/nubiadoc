@@ -101,13 +101,11 @@ class PatientOrderDetailLoaded extends PatientOrderDetailState {
 
   /// Téléphone de la pharmacie DE LA COMMANDE (récupéré uniquement quand la
   /// commande est refusée, pour le bouton « Appeler la pharmacie », #5351).
-  /// Dérivé de `order.pharmacyId`, jamais de la pharmacie déclarée du
-  /// compte — #5645.
   final String? pharmacyPhone;
 
-  /// Pharmacie DE LA COMMANDE — adresse/téléphone pour la carte pharmacie de
-  /// l'écran de suivi (design-v2, #5350), dérivés de `order.pharmacyId`
-  /// (jamais de la pharmacie déclarée du compte, #5645).
+  /// Pharmacie DE LA COMMANDE (pas la pharmacie déclarée du compte, qui peut
+  /// différer — #5645) — adresse/téléphone pour la carte pharmacie de
+  /// l'écran de suivi (design-v2, #5350).
   final Pharmacy? pharmacy;
 
   @override
@@ -172,14 +170,21 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
     await _emitWithToken(order);
   }
 
-  /// Pharmacie DE LA COMMANDE : dérivée de `order.pharmacyId` (jamais de la
-  /// pharmacie déclarée du compte, #5645).
-  Pharmacy _pharmacyOf(PharmacyOrder order) => Pharmacy(
-        id: order.pharmacyId,
-        name: order.pharmacyName ?? 'Pharmacie',
-        address: order.pharmacyAddress,
-        phone: order.pharmacyPhone,
-      );
+  /// Pharmacie SUR LAQUELLE la commande a été passée (`order.pharmacyId`),
+  /// pas la pharmacie déclarée du compte, qui peut différer (#5645).
+  Pharmacy? _pharmacyOf(PharmacyOrder order) {
+    if (order.pharmacyName == null &&
+        order.pharmacyAddress == null &&
+        order.pharmacyPhone == null) {
+      return null;
+    }
+    return Pharmacy(
+      id: order.pharmacyId,
+      name: order.pharmacyName ?? 'Votre pharmacie',
+      address: order.pharmacyAddress,
+      phone: order.pharmacyPhone,
+    );
+  }
 
   /// Le QR n'existe que pour une commande prête : chaque affichage régénère
   /// le token (l'ancien est invalidé côté serveur). Le téléphone de la
@@ -191,7 +196,7 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
       emit(PatientOrderDetailLoaded(
         order,
         pharmacy: pharmacy,
-        pharmacyPhone: order.pharmacyPhone,
+        pharmacyPhone: pharmacy?.phone,
       ));
       return;
     }
@@ -211,12 +216,11 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
     final current = state;
     if (current is! PatientOrderDetailLoaded || current.cancelling) return;
     emit(PatientOrderDetailLoaded(current.order,
-        cancelling: true, pharmacy: _pharmacyOf(current.order)));
+        cancelling: true, pharmacy: current.pharmacy));
     final result = await _cancel(current.order.id);
     result.fold(
       (failure) => emit(PatientOrderDetailError(failure.message)),
-      (order) =>
-          emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacyOf(order))),
+      (order) => emit(PatientOrderDetailLoaded(order, pharmacy: _pharmacyOf(order))),
     );
   }
 

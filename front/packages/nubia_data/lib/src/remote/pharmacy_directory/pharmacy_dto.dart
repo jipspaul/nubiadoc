@@ -16,20 +16,18 @@ class PharmacyDto {
   });
 
   factory PharmacyDto.fromJson(Map<String, dynamic> json) {
-    final address = parseAddress(json['address']);
     return PharmacyDto(
       id: json['id'] as String,
       name: (json['raison_sociale'] ?? json['name']) as String? ?? 'Pharmacie',
-      address: address,
+      address: formatAddress(json['address']),
       phone: json['phone'] as String?,
       distanceM: (json['distance_m'] as num?)?.toDouble(),
     );
   }
 
-  /// Le back renvoie address en jsonb ({line1, city, ...}) ; on tolère aussi
-  /// une chaîne déjà formatée par robustesse. Partagé avec [PharmacyOrderDto]
-  /// pour l'adresse de la pharmacie d'une commande (#5645).
-  static String? parseAddress(dynamic rawAddress) {
+  /// Le back renvoie l'adresse en jsonb (`{line1, city, ...}`) ; on tolère
+  /// aussi une chaîne déjà formatée par robustesse.
+  static String? formatAddress(dynamic rawAddress) {
     final address = rawAddress is String
         ? rawAddress
         : rawAddress is Map<String, dynamic>

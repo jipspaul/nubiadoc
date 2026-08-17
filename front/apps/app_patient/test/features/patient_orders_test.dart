@@ -33,32 +33,33 @@ const declaredPharmacy = Pharmacy(
   distanceM: 650,
 );
 
-PharmacyOrder order(
-  PharmacyOrderStatus status, {
-  String? pharmacyAddress,
-  String? pharmacyPhone,
-}) =>
-    PharmacyOrder(
+/// Pharmacie DE LA COMMANDE, dérivée par le cubit depuis `order.pharmacyId`
+/// (#5645) — distincte de la pharmacie déclarée du compte, qui peut différer.
+const orderPharmacy = Pharmacy(
+  id: 'p1',
+  name: 'Pharmacie du Port',
+  address: '12 quai du Rhône, 69000 Lyon',
+  phone: '+33478000084',
+);
+
+PharmacyOrder order(PharmacyOrderStatus status) => PharmacyOrder(
       id: 'o1',
       pharmacyId: 'p1',
       pharmacyName: 'Pharmacie du Port',
-      pharmacyAddress: pharmacyAddress,
-      pharmacyPhone: pharmacyPhone,
+      pharmacyAddress: orderPharmacy.address,
+      pharmacyPhone: orderPharmacy.phone,
       prescriptionId: 'rx1',
       status: status,
       createdAt: DateTime(2026, 7, 1),
       updatedAt: DateTime(2026, 7, 2),
     );
 
-/// Pharmacie DE LA COMMANDE `order()` : dérivée par le cubit de ses propres
-/// champs (`pharmacyId`/`pharmacyName`), jamais de la pharmacie déclarée du
-/// compte (#5645).
-const orderPharmacy = Pharmacy(id: 'p1', name: 'Pharmacie du Port');
-
 PharmacyOrder orderWithLines(PharmacyOrderStatus status) => PharmacyOrder(
       id: 'o1',
       pharmacyId: 'p1',
       pharmacyName: 'Pharmacie du Port',
+      pharmacyAddress: orderPharmacy.address,
+      pharmacyPhone: orderPharmacy.phone,
       prescriptionId: 'rx1',
       status: status,
       createdAt: DateTime(2026, 7, 1),
@@ -148,7 +149,7 @@ void main() {
       act: (cubit) => cubit.cancelOrder(),
       expect: () => [
         PatientOrderDetailLoaded(order(PharmacyOrderStatus.received),
-            cancelling: true, pharmacy: orderPharmacy),
+            cancelling: true),
         PatientOrderDetailLoaded(order(PharmacyOrderStatus.cancelled),
             pharmacy: orderPharmacy),
       ],
@@ -156,14 +157,11 @@ void main() {
 
     blocTest<PatientOrderDetailCubit, PatientOrderDetailState>(
       'commande refusée : le téléphone de la pharmacie DE LA COMMANDE est '
-      'utilisé (bouton « Appeler »), pas le token du QR, ni la pharmacie '
-      'déclarée du compte (#5351, #5645)',
+      'chargé (bouton « Appeler »), pas celui de la pharmacie déclarée du '
+      'compte, qui peut différer — pas le token du QR (#5351, #5645)',
       build: () {
-        when(() => repo.getOrder('o1')).thenAnswer((_) async => Right(order(
-              PharmacyOrderStatus.rejected,
-              pharmacyAddress: '5 place Charles Béraudier, Lyon',
-              pharmacyPhone: '0478000084',
-            )));
+        when(() => repo.getOrder('o1')).thenAnswer(
+            (_) async => Right(order(PharmacyOrderStatus.rejected)));
         when(() => events.watchOrder('o1'))
             .thenAnswer((_) => const Stream.empty());
         return buildDetail();
@@ -171,27 +169,16 @@ void main() {
       act: (cubit) => cubit.load('o1'),
       expect: () => [
         const PatientOrderDetailLoading(),
-        PatientOrderDetailLoaded(
-          order(
-            PharmacyOrderStatus.rejected,
-            pharmacyAddress: '5 place Charles Béraudier, Lyon',
-            pharmacyPhone: '0478000084',
-          ),
-          pharmacyPhone: '0478000084',
-          pharmacy: const Pharmacy(
-            id: 'p1',
-            name: 'Pharmacie du Port',
-            address: '5 place Charles Béraudier, Lyon',
-            phone: '0478000084',
-          ),
-        ),
+        PatientOrderDetailLoaded(order(PharmacyOrderStatus.rejected),
+            pharmacyPhone: orderPharmacy.phone, pharmacy: orderPharmacy),
       ],
       verify: (_) => verifyNever(() => repo.getPickupToken(any())),
     );
 
     blocTest<PatientOrderDetailCubit, PatientOrderDetailState>(
-      'la carte pharmacie est dérivée des champs de la commande elle-même, '
-      'jamais de la pharmacie déclarée du compte (#5350, #5645)',
+      'la carte pharmacie (#5350) vient de la pharmacie DE LA COMMANDE '
+      '(`order.pharmacyId`), jamais de la pharmacie déclarée du compte '
+      '(#5645)',
       build: () {
         when(() => repo.getOrder('o1')).thenAnswer(
             (_) async => Right(order(PharmacyOrderStatus.preparing)));
