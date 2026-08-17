@@ -58,6 +58,94 @@ fn make_app_state() -> AppState {
     }
 }
 
+fn db_available() -> bool {
+    std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
+}
+
+async fn owner_pool() -> PgPool {
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://nubia_owner@localhost:5432/nubia".into());
+    PgPool::connect(&url).await.unwrap()
+}
+
+async fn app_pool() -> PgPool {
+    let url = std::env::var("APP_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+    PgPool::connect(&url).await.unwrap()
+}
+
+/// Insère un compte patient + cabinet + patient + implant, retourne
+/// `(user_id, account_id, implant_id)`.
+async fn seed_patient_with_implant(db: &PgPool, suffix: &str) -> (Uuid, Uuid, Uuid) {
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let implant_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("ip-export-{}+{}@nubia.test", suffix, user_id))
+    .execute(db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Bob', 'Implant')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet IP Export Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Bob', 'Implant', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO implant_passport \
+         (id, cabinet_id, patient_id, implant_ref, brand, lot_number, placement_date, \
+          tooth_position, notes) \
+         VALUES ($1, $2, $3, 'REF-T5334', 'Straumann', 'LOT-T5334', '2025-01-10', '36', \
+                 'Pose nominale')",
+    )
+    .bind(implant_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    (user_id, account_id, implant_id)
+}
+
 // ── Test 1 : sans JWT → 401 ───────────────────────────────────────────────────
 
 #[tokio::test]
@@ -202,5 +290,96 @@ async fn implant_passport_export_failing_signer_returns_502() {
         response.status(),
         StatusCode::BAD_GATEWAY,
         "signer indisponible (lien jamais généré) doit retourner 502 upstream_unavailable, pas 410 link_expired"
+    );
+}
+
+// ── Test 6 : #5334 — implant_id du compte → 302 avec Location scopée ─────────
+
+#[tokio::test]
+async fn implant_passport_export_with_own_implant_id_returns_302() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let (user_id, account_id, implant_id) =
+        seed_patient_with_implant(&owner, "own").await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/implant-passport/export?implant_id={implant_id}"))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("header Location absent")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.contains(&implant_id.to_string()),
+        "Location doit être scopée à l'implant demandé : {location}"
+    );
+}
+
+// ── Test 7 : #5334 — implant_id d'un autre compte → 404 ──────────────────────
+
+#[tokio::test]
+async fn implant_passport_export_with_foreign_implant_id_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let (_other_user_id, _other_account_id, foreign_implant_id) =
+        seed_patient_with_implant(&owner, "foreign").await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/implant-passport/export?implant_id={foreign_implant_id}"
+                ))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "un implant hors compte ne doit jamais être exportable, même via implant_id"
     );
 }
